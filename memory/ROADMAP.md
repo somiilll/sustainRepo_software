@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- OCR selected-file staging now replaces the empty-state copy with one full-width file row per selection, including filename, file size, selection timestamp, and a remove control. The staged-file footer provides Process *n* files and Upload More Files actions. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR Extraction’s initial upload state is now centered in the page without a surrounding card or dashed border. File selection, drag-and-drop, template download, selected-file controls, and all existing test IDs are unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Native Think OCR configuration parity: the OpenAI Think path now uses `OPENAI_API_KEY`, matching the uploaded standalone processor and the native OpenAI SDK initialization path. This removes the stale `OPEN_API_KEY_OCR` configuration mismatch introduced during wrapper removal. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Scope 3 C8/C10/C11/C13/C14 now display Subcategory **Grid Power** while retaining the existing `energy` decision value and factor filtering. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

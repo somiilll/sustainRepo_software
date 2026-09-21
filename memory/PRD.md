@@ -127,6 +127,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The Super Admin Scope 3 EF table, factor detail view, and edit selector use the same **Grid Power** display label for stored `energy` subcategories.
 - Restored native Think OCR configuration parity with the uploaded standalone processor: the OpenAI Think provider now reads `OPENAI_API_KEY`, matching the native `OpenAI` SDK contract. The prior `OPEN_API_KEY_OCR` variable prevented Think mode from initializing after the wrapper removal. Source reviewed only; no functional testing was run by user instruction.
 - OCR Extraction’s empty upload state is now a borderless, page-centered workspace. The existing source-document text, Upload Files action, and Download template action remain unchanged, while selected-file controls continue to use their compact workflow layout.
+- Once source files are selected in OCR Extraction, the empty-state upload copy is replaced by a single-column file list. Each row shows filename, size, selected/uploaded timestamp, and remove action; the footer provides Process *n* files and Upload More Files actions.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

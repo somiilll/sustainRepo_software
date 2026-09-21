@@ -5,18 +5,38 @@ import { Progress } from '../../components/ui/progress';
 import { OcrBatchQueue } from './OcrBatchQueue';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
+const fileKey = (file) => `${file.name}-${file.size}`;
+const formatFileSize = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+const formatAddedAt = (timestamp) => new Date(timestamp).toLocaleString(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 
 export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
+  const [fileAddedAt, setFileAddedAt] = useState({});
 
   const addFiles = (incoming) => {
-    const existing = new Map(files.map((file) => [`${file.name}-${file.size}`, file]));
-    Array.from(incoming).forEach((file) => existing.set(`${file.name}-${file.size}`, file));
+    const addedAt = Date.now();
+    const existing = new Map(files.map((file) => [fileKey(file), file]));
+    Array.from(incoming).forEach((file) => existing.set(fileKey(file), file));
+    setFileAddedAt((current) => {
+      const next = { ...current };
+      Array.from(incoming).forEach((file) => {
+        if (!next[fileKey(file)]) next[fileKey(file)] = addedAt;
+      });
+      return next;
+    });
     onFilesChange(Array.from(existing.values()));
   };
 
   const removeFile = (target) => {
+    setFileAddedAt((current) => {
+      const next = { ...current };
+      delete next[fileKey(target)];
+      return next;
+    });
     onFilesChange(files.filter((file) => file !== target));
   };
 
@@ -43,58 +63,40 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
           onChange={(event) => addFiles(event.target.files)}
           data-testid="ocr-file-input"
         />
-        <span className="grid h-12 w-12 place-items-center bg-slate-900 text-white">
-          <UploadCloud className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-          Invoices, utility bills, receipts, AVIF images, CSV ledgers and Excel workbooks up to 20MB each.
-        </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => inputRef.current?.click()}
-            disabled={processing}
-            data-testid="ocr-browse-files-button"
-          >
-            <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-            Upload Files
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onDownloadTemplate}
-            disabled={processing || downloadingTemplate}
-            data-testid="ocr-download-template-upload-button"
-          >
-            {downloadingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}
-            Download template
-          </Button>
-        </div>
-      </div>
-
-      {files.length > 0 && (
-        <div className="space-y-3" data-testid="ocr-selected-files-list">
-          <div className="grid gap-2 sm:grid-cols-2">
+        {files.length === 0 ? <>
+          <span className="grid h-12 w-12 place-items-center bg-slate-900 text-white">
+            <UploadCloud className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+            Invoices, utility bills, receipts, AVIF images, CSV ledgers and Excel workbooks up to 20MB each.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} data-testid="ocr-browse-files-button">
+              <FileText className="mr-2 h-4 w-4" aria-hidden="true" />Upload Files
+            </Button>
+            <Button type="button" variant="outline" onClick={onDownloadTemplate} disabled={processing || downloadingTemplate} data-testid="ocr-download-template-upload-button">
+              {downloadingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}Download template
+            </Button>
+          </div>
+        </> : <div className="w-full max-w-4xl space-y-4 text-left" data-testid="ocr-selected-files-list">
+          <h2 id="ocr-upload-heading" className="sr-only">Selected source documents</h2>
+          <div className="divide-y divide-slate-200">
             {files.map((file) => {
               const spreadsheet = /\.(csv|xlsx|xls)$/i.test(file.name);
               const Icon = spreadsheet ? FileSpreadsheet : FileText;
+              const addedAt = fileAddedAt[fileKey(file)];
               return (
-                <div key={`${file.name}-${file.size}`} className="flex min-w-0 items-center gap-3 border border-slate-200 bg-white px-3 py-2.5">
-                  <Icon className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                <div key={fileKey(file)} className="flex min-w-0 items-center gap-3 py-4" data-testid={`ocr-selected-file-${file.name}`}>
+                  <Icon className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900" data-testid={`ocr-selected-file-name-${file.name}`}>{file.name}</p>
-                    <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      <span data-testid={`ocr-selected-file-size-${file.name}`}>Size {formatFileSize(file.size)}</span>
+                      {addedAt && <><span aria-hidden="true"> · </span><time dateTime={new Date(addedAt).toISOString()} data-testid={`ocr-selected-file-uploaded-at-${file.name}`}>Uploaded at {formatAddedAt(addedAt)}</time></>}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() => removeFile(file)}
-                    disabled={processing}
-                    className="grid h-8 w-8 place-items-center text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700"
-                    data-testid={`ocr-remove-file-${file.name}`}
-                  >
+                  <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeFile(file)} disabled={processing} className="grid h-8 w-8 place-items-center text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700" data-testid={`ocr-remove-file-${file.name}`}>
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
@@ -110,18 +112,17 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
               <Progress value={progress} data-testid="ocr-upload-progress" />
             </div>
           )}
-          <Button
-            type="button"
-            onClick={onProcess}
-            disabled={processing}
-            className="w-full bg-emerald-700 hover:bg-emerald-800 sm:w-auto"
-            data-testid="ocr-process-files-button"
-          >
-            {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-            {processing ? 'Extracting activity data' : `Process ${files.length} file${files.length === 1 ? '' : 's'}`}
-          </Button>
-        </div>
-      )}
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={onProcess} disabled={processing} className="bg-emerald-700 hover:bg-emerald-800" data-testid="ocr-process-files-button">
+              {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+              {processing ? 'Extracting activity data' : `Process ${files.length} file${files.length === 1 ? '' : 's'}`}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} data-testid="ocr-upload-more-files-button">
+              <FileText className="mr-2 h-4 w-4" aria-hidden="true" />Upload More Files
+            </Button>
+          </div>
+        </div>}
+      </div>
       <OcrBatchQueue queue={queue} onCancel={onCancel} canCancelProcessing={canCancelProcessing} cancelling={cancelling} />
     </section>
   );
