@@ -5,26 +5,44 @@ import { Progress } from '../../components/ui/progress';
 import { OcrBatchQueue } from './OcrBatchQueue';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const fileKey = (file) => `${file.name}-${file.size}`;
 const formatFileSize = (bytes) => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 const formatAddedAt = (timestamp) => new Date(timestamp).toLocaleString(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
+const validationError = (file) => {
+  const extension = `.${file.name.split('.').pop().toLowerCase()}`;
+  if (!ACCEPTED.split(',').includes(extension)) return 'Unsupported file type';
+  if (file.size > MAX_FILE_BYTES) return 'File exceeds the 20MB limit';
+  return '';
+};
 
-export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
+export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [fileAddedAt, setFileAddedAt] = useState({});
+  const [validationErrors, setValidationErrors] = useState({});
 
   const addFiles = (incoming) => {
     const addedAt = Date.now();
+    const incomingFiles = Array.from(incoming);
     const existing = new Map(files.map((file) => [fileKey(file), file]));
-    Array.from(incoming).forEach((file) => existing.set(fileKey(file), file));
+    incomingFiles.forEach((file) => existing.set(fileKey(file), file));
     setFileAddedAt((current) => {
       const next = { ...current };
-      Array.from(incoming).forEach((file) => {
+      incomingFiles.forEach((file) => {
         if (!next[fileKey(file)]) next[fileKey(file)] = addedAt;
+      });
+      return next;
+    });
+    setValidationErrors((current) => {
+      const next = { ...current };
+      incomingFiles.forEach((file) => {
+        const error = validationError(file);
+        if (error) next[fileKey(file)] = error;
+        else delete next[fileKey(file)];
       });
       return next;
     });
@@ -37,8 +55,15 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
       delete next[fileKey(target)];
       return next;
     });
+    setValidationErrors((current) => {
+      const next = { ...current };
+      delete next[fileKey(target)];
+      return next;
+    });
     onFilesChange(files.filter((file) => file !== target));
   };
+
+  const hasFileErrors = files.some((file) => validationErrors[fileKey(file)] || fileErrors[fileKey(file)]);
 
   return (
     <section className="space-y-4" aria-labelledby="ocr-upload-heading" data-testid="ocr-upload-section">
@@ -81,20 +106,22 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
           </div>
         </> : <div className="w-full max-w-4xl space-y-4 text-left" data-testid="ocr-selected-files-list">
           <h2 id="ocr-upload-heading" className="sr-only">Selected source documents</h2>
-          <div className="divide-y divide-slate-200">
+          <div className="max-h-80 divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 bg-white px-4" data-testid="ocr-selected-files-scroll-container">
             {files.map((file) => {
               const spreadsheet = /\.(csv|xlsx|xls)$/i.test(file.name);
               const Icon = spreadsheet ? FileSpreadsheet : FileText;
               const addedAt = fileAddedAt[fileKey(file)];
+              const error = validationErrors[fileKey(file)] || fileErrors[fileKey(file)];
               return (
                 <div key={fileKey(file)} className="flex min-w-0 items-center gap-3 py-4" data-testid={`ocr-selected-file-${file.name}`}>
                   <Icon className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900" data-testid={`ocr-selected-file-name-${file.name}`}>{file.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <p className="max-w-full truncate font-medium text-slate-900" data-testid={`ocr-selected-file-name-${file.name}`}>{file.name}</p>
                       <span data-testid={`ocr-selected-file-size-${file.name}`}>Size {formatFileSize(file.size)}</span>
-                      {addedAt && <><span aria-hidden="true"> · </span><time dateTime={new Date(addedAt).toISOString()} data-testid={`ocr-selected-file-uploaded-at-${file.name}`}>Uploaded at {formatAddedAt(addedAt)}</time></>}
-                    </p>
+                      {addedAt && <time dateTime={new Date(addedAt).toISOString()} className="text-slate-500" data-testid={`ocr-selected-file-uploaded-at-${file.name}`}>Uploaded at {formatAddedAt(addedAt)}</time>}
+                      {error && <span className="font-medium text-red-700" role="alert" data-testid={`ocr-selected-file-error-${file.name}`}>{error}</span>}
+                    </div>
                   </div>
                   <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeFile(file)} disabled={processing} className="grid h-8 w-8 place-items-center text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700" data-testid={`ocr-remove-file-${file.name}`}>
                     <X className="h-4 w-4" aria-hidden="true" />
@@ -113,7 +140,7 @@ export const UploadWorkspace = ({ files, onFilesChange, onProcess, processing, p
             </div>
           )}
           <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={onProcess} disabled={processing} className="bg-emerald-700 hover:bg-emerald-800" data-testid="ocr-process-files-button">
+            <Button type="button" onClick={onProcess} disabled={processing || hasFileErrors} className="bg-emerald-700 hover:bg-emerald-800" data-testid="ocr-process-files-button">
               {processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
               {processing ? 'Extracting activity data' : `Process ${files.length} file${files.length === 1 ? '' : 's'}`}
             </Button>

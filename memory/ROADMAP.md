@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- OCR file staging now keeps long selections inside a capped scroll container. Each file’s name, size, timestamp, and validation/provider error are shown inline; errors remain visible beside the affected file in the background queue. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR Fast/Think is now a shortened, pill-shaped dark-teal mode toggle with a readable active state; mode selection behavior and test IDs are unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR selected-file staging now replaces the empty-state copy with one full-width file row per selection, including filename, file size, selection timestamp, and a remove control. The staged-file footer provides Process *n* files and Upload More Files actions. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR Extraction’s initial upload state is now centered in the page without a surrounding card or dashed border. File selection, drag-and-drop, template download, selected-file controls, and all existing test IDs are unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

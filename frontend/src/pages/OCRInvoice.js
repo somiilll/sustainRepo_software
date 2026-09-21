@@ -53,6 +53,13 @@ const FALLBACK_CONFIGURATION = {
 };
 
 const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;
+const stagedFileKey = (file) => `${file.name}-${file.size}`;
+const fileErrorMap = (sourceFiles, errors = [], fallback = '') => Object.fromEntries(
+  sourceFiles.flatMap((file) => {
+    const message = errors.find((entry) => entry.filename === file.name)?.error || fallback;
+    return message ? [[stagedFileKey(file), message]] : [];
+  }),
+);
 const directGhgMissingFields = (values = {}) => {
   const missing = [];
   const hasValue = (value) => value !== undefined && value !== null && value !== '';
@@ -78,6 +85,7 @@ export default function OCRInvoice() {
   const [configuration, setConfiguration] = useState(FALLBACK_CONFIGURATION);
   const [mode, setMode] = useState(() => localStorage.getItem('ocr-extraction-mode') || 'fast');
   const [files, setFiles] = useState([]);
+  const [stagedFileErrors, setStagedFileErrors] = useState({});
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [upload, setUpload] = useState(null);
@@ -146,14 +154,18 @@ export default function OCRInvoice() {
       if (cancelled) return;
       const activeRecords = records.filter((record) => record?.upload);
       if (activeRecords.length === records.length) {
-        setFileQueue(activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
-          id: `${record.upload.id}-${file.file_index}`,
-          uploadId: record.upload.id,
-          fileIndex: file.file_index,
-          filename: file.filename,
-          status: file.status || record.upload.status,
-          uploadStatus: record.upload.status,
-        }))));
+        setFileQueue((current) => [
+          ...activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
+            id: `${record.upload.id}-${file.file_index}`,
+            uploadId: record.upload.id,
+            fileIndex: file.file_index,
+            filename: file.filename,
+            status: file.status || record.upload.status,
+            error: file.error,
+            uploadStatus: record.upload.status,
+          }))),
+          ...current.filter((file) => file.clientError),
+        ]);
       }
       const awaitingAssignmentRecords = activeRecords.filter((record) => record.upload.status === 'awaiting_facility_assignment');
       if (awaitingAssignmentRecords.length) {
@@ -242,12 +254,21 @@ export default function OCRInvoice() {
     setProcessing(true);
     setProgress(0);
     setError('');
+    setStagedFileErrors({});
     setFailedExtractionIds([]);
     localStorage.removeItem('ocr-failed-upload-ids');
     setFileQueue(files.map((file, index) => ({ id: `queued-${index}`, filename: file.name, status: 'queued' })));
+    let staged = false;
     try {
       const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
-      if (!data.files?.length) throw new Error(data.errors?.[0]?.error || 'No invoice could be staged securely.');
+      if (!data.files?.length) {
+        const message = data.errors?.[0]?.error || 'No invoice could be staged securely.';
+        setStagedFileErrors(fileErrorMap(files, data.errors, message));
+        setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed', error: data.errors?.find((entry) => entry.filename === file.name)?.error || message })));
+        setError(message);
+        return;
+      }
+      staged = true;
       sessionUploadIdsRef.current.add(data.upload_id);
       let existingIds = [];
       try { existingIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { existingIds = []; }
@@ -256,7 +277,10 @@ export default function OCRInvoice() {
       localStorage.removeItem('ocr-active-upload-id');
       setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
       const stagedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
-      setFileQueue(data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status, uploadStatus: data.status })));
+      setFileQueue([
+        ...data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status, uploadStatus: data.status, error: file.error })),
+        ...(data.errors || []).map((entry, index) => ({ id: `${data.upload_id}-rejected-${index}`, filename: entry.filename, status: 'failed', error: entry.error, clientError: true })),
+      ]);
       setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
       setSelectedFile(null);
       const invoiceFiles = stagedFiles.filter((file) => (
@@ -272,10 +296,12 @@ export default function OCRInvoice() {
         ? `${data.file_count} source document${data.file_count === 1 ? '' : 's'} uploaded. Assign invoice facilities to begin extraction.`
         : `${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
     } catch (requestError) {
-      setError(responseMessage(requestError, 'Files could not be queued for extraction.'));
-      setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed' })));
+      const message = responseMessage(requestError, 'Files could not be queued for extraction.');
+      setError(message);
+      setStagedFileErrors(fileErrorMap(files, [], message));
+      setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed', error: message })));
     } finally {
-      setFiles([]);
+      if (staged) setFiles([]);
       setProcessing(false);
       setProgress(0);
     }
@@ -746,7 +772,7 @@ export default function OCRInvoice() {
 
       {!upload ? (
         <div className="w-full">
-          <UploadWorkspace files={files} onFilesChange={setFiles} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
+          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -784,7 +810,7 @@ export default function OCRInvoice() {
             </aside>
           </section>
 
-          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
+          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested', 'failed'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
 
       <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(!selectedFile || !selectedFile.preview_supported)} />
 
