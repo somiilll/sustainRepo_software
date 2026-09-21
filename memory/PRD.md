@@ -119,6 +119,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Corrected C5 type-option derivation to use the complete matching C5 catalog rather than the already type-filtered Activity list. Users can now switch among all valid disposal types for the selected material.
 - Corrected the C5 selector state model: the visible base Activity is now independent from the saved exact `scope3_ef_id`. Choosing a disposal type resolves the factor ID without clearing the selected material, while choosing a material does not retain an incompatible factor ID.
 - C5 Edit places base Activity and Activity Type in one responsive row. The payload persists the exact `scope3_ef_id` and `scope3_activity_type`; base `activity_name` remains presentation taxonomy resolved from the referenced factor, not a separate emission-record payload field.
+- C5 Edit recognizes the canonical `waste_generated_in_operations` category code in addition to display labels. Waste Water Treatment is classified as `other`, so its Activity Type control is suppressed.
 - Detailed implementation history is in `/app/memory/CHANGELOG.md`.
 - Prioritized remaining work is in `/app/memory/ROADMAP.md`.
 - **Testing constraint:** The user requires source review only; do not run functional, screenshot, curl, or testing-agent checks unless that instruction changes.

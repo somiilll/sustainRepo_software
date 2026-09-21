@@ -246,7 +246,8 @@ export default function EmissionEditForm(props) {
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
-  const isC5Category = /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const isC5Category = selectedCategory?.code === 'waste_generated_in_operations'
+    || /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
   const [c5BaseActivity, setC5BaseActivity] = useState('');
   const c5CatalogActivities = scope3EFData.filter((activity) => (
     isC5Category
