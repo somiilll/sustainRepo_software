@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Deleted 30 inactive duplicate Calc Engine input-field mapping records after a cross-scope audit confirmed active same-category replacements and no formula, decision-tree, emission-record, or history references. Active configurations and stored active data were preserved. **DATABASE AUDIT ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined Emissions scope navigation into compact rounded pills with a dark-emerald active state and mobile-safe wrapping. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR History Rejected and Rejected All badges now use a consistent orange audit-status color. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Expanded OCR History into a wide file-and-row audit view. Non-cancelled files show extracted item, scope, category, subcategory, reporting period, and per-row Saved/Rejected/Pending Review outcome; resolved rows are retained as safe snapshots for future audits. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
