@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Eye, FileText, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Eye, FileText, History, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
 import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
 import { OcrFacilityAssignmentDialog } from '../modules/ocr/OcrFacilityAssignmentDialog';
+import { OcrHistoryDialog } from '../modules/ocr/OcrHistoryDialog';
 import { OcrBatchQueue } from '../modules/ocr/OcrBatchQueue';
 import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
 import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
@@ -32,6 +33,7 @@ import {
   deleteOcrUpload,
   downloadOcrTemplate,
   getOcrConfiguration,
+  getOcrUploadHistory,
   getOcrUpload,
   loadOcrPreview,
   rejectOcrLineItem,
@@ -121,6 +123,10 @@ export default function OCRInvoice() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkRejecting, setBulkRejecting] = useState(false);
   const [bulkRejectRows, setBulkRejectRows] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -766,6 +772,20 @@ export default function OCRInvoice() {
     }
   };
 
+  const openHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const { data } = await getOcrUploadHistory(getAuthHeader());
+      setHistory(data.history || []);
+    } catch (requestError) {
+      setHistoryError(responseMessage(requestError, 'OCR history could not be loaded.'));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   return (
     <main className="mx-auto w-full max-w-[1700px] space-y-6 pb-12" data-testid="ocr-invoice-page">
       <ModulePageHeader
@@ -774,6 +794,7 @@ export default function OCRInvoice() {
         iconClassName="border-teal-200 bg-teal-50 text-teal-700"
         testId="ocr-invoice"
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
+          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
             <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
@@ -842,6 +863,7 @@ export default function OCRInvoice() {
       <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
       <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onCancelFile={cancelInvoiceProcessing} cancellingFileIds={cancellingFileIds} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
+      <OcrHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} history={history} loading={historyLoading} error={historyError} />
 
       <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">

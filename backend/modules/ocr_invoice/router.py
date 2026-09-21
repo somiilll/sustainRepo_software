@@ -839,6 +839,39 @@ async def list_uploads(
     return {"uploads": [_client_safe_upload(upload) for upload in uploads]}
 
 
+@router.get("/history")
+async def list_upload_history(
+    limit: int = Query(default=100, ge=1, le=500),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return a file-level audit history without exposing OCR source documents."""
+    org_id = _get_org(current_user)
+    uploads = await db[OCR_UPLOADS_COLLECTION].find(
+        {"organization_id": org_id},
+        {"_id": 0, "id": 1, "uploaded_by": 1, "uploaded_by_name": 1, "created_at": 1, "status": 1, "mode": 1, "files": 1},
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    history = []
+    for upload in uploads:
+        for file in upload.get("files", []):
+            saved_count = int(file.get("saved_count") or 0)
+            rejected_count = int(file.get("rejected_count") or 0)
+            if file.get("resolution_status") == "resolved":
+                file_status = "saved" if saved_count and not rejected_count else "rejected" if rejected_count and not saved_count else "resolved"
+            elif upload.get("status") == "cleared":
+                file_status = "cleared"
+            else:
+                file_status = file.get("status") or upload.get("status") or "unknown"
+            history.append({
+                "id": f"{upload.get('id')}-{file.get('file_index', 0)}",
+                "filename": file.get("filename") or "Untitled source",
+                "uploaded_by_name": upload.get("uploaded_by_name") or "Unknown",
+                "uploaded_at": upload.get("created_at"),
+                "status": file_status,
+                "mode": upload.get("mode"),
+            })
+    return {"history": history}
+
+
 @router.get("/uploads/{upload_id}")
 async def get_upload(
     upload_id: str,
@@ -2223,11 +2256,15 @@ async def delete_upload(
     # Delete line items
     await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id})
     
-    # Delete upload record
-    await db[OCR_UPLOADS_COLLECTION].delete_one({"id": upload_id})
+    # Retain safe file-audit metadata for OCR History after workspace cleanup.
+    now = datetime.now(timezone.utc).isoformat()
+    await db[OCR_UPLOADS_COLLECTION].update_one(
+        {"id": upload_id, "organization_id": org_id},
+        {"$set": {"status": "cleared", "cleared_at": now, "updated_at": now}, "$unset": {"files.$[].temp_key": "", "files.$[].temp_url": ""}},
+    )
     
     return {
-        "message": "Upload deleted",
+        "message": "Workspace cleared",
         "deleted_line_items": len(line_items),
         "deleted_temp_files": len(deleted_keys)
     }

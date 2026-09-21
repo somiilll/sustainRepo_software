@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Added OCR History at the OCR Extraction page header. It lists each organization file upload with filename, uploader, timestamp, and status; workspace cleanup now preserves this safe metadata while removing source files and OCR review rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - The Emissions Reset widths control is now visible only when at least one column differs from its responsive default width; restoring defaults hides it again. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR Batch Queue is cleared with Clear Workspace. After the last source file resolves through save or reject, the workspace now clears itself automatically, including active upload and stale queue state. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR normalization now recognizes British `kilolitres` as `kL`, and British `millilitre`/`millilitres` inputs convert their numeric quantity to `L`. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

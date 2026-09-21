@@ -26,6 +26,9 @@ export const downloadOcrTemplate = (headers) =>
 export const getOcrUpload = (uploadId, headers) =>
   axios.get(`${API}/api/ocr-invoice/uploads/${uploadId}`, { headers });
 
+export const getOcrUploadHistory = (headers) =>
+  axios.get(`${API}/api/ocr-invoice/history`, { headers });
+
 export const cancelOcrUpload = (uploadId, headers) =>
   axios.post(`${API}/api/ocr-invoice/uploads/${uploadId}/cancel`, {}, { headers });
 
