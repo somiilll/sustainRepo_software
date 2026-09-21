@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- OCR Batch Queue is cleared with Clear Workspace. After the last source file resolves through save or reject, the workspace now clears itself automatically, including active upload and stale queue state. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR normalization now recognizes British `kilolitres` as `kL`, and British `millilitre`/`millilitres` inputs convert their numeric quantity to `L`. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - OCR unit handling now canonicalizes tonne/tonnes/MT to `t` and litre/liters/Litres to `L` before edit persistence, factor validation, direct GHG save, and formula payload assembly. This aligns stored OCR values and ledger calculation inputs with Calc Engine symbols. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - The scrollable OCR selected-files box now uses rounded-2xl corners while preserving its file rows and capped scroll behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

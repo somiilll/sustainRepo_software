@@ -597,8 +597,17 @@ export default function OCRInvoice() {
           const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
           setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
           setSelectedFile(remainingFiles[0] || null);
+          setFileQueue((current) => remainingFiles.length
+            ? current.filter((file) => !(file.uploadId === item.upload_id && file.fileIndex === item.file_index))
+            : []);
           if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
-          else localStorage.removeItem('ocr-active-upload-ids');
+          else {
+            localStorage.removeItem('ocr-active-upload-ids');
+            setActiveExtractionIds([]);
+            setFailedExtractionIds([]);
+            setSelectedItem(null);
+            setError('');
+          }
         }
         toast.success(
           savedData.evidence_not_required
@@ -632,8 +641,17 @@ export default function OCRInvoice() {
         const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
         setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
         setSelectedFile(remainingFiles[0] || null);
+        setFileQueue((current) => remainingFiles.length
+          ? current.filter((file) => !(file.uploadId === rejectingItem.upload_id && file.fileIndex === rejectingItem.file_index))
+          : []);
         if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
-        else localStorage.removeItem('ocr-active-upload-ids');
+        else {
+          localStorage.removeItem('ocr-active-upload-ids');
+          setActiveExtractionIds([]);
+          setFailedExtractionIds([]);
+          setSelectedItem(null);
+          setError('');
+        }
       }
       setRejectingItem(null);
       toast.success(data.upload_completed ? 'All extracted rows have been resolved' : 'Row rejected and removed');
@@ -650,16 +668,24 @@ export default function OCRInvoice() {
     const completedFileKeys = new Set(resolvedRows
       .filter(({ data }) => data.file_completed)
       .map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const remainingFiles = (upload?.files || []).filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
+    const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
     setItems((current) => current.filter((item) => !resolvedIds.has(item.id)));
     setSelectedItem((current) => resolvedIds.has(current?.id) ? null : current);
-    setUpload((current) => {
-      if (!current) return current;
-      const files = current.files.filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
-      const uploadIds = [...new Set(files.map((file) => file.upload_id))];
-      if (uploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
-      else localStorage.removeItem('ocr-active-upload-ids');
-      return files.length ? { upload_ids: uploadIds, files } : null;
-    });
+    setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
+    setFileQueue((current) => remainingFiles.length
+      ? current.filter((file) => !completedFileKeys.has(`${file.uploadId}-${file.fileIndex}`))
+      : []);
+    if (remainingUploadIds.length) {
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+    } else {
+      localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds([]);
+      setFailedExtractionIds([]);
+      setSelectedFile(null);
+      setSelectedItem(null);
+      setError('');
+    }
   };
 
   const saveRowsToGhg = async (rows) => {
@@ -733,7 +759,7 @@ export default function OCRInvoice() {
       await Promise.all(upload.upload_ids.map((uploadId) => deleteOcrUpload(uploadId, getAuthHeader())));
       localStorage.removeItem('ocr-active-upload-id');
       localStorage.removeItem('ocr-active-upload-ids');
-      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setError('');
+      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setFileQueue([]); setActiveExtractionIds([]); setFailedExtractionIds([]); setFacilityAssignmentOpen(false); setFacilityAssignmentFiles([]); setError('');
       toast.success('Extraction workspace cleared');
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'Workspace could not be cleared.'));
