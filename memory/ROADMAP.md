@@ -69,6 +69,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Think OCR now uses native `AsyncOpenAI` Chat Completions with the existing models/key and uploaded request semantics. `emergentintegrations` and LiteLLM were removed after confirming they had no other code consumers; no `sk-emergent-` value or literal exists in current source/configuration. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - Advanced Fast OCR now calls Anthropic through the native asynchronous SDK, matching the uploaded working processor's provider request format while leaving model IDs, prompts, queue behavior, and Think mode unchanged. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - OCR failure banners are now session-scoped: stale failed-batch storage is cleaned when the workspace opens or a new upload starts, while a current-session upload failure still shows a retry action. This prevents generic OCR errors in an otherwise empty workspace. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
 - OCR uploads now clear stale browser-stored failed-batch IDs when a replacement batch queues successfully, preventing an earlier provider/configuration failure from incorrectly persisting as the generic OCR error after recovery. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.

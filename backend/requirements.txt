@@ -36,7 +36,6 @@ docstring_parser==0.17.0
 docx2pdf==0.1.8
 ecdsa==0.19.1
 email-validator==2.3.0
-emergentintegrations==0.1.0
 et_xmlfile==2.0.0
 fastapi==0.139.0
 fastuuid==0.14.0
@@ -81,7 +80,6 @@ kiwisolver==1.4.9
 librt==0.7.8
 license-expression==30.4.4
 limits==5.8.0
-litellm==1.80.0
 llama-cloud==0.1.46
 llama-cloud-services==0.6.94
 llama-index-core==0.14.23

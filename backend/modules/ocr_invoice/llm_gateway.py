@@ -1,12 +1,11 @@
-"""OCR LLM gateway with native Anthropic Fast-mode transport."""
+"""OCR LLM gateway using native asynchronous provider clients."""
 from __future__ import annotations
 
 import os
-import uuid
 from typing import Iterable
 
 from anthropic import AsyncAnthropic
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from openai import AsyncOpenAI
 
 from .config import ExtractionMode
 
@@ -18,6 +17,11 @@ class OcrLlmGateway:
         self.anthropic_client = (
             AsyncAnthropic(api_key=self.api_key)
             if mode.provider == "anthropic"
+            else None
+        )
+        self.openai_client = (
+            AsyncOpenAI(api_key=self.api_key)
+            if mode.provider == "openai"
             else None
         )
 
@@ -68,6 +72,44 @@ class OcrLlmGateway:
             raise RuntimeError("Anthropic returned an empty OCR response.")
         return response_text
 
+    async def _send_openai(
+        self,
+        *,
+        model: str,
+        system_message: str,
+        prompt: str,
+        images: list[str],
+        max_tokens: int | None,
+    ) -> str:
+        if self.openai_client is None:
+            raise RuntimeError("OpenAI OCR client is not initialized.")
+
+        messages: list[dict] = []
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+        if images:
+            content = [{"type": "text", "text": prompt}]
+            content.extend({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{image}",
+                    "detail": "high",
+                },
+            } for image in images)
+            messages.append({"role": "user", "content": content})
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        request = {"model": model, "messages": messages}
+        if max_tokens is not None:
+            request["max_completion_tokens"] = max_tokens
+
+        response = await self.openai_client.chat.completions.create(**request)
+        response_text = response.choices[0].message.content or ""
+        if not response_text.strip():
+            raise RuntimeError("OpenAI returned an empty OCR response.")
+        return response_text.strip()
+
     async def _send(
         self,
         *,
@@ -86,26 +128,15 @@ class OcrLlmGateway:
                 images=image_values,
                 max_tokens=max_tokens or 8192,
             )
-
-        chat = LlmChat(
-            api_key=self.api_key,
-            session_id=f"ocr-{uuid.uuid4()}",
-            system_message=system_message,
-        ).with_model(self.mode.provider, model)
-        if max_tokens is not None:
-            chat.with_params(max_completion_tokens=max_tokens)
-        if not image_values:
-            return await chat.send_message(UserMessage(text=prompt))
-
-        messages = await chat.get_messages()
-        content = [{"type": "text", "text": prompt}]
-        content.extend({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{image}", "detail": "high"},
-        } for image in image_values)
-        messages.append({"role": "user", "content": content})
-        response = await chat._execute_completion(messages)
-        return await chat._extract_response_text(response)
+        if self.mode.provider == "openai":
+            return await self._send_openai(
+                model=model,
+                system_message=system_message,
+                prompt=prompt,
+                images=image_values,
+                max_tokens=max_tokens,
+            )
+        raise RuntimeError(f"Unsupported OCR provider: {self.mode.provider}")
 
     async def extract_document(self, system_message: str, prompt: str, images: list[str]) -> str:
         return await self._send(

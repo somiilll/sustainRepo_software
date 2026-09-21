@@ -1,5 +1,10 @@
 # ESG Platform Changelog
 
+## September 20, 2026 — Native OpenAI Think OCR and Emergent Dependency Removal
+- Replaced Think OCR's `emergentintegrations.LlmChat`/LiteLLM path with the official `AsyncOpenAI` Chat Completions client, preserving `gpt-5.6-sol`, `gpt-5.6-terra`, `OPEN_API_KEY_OCR`, prompt content, high-detail JPEG images, and reasoning token limits.
+- Removed `emergentintegrations` and LiteLLM from the installed backend and generated requirements. Repository-wide source/config review found no other consumers and no `sk-emergent-` literal or configured key prefix.
+- Fast OCR remains on native `AsyncAnthropic`. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
 ## September 20, 2026 — Native Anthropic Fast OCR Transport
 - Replaced the advanced Fast pipeline's Emergent/LiteLLM adapter call with the official `AsyncAnthropic` client already installed in the backend.
 - Fast vision requests now send Anthropic-native Base64 image blocks followed by the extraction prompt; Fast reasoning requests send the prompt directly. Existing `claude-sonnet-5`, `claude-haiku-4-5`, prompts, API-key environment variable, queue workflow, and OCR accounting logic are preserved.
