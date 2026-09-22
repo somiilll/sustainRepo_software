@@ -320,6 +320,7 @@ async def list_document_assignments(customer_org_id: str, requirement_id: str) -
             "supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"),
             "is_assigned": bool(applicable), "status": "submitted" if submitted else "pending",
             "can_unassign": bool(applicable) and not submitted,
+            "can_unlock": bool(applicable) and submitted,
         })
     return {"document_id": requirement_id, "document_version_id": requirement["document_version_id"], "assignments": rows}
 

@@ -16,6 +16,7 @@ MODULE_LABELS = {
     "esg": "ESG questionnaire",
     "ghg": "GHG emissions",
     "documents": "document response",
+    "revenue": "Org Information",
 }
 
 

@@ -66,6 +66,8 @@ class SupplierResponse(BaseModel):
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
     revenue_required: bool = False
+    parts_components_manufactured: Optional[str] = None
+    plant_location: Optional[str] = None
     invitation_status: str  # pending, accepted, completed
     access_revoke_date: Optional[str] = None
     reporting_period: Optional[str] = None

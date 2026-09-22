@@ -65,6 +65,7 @@ export default function SupplierDocumentsAdmin() {
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignmentUpdatingId, setAssignmentUpdatingId] = useState('');
+  const [assignmentUnlockingId, setAssignmentUnlockingId] = useState('');
   const [dueDateDialog, setDueDateDialog] = useState(null);
   const [dueDateDraft, setDueDateDraft] = useState('');
   const [savingDueDate, setSavingDueDate] = useState(false);
@@ -144,10 +145,21 @@ export default function SupplierDocumentsAdmin() {
     try {
       if (assigned) await axios.post(`${API}/supplier-assessment/documents/${assignmentDialog.id}/assignments/${row.supplier_relationship_id}`, {}, { headers: getAuthHeader() });
       else await axios.delete(`${API}/supplier-assessment/documents/${assignmentDialog.id}/assignments/${row.supplier_relationship_id}`, { headers: getAuthHeader() });
-      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, status: assigned ? 'pending' : 'not_assigned' } : item));
+      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, can_unlock: false, status: assigned ? 'pending' : 'not_assigned' } : item));
       toast.success(assigned ? 'Document assigned' : 'Document unassigned'); await loadDocuments();
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not update document assignment'); }
     finally { setAssignmentUpdatingId(''); }
+  };
+  const unlockDocumentAssignment = async (row) => {
+    if (!assignmentDialog || !window.confirm(`Unlock ${row.supplier_name}'s document response for resubmission?`)) return;
+    setAssignmentUnlockingId(row.supplier_relationship_id);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${row.supplier_relationship_id}/documents/${assignmentDialog.id}/reopen`, {}, { headers: getAuthHeader() });
+      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, status: 'pending', can_unassign: true, can_unlock: false } : item));
+      toast.success('Document response unlocked');
+      await loadDocuments();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock document response'); }
+    finally { setAssignmentUnlockingId(''); }
   };
 
   const saveDocumentDueDate = async () => {
@@ -243,7 +255,7 @@ export default function SupplierDocumentsAdmin() {
 
     <Dialog open={Boolean(responseDialog)} onOpenChange={(open) => !open && setResponseDialog(null)}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="document-responses-dialog"><DialogHeader><DialogTitle data-testid="document-responses-dialog-title">Assigned suppliers — {responseDialog?.title}</DialogTitle></DialogHeader>{loadingResponses ? <p data-testid="document-responses-loading">Loading suppliers…</p> : (responseData?.responses || []).length ? <div className="divide-y divide-stone-100" data-testid="document-responses-list">{responseData.responses.map((response) => { const submitted = response.submission_status === 'submitted' && Boolean(response.selected_response); return <div key={response.supplier_relationship_id} className="flex flex-wrap items-center justify-between gap-4 py-3" data-testid={`document-response-${response.supplier_relationship_id}`}><div><span className="font-medium text-stone-900">{response.supplier_name}</span>{response.selected_response && <p className="mt-1 text-xs text-stone-500" data-testid={`document-response-value-${response.supplier_relationship_id}`}>{response.selected_response}</p>}</div><div className="flex items-center gap-3"><Badge variant="outline" className={submitted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'} data-testid={`document-response-status-${response.supplier_relationship_id}`}>{submitted ? 'Submitted' : 'Pending'}</Badge>{response.can_unlock && response.submission_status !== 'reopened' && <Button variant="outline" size="sm" disabled={unlockingSupplierId === response.supplier_relationship_id} onClick={() => unlockResponse(response)} data-testid={`unlock-document-response-${response.supplier_relationship_id}`}>{unlockingSupplierId === response.supplier_relationship_id ? 'Unlocking…' : 'Unlock'}</Button>}</div></div>; })}</div> : <p className="py-10 text-center text-sm text-stone-500" data-testid="document-responses-empty">No active suppliers are assigned.</p>}</DialogContent></Dialog>
     <Dialog open={Boolean(previewDocument)} onOpenChange={(open) => { if (!open) { setPreviewDocument(null); setPreviewUrl(''); } }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl" data-testid="document-preview-dialog"><DialogHeader><DialogTitle data-testid="document-preview-dialog-title">Document preview — {previewDocument?.title}</DialogTitle></DialogHeader>{previewLoading ? <p className="py-16 text-center text-sm text-stone-500" data-testid="document-preview-loading">Preparing preview…</p> : previewUrl && <iframe src={previewUrl} title={previewDocument?.title || 'Document preview'} className="h-[72dvh] w-full border border-stone-200 bg-stone-50" data-testid="document-preview-frame" />}</DialogContent></Dialog>
-    <SupplierAssignmentManagerDialog open={Boolean(assignmentDialog)} onOpenChange={(open) => !open && setAssignmentDialog(null)} title={assignmentDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} onToggle={toggleDocumentAssignment} testIdPrefix="document" />
+    <SupplierAssignmentManagerDialog open={Boolean(assignmentDialog)} onOpenChange={(open) => !open && setAssignmentDialog(null)} title={assignmentDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} unlockingId={assignmentUnlockingId} onToggle={toggleDocumentAssignment} onUnlock={unlockDocumentAssignment} testIdPrefix="document" />
     <Dialog open={Boolean(dueDateDialog)} onOpenChange={(open) => !open && setDueDateDialog(null)}><DialogContent data-testid="document-due-date-dialog"><DialogHeader><DialogTitle>Set document due date</DialogTitle></DialogHeader><div className="space-y-2"><Label htmlFor="document-due-date-editor">Due date</Label><Input id="document-due-date-editor" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} data-testid="document-due-date-editor" /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDueDateDialog(null)} data-testid="cancel-document-due-date-button">Cancel</Button><Button disabled={savingDueDate} onClick={saveDocumentDueDate} data-testid="save-document-due-date-button">{savingDueDate ? 'Saving…' : 'Save due date'}</Button></div></DialogContent></Dialog>
     <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}><AlertDialogContent data-testid="delete-supplier-agreement-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This permanently removes the document file and its active supplier assignments. Historical response records are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-supplier-agreement-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteAgreement} data-testid="confirm-delete-supplier-agreement-button">Delete document</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;

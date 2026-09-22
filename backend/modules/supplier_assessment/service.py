@@ -64,6 +64,7 @@ class SupplierAssessmentService:
     get_supplier_relationship_for_user = _delegate_to(relationship_operations, relationship_operations.get_supplier_relationship_for_user)
     update_revenue_info = _delegate_to(relationship_operations, relationship_operations.update_revenue_info)
     submit_revenue_info = _delegate_to(relationship_operations, relationship_operations.submit_revenue_info)
+    reopen_revenue_info = _delegate_to(relationship_operations, relationship_operations.reopen_revenue_info)
     update_revenue_percentage = _delegate_to(relationship_operations, relationship_operations.update_revenue_percentage)
     refresh_supplier_canonical_score = _delegate_to(lifecycle_operations, lifecycle_operations.refresh_supplier_canonical_score)
     _update_completion_status = _delegate_to(lifecycle_operations, lifecycle_operations._update_completion_status)

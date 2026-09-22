@@ -1314,6 +1314,23 @@ async def reopen_supplier_document(supplier_id: str, requirement_id: str, curren
         raise HTTPException(status_code=400, detail=str(error))
 
 
+@router.post("/suppliers/{supplier_id}/revenue/reopen")
+async def reopen_supplier_revenue_info(supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+    """Reopen a supplier's submitted Org Information for a revised submission."""
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.reopen_revenue_info(supplier_id, current_user["organization_id"], current_user["id"])
+        await notify_supplier_module_unlocked(supplier, "revenue", result["id"], item_name="Org Information")
+        await supplier_service._update_completion_status(supplier_id)
+        _log_supplier_event("supplier_assessment.revenue.reopened", action="supplier_assessment.revenue.reopen", outcome="succeeded", context={"supplier_id": supplier_id, "submission_id": result.get("id")})
+        return result
+    except ValueError as error:
+        _log_supplier_event("supplier_assessment.revenue.reopen.rejected", action="supplier_assessment.revenue.reopen", outcome="rejected", level=logging.WARNING, error_code="REVENUE_REOPEN_REJECTED", context={"supplier_id": supplier_id})
+        raise HTTPException(status_code=400, detail=str(error))
+
+
 # ============================================================================
 # Supplier Rankings (Customer Admin)
 # ============================================================================

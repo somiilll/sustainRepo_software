@@ -669,17 +669,20 @@ async def update_revenue_info(
 ) -> bool:
     """Supplier updates their revenue information (percentage and/or amount)."""
     relationship = await db.supplier_relationships.find_one(
-        {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0, "reporting_period": 1}
+        {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0, "reporting_period": 1, "revenue_submission_status": 1}
     )
     if not relationship:
         return False
-    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
-    submitted = await db.supplier_revenue_submissions.find_one(
-        {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
-        {"_id": 0, "id": 1},
-    )
-    if submitted:
+    if relationship.get("revenue_submission_status") == "submitted":
         raise ValueError("Revenue information is already submitted and locked")
+    if relationship.get("revenue_submission_status") != "reopened":
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        submitted = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0, "id": 1},
+        )
+        if submitted:
+            raise ValueError("Revenue information is already submitted and locked")
     update_fields = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -722,13 +725,20 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
     if existing:
         raise ValueError("Revenue information is already submitted and locked")
     now = datetime.now(timezone.utc).isoformat()
+    latest_submission = await db.supplier_revenue_submissions.find_one(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period}, {"_id": 0, "revision": 1}, sort=[("revision", -1)]
+    ) or {}
+    await db.supplier_revenue_submissions.update_many(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period, "is_current": {"$ne": False}},
+        {"$set": {"is_current": False, "parent_visible": False, "replaced_at": now}},
+    )
     submission = {
         "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
         "supplier_org_id": supplier_org_id, "customer_org_id": relationship["customer_org_id"],
         "reporting_period": period, "revenue_percentage": relationship["revenue_percentage"],
         "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
         "parts_components_manufactured": relationship.get("parts_components_manufactured"), "plant_location": relationship.get("plant_location"),
-        "status": "submitted", "parent_visible": True, "revision": 1,
+        "status": "submitted", "parent_visible": True, "revision": int(latest_submission.get("revision") or 0) + 1, "is_current": True,
         "submitted_by": submitted_by, "submitted_at": now,
     }
     await db.supplier_revenue_submissions.insert_one(submission)
@@ -737,6 +747,51 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
     await self._update_completion_status(relationship_id)
     log_event(logger, logging.INFO, "supplier_assessment.revenue.locked", action="supplier_assessment.revenue.submit", outcome="locked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": submission["id"]})
     return submission
+
+async def reopen_revenue_info(
+    self,
+    relationship_id: str,
+    customer_org_id: str,
+    reopened_by: str,
+) -> Dict[str, Any]:
+    """Create an editable Org Information revision without mutating its submitted audit record."""
+    relationship = await db.supplier_relationships.find_one(
+        {"id": relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not relationship:
+        raise ValueError("Supplier not found")
+    period = relationship.get("reporting_period") or self._default_reporting_period()
+    current = await db.supplier_revenue_submissions.find_one(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period, "is_current": True}, {"_id": 0}, sort=[("revision", -1)]
+    )
+    if current and current.get("status") == "reopened":
+        raise ValueError("Org Information is already unlocked for resubmission")
+    if not current:
+        current = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": period, "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0}, sort=[("revision", -1)]
+        )
+    if not current or current.get("status") != "submitted":
+        raise ValueError("No submitted Org Information is available to unlock")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_revenue_submissions.update_one(
+        {"id": current["id"]}, {"$set": {"is_current": False, "parent_visible": False, "reopened_at": now}},
+    )
+    draft = {
+        "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
+        "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id,
+        "reporting_period": period, "revenue_percentage": relationship.get("revenue_percentage"),
+        "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
+        "parts_components_manufactured": relationship.get("parts_components_manufactured"), "plant_location": relationship.get("plant_location"),
+        "status": "reopened", "parent_visible": False, "revision": int(current.get("revision") or 0) + 1,
+        "is_current": True, "reopened_by": reopened_by, "reopened_at": now, "created_at": now,
+    }
+    await db.supplier_revenue_submissions.insert_one(draft)
+    draft.pop("_id", None)
+    await db.supplier_relationships.update_one(
+        {"id": relationship_id}, {"$set": {"revenue_submission_status": "reopened", "updated_at": now}},
+    )
+    log_event(logger, logging.INFO, "supplier_assessment.revenue.unlocked", action="supplier_assessment.revenue.reopen", outcome="unlocked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": draft["id"]})
+    return draft
 
 # Keep old method for backwards compatibility
 async def update_revenue_percentage(

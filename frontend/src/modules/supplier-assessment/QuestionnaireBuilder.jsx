@@ -181,6 +181,7 @@ export default function QuestionnaireBuilder() {
   const [questionnaireAssignmentRows, setQuestionnaireAssignmentRows] = useState([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [updatingAssignmentId, setUpdatingAssignmentId] = useState('');
+  const [unlockingAssignmentId, setUnlockingAssignmentId] = useState('');
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -263,10 +264,20 @@ export default function QuestionnaireBuilder() {
     try {
       if (assigned) await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/assignments/${row.supplier_relationship_id}`, {}, { headers: getAuthHeader() });
       else await axios.delete(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/assignments/${row.supplier_relationship_id}`, { headers: getAuthHeader() });
-      setQuestionnaireAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, status: assigned ? 'not_started' : 'not_assigned' } : item));
+      setQuestionnaireAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, can_unlock: false, status: assigned ? 'not_started' : 'not_assigned' } : item));
       toast.success(assigned ? 'Questionnaire assigned' : 'Questionnaire unassigned'); await fetchQuestionnaires();
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not update questionnaire assignment'); }
     finally { setUpdatingAssignmentId(''); }
+  };
+  const unlockQuestionnaireAssignment = async (row) => {
+    if (!selectedQuestionnaire || !window.confirm(`Unlock ${row.supplier_name}'s questionnaire response for resubmission?`)) return;
+    setUnlockingAssignmentId(row.supplier_relationship_id);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${row.supplier_relationship_id}/questionnaires/${selectedQuestionnaire.id}/reopen`, {}, { headers: getAuthHeader() });
+      setQuestionnaireAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, status: 'in_progress', can_unassign: true, can_unlock: false } : item));
+      toast.success('Questionnaire response unlocked');
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock questionnaire response'); }
+    finally { setUnlockingAssignmentId(''); }
   };
 
   useEffect(() => {
@@ -850,7 +861,7 @@ export default function QuestionnaireBuilder() {
         <DialogContent className="max-w-2xl" data-testid="questionnaire-submissions-dialog"><DialogHeader><DialogTitle data-testid="questionnaire-submissions-title">Submitted responses — {selectedQuestionnaire?.name}</DialogTitle></DialogHeader><div className="max-h-96 space-y-2 overflow-y-auto" data-testid="questionnaire-submissions-list">{loadingSubmissions ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-loading">Loading submitted responses…</p> : submissions.length === 0 ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-empty">No suppliers have submitted this questionnaire for the selected reporting period.</p> : submissions.map((submission) => <div key={submission.supplier_id} className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 py-3" data-testid={`questionnaire-submission-${submission.supplier_id}`}><div><p className="font-medium text-stone-900" data-testid={`questionnaire-submission-supplier-${submission.supplier_id}`}>{submission.supplier_name}</p><p className="text-xs text-stone-500" data-testid={`questionnaire-submission-score-${submission.supplier_id}`}>Questionnaire score: {submission.calculated_score ?? 'Pending'} · Manual questions scored: {submission.manual_question_count}</p></div><Button variant="outline" size="sm" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => openSubmissionReview(submission)} data-testid={`review-questionnaire-submission-${submission.supplier_id}`}>Review response</Button></div>)}</div><DialogFooter><Button variant="outline" onClick={() => setShowSubmissionsDialog(false)} data-testid="close-questionnaire-submissions-button">Close</Button></DialogFooter></DialogContent>
       </Dialog>
       <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={reviewSupplier?.supplier_id} getAuthHeader={getAuthHeader} onScoreSaved={() => { if (reviewSupplier) openSubmissionReview(reviewSupplier); }} />
-      <SupplierAssignmentManagerDialog open={showAssignmentDialog} onOpenChange={setShowAssignmentDialog} title={selectedQuestionnaire?.name || ''} rows={questionnaireAssignmentRows} loading={loadingAssignments} updatingId={updatingAssignmentId} onToggle={toggleQuestionnaireAssignment} testIdPrefix="questionnaire" />
+      <SupplierAssignmentManagerDialog open={showAssignmentDialog} onOpenChange={setShowAssignmentDialog} title={selectedQuestionnaire?.name || ''} rows={questionnaireAssignmentRows} loading={loadingAssignments} updatingId={updatingAssignmentId} unlockingId={unlockingAssignmentId} onToggle={toggleQuestionnaireAssignment} onUnlock={unlockQuestionnaireAssignment} testIdPrefix="questionnaire" />
 
       {/* Create Questionnaire Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

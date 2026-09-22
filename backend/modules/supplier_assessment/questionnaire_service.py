@@ -195,7 +195,7 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
     for supplier in suppliers:
         is_assigned = supplier["id"] in assigned_ids or ("questionnaire_ids" in supplier and questionnaire_id in (supplier.get("questionnaire_ids") or []))
         status = response_statuses.get(supplier["id"], "not_started")
-        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted"})
+        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted", "can_unlock": is_assigned and status == "submitted"})
     return {"questionnaire_id": questionnaire_id, "assignments": rows}
 
 
