@@ -460,7 +460,7 @@ export default function QuestionnaireBuilder() {
       const children = draftQuestions.filter((question) => question.parent_draft_id);
       const rootOrder = questions.filter((question) => !question.parent_question_id).length;
       const createLedgerQuestion = async (question, order, parentQuestionId = null) => {
-        const { draft_id, parent_draft_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
+        const { draft_id, parent_draft_id, existing_parent_question_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
         const values = question.response_type === 'dropdown' ? options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
         const scoring = scoring_rule === 'lower_is_better'
@@ -472,7 +472,9 @@ export default function QuestionnaireBuilder() {
         return response.data;
       };
       for (const [index, question] of roots.entries()) {
-        const created = await createLedgerQuestion(question, rootOrder + index);
+        const parentQuestionId = question.existing_parent_question_id || null;
+        const siblingOrder = parentQuestionId ? questions.filter((item) => item.parent_question_id === parentQuestionId).length : rootOrder + index;
+        const created = await createLedgerQuestion(question, siblingOrder, parentQuestionId);
         createdIdsByDraftId[question.draft_id] = created.id;
       }
       const childOrderByParent = {};
