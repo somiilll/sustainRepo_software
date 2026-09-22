@@ -54,6 +54,8 @@ const QuestionAuthoringRow = ({ draft, label, onChange, onAddSubquestion, onRemo
   const setField = (patch) => onChange({ ...draft, ...patch });
   const isSubquestion = Boolean(draft.parent_draft_id);
 
+  if (isSubquestion) return <div className="ml-4 border border-emerald-200 bg-emerald-50/30 p-4 sm:ml-8" data-testid={`${testIdPrefix}-row`}><div className="grid gap-3 md:grid-cols-[minmax(16rem,1fr)_auto] md:items-end"><div className="space-y-1.5"><Label htmlFor={`${testIdPrefix}-question`} className="text-xs font-medium text-stone-600">Subquestion</Label><Input id={`${testIdPrefix}-question`} value={draft.question_text} onChange={(event) => setField({ question_text: event.target.value })} placeholder="Enter subquestion" data-testid={`${testIdPrefix}-question`} /></div><Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={onRemoveSubquestion} data-testid={`${testIdPrefix}-remove-subquestion`}><Trash2 className="mr-1 h-4 w-4" />Remove</Button></div></div>;
+
   return <div className={`border p-4 ${isSubquestion ? 'ml-4 border-emerald-200 bg-emerald-50/30 sm:ml-8' : 'border-emerald-200 bg-emerald-50/40'}`} data-testid={`${testIdPrefix}-row`}>
     <div className="grid gap-3 xl:grid-cols-[minmax(13rem,1.3fr)_8rem_9rem_7rem_5.5rem_auto_auto] xl:items-end">
       <div className="space-y-1.5"><Label htmlFor={`${testIdPrefix}-question`} className="text-xs font-medium text-stone-600">{label}</Label><Input id={`${testIdPrefix}-question`} value={draft.question_text} onChange={(event) => setField({ question_text: event.target.value })} placeholder={`Enter ${label.toLowerCase()}`} data-testid={`${testIdPrefix}-question`} /></div>
@@ -62,7 +64,7 @@ const QuestionAuthoringRow = ({ draft, label, onChange, onAddSubquestion, onRemo
       <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600">Importance</Label><Select value={draft.importance} onValueChange={(importance) => setField({ importance })}><SelectTrigger data-testid={`${testIdPrefix}-importance`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select></div>
       <label className="flex h-10 items-center gap-2 text-sm text-stone-700"><Checkbox checked={draft.required} onCheckedChange={(required) => setField({ required: Boolean(required) })} data-testid={`${testIdPrefix}-required`} />Required</label>
       {!isSubquestion && <Button variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100 hover:text-emerald-950" onClick={onAddSubquestion} data-testid={`${testIdPrefix}-add-subquestion`}><Plus className="mr-1 h-4 w-4" />Subquestion</Button>}
-      {isSubquestion ? <Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={onRemoveSubquestion} data-testid={`${testIdPrefix}-remove-subquestion`}><Trash2 className="mr-1 h-4 w-4" />Remove</Button> : <Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={onSave} disabled={saving} data-testid={`${testIdPrefix}-add-question`}>{saving ? 'Adding…' : <><Plus className="mr-1 h-4 w-4" />Add question</>}</Button>}
+      <Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={onSave} disabled={saving} data-testid={`${testIdPrefix}-add-question`}>{saving ? 'Adding…' : <><Plus className="mr-1 h-4 w-4" />Add question</>}</Button>
     </div>
     {draft.response_type === 'yes_no' && <div className="mt-3 grid gap-3 border-t border-emerald-100 pt-3 sm:grid-cols-2" data-testid={`${testIdPrefix}-yes-no-scores`}><div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600">Yes score</Label><Input type="number" min="0" max="100" value={draft.yes_score} onChange={(event) => setField({ yes_score: event.target.value })} data-testid={`${testIdPrefix}-yes-score`} /></div><div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600">No score</Label><Input type="number" min="0" max="100" value={draft.no_score} onChange={(event) => setField({ no_score: event.target.value })} data-testid={`${testIdPrefix}-no-score`} /></div></div>}
     {draft.response_type === 'dropdown' && <div className="mt-3 space-y-3 border-t border-emerald-100 pt-3" data-testid={`${testIdPrefix}-dropdown-scores`}><div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600">Options</Label><Input value={draft.options_text} onChange={(event) => setField({ options_text: event.target.value })} placeholder="Option A, Option B" data-testid={`${testIdPrefix}-options`} /></div>{options.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{options.map((option) => <div key={option} className="space-y-1.5"><Label className="text-xs font-medium text-stone-600">{option} score</Label><Input type="number" min="0" max="100" value={draft.option_scores[option] ?? ''} onChange={(event) => setField({ option_scores: { ...draft.option_scores, [option]: event.target.value } })} data-testid={`${testIdPrefix}-option-score-${option}`} /></div>)}</div>}</div>}
@@ -88,7 +90,21 @@ export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, saving, quest
     && (question.question_category || 'policy') === activeCategory), [activeCategory, activeSection, questions]);
 
   const saveDraft = async () => {
-    const drafts = subquestionDraft ? [draft, subquestionDraft] : [draft];
+    const inheritedSubquestion = subquestionDraft ? {
+      ...subquestionDraft,
+      category: draft.category,
+      question_category: draft.question_category,
+      response_type: draft.response_type,
+      importance: draft.importance,
+      scoring_rule: draft.scoring_rule,
+      required: draft.required,
+      evidence_requirement: draft.evidence_requirement,
+      options_text: draft.options_text,
+      option_scores: { ...draft.option_scores },
+      yes_score: draft.yes_score,
+      no_score: draft.no_score,
+    } : null;
+    const drafts = inheritedSubquestion ? [draft, inheritedSubquestion] : [draft];
     const saved = await onSave(drafts, { keepOpen: true });
     if (saved) selectGroup(activeSection, activeCategory);
   };
