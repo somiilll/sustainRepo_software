@@ -46,6 +46,7 @@ import {
   Info,
   ClipboardCheck,
   CalendarDays,
+  Search,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
@@ -74,6 +75,18 @@ const questionCategories = [
   { value: 'reporting', label: 'Reporting', groupLabel: 'Reporting' },
   { value: 'certification', label: 'Certification', groupLabel: 'Certifications' },
 ];
+
+const sectionStyles = {
+  environment: { container: 'border-emerald-200 bg-emerald-50/30', heading: 'text-emerald-950', badge: 'border-emerald-200 bg-emerald-100 text-emerald-800' },
+  social: { container: 'border-sky-200 bg-sky-50/30', heading: 'text-sky-950', badge: 'border-sky-200 bg-sky-100 text-sky-800' },
+  governance: { container: 'border-amber-200 bg-amber-50/30', heading: 'text-amber-950', badge: 'border-amber-200 bg-amber-100 text-amber-800' },
+};
+
+const categoryStyles = {
+  policy: { container: 'border-indigo-200 bg-indigo-50/40', heading: 'text-indigo-950', badge: 'border-indigo-200 bg-indigo-100 text-indigo-800' },
+  reporting: { container: 'border-rose-200 bg-rose-50/40', heading: 'text-rose-950', badge: 'border-rose-200 bg-rose-100 text-rose-800' },
+  certification: { container: 'border-teal-200 bg-teal-50/40', heading: 'text-teal-950', badge: 'border-teal-200 bg-teal-100 text-teal-800' },
+};
 
 // Scoring rules with descriptions
 const scoringRules = [
@@ -168,6 +181,7 @@ export default function QuestionnaireBuilder() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [questionnaireSearch, setQuestionnaireSearch] = useState('');
   
   // Dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -256,6 +270,13 @@ export default function QuestionnaireBuilder() {
         && (question.question_category || 'policy') === questionCategory.value),
     })),
   })), [questions]);
+
+  const filteredQuestionnaires = useMemo(() => {
+    const query = questionnaireSearch.trim().toLowerCase();
+    if (!query) return questionnaires;
+    return questionnaires.filter((questionnaire) => [questionnaire.name, questionnaire.description]
+      .some((value) => String(value || '').toLowerCase().includes(query)));
+  }, [questionnaireSearch, questionnaires]);
 
   const openQuestionnaireAssignments = async () => {
     if (!selectedQuestionnaire) return;
@@ -765,18 +786,19 @@ export default function QuestionnaireBuilder() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] lg:flex-row lg:items-center" data-testid="questionnaire-builder-controls">
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] xl:flex-row xl:items-center" data-testid="questionnaire-builder-controls">
+        <div className="relative w-full xl:w-64 xl:shrink-0" data-testid="questionnaire-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={questionnaireSearch} onChange={(event) => setQuestionnaireSearch(event.target.value)} placeholder="Search questionnaires..." className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search questionnaires" data-testid="questionnaire-search-input" /></div>
+        <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />Add Questionnaire</Button>
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-selection-control">
           <Label htmlFor="questionnaire-builder-selector" className="shrink-0 text-sm font-medium text-stone-600" data-testid="questionnaire-selector-label">Questionnaire</Label>
           <Select value={selectedQuestionnaire?.id || ''} onValueChange={(questionnaireId) => setSelectedQuestionnaire(questionnaires.find((questionnaire) => questionnaire.id === questionnaireId) || null)} disabled={loading || questionnaires.length === 0}>
             <SelectTrigger id="questionnaire-builder-selector" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:max-w-md" data-testid="questionnaire-selector"><SelectValue placeholder={loading ? 'Loading questionnaires…' : 'Select questionnaire'} /></SelectTrigger>
-            <SelectContent data-testid="questionnaire-selector-menu">{questionnaires.map((questionnaire) => <SelectItem key={questionnaire.id} value={questionnaire.id} data-testid={`questionnaire-selector-option-${questionnaire.id}`}>{questionnaire.name}{!questionnaire.is_active ? ' · Inactive' : ''}</SelectItem>)}</SelectContent>
+            <SelectContent data-testid="questionnaire-selector-menu">{filteredQuestionnaires.length === 0 ? <div className="px-2 py-4 text-sm text-stone-500" data-testid="questionnaire-selector-empty">No questionnaires match this search.</div> : filteredQuestionnaires.map((questionnaire) => <SelectItem key={questionnaire.id} value={questionnaire.id} data-testid={`questionnaire-selector-option-${questionnaire.id}`}>{questionnaire.name}{!questionnaire.is_active ? ' · Inactive' : ''}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-builder-period-control">
           <Label htmlFor="questionnaire-builder-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="questionnaire-builder-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="questionnaire-builder-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="questionnaire-builder-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="questionnaire-builder-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`questionnaire-builder-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select>
-          <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />New Questionnaire</Button>
         </div>
       </div>
 
@@ -796,14 +818,18 @@ export default function QuestionnaireBuilder() {
                 <Accordion type="multiple" defaultValue={sections.map((section) => `section-${section.value}`)} className="w-full space-y-3" data-testid="question-section-groups">
                   {groupedQuestions.map((section) => {
                     const sectionCount = section.categories.reduce((total, category) => total + category.questions.length, 0);
-                    return <AccordionItem key={section.value} value={`section-${section.value}`} className="border border-stone-200 px-4" data-testid={`question-section-group-${section.value}`}>
-                      <AccordionTrigger className="py-4 text-base font-semibold text-emerald-950 hover:no-underline" data-testid={`question-section-toggle-${section.value}`}><span>{section.label}</span><Badge variant="outline" className="mr-3 border-stone-200 bg-stone-50 text-stone-600" data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
+                    const sectionStyle = sectionStyles[section.value];
+                    return <AccordionItem key={section.value} value={`section-${section.value}`} className={`border px-4 ${sectionStyle.container}`} data-testid={`question-section-group-${section.value}`}>
+                      <AccordionTrigger className={`py-4 text-base font-semibold hover:no-underline ${sectionStyle.heading}`} data-testid={`question-section-toggle-${section.value}`}><span>{section.label}</span><Badge variant="outline" className={`mr-3 ${sectionStyle.badge}`} data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
                       <AccordionContent className="pb-4 pt-1">
                         <Accordion type="multiple" defaultValue={section.categories.map((category) => `category-${section.value}-${category.value}`)} className="space-y-2" data-testid={`question-category-groups-${section.value}`}>
-                          {section.categories.map((category) => <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className="border border-stone-100 px-4" data-testid={`question-category-group-${section.value}-${category.value}`}>
-                            <AccordionTrigger className="py-3 text-sm font-semibold text-stone-800 hover:no-underline" data-testid={`question-category-toggle-${section.value}-${category.value}`}><span>{category.groupLabel}</span><Badge variant="outline" className="mr-3 border-sky-100 bg-sky-50 text-sky-800" data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
+                          {section.categories.map((category) => {
+                            const categoryStyle = categoryStyles[category.value];
+                            return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
+                            <AccordionTrigger className={`py-3 text-sm font-semibold hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span>{category.groupLabel}</span><Badge variant="outline" className={`mr-3 ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
                             <AccordionContent className="pb-2 pt-1"><h3 className="pb-2 text-sm font-medium text-stone-600" data-testid={`question-category-heading-${section.value}-${category.value}`}>{category.label} Questions</h3>{category.questions.length === 0 ? <p className="py-5 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <QuestionnaireQuestionRow key={question.id} question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>}</AccordionContent>
-                          </AccordionItem>)}
+                          </AccordionItem>;
+                          })}
                         </Accordion>
                       </AccordionContent>
                     </AccordionItem>;
