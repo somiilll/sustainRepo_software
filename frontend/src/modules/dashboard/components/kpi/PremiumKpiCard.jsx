@@ -53,7 +53,7 @@ export default function PremiumKpiCard({
         </div>
       )}
       <div className="flex items-center gap-3 mb-4">
-        <div 
+        <div
           className="p-2.5 rounded-xl transition-transform group-hover:scale-105"
           style={{ backgroundColor: `${accentColor}15` }}
         >

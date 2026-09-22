@@ -24,8 +24,9 @@ const hasYearlyData = (emp) =>
 const hasAnyMonthData = (emp) =>
   Object.values(emp.monthly_data || {}).some((monthData) => {
     if (!monthData?.inputs) return false;
-    return Object.values(monthData.inputs).some(
-      (v) => v !== '' && v !== null && v !== undefined && v !== 0
+    return Object.entries(monthData.inputs).some(
+      ([key, value]) => !key.endsWith('_unit')
+        && value !== '' && value !== null && value !== undefined && value !== 0
     );
   });
 
@@ -53,12 +54,16 @@ export function validateYearlyCreateSubmission({ employees }) {
     };
   }
 
-  const calculated = employees.some(
-    (emp) =>
-      emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
-  );
-  if (!calculated) {
-    return { valid: false, errorMessage: 'Please calculate emissions for at least one employee' };
+  const uncalculatedEmployees = employees.filter((emp) => (
+    emp.yearly_data?.emissions?.co2e === null || emp.yearly_data?.emissions?.co2e === undefined
+  ));
+  if (uncalculatedEmployees.length > 0) {
+    return {
+      valid: false,
+      errorMessage: `Unable to calculate annual emissions for: ${uncalculatedEmployees
+        .map((employee) => employee.name || 'Unnamed')
+        .join(', ')}`,
+    };
   }
 
   return { valid: true };
@@ -86,13 +91,23 @@ export function validateMonthlyCreateSubmission({ employees }) {
     };
   }
 
-  const calculated = employees.some((emp) =>
-    Object.values(emp.monthly_data || {}).some(
-      (m) => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined
-    )
-  );
-  if (!calculated) {
-    return { valid: false, errorMessage: 'Please calculate emissions for at least one employee/month' };
+  const uncalculatedPeriods = [];
+  employees.forEach((employee) => {
+    Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+      const hasInput = Object.entries(monthData?.inputs || {}).some(
+        ([key, value]) => !key.endsWith('_unit')
+          && value !== '' && value !== null && value !== undefined && value !== 0,
+      );
+      if (hasInput && (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined)) {
+        uncalculatedPeriods.push(`${employee.name || 'Unnamed'} (${monthKey})`);
+      }
+    });
+  });
+  if (uncalculatedPeriods.length > 0) {
+    return {
+      valid: false,
+      errorMessage: `Unable to calculate emissions for: ${uncalculatedPeriods.join(', ')}`,
+    };
   }
 
   return { valid: true };
@@ -117,6 +132,8 @@ export function buildYearlyCreatePayload(ctx) {
     filteredScope3Activities,
     notes,
     recordSource,
+    supplierName,
+    supplierCode,
     responsiblePerson,
     responsiblePersonDesignation,
     responsiblePersonContact,
@@ -144,6 +161,7 @@ export function buildYearlyCreatePayload(ctx) {
       inputs: emp.yearly_data?.inputs || {},
       emissions: emp.yearly_data?.emissions || {},
       calculation_details: emp.yearly_data?.calculation_details || null,
+      evidences: emp.yearly_data?.evidences || [],
     }));
 
   return {
@@ -163,6 +181,8 @@ export function buildYearlyCreatePayload(ctx) {
       employees: yearlyEmployees,
       notes,
       record_source: recordSource ? String(recordSource).trim() : '',
+      supplier_name: supplierName ? String(supplierName).trim() : '',
+      supplier_code: supplierCode ? String(supplierCode).trim() : '',
       responsible_person: responsiblePerson,
       responsible_person_designation: responsiblePersonDesignation,
       responsible_person_contact: responsiblePersonContact,
@@ -195,6 +215,8 @@ export function buildMonthlyCreatePayloads(ctx) {
     filteredScope3Activities,
     notes,
     recordSource,
+    supplierName,
+    supplierCode,
     responsiblePerson,
     responsiblePersonDesignation,
     responsiblePersonContact,
@@ -223,6 +245,7 @@ export function buildMonthlyCreatePayloads(ctx) {
           inputs: monthData.inputs || {},
           emissions: monthData.emissions || {},
           calculation_details: monthData.calculation_details || null,
+          evidences: monthData.evidences || [],
         });
       }
     });
@@ -276,6 +299,8 @@ export function buildMonthlyCreatePayloads(ctx) {
         employees: monthEmployees,
         notes: notes || '',
         record_source: recordSource ? String(recordSource).trim() : '',
+        supplier_name: supplierName ? String(supplierName).trim() : '',
+        supplier_code: supplierCode ? String(supplierCode).trim() : '',
         responsible_person: responsiblePerson,
         responsible_person_designation: responsiblePersonDesignation,
         responsible_person_contact: responsiblePersonContact,

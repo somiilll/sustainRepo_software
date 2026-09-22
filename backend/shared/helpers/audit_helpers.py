@@ -38,6 +38,61 @@ DEFAULT_INPUT_LABEL_MAP = {
     "units_produced": "Units Produced",
 }
 
+DYNAMIC_HISTORY_EXCLUDED_FIELDS = frozenset({
+    "scope3_ef_id",
+    "ef_id",
+    "formula_id",
+    "formula_version_id",
+    "decision_tree_version_id",
+    "matched_formula_id",
+    "id",
+    "_id",
+    # These user selections are already audited as top-level readable fields.
+    "calculation_method_scope3",
+    "scope3_activity",
+    "scope3_activity_type",
+    # The activity label itself records standard/custom changes intelligibly.
+    "use_custom_activity",
+})
+
+
+def compute_user_input_changes(
+    old_inputs: dict,
+    new_inputs: dict,
+    input_label_map: dict = None,
+    *,
+    employee_name: str = None,
+) -> list:
+    """Compare every user-entered input, including future configured fields."""
+    labels = input_label_map or DEFAULT_INPUT_LABEL_MAP
+    old_inputs = old_inputs or {}
+    new_inputs = new_inputs or {}
+    base_keys = {
+        key[:-5] if key.endswith("_unit") else key
+        for key in set(old_inputs) | set(new_inputs)
+    }
+    changes = []
+    for key in sorted(base_keys):
+        if key in DYNAMIC_HISTORY_EXCLUDED_FIELDS:
+            continue
+        old_value = old_inputs.get(key)
+        new_value = new_inputs.get(key)
+        old_unit = old_inputs.get(f"{key}_unit", "")
+        new_unit = new_inputs.get(f"{key}_unit", "")
+        if old_value == new_value and old_unit == new_unit:
+            continue
+        label = labels.get(key, key.replace("_", " ").title())
+        changes.append({
+            "field": "input_values",
+            "input_key": key,
+            "display_name": f"{label} ({employee_name})" if employee_name else label,
+            "old_value": {"value": old_value, "unit": old_unit},
+            "new_value": {"value": new_value, "unit": new_unit},
+            "field_type": "input_value",
+            **({"employee_name": employee_name} if employee_name else {}),
+        })
+    return changes
+
 async def get_input_label_map_from_db(db) -> dict:
     """
     Fetch input field labels from ce_input_field_mappings collection.
@@ -89,8 +144,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             # Activity & Method
             "activity", "activity_name", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
             "scope3_ef_id", "fuel_type", "fuel_name", "fuel_id",
-            # Quantities & Units
-            "quantity", "unit", "reporting_period",
+            # Canonical activity quantities are tracked through dynamic_field_values.
+            "reporting_period",
             # Emission factors
             "emission_factor", "emission_factor_co2", "emission_factor_ch4", "emission_factor_n2o",
             "ef_unit", "ef_source",
@@ -545,99 +600,65 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     old_dfv = old_values.get("dynamic_field_values", {}) or {}
     new_dfv = new_values.get("dynamic_field_values", {}) or {}
     
-    # Fields to skip in dynamic field values tracking
-    dfv_skip_fields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
-                       'scope3_subcategory', 'scope3_activity_type', 'ppp', 'scope3_activity', 
-                       'biogenic_scope_selection']
-    
-    # Required input fields - always show if value changed
-    required_input_fields = ['qty', 'activity_value', 'spent_value', 'activity_value_supplier_based', 
-                             'emission_factor_supplier_based', 'distance', 'weight']
-    
     all_dfv_keys = set(old_dfv.keys()) | set(new_dfv.keys())
-    dfv_changes = {}
-    
-    for key in all_dfv_keys:
-        if key in dfv_skip_fields or key.startswith('override_'):
+    for key in sorted(all_dfv_keys):
+        if key in DYNAMIC_HISTORY_EXCLUDED_FIELDS:
             continue
-            
+
         old_field = old_dfv.get(key, {})
         new_field = new_dfv.get(key, {})
-        
+
         # Get values - handle both dict format and direct values
         old_value = old_field.get('value') if isinstance(old_field, dict) else old_field
         new_value = new_field.get('value') if isinstance(new_field, dict) else new_field
         old_unit = old_field.get('unit', '') if isinstance(old_field, dict) else ''
         new_unit = new_field.get('unit', '') if isinstance(new_field, dict) else ''
-        
-        # Check if user actually overrode these fields
+        old_justification = old_field.get('justification', '') if isinstance(old_field, dict) else ''
+        new_justification = new_field.get('justification', '') if isinstance(new_field, dict) else ''
+        old_has_override_flag = isinstance(old_field, dict) and 'is_override' in old_field
+        new_has_override_flag = isinstance(new_field, dict) and 'is_override' in new_field
         old_is_override = old_field.get('is_override', False) if isinstance(old_field, dict) else False
         new_is_override = new_field.get('is_override', False) if isinstance(new_field, dict) else False
-        
-        # Determine if this is a required input field
-        is_required_field = key in required_input_fields
-        
-        # For REQUIRED fields (qty, activity_value, etc.): show if value actually changed
-        if is_required_field:
-            # Skip if value didn't change
-            if old_value == new_value and old_unit == new_unit:
-                continue
-        else:
-            # For OPTIONAL/OVERRIDE fields (cv, density, ef, etc.):
-            # ONLY show if is_override is True in either old or new
-            # DO NOT show if both old and new have is_override=False (user never touched it)
-            if not old_is_override and not new_is_override:
-                continue
-            
-            # Skip if nothing actually changed
-            if old_value == new_value and old_unit == new_unit and old_is_override == new_is_override:
-                continue
-        
-        # Record the change with full precision
-        dfv_changes[key] = {
-            "old_value": old_value,
-            "old_unit": old_unit,
-            "new_value": new_value,
-            "new_unit": new_unit,
+
+        override_managed = old_has_override_flag or new_has_override_flag
+        if override_managed and not old_is_override and not new_is_override:
+            # Database-resolved defaults are not user changes.
+            continue
+        if (
+            old_value == new_value
+            and old_unit == new_unit
+            and old_is_override == new_is_override
+            and old_justification == new_justification
+        ):
+            continue
+        if not override_managed and old_value in (None, '') and new_value in (None, ''):
+            # Ignore unit/default churn on empty inputs.
+            continue
+
+        old_snapshot = {"value": old_value, "unit": old_unit}
+        new_snapshot = {"value": new_value, "unit": new_unit}
+        if override_managed and not old_is_override and new_is_override:
+            old_snapshot = {"value": "Default Value Used", "unit": ""}
+        if override_managed and old_is_override and not new_is_override:
+            new_snapshot = {"value": "Default Value Used", "unit": ""}
+
+        changes.append({
+            "field": "input_values",
+            "input_key": key,
+            "display_name": input_label_map.get(key, key.replace('_', ' ').title()),
+            "old_value": old_snapshot,
+            "new_value": new_snapshot,
+            "field_type": "input_value",
             "old_is_override": old_is_override,
             "new_is_override": new_is_override,
-            "is_required": is_required_field
-        }
-    
-    # Add dfv changes as a structured field if there are any meaningful changes
-    if dfv_changes:
-        # Build old and new value dicts, only including fields with actual values
-        old_vals = {}
-        new_vals = {}
-        for k, v in dfv_changes.items():
-            # For required fields, always include if there's a value
-            if v.get("is_required"):
-                if v["old_value"] not in (None, ''):
-                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
-                if v["new_value"] not in (None, ''):
-                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
-            else:
-                # For optional/override fields, include if is_override was/is True
-                # Handle transitions between database default and custom override
-                if v["old_is_override"] and v["old_value"] not in (None, '', 0, 0.0):
-                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
-                elif not v["old_is_override"] and v["new_is_override"]:
-                    # User is switching from database default to custom override
-                    old_vals[k] = {"value": "Default Value Used", "unit": ""}
-                
-                if v["new_is_override"] and v["new_value"] not in (None, '', 0, 0.0):
-                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
-                elif v["old_is_override"] and not v["new_is_override"]:
-                    # User is switching from custom override back to database default
-                    new_vals[k] = {"value": "Default Value Used", "unit": ""}
-        
-        # Only add to changes if there's something to show
-        if old_vals or new_vals:
+        })
+        if old_justification != new_justification:
             changes.append({
-                "field": "input_values",
-                "old_value": old_vals,
-                "new_value": new_vals,
-                "field_type": "input_values"
+                "field": f"input_justification_{key}",
+                "display_name": f"{input_label_map.get(key, key.replace('_', ' ').title())} Justification",
+                "old_value": old_justification or "(empty)",
+                "new_value": new_justification or "(empty)",
+                "field_type": "simple",
             })
     
     # Remove the raw dynamic_field_values from changes as we handle it specially above

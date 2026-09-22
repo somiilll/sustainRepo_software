@@ -15,6 +15,16 @@ import {
   DialogTitle,
 } from '../components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,13 +51,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../components/ui/collapsible';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle, ChevronDown, ChevronRight, Search, MapPin, Filter } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle, Search, MapPin, Filter } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const formatTco2e = (value) => `${Number(value || 0).toFixed(4)} tCO₂e`;
+const formatLedgerTco2e = (value) => `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e`;
 
 const calculateScope12Totals = (emissions = []) => emissions.reduce((totals, entry) => {
   const scope = String(entry?.scope || '').toLowerCase().replace(/[\s_-]/g, '');
@@ -66,8 +79,30 @@ const calculateScope3Total = (emissions = []) => emissions.reduce((total, entry)
   return scope === 'scope3' && Number.isFinite(value) ? total + value : total;
 }, 0);
 
+const getScope12LedgerTotals = (emissions = []) => {
+  const gross = calculateScope12Totals(emissions).total;
+  const sinks = emissions.reduce((total, entry) => {
+    const isSink = String(entry?.scope || '').toLowerCase() === 'sinks' || entry?.isSink;
+    const amount = Number.parseFloat(entry?.tco2e);
+    return isSink && Number.isFinite(amount) ? total + amount : total;
+  }, 0);
+  return { gross, net: gross + sinks, hasSinks: sinks !== 0 };
+};
+
+function Scope12LedgerTotal({ emissions, testId }) {
+  const { gross, net, hasSinks } = getScope12LedgerTotals(emissions);
+  return <p className={`text-xs font-semibold ${hasSinks ? 'text-emerald-800' : 'text-blue-900'}`} aria-label={hasSinks ? 'Net emissions' : 'Gross emissions'} data-testid={testId}>{formatLedgerTco2e(hasSinks ? net : gross)}</p>;
+}
+
 function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
   const totals = calculateScope12Totals(emissions);
+  const sinkTotal = emissions.reduce((total, entry) => {
+    const isSink = String(entry?.scope || '').toLowerCase() === 'sinks' || entry?.isSink;
+    const value = Number.parseFloat(entry?.tco2e);
+    return isSink && Number.isFinite(value) ? total + value : total;
+  }, 0);
+  const hasSinks = emissions.some((entry) => String(entry?.scope || '').toLowerCase() === 'sinks' || entry?.isSink);
+  const netEmissions = totals.total + sinkTotal;
 
   if (compact) {
     return (
@@ -81,7 +116,7 @@ function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
   }
 
   return (
-    <section className="grid grid-cols-1 gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3 sm:grid-cols-3" data-testid={testId}>
+    <section className={`grid grid-cols-1 gap-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3 ${hasSinks ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`} data-testid={testId}>
       <div>
         <p className="text-xs text-blue-700">Scope 1</p>
         <p className="text-sm font-semibold text-text-primary" data-testid={`${testId}-scope1`}>{formatTco2e(totals.scope1)}</p>
@@ -94,6 +129,12 @@ function Scope12EmissionsSummary({ emissions, testId, compact = false }) {
         <p className="text-xs font-medium text-blue-800">Total Emissions</p>
         <p className="text-sm font-bold text-blue-900" data-testid={`${testId}-total`}>{formatTco2e(totals.total)}</p>
       </div>
+      {hasSinks && (
+        <div className="border-blue-200 sm:border-l sm:pl-3" data-testid={`${testId}-net-emissions`}>
+          <p className="text-xs font-medium text-emerald-800">Net Emissions</p>
+          <p className="text-sm font-bold text-emerald-900" data-testid={`${testId}-net-emissions-value`}>{formatTco2e(netEmissions)}</p>
+        </div>
+      )}
     </section>
   );
 }
@@ -126,9 +167,105 @@ function Scope3EmissionsSummary({ emissions, testId, compact = false }) {
   );
 }
 
+const historyEventCopy = {
+  configured: { title: 'Base year configured', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  base_year_updated: { title: 'Base year updated', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  emissions_updated: { title: 'Base year emissions updated', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+  recalculated: { title: 'Recalculated automatically', badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+  sinks_recalculated: { title: 'Sinks recalculated automatically', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  deleted: { title: 'Base year deleted', badge: 'bg-red-50 text-red-700 border-red-200' },
+};
+
+const formatAuditDate = (value) => value ? new Date(value).toLocaleString() : 'Date unavailable';
+
+function BaseYearHistoryTimeline({ events, loading, error, onRetry }) {
+  if (loading) return <div className="py-10 text-center text-sm text-text-muted" data-testid="base-year-history-loading">Loading history…</div>;
+  if (error) return <LoadErrorState title="Unable to load version history" message={error} onRetry={onRetry} testId="base-year-history-error" />;
+  if (!events.length) return <div className="py-10 text-center text-sm text-text-muted" data-testid="base-year-history-empty">No new audit events are available for this base year.</div>;
+
+  return (
+    <div className="space-y-3" data-testid="base-year-history-timeline">
+      {events.map((event) => {
+        const copy = historyEventCopy[event.event_type] || historyEventCopy.emissions_updated;
+        const before = event.before;
+        const after = event.after;
+        return (
+          <article key={event.id} className="border border-stone-200 rounded-lg bg-white p-4" data-testid={`base-year-history-event-${event.id}`}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text-primary" data-testid={`base-year-history-event-title-${event.id}`}>{copy.title}</p>
+                <p className="text-xs text-text-muted" data-testid={`base-year-history-event-actor-${event.id}`}>
+                  {event.actor?.name || 'Unknown'} · {formatAuditDate(event.occurred_at)}
+                </p>
+              </div>
+              <Badge variant="outline" className={`w-fit ${copy.badge}`} data-testid={`base-year-history-event-version-${event.id}`}>
+                Version {event.version}
+              </Badge>
+            </div>
+
+            {event.reason && (
+              <div className="mt-3 border-l-2 border-stone-300 pl-3 text-sm text-text-secondary" data-testid={`base-year-history-event-reason-${event.id}`}>
+                <span className="font-medium text-text-primary">Reason:</span> {event.reason}
+              </div>
+            )}
+
+            <div className={`mt-3 grid gap-2 ${before && after ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+              {before && (
+                <div className="border border-stone-200 bg-stone-50 p-3 rounded-md" data-testid={`base-year-history-event-before-${event.id}`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Before</p>
+                  <p className="mt-1 text-sm font-medium text-text-primary">{before.base_year}</p>
+                  <p className="text-sm text-text-secondary">{formatTco2e(before.total_emissions)}</p>
+                </div>
+              )}
+              {after && (
+                <div className="border border-emerald-200 bg-emerald-50/60 p-3 rounded-md" data-testid={`base-year-history-event-after-${event.id}`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">{before ? 'After' : 'Base year total'}</p>
+                  <p className="mt-1 text-sm font-medium text-text-primary">{after.base_year}</p>
+                  <p className="text-sm text-emerald-800">{formatTco2e(after.total_emissions)}</p>
+                </div>
+              )}
+            </div>
+
+            {event.source_emission?.id && (
+              <a className="mt-3 inline-flex text-xs font-medium text-primary hover:underline" href={`${event.source_type === 'sink' ? '/sinks' : '/ghg'}?record_id=${encodeURIComponent(event.source_emission.id)}`} data-testid={`base-year-history-event-source-${event.id}`}>
+                {event.source_type === 'sink' ? 'View linked Sinks entry' : 'View linked GHG entry'}: {event.source_emission.category} · {event.source_emission.reporting_period}
+              </a>
+            )}
+
+            {event.source_emission && (
+              <p className="mt-1 text-xs text-text-secondary" data-testid={`base-year-history-event-source-values-${event.id}`}>
+                {event.source_type === 'sink' ? 'Sink removal' : 'Source entry emissions'}: <span className="text-red-600">{event.source_emission.old_emissions == null ? '—' : formatTco2e(event.source_emission.old_emissions)}</span> → <span className="text-emerald-700">{event.source_emission.new_emissions == null ? '—' : formatTco2e(event.source_emission.new_emissions)}</span>
+              </p>
+            )}
+
+            {event.entry_changes?.length > 0 && (
+              <details className="mt-3 rounded-md border border-stone-200" data-testid={`base-year-history-event-entry-changes-${event.id}`}>
+                <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-text-primary">
+                  View {event.entry_changes.length} emission change{event.entry_changes.length === 1 ? '' : 's'}
+                </summary>
+                <div className="border-t border-stone-200 divide-y divide-stone-100">
+                  {event.entry_changes.map((change) => (
+                    <div key={change.entry_key} className="grid gap-1 px-3 py-2 text-xs sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-3" data-testid={`base-year-history-entry-change-${event.id}-${change.entry_key}`}>
+                      <span className="text-text-secondary">{change.scope} · {change.category}{change.subcategory ? ` · ${change.subcategory}` : ''}</span>
+                      <span className="text-text-muted">{change.change_type}</span>
+                      <span className="text-red-600">{change.old_value == null ? '—' : formatTco2e(change.old_value)}</span>
+                      <span className="text-emerald-700">{change.new_value == null ? '—' : formatTco2e(change.new_value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const { user, getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [organization, setOrganization] = useState(null);
   const [facilities, setFacilities] = useState([]);
   const [baseYearRecords, setBaseYearRecords] = useState([]);
@@ -164,6 +301,12 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   // History view state
   const [historyRecord, setHistoryRecord] = useState(null);
   const [deletionHistory, setDeletionHistory] = useState([]);
+  const [historyEvents, setHistoryEvents] = useState([]);
+  const [historyError, setHistoryError] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deletingBaseYear, setDeletingBaseYear] = useState(false);
   
   // Change year states
   const [changeYearRecord, setChangeYearRecord] = useState(null);
@@ -196,11 +339,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   const [biogenicIndirectCategories] = useState(['C3', 'C8', 'C10', 'C11', 'C13', 'C14']); // Fixed categories for Biogenic (Indirect)
   const [biogenicIndirectSubcategories, setBiogenicIndirectSubcategories] = useState([]); // Subcategories for Biogenic (Indirect)
 
-  // Accordion and filter states for redesigned UI
-  const [expandedFacility, setExpandedFacility] = useState(null); // Only one facility expanded at a time
-  const [expandedOrganization, setExpandedOrganization] = useState(false); // Organization accordion state
+  // Ledger filters
   const [facilitySearch, setFacilitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'configured', 'pending', 'missing'
+  const showLegacyLedgerPanels = false;
 
   // Check if organization has Scope 3 access
   const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
@@ -211,6 +353,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       // Fetch organization
       const orgResponse = await axios.get(`${API}/organizations/my`, {
@@ -277,8 +420,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       }
 
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      setLoadError(getUserFriendlyError(error, 'We could not load your base year records.'));
     } finally {
       setLoading(false);
     }
@@ -363,7 +505,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error checking oldest year:', error);
-      toast.error('Failed to check emissions data');
+      toast.error(getUserFriendlyError(error, 'We could not check the available emissions data.'));
     }
   };
 
@@ -520,16 +662,16 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             // Aggregate sinks
             const sinkAggregates = {};
             matchedSinks.forEach(sink => {
-              const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+            const key = `${sink.description || sink.sink_type || 'Carbon Sink'}_${sink.description || ''}`;
               if (!sinkAggregates[key]) {
-                sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
+              sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
               }
               sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
             });
             
             sinksToAdd = Object.values(sinkAggregates).map(agg => ({
               scope: 'Sinks',
-              category: agg.sink_type || agg.description || 'Carbon Sink',
+              category: agg.description || agg.sink_type || 'Carbon Sink',
               subcategory: agg.description || '',
               tco2e: -(Math.abs(agg.total)),
               isSink: true
@@ -538,11 +680,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         }
       }
       
-      // Remove any existing sinks from savedData to avoid duplicates (will be replaced by sinksToAdd)
-      const savedDataWithoutSinks = savedData.filter(e => e.scope?.toLowerCase() !== 'sinks');
+      // Preserve the stored Base Year sink snapshot during a manual GHG edit.
+      // Sinks are refreshed only by the Sinks module, not by this form.
+      const savedDataWithoutSinks = savedData.filter(e => e.scope?.toLowerCase() !== 'sinks' && !e.isSink);
+      const savedSinkEntries = savedData.filter(e => e.scope?.toLowerCase() === 'sinks' || e.isSink);
+      const sinkEntriesForEdit = savedSinkEntries.length > 0 ? savedSinkEntries : sinksToAdd;
       
-      // Combine: saved data (without sinks) + new combinations + fresh sinks (if any)
-      const mergedData = [...savedDataWithoutSinks, ...newCombinations, ...sinksToAdd];
+      // Combine: saved GHG data + new GHG combinations + the unchanged sink snapshot.
+      const mergedData = [...savedDataWithoutSinks, ...newCombinations, ...sinkEntriesForEdit];
       
       setEmissionsData(mergedData);
     } catch (error) {
@@ -705,7 +850,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         // Aggregate sinks by description/type to avoid duplicates
         const sinkAggregates = {};
         matchedSinks.forEach(sink => {
-          const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+          const key = `${sink.description || sink.sink_type || 'Carbon Sink'}_${sink.description || ''}`;
           if (!sinkAggregates[key]) {
             sinkAggregates[key] = {
               sink_type: sink.sink_type || 'other',
@@ -719,7 +864,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         // Convert aggregated sinks to emission entries with NEGATIVE values
         sinksToAdd = Object.values(sinkAggregates).map(agg => ({
           scope: 'Sinks',
-          category: agg.sink_type || agg.description || 'Carbon Sink',
+          category: agg.description || agg.sink_type || 'Carbon Sink',
           subcategory: agg.description || '',
           tco2e: -(Math.abs(agg.total)), // NEGATIVE value for sinks (carbon removal)
           isSink: true
@@ -750,7 +895,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error fetching combinations:', error);
-      toast.error('Failed to load emission categories');
+      toast.error(getUserFriendlyError(error, 'We could not load the available emission categories.'));
     }
   };
 
@@ -858,7 +1003,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error saving base year:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save base year emissions');
+      toast.error(getUserFriendlyError(error, 'We could not save the base year emissions.'));
     } finally {
       setSavingEmissions(false);
     }
@@ -866,12 +1011,20 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   const handleViewHistory = async (record) => {
     setHistoryRecord(record);
+    setLoadingHistory(true);
+    setHistoryEvents([]);
+    setHistoryError(null);
     
     // Fetch deletion history for this entity
     const entityType = record.facility_id ? 'facility' : 'organization';
     const entityId = record.facility_id || record.organization_id;
     
     try {
+      const eventResponse = await axios.get(
+        `${API}/base-year-emissions/history/${entityType}/${entityId}?scope_group=${record.scope_group || 'scope12'}`,
+        { headers: getAuthHeader() }
+      );
+      setHistoryEvents(eventResponse.data?.events || []);
       const response = await axios.get(
         `${API}/base-year-emissions/deletion-history/${entityType}/${entityId}`,
         { headers: getAuthHeader() }
@@ -880,13 +1033,17 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     } catch (error) {
       console.error('Error fetching deletion history:', error);
       setDeletionHistory([]);
+      setHistoryEvents([]);
+      setHistoryError(getUserFriendlyError(error, 'We could not load the version history.'));
+    } finally {
+      setLoadingHistory(false);
     }
     
     setShowHistoryDialog(true);
   };
 
   // View history for an entity that may not have a current record (shows deletion history)
-  const handleViewEntityHistory = async (entityType, entityId, entityName) => {
+  const handleViewEntityHistory = async (entityType, entityId, entityName, scopeGroup = 'scope12') => {
     // Create a minimal record object for display
     const pseudoRecord = {
       organization_id: entityType === 'organization' ? entityId : organization?.id,
@@ -894,12 +1051,21 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       base_year: 'N/A',
       version: 0,
       version_history: [],
-      entity_name: entityName
+      entity_name: entityName,
+      scope_group: scopeGroup,
     };
     
     setHistoryRecord(pseudoRecord);
+    setLoadingHistory(true);
+    setHistoryEvents([]);
+    setHistoryError(null);
     
     try {
+      const eventResponse = await axios.get(
+        `${API}/base-year-emissions/history/${entityType}/${entityId}?scope_group=${scopeGroup}`,
+        { headers: getAuthHeader() }
+      );
+      setHistoryEvents(eventResponse.data?.events || []);
       const response = await axios.get(
         `${API}/base-year-emissions/deletion-history/${entityType}/${entityId}`,
         { headers: getAuthHeader() }
@@ -908,25 +1074,38 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     } catch (error) {
       console.error('Error fetching deletion history:', error);
       setDeletionHistory([]);
+      setHistoryEvents([]);
+      setHistoryError(getUserFriendlyError(error, 'We could not load the version history.'));
+    } finally {
+      setLoadingHistory(false);
     }
     
     setShowHistoryDialog(true);
   };
 
-  const handleDeleteRecord = async (recordId) => {
-    if (!window.confirm('Are you sure you want to delete this base year record? The deletion will be recorded in history.')) {
-      return;
-    }
-    
+  const handleDeleteRecord = (recordOrId) => {
+    const recordId = typeof recordOrId === 'string' ? recordOrId : recordOrId?.id;
+    if (!recordId) return;
+    setDeleteCandidate(baseYearRecords.find((record) => record.id === recordId) || { id: recordId });
+    setDeletionReason('');
+  };
+
+  const confirmDeleteRecord = async () => {
+    if (!deleteCandidate?.id || !deletionReason.trim()) return;
+    setDeletingBaseYear(true);
     try {
-      await axios.delete(`${API}/base-year-emissions/${recordId}`, {
+      await axios.delete(`${API}/base-year-emissions/${deleteCandidate.id}?deletion_reason=${encodeURIComponent(deletionReason.trim())}`, {
         headers: getAuthHeader()
       });
-      toast.success('Base year record deleted (recorded in history)');
-      fetchData();
+      toast.success('Base year deleted and recorded in audit history');
+      setDeleteCandidate(null);
+      setDeletionReason('');
+      await fetchData();
     } catch (error) {
       console.error('Error deleting record:', error);
-      toast.error('Failed to delete record');
+      toast.error(getUserFriendlyError(error, 'We could not delete the base year emissions.'));
+    } finally {
+      setDeletingBaseYear(false);
     }
   };
 
@@ -1060,7 +1239,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       
     } catch (error) {
       console.error('Error changing base year:', error);
-      toast.error(error.response?.data?.detail || 'Failed to change base year');
+      toast.error(getUserFriendlyError(error, 'We could not change the base year.'));
     } finally {
       setChangingYear(false);
     }
@@ -1547,26 +1726,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     return <Badge variant="outline" className={`text-xs ${className}`}>{label}</Badge>;
   };
 
-  // Handle accordion toggle - only one can be open (facilities collapse when org opens and vice versa)
-  const handleAccordionToggle = (facilityId) => {
-    if (expandedFacility === facilityId) {
-      setExpandedFacility(null);
-    } else {
-      setExpandedFacility(facilityId);
-      setExpandedOrganization(false); // Collapse org when facility opens
-    }
-  };
-
-  // Handle organization accordion toggle
-  const handleOrgAccordionToggle = () => {
-    if (expandedOrganization) {
-      setExpandedOrganization(false);
-    } else {
-      setExpandedOrganization(true);
-      setExpandedFacility(null); // Collapse facilities when org opens
-    }
-  };
-
   // Get organization status based on base year configuration
   const getOrganizationStatus = () => {
     if (!organization) return 'missing';
@@ -1586,6 +1745,20 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6" data-testid="base-year-emissions-page">
+        {!hideTopHeader && <ModulePageHeader title="Base Year Emissions" icon={History} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="base-year-emissions" />}
+        <LoadErrorState
+          title="Unable to load base year records"
+          message={loadError}
+          onRetry={fetchData}
+          testId="base-year-emissions-load-error"
+        />
       </div>
     );
   }
@@ -1755,47 +1928,31 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           </div>
         </div>
 
-        {/* Unified Accordion List */}
-        <div className="border border-stone-200 rounded-xl overflow-hidden bg-white shadow-sm">
+        {/* Unified Base Year Ledger */}
+        <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-3 shadow-sm">
           
           {/* ========== ORGANIZATION ROW ========== */}
           {(user?.role === 'admin' || user?.role === 'user') && organization && (statusFilter === 'all' || statusFilter === getOrganizationStatus()) && (
-            <div className="bg-gradient-to-r from-primary/5 to-transparent">
-              {/* Organization Collapsed Row */}
-              <button
-                onClick={handleOrgAccordionToggle}
-                className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50/50 transition-colors text-left ${expandedOrganization ? 'bg-stone-50/50' : ''}`}
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-sky-50 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+              {/* Organization Ledger Row */}
+              <div
+                className={`grid w-full gap-3 px-4 py-4 text-left sm:items-stretch ${hasScope3Access ? 'sm:grid-cols-[18rem_minmax(0,1fr)_minmax(0,1fr)_7rem]' : 'sm:grid-cols-[18rem_minmax(0,1fr)_7rem]'}`}
+                data-testid="base-year-organization-ledger-row"
               >
-                {/* Expand/Collapse Icon */}
-                <div className="flex-shrink-0">
-                  {expandedOrganization ? (
-                    <ChevronDown className="w-5 h-5 text-text-muted" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-text-muted" />
-                  )}
-                </div>
-                
                 {/* Organization Name */}
-                <div className="min-w-0 w-40 sm:w-48">
+                <div className="min-w-0 self-center">
                   <div className="flex items-center gap-2">
-                    <Building className="w-4 h-4 text-primary flex-shrink-0" />
-                    <p className="font-semibold text-text-primary truncate">{organization.name}</p>
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Building className="h-4 w-4" /></div>
+                    <div className="min-w-0">
+                      <p className="overflow-hidden font-semibold text-text-primary" title={organization.name} data-testid="base-year-organization-name" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{organization.name}</p>
+                      <Badge variant="outline" className="mt-1 border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700">Corporate Base Year</Badge>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Type Column */}
-                <div className="hidden sm:block min-w-[100px]">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
-                    Organization
-                  </Badge>
-                </div>
-                
-                {/* Spacer - pushes scope cards to the right */}
-                <div className="w-40" />
-                
                 {/* Scope 1 & 2 Base Year - Clickable Card */}
                 <div 
-                  className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                  className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-blue-50 sm:block"
                   onClick={(e) => {
                     e.stopPropagation();
                     const record = getEntityRecord('organization', organization.id, 'scope12');
@@ -1808,17 +1965,19 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   }}
                 >
                   <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
-                  <p className="text-sm font-semibold text-text-primary">
-                    {getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}
-                  </p>
+                  <div className="mt-5 flex items-baseline justify-between gap-3 pr-7">
+                    <p className="text-sm font-semibold text-text-primary">{getEntityRecord('organization', organization.id, 'scope12')?.base_year || '—'}</p>
+                    {getEntityRecord('organization', organization.id, 'scope12') && <Scope12LedgerTotal emissions={getEntityRecord('organization', organization.id, 'scope12').emissions_data} testId="organization-scope12-ledger-total" />}
+                  </div>
+                  {getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
+                  {!getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope12'); }} data-testid="organization-scope12-ledger-history-empty-button"><History className="h-3.5 w-3.5" /></Button>}
+                  {user?.role !== 'user' && getEntityRecord('organization', organization.id, 'scope12') && <Button variant="ghost" size="icon" className="absolute right-2 top-11 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(getEntityRecord('organization', organization.id, 'scope12')); }} data-testid="organization-scope12-ledger-change-button"><CalendarClock className="h-3.5 w-3.5" /></Button>}
                 </div>
 
-                 <div className="w-20" />
-                
                 {/* Scope 3 Base Year - Clickable Card */}
                 {hasScope3Access && (
                   <div 
-                    className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                    className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-violet-50 sm:block"
                     onClick={(e) => {
                       e.stopPropagation();
                       const record = getEntityRecord('organization', organization.id, 'scope3');
@@ -1831,17 +1990,18 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     }}
                   >
                     <p className="text-xs text-purple-600 font-medium">Scope 3</p>
-                    <p className="text-sm font-semibold text-text-primary">
-                      {getEntityRecord('organization', organization.id, 'scope3')?.base_year || '—'}
-                    </p>
+                    <div className="mt-5 flex items-baseline justify-between gap-3 pr-7">
+                      <p className="text-sm font-semibold text-text-primary">{getEntityRecord('organization', organization.id, 'scope3')?.base_year || '—'}</p>
+                      {getEntityRecord('organization', organization.id, 'scope3') && <p className="text-xs font-semibold text-purple-900" data-testid="organization-scope3-ledger-total">{formatLedgerTco2e(calculateScope3Total(getEntityRecord('organization', organization.id, 'scope3').emissions_data))}</p>}
+                    </div>
+                    {getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(getEntityRecord('organization', organization.id, 'scope3')); }} data-testid="organization-scope3-ledger-history-button"><History className="h-3.5 w-3.5" /></Button>}
+                    {!getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope3'); }} data-testid="organization-scope3-ledger-history-empty-button"><History className="h-3.5 w-3.5" /></Button>}
+                    {user?.role !== 'user' && getEntityRecord('organization', organization.id, 'scope3') && <Button variant="ghost" size="icon" className="absolute right-2 top-11 h-6 w-6 text-purple-700 hover:bg-purple-100" title="Change base year" aria-label="Change Scope 3 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(getEntityRecord('organization', organization.id, 'scope3')); }} data-testid="organization-scope3-ledger-change-button"><CalendarClock className="h-3.5 w-3.5" /></Button>}
                   </div>
                 )}
                 
-                {/* Gap before status */}
-                <div className="flex-1" />
-                
                 {/* Status Badge */}
-                <div className="flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-1 self-center sm:justify-self-end">
                   {getStatusBadge(getOrganizationStatus())}
                 </div>
                 
@@ -1849,10 +2009,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 {user?.role === 'user' && (
                   <Badge variant="outline" className="text-xs bg-stone-50 flex-shrink-0">View Only</Badge>
                 )}
-              </button>
+              </div>
               
               {/* Organization Expanded Content */}
-              {expandedOrganization && (
+              {showLegacyLedgerPanels && (
                 <div className="px-4 py-4 bg-stone-50/50 border-t border-stone-100">
                   <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-md'}`}>
                     {/* Scope 1 & 2 Panel */}
@@ -1893,11 +2053,21 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                               </div>
                             </div>
                           ) : !isOrgReadOnly ? (
-                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope12'); }}>
-                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope12'); }} data-testid="organization-scope12-setup-button">
+                                <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope12'); }} data-testid="organization-scope12-history-button">
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                            </div>
                           ) : (
-                            <p className="text-xs text-text-muted">Not configured</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-text-muted">Not configured</p>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope12'); }} data-testid="organization-scope12-history-view-only-button">
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                            </div>
                           )}
                         </div>
                       );
@@ -1941,11 +2111,21 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                               </div>
                             </div>
                           ) : !isOrgReadOnly ? (
-                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope3'); }}>
-                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('organization', organization.id, organization.name, 'scope3'); }} data-testid="organization-scope3-setup-button">
+                                <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope3'); }} data-testid="organization-scope3-history-button">
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                            </div>
                           ) : (
-                            <p className="text-xs text-text-muted">Not configured</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-text-muted">Not configured</p>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('organization', organization.id, organization.name, 'scope3'); }} data-testid="organization-scope3-history-view-only-button">
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                            </div>
                           )}
                         </div>
                       );
@@ -1969,49 +2149,32 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             </div>
           ) : (
             filteredFacilities.map((facility) => {
-              const isExpanded = expandedFacility === facility.id;
               const facilityStatus = getFacilityStatus(facility.id);
               const scope12Record = getEntityRecord('facility', facility.id, 'scope12');
               const scope3Record = hasScope3Access ? getEntityRecord('facility', facility.id, 'scope3') : null;
               
               return (
-                <div key={facility.id} className="border-t border-stone-100">
-                  {/* Collapsed Row */}
-                  <button
-                    onClick={() => handleAccordionToggle(facility.id)}
-                    className={`w-full px-4 py-3 flex items-center gap-4 hover:bg-stone-50 transition-colors text-left ${isExpanded ? 'bg-stone-50' : ''}`}
+                <div key={facility.id} className="rounded-xl border border-stone-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.035)]">
+                  {/* Facility Ledger Row */}
+                  <div
+                    className={`grid w-full gap-3 px-4 py-4 text-left sm:items-stretch ${hasScope3Access ? 'sm:grid-cols-[18rem_minmax(0,1fr)_minmax(0,1fr)_7rem]' : 'sm:grid-cols-[18rem_minmax(0,1fr)_7rem]'}`}
+                    data-testid={`base-year-facility-ledger-row-${facility.id}`}
                   >
-                    {/* Expand/Collapse Icon */}
-                    <div className="flex-shrink-0">
-                      {isExpanded ? (
-                        <ChevronDown className="w-5 h-5 text-text-muted" />
-                      ) : (
-                        <ChevronRight className="w-5 h-5 text-text-muted" />
-                      )}
-                    </div>
-                    
                     {/* Facility Name & Location */}
-                    <div className="min-w-0 w-40 sm:w-48">
-                      <p className="font-medium text-text-primary truncate">{facility.name}</p>
-                      <p className="text-xs text-text-muted flex items-center gap-1 truncate">
-                        <MapPin className="w-3 h-3" />
-                        {facility.city}, {facility.state}
-                      </p>
+                    <div className="min-w-0 self-center">
+                      <div className="flex items-start gap-2">
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600"><Building2 className="h-4 w-4" /></div>
+                        <div className="min-w-0">
+                          <p className="overflow-hidden font-medium text-text-primary" title={facility.name} data-testid={`base-year-facility-name-${facility.id}`} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{facility.name}</p>
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-text-muted"><MapPin className="h-3 w-3" />{facility.city}, {facility.state}</p>
+                          <Badge variant="outline" className="mt-1 border-stone-200 bg-stone-50 text-[10px] font-semibold text-stone-600">Facility</Badge>
+                        </div>
+                      </div>
                     </div>
-                    
-                    {/* Type Column */}
-                    <div className="hidden sm:block min-w-[100px]">
-                      <Badge variant="outline" className="bg-stone-50 text-stone-600 border-stone-200 text-xs">
-                        Facility
-                      </Badge>
-                    </div>
-                    
-                    {/* Spacer - pushes scope cards to the right */}
-                    <div className="w-40" />
                     
                     {/* Scope 1 & 2 Base Year - Clickable Card */}
                     <div 
-                      className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-100/50 transition-colors cursor-pointer"
+                      className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-blue-50 sm:block"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (scope12Record) {
@@ -2023,17 +2186,19 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                       }}
                     >
                       <p className="text-xs text-blue-600 font-medium">Scope 1 & 2</p>
-                      <p className="text-sm font-semibold text-text-primary">
-                        {scope12Record?.base_year || '—'}
-                      </p>
+                      <div className="mt-5 flex items-baseline justify-between gap-3 pr-7">
+                        <p className="text-sm font-semibold text-text-primary">{scope12Record?.base_year || '—'}</p>
+                        {scope12Record && <Scope12LedgerTotal emissions={scope12Record.emissions_data} testId={`facility-${facility.id}-scope12-ledger-total`} />}
+                      </div>
+                      {scope12Record && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
+                      {!scope12Record && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-blue-700 hover:bg-blue-100" title="View version history" aria-label="View Scope 1 and 2 version history" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('facility', facility.id, facility.name, 'scope12'); }} data-testid={`facility-${facility.id}-scope12-ledger-history-empty-button`}><History className="h-3.5 w-3.5" /></Button>}
+                      {scope12Record && canEditRecordSync(scope12Record) && <Button variant="ghost" size="icon" className="absolute right-2 top-11 h-6 w-6 text-blue-700 hover:bg-blue-100" title="Change base year" aria-label="Change Scope 1 and 2 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope12'); handleChangeYear(scope12Record); }} data-testid={`facility-${facility.id}-scope12-ledger-change-button`}><CalendarClock className="h-3.5 w-3.5" /></Button>}
                     </div>
 
-                    <div className="w-20" />
-                    
                     {/* Scope 3 Base Year - Clickable Card */}
                     {hasScope3Access && (
                       <div 
-                        className="hidden sm:block min-w-[120px] p-2 rounded-lg bg-purple-50/50 border border-purple-100 hover:bg-purple-100/50 transition-colors cursor-pointer"
+                        className="relative hidden min-h-[84px] w-full cursor-pointer rounded-xl border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-3 pr-10 shadow-sm transition-[transform,box-shadow,background-color] hover:-translate-y-0.5 hover:bg-violet-50 sm:block"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (scope3Record) {
@@ -2045,23 +2210,24 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         }}
                       >
                         <p className="text-xs text-purple-600 font-medium">Scope 3</p>
-                        <p className="text-sm font-semibold text-text-primary">
-                          {scope3Record?.base_year || '—'}
-                        </p>
+                        <div className="mt-5 flex items-baseline justify-between gap-3 pr-7">
+                          <p className="text-sm font-semibold text-text-primary">{scope3Record?.base_year || '—'}</p>
+                          {scope3Record && <p className="text-xs font-semibold text-purple-900" data-testid={`facility-${facility.id}-scope3-ledger-total`}>{formatLedgerTco2e(calculateScope3Total(scope3Record.emissions_data))}</p>}
+                        </div>
+                        {scope3Record && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewHistory(scope3Record); }} data-testid={`facility-${facility.id}-scope3-ledger-history-button`}><History className="h-3.5 w-3.5" /></Button>}
+                        {!scope3Record && <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-6 w-6 text-purple-700 hover:bg-purple-100" title="View version history" aria-label="View Scope 3 version history" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('facility', facility.id, facility.name, 'scope3'); }} data-testid={`facility-${facility.id}-scope3-ledger-history-empty-button`}><History className="h-3.5 w-3.5" /></Button>}
+                        {scope3Record && canEditRecordSync(scope3Record) && <Button variant="ghost" size="icon" className="absolute right-2 top-11 h-6 w-6 text-purple-700 hover:bg-purple-100" title="Change base year" aria-label="Change Scope 3 base year" onClick={(e) => { e.stopPropagation(); setSelectedScopeGroup('scope3'); handleChangeYear(scope3Record); }} data-testid={`facility-${facility.id}-scope3-ledger-change-button`}><CalendarClock className="h-3.5 w-3.5" /></Button>}
                       </div>
                     )}
                     
-                    {/* Gap before status */}
-                    <div className="flex-1" />
-                    
                     {/* Status Badge */}
-                    <div className="flex-shrink-0">
+                    <div className="flex items-center self-center sm:justify-self-end">
                       {getStatusBadge(facilityStatus)}
                     </div>
-                  </button>
+                  </div>
                   
                   {/* Expanded Content */}
-                  {isExpanded && (
+                  {showLegacyLedgerPanels && (
                     <div className="px-4 py-4 bg-stone-50/50 border-t border-stone-100">
                       <div className={`grid gap-4 ${hasScope3Access ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 max-w-md'}`}>
                         {/* Scope 1 & 2 Section */}
@@ -2094,9 +2260,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                               </div>
                             </div>
                           ) : (
-                            <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope12'); }}>
-                              <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope12'); }} data-testid={`facility-${facility.id}-scope12-setup-button`}>
+                                <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('facility', facility.id, facility.name, 'scope12'); }} data-testid={`facility-${facility.id}-scope12-history-button`}>
+                                <History className="w-3 h-3 mr-1" /> History
+                              </Button>
+                            </div>
                           )}
                         </div>
                         
@@ -2131,9 +2302,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                                 </div>
                               </div>
                             ) : (
-                              <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope3'); }}>
-                                <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
-                              </Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button variant="outline" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); handleEntityClick('facility', facility.id, facility.name, 'scope3'); }} data-testid={`facility-${facility.id}-scope3-setup-button`}>
+                                  <Plus className="w-3 h-3 mr-1" /> Set Up Base Year
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={(e) => { e.stopPropagation(); handleViewEntityHistory('facility', facility.id, facility.name, 'scope3'); }} data-testid={`facility-${facility.id}-scope3-history-button`}>
+                                  <History className="w-3 h-3 mr-1" /> History
+                                </Button>
+                              </div>
                             )}
                           </div>
                         )}
@@ -2237,7 +2413,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   <CalendarClock className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">Base Year: {selectedYear}</span>
                 </div>
-                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
               </div>
 
               {selectedScopeGroup === 'scope12' && (
@@ -2613,7 +2788,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 <CalendarClock className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium">Base Year: {selectedYear}</span>
               </div>
-              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
             </div>
 
             {selectedScopeGroup === 'scope12' && (
@@ -2949,13 +3123,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     }`}>
                       {getScopeGroupLabel(viewRecord.scope_group || 'scope12')}
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      user?.role === 'user' && !viewRecord?.facility_id
-                        ? 'text-stone-600 bg-stone-100'
-                        : 'text-green-600 bg-green-50'
-                    }`}>
-                      {user?.role === 'user' && !viewRecord?.facility_id ? 'View Only' : 'Editable'}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -3007,17 +3174,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 )
               )}
               
-              {/* Justification section - always show if exists */}
-              {viewRecord.justification && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-800">Base Year Justification</span>
-                  </div>
-                  <p className="text-sm text-amber-700">{viewRecord.justification}</p>
-                </div>
-              )}
-              
               {/* Notes section */}
               {viewRecord.notes && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -3028,31 +3184,6 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   <p className="text-sm text-blue-700">{viewRecord.notes}</p>
                 </div>
               )}
-              
-              {/* Sinks section - show total sinks value in a single row (only for Scope 1&2 and only if sinks are in saved emissions_data) */}
-              {(viewRecord.scope_group || 'scope12') === 'scope12' && (() => {
-                // Check if sinks are included in the saved base year configuration
-                const hasSinksInConfig = viewRecord.emissions_data?.some(e => 
-                  e.scope?.toLowerCase() === 'sinks'
-                );
-                if (!hasSinksInConfig) return null;
-                
-                const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
-                if (sinks.length === 0) return null;
-                
-                const totalSinkReductions = sinks.reduce((sum, s) => sum + (parseFloat(s.total_emissions_reduced) || 0), 0);
-                
-                return (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Leaf className="w-4 h-4 text-green-600" />
-                      <span className="font-medium text-sm text-green-800">Total Carbon Sinks</span>
-                      <span className="text-xs text-green-600">({sinks.length} sink{sinks.length > 1 ? 's' : ''})</span>
-                    </div>
-                    <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
-                  </div>
-                );
-              })()}
               
               <div className="flex justify-between gap-3">
                 <div className="flex gap-2">
@@ -3122,7 +3253,9 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             </DialogDescription>
           </DialogHeader>
 
-          {historyRecord && (
+          {historyRecord && <BaseYearHistoryTimeline events={historyEvents} loading={loadingHistory} error={historyError} onRetry={() => handleViewHistory(historyRecord)} />}
+
+          {historyRecord && !loadingHistory && !historyError && historyEvents.length === 0 && (
             <div className="space-y-4">
               {/* Only show current record info if there's an actual record */}
               {historyRecord.version > 0 && (
@@ -3311,6 +3444,40 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(deleteCandidate)} onOpenChange={(open) => { if (!open && !deletingBaseYear) setDeleteCandidate(null); }}>
+        <AlertDialogContent data-testid="base-year-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete base year?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The deleted base year, its total emissions, your reason, and your name will remain in the audit history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="base-year-deletion-reason">Reason for deletion *</Label>
+            <Textarea
+              id="base-year-deletion-reason"
+              value={deletionReason}
+              onChange={(event) => setDeletionReason(event.target.value)}
+              placeholder="Explain why this base year must be deleted"
+              className="min-h-[110px]"
+              data-testid="base-year-deletion-reason-input"
+            />
+            <p className="text-xs text-text-muted" data-testid="base-year-deletion-reason-count">A written reason is required for the audit history.</p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBaseYear} data-testid="base-year-delete-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => { event.preventDefault(); confirmDeleteRecord(); }}
+              disabled={deletingBaseYear || !deletionReason.trim()}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="base-year-delete-confirm-button"
+            >
+              {deletingBaseYear ? 'Deleting…' : 'Delete base year'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Change Base Year Dialog - With Mandatory Reason */}
       <Dialog open={showChangeYearDialog} onOpenChange={(open) => { if (!open) { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); setChangeReason(''); } }}>

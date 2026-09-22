@@ -12,6 +12,7 @@ import {
   RefreshCcw,
 } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 const UNIT_LESS_COUNT_FIELDS = new Set([
   'qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms',
@@ -20,6 +21,17 @@ const UNIT_LESS_COUNT_FIELDS = new Set([
 ]);
 
 const formatNumber = (value, decimals) => Number(value || 0).toFixed(decimals);
+
+const formatNormalizedValue = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return String(value ?? '');
+  if (numericValue === 0 || Math.abs(numericValue) >= 0.000001) {
+    return formatNumber(numericValue, 6);
+  }
+
+  const decimals = Math.min(12, Math.max(6, Math.ceil(-Math.log10(Math.abs(numericValue))) + 1));
+  return numericValue.toFixed(decimals).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+};
 
 const emissionCards = (calculation) => [
   { key: 'co2', label: 'CO₂ Emissions', value: calculation.co2Emissions, unit: calculation.co2OutputUnit || 'tCO₂', Icon: Cloud, classes: 'border-red-100 bg-red-50/70 text-red-800', icon: 'text-red-500', muted: 'text-red-600' },
@@ -35,14 +47,83 @@ const propertyPresentation = (entry) => {
   return { Icon: Calculator, iconClass: 'text-purple-500' };
 };
 
-const SourceBadge = ({ source }) => source ? (
-  <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid="calculation-source-badge">
+const legacyDensityEntry = (entry) => {
+  if (entry.step !== 'convert' || entry.property_key !== 'density') return null;
+  const isReverse = entry.method?.includes('reverse');
+  const inputUnit = entry.input?.unit || '';
+  const outputUnit = entry.output?.unit || '';
+  const factor = Number(entry.factor);
+  return {
+    step: 'resolve_property',
+    property: 'density',
+    property_label: 'Density',
+    value: isReverse && factor ? 1 / factor : factor,
+    unit: isReverse ? `${inputUnit}/${outputUnit}` : `${outputUnit}/${inputUnit}`,
+    source_name: entry.method?.includes('user_override') ? 'User Specified' : 'Fuel Database',
+  };
+};
+
+const calculationEntries = (auditLog) => {
+  const hasCanonicalDensity = auditLog.some(
+    (entry) => entry.step === 'resolve_property' && entry.property === 'density',
+  );
+  if (hasCanonicalDensity) return auditLog;
+  return auditLog.flatMap((entry) => {
+    const densityEntry = legacyDensityEntry(entry);
+    return densityEntry ? [densityEntry, entry] : [entry];
+  });
+};
+
+const valuesMatch = (left, right) => (
+  Number.isFinite(Number(left))
+  && Number.isFinite(Number(right))
+  && Number(left) === Number(right)
+);
+
+const isRealNormalization = (entry) => (
+  entry.step === 'convert'
+  && entry.input
+  && entry.output
+  && entry.note !== 'no conversion (missing unit specification)'
+  && (entry.input.unit !== entry.output.unit || !valuesMatch(entry.input.value, entry.output.value))
+);
+
+const isInrToUsdConversionProperty = (entry = {}) => {
+  const identity = `${entry.property || ''} ${entry.property_label || ''}`.toLowerCase();
+  return identity.includes('exchange_rate')
+    || identity.includes('standard currency exchange rate')
+    || identity.includes('purchase power value')
+    || /\bppp\b/.test(identity);
+};
+
+const conversionsForEntry = ({ entry, kind, auditLog }) => {
+  const matchingKey = kind === 'input' ? 'variable' : 'property';
+  const entryKey = kind === 'input' ? entry.variable : entry.property;
+  const explicitMatches = auditLog.filter((candidate) => (
+    isRealNormalization(candidate) && candidate[matchingKey] === entryKey
+  ));
+  if (explicitMatches.length > 0) return explicitMatches;
+
+  // Historic audit entries predate field identifiers on conversion steps.
+  // Match only an exact raw value/unit pair when the older trace permits it.
+  const rawValue = kind === 'input' ? entry.value : entry.value;
+  const rawUnit = kind === 'input' ? entry.unit : entry.unit;
+  return auditLog.filter((candidate) => (
+    isRealNormalization(candidate)
+    && candidate.input?.unit === rawUnit
+    && valuesMatch(candidate.input?.value, rawValue)
+  ));
+};
+
+const SourceBadge = ({ source, testId }) => source ? (
+  <span className="ml-auto shrink-0 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700" data-testid={testId}>
     Source · {source}
   </span>
 ) : null;
 
 export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3Like }) => {
   const auditLog = calculation.auditLog || [];
+  const displayAuditLog = calculationEntries(auditLog);
 
   return (
     <section className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="calculated-emissions-summary">
@@ -50,9 +131,23 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
         <Leaf className="h-5 w-5 text-emerald-600" aria-hidden="true" />
         <span className="text-sm font-semibold text-stone-800" data-testid="calculated-emissions-heading">Calculated Emissions</span>
         {isCalculating && <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" data-testid="calculated-emissions-updating">Updating…</span>}
-        <span className="ml-auto flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-500" data-testid="calculated-emissions-rounding-note">
-          Values rounded to 4 decimal places <Info className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
-        </span>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Rounding information"
+                className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-stone-400 transition-colors hover:border-emerald-300 hover:text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                data-testid="calculated-emissions-rounding-info-button"
+              >
+                <Info className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs" data-testid="calculated-emissions-rounding-tooltip">
+              Values rounded to 4 decimal places
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {isScope3Like ? (
@@ -86,17 +181,17 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
             </AccordionTrigger>
             <AccordionContent>
               <div className="rounded-lg border border-stone-200 bg-white px-4" data-testid="calculation-audit-entries">
-                {auditLog.map((entry, index) => {
+                {displayAuditLog.map((entry, index) => {
                   if (entry.step === 'input') {
-                    const finalConvert = entry.variable === 'qty' || entry.variable === 'qty_energy'
-                      ? auditLog.find((candidate) => candidate.step === 'convert' && candidate.output?.unit === 'kg' && candidate.output?.value !== entry.value)
-                      : null;
-                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{finalConvert ? <span className="ml-2 text-emerald-700">→ {formatNumber(finalConvert.output.value, 2)} {finalConvert.output.unit}</span> : null}</p></div>;
+                    const conversions = conversionsForEntry({ entry, kind: 'input', auditLog: displayAuditLog });
+                    return <div key={index} className="flex items-start gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-input-entry-${index}`}><ArrowUpFromLine className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">Input:</span> <span className="text-blue-700">{entry.variable_label || entry.variable}</span> = {entry.value}{!UNIT_LESS_COUNT_FIELDS.has(entry.variable) && entry.unit ? ` ${entry.unit}` : ''}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-input-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p></div>;
                   }
                   if (entry.step === 'resolve_property') {
                     const { Icon, iconClass } = propertyPresentation(entry);
                     const sourceName = entry.source_name || entry.source || '';
-                    return <div key={index} className="flex items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNumber(entry.value, 6) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}</p><SourceBadge source={sourceName} /></div>;
+                    const conversions = conversionsForEntry({ entry, kind: 'property', auditLog: displayAuditLog });
+                    const showCurrencyDirection = isInrToUsdConversionProperty(entry);
+                    return <div key={index} className="flex flex-wrap items-center gap-3 border-b border-stone-100 py-3 last:border-0" data-testid={`calculation-property-entry-${index}`}><Icon className={`h-4 w-4 shrink-0 ${iconClass}`} aria-hidden="true" /><p className="min-w-0 break-words text-sm text-stone-700"><span className="font-medium">{entry.property_label || entry.property}</span> = {typeof entry.value === 'number' ? formatNormalizedValue(entry.value) : entry.value}{entry.unit && entry.unit !== '1' ? ` ${entry.unit}` : ''}{showCurrencyDirection && <span className="ml-2 whitespace-nowrap text-xs text-stone-500" data-testid={`calculation-property-currency-direction-${index}`}>INR (Source Currency) → USD (Target Currency)</span>}{conversions.map((conversion, conversionIndex) => <span key={`${index}-${conversionIndex}`} className="ml-2 text-emerald-700" data-testid={`calculation-property-normalized-value-${index}-${conversionIndex}`}>→ {formatNormalizedValue(conversion.output.value)} {conversion.output.unit}</span>)}</p><SourceBadge source={sourceName} testId={`calculation-source-badge-${index}`} /></div>;
                   }
                   if (entry.step === 'formula_step') {
                     const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());

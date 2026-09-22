@@ -498,7 +498,7 @@ export default function Facilities() {
               <DialogHeader>
                 <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
                 {!editingFacility && organization && !isSupplier && (
                   <div className="p-4 border border-green-200 rounded-lg bg-green-50">
@@ -511,7 +511,6 @@ export default function Facilities() {
                       />
                       <div>
                         <p className="font-medium text-green-800">Same as Organization</p>
-                        <p className="text-xs text-green-600">Auto-fill facility details from organization (still editable)</p>
                       </div>
                     </label>
                   </div>
@@ -519,7 +518,7 @@ export default function Facilities() {
                 
                 {/* Supplier simplified form - only name */}
                 {isSupplier ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
                       <p className="text-sm text-blue-800">
                         As a supplier, you only need to provide the facility name. Additional details can be added later.
@@ -540,7 +539,7 @@ export default function Facilities() {
                 ) : (
                   /* Full form for non-suppliers */
                   <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
@@ -580,7 +579,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Address Section */}
-                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <MapPin className="w-4 h-4" />
                     Address Details
@@ -595,7 +594,7 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="city">City *</Label>
                       <Input
@@ -617,7 +616,7 @@ export default function Facilities() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="country">Country *</Label>
                       <select
@@ -683,18 +682,18 @@ export default function Facilities() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="responsible_person"
-                    value={formData.responsible_person}
-                    onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                    className="bg-stone-50"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="responsible_person"
+                      value={formData.responsible_person}
+                      onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                      className="bg-stone-50"
+                      required
+                      data-testid="facility-person-responsible-input"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person_designation">Designation</Label>
                     <Input
@@ -703,6 +702,7 @@ export default function Facilities() {
                       onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
                       className="bg-stone-50"
                       placeholder="e.g., Environmental Manager"
+                      data-testid="facility-person-responsible-designation-input"
                     />
                   </div>
                   <div className="space-y-2">
@@ -713,19 +713,18 @@ export default function Facilities() {
                       onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
                       className="bg-stone-50"
                       placeholder="Email or phone"
+                      data-testid="facility-person-responsible-contact-input"
                     />
                   </div>
                 </div>
 
                 {/* Equity Share Percentage - Only show if organization uses equity share approach */}
                 {organization?.org_boundaries_approach === 'equity_share' && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="equity_share_percentage" className="text-amber-800 font-medium">
-                        Equity Share Percentage (%) <span className="text-red-500">*</span>
-                      </Label>
-                    </div>
-                    <p className="text-xs text-amber-700 mb-2">
+                  <div className="space-y-2 border-l-2 border-stone-300 pl-4" data-testid="facility-equity-share-guidance">
+                    <Label htmlFor="equity_share_percentage" className="font-medium text-text-primary">
+                      Equity Share Percentage (%) <span className="text-red-500">*</span>
+                    </Label>
+                    <p className="mb-2 text-xs text-text-muted">
                       Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.
                     </p>
                     <Input
@@ -741,16 +740,17 @@ export default function Facilities() {
                           setFormData({ ...formData, equity_share_percentage: value });
                         }
                       }}
-                      className="bg-white w-32"
+                      className="w-32 bg-stone-50"
                       placeholder="e.g., 100"
+                      data-testid="facility-equity-share-percentage-input"
                     />
-                    <p className="text-xs text-amber-600 mt-1">
+                    <p className="mt-1 text-xs text-text-muted">
                       Default is 100%. Enter a value between 0 and 100.
                     </p>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="monitoring_frequency">Monitoring Frequency</Label>
                     <select
@@ -782,7 +782,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Attachments Section */}
-                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <Paperclip className="w-4 h-4" />
                     Attachments
@@ -1062,7 +1062,7 @@ export default function Facilities() {
             )}
             {/* Show Equity Share Percentage if org uses equity share approach */}
             {organization?.org_boundaries_approach === 'equity_share' && facility.equity_share_percentage != null && (
-              <div className="inline-block ml-2 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full mb-2">
+              <div className="inline-block ml-2 px-3 py-1 bg-stone-100 text-stone-700 text-xs font-medium rounded-full mb-2" data-testid={`facility-equity-share-${facility.id}`}>
                 Equity: {facility.equity_share_percentage}%
               </div>
             )}

@@ -69,10 +69,18 @@ const findByNameTerms = (formulas, terms) =>
     return terms.some((term) => name.includes(term.toLowerCase()));
   });
 
+const resolveCompoundBasis = (unit) => {
+  const denominator = String(unit || '').split('/')[1]?.trim().toLowerCase();
+  if (['g', 'kg', 't'].includes(denominator)) return 'mass';
+  if (['ml', 'l', 'kl', 'm3', 'cm3'].includes(denominator)) return 'volume';
+  return null;
+};
+
 const resolveScope3Formula = (formConfig, context) => {
   const {
     scope3Method,
     spendCurrencyConversionMethod,
+    allocationMethod,
     scope3ActivityType,
     scope3Subcategory,
     typeOfProduct,
@@ -84,6 +92,7 @@ const resolveScope3Formula = (formConfig, context) => {
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_method_scope3: scope3Method,
       spend_currency_conversion_method: spendCurrencyConversionMethod,
+      allocation_method: allocationMethod || undefined,
       activity_type: scope3ActivityType || undefined,
       subcategory_selection: scope3Subcategory || undefined,
       type_of_product: typeOfProduct || undefined,
@@ -157,6 +166,12 @@ const resolveScope12Formula = (formConfig, context) => {
   let matchedFormula = null;
 
   if (formConfig.decision_tree) {
+    const selectedCvUnit = decisionFieldValues.cv_unit
+      || decisionFieldValues.cv?.unit
+      || context.selectedFuel?.calorific_value_unit;
+    const selectedEfUnit = decisionFieldValues.ef_quantity_unit
+      || decisionFieldValues.ef_quantity?.unit
+      || context.selectedFuel?.emission_factor_basis_unit;
     const formulaId = traverseDecisionTree(formConfig.decision_tree, {
       calculation_methodology:
         decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv',
@@ -166,13 +181,13 @@ const resolveScope12Formula = (formConfig, context) => {
       ...((context.isProcessCategory || context.isStationaryMobileOrFlaringCategory)
         && decisionFieldValues.calculation_methodology === 'using_qty_basis_ef'
         && !decisionFieldValues.ef_quantity_basis
-        ? { ef_quantity_basis: 'mass' }
+        ? { ef_quantity_basis: resolveCompoundBasis(selectedEfUnit) || 'mass' }
         : {}),
       // Heat Basis CV routing follows the selected denominator at calculation
       // time. Use mass while the form has not yet materialized its CV unit.
       ...(decisionFieldValues.calculation_methodology === 'using_heat_basis_ncv'
         && !decisionFieldValues.cv_quantity_basis
-        ? { cv_quantity_basis: 'mass' }
+        ? { cv_quantity_basis: resolveCompoundBasis(selectedCvUnit) || 'mass' }
         : {}),
       ...decisionFieldValues,
     });
@@ -228,12 +243,24 @@ const isMappingApplicable = ({
   decisionFieldNames,
 }) => {
   const { categoryId, scopeId, useCustomFuel, selectedFuel, decisionFieldValues } = context;
+  const isActivityBasis = context.scope3Method === 'activity_basis';
+  const formulaGroupId = matchedFormula?.activity_formula_group_id;
 
   const appliesToCategory =
     !m.applies_to_categories?.length || m.applies_to_categories.includes(categoryId);
   const appliesToScope =
     !m.applies_to_scopes?.length || m.applies_to_scopes.includes(scopeId);
   if (!appliesToCategory || !appliesToScope || m.is_active === false) return false;
+  if (m.applies_to_methods?.length && !m.applies_to_methods.includes(context.scope3Method)) return false;
+  if (isActivityBasis && m.activity_formula_group_id && m.activity_formula_group_id !== formulaGroupId) return false;
+  if (!isActivityBasis && m.activity_formula_group_id) return false;
+  if (isActivityBasis && !m.activity_formula_group_id && formulaGroupId) {
+    const hasGroupReplacement = formConfig.input_field_mappings?.some((candidate) => (
+      candidate.activity_formula_group_id === formulaGroupId
+      && candidate.source_mapping_id === m.id
+    ));
+    if (hasGroupReplacement) return false;
+  }
 
   if (useCustomFuel && HANDLED_BY_CUSTOM_FUEL.includes(m.maps_to_variable)) return false;
 
@@ -280,11 +307,12 @@ const isMappingApplicable = ({
 };
 
 const toField = (m, { isQtyBasis, quantityUnits }) => {
+  const displayLabel = m.field_label;
   const field = {
     id: m.id,
     variable: m.maps_to_variable,
     fieldKey: m.field_key,
-    label: m.field_label,
+    label: displayLabel,
     expectedUnit: m.default_unit,
     required: m.is_required,
     isOverride: m.is_override || false,
@@ -292,7 +320,7 @@ const toField = (m, { isQtyBasis, quantityUnits }) => {
     allowedUnits: m.allowed_units || [],
     unitSource: m.unit_source || 'static',
     compoundWithVariable: m.compound_with_variable || null,
-    placeholder: m.placeholder || `Enter ${m.field_label}`,
+    placeholder: m.placeholder || `Enter ${displayLabel}`,
     helpText: m.help_text || '',
     mapsToContext: m.maps_to_context,
     mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
@@ -307,6 +335,60 @@ const toField = (m, { isQtyBasis, quantityUnits }) => {
   }
   return field;
 };
+
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
+const toFloorAreaShareField = (input = {}) => ({
+  id: `c8-${input.variable || 'floor_area_share'}`,
+  variable: input.variable || 'floor_area_share',
+  fieldKey: input.variable || 'floor_area_share',
+  label: 'Floor Area Share %',
+  expectedUnit: input.expected_unit || '',
+  required: input.required !== false,
+  isOverride: false,
+  fieldType: 'number',
+  allowedUnits: [],
+  unitSource: 'none',
+  compoundWithVariable: null,
+  placeholder: 'Enter floor area share',
+  helpText: '',
+  mapsToContext: null,
+  mapsToContextValueWhenFilled: 'true',
+  mapsToContextValueWhenEmpty: 'false',
+  options: [],
+  validationRules: { max: 100 },
+  defaultValue: undefined,
+});
+
+const toInvestmentPercentageField = (input = {}) => ({
+  id: `c15-${input.variable || 'investment_percentage'}`,
+  variable: input.variable || 'investment_percentage',
+  fieldKey: input.variable || 'investment_percentage',
+  label: 'Investment Percentage',
+  expectedUnit: input.expected_unit || '',
+  required: input.required !== false,
+  isOverride: false,
+  fieldType: 'number',
+  allowedUnits: [],
+  unitSource: 'none',
+  compoundWithVariable: null,
+  placeholder: 'Enter investment percentage',
+  helpText: '',
+  mapsToContext: null,
+  mapsToContextValueWhenFilled: 'true',
+  mapsToContextValueWhenEmpty: 'false',
+  options: [],
+  validationRules: { max: 100 },
+  defaultValue: undefined,
+});
 
 const toPresentationField = (field, index) => ({
   id: field.id || `organization-custom-${field.field_key}-${index}`,
@@ -330,6 +412,10 @@ const toPresentationField = (field, index) => ({
 
 export const deriveGhgFields = ({ formConfig, context } = {}) => {
   if (!formConfig?.input_field_mappings?.length && !formConfig?.presentation_custom_fields?.length) {
+    return { fields: [], formulaId: null, matchedFormula: null };
+  }
+
+  if (context.isScope3Like && !context.scope3Method) {
     return { fields: [], formulaId: null, matchedFormula: null };
   }
 
@@ -373,7 +459,23 @@ export const deriveGhgFields = ({ formConfig, context } = {}) => {
     ? context.selectedFuel.allowed_units
     : quantityMapping?.allowed_units || [quantityMapping?.default_unit].filter(Boolean);
 
-  const calculationFields = applicableMappings.map((m) => toField(m, { isQtyBasis, quantityUnits }));
+  const calculationFields = applicableMappings.map((m) => toField(m, {
+    isQtyBasis,
+    quantityUnits,
+  }));
+  const c8FloorAreaShareInput = context.categoryDefinition?.code === 'c8'
+    && context.allocationMethod === 'floor_area_share'
+    ? matchedFormula?.inputs?.find(isFloorAreaShareField)
+    : null;
+  if (c8FloorAreaShareInput && !calculationFields.some(isFloorAreaShareField)) {
+    calculationFields.push(toFloorAreaShareField(c8FloorAreaShareInput));
+  }
+  const c15InvestmentPercentageInput = context.categoryDefinition?.code === 'c15'
+    ? matchedFormula?.inputs?.find(isInvestmentPercentageField)
+    : null;
+  if (c15InvestmentPercentageInput && !calculationFields.some(isInvestmentPercentageField)) {
+    calculationFields.push(toInvestmentPercentageField(c15InvestmentPercentageInput));
+  }
   // C7 is a dedicated multi-employee workflow with its own serialized input
   // contract. Organization custom fields are intentionally unavailable there.
   const presentationFields = context.categoryDefinition?.code === 'c7'

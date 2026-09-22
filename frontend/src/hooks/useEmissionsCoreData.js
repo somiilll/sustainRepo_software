@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -22,7 +23,6 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
     emissionConfigurations: [],
     centralizedUnits: [],
     gwpConfig: null,
-    processTemplates: [],
     dynamicScopes: [],
     dynamicCategories: [],
     scope3EFData: [],
@@ -38,15 +38,17 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
     }
   });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const headers = { headers: getAuthHeader() };
       const [
         emissionsRes, facilitiesRes, fuelDbRes, formulasRes, 
-        paramsRes, unitsRes, configsRes, gwpRes, 
-        templatesRes, orgRes, scopesRes, catsRes, labelsRes,
+        paramsRes, unitsRes, configsRes, gwpRes,
+        orgRes, scopesRes, catsRes, labelsRes,
         scope3EfRes, resolvedConfigRes, supplierConfigRes
       ] = await Promise.all([
         axios.get(`${API}/emissions`, headers),
@@ -54,18 +56,17 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
         axios.get(`${API}/fuel-database`, headers),
         axios.get(`${API}/formula-definitions`, headers).catch(() => ({ data: [] })),
         axios.get(`${API}/formula-parameters`, headers).catch(() => ({ data: [] })),
-        axios.get(`${API}/calc-engine/units`, headers).catch(() => ({ data: { simple: [], compound: [] } })),
-        axios.get(`${API}/emission-configurations`, headers).catch(() => ({ data: [] })),
-        axios.get(`${API}/gwp-config`, headers).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, headers).catch(() => ({ data: [] })),
-        axios.get(`${API}/organizations/my`, headers).catch(() => ({ data: null })),
-        axios.get(`${API}/scopes`, headers).catch(() => ({ data: [] })),
-        axios.get(`${API}/categories`, headers).catch(() => ({ data: [] })),
+        axios.get(`${API}/calc-engine/units`, headers),
+        axios.get(`${API}/emission-configurations`, headers),
+        axios.get(`${API}/gwp-config`, headers),
+        axios.get(`${API}/organizations/my`, headers),
+        axios.get(`${API}/scopes`, headers),
+        axios.get(`${API}/categories`, headers),
         axios.get(`${API}/config/labels`, headers).catch(() => ({ data: null })),
-        axios.get(`${API}/scope3-ef?limit=10000`, headers).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API}/sustainability-config/resolved`, headers).catch(() => ({ data: {} })),
+        axios.get(`${API}/scope3-ef?limit=10000`, headers),
+        axios.get(`${API}/sustainability-config/resolved`, headers),
         isSupplier
-          ? axios.get(`${API}/supplier-assessment/my-assessment/emissions/config`, headers).catch(() => ({ data: null }))
+          ? axios.get(`${API}/supplier-assessment/my-assessment/emissions/config`, headers)
           : Promise.resolve({ data: null })
       ]);
 
@@ -99,7 +100,6 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
         centralizedUnits: [...(unitsRes.data?.simple || []), ...(unitsRes.data?.compound || [])],
         emissionConfigurations: configsRes.data || [],
         gwpConfig: gwpRes.data || null,
-        processTemplates: templatesRes.data || [],
         organization: orgRes.data,
         dynamicScopes: scopesRes.data || [],
         dynamicCategories: catsRes.data || [],
@@ -111,6 +111,7 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
       });
     } catch (error) {
       console.error('Error fetching core emissions data:', error);
+      setLoadError(getUserFriendlyError(error, 'Unable to load emission data. Please refresh the page and try again.', { preferFallback: true }));
     } finally {
       setLoading(false);
     }
@@ -120,7 +121,7 @@ export function useEmissionsCoreData(getAuthHeader, { isSupplier = false } = {})
     fetchData();
   }, [isSupplier]);
 
-  return { ...data, loading, refresh: fetchData };
+  return { ...data, loading, loadError, refresh: fetchData };
 }
 
 export default useEmissionsCoreData;

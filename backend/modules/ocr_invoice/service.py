@@ -1,0 +1,614 @@
+"""Application service for secure OCR upload processing and persistence."""
+from __future__ import annotations
+
+import os
+import re
+import tempfile
+import uuid
+import logging
+from datetime import datetime, timezone
+from pathlib import Path
+
+from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from app.logging import get_logger, log_event
+from r2_storage import get_r2_storage
+from shared.database.mongo import db
+
+from .config import ALLOWED_EXTENSIONS, MAX_FILE_BYTES, SPREADSHEET_EXTENSIONS, ExtractionMode, get_mode
+from .document_processor import process_document
+from .llm_gateway import OcrLlmGateway
+from .normalization import sanitize_json
+from .provider_diagnostics import get_provider_diagnostic
+
+
+logger = get_logger(__name__)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _reporting_period_from_date(value: object) -> str:
+    """Normalize an extracted ISO date to the monthly GHG period key."""
+    match = re.match(r"^(\d{4})-(0[1-9]|1[0-2])", str(value or "").strip())
+    return f"{match.group(1)}-{match.group(2)}" if match else ""
+
+
+def _reporting_period_from_row(row: dict, billing_period: dict) -> str:
+    for value in (
+        billing_period.get("start_date"),
+        billing_period.get("end_date"),
+        row.get("date"),
+    ):
+        reporting_period = _reporting_period_from_date(value)
+        if reporting_period:
+            return reporting_period
+    return ""
+
+
+def _normalize_cache_key(value: str | None) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _record_provider_failure(error: BaseException, *, organization_id: str, upload_id: str, filename: str, mode: ExtractionMode) -> dict | None:
+    diagnostic = get_provider_diagnostic(error)
+    if not diagnostic:
+        return None
+    logger.error(
+        "OCR provider request failed | provider=%s request_id=%s category=%s status_code=%s upload_id=%s filename=%s mode=%s",
+        diagnostic["provider"],
+        diagnostic["request_id"] or "none",
+        diagnostic["category"],
+        diagnostic["status_code"] if diagnostic["status_code"] is not None else "none",
+        upload_id,
+        filename,
+        mode.key,
+        extra={
+            "organization_id": organization_id,
+            "upload_id": upload_id,
+            "ocr_filename": filename,
+            "mode": mode.key,
+            "ocr_provider": diagnostic["provider"],
+            "ocr_provider_request_id": diagnostic["request_id"],
+            "ocr_provider_error_category": diagnostic["category"],
+            "ocr_provider_status_code": diagnostic["status_code"],
+        },
+    )
+    log_event(
+        logger,
+        logging.ERROR,
+        "ocr.provider.request.failed",
+        action="ocr.provider.request",
+        outcome="failed",
+        error_code=str(diagnostic.get("category") or "OCR_PROVIDER_ERROR").upper(),
+        context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key, "provider": diagnostic.get("provider"), "provider_request_id": diagnostic.get("request_id"), "provider_status_code": diagnostic.get("status_code")},
+    )
+    return diagnostic
+
+
+async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[str]]:
+    organization = await db.organizations.find_one(
+        {"id": organization_id},
+        {"_id": 0, "name": 1, "general_description": 1, "process_description": 1, "industry_sector": 1, "industry": 1, "sector": 1},
+    ) or {}
+    facilities = await db.facilities.find(
+        {"organization_id": organization_id, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+        {"_id": 0, "name": 1, "city": 1, "sector": 1, "sub_sector": 1, "products_services": 1, "process_description": 1},
+    ).to_list(1000)
+    capabilities = await resolve_ghg_capabilities(db, organization_id)
+    enabled_scopes = {
+        scope for scope, enabled in (
+            ("scope1", capabilities.scope1_enabled),
+            ("scope2", capabilities.scope2_enabled),
+            ("scope3", capabilities.scope3_enabled),
+        ) if enabled
+    }
+    enabled_scopes.add("water")
+    context = {
+        "organization_id": organization_id,
+        "company_name": organization.get("name"),
+        "industry_sector": organization.get("industry_sector") or organization.get("industry") or organization.get("sector"),
+        "organization_profile": organization.get("general_description"),
+        "products": organization.get("process_description"),
+        "locations": facilities,
+    }
+    return context, enabled_scopes, capabilities.disabled_scope3_sheets
+
+
+async def process_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
+    gateway = OcrLlmGateway(mode)
+    org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
+    upload_id = str(uuid.uuid4())
+    log_event(logger, logging.INFO, "ocr.upload.processing.started", action="ocr.upload.process", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": len(files), "mode": mode.key})
+    storage = get_r2_storage()
+    upload_record = {
+        "id": upload_id,
+        "organization_id": organization_id,
+        "uploaded_by": user.get("id"),
+        "uploaded_by_name": user.get("full_name") or user.get("name") or user.get("email") or "Unknown",
+        "mode": mode.key,
+        "vision_model": mode.vision_model,
+        "reasoning_model": mode.reasoning_model,
+        "status": "processing",
+        "files": [],
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+
+    async def find_override(vendor_name: str | None, description: str | None):
+        record = await db.ocr_vendor_overrides.find_one(
+            {
+                "organization_id": organization_id,
+                "vendor_key": _normalize_cache_key(vendor_name),
+                "item_key": _normalize_cache_key(description),
+            },
+            {"_id": 0, "classification": 1},
+        )
+        return record.get("classification") if record else None
+
+    all_items: list[dict] = []
+    errors: list[dict] = []
+    for file_index, upload_file in enumerate(files):
+        filename = Path(upload_file.filename or "invoice").name
+        extension = Path(filename).suffix.lower()
+        content = await upload_file.read()
+        if extension not in ALLOWED_EXTENSIONS:
+            errors.append({"filename": filename, "error": "Unsupported file type"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="UNSUPPORTED_FILE_TYPE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        if len(content) > MAX_FILE_BYTES:
+            errors.append({"filename": filename, "error": "File exceeds the 20MB limit"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="FILE_TOO_LARGE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        try:
+            upload_result = await storage.upload_file(
+                file_content=content,
+                filename=filename,
+                bucket_type="ocr_temp",
+                content_type=upload_file.content_type or "application/octet-stream",
+                folder=f"ocr/{organization_id}/{upload_id}",
+                org_name=organization_id,
+            )
+        except Exception:
+            logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "ocr_filename": filename})
+            errors.append({"filename": filename, "error": "Secure storage upload failed"})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename}, exc_info=True)
+            continue
+        if upload_result.get("error"):
+            errors.append({"filename": filename, "error": upload_result["error"]})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        file_info = {
+            "filename": filename,
+            "content_type": upload_file.content_type,
+            "temp_key": upload_result["key"],
+            "file_index": file_index,
+            "preview_supported": extension not in SPREADSHEET_EXTENSIONS,
+            "line_item_count": 0,
+            "resolved_count": 0,
+            "saved_count": 0,
+            "rejected_count": 0,
+            "resolution_status": "pending",
+            "status": "processing",
+        }
+        upload_record["files"].append(file_info)
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            rows = await process_document(
+                temp_path,
+                gateway,
+                org_context,
+                enabled_scopes,
+                set(disabled_scope3_sheets),
+                find_override,
+            )
+            file_info["line_item_count"] = len(rows)
+            file_info["status"] = "completed"
+            for row in rows:
+                item_id = str(uuid.uuid4())
+                billing_period = row.pop("billing_period", {})
+                current_values = {
+                    **row,
+                    "billing_period_start": billing_period.get("start_date"),
+                    "billing_period_end": billing_period.get("end_date"),
+                    "billing_period_text": billing_period.get("period_text"),
+                    "reporting_period": _reporting_period_from_row(row, billing_period),
+                    "unit_matched": bool(row.get("unit")),
+                    "mode": mode.key,
+                    "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",
+                    "reasoning_model": mode.reasoning_model,
+                }
+                line_item = {
+                    "id": item_id,
+                    "upload_id": upload_id,
+                    "organization_id": organization_id,
+                    "file_index": file_index,
+                    "filename": filename,
+                    "temp_file_key": upload_result["key"],
+                    "original_values": current_values.copy(),
+                    "current_values": current_values,
+                    "confidence_score": row.get("confidence_score"),
+                    "needs_review": row.get("needs_review", True),
+                    "status": "pending_review",
+                    "edit_history": [],
+                    "accepted_values": None,
+                    "emission_record_ids": [],
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }
+                all_items.append(sanitize_json(line_item))
+        except Exception as error:
+            diagnostic = _record_provider_failure(
+                error,
+                organization_id=organization_id,
+                upload_id=upload_id,
+                filename=filename,
+                mode=mode,
+            )
+            if not diagnostic:
+                logger.exception(
+                    "OCR file processing failed",
+                    extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key},
+                )
+                log_event(logger, logging.ERROR, "ocr.upload.file.processing_failed", action="ocr.upload.process_file", outcome="failed", error_code="FILE_PROCESSING_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key}, exc_info=True)
+            file_info["status"] = "failed"
+            file_info["error"] = "Processing failed for this file"
+            if diagnostic:
+                file_info["provider_diagnostic"] = diagnostic
+            errors.append({"filename": filename, "error": "Processing failed for this file"})
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    upload_record.update({
+        "file_count": len(upload_record["files"]),
+        "total_line_items": len(all_items),
+        "needs_review_count": sum(1 for item in all_items if item["needs_review"]),
+        "status": "completed" if all_items else "failed",
+        "errors": errors,
+        "updated_at": _now(),
+    })
+    await db.ocr_uploads.insert_one(upload_record.copy())
+    if all_items:
+        await db.ocr_line_items.insert_many([item.copy() for item in all_items])
+    log_event(logger, logging.INFO if all_items else logging.ERROR, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="succeeded" if all_items else "failed", error_code=None if all_items else "NO_ROWS_EXTRACTED", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": upload_record["file_count"], "line_item_count": len(all_items), "error_count": len(errors), "mode": mode.key})
+    return sanitize_json({
+        "upload_id": upload_id,
+        "file_count": upload_record["file_count"],
+        "total_line_items": len(all_items),
+        "needs_review_count": upload_record["needs_review_count"],
+        "mode": mode.key,
+        "models": {"vision": mode.vision_model, "reasoning": mode.reasoning_model},
+        "enabled_scopes": sorted(enabled_scopes),
+        "files": [
+            {key: value for key, value in file.items() if key != "provider_diagnostic"}
+            for file in upload_record["files"]
+        ],
+        "errors": errors,
+        "line_items": all_items,
+    })
+
+
+async def queue_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
+    """Stage sources and create a durable OCR job without waiting for AI extraction."""
+    upload_id = str(uuid.uuid4())
+    log_event(logger, logging.INFO, "ocr.upload.queue.started", action="ocr.upload.queue", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "requested_file_count": len(files), "mode": mode.key})
+    storage = get_r2_storage()
+    upload_record = {
+        "id": upload_id,
+        "organization_id": organization_id,
+        "uploaded_by": user.get("id"),
+        "uploaded_by_name": user.get("full_name") or user.get("name") or user.get("email") or "Unknown",
+        "mode": mode.key,
+        "vision_model": mode.vision_model,
+        "reasoning_model": mode.reasoning_model,
+        "status": "queued",
+        "files": [],
+        "file_count": 0,
+        "total_line_items": 0,
+        "needs_review_count": 0,
+        "errors": [],
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+    for file_index, upload_file in enumerate(files):
+        filename = Path(upload_file.filename or "invoice").name
+        extension = Path(filename).suffix.lower()
+        content = await upload_file.read()
+        if extension not in ALLOWED_EXTENSIONS:
+            upload_record["errors"].append({"filename": filename, "error": "Unsupported file type"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="UNSUPPORTED_FILE_TYPE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        if len(content) > MAX_FILE_BYTES:
+            upload_record["errors"].append({"filename": filename, "error": "File exceeds the 20MB limit"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="FILE_TOO_LARGE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        try:
+            upload_result = await storage.upload_file(
+                file_content=content,
+                filename=filename,
+                bucket_type="ocr_temp",
+                content_type=upload_file.content_type or "application/octet-stream",
+                folder=f"ocr/{organization_id}/{upload_id}",
+                org_name=organization_id,
+            )
+        except Exception:
+            logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "ocr_filename": filename})
+            upload_record["errors"].append({"filename": filename, "error": "Secure storage upload failed"})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename}, exc_info=True)
+            continue
+        if upload_result.get("error"):
+            upload_record["errors"].append({"filename": filename, "error": upload_result["error"]})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
+            continue
+        upload_record["files"].append({
+            "filename": filename,
+            "content_type": upload_file.content_type,
+            "temp_key": upload_result["key"],
+            "file_index": file_index,
+            "preview_supported": extension not in SPREADSHEET_EXTENSIONS,
+            "line_item_count": 0,
+            "resolved_count": 0,
+            "saved_count": 0,
+            "rejected_count": 0,
+            "resolution_status": "pending",
+            "status": "queued",
+        })
+    upload_record["file_count"] = len(upload_record["files"])
+    if not upload_record["files"]:
+        upload_record["status"] = "failed"
+    elif any(file.get("preview_supported") for file in upload_record["files"]):
+        upload_record["status"] = "awaiting_facility_assignment"
+    await db.ocr_uploads.insert_one(upload_record.copy())
+    log_event(logger, logging.INFO if upload_record["files"] else logging.ERROR, "ocr.upload.queue.completed", action="ocr.upload.queue", outcome="queued" if upload_record["files"] else "failed", error_code=None if upload_record["files"] else "NO_VALID_FILES", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": upload_record["file_count"], "status": upload_record["status"], "error_count": len(upload_record["errors"]), "mode": mode.key})
+    return sanitize_json({
+        "upload_id": upload_id,
+        "file_count": upload_record["file_count"],
+        "total_line_items": 0,
+        "needs_review_count": 0,
+        "status": upload_record["status"],
+        "mode": mode.key,
+        "models": {"vision": mode.vision_model, "reasoning": mode.reasoning_model},
+        "enabled_scopes": [],
+        "files": upload_record["files"],
+        "errors": upload_record["errors"],
+        "line_items": [],
+    })
+
+
+async def process_queued_upload(upload_id: str, organization_id: str, user: dict) -> None:
+    """Process a staged OCR job in the background using its stored R2 files."""
+    claimed = await db.ocr_uploads.update_one(
+        {"id": upload_id, "organization_id": organization_id, "status": "queued"},
+        {"$set": {"status": "processing", "started_at": _now(), "updated_at": _now()}},
+    )
+    if not claimed.modified_count:
+        return
+    log_event(logger, logging.INFO, "ocr.upload.processing.started", action="ocr.upload.process", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "mode": "queued"})
+    upload_record = await db.ocr_uploads.find_one(
+        {"id": upload_id, "organization_id": organization_id},
+        {"_id": 0},
+    )
+    if not upload_record:
+        return
+    try:
+        mode = get_mode(upload_record["mode"])
+        gateway = OcrLlmGateway(mode)
+        org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
+    except Exception:
+        logger.exception("Queued OCR job setup failed", extra={"organization_id": organization_id, "upload_id": upload_id})
+        log_event(logger, logging.ERROR, "ocr.upload.processing.failed", action="ocr.upload.process", outcome="failed", error_code="JOB_INITIALIZATION_FAILED", context={"organization_id": organization_id, "upload_id": upload_id}, exc_info=True)
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"$set": {
+                "status": "failed",
+                "errors": [{"filename": "Batch", "error": "OCR job could not be initialized"}],
+                "completed_at": _now(),
+                "updated_at": _now(),
+            }},
+        )
+        return
+    storage = get_r2_storage()
+    all_items: list[dict] = []
+    errors = list(upload_record.get("errors", []))
+    cancelled = False
+
+    async def is_cancelled() -> bool:
+        record = await db.ocr_uploads.find_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"_id": 0, "status": 1},
+        )
+        return bool(record and record.get("status") == "cancelled")
+
+    async def is_file_cancelled(file_index: int) -> bool:
+        record = await db.ocr_uploads.find_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"_id": 0, "files": 1},
+        )
+        file_record = next((file for file in (record or {}).get("files", []) if file.get("file_index") == file_index), None)
+        return bool(file_record and file_record.get("status") in {"cancelled", "cancel_requested"})
+
+    async def find_override(vendor_name: str | None, description: str | None):
+        record = await db.ocr_vendor_overrides.find_one(
+            {
+                "organization_id": organization_id,
+                "vendor_key": _normalize_cache_key(vendor_name),
+                "item_key": _normalize_cache_key(description),
+            },
+            {"_id": 0, "classification": 1},
+        )
+        return record.get("classification") if record else None
+
+    for file_position, file_info in enumerate(upload_record.get("files", [])):
+        if file_info.get("status") in {"completed", "failed", "cancelled"}:
+            continue
+        if await is_cancelled():
+            cancelled = True
+            for pending_file in upload_record["files"][file_position:]:
+                if pending_file.get("status") in {"queued", "processing"}:
+                    pending_file["status"] = "cancelled"
+            break
+        filename = file_info["filename"]
+        extension = Path(filename).suffix.lower()
+        file_index = file_info["file_index"]
+        if await is_file_cancelled(file_index):
+            file_info["status"] = "cancelled"
+            continue
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id},
+            {"$set": {"files.$[file].status": "processing", "updated_at": _now()}},
+            array_filters=[{"file.file_index": file_index}],
+        )
+        temp_path = None
+        try:
+            content, _ = await storage.get_file("ocr_temp", file_info["temp_key"])
+            if not content:
+                raise RuntimeError("The staged invoice file is unavailable")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=extension) as temp_file:
+                temp_file.write(content)
+                temp_path = temp_file.name
+            rows = await process_document(
+                temp_path,
+                gateway,
+                org_context,
+                enabled_scopes,
+                set(disabled_scope3_sheets),
+                find_override,
+            )
+            if await is_file_cancelled(file_index):
+                file_info["status"] = "cancelled"
+                continue
+            if await is_cancelled():
+                cancelled = True
+                file_info["status"] = "cancelled"
+                for pending_file in upload_record["files"][file_position + 1:]:
+                    if pending_file.get("status") in {"queued", "processing"}:
+                        pending_file["status"] = "cancelled"
+                break
+            file_items = []
+            for row in rows:
+                item_id = str(uuid.uuid4())
+                billing_period = row.pop("billing_period", {})
+                current_values = {
+                    **row,
+                    "facility_id": file_info.get("facility_id") or row.get("facility_id"),
+                    "location": file_info.get("facility_name") or row.get("location"),
+                    "billing_period_start": billing_period.get("start_date"),
+                    "billing_period_end": billing_period.get("end_date"),
+                    "billing_period_text": billing_period.get("period_text"),
+                    "reporting_period": _reporting_period_from_row(row, billing_period),
+                    "unit_matched": bool(row.get("unit")),
+                    "mode": mode.key,
+                    "vision_model": mode.vision_model if extension not in SPREADSHEET_EXTENSIONS else "Spreadsheet direct ingestion",
+                    "reasoning_model": mode.reasoning_model,
+                }
+                file_items.append(sanitize_json({
+                    "id": item_id,
+                    "upload_id": upload_id,
+                    "organization_id": organization_id,
+                    "file_index": file_index,
+                    "filename": filename,
+                    "temp_file_key": file_info["temp_key"],
+                    "original_values": current_values.copy(),
+                    "current_values": current_values,
+                    "confidence_score": row.get("confidence_score"),
+                    "needs_review": row.get("needs_review", True),
+                    "status": "pending_review",
+                    "edit_history": [],
+                    "accepted_values": None,
+                    "emission_record_ids": [],
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }))
+            if await is_cancelled():
+                cancelled = True
+                file_info["status"] = "cancelled"
+                for pending_file in upload_record["files"][file_position + 1:]:
+                    if pending_file.get("status") in {"queued", "processing"}:
+                        pending_file["status"] = "cancelled"
+                break
+            if await is_file_cancelled(file_index):
+                file_info["status"] = "cancelled"
+                continue
+            if file_items:
+                await db.ocr_line_items.insert_many([item.copy() for item in file_items])
+            all_items.extend(file_items)
+            file_info["line_item_count"] = len(file_items)
+            file_info["status"] = "completed"
+        except Exception as error:
+            diagnostic = _record_provider_failure(
+                error,
+                organization_id=organization_id,
+                upload_id=upload_id,
+                filename=filename,
+                mode=mode,
+            )
+            if not diagnostic:
+                logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key})
+                log_event(logger, logging.ERROR, "ocr.upload.file.processing_failed", action="ocr.upload.process_file", outcome="failed", error_code="FILE_PROCESSING_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key}, exc_info=True)
+            file_info["status"] = "failed"
+            file_info["error"] = "An error occurred. Try again."
+            if diagnostic:
+                file_info["provider_diagnostic"] = diagnostic
+            errors.append({"filename": filename, "error": "An error occurred. Try again."})
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    if cancelled:
+        await db.ocr_uploads.update_one(
+            {"id": upload_id, "organization_id": organization_id, "status": "cancelled"},
+            {"$set": {"files": upload_record["files"], "updated_at": _now()}},
+        )
+        log_event(logger, logging.INFO, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="cancelled", context={"organization_id": organization_id, "upload_id": upload_id, "mode": mode.key})
+        return
+    total_line_items = sum(file.get("line_item_count", 0) for file in upload_record["files"])
+    final_status = "cancelled" if upload_record["files"] and all(file.get("status") == "cancelled" for file in upload_record["files"]) else "completed" if total_line_items else "failed"
+    await db.ocr_uploads.update_one(
+        {"id": upload_id, "organization_id": organization_id, "status": {"$ne": "cancelled"}},
+        {"$set": {
+            "files": upload_record["files"],
+            "total_line_items": total_line_items,
+            "needs_review_count": sum(1 for item in all_items if item.get("needs_review")),
+            "errors": errors,
+            "status": final_status,
+            "completed_at": _now(),
+            "updated_at": _now(),
+        }},
+    )
+    log_event(logger, logging.INFO if final_status == "completed" else logging.ERROR, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="succeeded" if final_status == "completed" else final_status, error_code=None if final_status == "completed" else "NO_ROWS_EXTRACTED", context={"organization_id": organization_id, "upload_id": upload_id, "line_item_count": total_line_items, "error_count": len(errors), "mode": mode.key})
+
+
+async def save_vendor_override(organization_id: str, user: dict, current_values: dict) -> None:
+    classification = {
+        "ghg_scope": current_values.get("scope"),
+        "ghg_category": current_values.get("category"),
+        "category_key": current_values.get("category_key"),
+        "category_code": current_values.get("category_code"),
+        "ghg_subcategory": current_values.get("subcategory"),
+        "ef_method": current_values.get("ef_method"),
+        "ef_database": current_values.get("ef_database"),
+        "ef_lookup_key": current_values.get("ef_lookup_key") or current_values.get("subcategory"),
+        "naics_code": current_values.get("naics_code"),
+        "naics_label": current_values.get("naics_label"),
+        "accounting_rationale": current_values.get("accounting_rationale") or "User-verified classification.",
+        "confidence_score": 100,
+        "needs_review": False,
+        "auto_generate_cat3": False,
+    }
+    await db.ocr_vendor_overrides.update_one(
+        {
+            "organization_id": organization_id,
+            "vendor_key": _normalize_cache_key(current_values.get("vendor_name")),
+            "item_key": _normalize_cache_key(current_values.get("item_description")),
+        },
+        {"$set": {
+            "classification": classification,
+            "updated_by": user.get("id"),
+            "updated_at": _now(),
+        }, "$setOnInsert": {"created_at": _now()}},
+        upsert=True,
+    )

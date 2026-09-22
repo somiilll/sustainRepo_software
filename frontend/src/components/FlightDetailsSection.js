@@ -28,6 +28,7 @@ export const FlightDetailsSection = ({
   data = {},
   updateMonthData,
   disabled = false,
+  testIdSuffix = '',
 }) => {
   const [isAirportMode, setIsAirportMode] = useState(() => {
     if (data.from_airport || data.to_airport) return true;
@@ -123,7 +124,7 @@ export const FlightDetailsSection = ({
     return (
       <div
         className="flex items-center justify-between p-2.5 bg-sky-50/60 border border-sky-200 rounded-lg"
-        data-testid={`flight-details-${monthKey}`}
+        data-testid={`flight-details-${monthKey}${testIdSuffix}`}
       >
         <div className="flex items-center gap-1.5">
           <Plane className="w-3.5 h-3.5 text-sky-600" />
@@ -136,7 +137,7 @@ export const FlightDetailsSection = ({
           onClick={() => handleModeToggle(true)}
           disabled={disabled}
           className="px-2.5 py-1 text-xs rounded bg-white text-sky-600 border border-sky-200 hover:bg-sky-50 transition-colors"
-          data-testid={`flight-mode-airport-${monthKey}`}
+          data-testid={`flight-mode-airport-${monthKey}${testIdSuffix}`}
         >
           Use Airport Lookup
         </button>
@@ -147,7 +148,7 @@ export const FlightDetailsSection = ({
   return (
     <div
       className="p-3 bg-sky-50/60 border border-sky-200 rounded-lg space-y-3"
-      data-testid={`flight-details-${monthKey}`}
+      data-testid={`flight-details-${monthKey}${testIdSuffix}`}
     >
       {/* Header + mode toggle */}
       <div className="flex items-center justify-between">
@@ -160,7 +161,7 @@ export const FlightDetailsSection = ({
           onClick={() => handleModeToggle(false)}
           disabled={disabled}
           className="px-2.5 py-1 text-xs rounded text-sky-500 hover:text-sky-700 hover:bg-sky-100 transition-colors"
-          data-testid={`flight-mode-manual-${monthKey}`}
+          data-testid={`flight-mode-manual-${monthKey}${testIdSuffix}`}
         >
           Enter Distance Manually
         </button>
@@ -175,7 +176,7 @@ export const FlightDetailsSection = ({
             onChange={(apt) => handleAirportChange('from', apt)}
             placeholder="Search departure airport..."
             disabled={disabled}
-            dataTestId={`from-airport-${monthKey}`}
+            dataTestId={`from-airport-${monthKey}${testIdSuffix}`}
           />
         </div>
         <div className="space-y-1.5">
@@ -185,7 +186,7 @@ export const FlightDetailsSection = ({
             onChange={(apt) => handleAirportChange('to', apt)}
             placeholder="Search arrival airport..."
             disabled={disabled}
-            dataTestId={`to-airport-${monthKey}`}
+            dataTestId={`to-airport-${monthKey}${testIdSuffix}`}
           />
         </div>
       </div>
@@ -213,7 +214,7 @@ export const FlightDetailsSection = ({
             onClick={handleResetDistance}
             disabled={disabled}
             className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 transition-colors"
-            data-testid={`flight-distance-reset-${monthKey}`}
+            data-testid={`flight-distance-reset-${monthKey}${testIdSuffix}`}
           >
             <RotateCcw className="w-3 h-3" />
             Reset to calculated
@@ -222,7 +223,7 @@ export const FlightDetailsSection = ({
       </div>
 
       {error && (
-        <p className="text-xs text-amber-600" data-testid={`flight-distance-error-${monthKey}`}>
+        <p className="text-xs text-amber-600" data-testid={`flight-distance-error-${monthKey}${testIdSuffix}`}>
           {error}
         </p>
       )}

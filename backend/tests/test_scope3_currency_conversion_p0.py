@@ -198,8 +198,8 @@ def test_scope3_bulk_template_has_spend_currency_conversion_columns(admin_header
     headers = [cell.value for cell in c1_sheet[1] if cell.value]
 
     assert "Spent Currency" in headers
-    assert "Currency Conversion Method" in headers
-    assert "Exchange Rate (Override)" in headers
+    assert "Standard Currency Conversion" in headers
+    assert "Exchange Rate (Override)" not in headers
 
 
 # Calc engine formula resolution checks for spend-basis method branching

@@ -100,6 +100,101 @@ const MODULE_LABELS = {
   settings: 'Settings'
 };
 
+const AUDIT_FIELD_LABELS = {
+  organization_id: 'Organization', org_id: 'Organization', facility_id: 'Facility', facility_ids: 'Facilities',
+  reporting_period: 'Reporting period', dynamic_field_values: 'Emission inputs', old_values: 'Previous values',
+  new_values: 'New values', user_agent: 'Browser', ip_address: 'IP address', custom_ef: 'Custom emission factor',
+  ef_quantity: 'Emission factor', qty: 'Quantity', cv: 'Calorific value', fuel_type: 'Fuel type',
+};
+const AUDIT_HIDDEN_FIELDS = new Set([
+  'id', 'created_at', 'created_by', 'created_by_email', 'created_by_name', 'version_number',
+  'formula_id', 'formula_version_id', 'formula_version', 'formula_snapshot', 'decision_tree_version_id',
+  'submission_batch_id', 'inputs', 'outputs', 'properties', 'steps', 'category_code', 'category_id',
+  'organization_id', 'org_id', 'version', 'scope3_ef_id',
+  'justification', 'updated_at', 'updated_by', 'updated_by_email', 'updated_by_name',
+]);
+const isHiddenAuditField = (key = '') => {
+  const normalizedKey = key.toLowerCase();
+  return ['password', 'password_hash', 'token', 'secret', '_id'].includes(normalizedKey)
+    || AUDIT_HIDDEN_FIELDS.has(normalizedKey)
+    || normalizedKey === 'id'
+    || normalizedKey.endsWith('_id')
+    || normalizedKey.endsWith('_ids');
+};
+
+const humanizeAuditField = (key = '') => AUDIT_FIELD_LABELS[key]
+  || key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const resolveAuditReference = (key, value, resolvedEntities = {}) => {
+  const organizationKeys = ['organization_id', 'org_id'];
+  if (organizationKeys.includes(key)) return resolvedEntities.organizations?.[String(value)] || 'Unavailable organization';
+  if (key === 'facility_id') return resolvedEntities.facilities?.[String(value)] || 'Unavailable facility';
+  if (key === 'facility_ids' && Array.isArray(value)) {
+    return value.map((id) => resolvedEntities.facilities?.[String(id)] || 'Unavailable facility').join(', ');
+  }
+  return null;
+};
+
+const formatAuditValue = (value, key, resolvedEntities) => {
+  const resolvedReference = resolveAuditReference(key, value, resolvedEntities);
+  if (resolvedReference) return resolvedReference;
+  if (value === null || value === undefined || value === '') return 'Not set';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.length ? value.map((item) => String(item)).join(', ') : 'None';
+  if (typeof value === 'object' && 'value' in value) return `${value.value ?? 'Not set'}${value.unit ? ` ${value.unit}` : ''}`;
+  return String(value);
+};
+
+const flattenAuditValues = (value, resolvedEntities, prefix = '', result = {}) => {
+  if (Array.isArray(value) && value.length === 0) return result;
+  if (value === null || value === undefined || typeof value !== 'object' || Array.isArray(value) || ('value' in value)) {
+    if (prefix) result[prefix] = formatAuditValue(value, prefix.split('.').pop(), resolvedEntities);
+    return result;
+  }
+  Object.entries(value).forEach(([key, childValue]) => {
+    if (isHiddenAuditField(key)) return;
+    if (prefix === 'dynamic_field_values' && key === 'calculation_methodology') return;
+    const nextPrefix = prefix ? `${prefix}.${key}` : key;
+    flattenAuditValues(childValue, resolvedEntities, nextPrefix, result);
+  });
+  return result;
+};
+
+const AuditValueList = ({ values, resolvedEntities, testId }) => {
+  const rows = Object.entries(flattenAuditValues(values, resolvedEntities));
+  if (!rows.length) return <p className="text-sm text-stone-500" data-testid={`${testId}-empty`}>No additional details.</p>;
+  return <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2" data-testid={testId}>{rows.map(([key, value]) => <div key={key} className="min-w-0 border-b border-stone-100 pb-2"><dt className="text-xs font-medium text-stone-500">{humanizeAuditField(key.split('.').pop())}</dt><dd className="mt-1 break-words text-sm font-medium text-stone-800">{value}</dd></div>)}</dl>;
+};
+
+const getVisibleAuditChanges = (changes, resolvedEntities, action) => {
+  const previous = flattenAuditValues(changes?.old_values, resolvedEntities);
+  const next = flattenAuditValues(changes?.new_values, resolvedEntities);
+  const isUnset = (value) => value === undefined || value === null || value === '' || value === 'None' || String(value).startsWith('Not set');
+  const fields = [...new Set([...Object.keys(previous), ...Object.keys(next)])].filter((field) => (
+    action === 'create'
+      ? !isUnset(next[field])
+      : !(isUnset(previous[field]) && isUnset(next[field])) && previous[field] !== next[field]
+  )).filter((field) => {
+    const leaf = field.split('.').pop();
+    const customFuelName = next.custom_fuel_name || previous.custom_fuel_name;
+    return !(
+      customFuelName
+      && ['sub_category', 'fuel_type'].includes(leaf)
+      && (next[field] === customFuelName || previous[field] === customFuelName)
+    );
+  });
+  return { fields, next, previous };
+};
+
+const AuditChangeComparison = ({ changes, resolvedEntities, action }) => {
+  const { fields, next, previous } = getVisibleAuditChanges(changes, resolvedEntities, action);
+  if (!fields.length) return null;
+  if (action === 'create') {
+    return <section className="overflow-hidden rounded-xl border border-stone-200" data-testid="audit-log-change-comparison"><div className="border-b border-stone-200 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase text-stone-500">Recorded values</div><div className="divide-y divide-stone-100">{fields.map((field) => <div key={field} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(140px,0.38fr)_minmax(0,1fr)] sm:gap-4"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="break-words text-sm text-emerald-800">{next[field]}</p></div>)}</div></section>;
+  }
+  return <section className="overflow-hidden rounded-xl border border-stone-200" data-testid="audit-log-change-comparison"><div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] border-b border-stone-200 bg-stone-50 text-xs font-semibold uppercase text-stone-500"><div className="px-4 py-3">Previous</div><div className="border-l border-stone-200 px-4 py-3">New</div></div><div className="divide-y divide-stone-100">{fields.map((field) => <div key={field} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><div className="min-w-0 px-4 py-3"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="mt-1 break-words text-sm text-rose-800">{previous[field] || 'Not set'}</p></div><div className="min-w-0 border-l border-stone-200 px-4 py-3"><p className="text-xs font-medium text-stone-500">{humanizeAuditField(field.split('.').pop())}</p><p className="mt-1 break-words text-sm text-emerald-800">{next[field] || 'Not set'}</p></div></div>)}</div></section>;
+};
+
 export default function AuditTrails() {
   const { getAuthHeader, user } = useAuth();
   const { formatDateTime } = useDateFormatter();
@@ -112,6 +207,7 @@ export default function AuditTrails() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [summary, setSummary] = useState(null);
   
   // Filters
@@ -210,8 +306,19 @@ export default function AuditTrails() {
   };
   
   const openLogDetail = async (log) => {
-    setSelectedLog(log);
+    setSelectedLog(null);
     setDetailDialogOpen(true);
+    setDetailLoading(true);
+    try {
+      const response = await axios.get(`${API}/audit-logs/${log.id}`, { headers: getAuthHeader() });
+      setSelectedLog(response.data);
+    } catch (error) {
+      console.error('Failed to load audit log details:', error);
+      toast.error('Showing the available audit log details');
+      setSelectedLog(log);
+    } finally {
+      setDetailLoading(false);
+    }
   };
   
   const formatTimestamp = (timestamp) => {
@@ -566,127 +673,36 @@ export default function AuditTrails() {
       
       {/* Log Detail Dialog */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Audit Log Details</DialogTitle>
-          </DialogHeader>
-          
-          {selectedLog && (
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-text-muted">Timestamp</Label>
-                  <p className="text-sm font-medium">{formatTimestamp(selectedLog.timestamp)}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-text-muted">Status</Label>
-                  <p className={`text-sm font-medium ${selectedLog.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                    {selectedLog.status === 'success' ? 'Success' : 'Failed'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs text-text-muted">Action</Label>
-                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium capitalize ${ACTION_COLORS[selectedLog.action] || 'bg-gray-100'}`}>
-                    {selectedLog.action}
-                  </span>
-                </div>
-                <div>
-                  <Label className="text-xs text-text-muted">Module</Label>
-                  <p className="text-sm font-medium">{MODULE_LABELS[selectedLog.module] || selectedLog.module}</p>
-                </div>
+        <DialogContent className="max-h-[86vh] max-w-4xl gap-0 overflow-hidden p-0" data-testid="audit-log-detail-dialog">
+          {detailLoading && <div className="flex min-h-48 items-center justify-center" data-testid="audit-log-detail-loading"><RefreshCw className="h-6 w-6 animate-spin text-emerald-700" aria-hidden="true" /></div>}
+          {selectedLog && !detailLoading && <>
+            <DialogHeader className={`border-b px-6 py-5 ${selectedLog.status === 'success' ? 'border-emerald-100 bg-emerald-50/70' : 'border-rose-100 bg-rose-50/70'}`}>
+              <div className="flex items-start gap-4 pr-8">
+                <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${selectedLog.status === 'success' ? 'bg-emerald-700 text-white' : 'bg-rose-700 text-white'}`} data-testid="audit-log-event-icon"><ModuleIcon module={selectedLog.module} /></span>
+                <div className="min-w-0 flex-1"><DialogTitle className="text-xl font-semibold text-stone-950" data-testid="audit-log-detail-title">{humanizeAuditField(selectedLog.action)} · {MODULE_LABELS[selectedLog.module] || selectedLog.module}</DialogTitle><p className="mt-1 text-sm text-stone-600" data-testid="audit-log-detail-time">{formatTimestamp(selectedLog.timestamp)} · {formatTimeAgo(selectedLog.timestamp)}</p></div>
+                <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${selectedLog.status === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`} data-testid="audit-log-status-badge">{selectedLog.status === 'success' ? 'Success' : 'Failed'}</span>
               </div>
-              
-              {/* User Info */}
-              <div className="p-4 bg-stone-50 rounded-lg">
-                <h4 className="text-xs font-medium text-text-muted uppercase mb-2">User Information</h4>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{selectedLog.user?.email}</p>
-                    <p className="text-xs text-text-muted capitalize">Role: {selectedLog.user?.role}</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Description */}
-              {selectedLog.description && (
-                <div>
-                  <Label className="text-xs text-text-muted">Description</Label>
-                  <p className="text-sm mt-1">{selectedLog.description}</p>
-                </div>
-              )}
-              
-              {/* Resource */}
-              {selectedLog.resource && (
-                <div className="p-4 bg-stone-50 rounded-lg">
-                  <h4 className="text-xs font-medium text-text-muted uppercase mb-2">Resource</h4>
-                  <p className="text-sm"><strong>ID:</strong> {selectedLog.resource.id}</p>
-                  {selectedLog.resource.name && (
-                    <p className="text-sm"><strong>Name:</strong> {selectedLog.resource.name}</p>
-                  )}
-                </div>
-              )}
-              
-              {/* Changes (Old/New Values) */}
-              {selectedLog.changes && (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-medium text-text-muted uppercase">Changes</h4>
-                  
-                  {selectedLog.changes.old_values && (
-                    <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-                      <h5 className="text-xs font-medium text-red-700 mb-2">Previous Values</h5>
-                      <pre className="text-xs text-red-800 overflow-x-auto whitespace-pre-wrap">
-                        {JSON.stringify(selectedLog.changes.old_values, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  
-                  {selectedLog.changes.new_values && (
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-100">
-                      <h5 className="text-xs font-medium text-green-700 mb-2">New Values</h5>
-                      <pre className="text-xs text-green-800 overflow-x-auto whitespace-pre-wrap">
-                        {JSON.stringify(selectedLog.changes.new_values, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Metadata */}
-              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                <div className="p-4 bg-stone-50 rounded-lg">
-                  <h4 className="text-xs font-medium text-text-muted uppercase mb-2">Additional Metadata</h4>
-                  <pre className="text-xs text-text-primary overflow-x-auto whitespace-pre-wrap">
-                    {JSON.stringify(selectedLog.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
-              
-              {/* Client Info */}
-              {selectedLog.client && (
-                <div className="p-4 bg-stone-50 rounded-lg">
-                  <h4 className="text-xs font-medium text-text-muted uppercase mb-2">Client Information</h4>
-                  {selectedLog.client.ip_address && (
-                    <p className="text-sm"><strong>IP Address:</strong> {selectedLog.client.ip_address}</p>
-                  )}
-                  {selectedLog.client.user_agent && (
-                    <p className="text-sm"><strong>User Agent:</strong> {selectedLog.client.user_agent}</p>
-                  )}
-                </div>
-              )}
-              
-              {/* Error Message */}
-              {selectedLog.error_message && (
-                <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                  <h4 className="text-xs font-medium text-red-700 uppercase mb-2">Error Message</h4>
-                  <p className="text-sm text-red-800">{selectedLog.error_message}</p>
-                </div>
-              )}
+            </DialogHeader>
+            <div className="max-h-[calc(86vh-104px)] space-y-6 overflow-y-auto p-6">
+              {selectedLog.error_message && <section className="rounded-xl border border-rose-200 bg-rose-50 p-4" data-testid="audit-log-error"><p className="text-xs font-semibold uppercase text-rose-700">Error message</p><p className="mt-1 text-sm text-rose-900">{selectedLog.error_message}</p></section>}
+
+              <section className="grid gap-4 sm:grid-cols-2" data-testid="audit-log-event-context">
+                <div className="rounded-xl border border-stone-200 bg-white p-4"><p className="text-xs font-semibold uppercase text-stone-500">Action</p><span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${ACTION_COLORS[selectedLog.action] || 'bg-stone-100 text-stone-800'}`} data-testid="audit-log-action-badge">{selectedLog.action}</span></div>
+                <div className="rounded-xl border border-stone-200 bg-white p-4"><p className="text-xs font-semibold uppercase text-stone-500">Module</p><p className="mt-2 text-sm font-semibold text-stone-900" data-testid="audit-log-module-name">{MODULE_LABELS[selectedLog.module] || selectedLog.module}</p></div>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="audit-log-actor"><p className="text-xs font-semibold uppercase text-stone-500">Who</p><div className="mt-3 flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"><User className="h-5 w-5" aria-hidden="true" /></span><div className="min-w-0"><p className="truncate text-sm font-semibold text-stone-900" data-testid="audit-log-user-email">{selectedLog.user?.email || 'Unknown user'}</p><p className="mt-0.5 text-xs capitalize text-stone-500" data-testid="audit-log-user-role">{selectedLog.user?.role || 'User'}</p></div></div></div>
+                <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="audit-log-resource"><p className="text-xs font-semibold uppercase text-stone-500">Affected resource</p><p className="mt-3 text-sm font-semibold text-stone-900" data-testid="audit-log-resource-name">{selectedLog.resource?.name || (selectedLog.module === 'facility' ? selectedLog.resolved_entities?.facilities?.[String(selectedLog.resource?.id)] : selectedLog.module === 'organization' ? selectedLog.resolved_entities?.organizations?.[String(selectedLog.resource?.id)] : 'Unavailable resource')}</p></div>
+              </section>
+
+              {selectedLog.description && <section className="rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-testid="audit-log-description"><p className="text-xs font-semibold uppercase text-stone-500">Description</p><p className="mt-2 text-sm leading-6 text-stone-800">{selectedLog.description}</p></section>}
+
+              {selectedLog.changes && getVisibleAuditChanges(selectedLog.changes, selectedLog.resolved_entities, selectedLog.action).fields.length > 0 && <section className="space-y-3" data-testid="audit-log-changes"><div><p className="text-xs font-semibold uppercase text-stone-500">{selectedLog.action === 'create' ? 'Recorded values' : 'Changes'}</p><h3 className="mt-1 text-base font-semibold text-stone-950">{selectedLog.action === 'create' ? 'Supplied details' : 'Before and after'}</h3></div><AuditChangeComparison changes={selectedLog.changes} resolvedEntities={selectedLog.resolved_entities} action={selectedLog.action} /></section>}
+
+              {(selectedLog.metadata || selectedLog.client) && <details className="rounded-xl border border-stone-200 bg-white" data-testid="audit-log-technical-details"><summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-stone-700" data-testid="audit-log-technical-details-toggle">Technical details</summary><div className="border-t border-stone-100 p-4"><AuditValueList values={{ ...(selectedLog.metadata || {}), ...(selectedLog.client || {}) }} resolvedEntities={selectedLog.resolved_entities} testId="audit-log-technical-values" /></div></details>}
             </div>
-          )}
+          </>}
         </DialogContent>
       </Dialog>
     </div>

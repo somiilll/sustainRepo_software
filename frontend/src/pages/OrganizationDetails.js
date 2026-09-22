@@ -6,14 +6,15 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, TrendingUp, Loader2, Factory, Target, BarChart3, FileBarChart, Leaf, Users, Mail, Phone, Globe, Calendar, Clock, ChevronDown, ChevronUp, ArrowRight, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Target, BarChart3, Leaf, Users, Mail, Phone, ChevronDown, ChevronUp, Briefcase, Eye, Shield, Zap } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -58,32 +59,32 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const [activeTab, setActiveTab] = useState('organization');
-  
-  // Yearly Data State (Turnover & Production Quantity)
-  const [yearlyDataYear, setYearlyDataYear] = useState('');
-  // Will be set after org loads
-  const [yearlyData, setYearlyData] = useState({ 
-    turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR',
-    production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {},
-    production_unit: 'MT' 
-  });
-  const [yearlyDataLoading, setYearlyDataLoading] = useState(false);
-  const [yearlyDataSaving, setYearlyDataSaving] = useState(false);
-  
-  // Module summary counts for quick navigation cards
-  const [moduleCounts, setModuleCounts] = useState({
-    facilities: 0,
-    targets: 0,
-    ghgRecords: 0,
-    esgRecords: 0
-  });
+  const [activeTab, setActiveTab] = useState('basic');
+  const [facilityCount, setFacilityCount] = useState(0);
   
   // Collapsible text states
   const [expandedSections, setExpandedSections] = useState({});
   const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
+
+  const showGhgDetails = !moduleAccessLoading && hasAccess('environment.ghg');
+  const showOperationalData = !moduleAccessLoading && [
+    'environment',
+    'social',
+    'governance'
+  ].some(hasAccess);
+
+  useEffect(() => {
+    const activeTabIsAvailable = activeTab === 'basic'
+      || (activeTab === 'ghg' && showGhgDetails)
+      || (['production', 'revenue'].includes(activeTab) && showOperationalData);
+
+    if (!activeTabIsAvailable) {
+      setActiveTab('basic');
+    }
+  }, [activeTab, showGhgDetails, showOperationalData]);
 
   // Check if user is Admin (can edit) or User (read-only)
   // Also block editing if subscription is expired
@@ -269,79 +270,12 @@ export default function OrganizationDetails() {
     }
   };
 
-  // Fetch yearly data when year changes
-  const fetchYearlyData = useCallback(async () => {
-    if (!yearlyDataYear) return;
-    setYearlyDataLoading(true);
-    try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
-        { headers: getAuthHeader() }
-      );
-      if (response.data) {
-        setYearlyData({
-          turnover: response.data.turnover || '',
-          turnover_frequency: response.data.turnover_frequency || 'yearly',
-          turnover_monthly: response.data.turnover_monthly || {},
-          turnover_currency: response.data.turnover_currency || 'INR',
-          production_quantity: response.data.production_quantity || '',
-          production_quantity_frequency: response.data.production_quantity_frequency || 'yearly',
-          production_quantity_monthly: response.data.production_quantity_monthly || {},
-          production_unit: response.data.production_unit || 'MT'
-        });
-      } else {
-        setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
-      }
-    } catch (error) {
-      console.log('No yearly data found for', yearlyDataYear);
-      setYearlyData({ turnover: '', turnover_frequency: 'yearly', turnover_monthly: {}, turnover_currency: 'INR', production_quantity: '', production_quantity_frequency: 'yearly', production_quantity_monthly: {}, production_unit: 'MT' });
-    } finally {
-      setYearlyDataLoading(false);
-    }
-  }, [yearlyDataYear, getAuthHeader]);
-
-  useEffect(() => {
-    fetchYearlyData();
-  }, [fetchYearlyData]);
-
-  const saveYearlyData = async () => {
-    if (subscriptionExpired) {
-      toast.error('Subscription expired. Cannot save data.');
-      return;
-    }
-    setYearlyDataSaving(true);
-    try {
-      await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/organization/yearly-data/${yearlyDataYear}`,
-        yearlyData,
-        { headers: getAuthHeader() }
-      );
-      toast.success(`Saved data for ${organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} ${yearlyDataYear}`);
-    } catch (error) {
-      toast.error('Failed to save yearly data');
-    } finally {
-      setYearlyDataSaving(false);
-    }
-  };
-
   const fetchOrganization = async () => {
     try {
       const response = await axios.get(`${API}/organizations/my`, {
         headers: getAuthHeader()
       });
       setOrganization(response.data);
-      
-      // Set default yearly data year based on org reporting type
-      if (!yearlyDataYear) {
-        const now = new Date();
-        const isCY = response.data.reporting_year_type === 'calendar_year';
-        if (isCY) {
-          setYearlyDataYear(String(now.getFullYear()));
-        } else {
-          const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-          setYearlyDataYear(`${fyStart}-${String(fyStart + 1).slice(-2)}`);
-        }
-      }
       
       // Reconstruct control_types from org_boundaries_approach
       let controlTypes = response.data.control_types || [];
@@ -399,31 +333,26 @@ export default function OrganizationDetails() {
     }
   };
 
-  // Fetch module counts for quick navigation cards
-  const fetchModuleCounts = useCallback(async () => {
+  const fetchFacilityCount = useCallback(async () => {
     try {
-      const headers = getAuthHeader();
-      const [facilitiesRes, targetsRes] = await Promise.all([
-        axios.get(`${API}/facilities`, { headers }).catch(() => ({ data: [] })),
-        axios.get(`${API}/targets`, { headers }).catch(() => ({ data: [] }))
-      ]);
-      
-      setModuleCounts({
-        facilities: Array.isArray(facilitiesRes.data) ? facilitiesRes.data.length : 0,
-        targets: Array.isArray(targetsRes.data) ? targetsRes.data.length : 0,
-        ghgRecords: 0, // Will be populated if needed
-        esgRecords: 0
+      const response = await axios.get(`${API}/facilities`, {
+        headers: getAuthHeader(),
       });
+      const facilities = Array.isArray(response.data)
+        ? response.data
+        : response.data?.facilities || [];
+      setFacilityCount(facilities.length);
     } catch (error) {
-      console.error('Error fetching module counts:', error);
+      console.error('Failed to load facility count:', error);
+      setFacilityCount(0);
     }
   }, [getAuthHeader]);
 
   useEffect(() => {
     if (organization && !editing) {
-      fetchModuleCounts();
+      fetchFacilityCount();
     }
-  }, [organization, editing, fetchModuleCounts]);
+  }, [editing, fetchFacilityCount, organization]);
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -679,7 +608,7 @@ export default function OrganizationDetails() {
         icon={Building}
         iconClassName="border-blue-200 bg-blue-50 text-blue-700"
         testId="organization"
-        aside={user?.role === 'admin' && !editing && activeTab === 'organization' && (
+        aside={user?.role === 'admin' && !editing && activeTab === 'basic' && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -701,104 +630,81 @@ export default function OrganizationDetails() {
       {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
       {!editing && (
         <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
-          {/* Top gradient accent bar */}
           <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
-          
           <div className="p-6">
-            <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-              {/* Logo & Name */}
-              <div className="flex items-start gap-4 flex-1">
-                {organization?.logo && !logoError ? (
-                  <img 
-                    src={getFullLogoUrl(organization.logo)} 
-                    alt={organization.name} 
-                    className="w-20 h-20 object-contain rounded-xl border-2 border-stone-100 shadow-sm bg-white"
-                    onError={() => setLogoError(true)} 
-                  />
-                ) : (
-                  <div className="w-20 h-20 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-emerald-50 border border-stone-100">
-                    <Building className="w-10 h-10 text-primary" />
-                  </div>
-                )}
-                <div className="flex-1">
-                  <h1 className="text-2xl lg:text-3xl font-heading font-bold text-text-primary mb-2">
-                    {organization?.name}
-                  </h1>
-                  <div className="flex flex-wrap gap-2">
-                    {organization?.country && (
-                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
-                        <Globe className="w-3 h-3 mr-1" />
-                        {organization.country}
-                      </Badge>
-                    )}
-                    {organization?.timezone && (
-                      <Badge variant="outline" className="bg-stone-50 text-stone-700 border-stone-200">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
-                      </Badge>
-                    )}
-                    {organization?.esg_frameworks_enabled?.map((framework) => (
-                      <Badge key={framework} className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">
-                        <Shield className="w-3 h-3 mr-1" />
-                        {framework}
-                      </Badge>
-                    ))}
-                    {organization?.reporting_year_type && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
-                      </Badge>
-                    )}
-                  </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+              {organization?.logo && !logoError ? (
+                <img
+                  src={getFullLogoUrl(organization.logo)}
+                  alt={organization.name}
+                  className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50">
+                  <Building className="h-10 w-10 text-primary" />
                 </div>
+              )}
+              <div className="min-w-0 flex-1 self-center">
+                <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
+                  {organization?.name}
+                </h1>
               </div>
-
-              {/* Quick Stats */}
-              <div className="flex flex-wrap lg:flex-nowrap gap-4 lg:gap-6">
-                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                  <div className="text-2xl font-bold text-primary">{moduleCounts.facilities}</div>
-                  <div className="text-xs text-text-muted">Facilities</div>
-                </div>
-                <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                  <div className="text-2xl font-bold text-emerald-600">{moduleCounts.targets}</div>
-                  <div className="text-xs text-text-muted">Targets</div>
-                </div>
-                {organization?.reporting_frequency && (
-                  <div className="text-center px-4 py-2 rounded-lg bg-stone-50">
-                    <div className="text-lg font-semibold text-text-primary capitalize">{organization.reporting_frequency}</div>
-                    <div className="text-xs text-text-muted">Reporting</div>
-                  </div>
-                )}
+              </div>
+              <div className="self-start rounded-lg bg-stone-50 px-4 py-2 text-center sm:self-auto" data-testid="organization-facility-count">
+                <div className="text-2xl font-bold text-primary">{facilityCount}</div>
+                <div className="text-xs text-text-muted">No. of Facilities</div>
               </div>
             </div>
-
-            {/* Last Updated */}
-            {organization?.created_at && (
-              <div className="mt-4 pt-4 border-t border-stone-100 flex items-center gap-2 text-xs text-text-muted">
-                <Clock className="w-3 h-3" />
-                <span>Last updated: {new Date(organization.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              </div>
-            )}
           </div>
         </Card>
       )}
 
       {/* Framework Tabs - with increased top spacing */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-stone-100 p-1 rounded-lg">
+        <TabsList className="h-auto max-w-full justify-start overflow-x-auto bg-stone-100 p-1 rounded-lg">
           <TabsTrigger 
-            value="organization" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-6"
+            value="basic" 
+            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            data-testid="organization-tab-basic"
           >
-            Organization Details
+            Basic Details
           </TabsTrigger>
+          {showGhgDetails && (
+            <TabsTrigger
+              value="ghg"
+              className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+              data-testid="organization-tab-ghg"
+            >
+              GHG Details
+            </TabsTrigger>
+          )}
+          {showOperationalData && (
+            <>
+              <TabsTrigger
+                value="production"
+                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                data-testid="organization-tab-production"
+              >
+                Production Data
+              </TabsTrigger>
+              <TabsTrigger
+                value="revenue"
+                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                data-testid="organization-tab-revenue"
+              >
+                Revenue Data
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
 
-        {/* Organization Details Tab */}
-        <TabsContent value="organization" className="mt-2">
+        <div className="mt-2">
           {editing ? (
-            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+            <Card className={`p-6 border border-stone-200 rounded-xl bg-white ${['production', 'revenue'].includes(activeTab) ? 'hidden' : ''}`}>
               <form onSubmit={handleSubmit} className="space-y-4">
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Organization Name (Read-only)</Label>
@@ -939,18 +845,18 @@ export default function OrganizationDetails() {
             </div>
 
             {/* Person Responsible */}
-            <div className="space-y-2">
-              <Label>Person Responsible <span className="text-red-500">*</span></Label>
-              <Input 
-                value={formData.person_responsible} 
-                onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
-                className="bg-stone-50"
-                placeholder="Name of person responsible for GHG reporting"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Person Responsible <span className="text-red-500">*</span></Label>
+                <Input 
+                  value={formData.person_responsible} 
+                  onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
+                  className="bg-stone-50"
+                  placeholder="Name of person responsible for GHG reporting"
+                  required
+                  data-testid="organization-person-responsible-input"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Designation</Label>
                 <Input 
@@ -958,6 +864,7 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_designation: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="e.g., Sustainability Director"
+                  data-testid="organization-person-responsible-designation-input"
                 />
               </div>
               <div className="space-y-2">
@@ -967,10 +874,13 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_contact: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="Email or phone number"
+                  data-testid="organization-person-responsible-contact-input"
                 />
               </div>
             </div>
+            </div>
 
+            <div className={activeTab === 'ghg' ? 'space-y-4' : 'hidden'}>
             {/* Purpose of the Report */}
             <div className="space-y-2">
               <Label>Purpose of the Report</Label>
@@ -981,6 +891,20 @@ export default function OrganizationDetails() {
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
                 placeholder="Describe the purpose of the GHG inventory report"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Reporting Frequency</Label>
+              <select
+                value={formData.reporting_frequency}
+                onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="organization-reporting-frequency-select"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
             </div>
 
             {/* Organizational Boundaries */}
@@ -1096,11 +1020,11 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-800">
+                  <div className="ml-6 border-l-2 border-stone-300 pl-4" data-testid="organization-equity-share-disclaimer">
+                    <p className="text-sm text-text-secondary">
                       <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
                     </p>
-                    <p className="text-xs text-amber-700 mt-2">
+                    <p className="mt-2 text-xs text-text-muted">
                       You can specify the equity share percentage for each facility in the Facilities page.
                     </p>
                   </div>
@@ -1259,22 +1183,16 @@ export default function OrganizationDetails() {
                 placeholder="Describe how internal GHG performance is tracked and monitored"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label>Reporting Frequency</Label>
-              <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-              </select>
             </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="space-y-2">
               <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
               <select 
                 value={formData.reporting_year_type} 
                 onChange={(e) => setFormData({ ...formData, reporting_year_type: e.target.value })} 
                 className={`w-full h-10 bg-stone-50 border rounded-lg px-3 ${!formData.reporting_year_type ? 'border-red-300' : 'border-stone-200'}`}
+                data-testid="organization-reporting-year-type-select"
               >
                 <option value="">Select Year Type</option>
                 <option value="financial_year">Financial Year</option>
@@ -1284,7 +1202,9 @@ export default function OrganizationDetails() {
                 <p className="text-xs text-red-500">This field is required</p>
               )}
             </div>
+            </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             {/* Attachments Section */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
@@ -1397,7 +1317,9 @@ export default function OrganizationDetails() {
                 placeholder="Add any additional information about this organization..."
               />
             </div>
+            </div>
 
+            {!['production', 'revenue'].includes(activeTab) && (
             <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
               <AutoSaveStatus 
                 status={saveStatus} 
@@ -1405,16 +1327,18 @@ export default function OrganizationDetails() {
                 errorMessage={errorMessage}
               />
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }} data-testid="cancel-org-btn">Cancel</Button>
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
               </div>
             </div>
+            )}
           </form>
         </Card>
       ) : (
         /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
         <div className="flex flex-col gap-4" data-testid="org-view-mode">
 
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === QUICK INFO GRID - 2 columns === */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
@@ -1426,46 +1350,15 @@ export default function OrganizationDetails() {
                 </div>
                 <h3 className="font-semibold text-text-primary">Corporate Address</h3>
               </div>
-              <div className="space-y-3 text-sm">
-                {organization?.corporate_address && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Street</span>
-                    <span className="text-text-primary text-right max-w-[60%]">{organization.corporate_address}</span>
-                  </div>
-                )}
-                {organization?.city && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">City</span>
-                    <span className="text-text-primary">{organization.city}</span>
-                  </div>
-                )}
-                {organization?.state && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">State</span>
-                    <span className="text-text-primary">{organization.state}</span>
-                  </div>
-                )}
-                {organization?.country && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Country</span>
-                    <span className="text-text-primary">{organization.country}</span>
-                  </div>
-                )}
-                {organization?.timezone && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Timezone</span>
-                    <span className="text-text-primary">
-                      {timezones.find(tz => tz.value === organization.timezone)?.label || organization.timezone}
-                    </span>
-                  </div>
-                )}
-                {organization?.pincode && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">PIN Code</span>
-                    <span className="text-text-primary font-mono">{organization.pincode}</span>
-                  </div>
-                )}
-              </div>
+              <p className="text-sm leading-6 text-text-primary" data-testid="organization-corporate-address">
+                {[
+                  organization?.corporate_address,
+                  organization?.city,
+                  organization?.state,
+                  organization?.country,
+                  organization?.pincode,
+                ].filter(Boolean).join(', ') || '—'}
+              </p>
             </Card>
 
             {/* Person Responsible Card */}
@@ -1599,7 +1492,9 @@ export default function OrganizationDetails() {
               </div>
             </Card>
           )}
+          </div>
 
+          <div className={activeTab === 'ghg' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === PURPOSE OF REPORT === */}
           {organization?.report_purpose && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -1613,9 +1508,10 @@ export default function OrganizationDetails() {
             </Card>
           )}
 
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {/* === ORGANIZATIONAL BOUNDARIES === */}
           {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
-            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-boundaries">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 rounded-lg bg-teal-50">
                   <Shield className="w-5 h-5 text-teal-600" />
@@ -1636,33 +1532,33 @@ export default function OrganizationDetails() {
               </div>
               <div className="space-y-3">
                 {organization.org_boundaries_approach === 'control_operational' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control_financial' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Financial Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Financial Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control_both' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Operational & Financial Control</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational & Financial Control</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'control' && (
-                  <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
-                    <Badge className="bg-teal-100 text-teal-800 mb-2">Control Approach</Badge>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Control Approach</Badge>
                     <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                   </div>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
                   <div className="space-y-2">
-                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                      <Badge className="bg-amber-100 text-amber-800 mb-2">Equity Share Approach</Badge>
+                    <div className="rounded-lg border border-stone-200 p-3">
+                      <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Equity Share Approach</Badge>
                       <p className="text-sm text-text-secondary">The organization accounts for GHG emissions according to its equity share in each facility.</p>
                     </div>
                     {/* <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
@@ -1677,6 +1573,23 @@ export default function OrganizationDetails() {
               </div>
             </Card>
           )}
+
+          {organization?.uncertainty_assessment?.length > 0 && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-uncertainty">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <Info className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Uncertainty Assessment</h3>
+              </div>
+              <ul className="space-y-2 text-sm text-text-secondary list-disc pl-5">
+                {organization.uncertainty_assessment.map((assessment) => (
+                  <li key={assessment}>{assessment.replaceAll('_', ' ')}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          </div>
 
           {/* === GHG REDUCTION INITIATIVES - FULL WIDTH === */}
           {organization?.ghg_reduction_initiatives && (
@@ -1703,7 +1616,9 @@ export default function OrganizationDetails() {
               <p className="text-text-secondary leading-relaxed">{organization.internal_performance_tracking}</p>
             </Card>
           )}
+          </div>
 
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
           {/* === ATTACHMENTS === */}
           {organization?.attachments?.length > 0 && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -1762,253 +1677,22 @@ export default function OrganizationDetails() {
               <p className="text-text-secondary leading-relaxed">{organization.other_information || organization.remarks}</p>
             </Card>
           )}
-
-          {/* === RELATED MODULES QUICK NAVIGATION === */}
-          <div>
-            <h3 className="text-lg font-semibold text-text-primary mb-4">Related Modules</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Facilities */}
-              <a href="/facilities" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-blue-50 group-hover:bg-blue-100 transition-colors mb-3">
-                      <Factory className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Facilities</h4>
-                    {moduleCounts.facilities > 0 && (
-                      <p className="text-xs text-text-muted mt-1">{moduleCounts.facilities} Facilities</p>
-                    )}
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* GHG */}
-              {organization?.has_ghg !== false && (
-                <a href="/ghg" className="block">
-                  <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                    <div className="flex flex-col items-center text-center">
-                      <div className="p-3 rounded-full bg-emerald-50 group-hover:bg-emerald-100 transition-colors mb-3">
-                        <Leaf className="w-6 h-6 text-emerald-600" />
-                      </div>
-                      <h4 className="font-semibold text-text-primary text-sm">GHG</h4>
-                      <p className="text-xs text-text-muted mt-1">Emissions Data</p>
-                      <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </Card>
-                </a>
-              )}
-
-              {/* Dashboard */}
-              <a href="/dashboard" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-teal-50 group-hover:bg-teal-100 transition-colors mb-3">
-                      <BarChart3 className="w-6 h-6 text-teal-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Dashboard</h4>
-                    <p className="text-xs text-text-muted mt-1">Analytics & Insights</p>
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* Targets */}
-              <a href="/targets/voluntary/ghg" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors mb-3">
-                      <Target className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Targets</h4>
-                    {moduleCounts.targets > 0 ? (
-                      <p className="text-xs text-text-muted mt-1">{moduleCounts.targets} Targets</p>
-                    ) : (
-                      <p className="text-xs text-text-muted mt-1">Set Goals</p>
-                    )}
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-
-              {/* Reports */}
-              <a href="/reports" className="block">
-                <Card className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer group">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="p-3 rounded-full bg-purple-50 group-hover:bg-purple-100 transition-colors mb-3">
-                      <FileBarChart className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <h4 className="font-semibold text-text-primary text-sm">Reports</h4>
-                    <p className="text-xs text-text-muted mt-1">Generate Reports</p>
-                    <ArrowRight className="w-4 h-4 text-text-muted mt-2 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Card>
-              </a>
-            </div>
           </div>
         </div>
       )}
 
-        {/* Yearly Data Section - Turnover & Production Quantity */}
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">Organization Data</h3>
-                <p className="text-xs text-text-muted">Financial turnover and production quantity</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {(() => {
-                const isCY = organization?.reporting_year_type === 'calendar_year';
-                return (
-                  <Select value={yearlyDataYear} onValueChange={setYearlyDataYear}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder={isCY ? "Select CY" : "Select FY"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const year = new Date().getFullYear() - i;
-                        if (isCY) {
-                          return (
-                            <SelectItem key={year} value={String(year)}>
-                              CY {year}
-                            </SelectItem>
-                          );
-                        }
-                        return (
-                          <SelectItem key={year} value={`${year}-${String(year + 1).slice(-2)}`}>
-                            FY {year}-{String(year + 1).slice(-2)}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                );
-              })()}
-            </div>
-          </div>
-
-          {yearlyDataLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Turnover / Revenue */}
-              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    Turnover / Revenue
-                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Select value={yearlyData.turnover_currency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_currency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-24 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['INR','USD','EUR','GBP','JPY','AUD','CAD','SGD','AED','CHF'].map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={yearlyData.turnover_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, turnover_frequency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="turnover-frequency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yearly">Yearly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {yearlyData.turnover_frequency === 'yearly' ? (
-                  <div>
-                    <Input type="number" value={yearlyData.turnover} onChange={(e) => setYearlyData(prev => ({ ...prev, turnover: e.target.value }))} placeholder="Enter turnover / revenue" disabled={subscriptionExpired} />
-                    {yearlyData.turnover && <p className="text-xs text-text-muted">{yearlyData.turnover_currency} {Number(yearlyData.turnover).toLocaleString()}</p>}
-                  </div>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(organization?.reporting_year_type === 'calendar_year'
-                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-                      ).map(m => (
-                        <div key={m}>
-                          <Label className="text-[10px] text-text-muted">{m}</Label>
-                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
-                            value={yearlyData.turnover_monthly?.[m] || ''}
-                            onChange={(e) => setYearlyData(prev => ({ ...prev, turnover_monthly: { ...prev.turnover_monthly, [m]: e.target.value } }))}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {Object.values(yearlyData.turnover_monthly || {}).some(v => v) && (
-                      <p className="text-xs text-text-muted mt-1">Total: {yearlyData.turnover_currency} {Object.values(yearlyData.turnover_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Production Quantity */}
-              <div className="space-y-3 p-4 border border-stone-100 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">
-                    Production Quantity
-                    <span className="text-text-muted font-normal ml-1">for {organization?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY'} {yearlyDataYear}</span>
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="text" value={yearlyData.production_unit} onChange={(e) => setYearlyData(prev => ({ ...prev, production_unit: e.target.value }))} placeholder="Unit" className="w-20 h-8 text-xs" disabled={subscriptionExpired} />
-                    <Select value={yearlyData.production_quantity_frequency} onValueChange={(v) => setYearlyData(prev => ({ ...prev, production_quantity_frequency: v }))} disabled={subscriptionExpired}>
-                      <SelectTrigger className="w-28 h-8 text-xs" data-testid="production-frequency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yearly">Yearly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {yearlyData.production_quantity_frequency === 'yearly' ? (
-                  <Input type="number" value={yearlyData.production_quantity} onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity: e.target.value }))} placeholder="Enter quantity" disabled={subscriptionExpired} />
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(organization?.reporting_year_type === 'calendar_year'
-                        ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                        : ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar']
-                      ).map(m => (
-                        <div key={m}>
-                          <Label className="text-[10px] text-text-muted">{m}</Label>
-                          <Input type="number" className="h-8 text-xs" placeholder="0" disabled={subscriptionExpired}
-                            value={yearlyData.production_quantity_monthly?.[m] || ''}
-                            onChange={(e) => setYearlyData(prev => ({ ...prev, production_quantity_monthly: { ...prev.production_quantity_monthly, [m]: e.target.value } }))}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {Object.values(yearlyData.production_quantity_monthly || {}).some(v => v) && (
-                      <p className="text-xs text-text-muted mt-1">Total: {Object.values(yearlyData.production_quantity_monthly || {}).reduce((s, v) => s + (parseFloat(v) || 0), 0).toLocaleString()} {yearlyData.production_unit}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={saveYearlyData} disabled={yearlyDataSaving || subscriptionExpired} className="bg-primary hover:bg-primary/90">
-                  {yearlyDataSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>) : 'Save Data'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-        </TabsContent>
+        {showOperationalData && (
+          <OrganizationOperationalData
+            activeTab={activeTab}
+            canEdit={canEdit}
+            getAuthHeader={getAuthHeader}
+            isEditing={editing}
+            onCancel={() => { setEditing(false); resetAutoSave(); }}
+            organization={organization}
+            subscriptionExpired={subscriptionExpired}
+          />
+        )}
+        </div>
 
       </Tabs>
     </div>

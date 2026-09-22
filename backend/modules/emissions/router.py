@@ -14,7 +14,9 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.logging import get_logger, log_event
 from audit_logger import AuditAction, AuditModule, get_audit_logger
+from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
 from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
@@ -49,10 +51,13 @@ from modules.emissions.contracts import (
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.utils.density_units import normalize_density_dynamic_values
+from shared.utils.emission_records import without_legacy_quantity_fields
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
+CUSTOM_FUEL_QUANTITY_EF_UNITS = {"kgCO2/L", "kgCO2/kg"}
 
 
 def _process_input_entry(dynamic_values: dict, predicate) -> tuple[Optional[str], Optional[dict]]:
@@ -183,6 +188,24 @@ async def _validate_density_requirement(record_data: EmissionRecordCreate) -> No
         )
 
 
+def _validate_custom_fuel_quantity_ef_unit(record_data: EmissionRecordCreate) -> None:
+    """Restrict quantity-basis custom-fuel emission factors to supported units."""
+    if not record_data.is_custom_fuel:
+        return
+    dynamic_values = record_data.dynamic_field_values or {}
+    methodology_value = dynamic_values.get("calculation_methodology") or record_data.calculation_methodology
+    methodology = methodology_value.get("value") if isinstance(methodology_value, dict) else methodology_value
+    if methodology != "using_qty_basis_ef":
+        return
+    emission_factor = dynamic_values.get("custom_ef") or dynamic_values.get("ef_quantity") or {}
+    unit = str(emission_factor.get("unit") or "").replace(" ", "") if isinstance(emission_factor, dict) else ""
+    if unit not in CUSTOM_FUEL_QUANTITY_EF_UNITS:
+        raise HTTPException(
+            status_code=422,
+            detail="Custom Fuel quantity-basis Emission Factor must use kgCO2/L or kgCO2/kg",
+        )
+
+
 def _build_emission_inputs(emission_record: dict) -> dict:
     """
     Build a normalized inputs dictionary from an emission record.
@@ -196,12 +219,12 @@ def _build_emission_inputs(emission_record: dict) -> dict:
     # Check for dynamic_field_values first (new format)
     dfv = emission_record.get("dynamic_field_values")
     if dfv and isinstance(dfv, dict) and len(dfv) > 0:
-        return dfv
+        return normalize_density_dynamic_values(dfv)
     
     # Check for inputs field
     inputs = emission_record.get("inputs")
     if inputs and isinstance(inputs, dict) and len(inputs) > 0:
-        return inputs
+        return normalize_density_dynamic_values(inputs)
     
     # Build from legacy individual fields
     legacy_inputs = {}
@@ -492,7 +515,7 @@ async def _create_emission_approval_request(
         current_approvers = [approver_id]
         total_levels = 1
     else:
-        logger.warning("Assignment requires approval but no approver_id set")
+        log_event(logger, logging.WARNING, "ghg.emission.approval_configuration.incomplete", action="ghg.emission.approval", outcome="degraded", error_code="APPROVER_NOT_CONFIGURED")
         return
     
     # Get submitter info
@@ -587,7 +610,8 @@ async def _create_emission_approval_request(
     }
     
     await db.approval_requests.insert_one(approval_request)
-    logger.info(f"Created emission approval request {approval_request['id']} for record {emission_record.get('id')}")
+    log_event(logger, logging.INFO, "ghg.emission.approval_requested", action="ghg.emission.approval", outcome="succeeded",
+              context={"record_id": emission_record.get("id"), "approval_request_id": approval_request.get("id")})
     
     # NOTE: For CREATE flow, we DO update the record's approval_status to pending_approval
     # because the record itself is new and hasn't been approved yet.
@@ -601,7 +625,8 @@ async def _create_emission_approval_request(
             }
         }
     )
-    logger.info(f"Updated emission record {emission_record.get('id')} with approval_status=pending_approval (CREATE flow)")
+    log_event(logger, logging.INFO, "ghg.emission.approval_state.updated", action="ghg.emission.approval", outcome="pending_approval",
+              context={"record_id": emission_record.get("id")})
 
 
 async def _create_emission_update_approval_request(
@@ -633,7 +658,7 @@ async def _create_emission_update_approval_request(
         current_approvers = [approver_id]
         total_levels = 1
     else:
-        logger.warning("Assignment requires approval but no approver_id set")
+        log_event(logger, logging.WARNING, "ghg.emission.approval_configuration.incomplete", action="ghg.emission.approval", outcome="degraded", error_code="APPROVER_NOT_CONFIGURED")
         return
     
     now = datetime.now(timezone.utc).isoformat()
@@ -739,7 +764,8 @@ async def _create_emission_update_approval_request(
     }
     
     await db.approval_requests.insert_one(approval_request)
-    logger.info(f"Created emission UPDATE approval request {approval_request['id']} for record {existing_record.get('id')}")
+    log_event(logger, logging.INFO, "ghg.emission.update_approval_requested", action="ghg.emission.update", outcome="pending_approval",
+              context={"record_id": existing_record.get("id"), "approval_request_id": approval_request.get("id")})
 
 
 async def _update_existing_approval_request(
@@ -840,7 +866,8 @@ async def _update_existing_approval_request(
             "updated_at": now,
         }}
     )
-    logger.info(f"Updated existing approval request {request_id} with new data")
+    log_event(logger, logging.INFO, "ghg.emission.update_approval_updated", action="ghg.emission.update", outcome="pending_approval",
+              context={"approval_request_id": request_id, "record_id": existing_record.get("id")})
     
     # For CREATE requests: Also update the actual record (not yet approved)
     # This ensures that when approved, the record has the latest values
@@ -875,7 +902,8 @@ async def _update_existing_approval_request(
             {"id": record_id},
             {"$set": record_update}
         )
-        logger.info(f"Also updated emission_record {record_id} for pending CREATE request")
+        log_event(logger, logging.INFO, "ghg.emission.pending_create.updated", action="ghg.emission.update", outcome="pending_approval",
+                  context={"record_id": record_id})
 
 
 # Module-level audit logger reference. Resolved lazily so it picks up the
@@ -901,6 +929,7 @@ async def rollback_emission_submission_batch(
 ):
     """Remove records created by an incomplete client-side monthly submission."""
     batch_id = rollback_data.submission_batch_id.strip()
+    log_event(logger, logging.INFO, "ghg.emission.batch_rollback.started", action="ghg.emission.batch_rollback", outcome="started")
     if not batch_id:
         raise HTTPException(status_code=422, detail="submission_batch_id is required")
 
@@ -912,6 +941,7 @@ async def rollback_emission_submission_batch(
     records = await db.emission_records.find(rollback_query, {"_id": 0}).to_list(100)
     record_ids = [record["id"] for record in records if record.get("id")]
     if not record_ids:
+        log_event(logger, logging.INFO, "ghg.emission.batch_rollback.completed", action="ghg.emission.batch_rollback", outcome="succeeded", context={"record_count": 0})
         return {"rolled_back_count": 0}
 
     try:
@@ -928,18 +958,25 @@ async def rollback_emission_submission_batch(
         "request_type": "create",
     })
     delete_result = await db.emission_records.delete_many(rollback_query)
+    log_event(logger, logging.INFO, "ghg.emission.batch_rollback.completed", action="ghg.emission.batch_rollback", outcome="succeeded", context={"record_count": delete_result.deleted_count})
     return {"rolled_back_count": delete_result.deleted_count}
 
 
 @router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
-    logger.info(f"[EMISSION_CREATE] Starting: user={current_user.get('email')}, facility={record_data.facility_id}, scope={record_data.scope}, category={record_data.category}")
+    log_event(logger, logging.INFO, "ghg.emission.create.started", action="ghg.emission.create", outcome="started",
+              context={"facility_id": record_data.facility_id, "scope": record_data.scope, "category": record_data.category, "frequency_type": record_data.frequency_type or "monthly"})
+    record_data = record_data.model_copy(update={
+        "dynamic_field_values": normalize_density_dynamic_values(record_data.dynamic_field_values),
+    })
     
     facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0})
     if not facility:
-        logger.warning(f"[EMISSION_CREATE] Facility not found: {record_data.facility_id}")
+        log_event(logger, logging.WARNING, "ghg.emission.create.rejected", action="ghg.emission.create", outcome="rejected",
+                  error_code="FACILITY_NOT_FOUND", context={"facility_id": record_data.facility_id})
         raise HTTPException(status_code=404, detail="Facility not found")
 
+    _validate_custom_fuel_quantity_ef_unit(record_data)
     await _validate_density_requirement(record_data)
     
     org_id = facility.get("organization_id")
@@ -963,7 +1000,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             reporting_period=record_data.reporting_period,
         )
         if not can_access:
-            logger.warning(f"[EMISSION_CREATE] Access denied: user={user_id}, reason={reason}")
+            log_event(logger, logging.WARNING, "ghg.emission.create.rejected", action="ghg.emission.create", outcome="rejected",
+                      error_code="PERMISSION_DENIED", context={"scope": record_data.scope, "facility_id": record_data.facility_id})
             raise HTTPException(
                 status_code=403,
                 detail=f"You don't have access to create {record_data.scope} emissions for this facility. Check your KPI assignments."
@@ -1044,7 +1082,11 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         reporting_period,
     )
     
-    record_dict = record_data.model_dump()
+    record_dict = without_legacy_quantity_fields(record_data.model_dump())
+    try:
+        record_dict = await apply_record_version_binding(db, record_dict)
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     record_id = str(uuid.uuid4())
     record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
@@ -1112,14 +1154,16 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             )
             if assignment and assignment.get("requires_approval", False):
                 requires_approval = True
-        except Exception as e:
-            logger.warning(f"[EMISSION_CREATE] Assignment check failed: {e}")
+        except Exception:
+            log_event(logger, logging.WARNING, "ghg.emission.assignment_check", action="ghg.emission.create", outcome="degraded",
+                      error_code="ASSIGNMENT_CHECK_FAILED", context={"scope": record_data.scope}, exc_info=True)
     
     if requires_approval:
         # Set pending status and insert record
         record_dict["approval_status"] = "pending_approval"
         await db.emission_records.insert_one(record_dict)
-        logger.info(f"[EMISSION_CREATE] Saved with pending_approval: record_id={record_dict.get('id')}")
+        log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="pending_approval",
+                  context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})
         
         # Create approval request
         await _create_emission_approval_request(
@@ -1128,7 +1172,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             assignment=assignment,
             user_id=current_user["id"],
         )
-        logger.info(f"[EMISSION_CREATE] Created approval request for assignment {assignment.get('id')}")
+        log_event(logger, logging.INFO, "ghg.emission.approval_requested", action="ghg.emission.create", outcome="succeeded",
+                  context={"record_id": record_dict.get("id")})
         
         # Audit log for submission
         await audit_logger.log(
@@ -1159,7 +1204,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user.get("user_type") != "supplier" and not is_admin:
         record_dict["approval_status"] = "approved"
     await db.emission_records.insert_one(record_dict)
-    logger.info(f"[EMISSION_CREATE] Saved directly: record_id={record_dict.get('id')}, co2e={record_dict.get('total_emissions')}")
+    log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="succeeded",
+              context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})
     
     # Phase B11: emit emission.saved (best-effort; never break write path).
     try:
@@ -1175,131 +1221,18 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     except Exception:
         pass
     
-    # AUTO-SYNC: Update base year emissions if a base year record exists for this facility
-    # This ensures new scope+category combinations are automatically added to base year
+    # AUTO-SYNC: update the relevant Base Year only when this GHG entry belongs to it.
     try:
-        facility_id = record_data.facility_id
-        org_id = record_dict.get("organization_id")
-        scope = record_data.scope.lower() if record_data.scope else ""
-        
-        # Determine scope_group based on the emission's scope
-        if scope in ["scope1", "scope2"] or (scope == "biogenic" and record_data.biogenic_scope_selection != "scope3"):
-            scope_group = "scope12"
-        else:
-            scope_group = "scope3"
-        
-        # For Scope 3, use scope3_activity as subcategory; otherwise use sub_category
-        if "scope3" in scope:
-            subcategory = record_data.scope3_activity or record_data.sub_category or ""
-        else:
-            subcategory = record_data.sub_category or ""
-        
-        # Check if base year record exists for this facility
-        base_year_record = await db.base_year_emissions.find_one({
-            "facility_id": facility_id,
-            "scope_group": scope_group
-        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
-        
-        if base_year_record:
-            # Check if this scope+category combination already exists
-            existing_keys = set()
-            for e in base_year_record.get("emissions_data", []):
-                key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
-                existing_keys.add(key)
-            
-            new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
-            
-            if new_key not in existing_keys:
-                # Add the new combination to base year emissions_data
-                new_entry = {
-                    "scope": record_data.scope,
-                    "category": record_data.category,
-                    "subcategory": subcategory,
-                    "tco2e": record_dict.get("total_emissions", 0) or 0,
-                    "isAutoAdded": True
-                }
-                
-                updated_emissions = base_year_record.get("emissions_data", []) + [new_entry]
-                
-                # Update version history
-                current_version = base_year_record.get("version", 1)
-                version_history = base_year_record.get("version_history", [])
-                version_history.append({
-                    "version": current_version + 1,
-                    "change_type": "auto_add_category",
-                    "added_entries": [new_entry],
-                    "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
-                    "changed_at": datetime.now(timezone.utc).isoformat(),
-                    "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
-                })
-                
-                await db.base_year_emissions.update_one(
-                    {"id": base_year_record["id"]},
-                    {"$set": {
-                        "emissions_data": updated_emissions,
-                        "version": current_version + 1,
-                        "version_history": version_history,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                        "updated_by": current_user.get("email"),
-                        "updated_by_name": current_user.get("full_name", "")
-                    }}
-                )
-        
-        # Also check organization-level base year record
-        if org_id:
-            org_base_year = await db.base_year_emissions.find_one({
-                "organization_id": org_id,
-                "facility_id": None,
-                "scope_group": scope_group
-            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
-            
-            if org_base_year:
-                existing_keys = set()
-                for e in org_base_year.get("emissions_data", []):
-                    key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
-                    existing_keys.add(key)
-                
-                new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
-                
-                if new_key not in existing_keys:
-                    new_entry = {
-                        "scope": record_data.scope,
-                        "category": record_data.category,
-                        "subcategory": subcategory,
-                        "tco2e": record_dict.get("total_emissions", 0) or 0,
-                        "isAutoAdded": True
-                    }
-                    
-                    updated_emissions = org_base_year.get("emissions_data", []) + [new_entry]
-                    current_version = org_base_year.get("version", 1)
-                    version_history = org_base_year.get("version_history", [])
-                    version_history.append({
-                        "version": current_version + 1,
-                        "change_type": "auto_add_category",
-                        "added_entries": [new_entry],
-                        "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
-                        "changed_at": datetime.now(timezone.utc).isoformat(),
-                        "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
-                    })
-                    
-                    await db.base_year_emissions.update_one(
-                        {"id": org_base_year["id"]},
-                        {"$set": {
-                            "emissions_data": updated_emissions,
-                            "version": current_version + 1,
-                            "version_history": version_history,
-                            "updated_at": datetime.now(timezone.utc).isoformat(),
-                            "updated_by": current_user.get("email"),
-                            "updated_by_name": current_user.get("full_name", "")
-                        }}
-                    )
-    except Exception as e:
-        # Don't fail the emission creation if base year sync fails
-        print(f"Warning: Base year auto-sync failed: {e}")
+        sync_results = await sync_changed_emission_base_years(None, record_dict, current_user)
+        if any(result.get("synced") for result in sync_results):
+            log_event(logger, logging.INFO, "ghg.base_year.sync", action="ghg.emission.create", outcome="succeeded", context={"record_id": record_id})
+    except Exception:
+        log_event(logger, logging.WARNING, "ghg.base_year.sync", action="ghg.emission.create", outcome="degraded",
+                  error_code="BASE_YEAR_SYNC_FAILED", context={"record_id": record_id}, exc_info=True)
     
     # Create initial version history entry for creation
     # Include both input data and calculated emission values for proper history display
-    history_new_values = record_data.model_dump()
+    history_new_values = without_legacy_quantity_fields(record_data.model_dump())
     # Add the calculated/stored emission fields that the frontend expects in history
     history_new_values["co2_emissions"] = record_dict["co2_emissions"]
     history_new_values["ch4_emissions"] = record_dict["ch4_emissions"]
@@ -1356,7 +1289,11 @@ async def update_emission_record(
     record_data: EmissionRecordCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    logger.info(f"[EMISSION_UPDATE] Starting: record_id={record_id}, user={current_user.get('email')}")
+    log_event(logger, logging.INFO, "ghg.emission.update.started", action="ghg.emission.update", outcome="started",
+              context={"record_id": record_id, "frequency_type": record_data.frequency_type or "monthly"})
+    record_data = record_data.model_copy(update={
+        "dynamic_field_values": normalize_density_dynamic_values(record_data.dynamic_field_values),
+    })
     
     # Find record directly from emission_records (approved collection)
     existing = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
@@ -1364,6 +1301,20 @@ async def update_emission_record(
     
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    try:
+        versioned_record_data = await apply_record_version_binding(
+            db,
+            without_legacy_quantity_fields(record_data.model_dump()),
+            existing_record=existing,
+        )
+        versioned_update_data = await apply_record_version_binding(
+            db,
+            without_legacy_quantity_fields(record_data.model_dump(exclude_unset=True)),
+            existing_record=existing,
+        )
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
 
     await assert_ghg_scope_access(
         existing.get("organization_id"),
@@ -1418,6 +1369,7 @@ async def update_emission_record(
                 ),
             )
 
+    _validate_custom_fuel_quantity_ef_unit(record_data)
     await _validate_density_requirement(record_data)
     
     org_id = existing.get("organization_id")
@@ -1440,7 +1392,8 @@ async def update_emission_record(
             "status": {"$in": ["pending", "in_review"]},
         })
         if deleted_result.deleted_count > 0:
-            logger.info(f"[EMISSION_UPDATE] Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
+            log_event(logger, logging.INFO, "ghg.emission.pending_approvals.cleared", action="ghg.emission.update", outcome="succeeded",
+                      context={"record_id": record_id, "approval_count": deleted_result.deleted_count})
     
     # Non-admin users go through approval workflow if enabled and assignment requires it
     if approval_enabled and not is_admin:
@@ -1467,17 +1420,18 @@ async def update_emission_record(
                 await _update_existing_approval_request(
                     request_id=existing_request.get("id"),
                     existing_record=existing,
-                    updated_data=record_data.model_dump(),
+                    updated_data=versioned_record_data,
                     user_id=user_id,
                     current_user=current_user,
                 )
-                logger.info(f"[EMISSION_UPDATE] Updated existing approval request: {existing_request.get('id')}")
+                log_event(logger, logging.INFO, "ghg.emission.update_approval_updated", action="ghg.emission.update", outcome="pending_approval",
+                          context={"record_id": record_id, "approval_request_id": existing_request.get("id")})
             else:
                 # Create new approval request for the update
                 await _create_emission_update_approval_request(
                     org_id=org_id,
                     existing_record=existing,
-                    updated_data=record_data.model_dump(),
+                    updated_data=versioned_record_data,
                     assignment=assignment,
                     user_id=user_id,
                     current_user=current_user,
@@ -1492,7 +1446,8 @@ async def update_emission_record(
             # Return the existing record with pending indicators for the submitter
             existing["is_my_pending_proposal"] = True
             existing["approval_status"] = "pending_approval"  # Only in response, not DB
-            logger.info(f"[EMISSION_UPDATE] Submitted for approval: record_id={record_id}")
+            log_event(logger, logging.INFO, "ghg.emission.update.persisted", action="ghg.emission.update", outcome="pending_approval",
+                      context={"record_id": record_id})
             return EmissionRecordResponse(**existing)
     
     # Direct apply path (admin, super_admin, or workflow disabled)
@@ -1505,7 +1460,7 @@ async def update_emission_record(
             detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
         )
     
-    update_dict = record_data.model_dump(exclude_unset=True)
+    update_dict = versioned_update_data
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
     removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
@@ -1523,19 +1478,41 @@ async def update_emission_record(
         if scope3_activity:
             update_dict["sub_category"] = scope3_activity
     
+    # C7 Employee Commuting stores employee-derived CO2e totals only. Do not
+    # manufacture Scope 1/2 gas-breakdown zeroes when its specialised edit
+    # payload is saved through this shared endpoint.
+    is_c7_employee_commuting = existing.get("category") == "C7 - Employee Commuting"
+
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
-    update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
-    update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
-    update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
-    update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
-    update_dict["total_emissions"] = update_dict["co2e_emissions"]
+    if is_c7_employee_commuting:
+        c7_total = outputs.get("co2e", {}).get("value")
+        if c7_total is None:
+            c7_total = record_data.co2e_emissions
+        if c7_total is None:
+            c7_total = record_data.total_emissions
+        if c7_total is None:
+            c7_total = existing.get("co2e_emissions", existing.get("total_emissions", 0))
+        update_dict["co2e_emissions"] = c7_total or 0
+        update_dict["total_emissions"] = c7_total or 0
+        for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
+            update_dict.pop(gas_field, None)
+    else:
+        update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+        update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+        update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+        update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+        update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
-    history_new_values = record_data.model_dump()
-    history_new_values["co2_emissions"] = update_dict["co2_emissions"]
-    history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
-    history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
+    history_new_values = dict(versioned_record_data)
+    if is_c7_employee_commuting:
+        for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
+            history_new_values.pop(gas_field, None)
+    else:
+        history_new_values["co2_emissions"] = update_dict["co2_emissions"]
+        history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
+        history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
     history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
     history_new_values["total_emissions"] = update_dict["total_emissions"]
     
@@ -1602,9 +1579,10 @@ async def update_emission_record(
     try:
         sync_results = await sync_changed_emission_base_years(existing, updated, current_user)
         if any(result.get("synced") for result in sync_results):
-            logger.info("[BASE_YEAR_SYNC] Refreshed base year after updating emission %s", record_id)
+            log_event(logger, logging.INFO, "ghg.base_year.sync", action="ghg.emission.update", outcome="succeeded", context={"record_id": record_id})
     except Exception:
-        logger.exception("[BASE_YEAR_SYNC] Failed after updating emission %s", record_id)
+        log_event(logger, logging.WARNING, "ghg.base_year.sync", action="ghg.emission.update", outcome="degraded",
+                  error_code="BASE_YEAR_SYNC_FAILED", context={"record_id": record_id}, exc_info=True)
 
     # Phase B11: emit emission.updated (best-effort).
     if True:
@@ -1642,6 +1620,8 @@ async def update_emission_record(
         }
     )
     
+    log_event(logger, logging.INFO, "ghg.emission.update.persisted", action="ghg.emission.update", outcome="succeeded",
+              context={"record_id": record_id, "scope": updated.get("scope"), "facility_id": updated.get("facility_id")})
     return EmissionRecordResponse(**updated)
 
 
@@ -1952,6 +1932,7 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
 
 @router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
+    log_event(logger, logging.INFO, "ghg.emission.delete.started", action="ghg.emission.delete", outcome="started", context={"record_id": record_id})
     existing, source_collection = await find_record(record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
@@ -1981,6 +1962,7 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     if delete_action == "block":
         raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
     if delete_action == "queue":
+        log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
         return {"message": "Delete request submitted for approval"}
 
     target_collection = (delete_payload or {}).get("target_collection", source_collection)
@@ -1996,9 +1978,10 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
         try:
             sync_results = await sync_deleted_emission_base_years(existing, current_user)
             if any(result.get("synced") for result in sync_results):
-                logger.info("[BASE_YEAR_SYNC] Refreshed base year after deleting emission %s", record_id)
+                log_event(logger, logging.INFO, "ghg.base_year.sync", action="ghg.emission.delete", outcome="succeeded", context={"record_id": record_id})
         except Exception:
-            logger.exception("[BASE_YEAR_SYNC] Failed after deleting emission %s", record_id)
+            log_event(logger, logging.WARNING, "ghg.base_year.sync", action="ghg.emission.delete", outcome="degraded",
+                      error_code="BASE_YEAR_SYNC_FAILED", context={"record_id": record_id}, exc_info=True)
 
     # Phase B11: emit emission.deleted (best-effort).
     # Only emit when an approved record actually leaves the dashboard view.
@@ -2035,4 +2018,6 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
         },
     )
 
+    log_event(logger, logging.INFO, "ghg.emission.delete.completed", action="ghg.emission.delete", outcome="succeeded",
+              context={"record_id": record_id, "scope": existing.get("scope"), "facility_id": existing.get("facility_id")})
     return {"message": "Emission record deleted successfully"}

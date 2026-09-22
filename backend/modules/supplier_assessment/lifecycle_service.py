@@ -1,15 +1,20 @@
 """Supplier lifecycle and completion operations."""
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.programs import resolve_program_context
 from shared.database.mongo import db
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 async def refresh_supplier_canonical_score(self, supplier_relationship_id: str) -> Optional[Dict[str, Any]]:
     """Persist the only supplier-level score consumed by tables, rankings, and details."""
     relationship = await self.get_supplier(supplier_relationship_id)
     if not relationship:
+        log_event(logger, logging.WARNING, "supplier_assessment.score.refresh.skipped", action="supplier_assessment.score.refresh", outcome="skipped", error_code="SUPPLIER_NOT_FOUND", context={"supplier_relationship_id": supplier_relationship_id})
         return None
     reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
     responses = await db.supplier_questionnaire_responses.find(
@@ -76,6 +81,7 @@ async def refresh_supplier_canonical_score(self, supplier_relationship_id: str) 
             "updated_at": now,
         }},
     )
+    log_event(logger, logging.INFO, "supplier_assessment.score.refresh.completed", action="supplier_assessment.score.refresh", outcome="succeeded", context={"supplier_relationship_id": supplier_relationship_id, "reporting_period": reporting_period, "submitted_questionnaire_count": len(scored_responses), "is_complete": is_complete, "overall_score": overall_score})
     return snapshot
 
 async def _update_completion_status(self, relationship_id: str):

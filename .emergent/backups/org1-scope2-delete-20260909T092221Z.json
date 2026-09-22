@@ -1,0 +1,2576 @@
+{
+  "created_at": "2026-09-09T09:22:21.539591+00:00",
+  "preview": {
+    "organization": {
+      "id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "name": "ORG1"
+    },
+    "scope_2_emission_records": 6,
+    "linked_emission_history": 8,
+    "linked_calculation_audits": 7,
+    "record_ids": [
+      "7efc296c-3234-4aff-b961-fe61bebdacd4",
+      "a08cfbf5-d06c-436f-bb66-6edbe0af1e4d",
+      "3d5c045c-35f7-486e-aed1-b778665a2c4a",
+      "932e96f6-b18d-4bf2-9317-2161928764ea",
+      "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "54f4de47-e76e-4faf-9419-2f46a4a2bf82"
+    ]
+  },
+  "emission_records": [
+    {
+      "_id": {
+        "$oid": "6a684033e834976af08ace98"
+      },
+      "facility_id": "39ecd9be-9417-4df6-93c4-e583abf49260",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2025-11",
+      "frequency_type": "monthly",
+      "scope": "Scope 2",
+      "category": "Purchased Electricity",
+      "sub_category": "Grid Electricity",
+      "fuel_type": null,
+      "calculation_method_scope3": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": null,
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {},
+      "outputs": {
+        "co2": {
+          "value": 0.05,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0.0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0.0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 0.05,
+          "unit": "tCO2e"
+        }
+      },
+      "fuel_database_id": null,
+      "source_of_information": null,
+      "record_source": null,
+      "notes": null,
+      "justification": null,
+      "evidence_url": null,
+      "responsible_person": null,
+      "responsible_person_designation": null,
+      "responsible_person_contact": null,
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "7efc296c-3234-4aff-b961-fe61bebdacd4",
+      "created_by": "e3e7ec7e-5b3d-4011-a752-40cd67be84c0",
+      "created_by_email": "goyalsomil2001@gmail.com",
+      "created_by_name": "Somil",
+      "co2_emissions": 0.05,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 0.05,
+      "total_emissions": 0.05,
+      "created_at": "2026-07-28T05:37:55.404210+00:00",
+      "updated_at": null,
+      "updated_by": null,
+      "updated_by_email": null,
+      "updated_by_name": null
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cab"
+      },
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2026-04",
+      "frequency_type": "monthly",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "category_code": "purchased_electricity",
+      "sub_category": "Non-Renewable Electricity",
+      "fuel_type": "Non-Renewable Electricity",
+      "is_custom_fuel": false,
+      "custom_fuel_name": null,
+      "calculation_methodology": null,
+      "process_type": null,
+      "calculation_method_scope3": null,
+      "spend_currency_conversion_method": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {
+        "qty_energy": {
+          "value": 250,
+          "unit": "MWh"
+        },
+        "ef_quantity_electricity_co2": {
+          "value": null,
+          "unit": "tCO2/MWh",
+          "is_override": false,
+          "justification": ""
+        }
+      },
+      "outputs": {
+        "co2": {
+          "value": 177.5,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 177.5,
+          "unit": "tCO2e"
+        }
+      },
+      "quantity": 250.0,
+      "quantity_unit": "MWh",
+      "unit": "MWh",
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "source_of_information": "CEA 2025",
+      "record_source": "",
+      "notes": "",
+      "justification": null,
+      "evidence_url": "",
+      "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+      "responsible_person": "",
+      "responsible_person_designation": "",
+      "responsible_person_contact": "",
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "a08cfbf5-d06c-436f-bb66-6edbe0af1e4d",
+      "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "created_by_email": "ruthvikanchuri@gmail.com",
+      "created_by_name": "ruthvik anchuri",
+      "co2_emissions": 177.5,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 177.5,
+      "total_emissions": 177.5,
+      "source": "supplier",
+      "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+      "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "created_at": "2026-08-26T12:45:09.244859+00:00",
+      "updated_at": null,
+      "updated_by": null,
+      "updated_by_email": null,
+      "updated_by_name": null,
+      "is_current_revision": true,
+      "revision_lineage_id": "a08cfbf5-d06c-436f-bb66-6edbe0af1e4d",
+      "revision_number": 1,
+      "approval_status": "submitted",
+      "data_verified": true,
+      "data_verified_at": "2026-08-26T16:46:26.173305+00:00",
+      "data_verified_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "parent_visible": true,
+      "status": "submitted",
+      "submission_id": "4e35313c-79d7-48ed-8645-78258f8a9678",
+      "submitted_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "submitted_to_parent_org": "2026-08-26T16:46:26.173305+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cae"
+      },
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2026-05",
+      "frequency_type": "monthly",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "category_code": "purchased_electricity",
+      "sub_category": "Non-Renewable Electricity",
+      "fuel_type": "Non-Renewable Electricity",
+      "is_custom_fuel": false,
+      "custom_fuel_name": null,
+      "calculation_methodology": null,
+      "process_type": null,
+      "calculation_method_scope3": null,
+      "spend_currency_conversion_method": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {
+        "qty_energy": {
+          "value": 450,
+          "unit": "MWh"
+        },
+        "ef_quantity_electricity_co2": {
+          "value": null,
+          "unit": "tCO2/MWh",
+          "is_override": false,
+          "justification": ""
+        }
+      },
+      "outputs": {
+        "co2": {
+          "value": 319.5,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 319.5,
+          "unit": "tCO2e"
+        }
+      },
+      "quantity": 450.0,
+      "quantity_unit": "MWh",
+      "unit": "MWh",
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "source_of_information": "CEA 2025",
+      "record_source": "",
+      "notes": "",
+      "justification": null,
+      "evidence_url": "",
+      "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+      "responsible_person": "",
+      "responsible_person_designation": "",
+      "responsible_person_contact": "",
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "3d5c045c-35f7-486e-aed1-b778665a2c4a",
+      "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "created_by_email": "ruthvikanchuri@gmail.com",
+      "created_by_name": "ruthvik anchuri",
+      "co2_emissions": 319.5,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 319.5,
+      "total_emissions": 319.5,
+      "source": "supplier",
+      "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+      "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "created_at": "2026-08-26T12:45:09.354134+00:00",
+      "updated_at": null,
+      "updated_by": null,
+      "updated_by_email": null,
+      "updated_by_name": null,
+      "is_current_revision": true,
+      "revision_lineage_id": "3d5c045c-35f7-486e-aed1-b778665a2c4a",
+      "revision_number": 1,
+      "approval_status": "submitted",
+      "data_verified": true,
+      "data_verified_at": "2026-08-26T16:46:26.173305+00:00",
+      "data_verified_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "parent_visible": true,
+      "status": "submitted",
+      "submission_id": "4e35313c-79d7-48ed-8645-78258f8a9678",
+      "submitted_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "submitted_to_parent_org": "2026-08-26T16:46:26.173305+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb1"
+      },
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2026-06",
+      "frequency_type": "monthly",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "category_code": "purchased_electricity",
+      "sub_category": "Non-Renewable Electricity",
+      "fuel_type": "Non-Renewable Electricity",
+      "is_custom_fuel": false,
+      "custom_fuel_name": null,
+      "calculation_methodology": null,
+      "process_type": null,
+      "calculation_method_scope3": null,
+      "spend_currency_conversion_method": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {
+        "qty_energy": {
+          "value": 380,
+          "unit": "MWh"
+        },
+        "ef_quantity_electricity_co2": {
+          "value": null,
+          "unit": "tCO2/MWh",
+          "is_override": false,
+          "justification": ""
+        }
+      },
+      "outputs": {
+        "co2": {
+          "value": 269.8,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 269.8,
+          "unit": "tCO2e"
+        }
+      },
+      "quantity": 380.0,
+      "quantity_unit": "MWh",
+      "unit": "MWh",
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "source_of_information": "CEA 2025",
+      "record_source": "",
+      "notes": "",
+      "justification": null,
+      "evidence_url": "",
+      "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+      "responsible_person": "",
+      "responsible_person_designation": "",
+      "responsible_person_contact": "",
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "932e96f6-b18d-4bf2-9317-2161928764ea",
+      "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "created_by_email": "ruthvikanchuri@gmail.com",
+      "created_by_name": "ruthvik anchuri",
+      "co2_emissions": 269.8,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 269.8,
+      "total_emissions": 269.8,
+      "source": "supplier",
+      "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+      "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "created_at": "2026-08-26T12:45:09.461697+00:00",
+      "updated_at": null,
+      "updated_by": null,
+      "updated_by_email": null,
+      "updated_by_name": null,
+      "is_current_revision": true,
+      "revision_lineage_id": "932e96f6-b18d-4bf2-9317-2161928764ea",
+      "revision_number": 1,
+      "approval_status": "submitted",
+      "data_verified": true,
+      "data_verified_at": "2026-08-26T16:46:26.173305+00:00",
+      "data_verified_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "parent_visible": true,
+      "status": "submitted",
+      "submission_id": "4e35313c-79d7-48ed-8645-78258f8a9678",
+      "submitted_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "submitted_to_parent_org": "2026-08-26T16:46:26.173305+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb4"
+      },
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2026-07",
+      "frequency_type": "monthly",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "category_code": "purchased_electricity",
+      "sub_category": "Non-Renewable Electricity",
+      "fuel_type": "Non-Renewable Electricity",
+      "is_custom_fuel": false,
+      "custom_fuel_name": null,
+      "calculation_methodology": null,
+      "process_type": null,
+      "calculation_method_scope3": null,
+      "spend_currency_conversion_method": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {
+        "qty_energy": {
+          "value": 95,
+          "unit": "MWh"
+        },
+        "ef_quantity_electricity_co2": {
+          "value": 0.7,
+          "unit": "tCO2/MWh",
+          "is_override": true,
+          "justification": ""
+        }
+      },
+      "outputs": {
+        "co2": {
+          "value": 66.5,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 66.5,
+          "unit": "tCO2e"
+        }
+      },
+      "quantity": 950.0,
+      "quantity_unit": "MWh",
+      "unit": "MWh",
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "source_of_information": "CEA 2025",
+      "record_source": "",
+      "notes": "",
+      "justification": "",
+      "evidence_url": "",
+      "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+      "responsible_person": "",
+      "responsible_person_designation": "",
+      "responsible_person_contact": "",
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "created_by_email": "ruthvikanchuri@gmail.com",
+      "created_by_name": "ruthvik anchuri",
+      "co2_emissions": 66.5,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 66.5,
+      "total_emissions": 66.5,
+      "source": "supplier",
+      "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+      "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "created_at": "2026-08-26T12:45:09.573720+00:00",
+      "updated_at": "2026-08-26T12:45:32.058511+00:00",
+      "updated_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "updated_by_email": "ruthvikanchuri@gmail.com",
+      "updated_by_name": "ruthvik anchuri",
+      "version": 1,
+      "is_current_revision": true,
+      "revision_lineage_id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "revision_number": 1,
+      "approval_status": "submitted",
+      "data_verified": true,
+      "data_verified_at": "2026-08-26T16:46:26.173305+00:00",
+      "data_verified_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "parent_visible": true,
+      "status": "submitted",
+      "submission_id": "4e35313c-79d7-48ed-8645-78258f8a9678",
+      "submitted_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "submitted_to_parent_org": "2026-08-26T16:46:26.173305+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb7"
+      },
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_period": "2026-08",
+      "frequency_type": "monthly",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "category_code": "purchased_electricity",
+      "sub_category": "Non-Renewable Electricity",
+      "fuel_type": "Non-Renewable Electricity",
+      "is_custom_fuel": false,
+      "custom_fuel_name": null,
+      "calculation_methodology": null,
+      "process_type": null,
+      "calculation_method_scope3": null,
+      "spend_currency_conversion_method": null,
+      "scope3_ef_id": null,
+      "scope3_activity": null,
+      "scope3_activity_type": null,
+      "scope3_subcategory": null,
+      "type_of_product": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "biogenic_scope_selection": null,
+      "supplier_name": null,
+      "supplier_code": null,
+      "employee_name": null,
+      "employee_id": null,
+      "asset_name": null,
+      "from_location": null,
+      "to_location": null,
+      "customer_name": null,
+      "customer_code": null,
+      "nights_stayed": null,
+      "rooms_taken": null,
+      "employees": null,
+      "monthly_totals": null,
+      "yearly_total": null,
+      "dynamic_field_values": {
+        "qty_energy": {
+          "value": 450,
+          "unit": "MWh"
+        },
+        "ef_quantity_electricity_co2": {
+          "value": null,
+          "unit": "tCO2/MWh",
+          "is_override": false,
+          "justification": ""
+        }
+      },
+      "outputs": {
+        "co2": {
+          "value": 319.5,
+          "unit": "tCO2"
+        },
+        "ch4": {
+          "value": 0,
+          "unit": "tCH4"
+        },
+        "n2o": {
+          "value": 0,
+          "unit": "tN2O"
+        },
+        "co2e": {
+          "value": 319.5,
+          "unit": "tCO2e"
+        }
+      },
+      "quantity": 450.0,
+      "quantity_unit": "MWh",
+      "unit": "MWh",
+      "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+      "source_of_information": "CEA 2025",
+      "record_source": "",
+      "notes": "",
+      "justification": "",
+      "evidence_url": "/api/files/5ddd5d9e-ffd4-4b7f-a2c3-a5affd7b9f4d",
+      "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+      "responsible_person": "",
+      "responsible_person_designation": "",
+      "responsible_person_contact": "",
+      "process_names": [],
+      "process_descriptions": [],
+      "id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "created_by_email": "ruthvikanchuri@gmail.com",
+      "created_by_name": "ruthvik anchuri",
+      "co2_emissions": 319.5,
+      "ch4_emissions": 0,
+      "n2o_emissions": 0,
+      "co2e_emissions": 319.5,
+      "total_emissions": 319.5,
+      "source": "supplier",
+      "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+      "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "created_at": "2026-08-26T12:45:09.713226+00:00",
+      "updated_at": "2026-08-26T12:50:15.380394+00:00",
+      "updated_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "updated_by_email": "ruthvikanchuri@gmail.com",
+      "updated_by_name": "ruthvik anchuri",
+      "version": 1,
+      "is_current_revision": true,
+      "revision_lineage_id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "revision_number": 1,
+      "approval_status": "submitted",
+      "data_verified": true,
+      "data_verified_at": "2026-08-26T16:46:26.173305+00:00",
+      "data_verified_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "parent_visible": true,
+      "status": "submitted",
+      "submission_id": "4e35313c-79d7-48ed-8645-78258f8a9678",
+      "submitted_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "submitted_to_parent_org": "2026-08-26T16:46:26.173305+00:00"
+    }
+  ],
+  "emission_history": [
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14caf"
+      },
+      "id": "4944039c-2270-4b85-9aca-18efb524a665",
+      "emission_id": "3d5c045c-35f7-486e-aed1-b778665a2c4a",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:09.354134+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-05",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 450,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 450.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 319.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 319.5,
+          "total_emissions": 319.5
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb8"
+      },
+      "id": "09eded07-5e41-4471-99b0-4a02d87766bf",
+      "emission_id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:09.713226+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-08",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 450,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 450.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 319.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 319.5,
+          "total_emissions": 319.5
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8ee107132bf9171ce14cbe"
+      },
+      "id": "734c8d34-9eee-47ad-81c2-e6025afa248c",
+      "emission_id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:50:15.380418+00:00",
+      "version": 1,
+      "field_changes": [
+        {
+          "field": "evidence",
+          "old_value": "No evidence",
+          "new_value": "Evidence updated",
+          "field_type": "evidence"
+        },
+        {
+          "field": "quantity",
+          "old_value": 450.0,
+          "new_value": null,
+          "field_type": "simple"
+        },
+        {
+          "field": "unit",
+          "old_value": "MWh",
+          "new_value": null,
+          "field_type": "simple"
+        }
+      ],
+      "changes_summary": "3 field(s) changed",
+      "changes": {
+        "action": "updated",
+        "old_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+          "reporting_period": "2026-08",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 450,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 450.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+          "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+          "created_by_email": "ruthvikanchuri@gmail.com",
+          "created_by_name": "ruthvik anchuri",
+          "co2_emissions": 319.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 319.5,
+          "total_emissions": 319.5,
+          "source": "supplier",
+          "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+          "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+          "created_at": "2026-08-26T12:45:09.713226+00:00",
+          "updated_at": null,
+          "updated_by": null,
+          "updated_by_email": null,
+          "updated_by_name": null
+        },
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-08",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 450,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": null,
+          "quantity_unit": null,
+          "unit": null,
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": "",
+          "evidence_url": "/api/files/5ddd5d9e-ffd4-4b7f-a2c3-a5affd7b9f4d",
+          "submission_batch_id": null,
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 319.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 319.5,
+          "total_emissions": 319.5
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a684033e834976af08ace99"
+      },
+      "id": "f3a4fb24-e08d-4cf7-b76f-be3cf98a3b0a",
+      "emission_id": "7efc296c-3234-4aff-b961-fe61bebdacd4",
+      "facility_id": "39ecd9be-9417-4df6-93c4-e583abf49260",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "e3e7ec7e-5b3d-4011-a752-40cd67be84c0",
+      "changed_by_email": "goyalsomil2001@gmail.com",
+      "changed_by_name": "Somil",
+      "changed_at": "2026-07-28T05:37:55.404210+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "39ecd9be-9417-4df6-93c4-e583abf49260",
+          "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+          "reporting_period": "2025-11",
+          "frequency_type": "monthly",
+          "scope": "Scope 2",
+          "category": "Purchased Electricity",
+          "sub_category": "Grid Electricity",
+          "fuel_type": null,
+          "calculation_method_scope3": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": null,
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {},
+          "outputs": {
+            "co2": {
+              "value": 0.05,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0.0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0.0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 0.05,
+              "unit": "tCO2e"
+            }
+          },
+          "fuel_database_id": null,
+          "source_of_information": null,
+          "record_source": null,
+          "notes": null,
+          "justification": null,
+          "evidence_url": null,
+          "responsible_person": null,
+          "responsible_person_designation": null,
+          "responsible_person_contact": null,
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 0.05,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 0.05,
+          "total_emissions": 0.05
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb2"
+      },
+      "id": "1b31cf94-9ffa-4359-92b7-c920d8c4a956",
+      "emission_id": "932e96f6-b18d-4bf2-9317-2161928764ea",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:09.461697+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-06",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 380,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 269.8,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 269.8,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 380.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 269.8,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 269.8,
+          "total_emissions": 269.8
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cac"
+      },
+      "id": "badb7f6a-db2b-4ed5-bec8-2fb8fc8525c0",
+      "emission_id": "a08cfbf5-d06c-436f-bb66-6edbe0af1e4d",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:09.244859+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-04",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 250,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": null,
+              "unit": "tCO2/MWh",
+              "is_override": false,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 177.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 177.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 250.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 177.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 177.5,
+          "total_emissions": 177.5
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14cb5"
+      },
+      "id": "dd3fe323-3152-4c69-95b6-bda910edb51e",
+      "emission_id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:09.573720+00:00",
+      "changes": {
+        "action": "created",
+        "old_values": null,
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-07",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 950,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": 0.7,
+              "unit": "tCO2/MWh",
+              "is_override": true,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 665,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 665,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 950.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 665,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 665,
+          "total_emissions": 665
+        }
+      }
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfec132bf9171ce14cba"
+      },
+      "id": "0e6a7409-b039-42b7-a6f2-e92e8605f199",
+      "emission_id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "scope": "scope2",
+      "category": "Purchased Electricity",
+      "changed_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+      "changed_by_email": "ruthvikanchuri@gmail.com",
+      "changed_by_name": "ruthvik anchuri",
+      "changed_at": "2026-08-26T12:45:32.058538+00:00",
+      "version": 1,
+      "field_changes": [
+        {
+          "field": "quantity",
+          "old_value": 950.0,
+          "new_value": null,
+          "field_type": "simple"
+        },
+        {
+          "field": "unit",
+          "old_value": "MWh",
+          "new_value": null,
+          "field_type": "simple"
+        },
+        {
+          "field": "co2_emissions",
+          "old_value": 665,
+          "new_value": 66.5,
+          "field_type": "simple"
+        },
+        {
+          "field": "co2e_emissions",
+          "old_value": 665,
+          "new_value": 66.5,
+          "field_type": "simple"
+        },
+        {
+          "field": "total_emissions",
+          "old_value": 665,
+          "new_value": 66.5,
+          "field_type": "simple"
+        },
+        {
+          "field": "input_values",
+          "input_key": "qty_energy",
+          "display_name": "Energy Consumed",
+          "old_value": {
+            "value": 950,
+            "unit": "MWh"
+          },
+          "new_value": {
+            "value": 95,
+            "unit": "MWh"
+          },
+          "field_type": "input_value",
+          "old_is_override": false,
+          "new_is_override": false
+        }
+      ],
+      "changes_summary": "5 field(s) changed",
+      "changes": {
+        "action": "updated",
+        "old_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+          "reporting_period": "2026-07",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 950,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": 0.7,
+              "unit": "tCO2/MWh",
+              "is_override": true,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 665,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 665,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": 950.0,
+          "quantity_unit": "MWh",
+          "unit": "MWh",
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": null,
+          "evidence_url": "",
+          "submission_batch_id": "0df4caf1-6a48-447b-9edf-d93dd8ab42cd",
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+          "created_by": "f46d6828-a31f-4c4f-95b0-225de861bd24",
+          "created_by_email": "ruthvikanchuri@gmail.com",
+          "created_by_name": "ruthvik anchuri",
+          "co2_emissions": 665,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 665,
+          "total_emissions": 665,
+          "source": "supplier",
+          "supplier_relationship_id": "50dc0a66-e6ab-49cc-8779-0d9118571ec4",
+          "customer_org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+          "created_at": "2026-08-26T12:45:09.573720+00:00",
+          "updated_at": null,
+          "updated_by": null,
+          "updated_by_email": null,
+          "updated_by_name": null
+        },
+        "new_values": {
+          "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+          "organization_id": null,
+          "reporting_period": "2026-07",
+          "frequency_type": "monthly",
+          "scope": "scope2",
+          "category": "Purchased Electricity",
+          "category_code": "purchased_electricity",
+          "sub_category": "Non-Renewable Electricity",
+          "fuel_type": "Non-Renewable Electricity",
+          "is_custom_fuel": false,
+          "custom_fuel_name": null,
+          "calculation_methodology": null,
+          "process_type": null,
+          "calculation_method_scope3": null,
+          "spend_currency_conversion_method": null,
+          "scope3_ef_id": null,
+          "scope3_activity": null,
+          "scope3_activity_type": null,
+          "scope3_subcategory": null,
+          "type_of_product": null,
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "biogenic_scope_selection": null,
+          "supplier_name": null,
+          "supplier_code": null,
+          "employee_name": null,
+          "employee_id": null,
+          "asset_name": null,
+          "from_location": null,
+          "to_location": null,
+          "customer_name": null,
+          "customer_code": null,
+          "nights_stayed": null,
+          "rooms_taken": null,
+          "employees": null,
+          "monthly_totals": null,
+          "yearly_total": null,
+          "dynamic_field_values": {
+            "qty_energy": {
+              "value": 95,
+              "unit": "MWh"
+            },
+            "ef_quantity_electricity_co2": {
+              "value": 0.7,
+              "unit": "tCO2/MWh",
+              "is_override": true,
+              "justification": ""
+            }
+          },
+          "outputs": {
+            "co2": {
+              "value": 66.5,
+              "unit": "tCO2"
+            },
+            "ch4": {
+              "value": 0,
+              "unit": "tCH4"
+            },
+            "n2o": {
+              "value": 0,
+              "unit": "tN2O"
+            },
+            "co2e": {
+              "value": 66.5,
+              "unit": "tCO2e"
+            }
+          },
+          "quantity": null,
+          "quantity_unit": null,
+          "unit": null,
+          "fuel_database_id": "646edd59-6245-4b87-bac6-38886c154e76",
+          "source_of_information": "CEA 2025",
+          "record_source": "",
+          "notes": "",
+          "justification": "",
+          "evidence_url": "",
+          "submission_batch_id": null,
+          "responsible_person": "",
+          "responsible_person_designation": "",
+          "responsible_person_contact": "",
+          "process_names": [],
+          "process_descriptions": [],
+          "co2_emissions": 66.5,
+          "ch4_emissions": 0,
+          "n2o_emissions": 0,
+          "co2e_emissions": 66.5,
+          "total_emissions": 66.5
+        }
+      }
+    }
+  ],
+  "ce_calculation_audit_logs": [
+    {
+      "_id": {
+        "$oid": "6a8edfd4132bf9171ce14ca6"
+      },
+      "id": "71311b71-a80f-4441-97ea-a7f9f2acd84b",
+      "emission_record_id": "a08cfbf5-d06c-436f-bb66-6edbe0af1e4d",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 250,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+        "reporting_period": "2026-04",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 177.5,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 177.5,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 250.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 250.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 250.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "source_name": "CEA 2025",
+          "mapping_id": "5cf7049f-5a88-46d2-8ab5-1aeaaf0466e9",
+          "source_table": "fuel_database",
+          "source_field": "emission_factor_basis_quantity",
+          "lookup_key": "fuel_name",
+          "lookup_value": "Non-Renewable Electricity",
+          "conditions_applied": 0,
+          "sort_by": null,
+          "query_used": {}
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 177.5
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 177.5
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 177.5,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 177.5,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:08.712458+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd4132bf9171ce14ca7"
+      },
+      "id": "73801392-f735-49a9-8766-ffcc2d257f1f",
+      "emission_record_id": "3d5c045c-35f7-486e-aed1-b778665a2c4a",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 450,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+        "reporting_period": "2026-05",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 319.5,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 319.5,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 450.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "source_name": "CEA 2025",
+          "mapping_id": "5cf7049f-5a88-46d2-8ab5-1aeaaf0466e9",
+          "source_table": "fuel_database",
+          "source_field": "emission_factor_basis_quantity",
+          "lookup_key": "fuel_name",
+          "lookup_value": "Non-Renewable Electricity",
+          "conditions_applied": 0,
+          "sort_by": null,
+          "query_used": {}
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 319.5
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 319.5
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:08.821924+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd4132bf9171ce14ca8"
+      },
+      "id": "90c95c8f-ea25-4504-9c2b-8d0dd777b9ea",
+      "emission_record_id": "932e96f6-b18d-4bf2-9317-2161928764ea",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 380,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+        "reporting_period": "2026-06",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 269.8,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 269.8,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 380.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 380.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 380.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "source_name": "CEA 2025",
+          "mapping_id": "5cf7049f-5a88-46d2-8ab5-1aeaaf0466e9",
+          "source_table": "fuel_database",
+          "source_field": "emission_factor_basis_quantity",
+          "lookup_key": "fuel_name",
+          "lookup_value": "Non-Renewable Electricity",
+          "conditions_applied": 0,
+          "sort_by": null,
+          "query_used": {}
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 269.8
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 269.8
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 269.8,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 269.8,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:08.926783+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14ca9"
+      },
+      "id": "87dabbf0-a6fb-424d-a825-266a163b30f4",
+      "emission_record_id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 950,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+        "reporting_period": "2026-07",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 665.0,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 665.0,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.7,
+          "unit": "tCO2/MWh",
+          "source": "user_override",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 950.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 950.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 950.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "source": "user_override",
+          "source_name": "User Specified",
+          "value": 0.7,
+          "unit": "tCO2/MWh"
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 665.0
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 665.0
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 665.0,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 665.0,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:09.034871+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfd5132bf9171ce14caa"
+      },
+      "id": "455b60e4-9979-4afc-b16f-625b23e23888",
+      "emission_record_id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 450,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "facility_id": "303c0cbd-70c1-4b72-9834-cd8f97ee27ab",
+        "reporting_period": "2026-08",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 319.5,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 319.5,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 450.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "source_name": "CEA 2025",
+          "mapping_id": "5cf7049f-5a88-46d2-8ab5-1aeaaf0466e9",
+          "source_table": "fuel_database",
+          "source_field": "emission_factor_basis_quantity",
+          "lookup_key": "fuel_name",
+          "lookup_value": "Non-Renewable Electricity",
+          "conditions_applied": 0,
+          "sort_by": null,
+          "query_used": {}
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 319.5
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 319.5
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:09.144663+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8edfec132bf9171ce14cbc"
+      },
+      "id": "120abf6b-fe9b-4fc7-81ef-fe720f574885",
+      "emission_record_id": "bacd46a1-03bf-4467-88ed-78bc7503b57e",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 95,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "reporting_period": "2026-07",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 66.5,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 66.5,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.7,
+          "unit": "tCO2/MWh",
+          "source": "user_override",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 95.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 95.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 95.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "source": "user_override",
+          "source_name": "User Specified",
+          "value": 0.7,
+          "unit": "tCO2/MWh"
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 66.5
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 66.5
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 66.5,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 66.5,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:45:32.177364+00:00"
+    },
+    {
+      "_id": {
+        "$oid": "6a8ee107132bf9171ce14cc0"
+      },
+      "id": "54349421-7f89-4510-9415-5ffdf1e895cd",
+      "emission_record_id": "54f4de47-e76e-4faf-9419-2f46a4a2bf82",
+      "org_id": null,
+      "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+      "formula_version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222",
+      "inputs": {
+        "qty_energy": {
+          "value": 450,
+          "unit": "MWh"
+        }
+      },
+      "context": {
+        "fuel_name": "Non-Renewable Electricity",
+        "fuel_id": "646edd59-6245-4b87-bac6-38886c154e76",
+        "scope": "scope2",
+        "category": "Purchased Electricity",
+        "reporting_period": "2026-08",
+        "is_custom_fuel": false
+      },
+      "outputs": {
+        "co2e": {
+          "value": 319.5,
+          "unit": "tCO2e"
+        },
+        "co2": {
+          "value": 319.5,
+          "unit": "tCO2"
+        }
+      },
+      "applied_factors": {
+        "ef_quantity_electricity_co2": {
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "label": "Emission Factor per Quantity"
+        }
+      },
+      "audit_log": [
+        {
+          "step": "validate_formula",
+          "formula_id": "e247ef01-6011-4977-8c5d-28a90bfd5991",
+          "version_id": "6ccc2c60-06ca-4289-8a3d-6f7e54046222"
+        },
+        {
+          "step": "input",
+          "variable": "qty_energy",
+          "variable_label": "Energy Consumed",
+          "value": 450.0,
+          "unit": "MWh",
+          "expected_unit": "MWh",
+          "original_expected_unit": null
+        },
+        {
+          "step": "convert",
+          "input": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "output": {
+            "value": 450.0,
+            "unit": "MWh"
+          },
+          "factor": 1.0,
+          "note": "no-op (same unit)"
+        },
+        {
+          "step": "resolve_property",
+          "property": "ef_quantity_electricity_co2",
+          "property_label": "Emission Factor per Quantity",
+          "value": 0.71,
+          "unit": "tCO2/MWh",
+          "source": "source_mapping",
+          "source_name": "CEA 2025",
+          "mapping_id": "5cf7049f-5a88-46d2-8ab5-1aeaaf0466e9",
+          "source_table": "fuel_database",
+          "source_field": "emission_factor_basis_quantity",
+          "lookup_key": "fuel_name",
+          "lookup_value": "Non-Renewable Electricity",
+          "conditions_applied": 0,
+          "sort_by": null,
+          "query_used": {}
+        },
+        {
+          "step": "formula_step",
+          "name": "co2",
+          "expression": "qty_energy * ef_quantity_electricity_co2",
+          "expression_readable": "Energy Consumed * Emission Factor per Quantity",
+          "output": 319.5
+        },
+        {
+          "step": "formula_step",
+          "name": "co2e",
+          "expression": "co2",
+          "expression_readable": "co2",
+          "output": 319.5
+        },
+        {
+          "step": "outputs",
+          "outputs": {
+            "co2e": {
+              "value": 319.5,
+              "unit": "tCO2e"
+            },
+            "co2": {
+              "value": 319.5,
+              "unit": "tCO2"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-08-26T12:50:15.501988+00:00"
+    }
+  ]
+}

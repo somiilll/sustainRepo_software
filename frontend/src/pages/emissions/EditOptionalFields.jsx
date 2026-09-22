@@ -56,89 +56,84 @@ export const EditOptionalFields = ({
       <CollapsibleContent className="border-t border-stone-100 px-5 py-6">
         <fieldset disabled={readOnly} className="min-w-0 space-y-8 disabled:opacity-100" data-testid={readOnly ? "read-only-optional-fields" : undefined}>
         <div className="space-y-8" data-testid="edit-optional-fields-content">
-          {!isEditC7EmployeeCommuting && (
-            <>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Label>Name of process(es)</Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help"><Info className="h-4 w-4 text-stone-400" /></span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">Process context is optional and does not change the calculation.</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => updateForm({ process_names: [...processes, { name: '', description: '' }] })}
-                    data-testid="edit-add-process-button"
-                  >
-                    <Plus className="mr-1 h-4 w-4" />Add process
-                  </Button>
+          <div className="space-y-4" data-testid="edit-process-details-section">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Label>Name of process(es)</Label>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help"><Info className="h-4 w-4 text-stone-400" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">Process context is optional and does not change the calculation.</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
-                {processes.map((process, index) => (
-                  <div key={`${typeof process === 'string' ? process : process.name}-${index}`} className="space-y-3 border border-stone-200 bg-stone-50 p-3">
-                    <div className="flex gap-2">
-                      <div className="flex-1 space-y-3">
-                        <Input
-                          value={typeof process === 'string' ? process : (process.name || '')}
-                          onChange={(event) => updateProcess(index, 'name', event.target.value)}
-                          placeholder={`Process name ${index + 1}`}
-                          className="bg-white"
-                          data-testid={`edit-process-name-input-${index}`}
-                        />
-                        <textarea
-                          value={typeof process === 'string' ? '' : (process.description || '')}
-                          onChange={(event) => updateProcess(index, 'description', event.target.value)}
-                          placeholder="Optional description"
-                          className="min-h-20 w-full resize-none border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                          data-testid={`edit-process-description-input-${index}`}
-                        />
-                      </div>
-                      {processes.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => updateForm({ process_names: processes.filter((_, itemIndex) => itemIndex !== index) })}
-                          className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                          data-testid={`edit-remove-process-button-${index}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateForm({ process_names: [...processes, { name: '', description: '' }] })}
+                  data-testid="edit-add-process-button"
+                >
+                  <Plus className="mr-1 h-4 w-4" />Add process
+                </Button>
+              </div>
+              {processes.map((process, index) => (
+                <div key={`${typeof process === 'string' ? process : process.name}-${index}`} className="space-y-3 border border-stone-200 bg-stone-50 p-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-3">
+                      <Input
+                        value={typeof process === 'string' ? process : (process.name || '')}
+                        onChange={(event) => updateProcess(index, 'name', event.target.value)}
+                        placeholder={`Process name ${index + 1}`}
+                        className="bg-white"
+                        data-testid={`edit-process-name-input-${index}`}
+                      />
+                      <textarea
+                        value={typeof process === 'string' ? '' : (process.description || '')}
+                        onChange={(event) => updateProcess(index, 'description', event.target.value)}
+                        placeholder="Optional description"
+                        className="min-h-20 w-full resize-none border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                        data-testid={`edit-process-description-input-${index}`}
+                      />
                     </div>
+                    {processes.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => updateForm({ process_names: processes.filter((_, itemIndex) => itemIndex !== index) })}
+                        className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                        data-testid={`edit-remove-process-button-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+          </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-responsible-person">Person responsible</Label>
-                  <Input id="edit-responsible-person" value={formData.responsible_person || ''} onChange={(event) => updateForm({ responsible_person: event.target.value })} placeholder="Name" className="bg-stone-50" data-testid="edit-responsible-person-input" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-responsible-designation">Designation</Label>
-                  <Input id="edit-responsible-designation" value={formData.responsible_person_designation || ''} onChange={(event) => updateForm({ responsible_person_designation: event.target.value })} placeholder="e.g., Environmental Manager" className="bg-stone-50" data-testid="edit-responsible-designation-input" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-responsible-contact">Contact</Label>
-                  <Input id="edit-responsible-contact" value={formData.responsible_person_contact || ''} onChange={(event) => updateForm({ responsible_person_contact: event.target.value })} placeholder="Email or phone" className="bg-stone-50" data-testid="edit-responsible-contact-input" />
-                </div>
-              </div>
-            </>
-          )}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="edit-responsible-person-section">
+            <div className="space-y-2">
+              <Label htmlFor="edit-responsible-person">Person responsible</Label>
+              <Input id="edit-responsible-person" value={formData.responsible_person || ''} onChange={(event) => updateForm({ responsible_person: event.target.value })} placeholder="Name" className="bg-stone-50" data-testid="edit-responsible-person-input" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-responsible-designation">Designation</Label>
+              <Input id="edit-responsible-designation" value={formData.responsible_person_designation || ''} onChange={(event) => updateForm({ responsible_person_designation: event.target.value })} placeholder="e.g., Environmental Manager" className="bg-stone-50" data-testid="edit-responsible-designation-input" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-responsible-contact">Contact</Label>
+              <Input id="edit-responsible-contact" value={formData.responsible_person_contact || ''} onChange={(event) => updateForm({ responsible_person_contact: event.target.value })} placeholder="Email or phone" className="bg-stone-50" data-testid="edit-responsible-contact-input" />
+            </div>
+          </div>
 
           {formData.scope === 'scope3' && selectedCategory && (
             <div className="space-y-4 border-t border-stone-100 pt-6" data-testid="edit-supplier-information-section">
               <div>
                 <h4 className="font-medium text-stone-900">{capabilities.customerCounterparty ? 'Customer' : 'Supplier'} information</h4>
-                <p className="mt-1 text-sm text-stone-500">Optional counterparty reference for this record.</p>
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">

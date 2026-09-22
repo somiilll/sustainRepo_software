@@ -200,7 +200,8 @@ CATEGORY_COLUMNS = {
     },
     "C3": {
         "code": "C3",
-        "name": "Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        "name": "Fuel- and energy-related activities",
+        "record_category_name": "C3 - Fuel and energy-related activities",
         "sheet_name": "C3", "sheet_name_aliases": ["C3-FuelEnergy", "C3 - Fuel and Energy", "C3 - Fuel and Energy Related Activities"],
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
@@ -325,7 +326,6 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
-            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number", "aliases": ["No. of Days Travelled", "Days Travelled", "No of Days Travelled", "Number of Days Travelled", "No. of days Travelled"]},
             {"name": "No. of Rooms Taken", "key": "rooms", "mandatory": False, "type": "number"},
             {"name": "No. of Nights Stayed", "key": "nights", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
@@ -773,9 +773,10 @@ CATEGORY_COLUMNS = {
     },
 }
 
-# Spend-basis rows use a legacy-safe PPP default when this optional selector is
-# absent. The normalized columns are injected for every category that supports
-# spend basis so generated templates and uploaded records share one contract.
+# Spend-basis rows infer the standard method when only spend is given and the
+# PPP/Inflation method when either corresponding value is supplied. The optional
+# Standard Currency Conversion column contains the numeric exchange rate itself.
+# Its former override label remains accepted when importing older workbooks.
 for _category_config in CATEGORY_COLUMNS.values():
     if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
         continue
@@ -783,13 +784,17 @@ for _category_config in CATEGORY_COLUMNS.values():
     _spent_index = next((index for index, column in enumerate(_columns) if column["key"] == "spent_amount"), None)
     if _spent_index is None:
         continue
-    _columns[_spent_index]["name"] = "Spent Amount"
+    _spent_column = _columns[_spent_index]
+    _legacy_spent_amount_header = _spent_column["name"]
+    _spent_column["name"] = "Spent Amount"
+    _spent_amount_aliases = _spent_column.setdefault("aliases", [])
+    if _legacy_spent_amount_header not in _spent_amount_aliases:
+        _spent_amount_aliases.append(_legacy_spent_amount_header)
     _new_columns = [
         {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
-        {"name": "Currency Conversion Method", "key": "spend_currency_conversion_method", "mandatory": False, "type": "dropdown"},
-        {"name": "Exchange Rate (Override)", "key": "exchange_rate", "mandatory": False, "type": "number"},
+        {"name": "Standard Currency Conversion", "key": "exchange_rate", "mandatory": False, "type": "number", "aliases": ["Exchange Rate (Override)"]},
     ]
-    if not any(column["key"] == "spend_currency_conversion_method" for column in _columns):
+    if not any(column["key"] == "exchange_rate" for column in _columns):
         _columns[_spent_index + 1:_spent_index + 1] = _new_columns
 
 

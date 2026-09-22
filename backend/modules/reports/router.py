@@ -846,6 +846,21 @@ async def generate_ghg_inventory_report(
     )
     if org_qty and org_unit:
         org_production_data = {'quantity': org_qty, 'unit': org_unit}
+
+    # Methodology disclosures apply at the organization level, including methods
+    # used by facilities outside a selectively generated facility report.
+    all_org_facilities = await db.facilities.find(
+        {"organization_id": org_id},
+        {"_id": 0, "id": 1},
+    ).to_list(10000)
+    all_org_facility_ids = [facility["id"] for facility in all_org_facilities if facility.get("id")]
+    methodology_source_emissions = await db.emission_records.find(
+        {
+            "facility_id": {"$in": all_org_facility_ids},
+            **eligible_ghg_record_filter(),
+        },
+        {"_id": 0},
+    ).to_list(10000)
     
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
@@ -861,7 +876,8 @@ async def generate_ghg_inventory_report(
         facility_production=facility_production_data,
         org_production=org_production_data,
         report_type=request.report_type,
-        is_complete_organization=request.is_complete_organization
+        is_complete_organization=request.is_complete_organization,
+        methodology_source_emissions=methodology_source_emissions,
     )
     
     # Generate filename based on format

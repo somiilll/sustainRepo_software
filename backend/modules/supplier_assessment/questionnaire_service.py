@@ -1,5 +1,6 @@
 """Questionnaire authoring, response, evidence, and manual-review operations."""
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -7,6 +8,9 @@ from r2_storage import get_r2_storage
 from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 # ========================================================================
 # Questionnaire Management (Customer Admin)
@@ -43,12 +47,9 @@ async def create_questionnaire(
     relationship_query = {"customer_org_id": organization_id, "is_active": True}
     if assignment_reporting_period:
         relationship_query["reporting_period"] = assignment_reporting_period
-    eligible_relationships = [
-        relationship for relationship in await db.supplier_relationships.find(
-            relationship_query, {"_id": 0, "id": 1, "modules_enabled": 1}
-        ).to_list(1000)
-        if "esg" in (relationship.get("modules_enabled") or ["esg", "ghg"])
-    ]
+    eligible_relationships = await db.supplier_relationships.find(
+        relationship_query, {"_id": 0, "id": 1}
+    ).to_list(1000)
     eligible_ids = {relationship["id"] for relationship in eligible_relationships}
     requested_ids = list(dict.fromkeys(supplier_relationship_ids or []))
     if assignment_mode == "selected":
@@ -98,7 +99,7 @@ async def create_questionnaire(
     if assigned_supplier_ids:
         await db.supplier_relationships.update_many(
             {"id": {"$in": assigned_supplier_ids}},
-            {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
         )
     return questionnaire
 
@@ -106,6 +107,7 @@ async def get_questionnaires(
     self,
     organization_id: str,
     include_inactive: bool = False,
+    reporting_period: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Get questionnaires for an organization, including inactive templates when requested by an admin."""
     query = {"organization_id": organization_id}
@@ -117,6 +119,8 @@ async def get_questionnaires(
     else:
         query["is_active"] = True
         query["is_deleted"] = {"$ne": True}
+    if reporting_period:
+        query["assignment_reporting_period"] = reporting_period
     questionnaires = await db.supplier_questionnaires.find(
         query,
         {"_id": 0}
@@ -191,7 +195,7 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
     for supplier in suppliers:
         is_assigned = supplier["id"] in assigned_ids or ("questionnaire_ids" in supplier and questionnaire_id in (supplier.get("questionnaire_ids") or []))
         status = response_statuses.get(supplier["id"], "not_started")
-        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted"})
+        rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted", "can_unlock": is_assigned and status == "submitted"})
     return {"questionnaire_id": questionnaire_id, "assignments": rows}
 
 
@@ -202,7 +206,7 @@ async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionn
         raise ValueError("Questionnaire or supplier is unavailable")
     now = datetime.now(timezone.utc).isoformat()
     await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$addToSet": {"assigned_supplier_ids": supplier_relationship_id}, "$set": {"assignment_mode": "selected", "updated_at": now}})
-    await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": now}})
+    await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": now}})
 
 
 async def unassign_questionnaire_from_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str) -> None:
@@ -697,6 +701,7 @@ async def submit_supplier_answers(
         score_breakdown = None
     
     if response_doc:
+        response_id = response_doc["id"]
         # Update existing
         update_data = {
             "answers": answers_dict,
@@ -748,11 +753,13 @@ async def submit_supplier_answers(
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.supplier_questionnaire_responses.insert_one(new_doc)
+        response_id = new_doc["id"]
     
     # Update completion status
     canonical_score = None
     if not is_draft:
         canonical_score = await self.refresh_supplier_canonical_score(supplier_relationship_id)
+        log_event(logger, logging.INFO, "supplier_assessment.questionnaire.locked", action="supplier_assessment.questionnaire.submit", outcome="locked", context={"supplier_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "response_id": response_id, "reporting_period": reporting_period})
     await self._update_completion_status(supplier_relationship_id)
     
     return {
@@ -800,6 +807,7 @@ async def _calculate_questionnaire_score(
     if has_new_scoring:
         # Use new scoring engine
         engine = ScoringEngine(db)
+        log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.started", action="supplier_assessment.questionnaire.scoring", outcome="started", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "question_count": len(questions)})
         
         # Get supplier info for full calculation
         revenue_percentage = None
@@ -822,13 +830,23 @@ async def _calculate_questionnaire_score(
                 manual_scores_override={},
                 reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
             )
+            log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": breakdown.esg_score.overall_score})
             return breakdown.esg_score.overall_score, breakdown.model_dump()
-        except Exception as e:
-            # Log error and fall back to legacy
-            print(f"New scoring engine error: {e}, falling back to legacy")
+        except Exception:
+            log_event(
+                logger,
+                logging.WARNING,
+                "supplier_assessment.questionnaire.scoring.fallback",
+                action="supplier_assessment.questionnaire.scoring",
+                outcome="degraded",
+                error_code="QUESTIONNAIRE_SCORING_FALLBACK",
+                context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id},
+            )
     
     # Legacy scoring for backward compatibility
-    return await self._calculate_legacy_score(questionnaire, questions, answers), None
+    legacy_score = await self._calculate_legacy_score(questionnaire, questions, answers)
+    log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.legacy_completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": legacy_score})
+    return legacy_score, None
 
 async def _calculate_legacy_score(
     self,
@@ -1123,6 +1141,7 @@ async def reopen_questionnaire(
         "reopened_by": reopened_by, "created_at": now, "updated_at": now,
     }
     await db.supplier_questionnaire_responses.insert_one(draft)
+    log_event(logger, logging.INFO, "supplier_assessment.questionnaire.unlocked", action="supplier_assessment.questionnaire.reopen", outcome="unlocked", context={"supplier_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "response_id": draft["id"], "reporting_period": reporting_period})
     return True
 
 async def get_supplier_submission_status(self, supplier_relationship_id: str) -> Dict[str, Any]:

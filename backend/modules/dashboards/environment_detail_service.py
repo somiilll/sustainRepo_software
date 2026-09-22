@@ -24,7 +24,7 @@ SCOPE2_CATEGORIES = {
 SCOPE3_UPSTREAM = [
     "C1 - Purchased Goods and Services",
     "C2 - Capital Goods",
-    "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "C3 - Fuel and energy-related activities",
     "C4 - Upstream Transportation and Distribution",
     "C5 - Waste Generated in Operations",
     "C6 - Business Travel",
@@ -46,7 +46,7 @@ SCOPE3_DOWNSTREAM = [
 SCOPE3_LABELS = {
     "C1 - Purchased Goods and Services": "Purchased Goods & Services",
     "C2 - Capital Goods": "Capital Goods",
-    "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2": "Fuel & Energy Activities",
+    "C3 - Fuel and energy-related activities": "Fuel & Energy Activities",
     "C4 - Upstream Transportation and Distribution": "Upstream Transport & Distribution",
     "C5 - Waste Generated in Operations": "Waste in Operations",
     "C6 - Business Travel": "Business Travel",

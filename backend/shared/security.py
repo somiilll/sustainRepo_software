@@ -6,6 +6,7 @@ Centralized security: rate limiting, headers, file validation, regex escaping.
 
 import re
 import os
+import uuid
 from typing import Optional
 from fastapi import Request, Response, UploadFile, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,9 +24,12 @@ limiter = Limiter(key_func=get_remote_address)
 def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Custom handler for rate limit errors."""
     from fastapi.responses import JSONResponse
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    message = "Too many requests. Please wait a moment and try again."
     return JSONResponse(
         status_code=429,
-        content={"detail": "Too many requests. Please try again later."}
+        content={"error_code": "RATE_LIMITED", "message": message, "detail": message, "request_id": request_id},
+        headers={"X-Request-ID": request_id},
     )
 
 
@@ -56,7 +60,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 ALLOWED_EXTENSIONS = {
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
     ".csv", ".txt", ".json", ".xml",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg",
     ".zip", ".rar", ".7z",
 }
 

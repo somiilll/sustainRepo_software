@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
 from shared.utils.emission_records import eligible_ghg_record_filter, normalize_reporting_period
+from .history_service import build_snapshot, compare_entries, record_base_year_event
 
 
 def _base_year_range(base_year: str) -> Optional[tuple[bool, int, int]]:
@@ -87,11 +88,163 @@ def _is_record_in_base_year(record: Dict[str, Any], base_year: str) -> bool:
     return year == start_year
 
 
+def _is_sink_entry(entry: Dict[str, Any]) -> bool:
+    return bool(entry.get("isSink")) or str(entry.get("scope") or "").strip().lower() == "sinks"
+
+
+def _preserved_sink_entries(base_year_record: Dict[str, Any], existing_emissions: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    """Keep the Base Year sink snapshot; sink records are not GHG log records."""
+    current_sinks = [entry for entry in existing_emissions if _is_sink_entry(entry)]
+    if current_sinks:
+        return current_sinks
+
+    # Recover sinks lost by the historic auto-sync behaviour from the most recent snapshot.
+    for version in reversed(base_year_record.get("version_history") or []):
+        snapshot_entries = version.get("emissions_data") or version.get("previous_emissions_data") or []
+        historical_sinks = [entry for entry in snapshot_entries if _is_sink_entry(entry)]
+        if historical_sinks:
+            return historical_sinks
+    return []
+
+
+def _sink_entries_for_base_year(sinks: list[Dict[str, Any]], base_year: str) -> list[Dict[str, Any]]:
+    grouped: Dict[tuple[str, str], float] = {}
+    for sink in sinks:
+        if not _is_record_in_base_year(sink, base_year):
+            continue
+        try:
+            reduction = float(sink.get("total_emissions_reduced") or 0)
+        except (TypeError, ValueError):
+            continue
+        if str(sink.get("frequency_type") or "monthly").lower() == "yearly":
+            reduction *= _yearly_overlap_factor(sink.get("reporting_period", ""), base_year)
+        key = (sink.get("description") or sink.get("sink_type") or "Carbon Sink", sink.get("description") or "")
+        grouped[key] = grouped.get(key, 0) + reduction
+
+    return [
+        {
+            "scope": "Sinks",
+            "category": category,
+            "subcategory": description,
+            "tco2e": round(-abs(total), 4),
+            "isSink": True,
+        }
+        for (category, description), total in grouped.items()
+    ]
+
+
+async def sync_base_year_sinks_for_entity(
+    entity_type: str,
+    entity_id: str,
+    current_user: Dict[str, Any],
+    source_before: Optional[Dict[str, Any]] = None,
+    source_after: Optional[Dict[str, Any]] = None,
+    source_action: Optional[str] = None,
+) -> Dict[str, Any]:
+    query: Dict[str, Any] = {"scope_group": "scope12"}
+    if entity_type == "facility":
+        query["facility_id"] = entity_id
+    else:
+        query.update({"organization_id": entity_id, "facility_id": None})
+    base_year_record = await db.base_year_emissions.find_one(query, {"_id": 0})
+    if not base_year_record or not _base_year_range(base_year_record.get("base_year", "")):
+        return {"message": "No valid Scope 1 & 2 base year found", "synced": False}
+
+    sink_query = {"facility_id": entity_id} if entity_type == "facility" else {"organization_id": entity_id}
+    sinks = await db.sinks.find(sink_query, {"_id": 0}).to_list(10000)
+    existing_emissions = base_year_record.get("emissions_data", [])
+    new_sink_entries = _sink_entries_for_base_year(sinks, base_year_record["base_year"])
+    new_emissions_data = [entry for entry in existing_emissions if not _is_sink_entry(entry)] + new_sink_entries
+    entry_changes = compare_entries(existing_emissions, new_emissions_data)
+    if not entry_changes:
+        return {"message": "Base year sinks already match source data", "synced": False}
+
+    current_version = base_year_record.get("version", 1)
+    version_history = base_year_record.get("version_history", [])
+    version_history.append({
+        "version": current_version,
+        "emissions_data": existing_emissions,
+        "updated_at": base_year_record.get("updated_at"),
+        "updated_by": base_year_record.get("updated_by"),
+        "change_type": "sink_sync",
+    })
+    now = datetime.now(timezone.utc).isoformat()
+    await db.base_year_emissions.update_one(
+        {"id": base_year_record["id"]},
+        {"$set": {
+            "emissions_data": new_emissions_data,
+            "version": current_version + 1,
+            "version_history": version_history,
+            "updated_at": now,
+            "updated_by": current_user.get("id"),
+            "updated_by_email": current_user.get("email"),
+            "updated_by_name": current_user.get("full_name") or current_user.get("name"),
+            "last_synced_at": now,
+        }},
+    )
+    updated_record = {**base_year_record, "version": current_version + 1, "emissions_data": new_emissions_data}
+    await record_base_year_event(
+        base_year_record=updated_record,
+        event_type="sinks_recalculated",
+        before=build_snapshot(base_year_record.get("base_year"), existing_emissions),
+        after=build_snapshot(base_year_record.get("base_year"), new_emissions_data),
+        actor=current_user,
+        reason="Recalculated automatically after a linked Sinks entry changed.",
+        entry_changes=entry_changes,
+        source_before=source_before,
+        source_after=source_after,
+        source_action=source_action,
+        source_type="sink",
+    )
+    return {"message": "Base year sinks synced successfully", "synced": True, "new_version": current_version + 1}
+
+
+async def sync_changed_sink_base_years(
+    previous_sink: Optional[Dict[str, Any]],
+    updated_sink: Optional[Dict[str, Any]],
+    current_user: Dict[str, Any],
+) -> list[Dict[str, Any]]:
+    candidates: set[tuple[str, str]] = set()
+    for sink in (previous_sink, updated_sink):
+        if not sink:
+            continue
+        if sink.get("facility_id"):
+            candidates.add(("facility", sink["facility_id"]))
+        if sink.get("organization_id"):
+            candidates.add(("organization", sink["organization_id"]))
+
+    results = []
+    for entity_type, entity_id in candidates:
+        query: Dict[str, Any] = {"scope_group": "scope12"}
+        if entity_type == "facility":
+            query["facility_id"] = entity_id
+        else:
+            query.update({"organization_id": entity_id, "facility_id": None})
+        base_year_record = await db.base_year_emissions.find_one(query, {"_id": 0, "base_year": 1})
+        if base_year_record and any(
+            _is_record_in_base_year(sink, base_year_record.get("base_year", ""))
+            for sink in (previous_sink, updated_sink) if sink
+        ):
+            action = "added" if previous_sink is None else "removed" if updated_sink is None else "updated"
+            results.append(await sync_base_year_sinks_for_entity(
+                entity_type,
+                entity_id,
+                current_user,
+                source_before=previous_sink,
+                source_after=updated_sink,
+                source_action=action,
+            ))
+    return results
+
+
 async def sync_base_year_emissions_for_entity(
     entity_type: str,
     entity_id: str,
     scope_group: str,
     current_user: Dict[str, Any],
+    source_before: Optional[Dict[str, Any]] = None,
+    source_after: Optional[Dict[str, Any]] = None,
+    source_action: Optional[str] = None,
 ) -> Dict[str, Any]:
     query: Dict[str, Any] = {"scope_group": scope_group}
     if entity_type == "facility":
@@ -178,12 +331,18 @@ async def sync_base_year_emissions_for_entity(
             })
 
     existing_emissions = base_year_record.get("emissions_data", [])
-    manual_entries = [entry for entry in existing_emissions if entry.get("isManuallyAdded")]
+    manual_entries = [entry for entry in existing_emissions if entry.get("isManuallyAdded") and not _is_sink_entry(entry)]
+    sink_entries = _preserved_sink_entries(base_year_record, existing_emissions)
+    preserved_entries = [*manual_entries, *sink_entries]
     synced_keys = {(entry["scope"], entry["category"], entry.get("subcategory", "")) for entry in new_emissions_data}
-    for manual_entry in manual_entries:
-        key = (manual_entry["scope"], manual_entry["category"], manual_entry.get("subcategory", ""))
+    for preserved_entry in preserved_entries:
+        key = (preserved_entry["scope"], preserved_entry["category"], preserved_entry.get("subcategory", ""))
         if key not in synced_keys:
-            new_emissions_data.append(manual_entry)
+            new_emissions_data.append(preserved_entry)
+
+    entry_changes = compare_entries(existing_emissions, new_emissions_data)
+    if not entry_changes:
+        return {"message": "Base year emissions already match source data", "synced": False}
 
     current_version = base_year_record.get("version", 1)
     version_history = base_year_record.get("version_history", [])
@@ -206,6 +365,20 @@ async def sync_base_year_emissions_for_entity(
             "updated_by": current_user.get("email"),
             "last_synced_at": now,
         }},
+    )
+
+    updated_record = {**base_year_record, "version": current_version + 1, "emissions_data": new_emissions_data}
+    await record_base_year_event(
+        base_year_record=updated_record,
+        event_type="recalculated",
+        before=build_snapshot(base_year_record.get("base_year"), existing_emissions),
+        after=build_snapshot(base_year_record.get("base_year"), new_emissions_data),
+        actor=current_user,
+        reason="Recalculated automatically after a linked GHG entry changed.",
+        entry_changes=entry_changes,
+        source_before=source_before,
+        source_after=source_after,
+        source_action=source_action,
     )
 
     return {
@@ -259,6 +432,15 @@ async def sync_changed_emission_base_years(
             _is_record_in_base_year(emission, base_year_record.get("base_year", ""))
             for emission in emissions
         ):
-            results.append(await sync_base_year_emissions_for_entity(entity_type, entity_id, scope_group, current_user))
+            source_action = "added" if previous_emission is None else "removed" if updated_emission is None else "updated"
+            results.append(await sync_base_year_emissions_for_entity(
+                entity_type,
+                entity_id,
+                scope_group,
+                current_user,
+                source_before=previous_emission,
+                source_after=updated_emission,
+                source_action=source_action,
+            ))
 
     return results

@@ -57,6 +57,11 @@ export default function FormulaBuilder() {
   const [validationErrors, setValidationErrors] = useState([]);
   const [saving, setSaving] = useState(false);
   const [expandedFormula, setExpandedFormula] = useState(null);
+  const [impact, setImpact] = useState(null);
+  const [formulaGroups, setFormulaGroups] = useState([]);
+  const [cloneSource, setCloneSource] = useState(null);
+  const [cloneTarget, setCloneTarget] = useState('');
+  const [cloning, setCloning] = useState(false);
 
   // Search & filter
   const [search, setSearch] = useState('');
@@ -158,6 +163,7 @@ export default function FormulaBuilder() {
     setFormula(JSON.parse(JSON.stringify(EMPTY_FORMULA)));
     setEditingId(null);
     setValidationErrors([]);
+    setImpact(null);
     setEditorOpen(true);
   };
 
@@ -173,6 +179,41 @@ export default function FormulaBuilder() {
     setEditingId(f.id);
     setValidationErrors([]);
     setEditorOpen(true);
+    axios.get(`${API}/super-admin/calc-engine/formulas/${f.id}/impact`, { headers: getAuthHeader() })
+      .then((response) => setImpact(response.data))
+      .catch(() => setImpact(null));
+  };
+
+  const openClone = async (formulaToClone) => {
+    try {
+      const response = await axios.get(`${API}/super-admin/calc-engine/formula-groups`, { headers: getAuthHeader() });
+      setFormulaGroups(response.data || []);
+      setCloneSource(formulaToClone);
+      setCloneTarget('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Unable to load clone targets');
+    }
+  };
+
+  const cloneFormula = async () => {
+    if (!cloneSource || !cloneTarget) return;
+    setCloning(true);
+    try {
+      const [targetType, targetId] = cloneTarget.split(':');
+      if (targetType === 'group') {
+        await axios.post(`${API}/super-admin/calc-engine/formula-groups/${targetId}/clone-formula`, { formula_id: cloneSource.id }, { headers: getAuthHeader() });
+      } else {
+        await axios.post(`${API}/super-admin/calc-engine/formulas/${cloneSource.id}/clone-to-category`, { target_category_id: targetId }, { headers: getAuthHeader() });
+      }
+      toast.success('Independent formula clone created. Rebind a decision-tree branch when ready.');
+      setCloneSource(null);
+      setCloneTarget('');
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Formula clone failed');
+    } finally {
+      setCloning(false);
+    }
   };
 
   const updateDef = (path, value) => {
@@ -293,7 +334,7 @@ export default function FormulaBuilder() {
           </SelectContent>
         </Select>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[220px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+          <SelectTrigger className="w-[220px]" data-testid="formula-category-filter"><SelectValue placeholder="All categories" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
             {filteredCategoriesForFilter.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -338,6 +379,9 @@ export default function FormulaBuilder() {
                   <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">v{f.version_number || 1}</Badge>
                   <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(f); }} data-testid={`edit-formula-${f.id}`}>
                     <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openClone(f); }} data-testid={`clone-formula-${f.id}`}>
+                    <Copy className="w-4 h-4" />
                   </Button>
                   <Button size="sm" variant="ghost" className="text-red-500" onClick={(e) => { e.stopPropagation(); deleteFormula(f.id); }}>
                     <Trash2 className="w-4 h-4" />
@@ -393,6 +437,19 @@ export default function FormulaBuilder() {
           </DialogHeader>
 
           <div className="space-y-6">
+            {impact && (
+              <Card className="border-amber-200 bg-amber-50 p-4" data-testid="formula-impact-panel">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                  <div className="min-w-0">
+                    <div className="font-heading font-bold text-amber-950">Formula impact before publishing</div>
+                    <p className="mt-1 text-sm text-amber-900" data-testid="formula-impact-summary">This formula is used by {impact.usage_count} active decision-tree branch{impact.usage_count === 1 ? '' : 'es'}.</p>
+                    {impact.formula.activity_formula_group_id && <p className="mt-1 text-xs font-medium text-amber-800" data-testid="formula-group-warning">Group-owned: {impact.formula.activity_formula_group_id}. Clone it in Formula Groups before adapting it for another group.</p>}
+                    <div className="mt-2 flex flex-wrap gap-1.5">{impact.uses.map((use, index) => <Badge key={`${use.decision_tree_id}-${use.branch_path}-${index}`} variant="outline" className="border-amber-300 bg-white text-amber-900" data-testid={`formula-impact-use-${index}`}>{use.category_code || use.category_name} · {use.branch_path}</Badge>)}</div>
+                  </div>
+                </div>
+              </Card>
+            )}
             {/* Metadata */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -671,6 +728,25 @@ export default function FormulaBuilder() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cloneSource)} onOpenChange={(open) => !open && setCloneSource(null)}>
+        <DialogContent data-testid="formula-builder-clone-dialog">
+          <DialogHeader>
+            <DialogTitle>Create independent formula clone</DialogTitle>
+          <DialogDescription>Choose a Scope 3 formula group or a direct Scope 1/2 category. No decision-tree branch changes automatically.</DialogDescription>
+          </DialogHeader>
+          <Select value={cloneTarget} onValueChange={setCloneTarget}>
+            <SelectTrigger data-testid="formula-clone-target-select"><SelectValue placeholder="Select clone destination" /></SelectTrigger>
+            <SelectContent>
+              {formulaGroups.filter((group) => group.id !== cloneSource?.activity_formula_group_id).map((group) => <SelectItem key={group.id} value={`group:${group.id}`}>Scope 3 group · {group.id.replace('scope3_activity_', '').replaceAll('_', ' / ').toUpperCase()}</SelectItem>)}
+              {categories.filter((category) => ['scope1', 'scope2'].includes(scopes.find((scope) => scope.id === category.scope_id)?.code)).map((category) => <SelectItem key={category.id} value={`category:${category.id}`}>{scopes.find((scope) => scope.id === category.scope_id)?.name} · {category.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button onClick={cloneFormula} disabled={!cloneTarget || cloning} data-testid="confirm-formula-builder-clone-button">
+            <Copy className="mr-2 h-4 w-4" />{cloning ? 'Creating clone…' : 'Create independent clone'}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

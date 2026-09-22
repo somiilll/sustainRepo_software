@@ -110,10 +110,6 @@ class TestSuperAdminSplitRouter:
         assert r.status_code == 200
         assert len(r.json()) >= 10
 
-    def test_process_templates(self, admin_a_token):
-        r = requests.get(f"{BASE_URL}/api/process-templates", headers=self._h(admin_a_token), timeout=15)
-        assert r.status_code == 200
-
     def test_gwp_config(self, admin_a_token):
         r = requests.get(f"{BASE_URL}/api/gwp-config", headers=self._h(admin_a_token), timeout=15)
         assert r.status_code == 200

@@ -42,7 +42,7 @@ SYSTEM_PROPERTIES: List[dict] = [
     {"key": "ef_co2e", "label": "CO₂e Emission Factor (per qty)", "unit": "kgCO2e/kg", "override_allowed": True},
     {"key": "gwp_ch4", "label": "GWP CH₄", "unit": "1", "override_allowed": False},
     {"key": "gwp_n2o", "label": "GWP N₂O", "unit": "1", "override_allowed": False},
-    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "unit": "1", "override_allowed": True},
+    {"key": "exchange_rate", "label": "Standard Currency Exchange Rate", "unit": "", "override_allowed": True},
 ]
 
 
@@ -78,14 +78,16 @@ async def seed_properties(db) -> int:
         await db.ce_input_field_mappings.update_one(
             {"field_key": "exchange_rate"},
             {
-                "$set": {
+                "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "field_key": "exchange_rate",
                     "field_label": "Standard Currency Exchange Rate",
                     "field_type": "number",
                     "maps_to_variable": "exchange_rate",
                     "maps_to_context": "exchange_rate",
                     "maps_to_context_value_when_filled": "true",
                     "maps_to_context_value_when_empty": "false",
-                    "default_unit": "1",
+                    "default_unit": "",
                     "allowed_units": [],
                     "is_required": False,
                     "is_override": True,
@@ -95,14 +97,9 @@ async def seed_properties(db) -> int:
                     "applies_to_scopes": [scope["id"]],
                     "placeholder": "",
                     "help_text": "",
-                    "unit_source": "static",
+                    "unit_source": "none",
                     "validation_rules": {},
                     "is_active": True,
-                    "updated_at": now,
-                },
-                "$setOnInsert": {
-                    "id": str(uuid.uuid4()),
-                    "field_key": "exchange_rate",
                     "created_at": now,
                 },
             },

@@ -1,5 +1,6 @@
 """Focused organization-agreement document flow for Supplier Assessment."""
 import asyncio
+import logging
 import uuid
 import re
 import subprocess
@@ -10,10 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
+from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.sustainability_config import service as sustainability_config_service
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
+
+logger = get_logger(__name__)
 
 
 DOCUMENT_BUCKET_TYPE = "supplier_assessment"
@@ -93,6 +97,7 @@ async def publish_agreement(
     due_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Upload one organization agreement and bind it to immutable program revisions."""
+    log_event(logger, logging.INFO, "supplier_assessment.document.publish.started", action="supplier_assessment.document.publish", outcome="started", context={"customer_org_id": customer_org_id, "relationship_count": len(relationship_ids or [])})
     validate_due_date(due_date)
     if not filename or content_type not in ALLOWED_DOCUMENT_TYPES:
         raise ValueError("Only PDF, DOC, and DOCX agreement files are supported")
@@ -109,7 +114,7 @@ async def publish_agreement(
 
     organization_config = await _enable_documents_for_org(customer_org_id, created_by)
     relationship_filter = {"customer_org_id": customer_org_id, "is_active": True}
-    if relationship_ids:
+    if relationship_ids is not None:
         relationship_filter["id"] = {"$in": list(set(relationship_ids))}
     relationships = await db.supplier_relationships.find(relationship_filter, {"_id": 0}).to_list(1000)
     if relationship_ids and len(relationships) != len(set(relationship_ids)):
@@ -162,7 +167,7 @@ async def publish_agreement(
         revision_relationships.setdefault((revision["program_id"], revision["version"], relationship.get("reporting_period")), []).append(relationship["id"])
         await db.supplier_relationships.update_one(
             {"id": relationship["id"]},
-            {"$set": {
+            {"$addToSet": {"modules_enabled": "documents"}, "$set": {
                 "assessment_program_id": revision["program_id"],
                 "assessment_program_version": revision["version"],
                 "documents_completion_percent": 0.0,
@@ -198,11 +203,13 @@ async def publish_agreement(
             period_requirement.pop("_id", None)
             requirements.append(period_requirement)
 
-    return {
+    result = {
         "requirements": requirements,
         "version": version,
         "affected_relationship_ids": [relationship["id"] for relationship in relationships],
     }
+    log_event(logger, logging.INFO, "supplier_assessment.document.publish.completed", action="supplier_assessment.document.publish", outcome="succeeded", context={"customer_org_id": customer_org_id, "document_version_id": version["id"], "requirement_count": len(requirements), "affected_supplier_count": len(relationships)})
+    return result
 
 
 async def assign_existing_documents_to_supplier(customer_org_id: str, relationship: Dict[str, Any], requirement_ids: List[str], created_by: str) -> List[str]:
@@ -231,6 +238,7 @@ async def assign_existing_documents_to_supplier(customer_org_id: str, relationsh
         }
         await db.supplier_document_requirements.insert_one(requirement)
         created_ids.append(requirement["id"])
+    log_event(logger, logging.INFO, "supplier_assessment.document.assignment.created", action="supplier_assessment.document.assignment.create", outcome="succeeded", context={"customer_org_id": customer_org_id, "supplier_relationship_id": relationship["id"], "requirement_count": len(created_ids)})
     return created_ids
 
 
@@ -267,6 +275,7 @@ async def synchronize_document_assignments(
                 "excluded_supplier_relationship_ids": list(excluded),
             }},
         )
+    log_event(logger, logging.INFO, "supplier_assessment.document.assignment.synchronized", action="supplier_assessment.document.assignment.sync", outcome="succeeded", context={"customer_org_id": customer_org_id, "supplier_relationship_id": relationship["id"], "selected_requirement_count": len(selected_requirement_ids)})
     return list(selected_requirement_ids)
 
 
@@ -283,6 +292,7 @@ async def update_document_due_date(customer_org_id: str, requirement_id: str, du
         {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True},
         {"$set": {"due_date": due_date or None, "updated_at": now}},
     )
+    log_event(logger, logging.INFO, "supplier_assessment.document.due_date.updated", action="supplier_assessment.document.due_date.update", outcome="succeeded", context={"customer_org_id": customer_org_id, "requirement_id": requirement_id})
     return await db.supplier_document_requirements.find_one({"id": requirement_id}, {"_id": 0})
 
 
@@ -310,6 +320,8 @@ async def list_document_assignments(customer_org_id: str, requirement_id: str) -
             "supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"),
             "is_assigned": bool(applicable), "status": "submitted" if submitted else "pending",
             "can_unassign": bool(applicable) and not submitted,
+            "can_unlock": bool(applicable) and submitted,
+            "document_requirement_id": applicable.get("id") if applicable else None,
         })
     return {"document_id": requirement_id, "document_version_id": requirement["document_version_id"], "assignments": rows}
 
@@ -323,7 +335,9 @@ async def assign_document_to_supplier(customer_org_id: str, requirement_id: str,
     )
     if not source or not relationship:
         raise ValueError("Document or supplier is unavailable")
+    await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "documents"}, "$set": {"updated_at": _now()}})
     await assign_existing_documents_to_supplier(customer_org_id, relationship, [source["id"]], assigned_by)
+    log_event(logger, logging.INFO, "supplier_assessment.document.assignment.added", action="supplier_assessment.document.assignment.add", outcome="succeeded", context={"customer_org_id": customer_org_id, "supplier_relationship_id": supplier_relationship_id, "requirement_id": requirement_id})
 
 
 async def unassign_document_from_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
@@ -353,6 +367,7 @@ async def unassign_document_from_supplier(customer_org_id: str, requirement_id: 
         await db.supplier_document_requirements.update_one(
             {"id": requirement["id"]}, {"$set": {"supplier_relationship_ids": list(assigned), "excluded_supplier_relationship_ids": list(excluded), "updated_at": _now()}}
         )
+    log_event(logger, logging.INFO, "supplier_assessment.document.assignment.removed", action="supplier_assessment.document.assignment.remove", outcome="succeeded", context={"customer_org_id": customer_org_id, "supplier_relationship_id": supplier_relationship_id, "requirement_id": requirement_id})
 
 
 async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -466,7 +481,9 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
         now = _now()
         await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": "Accepted", "accepted_by": supplier_user_id, "accepted_at": now, "submitted_at": now, "parent_visible": True}})
         await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
-        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        submission = await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.accept", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": existing["id"]})
+        return submission
     if existing:
         return existing
     acceptance = {
@@ -478,6 +495,7 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     }
     await db.supplier_document_submissions.insert_one(acceptance)
     acceptance.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.accept", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": acceptance["id"]})
     return acceptance
 
 
@@ -496,7 +514,9 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
         now = _now()
         await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": response_value, "responded_by": supplier_user_id, "responded_at": now, "submitted_at": now, "parent_visible": True}})
         await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
-        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        submission = await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.respond", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": existing["id"]})
+        return submission
     if existing:
         if existing.get("response_value") == response_value:
             return existing
@@ -505,13 +525,18 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
     response.update({"status": "submitted", "revision": 1, "is_current": True, "parent_visible": True, "submitted_at": response["responded_at"]})
     await db.supplier_document_submissions.insert_one(response)
     response.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.respond", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": response["id"]})
     return response
 
 
 async def list_customer_documents(customer_org_id: str, reporting_period: Optional[str] = None) -> List[Dict[str, Any]]:
     query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
-        query["reporting_period"] = reporting_period
+        query["$or"] = [
+            {"reporting_period": reporting_period},
+            {"reporting_period": None},
+            {"reporting_period": {"$exists": False}},
+        ]
     requirements = await db.supplier_document_requirements.find(
         query, {"_id": 0}
     ).sort("created_at", -1).to_list(100)
@@ -549,10 +574,10 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         )
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
             response = visible_submission
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
         else:
             acceptance = visible_submission
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
     return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
 
 
@@ -573,6 +598,7 @@ async def archive_document(customer_org_id: str, requirement_id: str) -> Optiona
             if not deleted:
                 raise ValueError("R2 did not confirm document deletion")
         except Exception as error:
+            log_event(logger, logging.ERROR, "supplier_assessment.document.archive.failed", action="supplier_assessment.document.archive", outcome="failed", error_code="DOCUMENT_STORAGE_DELETE_FAILED", context={"customer_org_id": customer_org_id, "requirement_id": requirement_id}, exc_info=True)
             raise ValueError("Could not permanently delete the document file from storage") from error
     await db.supplier_document_requirements.update_many(
         {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True},
@@ -586,6 +612,7 @@ async def archive_document(customer_org_id: str, requirement_id: str) -> Optiona
     relationships = await db.supplier_relationships.find(
         {"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
     ).to_list(1000)
+    log_event(logger, logging.INFO, "supplier_assessment.document.archive.completed", action="supplier_assessment.document.archive", outcome="succeeded", context={"customer_org_id": customer_org_id, "requirement_id": requirement_id, "affected_supplier_count": len(relationships)})
     return [relationship["id"] for relationship in relationships]
 
 
@@ -608,6 +635,7 @@ async def reopen_supplier_document(customer_org_id: str, supplier_relationship_i
     draft = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id, "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "status": "reopened", "revision": (latest.get("revision", 1) + 1) if latest else 2, "is_current": True, "parent_visible": False, "reopened_by": reopened_by, "reopened_at": _now()}
     await db.supplier_document_submissions.insert_one(draft)
     draft.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.unlocked", action="supplier_assessment.document.reopen", outcome="unlocked", context={"supplier_id": supplier_relationship_id, "requirement_id": requirement_id, "submission_id": draft["id"]})
     return draft
 
 

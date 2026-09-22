@@ -15,6 +15,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Button } from '../../../components/ui/button';
 import { toast } from 'sonner';
+import { getUserFriendlyError } from '../../../lib/userFriendlyError';
 import useTargetForm from '../hooks/useTargetForm';
 import { TARGET_MODES } from '../constants';
 import TotalTargetForm from './TotalTargetForm';
@@ -111,7 +112,7 @@ function TargetFormBody({ initial, yearOptions, hasScope3, onSubmit, onClose, bu
     try {
       await onSubmit(form.buildPayload());
     } catch (e) {
-      toast.error(e?.response?.data?.detail || 'Failed to save target');
+      toast.error(getUserFriendlyError(e, 'We could not save this target.'));
     }
   };
 

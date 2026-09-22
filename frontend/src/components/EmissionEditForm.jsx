@@ -1,6 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { SearchableSelect } from './ui/searchable-select';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { MonthYearPicker } from './ui/month-year-picker';
@@ -31,7 +32,6 @@ import {
   Calendar as CalendarIcon,
   Eye,
   Download,
-  Search,
   AlertTriangle,
   X,
   Info,
@@ -43,19 +43,24 @@ import {
   Plane,
   Truck,
   Zap,
-  Droplet,
   Calculator,
   Leaf,
   ListFilter,
-  MapPin,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
 import {
   getUnitDenominator,
   isQuantityField,
   resolveDensityRequirement,
+  resolveDensityFieldState,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
+import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -96,6 +101,27 @@ const isCarbonContentField = (field = {}) => {
     || /carbon.*content|composition.*carbon/i.test(field.label || '');
 };
 
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
+const getDayLimitFromReportingPeriod = (reportingPeriod, frequencyType) => {
+  if (frequencyType === 'yearly') {
+    const calendarMatch = String(reportingPeriod || '').match(/^CY\s?(\d{4})$/i);
+    if (calendarMatch) return getAnnualReportingPeriodDayLimit(calendarMatch[1], 'calendar');
+
+    const financialMatch = String(reportingPeriod || '').match(/^FY\s?(\d{4})-(\d{4})$/i);
+    if (financialMatch) return getAnnualReportingPeriodDayLimit(financialMatch[1], 'financial');
+
+    return undefined;
+  }
+
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (!match) return undefined;
+  return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
+};
+
 const hasNumericValue = (value) => (
   value !== undefined
   && value !== null
@@ -130,7 +156,6 @@ export default function EmissionEditForm(props) {
     draft,
     onDraftChange,
     editingEmission,
-    activitySearchTerm,
     loadingScope3EF,
     loadingBiogenicCategories,
     isCalculatingEditEmployee,
@@ -138,8 +163,10 @@ export default function EmissionEditForm(props) {
     editFormConfigLoading,
     dynamicInputFields,
     effectiveCalculatedEmissions,
+    liveCalculationValidationError,
     isCalculating,
     isSaving,
+    onC8AllocationMethodChange,
 
     setActivitySearchTerm,
 
@@ -163,6 +190,7 @@ export default function EmissionEditForm(props) {
     fieldOptions = {},
     requiresSubcategory,
     availableSubcategories,
+    scope3EFData = [],
     filteredScope3Activities,
     availableQuantityUnits,
 
@@ -178,6 +206,9 @@ export default function EmissionEditForm(props) {
     handleRemoveEvidence,
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
+    handleC7EvidenceUpload,
+    handleC7EvidenceRemove,
+    handleC7EvidenceDownload,
     handleDialogChange,
 
     // Optional props for approval mode
@@ -210,11 +241,34 @@ export default function EmissionEditForm(props) {
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
   const scope3Method = draft.scope3Method;
-  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'ppp_inflation';
+  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'standard';
   const scope3ActivityType = draft.scope3ActivityType;
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
+  const isC5Category = selectedCategory?.code === 'waste_generated_in_operations'
+    || /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
+  const [c5BaseActivity, setC5BaseActivity] = useState('');
+  const c5CatalogActivities = scope3EFData.filter((activity) => (
+    isC5Category
+    && activity.category === (formData.category || selectedCategory?.name)
+    && activity.method === scope3Method
+    && activity.sub_scope !== 'biogenic'
+  ));
+  const c5ActivityOptions = isC5Category
+    ? Array.from(new Map(c5CatalogActivities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
+    : [];
+  useEffect(() => {
+    if (!isC5Category || !scope3ActivityId) return;
+    const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) setC5BaseActivity(selected.activity_name || selected.activity);
+  }, [c5CatalogActivities, isC5Category, scope3ActivityId]);
+  const c5ActivityTypes = Array.from(new Set(
+    c5CatalogActivities
+      .filter((activity) => (activity.activity_name || activity.activity) === c5BaseActivity)
+      .map((activity) => activity.activity_type)
+      .filter((type) => type && type !== 'other'),
+  ));
   const useCustomActivity = draft.useCustomActivity;
   const typeOfProduct = draft.typeOfProduct;
   const editCalcMethodology = draft.calculationMethodology;
@@ -233,6 +287,7 @@ export default function EmissionEditForm(props) {
   const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
   const setScope3Method = (value) => setDraftField('scope3Method', value);
   const setSpendCurrencyConversionMethod = (value) => setDraftField('spendCurrencyConversionMethod', value);
+  const allocationMethod = draft.allocationMethod || '';
   const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
   const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
   const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
@@ -247,6 +302,8 @@ export default function EmissionEditForm(props) {
   const setEditEmployees = (value) => setDraftField('employees', value);
   const setOverrideCalorificValue = (value) => setDraftField('overrideCalorificValue', value);
   const setOverrideDensity = (value) => setDraftField('overrideDensity', value);
+  const editSelectClass = 'h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800';
+  const editSelectWithIconClass = `${editSelectClass} pl-10`;
   const setOverrideJustification = (value) => setDraftField('overrideJustification', value);
 
   const ghgUiState = resolveGhgUiState({
@@ -262,6 +319,11 @@ export default function EmissionEditForm(props) {
     hasCategory: Boolean(selectedCategory || formData.category),
   });
   const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
+  const isC8Category = formData.scope === 'scope3'
+    && /^c8\b/i.test(selectedCategory || formData.category || '');
+  const isC8AllocationApplicable = isC8Category
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  const showsAssetName = formData.scope === 'scope3' && capabilities.assetName;
   const isProcessEmission = Boolean(capabilities.processType)
     || (formData.category || selectedCategory || '').toLowerCase().includes('process');
   const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
@@ -417,7 +479,7 @@ export default function EmissionEditForm(props) {
                               value={selectedCategory}
                               onChange={(e) => handleCategorySelect(e.target.value)}
                               required
-                              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                              className={editSelectWithIconClass}
                               data-testid="category-select"
                             >
                               <option value="">Select category...</option>
@@ -443,6 +505,7 @@ export default function EmissionEditForm(props) {
                                   onChange={(e) => {
                                     const newMethod = e.target.value;
                                     setScope3Method(newMethod);
+                                    setDraftField('allocationMethod', '');
                                     setScope3ActivityType('');
                                     setScope3Subcategory('');
                                     setTypeOfProduct('');
@@ -452,7 +515,7 @@ export default function EmissionEditForm(props) {
                                   }}
                                   required
                                   disabled={!selectedCategory}
-                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  className={`${editSelectWithIconClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
                                   data-testid="scope3-method-select"
                                 >
                                   <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
@@ -478,15 +541,31 @@ export default function EmissionEditForm(props) {
                                     setDynamicFieldValues({});
                                     markFormDirty();
                                   }}
-                                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                                  className={editSelectClass}
                                   data-testid="edit-scope3-currency-conversion-method-select"
                                 >
                                   <option value="standard">Standard Currency Conversion</option>
-                                  <option value="ppp_inflation">PPP and Inflation Rate</option>
+                                  <option value="ppp_inflation">Currency adjusted to Inflation Rate and Purchase Power</option>
                                 </select>
                               </div>
                             )}
-                            {availableScope3ActivityTypes.length > 0 && (
+                            {isC8AllocationApplicable && (
+                              <div className="space-y-1.5" data-testid="edit-c8-allocation-method-section">
+                                <Label htmlFor="edit-c8-allocation-method-select">Allocation Method *</Label>
+                                <select
+                                  id="edit-c8-allocation-method-select"
+                                  value={allocationMethod}
+                                  onChange={(event) => onC8AllocationMethodChange(event.target.value)}
+                                  className={editSelectClass}
+                                  data-testid="edit-c8-allocation-method-select"
+                                >
+                                  <option value="" data-testid="edit-c8-allocation-method-option-placeholder">Select allocation method...</option>
+                                  <option value="entire_quantity" data-testid="edit-c8-allocation-method-option-entire-quantity">Entire Quantity</option>
+                                  <option value="floor_area_share" data-testid="edit-c8-allocation-method-option-floor-area-share">Floor Area Share</option>
+                                </select>
+                              </div>
+                            )}
+                            {!isC5Category && availableScope3ActivityTypes.length > 0 && (
                               <div className="space-y-1.5" data-testid="scope3-activity-type-section">
                                 <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
                                 <div className="relative">
@@ -502,7 +581,7 @@ export default function EmissionEditForm(props) {
                                       setDynamicFieldValues({});
                                     }}
                                     required
-                                    className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+                                    className={editSelectWithIconClass}
                                     data-testid="scope3-activity-type-filter"
                                   >
                                     <option value="">Select activity type...</option>
@@ -517,9 +596,8 @@ export default function EmissionEditForm(props) {
                             )}
                           </>
                         ) : !ghgUiState.showFuelSelection ? null : (
-                          <div className="relative space-y-1.5">
-                            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
-                            <Label htmlFor="fuel_select" className="whitespace-nowrap">Select Fuel Type *</Label>
+                          <div className="relative min-w-0">
+                            <Label htmlFor="fuel_select">Select Fuel Type *</Label>
                             {ghgUiState.showCustomFuel && (
                               <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
                                 <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
@@ -541,36 +619,21 @@ export default function EmissionEditForm(props) {
                                 <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
                               </label>
                             )}
-                            
+
                             {!editUseCustomFuel ? (
-                              <div className="relative mt-1.5">
-                                <Droplet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select
-                                  id="fuel_select"
+                              <div className="mt-1.5 min-w-0">
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
                                   value={formData.fuel_id}
-                                  onChange={(e) => handleFuelSelect(e.target.value)}
-                                  required
+                                  options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
+                                  onValueChange={handleFuelSelect}
+                                  placeholder={selectedCategory ? 'Search or select fuel type' : 'Select category first'}
+                                  searchPlaceholder="Search fuel types..."
                                   disabled={!selectedCategory}
-                                  className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
-                                  data-testid="fuel-select"
-                                >
-                                  <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                                  {getFuelsForCategory.map(fuel => (
-                                    <option key={fuel.id} value={fuel.id}>
-                                      {fuel.fuel_name}
-                                    </option>
-                                  ))}
-                                </select>}
+                                  testId="fuel-select"
+                                />}
                               </div>
                             ) : (
-                              <div className="space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
-                                <div className="flex items-center gap-2">
-                                  <Flame className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                                  <Label htmlFor="edit-custom-fuel-name-input">Fuel Name <span className="text-red-500">*</span></Label>
-                                  <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800" data-testid="edit-custom-fuel-badge">
-                                    Custom fuel
-                                  </span>
-                                </div>
+                              <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
                                 <div>
                                   <Input
                                     id="edit-custom-fuel-name-input"
@@ -601,7 +664,7 @@ export default function EmissionEditForm(props) {
                               markFormDirty();
                             }}
                           >
-                            <SelectTrigger className="bg-stone-50 h-10" data-testid="edit-process-type-select">
+                                <SelectTrigger className="h-10 bg-stone-50 text-sm text-stone-800" data-testid="edit-process-type-select">
                               <SelectValue placeholder="Select process type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -626,7 +689,7 @@ export default function EmissionEditForm(props) {
                           >
                             <div className="relative">
                               <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                              <SelectTrigger className="h-10 bg-stone-50 pl-10" data-testid="edit-calculation-methodology-select">
+                              <SelectTrigger className="h-10 bg-stone-50 pl-10 text-sm text-stone-800" data-testid="edit-calculation-methodology-select">
                                 <SelectValue placeholder="Select methodology" />
                               </SelectTrigger>
                             </div>
@@ -642,9 +705,9 @@ export default function EmissionEditForm(props) {
 
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
-                        <div className="space-y-3">
+                        <div className={showsAssetName ? 'grid grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
-                          {requiresSubcategory && availableSubcategories.length > 0 && (
+                          {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
                             <div className="space-y-1.5">
                               <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select
@@ -657,7 +720,7 @@ export default function EmissionEditForm(props) {
                                   setTypeOfProduct(''); // Reset C11 type_of_product
                                 }}
                                 required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                className={editSelectClass}
                                 data-testid="scope3-subcategory-filter"
                               >
                                 <option value="">Select subcategory...</option>
@@ -685,7 +748,7 @@ export default function EmissionEditForm(props) {
                                     setActivitySearchTerm('');
                                   }}
                                   required
-                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  className={editSelectClass}
                                   data-testid="scope3-type-of-product-filter"
                                 >
                                   <option value="">Select type of product...</option>
@@ -698,31 +761,30 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="space-y-1.5" data-testid="scope3-activity-section">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="scope3_activity_select">Activity *</Label>
-                              {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
-                              {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={useCustomActivity}
-                                    onChange={(e) => {
-                                      setUseCustomActivity(e.target.checked);
-                                      setActivitySearchTerm(''); // Clear activity search
-                                      if (e.target.checked) {
-                                        setScope3ActivityId('');
-                                      } else {
-                                        setScope3CustomActivity('');
-                                      }
-                                    }}
-                                    className="rounded border-stone-300"
-                                  />
-                                  <span className="text-text-secondary">Use Custom Activity</span>
-                                </label>
-                              )}
-                            </div>
-                          
+                          <div className={isC5Category ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={isC5Category ? 'edit-c5-activity-row' : undefined}>
+                          <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
+                            <Label htmlFor="scope3_activity_select">Activity *</Label>
+                            {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                            {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                              <label className="absolute right-0 top-0 flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={useCustomActivity}
+                                  onChange={(e) => {
+                                    setUseCustomActivity(e.target.checked);
+                                    setActivitySearchTerm(''); // Clear activity search
+                                    if (e.target.checked) {
+                                      setScope3ActivityId('');
+                                    } else {
+                                      setScope3CustomActivity('');
+                                    }
+                                  }}
+                                  className="rounded border-stone-300"
+                                />
+                                <span className="text-text-secondary">Use Custom Activity</span>
+                              </label>
+                            )}
+
                             {/* For supplier_basis with custom activity toggle ON: Show text field */}
                             {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                               <div className="space-y-1.5">
@@ -739,55 +801,41 @@ export default function EmissionEditForm(props) {
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {/* Activity search input */}
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                                  <Input
-                                    type="text"
-                                    value={activitySearchTerm}
-                                    onChange={(e) => setActivitySearchTerm(e.target.value)}
-                                    placeholder="Search activities..."
-                                    className="pl-9 bg-stone-50 h-10"
-                                    data-testid="edit-activity-search-input"
-                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  />
-                                  {activitySearchTerm && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setActivitySearchTerm('')}
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                                
-                                {/* Activity selection dropdown */}
-                                <div className="relative">
-                                  <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                                  <select
-                                    id="scope3_activity_select"
-                                    value={scope3ActivityId}
-                                    onChange={(e) => { setScope3ActivityId(e.target.value); setActivitySearchTerm(''); markFormDirty(); }}
-                                    required
-                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                    className={`h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'cursor-not-allowed opacity-50' : ''}`}
-                                    data-testid="scope3-activity-select"
-                                  >
-                                    <option value="">
-                                      {!scope3Method ? 'Select method first' :
-                                       (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                       (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                       `Select activity (${filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length} available)...`}
-                                    </option>
-                                    {filteredScope3Activities.filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).map(ef => <option key={ef.id} value={ef.id}>{ef.activity}</option>)}
-                                  </select>
-                                </div>
-                                {/* No match indicator */}
-                                {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
-                                  <p className="text-xs text-amber-600">No activities match &quot;{activitySearchTerm}&quot;</p>
-                                )}
+                              <div className="mt-1.5 min-w-0">
+                                <SearchableSelect
+                                  value={isC5Category ? c5BaseActivity : scope3ActivityId}
+                                  options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: isC5Category ? (activity.activity_name || activity.activity) : activity.id, label: activity.activity_name || activity.activity }))}
+                                  onValueChange={(value) => {
+                                    if (isC5Category) {
+                                      setC5BaseActivity(value);
+                                      setScope3ActivityType('');
+                                      const matches = c5CatalogActivities.filter((activity) => (activity.activity_name || activity.activity) === value);
+                                      const untyped = matches.find((activity) => activity.activity_type === 'other');
+                                      setScope3ActivityId(untyped?.id || '');
+                                    } else {
+                                      setScope3ActivityId(value);
+                                    }
+                                    setActivitySearchTerm('');
+                                    markFormDirty();
+                                  }}
+                                  placeholder={
+                                    !scope3Method
+                                      ? 'Select method first'
+                                      : !isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                        ? 'Select activity type first'
+                                        : requiresSubcategory && !scope3Subcategory
+                                          ? 'Select subcategory first'
+                                          : 'Search or select activity'
+                                  }
+                                  searchPlaceholder="Search activities..."
+                                  disabled={!scope3Method || (!isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  testId="scope3-activity-select"
+                                  menuAlign="end"
+                                  menuClassName="max-w-[calc(100vw-2rem)]"
+                                  autoSizeMenuToOptions
+                                  wrapOptionLabels
+                                  searchMatchMode="word-prefix"
+                                />
                               </div>
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
@@ -795,26 +843,45 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
-                        </div>
-                      )}
-
-                      {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
-                      {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && capabilities.assetName && (
-                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="asset_name" className="text-xs">Asset Name *</Label>
-                            <Input
-                              id="asset_name"
-                              value={formData.asset_name}
-                              onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })}
-                              placeholder="Enter asset name or identifier..."
-                              className="bg-white h-9"
-                              data-testid="edit-asset-name-input"
-                            />
-                            <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
+                          {isC5Category && c5BaseActivity && c5ActivityTypes.length > 0 && (
+                            <div className="space-y-1.5" data-testid="edit-c5-activity-type-section">
+                              <Label htmlFor="edit-c5-activity-type-select">Activity Type *</Label>
+                              <select
+                                id="edit-c5-activity-type-select"
+                                value={scope3ActivityType}
+                                onChange={(e) => {
+                                  const nextType = e.target.value;
+                                  const matching = c5CatalogActivities.find((activity) => (
+                                    (activity.activity_name || activity.activity) === c5BaseActivity
+                                    && activity.activity_type === nextType
+                                  ));
+                                  setScope3ActivityType(nextType);
+                                  setScope3ActivityId(matching?.id || '');
+                                  markFormDirty();
+                                }}
+                                required
+                                className={editSelectClass}
+                                data-testid="edit-c5-activity-type-select"
+                              >
+                                <option value="">Select activity type...</option>
+                                {c5ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                              </select>
+                            </div>
+                          )}
                           </div>
+                          {showsAssetName && (
+                            <div className="min-w-0 space-y-1.5" data-testid="edit-asset-name-section">
+                              <Label htmlFor="asset_name">Asset Name *</Label>
+                              <Input
+                                id="asset_name"
+                                value={formData.asset_name}
+                                onChange={(event) => setFormData({ ...formData, asset_name: event.target.value })}
+                                placeholder="Enter asset name or identifier..."
+                                className="h-10 bg-stone-50"
+                                data-testid="edit-asset-name-input"
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -866,6 +933,10 @@ export default function EmissionEditForm(props) {
                       disabled={false}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
+                      onEvidenceUpload={handleC7EvidenceUpload}
+                      onEvidenceRemove={handleC7EvidenceRemove}
+                      onEvidenceDownload={handleC7EvidenceDownload}
+                      evidenceBackendUrl={BACKEND_URL}
                     />
                   </div>
                 )}
@@ -913,6 +984,13 @@ export default function EmissionEditForm(props) {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
                         const isQtyField = isQuantityField(field);
+                        const reportingPeriodDayLimit = isAnnualDayCountField(field)
+                          ? getDayLimitFromReportingPeriod(
+                            formData.reporting_period || formData.reporting_period_start,
+                            editFrequencyType,
+                          )
+                          : undefined;
+                        const reportingPeriodLabel = editFrequencyType === 'yearly' ? 'reporting year' : 'reporting month';
                         const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
                         const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
                         const hideStandardQuantityUnit = false;
@@ -925,6 +1003,17 @@ export default function EmissionEditForm(props) {
                         const savedDensityValue = field.variable === 'density'
                           ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
                           : undefined;
+                        const densityState = field.variable === 'density'
+                          ? resolveDensityFieldState({
+                            calculationMethodology: dynamicFieldValues.calculation_methodology
+                              || formData.calculation_methodology
+                              || 'using_heat_basis_ncv',
+                            fields: dynamicInputFields,
+                            data: { ...formData, ...dynamicFieldValues },
+                            selectedFuel,
+                            centralizedUnits,
+                          })
+                          : null;
                         const overrideKey = `override_${field.variable}`;
                         const isOverrideEnabled = isFugitiveGwpField
                           || dynamicFieldValues[overrideKey] === true
@@ -1001,6 +1090,14 @@ export default function EmissionEditForm(props) {
                           fieldUnits = [savedUnit, ...fieldUnits];
                         }
 
+                        if (densityState?.visible) {
+                          fieldUnits = [
+                            savedUnit,
+                            densityState.defaultDensity?.unit,
+                            densityState.densityUnit,
+                          ].filter((unit, index, units) => unit && units.indexOf(unit) === index).slice(0, 1);
+                        }
+
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
@@ -1062,6 +1159,27 @@ export default function EmissionEditForm(props) {
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       updateDynamicFieldValue(`override_${field.variable}`, isChecked);
+
+                                      // Switching Density back to its default removes the
+                                      // custom value; enabling it starts a new deliberate override.
+                                      if (field.variable === 'density') {
+                                        if (isChecked) {
+                                          updateDynamicFieldValue(field.variable, '');
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        } else {
+                                          updateDynamicFieldValue(
+                                            field.variable,
+                                            selectedFuel?.density !== undefined && selectedFuel?.density !== null
+                                              ? String(selectedFuel.density)
+                                              : '',
+                                          );
+                                          updateDynamicFieldValue(
+                                            `${field.variable}_unit`,
+                                            selectedFuel?.density_unit || field.expectedUnit || '',
+                                          );
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        }
+                                      }
                                       
                                       // When enabling override, initialize the unit to the first allowed unit
                                       // This ensures the displayed unit matches what will be sent to backend
@@ -1079,6 +1197,9 @@ export default function EmissionEditForm(props) {
                                           overrideUnits = centralizedUnits.map(u => u.symbol);
                                         } else {
                                           overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                        }
+                                        if (field.variable === 'density' && densityState?.visible) {
+                                          overrideUnits = fieldUnits;
                                         }
                                         if (overrideUnits.length > 0) {
                                           updateDynamicFieldValue(`${field.variable}_unit`, overrideUnits[0]);
@@ -1103,7 +1224,7 @@ export default function EmissionEditForm(props) {
                                 value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
                                 disabled={showOverrideCheckbox && !isOverrideEnabled}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
+                                className={`${editSelectClass} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
@@ -1119,11 +1240,23 @@ export default function EmissionEditForm(props) {
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
-                                  placeholder={field.placeholder}
+                                  max={reportingPeriodDayLimit
+                                    ?? (isOxidationFactorField(field) ? 1 : undefined)
+                                    ?? (isCarbonContentField(field) ? 100 : undefined)}
+                                  placeholder={reportingPeriodDayLimit ? `≤${reportingPeriodDayLimit}` : field.placeholder}
                                   value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                                    const parsedValue = parseFloat(val);
+                                    if (reportingPeriodDayLimit !== undefined && Number.isFinite(parsedValue) && parsedValue > reportingPeriodDayLimit) {
+                                      toast.error(`${field.label} cannot exceed ${reportingPeriodDayLimit} days for this ${reportingPeriodLabel}`);
+                                      return;
+                                    }
+                                    const isValidOxidationFactor = !isOxidationFactorField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1);
+                                    const isValidCarbonContent = !isCarbonContentField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 100);
+                                    if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor && isValidCarbonContent)) {
                                       updateDynamicFieldValue(field.variable, val);
                                       // Also sync to formData for legacy compatibility
                                       if (isQtyField) {
@@ -1220,9 +1353,6 @@ export default function EmissionEditForm(props) {
                         <span className="mb-2 text-sm text-stone-600" data-testid="edit-process-density-unit">
                           {virtualDensityRequirement.densityUnit}
                         </span>
-                        <p className="col-span-2 text-xs text-amber-700" data-testid="edit-process-density-conversion-hint">
-                          Conversion required: {getSavedFieldUnit(virtualDensityQuantityField)} → {editCalcMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField))}
-                        </p>
                       </div>
                     )}
                     
@@ -1471,7 +1601,13 @@ export default function EmissionEditForm(props) {
 
                 </section>
 
-                {effectiveCalculatedEmissions && (
+                {liveCalculationValidationError && (
+                  <div role="alert" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="edit-live-calculation-validation-error">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                    {liveCalculationValidationError}
+                  </div>
+                )}
+                {effectiveCalculatedEmissions && !liveCalculationValidationError && (
                   editUseCustomFuel ? (
                     <CustomFuelLiveCalculation
                       result={effectiveCalculatedEmissions}
@@ -1500,9 +1636,9 @@ export default function EmissionEditForm(props) {
                 />
 
                 {/* Evidence Management Section */}
-                {readOnly ? readOnlyEvidenceContent : <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
+                {readOnly ? readOnlyEvidenceContent : (!isEditC7EmployeeCommuting || existingEvidences.length > 0) && <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
-                    <Label>Evidence Documents</Label>
+                    <Label>{isEditC7EmployeeCommuting ? 'Legacy Record Evidence' : 'Evidence Documents'}</Label>
                     {existingEvidences.length > 0 && (
                       <Button
                         type="button"

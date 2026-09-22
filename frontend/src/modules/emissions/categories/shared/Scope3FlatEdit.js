@@ -12,10 +12,33 @@
  * with the legacy shared inline implementation in `Emissions.js`.
  */
 
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../../../ghg/emissions/shared/utils/reportingPeriodDays';
+
 // ---------- field unit resolver ----------
+
+const getDayLimitFromReportingPeriod = (reportingPeriod, frequencyType) => {
+  if (frequencyType === 'yearly') {
+    const calendarMatch = String(reportingPeriod || '').match(/^CY\s?(\d{4})$/i);
+    if (calendarMatch) return getAnnualReportingPeriodDayLimit(calendarMatch[1], 'calendar');
+
+    const financialMatch = String(reportingPeriod || '').match(/^FY\s?(\d{4})-(\d{4})$/i);
+    if (financialMatch) return getAnnualReportingPeriodDayLimit(financialMatch[1], 'financial');
+
+    return undefined;
+  }
+
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (!match) return undefined;
+  return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
+};
 
 const getFieldUnitForSave = (field, ctx) => {
   const { dynamicFieldValues, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits, isScope3LikeSave } = ctx;
+  if (field.unitSource === 'none') return '';
   const storedUnit = dynamicFieldValues[`${field.variable}_unit`];
   if (storedUnit) return storedUnit;
 
@@ -96,7 +119,8 @@ export function validateEditSubmission(ctx) {
   const {
     module,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -105,18 +129,51 @@ export function validateEditSubmission(ctx) {
     processNames,
     effectiveCalculatedEmissions,
     formData,
+    frequencyType,
+    categoryCode,
   } = ctx;
 
-  // Required numeric inputs (only fields where isOverrideExplicitlyFalse)
+  const categoryIdentity = `${categoryCode || ''} ${formData?.category || ''}`.toLowerCase();
+  const isC6BusinessTravel = /(^|\s)c6\b|business[_\s-]*travel/.test(categoryIdentity);
+  const reportingPeriodDayLimit = isC6BusinessTravel
+    ? getDayLimitFromReportingPeriod(
+      formData?.reporting_period || formData?.reporting_period_start,
+      frequencyType,
+    )
+    : undefined;
+  const reportingPeriodLabel = frequencyType === 'yearly' ? 'reporting year' : 'reporting month';
+
+  if (reportingPeriodDayLimit !== undefined) {
+    for (const field of (dynamicInputFields || []).filter(isAnnualDayCountField)) {
+      const rawValue = dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey];
+      const fieldValue = rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      const value = Number.parseFloat(fieldValue);
+      if (Number.isFinite(value) && value > reportingPeriodDayLimit) {
+        return {
+          valid: false,
+          errorMessage: `${field.label} cannot exceed ${reportingPeriodDayLimit} days for this ${reportingPeriodLabel}`,
+        };
+      }
+    }
+  }
+
+  // Every configured required field must remain present when editing. This
+  // includes values hydrated as { value, unit }, which must be unwrapped
+  // before checking a user-cleared field.
   if (dynamicInputFields?.length > 0) {
     for (const field of dynamicInputFields) {
-      if (!field.isOverrideExplicitlyFalse) continue;
-      if (field.fieldType === 'number' || !field.fieldType) {
-        const value = dynamicFieldValues[field.variable];
-        const numValue = parseFloat(value);
-        if (!value || isNaN(numValue) || numValue <= 0) {
-          return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
-        }
+      if (!field.required || field.isOverride || field.presentationOnly) continue;
+      const rawValue = dynamicFieldValues?.[field.variable] ?? dynamicFieldValues?.[field.fieldKey];
+      const value = rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      const isEmpty = value === undefined || value === null || String(value).trim() === '';
+      if (isEmpty) {
+        return { valid: false, errorMessage: `${field.label || field.variable} is required` };
+      }
+      if ((field.fieldType === 'number' || !field.fieldType) && !Number.isFinite(Number.parseFloat(value))) {
+        return { valid: false, errorMessage: `${field.label || field.variable} must be a valid number` };
+      }
+      if (field.isOverrideExplicitlyFalse && Number.parseFloat(value) <= 0) {
+        return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
       }
     }
   }
@@ -127,6 +184,36 @@ export function validateEditSubmission(ctx) {
   // Method + activity selection
   if (!scope3Method) {
     return { valid: false, errorMessage: 'Please select a calculation method' };
+  }
+  const isC8AllocationApplicable = formData?.scope === 'scope3'
+    && /^c8\b/i.test(formData?.category || '')
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  if (isC8AllocationApplicable && !allocationMethod) {
+    return { valid: false, errorMessage: 'Please select an allocation method' };
+  }
+  if (isC8AllocationApplicable && allocationMethod === 'floor_area_share') {
+    const floorShareField = (dynamicInputFields || []).find((field) => {
+      const fieldIdentity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+      return /floor.*(?:area|share)|(?:area|share).*floor/i.test(fieldIdentity);
+    });
+    const fallbackFloorShareKey = [
+      'floor_share_percent',
+      'floor_share_percentage',
+      'floor_area_share_percent',
+      'floor_area_share_percentage',
+    ].find((key) => Object.prototype.hasOwnProperty.call(dynamicFieldValues || {}, key));
+    const floorShareKey = floorShareField?.variable || floorShareField?.fieldKey || fallbackFloorShareKey;
+    const rawFloorShareValue = floorShareKey ? dynamicFieldValues?.[floorShareKey] : undefined;
+    const floorShareValue = rawFloorShareValue && typeof rawFloorShareValue === 'object'
+      ? rawFloorShareValue.value
+      : rawFloorShareValue;
+    const parsedFloorShare = Number.parseFloat(floorShareValue);
+    if (!Number.isFinite(parsedFloorShare) || parsedFloorShare <= 0) {
+      return {
+        valid: false,
+        errorMessage: 'Floor Share % is required and must be greater than 0 when Floor Area Share is selected',
+      };
+    }
   }
   if (scope3Method === 'supplier_basis' && useCustomActivity) {
     if (!scope3CustomActivity?.trim()) {
@@ -195,7 +282,8 @@ export function buildEditPayload(ctx) {
     formData,
     editingEmission,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
@@ -217,6 +305,8 @@ export function buildEditPayload(ctx) {
       : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
   const dynamicValues = buildDynamicValues(ctxFull);
+  const dynamicValuesWithoutCustomActivityMarker = { ...dynamicValues };
+  delete dynamicValuesWithoutCustomActivityMarker.use_custom_activity;
 
   const outputs = {};
   if (effectiveCalculatedEmissions) {
@@ -237,6 +327,10 @@ export function buildEditPayload(ctx) {
     fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
 
     formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
+    formula_version_id: editingEmission?.formula_version_id
+      ? (effectiveCalculatedEmissions?.formulaVersionId || editingEmission.formula_version_id)
+      : null,
+    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
 
     ...(formData.scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,
@@ -265,11 +359,14 @@ export function buildEditPayload(ctx) {
     }),
 
     dynamic_field_values: {
-      ...dynamicValues,
+      ...dynamicValuesWithoutCustomActivityMarker,
       ...(isScope3LikeSave && {
         calculation_method_scope3: { value: scope3Method, unit: '' },
         ...(scope3Method === 'spend_basis' && {
           spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
+        }),
+        ...(allocationMethod && {
+          allocation_method: { value: allocationMethod, unit: '' },
         }),
         scope3_ef_id: {
           value:
@@ -296,7 +393,9 @@ export function buildEditPayload(ctx) {
         ...(typeOfProduct && {
           type_of_product: { value: typeOfProduct, unit: '' },
         }),
-        use_custom_activity: { value: useCustomActivity, unit: '' },
+        ...(useCustomActivity && {
+          use_custom_activity: { value: true, unit: '' },
+        }),
       }),
       ...(formData.scope === 'biogenic' && {
         biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },

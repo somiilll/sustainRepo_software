@@ -25,7 +25,6 @@ export const useEmissionsStore = create(
       dynamicScopes: [],
       dynamicCategories: [],
       scope3EFData: [],
-      processTemplates: [],
       formulaDefinitions: [],
       organization: null,
       
@@ -56,7 +55,6 @@ export const useEmissionsStore = create(
       setDynamicScopes: (dynamicScopes) => set({ dynamicScopes }),
       setDynamicCategories: (dynamicCategories) => set({ dynamicCategories }),
       setScope3EFData: (scope3EFData) => set({ scope3EFData }),
-      setProcessTemplates: (processTemplates) => set({ processTemplates }),
       setFormulaDefinitions: (formulaDefinitions) => set({ formulaDefinitions }),
       setOrganization: (organization) => set({ organization }),
       
@@ -69,7 +67,6 @@ export const useEmissionsStore = create(
         dynamicScopes: data.dynamicScopes || [],
         dynamicCategories: data.dynamicCategories || [],
         scope3EFData: data.scope3EFData || [],
-        processTemplates: data.processTemplates || [],
         formulaDefinitions: data.formulaDefinitions || [],
         organization: data.organization || null,
       }),
@@ -306,10 +303,6 @@ export const useEntryFormStore = create(
       // Biogenic
       biogenicScopeSelection: '',
       
-      // Process emissions
-      selectedSubIndustry: '',
-      selectedTemplate: null,
-      
       // Step 2: Process & Responsibility
       processNames: [{ name: '', description: '' }],
       responsiblePerson: '',
@@ -372,9 +365,6 @@ export const useEntryFormStore = create(
       setUseCustomActivity: (use) => set({ useCustomActivity: use }),
       
       setBiogenicScopeSelection: (selection) => set({ biogenicScopeSelection: selection }),
-      
-      setSelectedSubIndustry: (industry) => set({ selectedSubIndustry: industry }),
-      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
       
       // Step 2 actions
       setProcessNames: (names) => set({ processNames: names }),
@@ -442,8 +432,6 @@ export const useEntryFormStore = create(
         scope3CustomActivity: '',
         useCustomActivity: false,
         biogenicScopeSelection: '',
-        selectedSubIndustry: '',
-        selectedTemplate: null,
         processNames: [{ name: '', description: '' }],
         responsiblePerson: '',
         responsiblePersonDesignation: '',

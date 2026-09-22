@@ -2,8 +2,11 @@ import React from 'react';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { OrganizationProvider } from './contexts/OrganizationContext';
+import { OrganizationProvider, useOrganization } from './contexts/OrganizationContext';
 import { Toaster } from './components/ui/sonner';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { installGlobalErrorFormatter } from './lib/userFriendlyError';
+import { LoadErrorState } from './components/LoadErrorState';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -26,7 +29,6 @@ import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
 import CurrencyConversion from './pages/CurrencyConversion';
-import ProcessTemplates from './pages/ProcessTemplates';
 import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
 import CalculationSandbox from './pages/CalculationSandbox';
 import VariableRegistry from './pages/VariableRegistry';
@@ -227,11 +229,6 @@ const AppRoutes = () => {
                 <CurrencyConversion />
               </SuperAdminRoute>
             } />
-            <Route path="process-templates" element={
-              <SuperAdminRoute>
-                <ProcessTemplates />
-              </SuperAdminRoute>
-            } />
             <Route path="scopes-categories" element={
               <SuperAdminRoute>
                 <ScopeCategoryManagement />
@@ -395,20 +392,37 @@ const AppRoutes = () => {
   );
 };
 
+const OrganizationErrorGate = () => {
+  const { loadError, refreshOrganization } = useOrganization();
+  const { token, user } = useAuth();
+  if (!token || !user || user.role === 'super_admin' || !loadError) return <AppRoutes />;
+  return <main className="mx-auto max-w-4xl px-6 py-16" data-testid="organization-context-error-page">
+    <LoadErrorState
+      title="Unable to load organization settings"
+      message={loadError}
+      onRetry={refreshOrganization}
+      testId="organization-context-load-error"
+    />
+  </main>;
+};
+
+installGlobalErrorFormatter();
 function App() {
   return (
+    <AppErrorBoundary>
     <AuthProvider>
       <OrganizationProvider>
         <OCRProvider>
           <BrowserRouter>
             <div className="App">
-              <AppRoutes />
+              <OrganizationErrorGate />
               <Toaster position="top-right" />
             </div>
           </BrowserRouter>
         </OCRProvider>
       </OrganizationProvider>
     </AuthProvider>
+    </AppErrorBoundary>
   );
 }
 

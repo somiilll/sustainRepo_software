@@ -33,7 +33,10 @@ export {
   getStandardActivityTypeLabel,
   resolveStandardGhgFieldOptions,
 } from './standardGhgFormConfig';
-export { resolveGhgScope3Options } from './resolveGhgScope3Options';
+export {
+  resolveGhgScope3Options,
+  resolveScope3MethodsForCategory,
+} from './resolveGhgScope3Options';
 export {
   findCategoryDefinition,
   findScopeDefinition,

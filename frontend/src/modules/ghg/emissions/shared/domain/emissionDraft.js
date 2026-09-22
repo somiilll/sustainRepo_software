@@ -14,6 +14,7 @@
  * @property {string} biogenicScopeSelection
  * @property {string} scope3Method
  * @property {'standard'|'ppp_inflation'} spendCurrencyConversionMethod
+ * @property {''|'entire_quantity'|'floor_area_share'} allocationMethod
  * @property {string} scope3ActivityId
  * @property {string} scope3ActivityType
  * @property {string} scope3Subcategory
@@ -34,6 +35,7 @@
  * @property {Object} employeeYearlyTotal
  * @property {string|null} c7Month
  * @property {Array<Object>} existingEvidences
+ * @property {Array<string>} c7EvidenceIdsToDelete Unlinked C7 evidence files queued after a successful save.
  */
 
 export const createEmptyEmissionValues = (scope = 'scope1') => ({
@@ -89,7 +91,8 @@ export const createEmptyEmissionDraft = (scope = 'scope1') => ({
   selectedCategory: '',
   biogenicScopeSelection: '',
   scope3Method: '',
-  spendCurrencyConversionMethod: 'ppp_inflation',
+  spendCurrencyConversionMethod: 'standard',
+  allocationMethod: '',
   scope3ActivityId: '',
   scope3ActivityType: '',
   scope3Subcategory: '',
@@ -110,6 +113,7 @@ export const createEmptyEmissionDraft = (scope = 'scope1') => ({
   employeeYearlyTotal: {},
   c7Month: null,
   existingEvidences: [],
+  c7EvidenceIdsToDelete: [],
 });
 
 /**

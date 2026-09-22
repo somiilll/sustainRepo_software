@@ -8,6 +8,99 @@
 import { MONTHS } from '../../../../../constants/months';
 import { isMonthlyEntryStarted } from './monthlyCompletion';
 import { resolveDensityFieldState } from './unitHelpers';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from './reportingPeriodDays';
+
+const isBlankValue = (value) => value === '' || value === null || value === undefined;
+
+const getFieldLabel = (field = {}) => (
+  typeof field.label === 'object' ? field.label.value : (field.label || field.variable || field.fieldKey)
+);
+
+const isCarbonCompositionField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /carbon.*(?:content|composition)|composition.*carbon/i.test(identity);
+};
+
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
+const validateConfiguredFieldRange = (field, value, periodSuffix = '') => {
+  if (isBlankValue(value)) return null;
+  const parsedValue = Number.parseFloat(value);
+  if (!Number.isFinite(parsedValue)) return `${getFieldLabel(field)} must be a valid number${periodSuffix}`;
+  if (isCarbonCompositionField(field) && (parsedValue < 0 || parsedValue > 100)) {
+    return `Carbon Composition must be between 0 and 100${periodSuffix}`;
+  }
+  if (isOxidationFactorField(field) && (parsedValue < 0 || parsedValue > 1)) {
+    return `Oxidation Factor must be between 0 and 1${periodSuffix}`;
+  }
+  if (isFloorAreaShareField(field) && (parsedValue < 0 || parsedValue > 100)) {
+    return `Floor Area Share % must be between 0 and 100${periodSuffix}`;
+  }
+  if (isInvestmentPercentageField(field) && (parsedValue <= 0 || parsedValue > 100)) {
+    return `Investment Percentage must be greater than 0 and no more than 100${periodSuffix}`;
+  }
+  return null;
+};
+
+const validateLegacyOverrideValues = (data = {}, periodSuffix = '') => {
+  const overrideFields = [
+    ['overrideCalorificValue', 'calorificValue', 'Calorific Value'],
+    ['overrideDensity', 'density', 'Density'],
+    ['overrideEmissionFactorHeat', 'emissionFactorHeat', 'Custom CO₂ Emission Factor (Heat Basis)'],
+    ['useCustomEmissionFactor', 'customEmissionFactor', 'Custom Emission Factor'],
+    ['override_density', 'density', 'Density'],
+  ];
+  for (const [enabledKey, valueKey, label] of overrideFields) {
+    if (data[enabledKey] && isBlankValue(data[valueKey])) return `${label} is missing${periodSuffix}`;
+  }
+  return null;
+};
+
+const validateCustomFuelMethodFields = (data = {}, methodology, periodSuffix = '') => {
+  const requiredFieldsByMethod = {
+    using_heat_basis_ncv: [
+      ['custom_ef', 'Emission Factor'],
+      ['custom_cv', 'Calorific Value'],
+    ],
+    using_qty_basis_ef: [['custom_ef', 'Emission Factor']],
+    using_carbon_composition: [
+      ['custom_carbon_content', 'Carbon Composition'],
+      ['custom_oxidation_factor', 'Oxidation Factor'],
+    ],
+  };
+  for (const [key, label] of requiredFieldsByMethod[methodology] || []) {
+    if (isBlankValue(data[key])) return `${label} is missing${periodSuffix}`;
+  }
+  if (methodology === 'using_carbon_composition') {
+    const carbonContent = Number.parseFloat(data.custom_carbon_content);
+    if (!Number.isFinite(carbonContent) || carbonContent < 0 || carbonContent > 100) {
+      return `Carbon Composition must be between 0 and 100${periodSuffix}`;
+    }
+    const oxidationFactor = Number.parseFloat(data.custom_oxidation_factor);
+    if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
+      return `Oxidation Factor must be between 0 and 1${periodSuffix}`;
+    }
+  }
+  if (data.density_unit && isBlankValue(data.density)) return `Density is missing${periodSuffix}`;
+  return null;
+};
 
 /**
  * Validate Step 1 → Step 2 transition (Basic Selection)
@@ -100,11 +193,13 @@ export const validateStep3 = ({
   monthlyData,
   filledMonthsCount,
   isProcessEmissions,
-  selectedTemplate,
-  updateMonthData,
   calculationMethodology,
   selectedFuel,
   centralizedUnits = [],
+  reportingYear,
+  reportingYearType,
+  useCustomFuel,
+  multiTripRows = [],
 }) => {
   // For C7 Employee Commuting
   if (isC7EmployeeCommuting) {
@@ -164,6 +259,19 @@ export const validateStep3 = ({
 
     // Check based on frequency type
     if (frequencyType === 'yearly') {
+      const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+      for (const employee of employees) {
+        const inputs = employee.yearly_data?.inputs || {};
+        for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+          const value = Number.parseFloat(inputs[field.variable]);
+          if (Number.isFinite(value) && value > annualDayLimit) {
+            return {
+              valid: false,
+              message: `${field.label} cannot exceed ${annualDayLimit} days for the reporting period`,
+            };
+          }
+        }
+      }
       const hasYearlyData = employees.some(emp => 
         emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
       );
@@ -171,6 +279,26 @@ export const validateStep3 = ({
         return { valid: false, message: 'Please calculate emissions for at least one employee' };
       }
     } else {
+      for (const employee of employees) {
+        for (const [monthKey, monthData] of Object.entries(employee.monthly_data || {})) {
+          const inputs = monthData?.inputs || {};
+          const maxDays = getMonthlyReportingPeriodDayLimit(
+            monthKey,
+            reportingYear,
+            reportingYearType,
+          );
+          for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+            const value = Number.parseFloat(inputs[field.variable]);
+            if (Number.isFinite(value) && value > maxDays) {
+              const monthName = MONTHS.find((month) => month.key === monthKey)?.name || monthKey;
+              return {
+                valid: false,
+                message: `${field.label} cannot exceed ${maxDays} days for ${monthName}`,
+              };
+            }
+          }
+        }
+      }
       const hasCalculatedData = employees.some(emp => 
         Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
       );
@@ -179,6 +307,80 @@ export const validateStep3 = ({
       }
     }
     return { valid: true };
+  }
+
+  // C6 Business Travel creates a separate record for every trip while keeping
+  // the same field contract as a standard monthly/yearly record. Validate each
+  // started trip independently before any calculation or persistence begins.
+  if (multiTripRows.length > 0) {
+    const requiredFields = dynamicInputFields.filter((field) => field.required && !field.isOverride);
+    let startedTrips = 0;
+
+    for (const tripRow of multiTripRows) {
+      const { data = {}, periodKey, tripNumber, frequency } = tripRow;
+      if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
+      startedTrips += 1;
+      const periodLabel = frequency === 'yearly'
+        ? 'the annual entry'
+        : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+      const tripSuffix = ` for Trip ${tripNumber} in ${periodLabel}`;
+
+      for (const field of requiredFields) {
+        const value = data[field.variable] ?? data[field.fieldKey];
+        if (isBlankValue(value)) {
+          return { valid: false, message: `${getFieldLabel(field)} is missing${tripSuffix}` };
+        }
+        const rangeError = validateConfiguredFieldRange(field, value, tripSuffix);
+        if (rangeError) return { valid: false, message: rangeError };
+      }
+
+      const maxDays = frequency === 'yearly'
+        ? getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType)
+        : getMonthlyReportingPeriodDayLimit(periodKey, reportingYear, reportingYearType);
+      for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+        const value = Number.parseFloat(data[field.variable] ?? data[field.fieldKey]);
+        if (Number.isFinite(value) && value > maxDays) {
+          return { valid: false, message: `${field.label} cannot exceed ${maxDays} days${tripSuffix}` };
+        }
+      }
+
+      if (scope3Method === 'supplier_basis') {
+        for (const field of requiredFields) {
+          const value = data[field.variable] ?? data[field.fieldKey];
+          const unit = data[`${field.variable}_unit`];
+          if (value && field.unitSource !== 'none' && (!unit || !String(unit).trim())) {
+            return { valid: false, message: `Please enter unit for "${getFieldLabel(field)}"${tripSuffix}` };
+          }
+        }
+      }
+
+      for (const field of dynamicInputFields.filter((field) => field.isOverride || (!field.required && !field.isOverride))) {
+        const overrideKey = `override_${field.variable}`;
+        const value = data[field.variable] ?? data[field.fieldKey];
+        if (data[overrideKey] && isBlankValue(value)) {
+          return { valid: false, message: `${getFieldLabel(field)} is missing${tripSuffix}` };
+        }
+        if (data[overrideKey]) {
+          const rangeError = validateConfiguredFieldRange(field, value, tripSuffix);
+          if (rangeError) return { valid: false, message: rangeError };
+        }
+      }
+
+      const densityState = resolveDensityFieldState({
+        calculationMethodology: data?.calculation_methodology || calculationMethodology,
+        fields: dynamicInputFields,
+        data,
+        selectedFuel,
+        centralizedUnits,
+      });
+      if (densityState.visible && !densityState.effectiveDensity) {
+        return { valid: false, message: `Please enter Density (${densityState.densityUnit})${tripSuffix} because the quantity and factor units use different dimensions` };
+      }
+    }
+
+    return startedTrips > 0
+      ? { valid: true }
+      : { valid: false, message: 'Please enter data for at least one business travel trip' };
   }
 
   // For yearly mode (non-C7)
@@ -194,10 +396,21 @@ export const validateStep3 = ({
     const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
     for (const field of requiredFields) {
       const value = yearlyData?.[field.variable] ?? yearlyData?.[field.fieldKey];
-      const hasValue = value !== '' && value !== null && value !== undefined;
-      if (!hasValue) {
-        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-        return { valid: false, message: `Please fill in "${fieldLabel}"` };
+      if (isBlankValue(value)) {
+        return { valid: false, message: `${getFieldLabel(field)} is missing` };
+      }
+      const rangeError = validateConfiguredFieldRange(field, value);
+      if (rangeError) return { valid: false, message: rangeError };
+    }
+
+    const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+    for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+      const value = Number.parseFloat(yearlyData?.[field.variable] ?? yearlyData?.[field.fieldKey]);
+      if (Number.isFinite(value) && value > annualDayLimit) {
+        return {
+          valid: false,
+          message: `${field.label} cannot exceed ${annualDayLimit} days for the reporting period`,
+        };
       }
     }
 
@@ -221,13 +434,23 @@ export const validateStep3 = ({
     for (const field of overrideAndOptionalFields) {
       const overrideKey = `override_${field.variable}`;
       const isCheckboxChecked = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
-      const value = yearlyData[field.variable];
-      const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+      const value = yearlyData[field.variable] ?? yearlyData[field.fieldKey];
 
-      if (isCheckboxChecked && !hasValue) {
-        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-        return { valid: false, message: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox` };
+      if (isCheckboxChecked && isBlankValue(value)) {
+        return { valid: false, message: `${getFieldLabel(field)} is missing` };
       }
+      if (isCheckboxChecked) {
+        const rangeError = validateConfiguredFieldRange(field, value);
+        if (rangeError) return { valid: false, message: rangeError };
+      }
+    }
+
+    const yearlyLegacyOverrideError = validateLegacyOverrideValues(yearlyData);
+    if (yearlyLegacyOverrideError) return { valid: false, message: yearlyLegacyOverrideError };
+
+    if (useCustomFuel) {
+      const customFuelError = validateCustomFuelMethodFields(yearlyData, calculationMethodology);
+      if (customFuelError) return { valid: false, message: customFuelError };
     }
 
     const densityState = resolveDensityFieldState({
@@ -254,11 +477,29 @@ export const validateStep3 = ({
     for (const [monthKey, data] of Object.entries(monthlyData)) {
       if (isMonthlyEntryStarted(data, dynamicInputFields)) {
         for (const field of requiredFields) {
-          const value = data[field.variable] || data[field.fieldKey];
-          if (value === '' || value === null || value === undefined) {
+          const value = data[field.variable] ?? data[field.fieldKey];
+          if (isBlankValue(value)) {
             const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-            const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-            return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
+            return { valid: false, message: `${getFieldLabel(field)} is missing for ${monthName}` };
+          }
+          const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+          const rangeError = validateConfiguredFieldRange(field, value, ` for ${monthName}`);
+          if (rangeError) return { valid: false, message: rangeError };
+        }
+
+        const maxDays = getMonthlyReportingPeriodDayLimit(
+          monthKey,
+          reportingYear,
+          reportingYearType,
+        );
+        for (const field of dynamicInputFields.filter(isAnnualDayCountField)) {
+          const value = Number.parseFloat(data[field.variable] ?? data[field.fieldKey]);
+          if (Number.isFinite(value) && value > maxDays) {
+            const monthName = MONTHS.find((month) => month.key === monthKey)?.name || monthKey;
+            return {
+              valid: false,
+              message: `${field.label} cannot exceed ${maxDays} days for ${monthName}`,
+            };
           }
         }
 
@@ -329,62 +570,64 @@ export const validateStep3 = ({
     if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
     for (const field of overrideAndOptionalFields) {
       const isCheckboxChecked = data[`override_${field.variable}`];
-      const value = data[field.variable] || data[field.fieldKey];
-      const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+      const value = data[field.variable] ?? data[field.fieldKey];
 
-      if (isCheckboxChecked && !hasValue) {
+      if (isCheckboxChecked && isBlankValue(value)) {
         const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
-        return { valid: false, message: `Please enter a value for "${fieldLabel}" in ${monthName} or uncheck the Override Default checkbox` };
+        return { valid: false, message: `${getFieldLabel(field)} is missing for ${monthName}` };
+      }
+      if (isCheckboxChecked) {
+        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+        const rangeError = validateConfiguredFieldRange(field, value, ` for ${monthName}`);
+        if (rangeError) return { valid: false, message: rangeError };
       }
     }
   }
 
-  // Validate that custom EF months have justification (only for regular emissions).
-  // Auto-unselect overrides whose value was cleared (mutates state via updateMonthData
-  // callback — preserved from legacy inline validation for byte-identical behaviour).
+  // Validate override values and their justifications without changing the user's selection.
   if (!isProcessEmissions) {
     for (const [monthKey, data] of Object.entries(monthlyData)) {
-      // Auto-unselect custom EF if no value entered
+      const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+      const legacyOverrideError = validateLegacyOverrideValues(data, ` for ${monthName}`);
+      if (legacyOverrideError) return { valid: false, message: legacyOverrideError };
+
       if (data.useCustomEmissionFactor && !data.customEmissionFactor) {
-        updateMonthData?.(monthKey, 'useCustomEmissionFactor', false);
-        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-        return { valid: false, message: `Custom Emission Factor in ${monthName} was unselected because no value was entered. Please review and try again.` };
+        return { valid: false, message: `Custom Emission Factor is missing for ${monthName}` };
       }
       if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
         const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
         return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
       }
-      // Auto-unselect calorific value override if no value entered
       if (data.overrideCalorificValue && !data.calorificValue) {
-        updateMonthData?.(monthKey, 'overrideCalorificValue', false);
-        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-        return { valid: false, message: `Calorific Value override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+        return { valid: false, message: `Calorific Value is missing for ${monthName}` };
       }
       if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
         const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
         return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
       }
-      // Auto-unselect density override if no value entered
       if (data.overrideDensity && !data.density) {
-        updateMonthData?.(monthKey, 'overrideDensity', false);
-        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-        return { valid: false, message: `Density override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+        return { valid: false, message: `Density is missing for ${monthName}` };
       }
       if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
         const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
         return { valid: false, message: `Please enter justification for density override in ${monthName}` };
       }
-      // Auto-unselect emission factor (heat basis) override if no value entered
       if (data.overrideEmissionFactorHeat && !data.emissionFactorHeat) {
-        updateMonthData?.(monthKey, 'overrideEmissionFactorHeat', false);
-        const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-        return { valid: false, message: `Custom CO2 Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+        return { valid: false, message: `Custom CO₂ Emission Factor (Heat Basis) is missing for ${monthName}` };
       }
       if (data.quantity && data.overrideEmissionFactorHeat && data.emissionFactorHeat && !data.emissionFactorHeatJustification?.trim()) {
         const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
         return { valid: false, message: `Please enter justification for Custom CO2 Emission Factor (Heat Basis) override in ${monthName}` };
       }
+    }
+  }
+
+  if (useCustomFuel) {
+    for (const [monthKey, data] of Object.entries(monthlyData)) {
+      if (!isMonthlyEntryStarted(data, dynamicInputFields)) continue;
+      const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+      const customFuelError = validateCustomFuelMethodFields(data, calculationMethodology, ` for ${monthName}`);
+      if (customFuelError) return { valid: false, message: customFuelError };
     }
   }
 

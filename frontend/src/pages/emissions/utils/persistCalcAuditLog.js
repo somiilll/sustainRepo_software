@@ -38,6 +38,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
     editUseCustomFuel,
     editCustomFuelName,
     editCalcMethodology,
+    editingEmission,
     getAuthHeader,
   } = ctx;
 
@@ -62,7 +63,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (value !== undefined && value !== '' && value !== null) {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           inputs[field.variable] = { value: numValue, unit };
         }
       }
@@ -75,7 +78,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (dynamicFieldValues[overrideKey]) {
         const value = dynamicFieldValues[field.variable];
         if (value !== undefined && value !== null && value !== '') {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           userOverrides[field.variable] = { value: parseFloat(value), unit };
         }
       }
@@ -128,6 +133,12 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       user_overrides: userOverrides,
       dry_run: false,
       emission_record_id: emissionId,
+      ...(editingEmission?.decision_tree_version_id && {
+        decision_tree_version_id: editingEmission.decision_tree_version_id,
+      }),
+      ...(editingEmission?.formula_version_id && {
+        formula_version_id: editingEmission.formula_version_id,
+      }),
       ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
     };
 

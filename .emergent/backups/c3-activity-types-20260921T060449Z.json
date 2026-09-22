@@ -1,0 +1,199 @@
+{
+  "database": "test_database",
+  "created_at": "2026-09-21T06:04:49.760938+00:00",
+  "migration": "c3_activity_types",
+  "changes": [
+    {
+      "id": "42bd89d3-074b-4995-893b-1d1ad06be522",
+      "activity": "Butane",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "617d3508-571b-4d76-896b-4dfc471e7f23",
+      "activity": "CNG",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "04252db1-69e4-4833-9dce-9d1f9296e8e5",
+      "activity": "LNG",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "6acbc341-bed5-4034-8af3-37f3f4c4279a",
+      "activity": "LPG",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "19fb11d8-fa10-44a2-b076-229af9a0379f",
+      "activity": "Natural gas",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "c7c01375-ed15-42b5-97cf-8cbd54403548",
+      "activity": "Other petroleum gas",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "d12c5357-3bd4-4f70-a0c2-ca4c02280ea8",
+      "activity": "Propane",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "575b9ad6-3666-496b-ae48-d71a6fd8b9d1",
+      "activity": "Aviation spirit",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "2275b5c3-90da-4d84-9d6c-9a9004c06c77",
+      "activity": "Aviation turbine fuel",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "5d26959b-fb66-4320-b035-0c714e554739",
+      "activity": "Burning oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "d7628e61-eb09-4662-8873-5f0f1f4e5ae2",
+      "activity": "Diesel (average biofuel blend)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "501b869d-33b5-4926-91f4-33a8db60f6dc",
+      "activity": "Diesel (100% mineral diesel)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "b9b6eb6c-c829-426e-ae62-c281bbf442cc",
+      "activity": "Fuel oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "ecd0f409-e115-4f66-b299-2992c8129a5e",
+      "activity": "Gas oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "b2b19121-943f-427c-a6d4-5c31e75942d6",
+      "activity": "Lubricants",
+      "from": "",
+      "to": "fuel"
+    },
+    {
+      "id": "a5ed9fdd-6f16-410f-87de-5143c5762bb1",
+      "activity": "Naphtha",
+      "from": "",
+      "to": "fuel"
+    },
+    {
+      "id": "80fcf599-92c1-4e4e-b8c0-991bec04e6d3",
+      "activity": "Petrol (average biofuel blend)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "3d095dc3-3896-468d-b50c-fb9fe7b2eeef",
+      "activity": "Petrol (100% mineral petrol)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "80ea5c7d-826d-482b-9741-86853116db17",
+      "activity": "Processed fuel oils - residual oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "ea0aa39d-0d75-4aa1-8ec5-019019b18fa1",
+      "activity": "Processed fuel oils - distillate oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "67777dec-2c5a-471b-b01c-fc3283738e7a",
+      "activity": "Refinery miscellaneous",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "2b370804-3ccb-4728-bc3e-5c9f47804d89",
+      "activity": "Waste oils",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "be264d01-1a43-40ed-bd5b-ea719d729cd1",
+      "activity": "Marine gas oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "38435b5a-4601-4545-8784-1e31ecdf560c",
+      "activity": "Marine fuel oil",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "9c14c9fa-24a2-4d77-8db9-ce8decd51357",
+      "activity": "Coal (industrial)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "d8082277-86a7-4edc-a37c-aa6eb5e81ddd",
+      "activity": "Coal (electricity generation)",
+      "from": null,
+      "to": "electricity"
+    },
+    {
+      "id": "2fe5a17a-00b9-4c13-89fa-ff466b882d22",
+      "activity": "Coal (domestic)",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "ff8c9d51-268e-4e62-b810-d7edb80b5119",
+      "activity": "Coking coal",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "d9684f12-09d9-4fbf-a69d-42ca89aadab9",
+      "activity": "Petroleum coke",
+      "from": null,
+      "to": "fuel"
+    },
+    {
+      "id": "1621f13d-67ca-4d25-a212-969cb25c4138",
+      "activity": "Coal (electricity generation - home produced coal only)",
+      "from": null,
+      "to": "electricity"
+    },
+    {
+      "id": "0f1fa0a6-8abb-46bd-882b-aa3709875c00",
+      "activity": "Electricity - T&D losses and Generation",
+      "from": "",
+      "to": "electricity"
+    },
+    {
+      "id": "e2141909-2915-448c-8db5-2a71311e0616",
+      "activity": "Heat/Steam - Loss and Generation",
+      "from": "",
+      "to": "steam"
+    }
+  ]
+}

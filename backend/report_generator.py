@@ -827,7 +827,7 @@ class GHGReportGenerator:
             scope3_display_names = getattr(self, 'scope3_category_display', {
                 'c1': 'C1 - Purchased Goods and Services',
                 'c2': 'C2 - Capital Goods',
-                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+                'c3': 'C3 - Fuel and energy-related activities',
                 'c4': 'C4 - Upstream Transportation and Distribution',
                 'c5': 'C5 - Waste Generated in Operations',
                 'c6': 'C6 - Business Travel',
@@ -1310,7 +1310,7 @@ class GHGReportGenerator:
             scope3_display_names = getattr(self, 'scope3_category_display', {
                 'c1': 'C1 - Purchased Goods and Services',
                 'c2': 'C2 - Capital Goods',
-                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+                'c3': 'C3 - Fuel and energy-related activities',
                 'c4': 'C4 - Upstream Transportation and Distribution',
                 'c5': 'C5 - Waste Generated in Operations',
                 'c6': 'C6 - Business Travel',
@@ -1746,6 +1746,53 @@ class GHGReportGenerator:
     def _get_category_from_emission(self, em: Dict) -> str:
         """Get category from emission record, checking multiple possible fields"""
         return (em.get('category') or em.get('emission_category') or 'Unknown')
+
+    def _get_emission_value(self, emission: Dict, key: str):
+        """Read a direct or persisted dynamic emission field value."""
+        value = emission.get(key)
+        if value not in (None, ''):
+            return value
+        dynamic_value = (emission.get('dynamic_field_values') or {}).get(key)
+        return dynamic_value.get('value') if isinstance(dynamic_value, dict) else dynamic_value
+
+    def _get_responsible_person(self, emission: Dict) -> str:
+        """Prefer record-level ownership, with the facility owner as a fallback."""
+        return (
+            emission.get('responsible_person')
+            or getattr(self, 'facility_responsible_people', {}).get(emission.get('facility_id'))
+            or ''
+        )
+
+    def _get_methodology_source_emissions(self, start_period: str, end_period: str) -> List[Dict]:
+        source_emissions = getattr(self, 'methodology_source_emissions', None) or []
+        return self._filter_emissions_by_period(source_emissions, start_period, end_period)
+
+    def _uses_carbon_content_methodology(self, start_period: str, end_period: str) -> bool:
+        for emission in self._get_methodology_source_emissions(start_period, end_period):
+            scope = (emission.get('scope') or '').lower()
+            if not ('scope1' in scope or 'scope 1' in scope or scope == '1'):
+                continue
+            methodology = str(self._get_emission_value(emission, 'calculation_methodology') or '').lower()
+            if 'carbon' in methodology or self._get_emission_value(emission, 'carbon_content') not in (None, ''):
+                return True
+        return False
+
+    def _scope3_spend_currency_methods_by_category(self, start_period: str, end_period: str) -> Dict[str, set[str]]:
+        methods_by_category = {}
+        for emission in self._get_methodology_source_emissions(start_period, end_period):
+            scope = (emission.get('scope') or '').lower()
+            calculation_method = str(
+                self._get_emission_value(emission, 'calculation_method_scope3')
+                or self._get_emission_value(emission, 'calculation_method')
+                or ''
+            ).lower()
+            if not ('scope3' in scope or 'scope 3' in scope or scope == '3') or 'spend' not in calculation_method:
+                continue
+            method = str(self._get_emission_value(emission, 'spend_currency_conversion_method') or '').lower()
+            if method in {'ppp_inflation', 'standard'}:
+                category = self._get_category_from_emission(emission)
+                methods_by_category.setdefault(category, set()).add(method)
+        return methods_by_category
     
     def _get_process_names_from_emission(self, em: Dict) -> List[str]:
         """Get process names from emission record"""
@@ -1974,7 +2021,7 @@ class GHGReportGenerator:
             process_names = self._get_process_names_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
             category = self._get_category_from_emission(em)
-            responsible = em.get('responsible_person') or ''
+            responsible = self._get_responsible_person(em)
             record_source = em.get('record_source') or ''
             
             cat_lower = (category or '').lower().strip()
@@ -2030,7 +2077,7 @@ class GHGReportGenerator:
         self.scope3_category_display = {
             'c1': 'C1 - Purchased Goods and Services',
             'c2': 'C2 - Capital Goods',
-            'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+            'c3': 'C3 - Fuel and energy-related activities',
             'c4': 'C4 - Upstream Transportation and Distribution',
             'c5': 'C5 - Waste Generated in Operations',
             'c6': 'C6 - Business Travel',
@@ -2171,7 +2218,7 @@ class GHGReportGenerator:
             category = self._get_category_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
             process_names = self._get_process_names_from_emission(em)
-            responsible = em.get('responsible_person') or ''
+            responsible = self._get_responsible_person(em)
             record_source = em.get('record_source') or ''
             
             cat_key = get_category_key(category)
@@ -2228,7 +2275,7 @@ class GHGReportGenerator:
             
             process_names = self._get_process_names_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
-            responsible = em.get('responsible_person') or ''
+            responsible = self._get_responsible_person(em)
             record_source = em.get('record_source') or ''
             
             process_fuels = []
@@ -2695,28 +2742,22 @@ class GHGReportGenerator:
             run.italic = True
             return
         
-        # Helper to check if reporting period matches base year
+        # Helper to check whether the selected reporting window exactly matches the base year.
         def is_reporting_period_base_year(by_str):
-            """Check if the reporting period matches the base year."""
+            """Return true only for the complete FY/CY represented by the base-year label."""
             if not by_str or not reporting_period_start or not reporting_period_end:
                 return False
-            # Handle FY format like "FY 2021-2022"
-            if by_str.startswith('FY ') or by_str.startswith('CY '):
-                try:
-                    years_part = by_str.split(' ')[1]  # "2021-2022"
-                    start_year = int(years_part.split('-')[0])
-                    end_year_short = years_part.split('-')[1]
-                    end_year = int(f"{str(start_year)[:2]}{end_year_short}") if len(end_year_short) == 2 else int(end_year_short)
-                    
-                    rp_start_year = int(reporting_period_start.split('-')[0])
-                    rp_end_year = int(reporting_period_end.split('-')[0])
-                    
-                    if by_str.startswith('FY '):
-                        return rp_start_year >= start_year and rp_end_year <= end_year + 1
-                    else:  # CY
-                        return rp_start_year == start_year and rp_end_year == start_year
-                except (IndexError, ValueError):
-                    pass
+            try:
+                if by_str.startswith('FY '):
+                    years_part = by_str[3:].strip().split('-')
+                    start_year = int(years_part[0])
+                    end_year = int(f"{str(start_year)[:2]}{years_part[1]}") if len(years_part[1]) == 2 else int(years_part[1])
+                    return reporting_period_start == f"{start_year}-04" and reporting_period_end == f"{end_year}-03"
+                if by_str.startswith('CY '):
+                    year = int(by_str[3:].strip())
+                    return reporting_period_start == f"{year}-01" and reporting_period_end == f"{year}-12"
+            except (IndexError, ValueError):
+                return False
             return False
         
         # Calculate base year emissions totals from the actual data
@@ -4046,6 +4087,8 @@ class GHGReportGenerator:
         
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        uses_carbon_content = self._uses_carbon_content_methodology(reporting_period_start, reporting_period_end)
+        spend_currency_methods_by_category = self._scope3_spend_currency_methods_by_category(reporting_period_start, reporting_period_end)
         
         if is_scope3_report:
             # Use tabular methodology format for Scope 1,2,3 reports - 4 columns
@@ -4056,6 +4099,8 @@ class GHGReportGenerator:
             # Scope 1 methodologies - all cells filled
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)'])
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
+            if uses_carbon_content:
+                data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor × 44/12'])
             data.append(['Scope 1', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
@@ -4072,8 +4117,8 @@ class GHGReportGenerator:
                 ['Scope 3', 'C2 - Capital Goods', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
                 ['Scope 3', 'C2 - Capital Goods', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C3
-                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Average Data Based', 'Emissions = Quantity Used × (WTT Emission Factor + T&D Loss)'],
-                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C3 - Fuel and energy-related activities', 'Average Data Based', 'Emissions = Quantity Used × (WTT Emission Factor + T&D Loss)'],
+                ['Scope 3', 'C3 - Fuel and energy-related activities', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C4
                 ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
                 ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Average Data Based', 'Emissions = Emission Factor × Distance travelled × Quantity of Goods travelled'],
@@ -4116,6 +4161,14 @@ class GHGReportGenerator:
                 ['Scope 3', 'C15 - Investments', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
             ]
             
+            # Only disclose spend-currency equations that were used by at least one
+            # organization facility during this reporting period.
+            scope3_data = [row for row in scope3_data if row[2] != 'Spend Based']
+            for category, methods in sorted(spend_currency_methods_by_category.items()):
+                if 'ppp_inflation' in methods:
+                    scope3_data.append(['Scope 3', category, 'Spend Based (PPP and Inflation)', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'])
+                if 'standard' in methods:
+                    scope3_data.append(['Scope 3', category, 'Spend Based (Standard Currency Conversion)', 'Emissions = Amount Spent × Emission Factor / Currency Exchange Rate'])
             data.extend(scope3_data)
             
             # Biogenic Emissions
@@ -4159,6 +4212,19 @@ class GHGReportGenerator:
             
             for point in where_points_1:
                 doc.add_paragraph(point, style='List Bullet')
+
+            if uses_carbon_content:
+                p = doc.add_paragraph()
+                run = p.add_run("Carbon Content - Based Approach")
+                run.bold = True
+                doc.add_paragraph("Emissions = Quantity of Fuel Consumed × Carbon Content (%) / 100 × Oxidation Factor × 44/12")
+                doc.add_paragraph("Where:")
+                for point in [
+                    "Quantity of Fuel Consumed refers to the measured amount of fuel used.",
+                    "Carbon content is the amount of carbon contained in a unit of fuel.",
+                    "Oxidation factor represents the percentage of the carbon in the fuel that is actually oxidized/burned and converted to CO₂ during combustion.",
+                ]:
+                    doc.add_paragraph(point, style='List Bullet')
             
             # Scope 1, Scope 2, and Biogenic Emissions
             p = doc.add_paragraph()
@@ -4237,7 +4303,7 @@ class GHGReportGenerator:
             sources_points = [
                 "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
                 "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
-                "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency).",
+                "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency), RBI.",
                 "Methodological Framework: Calculations and reporting follow the principles outlined in GHG Protocol – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
             ]
         else:
@@ -4438,9 +4504,12 @@ class GHGReportGenerator:
                     sink_data = []
                     for s in facility_sinks:
                         desc = s.get('description') or '-'
+                        reporting_period = s.get('reporting_period')
                         month = s.get('reporting_month')
                         year = s.get('reporting_year') or ''
-                        if month is not None and year:
+                        if reporting_period:
+                            period_str = reporting_period
+                        elif month is not None and year:
                             months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                             period_str = f"{months_short[month]}'{year}"
                         elif s.get('start_date'):
@@ -4555,9 +4624,12 @@ class GHGReportGenerator:
                     sink_data = []
                     for s in facility_sinks:
                         desc = s.get('description') or '-'
+                        reporting_period = s.get('reporting_period')
                         month = s.get('reporting_month')
                         year = s.get('reporting_year') or ''
-                        if month is not None and year:
+                        if reporting_period:
+                            period_str = reporting_period
+                        elif month is not None and year:
                             months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                             period_str = f"{months_short[month]}'{year}"
                         elif s.get('start_date'):
@@ -4603,11 +4675,10 @@ class GHGReportGenerator:
                 production_qty = float(production_data['quantity'])
                 production_unit = production_data['unit']
                 
-                # Calculate net emissions for this facility (total emissions - sinks)
-                net_emissions = totals['total'] - totals['removals']
+                scope1_2_emissions = totals['scope1'] + totals['scope2']
                 
                 # Calculate carbon intensity
-                carbon_intensity = net_emissions / production_qty
+                carbon_intensity = scope1_2_emissions / production_qty
                 carbon_intensity_unit = f"tCO₂e/{production_unit}"
                 
                 p = doc.add_paragraph()
@@ -4615,10 +4686,10 @@ class GHGReportGenerator:
                 run.bold = True
                 
                 p = doc.add_paragraph()
-                p.add_run("Carbon Intensity = Net Emissions / Production Quantity")
+                p.add_run("Carbon Intensity = Net Emissions (Scope 1 + 2) / Production Quantity")
                 
                 p = doc.add_paragraph()
-                p.add_run(f"Carbon Intensity = {self._format_number(net_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
+                p.add_run(f"Carbon Intensity = {self._format_number(scope1_2_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
                 
                 p = doc.add_paragraph()
                 run = p.add_run(f"Carbon Intensity = {self._format_number(carbon_intensity)} {carbon_intensity_unit}")
@@ -4656,14 +4727,10 @@ class GHGReportGenerator:
                 production_qty = float(org_production['quantity'])
                 production_unit = org_production['unit']
                 
-                # Calculate net emissions (total - removals)
-                total_emissions = org_totals['scope1'] + org_totals['scope2']
-                if is_scope3_report:
-                    total_emissions += org_totals.get('scope3', 0)
-                net_emissions = total_emissions - org_totals.get('removals', 0)
+                scope1_2_emissions = org_totals['scope1'] + org_totals['scope2']
                 
                 # Calculate carbon intensity
-                carbon_intensity = net_emissions / production_qty if production_qty > 0 else 0
+                carbon_intensity = scope1_2_emissions / production_qty if production_qty > 0 else 0
                 carbon_intensity_unit = f"tCO₂e/{production_unit}"
                 
                 # Add formula explanation
@@ -4671,9 +4738,9 @@ class GHGReportGenerator:
                 run = p.add_run("Carbon Intensity Formula:")
                 run.bold = True
                 p = doc.add_paragraph()
-                p.add_run("Carbon Intensity = Net Emissions / Production Quantity")
+                p.add_run("Carbon Intensity = Net Emissions (Scope 1 + 2) / Production Quantity")
                 p = doc.add_paragraph()
-                p.add_run(f"Carbon Intensity = {self._format_number(net_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
+                p.add_run(f"Carbon Intensity = {self._format_number(scope1_2_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
                 p = doc.add_paragraph()
                 run = p.add_run(f"Carbon Intensity = {self._format_number(carbon_intensity)} {carbon_intensity_unit}")
                 run.bold = True
@@ -5400,6 +5467,46 @@ class GHGReportGenerator:
                 fac_pct = (fac_total / total) * 100 if total > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run(f"• {fac_name}: {self._format_number(fac_total)} tCO2e ({fac_pct:.1f}%)")
+
+        if not is_scope3_report:
+            scope_category_data = org_totals.get('by_scope_category_fuel', {})
+
+            def category_total(scope_key: str, category_terms: tuple[str, ...]) -> float:
+                return sum(
+                    sum(fuels.values())
+                    for category, fuels in scope_category_data.get(scope_key, {}).items()
+                    if any(term in category.lower() for term in category_terms)
+                )
+
+            stationary = category_total('scope1', ('stationary',))
+            mobile = category_total('scope1', ('mobile',))
+            fugitive = category_total('scope1', ('fugitive',))
+            nonrenewable_electricity = category_total('scope2', ('non-renewable electricity', 'non renewable electricity'))
+            scope1_2_category_data = {
+                'Stationary Combustion': stationary,
+                'Mobile Combustion': mobile,
+                'Fugitive Emissions': fugitive,
+                'Non-renewable Electricity': nonrenewable_electricity,
+            }
+            scope1_2_total = org_totals['scope1'] + org_totals['scope2']
+            category_rows = [
+                [
+                    category,
+                    self._format_number(emissions),
+                    f"{(emissions / scope1_2_total * 100):.1f}%" if scope1_2_total else '0.0%',
+                ]
+                for category, emissions in scope1_2_category_data.items()
+            ]
+            self._add_styled_heading(doc, "Scope 1 and Scope 2 Category Analysis", level=3)
+            self._create_styled_table(doc, ['Category', 'Emissions (tCO₂e)', '% Contribution'], category_rows)
+            chart_buf = self._create_category_analysis_chart(
+                scope1_2_category_data,
+                'Scope 1 and Scope 2 Category Analysis',
+            )
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.add_run().add_picture(chart_buf, width=Inches(5.5))
+            self._add_figure_caption(doc, "Figure: Scope 1 and Scope 2 Category Analysis")
         
         # Mathematical validation
         p = doc.add_paragraph()
@@ -5435,55 +5542,51 @@ class GHGReportGenerator:
         except Exception as e:
             print(f"Error adding organization chart: {e}")
         
-        # Category-wise analysis chart for Scope 1,2,3 reports
+        # Category analysis for Scope 1,2,3 reports
         if is_scope3_report:
             try:
-                # Build category data from by_scope_category_fuel
-                category_data = {}
-                if org_totals.get('by_scope_category_fuel'):
-                    for scope, categories in org_totals['by_scope_category_fuel'].items():
-                        for cat, fuels in categories.items():
-                            if cat not in category_data:
-                                category_data[cat] = 0.0
-                            category_data[cat] += sum(fuels.values())
-                
-                # Alternative: use by_category if by_scope_category_fuel is empty
-                if not category_data and org_totals.get('by_category'):
-                    category_data = dict(org_totals['by_category'])
-                
-                if category_data:
-                    # Filter out zero/negligible values and sort by emissions
-                    category_data = {k: v for k, v in category_data.items() if v > 0.001}
-                    
-                    if category_data:
-                        doc.add_paragraph()
-                        p = doc.add_paragraph()
-                        run = p.add_run("Category-wise Emission Analysis:")
-                        run.bold = True
-                        
-                        # Add text summary
-                        sorted_categories = sorted(category_data.items(), key=lambda x: -x[1])
-                        total_cat = sum(category_data.values())
-                        
-                        for cat_name, cat_total in sorted_categories[:10]:  # Top 10 categories
-                            cat_pct = (cat_total / total_cat) * 100 if total_cat > 0 else 0
-                            p = doc.add_paragraph()
-                            p.add_run(f"• {cat_name}: {self._format_number(cat_total)} tCO2e ({cat_pct:.1f}%)")
-                        
-                        # Create category chart
-                        chart_buf = self._create_category_analysis_chart(category_data)
-                        doc.add_paragraph()
-                        p = doc.add_paragraph()
-                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        run = p.add_run()
-                        run.add_picture(chart_buf, width=Inches(5.5))
-                        self._add_figure_caption(doc, "Figure: Category-wise Emission Distribution")
+                scope_category_data = org_totals.get('by_scope_category_fuel', {})
+
+                def build_category_data(scope_key: str = None) -> Dict[str, float]:
+                    result = {}
+                    sources = [scope_category_data.get(scope_key, {})] if scope_key else scope_category_data.values()
+                    for categories in sources:
+                        for category, fuels in categories.items():
+                            result[category] = result.get(category, 0.0) + sum(fuels.values())
+                    return {category: value for category, value in result.items() if value > 0.001}
+
+                for heading, category_data in [
+                    ('Scope 1 Category-wise Emissions Analysis', build_category_data('scope1')),
+                    ('Scope 3 Category-wise Emissions Analysis', build_category_data('scope3')),
+                    ('Overall Category-wise Emissions Analysis', build_category_data()),
+                ]:
+                    self._add_category_analysis_section(doc, heading, category_data)
             except Exception as e:
                 print(f"Error adding category analysis chart: {e}")
                 import traceback
                 traceback.print_exc()
     
-    def _create_category_analysis_chart(self, category_data: Dict[str, float]) -> io.BytesIO:
+    def _add_category_analysis_section(self, doc: Document, heading: str, category_data: Dict[str, float]):
+        """Add a concise category analysis narrative and chart for a single scope."""
+        if not category_data:
+            return
+        doc.add_paragraph()
+        p = doc.add_paragraph()
+        run = p.add_run(f"{heading}:")
+        run.bold = True
+        total = sum(category_data.values())
+        for category_name, category_total in sorted(category_data.items(), key=lambda item: -item[1])[:10]:
+            percentage = (category_total / total) * 100 if total else 0
+            doc.add_paragraph(
+                f"• {category_name}: {self._format_number(category_total)} tCO2e ({percentage:.1f}%)"
+            )
+        chart_buf = self._create_category_analysis_chart(category_data, heading)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.add_run().add_picture(chart_buf, width=Inches(5.5))
+        self._add_figure_caption(doc, f"Figure: {heading}")
+
+    def _create_category_analysis_chart(self, category_data: Dict[str, float], title: str = 'Category-wise Emission Distribution') -> io.BytesIO:
         """Create a horizontal bar chart for category-wise emission analysis"""
         # Sort by emissions descending and take top 15
         sorted_data = sorted(category_data.items(), key=lambda x: -x[1])[:15]
@@ -5521,7 +5624,7 @@ class GHGReportGenerator:
                     f'{val:,.2f}', ha='left', va='center', fontsize=8)
         
         ax.set_xlabel('tCO2e', fontsize=10)
-        ax.set_title('Category-wise Emission Distribution', fontsize=12, fontweight='bold')
+        ax.set_title(title, fontsize=12, fontweight='bold')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         
@@ -5691,7 +5794,8 @@ class GHGReportGenerator:
                        facility_production: Dict = None,
                        org_production: Dict = None,
                        report_type: str = "scope_1_2",
-                       is_complete_organization: bool = True) -> io.BytesIO:
+                       is_complete_organization: bool = True,
+                       methodology_source_emissions: List[Dict] = None) -> io.BytesIO:
         """Generate the complete GHG Inventory Report
         
         Args:
@@ -5711,6 +5815,12 @@ class GHGReportGenerator:
         self.sinks_data = sinks_data or []
         self.facility_production = facility_production or {}
         self.org_production = org_production  # Organization-level production data
+        self.facility_responsible_people = {
+            facility.get('id'): facility.get('responsible_person')
+            for facility in facilities
+            if facility.get('id') and facility.get('responsible_person')
+        }
+        self.methodology_source_emissions = methodology_source_emissions or emissions
         
         # Create new document
         doc = Document()

@@ -21,7 +21,9 @@ import {
 import useEmissionFormState from '../modules/ghg/emissions/shared/hooks/useEmissionFormState';
 import useEmissionFormEffects from '../modules/ghg/emissions/shared/hooks/useEmissionFormEffects';
 import useEmissionSubmit from '../modules/ghg/emissions/shared/hooks/useEmissionSubmit';
+import useSpendCurrencyDefaults from '../modules/ghg/emissions/shared/hooks/useSpendCurrencyDefaults';
 import { canProceedToStep as canProceedToStepUtil } from '../modules/ghg/emissions/shared/utils/validation';
+import { resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
   DynamicFieldRenderer,
   getFieldUnits as getFieldUnitsShared,
@@ -30,6 +32,8 @@ import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/uti
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const createC6TripId = () => `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
@@ -43,10 +47,15 @@ import {
   isDensityRequiredForHeatBasis,
   isDensityRequiredForCarbonComposition,
   prepareDensityAwareCalculationInputs,
+  normalizeCustomFuelCalorificValueUnit,
+  normalizeCustomFuelCompoundUnit,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 import { isMonthlyEntryComplete } from '../modules/ghg/emissions/shared/utils/monthlyCompletion';
+import { normalizeFuelBackedFieldUnits } from '../modules/ghg/emissions/shared/utils/monthlyFieldUnits';
 // Shared GHG configuration layer: resolved config + explicit context -> fields
 import {
   deriveGhgFields,
@@ -55,6 +64,7 @@ import {
   resolveGhgFormArchitecture,
   resolveGhgCategoryOptions,
   resolveGhgScope3Options,
+  resolveScope3MethodsForCategory,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
 import { buildCustomFuelCalculationPayload } from '../pages/emissions/utils/customFuelCalcAdapter';
@@ -87,7 +97,6 @@ export default function EmissionEntryForm({
   formulaParameters = [],
   emissionConfigurations = [],
   gwpConfig = null,
-  processTemplates = [],
   dynamicScopes = [],
   dynamicCategories = [],
   hasScope3Access = false,
@@ -159,6 +168,7 @@ export default function EmissionEntryForm({
     // Scope 3
     scope3Method, setScope3Method,
     spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
+    allocationMethod, setAllocationMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -182,10 +192,9 @@ export default function EmissionEntryForm({
     isCalculatingEmployee, setIsCalculatingEmployee,
     c7FormulaId, setC7FormulaId,
     c7FormulaName, setC7FormulaName,
+    c6Trips, setC6Trips,
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-    // Process emissions
-    selectedTemplate,
     // Dynamic Form Config (Calc Engine)
     formConfig, setFormConfig,
     loadingFormConfig, setLoadingFormConfig,
@@ -216,7 +225,6 @@ export default function EmissionEntryForm({
     employeeName, setEmployeeName,
     employeeId, setEmployeeId,
   } = _formState;
-
 
   // ============================================================================
   // F3: Centralized data-fetching effects — replaces 5 inline useEffects
@@ -322,7 +330,7 @@ export default function EmissionEntryForm({
       if (editingEmission.scope === 'scope3' || 
           (editingEmission.scope === 'biogenic' && hydrated.biogenicScopeSelection === 'scope3')) {
         setScope3Method(hydrated.scope3Method);
-        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'ppp_inflation');
+        setSpendCurrencyConversionMethod(hydrated.spendCurrencyConversionMethod || 'standard');
         setScope3ActivityType(hydrated.scope3ActivityType);
         setScope3Subcategory(hydrated.scope3Subcategory);
         setTypeOfProduct(hydrated.typeOfProduct);
@@ -376,10 +384,18 @@ export default function EmissionEntryForm({
           if (editingEmission.is_custom_fuel) {
             const savedQty = dfv.qty;
             const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
-            monthData.custom_qty_unit = savedQtyUnit
-              || editingEmission.unit
-              || editingEmission.quantity_unit
-              || 'kg';
+            monthData.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
+              || resolveEmissionQuantity(editingEmission).unit
+              || 'kg');
+            if (monthData.density_unit) {
+              monthData.density_unit = normalizeCustomFuelDensityUnit(monthData.density_unit);
+            }
+            if (monthData.custom_ef_unit) {
+              monthData.custom_ef_unit = normalizeCustomFuelCompoundUnit(monthData.custom_ef_unit);
+            }
+            if (monthData.custom_cv_unit) {
+              monthData.custom_cv_unit = normalizeCustomFuelCalorificValueUnit(monthData.custom_cv_unit);
+            }
           }
           
           // Also include calculated values if they exist
@@ -429,10 +445,18 @@ export default function EmissionEntryForm({
         if (editingEmission.is_custom_fuel) {
           const savedQty = dfv.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
-          yearData.custom_qty_unit = savedQtyUnit
-            || editingEmission.unit
-            || editingEmission.quantity_unit
-            || 'kg';
+          yearData.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
+            || resolveEmissionQuantity(editingEmission).unit
+            || 'kg');
+          if (yearData.density_unit) {
+            yearData.density_unit = normalizeCustomFuelDensityUnit(yearData.density_unit);
+          }
+          if (yearData.custom_ef_unit) {
+            yearData.custom_ef_unit = normalizeCustomFuelCompoundUnit(yearData.custom_ef_unit);
+          }
+          if (yearData.custom_cv_unit) {
+            yearData.custom_cv_unit = normalizeCustomFuelCalorificValueUnit(yearData.custom_cv_unit);
+          }
         }
         
         // Also include calculated values
@@ -630,6 +654,18 @@ export default function EmissionEntryForm({
       console.log('[OCR Debug] Setting category:', ocrPrefillData.category);
       setCategory(ocrPrefillData.category);
     }
+
+    if (ocrPrefillData.facility_id && facilities.some((facility) => facility.id === ocrPrefillData.facility_id)) {
+      setFacilityId(ocrPrefillData.facility_id);
+    }
+
+    if (ocrPrefillData.scope === 'scope3') {
+      if (ocrPrefillData.calculation_method_scope3) setScope3Method(ocrPrefillData.calculation_method_scope3);
+      if (ocrPrefillData.scope3_activity_type) setScope3ActivityType(ocrPrefillData.scope3_activity_type);
+      if (ocrPrefillData.scope3_subcategory) setScope3Subcategory(ocrPrefillData.scope3_subcategory);
+      if (ocrPrefillData.scope3_ef_id) setScope3ActivityId(ocrPrefillData.scope3_ef_id);
+      if (ocrPrefillData.supplier_name) setSupplierName(ocrPrefillData.supplier_name);
+    }
     
     // Set fuel type by looking up fuelId from fuelDatabase
     // For Scope 2 electricity, look for subcategory match (e.g., "Non-Renewable Electricity")
@@ -649,7 +685,9 @@ export default function EmissionEntryForm({
         subcategory: f.subcategory
       })));
       
-      let matchedFuel = null;
+      let matchedFuel = ocrPrefillData.fuel_id
+        ? fuelDatabase.find((fuel) => fuel.id === ocrPrefillData.fuel_id)
+        : null;
       
       // Helper function to check if any field matches the search term
       const fuelMatches = (fuel, searchTerm) => {
@@ -678,7 +716,7 @@ export default function EmissionEntryForm({
       };
       
       // For Scope 2, try to match by subcategory first (e.g., "Non-Renewable Electricity")
-      if (subcategoryLower) {
+      if (!matchedFuel && subcategoryLower) {
         matchedFuel = fuelDatabase.find(f => fuelMatches(f, subcategoryLower));
         if (matchedFuel) {
           console.log('[OCR Debug] Matched fuel by subcategory:', matchedFuel.name || matchedFuel.activity);
@@ -736,10 +774,18 @@ export default function EmissionEntryForm({
     }
     
     // Store quantity info for Phase 2 (after formConfig loads)
-    if (ocrPrefillData.quantity && ocrPrefillData.billing_period?.start_date) {
-      const startDate = new Date(ocrPrefillData.billing_period.start_date);
-      const monthKey = String(startDate.getMonth() + 1).padStart(2, '0');
-      const year = startDate.getFullYear();
+    const periodMatch = String(
+      ocrPrefillData.reporting_period || ocrPrefillData.billing_period?.start_date || '',
+    ).match(/^(\d{4})-(0[1-9]|1[0-2])/);
+    const hasOcrInput = [ocrPrefillData.quantity, ocrPrefillData.cost, ocrPrefillData.distance_km]
+      .some((value) => value !== undefined && value !== null && value !== '');
+    if (hasOcrInput && periodMatch) {
+      const [, extractedYear, extractedMonth] = periodMatch;
+      const monthKey = extractedMonth;
+      const calendarYear = Number(extractedYear);
+      const year = reportingYearType === 'financial' && Number(extractedMonth) <= 3
+        ? calendarYear - 1
+        : calendarYear;
       
       console.log('[OCR Debug] Phase 1 - Setting up pending quantity:', { monthKey, year, quantity: ocrPrefillData.quantity });
       
@@ -758,14 +804,16 @@ export default function EmissionEntryForm({
       setOcrPendingQuantity({
         monthKey,
         quantity: ocrPrefillData.quantity,
-        unit: ocrPrefillData.unit || ''
+        unit: ocrPrefillData.unit || '',
+        cost: ocrPrefillData.cost,
+        currency: ocrPrefillData.currency || '',
+        distance: ocrPrefillData.distance_km,
+        method: ocrPrefillData.calculation_method_scope3 || '',
       });
     }
-    
-    // Note: Facility is NOT auto-selected per spec
-    // Note: Process Name and Description are left empty per spec
-    
-  }, [ocrPrefillData, fuelDatabase]);
+
+    // Process Name and Description are intentionally left empty for review.
+  }, [facilities, fuelDatabase, ocrPrefillData, reportingYearType]);
 
   // Sync decisionFieldValues + custom-activity auto-enable now live inside
   // useEmissionFormState (F2 integration). The corresponding inline useEffects
@@ -924,7 +972,7 @@ export default function EmissionEntryForm({
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
-    // Filter by activity_type (for C6/C7)
+    // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
       filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
     }
@@ -971,6 +1019,12 @@ export default function EmissionEntryForm({
   const isC7EmployeeCommuting = useMemo(() => {
     return scope === 'scope3' && Boolean(category) && resolvedCapabilities.multiEmployee;
   }, [scope, category, resolvedCapabilities]);
+
+  // C6 Create supports multiple independent trips in one reporting period.
+  // Existing records continue through the standard single-record Edit flow.
+  const isC6MultiTrip = useMemo(() => (
+    !editingEmission && !ocrPrefillData && scope === 'scope3' && /^c6\b/i.test(category || '')
+  ), [category, editingEmission, ocrPrefillData, scope]);
   
   // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
@@ -1032,8 +1086,8 @@ export default function EmissionEntryForm({
 
   // Check if current category shows From/To Location fields.
   const showsLocationFields = useMemo(() => {
-    return scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
-  }, [scope, category, resolvedCapabilities]);
+    return !isC6MultiTrip && scope === 'scope3' && Boolean(category) && resolvedCapabilities.journeyLocations;
+  }, [isC6MultiTrip, scope, category, resolvedCapabilities]);
 
   // Reset location fields when category changes away from C4/C6/C9
   useEffect(() => {
@@ -1049,6 +1103,117 @@ export default function EmissionEntryForm({
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option (except for biogenic)
   const availableScope3Methods = scope3PresentationOptions.methods;
+  const handleCategoryChange = useCallback((nextCategory) => {
+    if (nextCategory === category) return;
+
+    const supportedMethods = resolveScope3MethodsForCategory({
+      scope,
+      biogenicScopeSelection,
+      category: nextCategory,
+      scope3EFData,
+    });
+    const nextScope3Method = supportedMethods.includes(scope3Method) ? scope3Method : '';
+
+    setCategory(nextCategory);
+    setScope3Method(nextScope3Method);
+    setSpendCurrencyConversionMethod('standard');
+    setAllocationMethod('');
+    setFuelId('');
+    setUseCustomFuel(false);
+    setCustomFuelName('');
+    setCustomEmissionFactor('');
+    setCustomEmissionFactorUnit('');
+    setCustomSource('');
+    setScope3ActivityType('');
+    setScope3Subcategory('');
+    setTypeOfProduct('');
+    setScope3ActivityId('');
+    setUseCustomActivity(false);
+    setScope3CustomActivity('');
+    setFuelSearchTerm('');
+    setAssetName('');
+    setFromLocation('');
+    setToLocation('');
+    setSupplierName('');
+    setSupplierCode('');
+    setEmployees([]);
+    setEmployeeMonthlyTotals({});
+    setEmployeeYearlyTotal({});
+    setC7FormulaId(null);
+    setC7FormulaName('');
+    setC6Trips({ monthly: {}, yearly: [] });
+    setDecisionFieldValues(nextScope3Method ? {
+      calculation_method_scope3: nextScope3Method,
+      ...(nextScope3Method === 'spend_basis' && {
+        spend_currency_conversion_method: 'standard',
+      }),
+    } : {});
+    setMonthlyData({});
+    setYearlyData({});
+    setCalcEngineResult(null);
+    setYearlyCalcResult(null);
+    setMatchedFormulaId(null);
+    setFormConfig(null);
+  }, [
+    biogenicScopeSelection,
+    category,
+    scope,
+    scope3EFData,
+    scope3Method,
+    setAssetName,
+    setC7FormulaId,
+    setC7FormulaName,
+    setC6Trips,
+    setCalcEngineResult,
+    setCategory,
+    setCustomEmissionFactor,
+    setCustomEmissionFactorUnit,
+    setCustomFuelName,
+    setCustomSource,
+    setDecisionFieldValues,
+    setEmployeeMonthlyTotals,
+    setEmployeeYearlyTotal,
+    setEmployees,
+    setFormConfig,
+    setFromLocation,
+    setFuelId,
+    setFuelSearchTerm,
+    setMatchedFormulaId,
+    setMonthlyData,
+    setScope3ActivityId,
+    setScope3ActivityType,
+    setScope3CustomActivity,
+    setScope3Method,
+    setAllocationMethod,
+    setScope3Subcategory,
+    setSpendCurrencyConversionMethod,
+    setSupplierCode,
+    setSupplierName,
+    setToLocation,
+    setTypeOfProduct,
+    setUseCustomActivity,
+    setUseCustomFuel,
+    setYearlyCalcResult,
+    setYearlyData,
+  ]);
+
+  const handleC8AllocationMethodChange = useCallback((nextAllocationMethod) => {
+    setAllocationMethod(nextAllocationMethod);
+    setScope3Subcategory('');
+    setScope3ActivityId('');
+    setFuelSearchTerm('');
+    setCalcEngineResult(null);
+    setYearlyCalcResult(null);
+    setMatchedFormulaId(null);
+  }, [
+    setAllocationMethod,
+    setScope3Subcategory,
+    setScope3ActivityId,
+    setFuelSearchTerm,
+    setCalcEngineResult,
+    setYearlyCalcResult,
+    setMatchedFormulaId,
+  ]);
 
   const emissionFactorUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.EMISSION_FACTOR_UNIT] || [];
   const customFuelUnits = resolvedGhgFieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_EMISSION_FACTOR_UNIT] || [];
@@ -1228,6 +1393,7 @@ export default function EmissionEntryForm({
         scopes: dynamicScopes,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -1243,6 +1409,7 @@ export default function EmissionEntryForm({
       dynamicScopes,
       scope3Method,
       spendCurrencyConversionMethod,
+      allocationMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -1260,6 +1427,54 @@ export default function EmissionEntryForm({
   // Extract fields and formula ID from the memoized result
   const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
   const currentFormulaId = dynamicInputFieldsResult?.formulaId || null;
+  const supplierBasisUnitResetRef = useRef(false);
+  useEffect(() => {
+    if (scope3Method !== 'supplier_basis') {
+      supplierBasisUnitResetRef.current = false;
+      return;
+    }
+    if (editingEmission || supplierBasisUnitResetRef.current || dynamicInputFields.length === 0) return;
+
+    const unitKeys = dynamicInputFields
+      .filter((field) => !field.variable?.endsWith('_unit'))
+      .map((field) => `${field.variable}_unit`);
+    const clearUnits = (data = {}) => {
+      const next = { ...data };
+      unitKeys.forEach((key) => delete next[key]);
+      return next;
+    };
+
+    setMonthlyData((previousMonths) => Object.fromEntries(
+      Object.entries(previousMonths).map(([monthKey, data]) => [monthKey, clearUnits(data)]),
+    ));
+    setYearlyData((previous) => clearUnits(previous));
+    setC6Trips((previous) => ({
+      yearly: (previous.yearly || []).map(clearUnits),
+      monthly: Object.fromEntries(
+        Object.entries(previous.monthly || {}).map(([monthKey, trips]) => [
+          monthKey,
+          (trips || []).map(clearUnits),
+        ]),
+      ),
+    }));
+    supplierBasisUnitResetRef.current = true;
+  }, [dynamicInputFields, editingEmission, scope3Method, setC6Trips, setMonthlyData, setYearlyData]);
+  const spendValueField = dynamicInputFields.find((field) => field.variable === 'spent_value');
+  const spendSourceCurrency = yearlyData.spent_value_unit
+    || Object.values(monthlyData).find((data) => data?.spent_value_unit)?.spent_value_unit
+    || spendValueField?.expectedUnit
+    || spendValueField?.allowedUnits?.[0]
+    || '';
+  const spendCurrencyDefaults = useSpendCurrencyDefaults({
+    enabled: scope3Method === 'spend_basis',
+    sourceCurrency: spendSourceCurrency,
+    conversionMethod: spendCurrencyConversionMethod,
+    reportingYearType,
+    reportingYear,
+    frequencyType,
+    activeMonths,
+    getAuthHeader,
+  });
   
   // Update matched formula ID when it changes
   useEffect(() => {
@@ -1283,14 +1498,30 @@ export default function EmissionEntryForm({
       console.log('[OCR Debug] Phase 2 - No pending quantity, skipping');
       return;
     }
+    const hasNumericValue = (value) => value !== undefined && value !== null && value !== '' && Number.isFinite(Number(value));
     if (!dynamicInputFields || dynamicInputFields.length === 0) {
       console.log('[OCR Debug] Phase 2 - No dynamicInputFields yet, waiting...');
+      if (loadingFormConfig) return;
+      if (hasNumericValue(ocrPendingQuantity.quantity) && ocrPendingQuantity.method !== 'spend_basis') {
+        setMonthlyData((previous) => ({
+          ...previous,
+          [ocrPendingQuantity.monthKey]: {
+            ...(previous[ocrPendingQuantity.monthKey] || {}),
+            quantity: Number(ocrPendingQuantity.quantity),
+            unit: ocrPendingQuantity.unit || '',
+          },
+        }));
+        setOcrPendingQuantity(null);
+      }
       return;
     }
     
     console.log('[OCR Debug] Phase 2 - Finding primary field...');
-    const primaryField = findPrimaryActivityField(dynamicInputFields);
-    
+    const isSpendImport = ocrPendingQuantity.method === 'spend_basis';
+    const primaryField = !isSpendImport && hasNumericValue(ocrPendingQuantity.quantity)
+      ? findPrimaryActivityField(dynamicInputFields)
+      : null;
+
     if (primaryField) {
       console.log('[OCR Prefill] Phase 2 - Found primary field:', primaryField.fieldKey);
       
@@ -1327,12 +1558,29 @@ export default function EmissionEntryForm({
         setMonthlyData,
         availableUnits
       );
-      // Clear pending after applying
-      setOcrPendingQuantity(null);
     } else {
-      console.log('[OCR Debug] Phase 2 - No primary field found!');
+      console.log('[OCR Debug] Phase 2 - No primary quantity field found or quantity is not applicable.');
     }
-  }, [ocrPendingQuantity, dynamicInputFields, findPrimaryActivityField, applyOcrQuantityToField, scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits]);
+
+    setMonthlyData((previous) => {
+      const currentMonth = { ...(previous[ocrPendingQuantity.monthKey] || {}) };
+      const assignMappedValue = (patterns, value, unit) => {
+        if (!hasNumericValue(value)) return;
+        const field = dynamicInputFields.find((candidate) => {
+          const key = String(candidate.variable || candidate.fieldKey || '').toLowerCase();
+          return patterns.some((pattern) => key === pattern || key.includes(pattern));
+        });
+        if (!field) return;
+        const key = field.variable || field.fieldKey;
+        currentMonth[key] = Number(value);
+        if (unit) currentMonth[`${key}_unit`] = unit;
+      };
+      if (isSpendImport) assignMappedValue(['spent_value'], ocrPendingQuantity.cost, ocrPendingQuantity.currency);
+      assignMappedValue(['distance', 'km_travelled'], ocrPendingQuantity.distance, 'km');
+      return { ...previous, [ocrPendingQuantity.monthKey]: currentMonth };
+    });
+    setOcrPendingQuantity(null);
+  }, [ocrPendingQuantity, dynamicInputFields, loadingFormConfig, findPrimaryActivityField, applyOcrQuantityToField, scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities, centralizedUnits]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
@@ -1436,8 +1684,9 @@ export default function EmissionEntryForm({
           const hasDefault = field.defaultValue !== undefined
             && field.defaultValue !== null
             && field.defaultValue !== '';
-          const currentValue = currentMonth[field.variable] ?? currentMonth[field.fieldKey];
-          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || currentValue !== undefined && currentValue !== null && currentValue !== '') return;
+          const hasStoredValue = Object.prototype.hasOwnProperty.call(currentMonth, field.variable)
+            || Object.prototype.hasOwnProperty.call(currentMonth, field.fieldKey);
+          if (!field.required || field.isOverride || field.presentationOnly || !hasDefault || hasStoredValue) return;
           if (nextMonth === currentMonth) nextMonth = { ...currentMonth };
           nextMonth[field.variable] = field.defaultValue;
           changed = true;
@@ -1565,57 +1814,43 @@ export default function EmissionEntryForm({
     const allowedUnits = selectedFuel?.allowed_units || [];
     if (allowedUnits.length === 0) return; // No units to validate against
     
-    // Update monthly data units
-    setMonthlyData(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-      
-      activeMonths.forEach(month => {
+    // Update monthly data units atomically with the selected fuel. This also
+    // keeps the legacy row-level `unit` alias aligned with the canonical field.
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
         const monthKey = month.key;
-        const monthData = { ...(updated[monthKey] || {}) };
-        
-        dynamicInputFields.forEach(field => {
-          if (field.unitSource === 'fuel') {
-            const unitKey = `${field.variable}_unit`;
-            const currentUnit = monthData[unitKey];
-            
-            // If current unit is not in allowed units, update to first valid unit
-            if (!currentUnit || !allowedUnits.includes(currentUnit)) {
-              monthData[unitKey] = allowedUnits[0];
-              hasChanges = true;
-            }
-          }
+        const current = previousMonths[monthKey] || {};
+        const normalized = normalizeFuelBackedFieldUnits({
+          data: current,
+          fields: dynamicInputFields,
+          allowedUnits,
+          isProcessEmissions: ghgFormContext.isProcessCategory,
         });
-        
-        if (hasChanges) {
-          updated[monthKey] = monthData;
+        if (normalized !== current) {
+          nextMonths[monthKey] = normalized;
+          changed = true;
         }
       });
-      
-      return hasChanges ? updated : prev;
+      return changed ? nextMonths : previousMonths;
     });
-    
-    // Update yearly data units
-    setYearlyData(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-      
-      dynamicInputFields.forEach(field => {
-        if (field.unitSource === 'fuel') {
-          const unitKey = `${field.variable}_unit`;
-          const currentUnit = updated[unitKey];
-          
-          // If current unit is not in allowed units, update to first valid unit
-          if (!currentUnit || !allowedUnits.includes(currentUnit)) {
-            updated[unitKey] = allowedUnits[0];
-            hasChanges = true;
-          }
-        }
-      });
-      
-      return hasChanges ? updated : prev;
-    });
-  }, [fuelId, selectedFuel, dynamicInputFields, activeMonths]);
+
+    setYearlyData((previous) => normalizeFuelBackedFieldUnits({
+      data: previous,
+      fields: dynamicInputFields,
+      allowedUnits,
+      isProcessEmissions: ghgFormContext.isProcessCategory,
+    }));
+  }, [
+    activeMonths,
+    dynamicInputFields,
+    fuelId,
+    ghgFormContext.isProcessCategory,
+    selectedFuel,
+    setMonthlyData,
+    setYearlyData,
+  ]);
 
 
   // Build decision inputs automatically based on which fields have values
@@ -1807,6 +2042,7 @@ export default function EmissionEntryForm({
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        reporting_year_type: reportingYearType,
         is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
@@ -1881,27 +2117,6 @@ export default function EmissionEntryForm({
       setIsCalculatingYearly(false);
     }
   }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, reportingYearType, reportingYear]);
-
-  // Evaluate formula with given values
-  const evaluateFormula = useCallback((formula, values) => {
-    try {
-      // Replace variable names with values
-      let expression = formula;
-      Object.keys(values).forEach(key => {
-        const value = parseFloat(values[key]) || 0;
-        // Replace both exact matches and parenthesized matches
-        expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), value);
-      });
-      // Handle special characters in formula
-      expression = expression.replace(/×/g, '*').replace(/x/g, '*').replace(/–/g, '-');
-      // Safely evaluate the expression
-      const result = Function('"use strict"; return (' + expression + ')')();
-      return isNaN(result) ? 0 : result;
-    } catch (e) {
-      console.error('Formula evaluation error:', e);
-      return 0;
-    }
-  }, []);
 
   // Get fuels for selected category and scope with region + year priority
   const fuelsForCategory = useMemo(() => {
@@ -2336,8 +2551,74 @@ export default function EmissionEntryForm({
     }));
   };
 
+  const addC6Trip = useCallback((periodKey) => {
+    const trip = {
+      id: createC6TripId(),
+      qty_days_travelled: 1,
+      from_location: fromLocation || '',
+      to_location: toLocation || '',
+    };
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: [...(previous.yearly || []), trip] }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: [...(previous.monthly?.[periodKey] || []), trip],
+          },
+        }
+    ));
+  }, [fromLocation, setC6Trips, toLocation]);
+
+  const updateC6Trip = useCallback((periodKey, tripId, field, value) => {
+    const updateTrip = (trip) => {
+      if (trip.id !== tripId) return trip;
+      const nextValue = typeof value === 'function' ? value(trip[field]) : value;
+      return { ...trip, [field]: nextValue };
+    };
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: (previous.yearly || []).map(updateTrip) }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: (previous.monthly?.[periodKey] || []).map(updateTrip),
+          },
+        }
+    ));
+  }, [setC6Trips]);
+
+  const removeC6Trip = useCallback((periodKey, tripId) => {
+    const withoutTrip = (trips = []) => trips.filter((trip) => trip.id !== tripId);
+    setC6Trips((previous) => (
+      periodKey === 'yearly'
+        ? { ...previous, yearly: withoutTrip(previous.yearly) }
+        : {
+          ...previous,
+          monthly: {
+            ...previous.monthly,
+            [periodKey]: withoutTrip(previous.monthly?.[periodKey]),
+          },
+        }
+    ));
+  }, [setC6Trips]);
+
+  const resetC6TripsForReportingYear = useCallback(() => {
+    setC6Trips({ monthly: {}, yearly: [] });
+  }, [setC6Trips]);
+
+  const resetC6TripsForFrequency = useCallback((nextFrequency) => {
+    setC6Trips((previous) => (
+      nextFrequency === 'monthly'
+        ? { ...previous, yearly: [] }
+        : { ...previous, monthly: {} }
+    ));
+  }, [setC6Trips]);
+
   // Handle evidence upload for a monthly or yearly entry
-  const handleEvidenceUpload = async (periodKey, file) => {
+  const handleEvidenceUpload = async (periodKey, file, tripId = null) => {
     if (!file) return;
 
     const sizeErr = validateFileSize(file);
@@ -2365,7 +2646,9 @@ export default function EmissionEntryForm({
           file_id: response.data.file_id,
           uploaded_at: new Date().toISOString()
         };
-        if (periodKey === 'yearly') {
+        if (tripId) {
+          updateC6Trip(periodKey, tripId, 'evidences', (evidences = []) => [...evidences, uploadedFile]);
+        } else if (periodKey === 'yearly') {
           setYearlyData(prev => ({
             ...prev,
             evidences: [...(prev.evidences || []), uploadedFile]
@@ -2382,7 +2665,9 @@ export default function EmissionEntryForm({
             };
           });
         }
-        const periodLabel = periodKey === 'yearly'
+        const periodLabel = tripId
+          ? 'trip'
+          : periodKey === 'yearly'
           ? 'annual data'
           : MONTHS.find((month) => month.key === periodKey)?.name;
         toast.success(`Evidence uploaded for ${periodLabel}`);
@@ -2393,8 +2678,94 @@ export default function EmissionEntryForm({
     }
   };
 
-  const removeEvidence = async (periodKey, evidenceIndex) => {
-    const evidences = periodKey === 'yearly'
+  const handleC7EmployeeEvidenceUpload = async (employeeId, periodKey, file) => {
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) throw new Error(sizeErr);
+    const uploadData = new FormData();
+    uploadData.append('file', file);
+    const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
+      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+    });
+    if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
+    const uploadedEvidence = {
+      url: response.data.url,
+      filename: response.data.filename || file.name,
+      file_id: response.data.file_id,
+      size: file.size,
+      content_type: file.type,
+    };
+    setEmployees((previousEmployees) => previousEmployees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+      if (periodKey === 'yearly') {
+        return {
+          ...employee,
+          yearly_data: {
+            ...(employee.yearly_data || { inputs: {}, emissions: null }),
+            evidences: [...(employee.yearly_data?.evidences || []), uploadedEvidence],
+          },
+        };
+      }
+      const monthData = employee.monthly_data?.[periodKey] || { inputs: {}, emissions: null };
+      return {
+        ...employee,
+        monthly_data: {
+          ...employee.monthly_data,
+          [periodKey]: {
+            ...monthData,
+            evidences: [...(monthData.evidences || []), uploadedEvidence],
+          },
+        },
+      };
+    }));
+    onFormChange?.();
+    toast.success('Evidence uploaded successfully');
+  };
+
+  const handleC7EmployeeEvidenceRemove = async (employeeId, periodKey, evidenceIndex) => {
+    const employee = employees.find((entry) => entry.id === employeeId);
+    const periodData = periodKey === 'yearly'
+      ? employee?.yearly_data
+      : employee?.monthly_data?.[periodKey];
+    const evidence = periodData?.evidences?.[evidenceIndex];
+    const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (fileId) await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    setEmployees((previousEmployees) => previousEmployees.map((entry) => {
+      if (entry.id !== employeeId) return entry;
+      if (periodKey === 'yearly') {
+        return {
+          ...entry,
+          yearly_data: {
+            ...entry.yearly_data,
+            evidences: (entry.yearly_data?.evidences || []).filter((_, index) => index !== evidenceIndex),
+          },
+        };
+      }
+      return {
+        ...entry,
+        monthly_data: {
+          ...entry.monthly_data,
+          [periodKey]: {
+            ...entry.monthly_data?.[periodKey],
+            evidences: (entry.monthly_data?.[periodKey]?.evidences || []).filter((_, index) => index !== evidenceIndex),
+          },
+        },
+      };
+    }));
+    onFormChange?.();
+    toast.success('Evidence removed');
+  };
+
+  const removeEvidence = async (periodKey, evidenceIndexOrTripId, maybeEvidenceIndex = null) => {
+    const tripId = maybeEvidenceIndex === null ? null : evidenceIndexOrTripId;
+    const evidenceIndex = maybeEvidenceIndex === null ? evidenceIndexOrTripId : maybeEvidenceIndex;
+    const trip = tripId
+      ? (periodKey === 'yearly'
+        ? c6Trips.yearly?.find((entry) => entry.id === tripId)
+        : c6Trips.monthly?.[periodKey]?.find((entry) => entry.id === tripId))
+      : null;
+    const evidences = tripId
+      ? trip?.evidences || []
+      : periodKey === 'yearly'
       ? yearlyData.evidences || []
       : monthlyData[periodKey]?.evidences || [];
     const evidence = evidences[evidenceIndex];
@@ -2406,6 +2777,10 @@ export default function EmissionEntryForm({
         toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
         return;
       }
+    }
+    if (tripId) {
+      updateC6Trip(periodKey, tripId, 'evidences', (items = []) => items.filter((_, index) => index !== evidenceIndex));
+      return;
     }
     if (periodKey === 'yearly') {
       setYearlyData(prev => ({
@@ -2447,6 +2822,9 @@ export default function EmissionEntryForm({
       centralizedUnits={centralizedUnits}
       biogenicScopeSelection={biogenicScopeSelection}
       useCustomFuel={useCustomFuel}
+      frequencyType={frequencyType}
+      reportingYear={reportingYear}
+      reportingYearType={reportingYearType}
       compoundSuffix={computeCompoundSuffix(field, data)}
     />
   );
@@ -2487,6 +2865,14 @@ export default function EmissionEntryForm({
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
+    if (isC6MultiTrip) {
+      if (frequencyType === 'yearly') {
+        return (c6Trips.yearly || []).filter((trip) => isMonthlyEntryComplete(trip, dynamicInputFields)).length;
+      }
+      return Object.values(c6Trips.monthly || {}).filter((trips) => (
+        trips.some((trip) => isMonthlyEntryComplete(trip, dynamicInputFields))
+      )).length;
+    }
     // For yearly mode, return 1 if there's yearly data, 0 otherwise
     if (frequencyType === 'yearly') {
       // For C7 Employee Commuting yearly mode
@@ -2508,7 +2894,10 @@ export default function EmissionEntryForm({
       const monthsWithData = new Set();
       employees.forEach(emp => {
         Object.entries(emp.monthly_data || {}).forEach(([monthKey, data]) => {
-          if (data?.emissions?.co2e !== null && data?.emissions?.co2e !== undefined) {
+          const hasInputs = Object.entries(data?.inputs || {}).some(
+            ([key, value]) => !key.endsWith('_unit') && value !== '' && value !== null && value !== undefined && value !== 0,
+          );
+          if (hasInputs || (data?.emissions?.co2e !== null && data?.emissions?.co2e !== undefined)) {
             monthsWithData.add(monthKey);
           }
         });
@@ -2525,11 +2914,17 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, yearlyData, frequencyType, dynamicInputFields, isC7EmployeeCommuting, employees]);
+  }, [c6Trips, dynamicInputFields, employees, frequencyType, isC6MultiTrip, isC7EmployeeCommuting, monthlyData, yearlyData]);
+
+  const c6TripCount = useMemo(() => (
+    frequencyType === 'yearly'
+      ? (c6Trips.yearly || []).length
+      : Object.values(c6Trips.monthly || {}).reduce((total, trips) => total + trips.length, 0)
+  ), [c6Trips, frequencyType]);
 
   // F4: Validation dispatcher delegates to extracted utils.
   // The util `canProceedToStep` covers cases 2/3/4 (legacy case 5 default-true preserved).
-  const canProceedToStep = (step) => canProceedToStepUtil(step, {
+  const canProceedToStep = (step, overrides = {}) => canProceedToStepUtil(step, {
     // Step 1 params
     facilityId, scope, category,
     scope3Method, scope3ActivityId, useCustomActivity, scope3CustomActivity,
@@ -2539,21 +2934,25 @@ export default function EmissionEntryForm({
     // Step 2 params
     processNames, responsiblePerson, requiresAssetName, assetName,
     // Step 3 params
-    isC7EmployeeCommuting, employees, dynamicInputFields,
+    isC7EmployeeCommuting, employees: overrides.employees || employees, dynamicInputFields,
     frequencyType,
     yearlyData: submissionYearlyData,
     monthlyData: submissionMonthlyData,
     filledMonthsCount: submissionFilledMonthsCount,
+    multiTripRows: overrides.multiTripRows || [],
     updateMonthData,
     calculationMethodology: decisionFieldValues.calculation_methodology,
     selectedFuel,
     centralizedUnits,
+    reportingYear,
+    reportingYearType,
   });
 
 
-  const validateFullForm = () => {
+  const validateFullForm = (stepOrOverrides = {}, maybeOverrides = {}) => {
+    const overrides = typeof stepOrOverrides === 'object' ? stepOrOverrides : maybeOverrides;
     for (const step of [2, 3, 4]) {
-      const validation = canProceedToStep(step);
+      const validation = canProceedToStep(step, overrides);
       if (!validation.valid) return validation;
     }
     return { valid: true };
@@ -2632,12 +3031,12 @@ export default function EmissionEntryForm({
       // Build inputs for formula execution - format: { variable: { value, unit } }
       const formulaInputs = {};
       Object.entries(inputData.inputs).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
+        if (!key.endsWith('_unit') && value !== '' && value !== null && value !== undefined) {
           // Find the field config to get the unit
           const fieldConfig = dynamicInputFields.find(f => f.variable === key);
           formulaInputs[key] = {
             value: parseFloat(value),
-            unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+            unit: inputData.inputs[`${key}_unit`] || fieldConfig?.expectedUnit || fieldConfig?.unit || ''
           };
         }
       });
@@ -2649,8 +3048,14 @@ export default function EmissionEntryForm({
           ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
           : `CY${reportingYear}`;
       } else {
-        const actualYear = getActualYearForMonth(monthKey);
-        c7ReportingPeriod = `${actualYear}-${monthKey}`;
+        const monthNumber = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+        }[monthKey] || monthKey;
+        const actualYear = reportingYearType === 'financial' && Number(monthNumber) <= 3
+          ? Number(reportingYear) + 1
+          : Number(reportingYear);
+        c7ReportingPeriod = `${actualYear}-${monthNumber}`;
       }
 
       // Build context for additional data
@@ -2658,6 +3063,7 @@ export default function EmissionEntryForm({
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
         reporting_period: c7ReportingPeriod, // For currency conversion year lookup
+        reporting_year_type: reportingYearType,
         activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // For emission factor lookup
         fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity', // Alias for property source mapping
         scope3_ef_id: matchedActivity?.id || null,
@@ -2723,6 +3129,8 @@ export default function EmissionEntryForm({
                       audit_log: auditLog,
                       applied_factors: appliedFactors,
                       formula_id: response.data.resolved_formula?.id || null,
+                      formula_version_id: response.data.resolved_formula?.version_id || null,
+                      decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
                       formula_name: response.data.resolved_formula?.name || '',
                       emission_factor: `${efFromActivity} ${efUnitFromActivity}`,
                       outputs: response.data.outputs,
@@ -2748,6 +3156,8 @@ export default function EmissionEntryForm({
                         audit_log: auditLog,
                         applied_factors: appliedFactors,
                         formula_id: response.data.resolved_formula?.id || null,
+                        formula_version_id: response.data.resolved_formula?.version_id || null,
+                        decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
                         formula_name: response.data.resolved_formula?.name || '',
                         outputs: response.data.outputs,
                       },
@@ -2802,6 +3212,174 @@ export default function EmissionEntryForm({
     }
   }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
 
+  const calculateC7EmployeesForSave = useCallback(async () => {
+    const monthNumbers = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+    };
+    const fail = (message) => ({ error: message });
+    if (!scope3Method) return fail('Please select a calculation method first');
+    if (!scope3ActivityType) return fail('Please select an activity type first');
+    if (!useCustomActivity && !scope3ActivityId) {
+      return fail('Please select a specific activity from the dropdown');
+    }
+
+    const matchedActivity = useCustomActivity
+      ? null
+      : filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    if (!useCustomActivity && !matchedActivity) {
+      return fail('Activity not found. Please select a valid activity from the dropdown.');
+    }
+    const categoryObj = dynamicCategories.find((item) => (
+      item.name === category && item.scope_code === 'scope3'
+    ));
+    if (!categoryObj) return fail('Category not found');
+
+    setIsCalculatingEmployee(true);
+    try {
+      const calculatedEmployees = employees.map((employee) => ({ ...employee }));
+      for (let employeeIndex = 0; employeeIndex < calculatedEmployees.length; employeeIndex += 1) {
+        let employee = calculatedEmployees[employeeIndex];
+        if (!employee.name?.trim()) return fail('Employee Name is required');
+        const periods = frequencyType === 'yearly'
+          ? ['yearly']
+          : Object.entries(employee.monthly_data || {})
+            .filter(([, monthData]) => dynamicInputFields.some((field) => {
+              const value = monthData?.inputs?.[field.variable];
+              return value !== '' && value !== null && value !== undefined;
+            }))
+            .map(([monthKey]) => monthKey);
+
+        for (const periodKey of periods) {
+          const isYearly = periodKey === 'yearly';
+          const inputData = isYearly ? employee.yearly_data : employee.monthly_data?.[periodKey];
+          const inputs = inputData?.inputs || {};
+          for (const field of dynamicInputFields.filter((item) => item.required && !item.isOverride)) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) {
+              return fail(`${employee.name}: ${field.label} is required`);
+            }
+          }
+
+          const formulaInputs = {};
+          for (const field of dynamicInputFields) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) continue;
+            const unit = inputs[`${field.variable}_unit`] || field.expectedUnit || field.unit || '';
+            if (scope3Method === 'supplier_basis' && field.unitSource !== 'none' && !String(unit).trim()) {
+              return fail(`${employee.name}: Unit is required for ${field.label}`);
+            }
+            formulaInputs[field.variable] = { value: parseFloat(value), unit };
+          }
+
+          const reportingPeriod = isYearly
+            ? (reportingYearType === 'financial'
+              ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+              : `CY${reportingYear}`)
+            : (() => {
+              const monthNumber = monthNumbers[periodKey] || periodKey;
+              const actualYear = reportingYearType === 'financial' && Number(monthNumber) <= 3
+                ? Number(reportingYear) + 1
+                : Number(reportingYear);
+              return `${actualYear}-${monthNumber}`;
+            })();
+
+          let response;
+          try {
+            response = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              category_id: categoryObj.id,
+              decision_inputs: {
+                calculation_method_scope3: scope3Method,
+                activity_type: scope3ActivityType,
+              },
+              inputs: formulaInputs,
+              context: {
+                calculation_method_scope3: scope3Method,
+                activity_type: scope3ActivityType,
+                reporting_period: reportingPeriod,
+                reporting_year_type: reportingYearType,
+                activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                scope3_ef_id: matchedActivity?.id || null,
+                use_custom_activity: useCustomActivity,
+              },
+              scope3_ef_id: matchedActivity?.id || null,
+            }, { headers: getAuthHeader() });
+          } catch (error) {
+            const detail = error.response?.data?.detail;
+            return fail(`${employee.name}: ${typeof detail === 'string' ? detail : 'Failed to calculate emissions'}`);
+          }
+          if (!response.data?.outputs) return fail(`${employee.name}: No calculation results returned`);
+
+          const emissions = {
+            co2: response.data.outputs.co2?.value || 0,
+            ch4: response.data.outputs.ch4?.value || 0,
+            n2o: response.data.outputs.n2o?.value || 0,
+            co2e: response.data.outputs.co2e?.value || 0,
+          };
+          const calculationDetails = {
+            audit_log: response.data.audit_log || [],
+            applied_factors: response.data.applied_factors || {},
+            formula_id: response.data.resolved_formula?.id || null,
+            formula_version_id: response.data.resolved_formula?.version_id || null,
+            decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
+            formula_name: response.data.resolved_formula?.name || '',
+            outputs: response.data.outputs,
+          };
+          if (isYearly) {
+            employee = {
+              ...employee,
+              yearly_data: { ...employee.yearly_data, emissions, calculation_details: calculationDetails },
+            };
+          } else {
+            employee = {
+              ...employee,
+              monthly_data: {
+                ...employee.monthly_data,
+                [periodKey]: {
+                  ...employee.monthly_data[periodKey],
+                  emissions,
+                  calculation_details: calculationDetails,
+                },
+              },
+            };
+          }
+          calculatedEmployees[employeeIndex] = employee;
+          if (response.data.resolved_formula?.id) {
+            setC7FormulaId(response.data.resolved_formula.id);
+            setC7FormulaName(response.data.resolved_formula.name || '');
+          }
+        }
+      }
+
+      setEmployees(calculatedEmployees);
+      if (frequencyType === 'yearly') {
+        setEmployeeYearlyTotal({
+          co2e: calculatedEmployees.reduce((total, employee) => (
+            total + (employee.yearly_data?.emissions?.co2e || 0)
+          ), 0),
+        });
+      } else {
+        const totals = {};
+        calculatedEmployees.forEach((employee) => {
+          Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+            if (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined) return;
+            totals[monthKey] = {
+              co2e: (totals[monthKey]?.co2e || 0) + monthData.emissions.co2e,
+            };
+          });
+        });
+        setEmployeeMonthlyTotals(totals);
+        setEmployeeYearlyTotal({
+          co2e: Object.values(totals).reduce((total, month) => total + (month.co2e || 0), 0),
+        });
+      }
+      return { employees: calculatedEmployees };
+    } finally {
+      setIsCalculatingEmployee(false);
+    }
+  }, [category, dynamicCategories, dynamicInputFields, employees, filteredScope3Activities, frequencyType, getAuthHeader, reportingYear, reportingYearType, scope3ActivityId, scope3ActivityType, scope3CustomActivity, scope3Method, useCustomActivity]);
+
   // Submit handler - creates emissions for each month with data
   // F6 (Option B): handleSubmit body lifted to useEmissionSubmit hook.
   // Form just assembles the ctx and calls submit().
@@ -2838,15 +3416,21 @@ export default function EmissionEntryForm({
     };
   }, [decisionFieldValues.calculation_methodology, dynamicInputFields, ghgFormContext.isProcessCategory]);
 
+  const normalizeSubmissionUnits = useCallback((data = {}) => normalizeFuelBackedFieldUnits({
+    data,
+    fields: dynamicInputFields,
+    allowedUnits: selectedFuel?.allowed_units || [],
+    isProcessEmissions: ghgFormContext.isProcessCategory,
+  }), [dynamicInputFields, ghgFormContext.isProcessCategory, selectedFuel]);
   const submissionMonthlyData = useMemo(() => Object.fromEntries(
     Object.entries(monthlyData).map(([monthKey, data]) => [
       monthKey,
-      normalizeCarbonCompositionQuantity(data),
+      normalizeSubmissionUnits(normalizeCarbonCompositionQuantity(data)),
     ]),
-  ), [monthlyData, normalizeCarbonCompositionQuantity]);
+  ), [monthlyData, normalizeCarbonCompositionQuantity, normalizeSubmissionUnits]);
   const submissionYearlyData = useMemo(
-    () => normalizeCarbonCompositionQuantity(yearlyData),
-    [yearlyData, normalizeCarbonCompositionQuantity],
+    () => normalizeSubmissionUnits(normalizeCarbonCompositionQuantity(yearlyData)),
+    [yearlyData, normalizeCarbonCompositionQuantity, normalizeSubmissionUnits],
   );
   const submissionFilledMonthsCount = useMemo(() => (
     Object.values(submissionMonthlyData).filter((monthData) =>
@@ -2857,7 +3441,7 @@ export default function EmissionEntryForm({
   const { submit: handleSubmit } = useEmissionSubmit({
     // State
     facilityId, scope, category, fuelId, useCustomFuel, customFuelName,
-    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, scope3ActivityId,
+    customEmissionFactor, customSource, isSaving, scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId,
     scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
     biogenicScopeSelection, employees, frequencyType, reportingYearType, reportingYear,
     monthlyData: submissionMonthlyData, yearlyData: submissionYearlyData, processNames, responsiblePerson,
@@ -2872,13 +3456,16 @@ export default function EmissionEntryForm({
     isProcessEmissions: ghgFormContext.isProcessCategory,
     filteredScope3Activities, dynamicInputFields, centralizedUnits, defaultUnit,
     matchedFormula: dynamicInputFieldsResult?.matchedFormula,
+    isC6MultiTrip,
+    c6Trips,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
-    evaluateFormula, buildDecisionInputs,
+    buildDecisionInputs,
     // Decision state for custom fuel methodology
     decisionFieldValues,
     // Editing
     editingEmission,
+    calculateC7EmployeesForSave,
     // Supplier context (optional)
     supplierContext,
     assignedReportingPeriod,
@@ -2950,8 +3537,14 @@ export default function EmissionEntryForm({
           disabledScopes={ghgFormArchitecture.organizationUiConfig.disabledScopes}
           hasScope3Access={hasScope3Access}
           setCategory={setCategory}
+          onCategoryChange={handleCategoryChange}
           setFuelId={setFuelId}
           setScope3Method={setScope3Method}
+          allocationMethod={allocationMethod}
+          onC8AllocationMethodChange={handleC8AllocationMethodChange}
+          requiresAssetName={requiresAssetName}
+          assetName={assetName}
+          setAssetName={setAssetName}
           spendCurrencyConversionMethod={spendCurrencyConversionMethod}
           setSpendCurrencyConversionMethod={setSpendCurrencyConversionMethod}
           setScope3ActivityType={setScope3ActivityType}
@@ -2975,6 +3568,7 @@ export default function EmissionEntryForm({
           typeOfProduct={typeOfProduct}
           setTypeOfProduct={setTypeOfProduct}
           scope3ActivityId={scope3ActivityId}
+          scope3EFData={scope3EFData}
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}
           setUseCustomActivity={setUseCustomActivity}
@@ -3022,6 +3616,8 @@ export default function EmissionEntryForm({
           setYearlyData={setYearlyData}
           setExpandedMonths={setExpandedMonths}
           assignedReportingPeriod={assignedReportingPeriod}
+          onReportingYearChange={resetC6TripsForReportingYear}
+          onFrequencyChange={resetC6TripsForFrequency}
         />
       </EmissionFormSection>
 
@@ -3055,6 +3651,8 @@ export default function EmissionEntryForm({
           renderDynamicField={renderDynamicField}
           isC7EmployeeCommuting={isC7EmployeeCommuting}
           scope3Method={scope3Method}
+          spendCurrencyConversionMethod={spendCurrencyConversionMethod}
+          spendCurrencyDefaults={spendCurrencyDefaults}
           scope3ActivityType={scope3ActivityType}
           scope3ActivityId={scope3ActivityId}
           employees={employees}
@@ -3081,9 +3679,15 @@ export default function EmissionEntryForm({
           getQuantityUnitFromEFUnit={getQuantityUnitFromEFUnit}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
+          onC7EvidenceUpload={handleC7EmployeeEvidenceUpload}
+          onC7EvidenceRemove={handleC7EmployeeEvidenceRemove}
+          isC6MultiTrip={isC6MultiTrip}
+          c6Trips={c6Trips}
+          addC6Trip={addC6Trip}
+          removeC6Trip={removeC6Trip}
+          updateC6Trip={updateC6Trip}
           BACKEND_URL={BACKEND_URL}
           isProcessEmissions={ghgFormContext.isProcessCategory}
-          selectedTemplate={selectedTemplate}
           category={category}
           capabilities={resolvedCapabilities}
           fieldOptions={resolvedGhgFieldOptions}
@@ -3108,9 +3712,6 @@ export default function EmissionEntryForm({
           addProcessName={addProcessName}
           removeProcessName={removeProcessName}
           updateProcessName={updateProcessName}
-          requiresAssetName={requiresAssetName}
-          assetName={assetName}
-          setAssetName={setAssetName}
           showsLocationFields={showsLocationFields}
           isC7EmployeeCommuting={isC7EmployeeCommuting}
           fromLocation={fromLocation}
@@ -3174,7 +3775,7 @@ export default function EmissionEntryForm({
           {isSaving ? (
             <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Saving...</>
           ) : (
-            <><Check className="mr-1 h-4 w-4" />{frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
+            <><Check className="mr-1 h-4 w-4" />{isC6MultiTrip ? `Save ${c6TripCount} business travel trip${c6TripCount === 1 ? '' : 's'}` : frequencyType === 'yearly' ? 'Save annual emissions' : `Save emissions (${filledMonthsCount} months)`}</>
           )}
         </Button>
       </div>

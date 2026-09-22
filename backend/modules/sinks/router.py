@@ -15,10 +15,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from modules.auth.dependencies import get_current_user
 from modules.sinks.contracts import SinkCreate, SinkResponse
+from modules.sinks.periods import canonical_sink_period_fields
+from modules.base_year.sync_service import sync_changed_sink_base_years
 from shared.database.mongo import db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/sinks", response_model=SinkResponse)
@@ -61,24 +64,35 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
                 detail="Your organization does not have access to add carbon sinks. Please contact your administrator.",
             )
 
+    try:
+        period_fields = canonical_sink_period_fields(
+            sink_data.reporting_period,
+            sink_data.frequency_type,
+            organization or {},
+            sink_data.reporting_year,
+            sink_data.reporting_month,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
     sink_dict = {
         "id": str(uuid.uuid4()),
         "facility_id": sink_data.facility_id,
         "organization_id": org_id,
-        "reporting_year": sink_data.reporting_year,
-        "reporting_month": sink_data.reporting_month,
+        **period_fields,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
         "evidence_urls": sink_data.evidence_urls or [],
         "evidence_files": sink_data.evidence_files or [],
-        "frequency_type": sink_data.frequency_type or "monthly",
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None,
     }
     await db.sinks.insert_one(sink_dict)
+    try:
+        await sync_changed_sink_base_years(None, sink_dict, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after creating sink %s", sink_dict["id"])
     
     # NOTE: Completion tracking removed - status is now computed on-the-fly by CompletionService
     
@@ -127,18 +141,30 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
 
     # frequency_type is preserved from the original record — not editable.
     existing_frequency = existing.get("frequency_type", "monthly")
+    organization = await db.organizations.find_one({"id": existing.get("organization_id")}, {"_id": 0})
+    target_facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0, "organization_id": 1})
+    if not target_facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    if target_facility.get("organization_id") != existing.get("organization_id"):
+        raise HTTPException(status_code=403, detail="A sink can only be reassigned to a facility in the same organization")
+    try:
+        period_fields = canonical_sink_period_fields(
+            sink_data.reporting_period,
+            existing_frequency,
+            organization or {},
+            sink_data.reporting_year,
+            sink_data.reporting_month,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     update_dict = {
         "facility_id": sink_data.facility_id,
-        "reporting_year": sink_data.reporting_year,
-        "reporting_month": sink_data.reporting_month,
+        **period_fields,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
         "evidence_urls": sink_data.evidence_urls or [],
         "evidence_files": sink_data.evidence_files or [],
-        "frequency_type": existing_frequency,
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -149,6 +175,10 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The sink was not updated.") from error
     await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
     updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    try:
+        await sync_changed_sink_base_years(existing, updated, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after updating sink %s", sink_id)
     return SinkResponse(**updated)
 
 
@@ -166,4 +196,8 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     result = await db.sinks.delete_one({"id": sink_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sink record not found")
+    try:
+        await sync_changed_sink_base_years(sink, None, current_user)
+    except Exception:
+        logger.exception("[BASE_YEAR_SINK_SYNC] Failed after deleting sink %s", sink_id)
     return {"message": "Sink record and associated files deleted successfully"}

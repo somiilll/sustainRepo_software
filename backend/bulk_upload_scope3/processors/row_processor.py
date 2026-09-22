@@ -62,6 +62,12 @@ class RowProcessor:
         """
         config = CATEGORY_COLUMNS.get(category_code, {})
         sheet_name = config.get("sheet_name", category_code)
+
+        # C6 no longer accepts travel-day input. Drop values from legacy
+        # workbooks before any validation, calculation, or record building.
+        if category_code == "C6":
+            row_data.pop("days_travelled", None)
+            row_data.pop("qty_days_travelled", None)
         
         errors: List[ValidationError] = []
         warnings: List[ValidationError] = []
@@ -133,7 +139,7 @@ class RowProcessor:
                     sheet=sheet_name,
                     row=row_num,
                     column="Reporting Month",
-                    error_type="INVALID_REPORTING_MONTH",
+                    error_type="FUTURE_REPORTING_MONTH" if "cannot be in the future" in month_error else "INVALID_REPORTING_MONTH",
                     message=month_error,
                     severity=ErrorSeverity.ERROR
                 ))
@@ -148,7 +154,7 @@ class RowProcessor:
                     sheet=sheet_name,
                     row=row_num,
                     column="Reporting Year",
-                    error_type="INVALID_REPORTING_YEAR",
+                    error_type="FUTURE_REPORTING_YEAR" if "cannot be in the future" in year_error else "INVALID_REPORTING_YEAR",
                     message=year_error,
                     severity=ErrorSeverity.ERROR
                 ))
@@ -259,15 +265,19 @@ class RowProcessor:
             ("supplier_quantity", "Supplier Quantity"),
             ("supplier_ef", "Supplier Emission Factor"),
             ("passengers", "Passengers"),
-            ("days_travelled", "No. of Days Travelled"),  # C6 Business Travel
             ("rooms", "Rooms"),
             ("nights", "Nights"),
             ("working_days", "Working Days"),
             ("working_hours", "Working Hours"),
+            ("exchange_rate", "Standard Currency Conversion"),
+            ("inflation_rate", "Inflation Rate"),
+            ("ppp", "Purchase Power Value"),
             # C11 continuous_usage extras
             ("units_produced", "No. of products Manufactured"),
             ("products_expected_usage", "Lifetime Expected Usage of the product"),
         ]
+        if category_code == "C7":
+            numeric_fields.append(("days_travelled", "No. of Days Travelled"))
         
         for field_key, field_name in numeric_fields:
             if row_data.get(field_key):
@@ -285,6 +295,33 @@ class RowProcessor:
                     ))
                 else:
                     row_data[field_key] = parsed_value
+
+        if method == CalculationMethod.SPEND_BASIS:
+            has_standard_rate = row_data.get("exchange_rate") not in (None, "")
+            has_ppp_values = any(
+                row_data.get(key) not in (None, "")
+                for key in ("ppp", "inflation_rate")
+            )
+            if has_standard_rate and row_data.get("exchange_rate") <= 0:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Standard Currency Conversion",
+                    error_type="INVALID_STANDARD_CURRENCY_CONVERSION",
+                    message="Standard Currency Conversion must be greater than zero",
+                    suggestion="Enter a positive exchange rate or leave the cell blank to use the configured rate",
+                    severity=ErrorSeverity.ERROR,
+                ))
+            if has_standard_rate and has_ppp_values:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Standard Currency Conversion",
+                    error_type="CONFLICTING_CURRENCY_CONVERSION",
+                    message="Standard Currency Conversion cannot be combined with Inflation Rate or Purchase Power Value",
+                    suggestion="Use either Standard Currency Conversion or the PPP/Inflation fields for this row",
+                    severity=ErrorSeverity.ERROR,
+                ))
         
         # If there are errors at this point, don't proceed with activity/formula validation
         if errors:
@@ -348,7 +385,7 @@ class RowProcessor:
         
         # Get category name from config (guaranteed to exist) with database fallback
         category_config = CATEGORY_COLUMNS.get(category_code, {})
-        category_name = f"{category_code} - {category_config.get('name', 'Unknown')}"
+        category_name = category_config.get("record_category_name") or f"{category_code} - {category_config.get('name', 'Unknown')}"
         
         if category:
             form_config = await self.formula_validator.get_form_config(category.get("id"))
@@ -357,7 +394,12 @@ class RowProcessor:
                 
                 if formula:
                     formula_validation = self.formula_validator.validate_formula_inputs(
-                        row_data, formula, method, row_num, sheet_name
+                        row_data,
+                        formula,
+                        method,
+                        row_num,
+                        sheet_name,
+                        ignored_input_variables={"qty_days_travelled"} if category_code == "C6" else None,
                     )
                     
                     if not formula_validation.valid:

@@ -15,7 +15,7 @@ const PROCESS_TYPES = [
 const SCOPE3_CATEGORIES = [
   { value: 'purchased_goods_and_services', label: 'C1 — Purchased Goods and Services' },
   { value: 'capital_goods', label: 'C2 — Capital Goods' },
-  { value: 'fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2', label: 'C3 — Fuel and Energy Related Activities' },
+  { value: 'fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2', label: 'C3 - Fuel and energy-related activities' },
   { value: 'upstream_transportation_distribution', label: 'C4 — Upstream Transportation and Distribution' },
   { value: 'waste_generated_in_operations', label: 'C5 — Waste Generated in Operations' },
   { value: 'business_travel', label: 'C6 — Business Travel' },

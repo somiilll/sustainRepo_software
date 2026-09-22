@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +26,10 @@ const SUPPLIER_ALLOWED_ROUTES = [
   '/ghg/scope3',
   '/ghg/biogenic',
   '/ghg',
+];
+const SUPPLIER_MODULE_ROUTES = [
+  { path: '/supplier-assessment/documents/review', module: 'documents' },
+  { path: '/supplier-assessment/training', module: 'training' },
 ];
 
 // Locked overlay for supplier users - Full screen coverage
@@ -78,6 +82,8 @@ export default function Layout() {
   const isSupplierAssessmentRoute = location.pathname.startsWith('/supplier-assessment');
   const isSupplierAssessmentWorkspace = isSupplier && isSupplierAssessmentRoute;
   const supplierGhgIsAssigned = supplierModules?.includes('ghg');
+  const requiredSupplierModule = SUPPLIER_MODULE_ROUTES.find(({ path }) => location.pathname === path || location.pathname.startsWith(`${path}/`))?.module;
+  const isDisabledSupplierModuleRoute = isSupplier && Array.isArray(supplierModules) && requiredSupplierModule && !supplierModules.includes(requiredSupplierModule);
   const isSupplierGhgPremiumRoute = location.pathname === '/facilities' || location.pathname.startsWith('/ghg');
   const isUnassignedSupplierGhgPremiumRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgPremiumRoute;
 
@@ -186,7 +192,9 @@ export default function Layout() {
               }
             >
             {/* Show locked overlay for suppliers on restricted routes */}
-            {isSupplier && (isExplicitlyLockedSupplierRoute || isUnassignedSupplierGhgPremiumRoute || !isAllowedRoute) ? (
+            {isDisabledSupplierModuleRoute ? (
+              <Navigate to="/supplier-assessment/supplier" replace />
+            ) : isSupplier && (isExplicitlyLockedSupplierRoute || isUnassignedSupplierGhgPremiumRoute || !isAllowedRoute) ? (
               <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>

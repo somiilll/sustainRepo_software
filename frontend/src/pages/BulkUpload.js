@@ -10,7 +10,7 @@
  * file validation, template/error filenames) lives in the per-scope module
  * files under `/modules/bulkUpload/scopes/`.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -30,29 +30,33 @@ import ValidationResultsCard from '../modules/bulkUpload/components/ValidationRe
 import ValidationResultsTable from '../modules/bulkUpload/components/ValidationResultsTable';
 import EmptyState from '../modules/bulkUpload/components/EmptyState';
 import AccessDenied from '../modules/bulkUpload/components/AccessDenied';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BulkUpload() {
   const { getAuthHeader } = useAuth();
   const [organization, setOrganization] = useState(null);
+  const [organizationError, setOrganizationError] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
   const [activeScopeId, setActiveScopeId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  useEffect(() => {
-    const fetchOrg = async () => {
-      try {
-        const res = await axios.get(`${API}/api/organizations/my`, { headers: getAuthHeader() });
-        setOrganization(res.data);
-      } catch (error) {
-        console.error('Failed to load organization:', error);
-      } finally {
-        setLoadingOrg(false);
-      }
-    };
-    fetchOrg();
+  const fetchOrganization = useCallback(async () => {
+    setLoadingOrg(true);
+    setOrganizationError(null);
+    try {
+      const res = await axios.get(`${API}/api/organizations/my`, { headers: getAuthHeader() });
+      setOrganization(res.data);
+    } catch (error) {
+      setOrganizationError(getUserFriendlyError(error, 'We could not load your bulk upload settings.'));
+    } finally {
+      setLoadingOrg(false);
+    }
   }, [getAuthHeader]);
+
+  useEffect(() => { fetchOrganization(); }, [fetchOrganization]);
 
   const allModules = useMemo(
     () => (organization ? bulkUploadRegistry.list(organization) : []),
@@ -83,6 +87,15 @@ export default function BulkUpload() {
     );
   }
 
+  if (organizationError) {
+    return (
+      <div className="space-y-6" data-testid="bulk-upload-page">
+        <ModulePageHeader title="Bulk Upload" icon={History} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="bulk-upload" />
+        <LoadErrorState title="Unable to load bulk upload" message={organizationError} onRetry={fetchOrganization} testId="bulk-upload-organization-error" />
+      </div>
+    );
+  }
+
   // No scope module is available for this org.
   const anyAvailable = allModules.some((m) => m.status === MODULE_STATUS.AVAILABLE);
   if (!anyAvailable) return <AccessDenied />;
@@ -106,7 +119,9 @@ export default function BulkUpload() {
       <ScopeTabSelector modules={allModules} activeId={activeScopeId} onSelect={setActiveScopeId} />
 
       {/* Upload History */}
-      {showHistory && <UploadHistoryPanel sessions={bu.sessions} />}
+      {showHistory && (bu.sessionsError ? (
+        <LoadErrorState title="Unable to load upload history" message={bu.sessionsError} onRetry={bu.refreshSessions} testId="bulk-upload-history-error" />
+      ) : <UploadHistoryPanel sessions={bu.sessions} />)}
 
       {/* Upload */}
       <UploadDropzone

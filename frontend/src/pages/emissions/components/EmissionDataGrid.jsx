@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
+import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 
 /**
  * EmissionDataGrid
@@ -22,12 +25,62 @@ const SortableHeader = ({ label, sortKey, currentSort, onSort, className = '' })
   return (
     <button
       onClick={() => onSort(sortKey)}
-      className={`flex items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
+      className={`flex w-full min-w-0 items-center gap-1 hover:text-stone-900 transition-colors ${className}`}
       data-testid={`emissions-sort-${sortKey}`}
     >
-      <span>{label}</span>
-      <Icon className={`w-3 h-3 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
+      <span className="truncate">{label}</span>
+      <Icon className={`h-3 w-3 shrink-0 ${isActive ? 'text-emerald-600' : 'text-stone-400'}`} />
     </button>
+  );
+};
+
+const DEFAULT_COLUMN_WIDTHS = {
+  facility: 120,
+  period: 88,
+  category: 180,
+  type: 96,
+  activity: 210,
+  method: 112,
+  emissions: 112,
+  status: 120,
+  updated: 130,
+  actions: 84,
+};
+
+const SCOPE_COLUMN_KEYS = {
+  scope1: ['facility', 'period', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
+  scope2: ['facility', 'period', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
+  scope3: ['facility', 'period', 'category', 'activity', 'method', 'emissions', 'status', 'updated', 'actions'],
+  biogenic: ['facility', 'period', 'type', 'category', 'activity', 'emissions', 'status', 'updated', 'actions'],
+};
+
+const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
+  const startResize = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = width;
+    const resize = (moveEvent) => onResize(columnKey, startWidth + moveEvent.clientX - startX);
+    const stopResize = () => {
+      window.removeEventListener('pointermove', resize);
+      window.removeEventListener('pointerup', stopResize);
+    };
+    window.addEventListener('pointermove', resize);
+    window.addEventListener('pointerup', stopResize);
+  };
+
+  return (
+    <div className="relative flex min-w-0 flex-shrink-0 items-center justify-center" style={{ width }} data-testid={`emissions-column-header-${columnKey}`}>
+      {children}
+      <button
+        type="button"
+        onPointerDown={startResize}
+        className="absolute right-0 top-0 z-20 flex h-full w-4 touch-none items-center justify-center bg-stone-50/90 text-stone-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700 cursor-col-resize"
+        aria-label="Resize column"
+        title={`Resize ${columnKey} column`}
+        data-testid={`emissions-resize-column-${columnKey}`}
+      ><GripVertical className="h-3.5 w-3.5" /></button>
+    </div>
   );
 };
 
@@ -38,7 +91,7 @@ const StatusCell = ({ emission }) => {
   // Show user's own pending proposal as "Completed, Awaiting Approval"
   if (emission.is_my_pending_proposal) {
     return (
-      <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700">
+      <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700" data-testid={`emission-status-${emission.id}`}>
         Completed, Awaiting Approval
       </span>
     );
@@ -47,13 +100,48 @@ const StatusCell = ({ emission }) => {
   // For others viewing a record where someone else has pending proposal,
   // just show the normal status (Completed, Approved) - no extra badge
   return (
-    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`}>
+    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${baseStatus.cls}`} data-testid={`emission-status-${emission.id}`}>
       {baseStatus.text}
     </span>
   );
 };
 
-export default function EmissionDataGrid({
+const OverrideBadge = ({ emissionId }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="cursor-help px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0" tabIndex={0} data-testid={`emission-custom-override-${emissionId}`}>Custom</span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`emission-custom-override-tooltip-${emissionId}`}><p>Default values overridden.</p><p>View more in Edit.</p></TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+const EvidenceIndicator = ({ emissionId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emissionId}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`emission-evidence-tooltip-${emissionId}`}><p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p><p>View more in Edit.</p></TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handleEdit, fetchHistory, openDeleteConfirm }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button type="button" size="icon" variant="ghost" onClick={(event) => event.stopPropagation()} className="h-8 w-8" aria-label={`More actions for emission ${emission.id}`} data-testid={`emission-actions-menu-${emission.id}`}><MoreHorizontal className="h-4 w-4" /></Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="bg-white opacity-100" data-testid={`emission-actions-menu-content-${emission.id}`}>
+      <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+      {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
+      <DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={(event) => { event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
+const EmissionDataGrid = forwardRef(({
   activeScope,
   filteredEmissions,
   facilities,
@@ -70,12 +158,78 @@ export default function EmissionDataGrid({
   filterDateRange,
   filterCategory,
   filterFrequency,
-}) {
+  onColumnWidthsCustomizedChange,
+}, ref) => {
   // Sorting state
   const [sort, setSort] = useState({ key: null, direction: 'desc' });
   
   // Selection state for bulk delete
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const ledgerScrollRef = useRef(null);
+  const bottomScrollbarRef = useRef(null);
+  const scrollDragRef = useRef(null);
+  const [ledgerScrollWidth, setLedgerScrollWidth] = useState(0);
+  const [ledgerViewportWidth, setLedgerViewportWidth] = useState(0);
+  const [ledgerScrollLeft, setLedgerScrollLeft] = useState(0);
+  const [bottomScrollbarWidth, setBottomScrollbarWidth] = useState(0);
+  const [manualColumnWidths, setColumnWidths] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('emission-log-column-widths-v5') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('emission-log-column-widths-v5', JSON.stringify(manualColumnWidths));
+  }, [manualColumnWidths]);
+
+  const visibleColumnKeys = SCOPE_COLUMN_KEYS[activeScope] || SCOPE_COLUMN_KEYS.scope1;
+  const automaticColumnWidths = useMemo(() => {
+    const baseWidth = visibleColumnKeys.reduce((total, key) => total + DEFAULT_COLUMN_WIDTHS[key], 0);
+    const gapWidth = visibleColumnKeys.length * 8;
+    const tableChromeWidth = 32 + 32 + gapWidth;
+    const availableColumnWidth = Math.max(0, ledgerViewportWidth - tableChromeWidth);
+    const scale = baseWidth > 0 ? Math.max(1, availableColumnWidth / baseWidth) : 1;
+    return Object.fromEntries(visibleColumnKeys.map((key) => [
+      key,
+      Math.round(DEFAULT_COLUMN_WIDTHS[key] * scale),
+    ]));
+  }, [activeScope, ledgerViewportWidth, visibleColumnKeys]);
+  const effectiveColumnWidths = useMemo(() => ({
+    ...automaticColumnWidths,
+    ...manualColumnWidths,
+  }), [automaticColumnWidths, manualColumnWidths]);
+  const columnWidths = effectiveColumnWidths;
+  const hasCustomizedColumnWidths = Object.entries(manualColumnWidths).some(([key, width]) => (
+    automaticColumnWidths[key] !== undefined && Math.round(width) !== automaticColumnWidths[key]
+  ));
+
+  useEffect(() => {
+    onColumnWidthsCustomizedChange?.(hasCustomizedColumnWidths);
+  }, [hasCustomizedColumnWidths, onColumnWidthsCustomizedChange]);
+
+  useEffect(() => {
+    const ledger = ledgerScrollRef.current;
+    const bottomScrollbar = bottomScrollbarRef.current;
+    if (!ledger) return undefined;
+    const syncDimensions = () => {
+      setLedgerScrollWidth(ledger.scrollWidth);
+      setLedgerViewportWidth(ledger.clientWidth);
+      setLedgerScrollLeft(ledger.scrollLeft);
+      setBottomScrollbarWidth(bottomScrollbar?.clientWidth || ledger.clientWidth);
+    };
+    const syncLedger = () => setLedgerScrollLeft(ledger.scrollLeft);
+    syncDimensions();
+    ledger.addEventListener('scroll', syncLedger, { passive: true });
+    const observer = new ResizeObserver(syncDimensions);
+    observer.observe(ledger);
+    if (bottomScrollbar) observer.observe(bottomScrollbar);
+    return () => {
+      ledger.removeEventListener('scroll', syncLedger);
+      observer.disconnect();
+    };
+  }, [activeScope, effectiveColumnWidths, filteredEmissions.length]);
   
   // Handle sort toggle
   const handleSort = (key) => {
@@ -97,6 +251,12 @@ export default function EmissionDataGrid({
       return newSet;
     });
   };
+
+  const selectionModeActive = selectedIds.size > 0;
+  const handleRowSelection = (id) => {
+    if (!selectionModeActive) return;
+    handleSelectRow(id);
+  };
   
   // Handle select all
   const handleSelectAll = () => {
@@ -105,6 +265,83 @@ export default function EmissionDataGrid({
     } else {
       setSelectedIds(new Set(filteredEmissions.map(e => e.id)));
     }
+  };
+
+  const resizeColumn = (columnKey, width) => {
+    const nextWidth = Math.min(420, Math.max(80, Math.round(width)));
+    setColumnWidths((current) => {
+      const next = { ...current };
+      if (nextWidth === automaticColumnWidths[columnKey]) delete next[columnKey];
+      else next[columnKey] = nextWidth;
+      return next;
+    });
+  };
+
+  const resetColumnWidths = () => {
+    setColumnWidths({});
+    const ledger = ledgerScrollRef.current;
+    if (ledger) ledger.scrollLeft = 0;
+  };
+  useImperativeHandle(ref, () => ({ resetColumnWidths }), [resetColumnWidths]);
+
+  const maxHorizontalScroll = Math.max(0, ledgerScrollWidth - ledgerViewportWidth);
+  const scrollbarThumbWidth = bottomScrollbarWidth
+    ? Math.max(40, Math.min(bottomScrollbarWidth, (ledgerViewportWidth / Math.max(ledgerScrollWidth, 1)) * bottomScrollbarWidth))
+    : 0;
+  const maxThumbTravel = Math.max(0, bottomScrollbarWidth - scrollbarThumbWidth);
+  const hasHorizontalOverflow = maxHorizontalScroll > 1;
+  const scrollbarThumbLeft = maxHorizontalScroll && maxThumbTravel
+    ? (ledgerScrollLeft / maxHorizontalScroll) * maxThumbTravel
+    : 0;
+
+  const setLedgerScrollFromThumbPosition = (thumbLeft) => {
+    const ledger = ledgerScrollRef.current;
+    if (!ledger || !maxThumbTravel || !maxHorizontalScroll) return;
+    ledger.scrollLeft = Math.max(0, Math.min(maxThumbTravel, thumbLeft)) / maxThumbTravel * maxHorizontalScroll;
+  };
+
+  const stopScrollbarDrag = () => {
+    window.removeEventListener('pointermove', moveScrollbarDrag);
+    window.removeEventListener('pointerup', stopScrollbarDrag);
+    scrollDragRef.current = null;
+  };
+
+  const moveScrollbarDrag = (event) => {
+    if (!scrollDragRef.current) return;
+    setLedgerScrollFromThumbPosition(scrollDragRef.current.startThumbLeft + event.clientX - scrollDragRef.current.startX);
+  };
+
+  const startScrollbarDrag = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollDragRef.current = { startX: event.clientX, startThumbLeft: scrollbarThumbLeft };
+    window.addEventListener('pointermove', moveScrollbarDrag);
+    window.addEventListener('pointerup', stopScrollbarDrag);
+  };
+
+  const handleScrollbarTrackClick = (event) => {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setLedgerScrollFromThumbPosition(event.clientX - bounds.left - scrollbarThumbWidth / 2);
+  };
+
+  const handleLedgerWheel = (event) => {
+    if (!event.deltaX) return;
+    const ledger = ledgerScrollRef.current;
+    if (!ledger) return;
+    const nextScrollLeft = Math.max(0, Math.min(maxHorizontalScroll, ledger.scrollLeft + event.deltaX));
+    if (nextScrollLeft === ledger.scrollLeft) return;
+    event.preventDefault();
+    ledger.scrollLeft = nextScrollLeft;
+  };
+
+  const columnStyle = (columnKey) => ({ width: effectiveColumnWidths[columnKey] || DEFAULT_COLUMN_WIDTHS[columnKey] });
+
+  const formatReportingPeriod = (period) => {
+    if (!period) return '-';
+    const financialYear = String(period).match(/^FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})$/i);
+    if (!financialYear) return period;
+    return `FY ${financialYear[1].slice(-2)}-${financialYear[2].slice(-2)}`;
   };
   
   // Handle bulk delete
@@ -142,12 +379,7 @@ export default function EmissionDataGrid({
   
   // Get quantity value for sorting
   const getQuantityValue = (emission) => {
-    const dfv = emission.dynamic_field_values || {};
-    const qtyField = dfv.qty || dfv.qty_energy;
-    if (qtyField?.value !== null && qtyField?.value !== undefined) {
-      return parseFloat(qtyField.value) || 0;
-    }
-    return parseFloat(emission.quantity) || 0;
+    return parseFloat(resolveEmissionQuantity(emission).value) || 0;
   };
   
   // Sorted emissions
@@ -213,7 +445,7 @@ export default function EmissionDataGrid({
   }, [filteredEmissions, sort, facilities]);
 
   return (
-    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="emissions-ledger">
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between">
@@ -233,15 +465,17 @@ export default function EmissionDataGrid({
         </div>
       )}
       
+      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
-      <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+      <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
+        <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
           {/* Select All Checkbox */}
           <div className="w-8 flex-shrink-0 flex items-center justify-center">
             <Checkbox
               checked={isAllSelected}
               onCheckedChange={handleSelectAll}
               className={isSomeSelected ? 'data-[state=checked]:bg-amber-500' : ''}
+              aria-label="Select all visible emission rows"
               data-testid="select-all-checkbox"
             />
           </div>
@@ -249,76 +483,76 @@ export default function EmissionDataGrid({
           {/* Scope 3 Headers */}
           {activeScope === 'scope3' && (
             <>
-              <div className="w-36 flex-shrink-0 text-center">
+              <ResizableColumnHeader columnKey="facility" width={columnWidths.facility} onResize={resizeColumn}>
                 <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-24 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="period" width={columnWidths.period} onResize={resizeColumn}>
                 <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-52 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="category" width={columnWidths.category} onResize={resizeColumn}>
                 <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="flex-1 min-w-[120px] pl-2 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="activity" width={columnWidths.activity} onResize={resizeColumn}>
                 <SortableHeader label="Activity" sortKey="activity" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-20 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="method" width={columnWidths.method} onResize={resizeColumn}>
                 <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-28 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
-              </div>
-              <div className="w-44 flex-shrink-0 text-center">Status</div>
-              <div className="w-28 flex-shrink-0 text-center">Actions</div>
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Scope 1 & 2 Headers */}
           {(activeScope === 'scope1' || activeScope === 'scope2') && (
             <>
-              <div className="w-36 flex-shrink-0 text-center">
+              <ResizableColumnHeader columnKey="facility" width={columnWidths.facility} onResize={resizeColumn}>
                 <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-24 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="period" width={columnWidths.period} onResize={resizeColumn}>
                 <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-44 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="category" width={columnWidths.category} onResize={resizeColumn}>
                 <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="flex-1 min-w-[140px] text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="activity" width={columnWidths.activity} onResize={resizeColumn}>
                 <SortableHeader label="Sub-category" sortKey="subcategory" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-28 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
-              </div>
-              <div className="w-44 flex-shrink-0 text-center">Status</div>
-              <div className="w-28 flex-shrink-0 text-center">Actions</div>
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
           {/* Biogenic Headers */}
           {activeScope === 'biogenic' && (
             <>
-              <div className="w-36 flex-shrink-0 text-center">
+              <ResizableColumnHeader columnKey="facility" width={columnWidths.facility} onResize={resizeColumn}>
                 <SortableHeader label="Facility" sortKey="facility" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-24 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="period" width={columnWidths.period} onResize={resizeColumn}>
                 <SortableHeader label="Period" sortKey="period" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-20 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="type" width={columnWidths.type} onResize={resizeColumn}>
                 <SortableHeader label="Type" sortKey="type" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-36 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="category" width={columnWidths.category} onResize={resizeColumn}>
                 <SortableHeader label="Category" sortKey="category" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="flex-1 min-w-[120px] text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="activity" width={columnWidths.activity} onResize={resizeColumn}>
                 <SortableHeader label="Activity / Fuel" sortKey="activityFuel" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-20 flex-shrink-0 text-center">
-                <SortableHeader label="Method" sortKey="method" currentSort={sort} onSort={handleSort} className="justify-center" />
-              </div>
-              <div className="w-28 flex-shrink-0 text-center">
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
-              </div>
-              <div className="w-44 flex-shrink-0 text-center">Status</div>
-              <div className="w-28 flex-shrink-0 text-center">Actions</div>
+              </ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
           )}
         </div>
@@ -330,6 +564,9 @@ export default function EmissionDataGrid({
           const facility = facilities.find(f => f.id === emission.facility_id);
           const dfv = emission.dynamic_field_values || {};
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
+          const evidenceCount = Number(emission.evidence_count)
+            || (Array.isArray(emission.evidence_urls) ? emission.evidence_urls.length : 0)
+            || (emission.evidence_url ? 1 : 0);
           const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
           const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
 
@@ -368,18 +605,7 @@ export default function EmissionDataGrid({
             ? processTypeLabels[rawProcessType] || rawProcessType.replaceAll('_', ' ') || '-'
             : '-';
           const subcategoryDisplay = isProcessEmission ? processTypeDisplay : activityDisplay;
-
-          // Get calculation method display using centralized labels
           const methodDisplay = getMethodLabel(calcMethod, true);
-
-          // Get quantity display for Scope 1/2
-          const getQuantityDisplay = () => {
-            let qtyField = dfv.qty || dfv.qty_energy;
-            if (qtyField?.value !== null && qtyField?.value !== undefined) {
-              return `${qtyField.value} ${qtyField.unit || 'kg'}`;
-            }
-            return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-          };
 
           // Extract year from reporting period
           const reportingYear = emission.reporting_period?.match(/\d{4}/)?.[0] || emission.reporting_year || '-';
@@ -392,7 +618,18 @@ export default function EmissionDataGrid({
           return (
             <div
               key={emission.id}
-              className={`px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              className={`min-w-max px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              onClick={() => handleRowSelection(emission.id)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleRowSelection(emission.id);
+                }
+              }}
+              role="checkbox"
+              aria-checked={selectedIds.has(emission.id)}
+              aria-disabled={!selectionModeActive}
+              tabIndex={0}
               data-testid={`emission-row-${emission.id}`}
             >
               {/* Row Checkbox */}
@@ -408,44 +645,41 @@ export default function EmissionDataGrid({
               {/* Scope 3 Row */}
               {activeScope === 'scope3' && (
                 <>
-                  <div className="w-36 flex-shrink-0 text-left">
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
-                    {emission.reporting_period || reportingYear}
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                    {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="w-52 flex-shrink-0 text-left">
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] pl-2 text-left flex items-center gap-2">
-                    <p className="text-sm text-text-primary truncate" title={activityDisplay}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={activityDisplay}>
                       {activityDisplay}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-left">
+                  <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                       {methodDisplay}
                     </span>
                   </div>
-                  <div className="w-28 flex-shrink-0 text-left">
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="w-44 flex-shrink-0 text-center">
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                  </div>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                    {formatLastUpdated(emission)}
                   </div>
                 </>
               )}
@@ -453,39 +687,36 @@ export default function EmissionDataGrid({
               {/* Scope 1 & 2 Row */}
               {(activeScope === 'scope1' || activeScope === 'scope2') && (
                 <>
-                  <div className="w-36 flex-shrink-0 text-left">
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
-                    {emission.reporting_period || reportingYear}
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                    {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="w-44 flex-shrink-0 text-left">
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[140px] text-left flex items-center gap-2">
-                    <p className="text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={subcategoryDisplay} data-testid={`emission-subcategory-${emission.id}`}>
                       {subcategoryDisplay}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
-                  <div className="w-28 flex-shrink-0 text-left">
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="w-44 flex-shrink-0 text-center">
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                  </div>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                    {formatLastUpdated(emission)}
                   </div>
                 </>
               )}
@@ -493,26 +724,26 @@ export default function EmissionDataGrid({
               {/* Biogenic Row */}
               {activeScope === 'biogenic' && (
                 <>
-                  <div className="w-36 flex-shrink-0 text-left">
-                    <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('facility')}>
+                    <p className="w-full text-center text-sm font-medium text-text-primary truncate" title={facility?.name}>
                       {facility?.name || 'Unknown'}
                     </p>
                   </div>
-                  <div className="w-24 flex-shrink-0 text-left text-sm text-text-secondary truncate" title={emission.reporting_period}>
-                    {emission.reporting_period || reportingYear}
+                  <div className="flex-shrink-0 text-center text-sm text-text-secondary truncate" style={columnStyle('period')} title={emission.reporting_period}>
+                    {formatReportingPeriod(emission.reporting_period || reportingYear)}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-left">
+                  <div className="flex-shrink-0 text-center" style={columnStyle('type')}>
                     <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
                       {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
                     </span>
                   </div>
-                  <div className="w-36 flex-shrink-0 text-left">
-                    <p className="text-sm text-text-primary truncate" title={emission.category}>
+                  <div className="flex-shrink-0 text-center" style={columnStyle('category')}>
+                    <p className="w-full text-center text-sm text-text-primary truncate" title={emission.category}>
                       {emission.category}
                     </p>
                   </div>
-                  <div className="flex-1 min-w-[120px] text-left flex items-center gap-2">
-                    <p className="text-sm text-text-primary truncate" title={
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('activity')}>
+                    <p className="min-w-0 text-center text-sm text-text-primary truncate" title={
                       biogenicScope === 'scope3'
                         ? activityDisplay
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')
@@ -521,69 +752,25 @@ export default function EmissionDataGrid({
                         ? activityDisplay
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                     </p>
-                    {hasOverride && (
-                      <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
-                        Custom
-                      </span>
-                    )}
-                    {emission.evidence_url && (
-                      <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
-                    )}
+                    {hasOverride && <OverrideBadge emissionId={emission.id} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
                   </div>
-                  <div className="w-20 flex-shrink-0 text-left">
-                    {biogenicScope === 'scope3' ? (
-                      <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
-                        {methodDisplay}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-stone-400">-</span>
-                    )}
-                  </div>
-                  <div className="w-28 flex-shrink-0 text-left">
+                  <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
-                      {totalEmissions.toFixed(4)}
+                      {totalEmissions.toFixed(2)}
                     </span>
                   </div>
-                  <div className="w-44 flex-shrink-0 text-center">
+                  <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                  </div>
+                  <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
+                    {formatLastUpdated(emission)}
                   </div>
                 </>
               )}
 
-              {/* Action Buttons - Common for all scopes */}
-              <div className="w-28 flex-shrink-0 flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => { e.stopPropagation(); handleEdit(emission); }}
-                  title="Edit"
-                  className="h-7 w-7 p-0"
-                  data-testid={`edit-emission-${emission.id}`}
-                >
-                  <Edit className="w-3.5 h-3.5 text-stone-600" />
-                </Button>
-                {!isRegularUser && !hideHistoryActions && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => { e.stopPropagation(); fetchHistory(emission); }}
-                    title="History"
-                    className="h-7 w-7 p-0"
-                    data-testid={`history-emission-${emission.id}`}
-                  >
-                    <History className="w-3.5 h-3.5 text-stone-600" />
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(e) => { e.stopPropagation(); openDeleteConfirm(emission); }}
-                  title="Delete"
-                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                  data-testid={`delete-emission-${emission.id}`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+              <div className="flex flex-shrink-0 items-center justify-center" style={columnStyle('actions')}>
+                <EmissionRowActions emission={emission} isRegularUser={isRegularUser} hideHistoryActions={hideHistoryActions} handleEdit={handleEdit} fetchHistory={fetchHistory} openDeleteConfirm={openDeleteConfirm} />
               </div>
             </div>
           );
@@ -604,6 +791,16 @@ export default function EmissionDataGrid({
           </p>
         </div>
       )}
+      </div>
+      {hasHorizontalOverflow && (
+        <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="emissions-ledger-bottom-scrollbar">
+          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerScrollLeft)} data-testid="emissions-ledger-bottom-scrollbar-track">
+            <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-400 transition-colors hover:bg-stone-500 active:bg-stone-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll ledger columns horizontally" data-testid="emissions-ledger-bottom-scrollbar-thumb" />
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+});
+
+export default EmissionDataGrid;

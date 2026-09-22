@@ -22,7 +22,9 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.logging import get_logger, log_event
 from audit_logger import AuditAction, AuditModule, get_audit_logger
+from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
 from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.entitlements.dependencies import assert_period_row_limit
 from modules.emissions.c7_contracts import (
@@ -32,10 +34,22 @@ from modules.emissions.c7_contracts import (
     C7YearlyEntryResponse,
 )
 from shared.database.mongo import db
-from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
+from shared.helpers.audit_helpers import (
+    compute_field_changes,
+    compute_user_input_changes,
+    get_input_label_map_from_db,
+)
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
+logger = get_logger(__name__)
+
+
+async def _bind_calculation_version(payload: dict, existing: Optional[dict] = None) -> dict:
+    try:
+        return await apply_record_version_binding(db, payload, existing_record=existing)
+    except CalculationVersionError as error:
+        raise HTTPException(status_code=409, detail=str(error))
 
 
 @router.post("/emissions/c7/month", response_model=C7MonthlyEntryResponse)
@@ -48,6 +62,8 @@ async def create_or_update_c7_monthly_entry(
     - If entry_id is provided: UPDATE the existing record with that ID
     - If entry_id is NOT provided: Always CREATE a new record
     """
+    log_event(logger, logging.INFO, "ghg.c7.monthly.save.started", action="ghg.c7.monthly.save", outcome="started",
+              context={"facility_id": entry_data.facility_id, "reporting_year": entry_data.reporting_year, "reporting_month": entry_data.reporting_month, "mode": "update" if entry_data.entry_id else "create"})
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -100,6 +116,7 @@ async def create_or_update_c7_monthly_entry(
         # Compute field changes for version history - track all fields being updated
         # Also track individual employee input changes
         employee_input_changes = []
+        input_label_map = await get_input_label_map_from_db(db)
         old_employees = existing.get("employees", [])
         # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
         new_employees = []
@@ -112,36 +129,22 @@ async def create_or_update_c7_monthly_entry(
                 new_employees.append(emp)
         
         # Create maps for comparison
-        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        old_emp_map = {emp.get("employee_id") or emp.get("id", ""): emp for emp in old_employees}
         
         for new_emp in new_employees:
-            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_id = new_emp.get("employee_id") or new_emp.get("id", "")
             emp_name = new_emp.get("name", "Unknown")
             old_emp = old_emp_map.get(emp_id, {})
             
             new_inputs = new_emp.get("inputs", {})
             old_inputs = old_emp.get("inputs", {})
             
-            # Track specific input field changes
-            input_fields_to_track = [
-                ("km_travelled", "Distance Travelled (km)"),
-                ("qty_passengers", "No. of Passengers"),
-                ("qty_days_travelled", "No. of Days Travelled"),
-                ("working_days", "Working Days"),
-                ("working_hour_per_day", "Working Hours per Day"),
-                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
-                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
-            ]
-            
-            for field_key, field_label in input_fields_to_track:
-                old_val = old_inputs.get(field_key)
-                new_val = new_inputs.get(field_key)
-                if old_val != new_val and (old_val is not None or new_val is not None):
-                    employee_input_changes.append({
-                        "field": f"{emp_name} - {field_label}",
-                        "old_value": old_val,
-                        "new_value": new_val
-                    })
+            employee_input_changes.extend(compute_user_input_changes(
+                old_inputs,
+                new_inputs,
+                input_label_map,
+                employee_name=emp_name,
+            ))
         
         new_values = {
             "activity_type": entry_data.activity_type,
@@ -149,9 +152,13 @@ async def create_or_update_c7_monthly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "supplier_name": entry_data.supplier_name,
+            "supplier_code": entry_data.supplier_code,
             "submission_batch_id": entry_data.submission_batch_id,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
@@ -163,12 +170,10 @@ async def create_or_update_c7_monthly_entry(
         c7_monthly_fields = [
             "activity_type", "calculation_method_scope3", "scope3_ef_id",
             "formula_id", "formula_name", "notes", "record_source",
+            "supplier_name", "supplier_code",
             "responsible_person",
             "responsible_person_designation", "responsible_person_contact", "total_emissions"
         ]
-        
-        # Fetch input labels from DB for field change display
-        input_label_map = await get_input_label_map_from_db(db)
         
         field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields, input_label_map=input_label_map)
         
@@ -187,14 +192,20 @@ async def create_or_update_c7_monthly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "supplier_name": entry_data.supplier_name,
+            "supplier_code": entry_data.supplier_code,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
             "process_names": entry_data.process_names or [],
             "process_descriptions": entry_data.process_descriptions or [],
+            "evidence_url": entry_data.evidence_url or "",
+            "evidence_file_name": entry_data.evidence_file_name or "",
             "updated_at": now,
             "updated_by": current_user["id"],
             "updated_by_email": current_user.get("email", ""),
@@ -202,6 +213,7 @@ async def create_or_update_c7_monthly_entry(
             "version": old_version + 1
         }
         
+        update_dict = await _bind_calculation_version(update_dict, existing)
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save version history
@@ -254,6 +266,8 @@ async def create_or_update_c7_monthly_entry(
             "scope3_ef_id": entry_data.activity_id,
             "scope3_activity": entry_data.activity_name,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "employees": entry_data.employees,
             "monthly_total": monthly_total,
@@ -261,12 +275,16 @@ async def create_or_update_c7_monthly_entry(
             "total_emissions": total_co2e,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "supplier_name": entry_data.supplier_name,
+            "supplier_code": entry_data.supplier_code,
             "submission_batch_id": entry_data.submission_batch_id,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
             "process_names": entry_data.process_names or [],
             "process_descriptions": entry_data.process_descriptions or [],
+            "evidence_url": entry_data.evidence_url or "",
+            "evidence_file_name": entry_data.evidence_file_name or "",
             "version": 1,
             "created_at": now,
             "created_by": current_user["id"],
@@ -274,6 +292,7 @@ async def create_or_update_c7_monthly_entry(
             "created_by_name": current_user.get("full_name", ""),
         }
         
+        new_entry = await _bind_calculation_version(new_entry)
         await db.emission_records.insert_one(new_entry)
         
         # Save creation history for C7
@@ -311,7 +330,8 @@ async def create_or_update_c7_monthly_entry(
     # Add facility name
     result["facility_name"] = facility.get("name", "")
     result["calculation_method"] = entry_data.calculation_method
-    
+    log_event(logger, logging.INFO, "ghg.c7.monthly.save.completed", action="ghg.c7.monthly.save", outcome="succeeded",
+              context={"record_id": result.get("id"), "facility_id": entry_data.facility_id, "mode": "update" if existing else "create"})
     return C7MonthlyEntryResponse(**result)
 
 @router.get("/emissions/c7/{facility_id}/{year}")
@@ -439,6 +459,7 @@ async def delete_c7_monthly_entry(
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a C7 monthly entry"""
+    log_event(logger, logging.INFO, "ghg.c7.monthly.delete.started", action="ghg.c7.monthly.delete", outcome="started", context={"record_id": entry_id})
     
     entry = await db.emission_records.find_one({"id": entry_id}, {"_id": 0})
     if not entry:
@@ -477,6 +498,7 @@ async def delete_c7_monthly_entry(
     await db.emission_history.insert_one(history_dict)
     await db.emission_records.delete_one({"id": entry_id})
     
+    log_event(logger, logging.INFO, "ghg.c7.monthly.delete.completed", action="ghg.c7.monthly.delete", outcome="succeeded", context={"record_id": entry_id})
     return {"message": "Entry deleted successfully", "id": entry_id}
 
 # ==========================================
@@ -494,6 +516,8 @@ async def create_or_update_c7_yearly_entry(
     - If entry_id is provided: UPDATE the existing record with that ID
     - If entry_id is NOT provided: Always CREATE a new record
     """
+    log_event(logger, logging.INFO, "ghg.c7.yearly.save.started", action="ghg.c7.yearly.save", outcome="started",
+              context={"facility_id": entry_data.facility_id, "reporting_period": entry_data.reporting_year, "mode": "update" if entry_data.entry_id else "create"})
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -546,6 +570,7 @@ async def create_or_update_c7_yearly_entry(
         
         # Track individual employee input changes for yearly
         employee_input_changes = []
+        input_label_map = await get_input_label_map_from_db(db)
         old_employees = existing.get("employees", [])
         # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
         new_employees = []
@@ -558,36 +583,22 @@ async def create_or_update_c7_yearly_entry(
                 new_employees.append(emp)
         
         # Create maps for comparison
-        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        old_emp_map = {emp.get("employee_id") or emp.get("id", ""): emp for emp in old_employees}
         
         for new_emp in new_employees:
-            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_id = new_emp.get("employee_id") or new_emp.get("id", "")
             emp_name = new_emp.get("name", "Unknown")
             old_emp = old_emp_map.get(emp_id, {})
             
             new_inputs = new_emp.get("inputs", {})
             old_inputs = old_emp.get("inputs", {})
             
-            # Track specific input field changes
-            input_fields_to_track = [
-                ("km_travelled", "Distance Travelled (km)"),
-                ("qty_passengers", "No. of Passengers"),
-                ("qty_days_travelled", "No. of Days Travelled"),
-                ("working_days", "Working Days"),
-                ("working_hour_per_day", "Working Hours per Day"),
-                ("activity_value_supplier_based", "Quantity (Supplier Based)"),
-                ("emission_factor_supplier_based", "Emission Factor (Supplier Based)"),
-            ]
-            
-            for field_key, field_label in input_fields_to_track:
-                old_val = old_inputs.get(field_key)
-                new_val = new_inputs.get(field_key)
-                if old_val != new_val and (old_val is not None or new_val is not None):
-                    employee_input_changes.append({
-                        "field": f"{emp_name} - {field_label}",
-                        "old_value": old_val,
-                        "new_value": new_val
-                    })
+            employee_input_changes.extend(compute_user_input_changes(
+                old_inputs,
+                new_inputs,
+                input_label_map,
+                employee_name=emp_name,
+            ))
         
         update_dict = {
             "organization_id": org_id,  # Ensure organization_id is always set
@@ -601,14 +612,20 @@ async def create_or_update_c7_yearly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "supplier_name": entry_data.supplier_name,
+            "supplier_code": entry_data.supplier_code,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
             "process_names": entry_data.process_names,
             "process_descriptions": entry_data.process_descriptions,
+            "evidence_url": entry_data.evidence_url or "",
+            "evidence_file_name": entry_data.evidence_file_name or "",
             "updated_at": now,
             "updated_by": current_user["id"],
             "updated_by_email": current_user.get("email", ""),
@@ -616,6 +633,7 @@ async def create_or_update_c7_yearly_entry(
             "version": old_version + 1
         }
         
+        update_dict = await _bind_calculation_version(update_dict, existing)
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save update history for C7 yearly (track employee input changes)
@@ -650,6 +668,8 @@ async def create_or_update_c7_yearly_entry(
         # Map database field names to response model field names
         updated["activity_id"] = updated.get("scope3_ef_id")
         updated["activity_name"] = updated.get("scope3_activity")
+        log_event(logger, logging.INFO, "ghg.c7.yearly.save.completed", action="ghg.c7.yearly.save", outcome="succeeded",
+                  context={"record_id": updated.get("id"), "facility_id": entry_data.facility_id, "mode": "update"})
         return C7YearlyEntryResponse(**updated)
     
     else:
@@ -680,6 +700,8 @@ async def create_or_update_c7_yearly_entry(
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
             "formula_id": entry_data.formula_id,
+            "formula_version_id": entry_data.formula_version_id,
+            "decision_tree_version_id": entry_data.decision_tree_version_id,
             "formula_name": entry_data.formula_name,
             "employees": entry_data.employees,
             "yearly_total": yearly_total,
@@ -687,11 +709,15 @@ async def create_or_update_c7_yearly_entry(
             "total_emissions": total_co2e,
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
+            "supplier_name": entry_data.supplier_name,
+            "supplier_code": entry_data.supplier_code,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
             "process_names": entry_data.process_names,
             "process_descriptions": entry_data.process_descriptions,
+            "evidence_url": entry_data.evidence_url or "",
+            "evidence_file_name": entry_data.evidence_file_name or "",
             "version": 1,
             "created_at": now,
             "created_by": current_user["id"],
@@ -701,6 +727,7 @@ async def create_or_update_c7_yearly_entry(
             "updated_by": None
         }
         
+        new_record = await _bind_calculation_version(new_record)
         await db.emission_records.insert_one(new_record)
         
         # Save creation history for C7 yearly
@@ -738,6 +765,8 @@ async def create_or_update_c7_yearly_entry(
         # Map database field names to response model field names
         new_record["activity_id"] = entry_data.activity_id
         new_record["activity_name"] = entry_data.activity_name
+        log_event(logger, logging.INFO, "ghg.c7.yearly.save.completed", action="ghg.c7.yearly.save", outcome="succeeded",
+                  context={"record_id": new_record.get("id"), "facility_id": entry_data.facility_id, "mode": "create"})
         return C7YearlyEntryResponse(**new_record)
 
 @router.post("/emissions/c7/migrate/{facility_id}/{year}")
@@ -747,6 +776,8 @@ async def migrate_c7_to_monthly_model(
     current_user: dict = Depends(get_admin_user)
 ):
     """Migrate old C7 entries to new monthly model (Admin only)"""
+    log_event(logger, logging.INFO, "ghg.c7.migration.started", action="ghg.c7.migration", outcome="started",
+              context={"facility_id": facility_id, "reporting_year": year})
     
     # Find old model entries
     old_entries = await db.emission_records.find({
@@ -838,6 +869,8 @@ async def migrate_c7_to_monthly_model(
             {"$set": {"migrated_to_v2": True, "migrated_at": datetime.now(timezone.utc).isoformat()}}
         )
     
+    log_event(logger, logging.INFO, "ghg.c7.migration.completed", action="ghg.c7.migration", outcome="succeeded",
+              context={"facility_id": facility_id, "reporting_year": year, "migrated_count": migrated_count})
     return {
         "message": "Migration complete",
         "migrated_count": migrated_count,

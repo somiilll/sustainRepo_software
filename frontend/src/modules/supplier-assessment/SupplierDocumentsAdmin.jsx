@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { CalendarDays, Eye, FileText, CalendarDays as Pencil, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
+import { CalendarDays, Eye, FileText, CalendarDays as Pencil, Search, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
@@ -42,7 +42,8 @@ const documentProgress = (document) => {
 export default function SupplierDocumentsAdmin() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
-  const [documents, setDocuments] = useState([]);
+  const [allDocuments, setDocuments] = useState([]);
+  const [documentSearch, setDocumentSearch] = useState('');
   const [selectedSuppliers, setSelectedSuppliers] = useState([]);
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
@@ -64,6 +65,7 @@ export default function SupplierDocumentsAdmin() {
   const [assignmentRows, setAssignmentRows] = useState([]);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignmentUpdatingId, setAssignmentUpdatingId] = useState('');
+  const [assignmentUnlockingId, setAssignmentUnlockingId] = useState('');
   const [dueDateDialog, setDueDateDialog] = useState(null);
   const [dueDateDraft, setDueDateDraft] = useState('');
   const [savingDueDate, setSavingDueDate] = useState(false);
@@ -89,7 +91,6 @@ export default function SupplierDocumentsAdmin() {
 
   const uploadAgreement = async () => {
     if (!file) { toast.error('Choose a document file first'); return; }
-    if (!selectedSuppliers.length) { toast.error('Select at least one supplier'); return; }
     const options = statusOptions.split('\n').map((option) => option.trim()).filter(Boolean);
     if (responseMode === 'STATUS' && !options.length) { toast.error('Add at least one status option'); return; }
     const data = new FormData();
@@ -97,7 +98,7 @@ export default function SupplierDocumentsAdmin() {
     setUploading(true);
     try {
       await axios.post(`${API}/supplier-assessment/documents`, data, { headers: getAuthHeader() });
-      toast.success('Document published to selected suppliers');
+      toast.success(selectedSuppliers.length ? 'Document published to selected suppliers' : 'Document published — assign suppliers when ready');
       setTitle(''); setDueDate(''); setFile(null); setSelectedSuppliers([]); setShowAgreementForm(false);
       const fileInput = document.getElementById('supplier-agreement-file-input');
       if (fileInput) fileInput.value = '';
@@ -126,7 +127,7 @@ export default function SupplierDocumentsAdmin() {
   const unlockResponse = async (response) => {
     if (!responseDialog || !window.confirm(`Unlock ${response.supplier_name}'s response for resubmission?`)) return;
     setUnlockingSupplierId(response.supplier_relationship_id);
-    try { await axios.post(`${API}/supplier-assessment/suppliers/${response.supplier_relationship_id}/documents/${responseDialog.id}/reopen`, {}, { headers: getAuthHeader() }); toast.success('Document response unlocked'); await viewResponses(responseDialog); }
+    try { await axios.post(`${API}/supplier-assessment/suppliers/${response.supplier_relationship_id}/documents/${response.document_requirement_id || responseDialog.id}/reopen`, {}, { headers: getAuthHeader() }); toast.success('Document response unlocked'); await viewResponses(responseDialog); }
     catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock document response'); }
     finally { setUnlockingSupplierId(''); }
   };
@@ -144,10 +145,21 @@ export default function SupplierDocumentsAdmin() {
     try {
       if (assigned) await axios.post(`${API}/supplier-assessment/documents/${assignmentDialog.id}/assignments/${row.supplier_relationship_id}`, {}, { headers: getAuthHeader() });
       else await axios.delete(`${API}/supplier-assessment/documents/${assignmentDialog.id}/assignments/${row.supplier_relationship_id}`, { headers: getAuthHeader() });
-      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, status: assigned ? 'pending' : 'not_assigned' } : item));
+      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, can_unlock: false, status: assigned ? 'pending' : 'not_assigned' } : item));
       toast.success(assigned ? 'Document assigned' : 'Document unassigned'); await loadDocuments();
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not update document assignment'); }
     finally { setAssignmentUpdatingId(''); }
+  };
+  const unlockDocumentAssignment = async (row) => {
+    if (!assignmentDialog || !window.confirm(`Unlock ${row.supplier_name}'s document response for resubmission?`)) return;
+    setAssignmentUnlockingId(row.supplier_relationship_id);
+    try {
+      await axios.post(`${API}/supplier-assessment/suppliers/${row.supplier_relationship_id}/documents/${row.document_requirement_id || assignmentDialog.id}/reopen`, {}, { headers: getAuthHeader() });
+      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, status: 'pending', can_unassign: true, can_unlock: false } : item));
+      toast.success('Document response unlocked');
+      await loadDocuments();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock document response'); }
+    finally { setAssignmentUnlockingId(''); }
   };
 
   const saveDocumentDueDate = async () => {
@@ -166,6 +178,12 @@ export default function SupplierDocumentsAdmin() {
     finally { setDeletingId(''); }
   };
 
+  const documents = allDocuments.filter((document) => {
+    const query = documentSearch.trim().toLowerCase();
+    return !query || [document.title, document.response_mode]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
   const documentSummary = {
     total: documents.length,
     assigned: documents.reduce((total, document) => total + (document.assigned_supplier_count || 0), 0),
@@ -173,12 +191,14 @@ export default function SupplierDocumentsAdmin() {
   };
 
   return <div className="space-y-7" data-testid="supplier-documents-admin-page">
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="supplier-documents-header">
+    <div className="border-b border-stone-200 pb-5" data-testid="supplier-documents-header">
       <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-50 text-teal-700 shadow-sm" data-testid="supplier-documents-heading-icon"><FileText className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-documents-heading">Supplier Documents</h1></div>
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-[0_4px_18px_rgba(28,55,43,0.06)]" data-testid="supplier-documents-controls">
-        <div className="min-w-40" data-testid="supplier-documents-period-control"><Label htmlFor="supplier-documents-reporting-period" className="mb-1 flex items-center gap-1.5 text-xs font-medium text-stone-600" data-testid="supplier-documents-period-label"><CalendarDays className="h-3.5 w-3.5 text-stone-500" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-documents-reporting-period" className="h-9 bg-white" data-testid="supplier-documents-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-documents-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-documents-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
-        <Button className="h-9 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAgreementForm(true)} data-testid="open-add-supplier-agreement-button"><Upload className="h-4 w-4 mr-2" />Add document</Button>
-      </div>
+    </div>
+
+    <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-documents-controls">
+      <div className="relative w-full md:w-[min(430px,100%)] md:flex-none" data-testid="supplier-documents-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} placeholder="Search documents..." className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search documents" data-testid="supplier-documents-search-input" /></div>
+      <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAgreementForm(true)} data-testid="open-add-supplier-agreement-button"><Upload className="mr-2 h-4 w-4" />Add document</Button>
+      <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-documents-period-control"><Label htmlFor="supplier-documents-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-documents-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-documents-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-documents-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-documents-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-documents-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
     </div>
 
     <div className="grid gap-4 sm:grid-cols-3" data-testid="supplier-documents-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-total-card"><CardContent className="flex items-center gap-3 p-5"><FileText className="h-5 w-5 text-teal-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Documents published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-total-value">{documentSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-assigned-value">{documentSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-submitted-card"><CardContent className="flex items-center gap-3 p-5"><ShieldCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Responses submitted</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-submitted-value">{documentSummary.submitted}</p></div></CardContent></Card></div>
@@ -219,7 +239,7 @@ export default function SupplierDocumentsAdmin() {
             </div>
           )}
           <div className="md:col-span-2">
-            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} />
+            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowAgreementForm(false)} data-testid="cancel-supplier-agreement-button">Cancel</Button>
@@ -235,7 +255,7 @@ export default function SupplierDocumentsAdmin() {
 
     <Dialog open={Boolean(responseDialog)} onOpenChange={(open) => !open && setResponseDialog(null)}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="document-responses-dialog"><DialogHeader><DialogTitle data-testid="document-responses-dialog-title">Assigned suppliers — {responseDialog?.title}</DialogTitle></DialogHeader>{loadingResponses ? <p data-testid="document-responses-loading">Loading suppliers…</p> : (responseData?.responses || []).length ? <div className="divide-y divide-stone-100" data-testid="document-responses-list">{responseData.responses.map((response) => { const submitted = response.submission_status === 'submitted' && Boolean(response.selected_response); return <div key={response.supplier_relationship_id} className="flex flex-wrap items-center justify-between gap-4 py-3" data-testid={`document-response-${response.supplier_relationship_id}`}><div><span className="font-medium text-stone-900">{response.supplier_name}</span>{response.selected_response && <p className="mt-1 text-xs text-stone-500" data-testid={`document-response-value-${response.supplier_relationship_id}`}>{response.selected_response}</p>}</div><div className="flex items-center gap-3"><Badge variant="outline" className={submitted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'} data-testid={`document-response-status-${response.supplier_relationship_id}`}>{submitted ? 'Submitted' : 'Pending'}</Badge>{response.can_unlock && response.submission_status !== 'reopened' && <Button variant="outline" size="sm" disabled={unlockingSupplierId === response.supplier_relationship_id} onClick={() => unlockResponse(response)} data-testid={`unlock-document-response-${response.supplier_relationship_id}`}>{unlockingSupplierId === response.supplier_relationship_id ? 'Unlocking…' : 'Unlock'}</Button>}</div></div>; })}</div> : <p className="py-10 text-center text-sm text-stone-500" data-testid="document-responses-empty">No active suppliers are assigned.</p>}</DialogContent></Dialog>
     <Dialog open={Boolean(previewDocument)} onOpenChange={(open) => { if (!open) { setPreviewDocument(null); setPreviewUrl(''); } }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl" data-testid="document-preview-dialog"><DialogHeader><DialogTitle data-testid="document-preview-dialog-title">Document preview — {previewDocument?.title}</DialogTitle></DialogHeader>{previewLoading ? <p className="py-16 text-center text-sm text-stone-500" data-testid="document-preview-loading">Preparing preview…</p> : previewUrl && <iframe src={previewUrl} title={previewDocument?.title || 'Document preview'} className="h-[72dvh] w-full border border-stone-200 bg-stone-50" data-testid="document-preview-frame" />}</DialogContent></Dialog>
-    <SupplierAssignmentManagerDialog open={Boolean(assignmentDialog)} onOpenChange={(open) => !open && setAssignmentDialog(null)} title={assignmentDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} onToggle={toggleDocumentAssignment} testIdPrefix="document" />
+    <SupplierAssignmentManagerDialog open={Boolean(assignmentDialog)} onOpenChange={(open) => !open && setAssignmentDialog(null)} title={assignmentDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} unlockingId={assignmentUnlockingId} onToggle={toggleDocumentAssignment} onUnlock={unlockDocumentAssignment} testIdPrefix="document" />
     <Dialog open={Boolean(dueDateDialog)} onOpenChange={(open) => !open && setDueDateDialog(null)}><DialogContent data-testid="document-due-date-dialog"><DialogHeader><DialogTitle>Set document due date</DialogTitle></DialogHeader><div className="space-y-2"><Label htmlFor="document-due-date-editor">Due date</Label><Input id="document-due-date-editor" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} data-testid="document-due-date-editor" /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDueDateDialog(null)} data-testid="cancel-document-due-date-button">Cancel</Button><Button disabled={savingDueDate} onClick={saveDocumentDueDate} data-testid="save-document-due-date-button">{savingDueDate ? 'Saving…' : 'Save due date'}</Button></div></DialogContent></Dialog>
     <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}><AlertDialogContent data-testid="delete-supplier-agreement-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This permanently removes the document file and its active supplier assignments. Historical response records are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-supplier-agreement-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteAgreement} data-testid="confirm-delete-supplier-agreement-button">Delete document</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;

@@ -231,3 +231,88 @@ def supplier_reminder_email(
     </body>
     </html>
     """
+
+
+def supplier_module_unlocked_email(
+    supplier_name: str,
+    customer_name: str,
+    module_label: str,
+    login_link: str,
+    item_name: Optional[str] = None,
+    supplier_instructions: Optional[str] = None,
+) -> str:
+    """HTML email for a parent-authorized supplier resubmission."""
+    safe_supplier_name = escape(supplier_name or "Supplier")
+    safe_customer_name = escape(customer_name or "your customer")
+    safe_module_label = escape(module_label)
+    safe_item_name = escape(item_name) if item_name else None
+    safe_instructions = escape(supplier_instructions).replace("\n", "<br>") if supplier_instructions else None
+    item_detail = f"<strong>{safe_item_name}</strong> has been reopened." if safe_item_name else f"Your <strong>{safe_module_label}</strong> submission has been reopened."
+    instructions_section = f"""
+        <tr>
+            <td style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 16px 18px; color: #166534; font-size: 14px; line-height: 1.6;">
+                <strong>Message from {safe_customer_name}</strong><br>{safe_instructions}
+            </td>
+        </tr>
+        <tr><td style="height: 20px; line-height: 20px;">&nbsp;</td></tr>
+    """ if safe_instructions else ""
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color:#f8f9fa;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8f9fa; padding:40px 20px;">
+            <tr><td align="center">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+                    <tr><td style="padding:30px; text-align:center; border-bottom:1px solid #e5e7eb;">
+                        <img src="{SUSTAINREPO_LOGO_URL}" alt="SustainRepo" style="width:60px; height:60px; border-radius:8px; margin-bottom:10px;">
+                        <h1 style="color:#1f2937; margin:10px 0 0; font-size:24px; font-weight:600;">SustainRepo</h1>
+                    </td></tr>
+                    <tr><td style="padding:40px 30px;">
+                        <h2 style="color:#1f2937; margin:0 0 20px; font-size:20px;">Submission reopened</h2>
+                        <p style="color:#4b5563; font-size:15px; line-height:1.6; margin:0 0 18px;">Hello <strong style="color:#15803d;">{safe_supplier_name}</strong>,</p>
+                        <p style="color:#4b5563; font-size:15px; line-height:1.6; margin:0 0 25px;"><strong style="color:#15803d;">{safe_customer_name}</strong> has unlocked a submission for you to review and resubmit. {item_detail}</p>
+                        {instructions_section}
+                        <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;"><tr><td style="background-color:#15803d; border-radius:8px;"><a href="{login_link}" style="display:inline-block; padding:14px 32px; color:#ffffff; text-decoration:none; font-size:15px; font-weight:600;">Open supplier portal</a></td></tr></table>
+                    </td></tr>
+                    <tr><td style="background-color:#f9fafb; padding:20px 30px; border-radius:0 0 12px 12px; border-top:1px solid #e5e7eb;"><p style="color:#6b7280; font-size:12px; margin:0; text-align:center;">&copy; 2026 SustainRepo. All rights reserved.</p></td></tr>
+                </table>
+            </td></tr>
+        </table>
+    </body>
+    </html>
+    """
+
+
+def supplier_assignment_email(
+    supplier_name: str,
+    customer_name: str,
+    assignment_label: str,
+    assignment_name: str,
+    login_link: str,
+    due_date: Optional[str] = None,
+) -> str:
+    """HTML email for a newly assigned supplier-assessment item."""
+    safe_supplier_name = escape(supplier_name or "Supplier")
+    safe_customer_name = escape(customer_name or "your customer")
+    safe_assignment_label = escape(assignment_label)
+    safe_assignment_name = escape(assignment_name or assignment_label)
+    safe_due_date = escape(due_date) if due_date else None
+    due_date_section = f"<p style=\"color:#4b5563; font-size:14px; line-height:1.6; margin:0 0 24px;\"><strong>Due date:</strong> {safe_due_date}</p>" if safe_due_date else ""
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color:#f8f9fa;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f8f9fa; padding:40px 20px;"><tr><td align="center">
+            <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+                <tr><td style="padding:30px; text-align:center; border-bottom:1px solid #e5e7eb;"><img src="{SUSTAINREPO_LOGO_URL}" alt="SustainRepo" style="width:60px; height:60px; border-radius:8px; margin-bottom:10px;"><h1 style="color:#1f2937; margin:10px 0 0; font-size:24px; font-weight:600;">SustainRepo</h1></td></tr>
+                <tr><td style="padding:40px 30px;"><h2 style="color:#1f2937; margin:0 0 20px; font-size:20px;">New item assigned</h2><p style="color:#4b5563; font-size:15px; line-height:1.6; margin:0 0 18px;">Hello <strong style="color:#15803d;">{safe_supplier_name}</strong>,</p><p style="color:#4b5563; font-size:15px; line-height:1.6; margin:0 0 16px;"><strong style="color:#15803d;">{safe_customer_name}</strong> has assigned a new {safe_assignment_label} for you to complete.</p><div style="background-color:#f0fdf4; border-left:4px solid #16a34a; padding:16px 18px; color:#14532d; font-size:14px; line-height:1.6; margin:0 0 20px;"><strong>{safe_assignment_label}</strong><br>{safe_assignment_name}</div>{due_date_section}<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;"><tr><td style="background-color:#15803d; border-radius:8px;"><a href="{login_link}" style="display:inline-block; padding:14px 32px; color:#ffffff; text-decoration:none; font-size:15px; font-weight:600;">Open supplier portal</a></td></tr></table></td></tr>
+                <tr><td style="background-color:#f9fafb; padding:20px 30px; border-radius:0 0 12px 12px; border-top:1px solid #e5e7eb;"><p style="color:#6b7280; font-size:12px; margin:0; text-align:center;">&copy; 2026 SustainRepo. All rights reserved.</p></td></tr>
+            </table>
+        </td></tr></table>
+    </body>
+    </html>
+    """

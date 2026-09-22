@@ -1,685 +1,898 @@
-/**
- * OCR Invoice Extractor Page - AI-Assisted Emission Entry Workflow
- * 
- * Workflow:
- * 1. Upload Invoice(s) → 2. OCR Processing → 3. AI Data Extraction
- * 4. Review Line Items → 5. Edit (Optional) → 6. Accept
- * 7. Open Add Emission Form (Pre-filled) → 8. Save Emission Record
- * 9. Invoice stored as Evidence
- */
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { useAuth } from '../contexts/AuthContext';
-import { useOCR } from '../contexts/OCRContext';
-import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue 
-} from '../components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { 
-  Upload, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle2, 
-  Loader2,
-  Edit3,
-  Check,
-  X,
-  Trash2,
-  FileWarning,
-  ExternalLink
-} from 'lucide-react';
+import { AlertTriangle, Eye, FileText, History, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import { useAuth } from '../contexts/AuthContext';
+import { ExtractionModeSelector } from '../modules/ocr/ExtractionModeSelector';
+import { OcrEditDialog } from '../modules/ocr/OcrEditDialog';
+import { OcrFacilityAssignmentDialog } from '../modules/ocr/OcrFacilityAssignmentDialog';
+import { OcrHistoryDialog } from '../modules/ocr/OcrHistoryDialog';
+import { OcrBatchQueue } from '../modules/ocr/OcrBatchQueue';
+import { OcrReviewTable } from '../modules/ocr/OcrReviewTable';
+import { UploadWorkspace } from '../modules/ocr/UploadWorkspace';
+import { ModulePageHeader } from '../components/ModulePageHeader';
+import {
+  acceptOcrLineItem,
+  assignOcrUploadFacilities,
+  cancelOcrUploadFile,
+  cancelOcrUpload,
+  deleteOcrUploadFile,
+  resumeOcrUpload,
+  resumeOcrUploadFile,
+  deleteOcrUpload,
+  downloadOcrTemplate,
+  getOcrConfiguration,
+  getOcrUploadHistory,
+  getOcrUpload,
+  loadOcrPreview,
+  rejectOcrLineItem,
+  retryOcrUpload,
+  saveOcrLineItemToGhg,
+  updateOcrLineItem,
+  uploadOcrFiles,
+} from '../modules/ocr/ocrApi';
 
-const API = process.env.REACT_APP_BACKEND_URL;
+const FALLBACK_CONFIGURATION = {
+  enabled_scopes: ['scope1', 'scope2'],
+  modes: [
+    { key: 'fast', label: 'Fast', vision_model: 'claude-sonnet-5', reasoning_model: 'claude-haiku-4-5' },
+    { key: 'think', label: 'Think', vision_model: 'gpt-5.6-sol', reasoning_model: 'gpt-5.6-terra' },
+  ],
+  categories: [],
+  facilities: [],
+  save_rules: {},
+};
 
-// Status badge configurations
-const STATUS_CONFIG = {
-  pending_review: { label: 'Pending Review', color: 'bg-yellow-100 text-yellow-700', icon: FileWarning },
-  edited: { label: 'Edited', color: 'bg-blue-100 text-blue-700', icon: Edit3 },
-  accepted: { label: 'Accepted', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  imported: { label: 'Imported', color: 'bg-gray-100 text-gray-600', icon: Check }
+const responseMessage = (error, fallback) => error?.response?.data?.detail || error?.response?.data?.message || fallback;
+const stagedFileKey = (file) => `${file.name}-${file.size}`;
+const fileErrorMap = (sourceFiles, errors = [], fallback = '') => Object.fromEntries(
+  sourceFiles.flatMap((file) => {
+    const message = errors.find((entry) => entry.filename === file.name)?.error || fallback;
+    return message ? [[stagedFileKey(file), message]] : [];
+  }),
+);
+const directGhgMissingFields = (values = {}) => {
+  const missing = [];
+  const hasValue = (value) => value !== undefined && value !== null && value !== '';
+  const isStructuredScope3Activity = values.scope === 'scope3'
+    && values.ef_method === 'activity'
+    && /^c(?:4|6|9)\b/i.test(String(values.category || '').trim());
+  if (!values.facility_id) missing.push('facility_id');
+  if (!values.reporting_period) missing.push('reporting_period');
+  if (!(values.factor_id || values.fuel_id || values.scope3_ef_id)) missing.push('factor_id');
+  if (values.scope === 'scope3' && values.ef_method === 'spend') {
+    if (!hasValue(values.cost)) missing.push('cost');
+    if (!values.currency) missing.push('currency');
+  } else if (!isStructuredScope3Activity) {
+    if (!hasValue(values.quantity)) missing.push('quantity');
+    if (!values.unit) missing.push('unit');
+  }
+  return missing;
 };
 
 export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
-  const { setOcrAcceptedData } = useOCR();
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-
-  // Upload state
-  const [isDragActive, setIsDragActive] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-
-  // Results state
-  const [currentUploadId, setCurrentUploadId] = useState(null);
-  const [lineItems, setLineItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Edit modal state
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [configuration, setConfiguration] = useState(FALLBACK_CONFIGURATION);
+  const [mode, setMode] = useState('think');
+  const [files, setFiles] = useState([]);
+  const [stagedFileErrors, setStagedFileErrors] = useState({});
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [upload, setUpload] = useState(null);
+  const [items, setItems] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [openingSourceFileIds, setOpeningSourceFileIds] = useState([]);
+  const [restartingSourceFileIds, setRestartingSourceFileIds] = useState([]);
+  const [deletingSourceFileIds, setDeletingSourceFileIds] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
-  const [editFormData, setEditFormData] = useState({});
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editingRequiredFields, setEditingRequiredFields] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [acceptingId, setAcceptingId] = useState(null);
+  const [rejectingItem, setRejectingItem] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [fileQueue, setFileQueue] = useState([]);
+  const [error, setError] = useState('');
+  const [facilityAssignmentFiles, setFacilityAssignmentFiles] = useState([]);
+  const [facilityAssignmentOpen, setFacilityAssignmentOpen] = useState(false);
+  const [facilityAssignmentSaving, setFacilityAssignmentSaving] = useState(false);
+  const [facilityPreviewFile, setFacilityPreviewFile] = useState(null);
+  const [facilityPreviewUrl, setFacilityPreviewUrl] = useState(null);
+  const [facilityPreviewLoading, setFacilityPreviewLoading] = useState(false);
+  const [cancellingQueue, setCancellingQueue] = useState(false);
+  const [resumingQueue, setResumingQueue] = useState(false);
+  const [cancellingFileIds, setCancellingFileIds] = useState([]);
+  const facilityPreviewRequestRef = useRef(0);
+  const sessionUploadIdsRef = useRef(new Set());
+  const [activeExtractionIds, setActiveExtractionIds] = useState([]);
+  const [failedExtractionIds, setFailedExtractionIds] = useState([]);
+  const [retryingQueue, setRetryingQueue] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkRejecting, setBulkRejecting] = useState(false);
+  const [bulkRejectRows, setBulkRejectRows] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
-  // Accept confirmation state
-  const [acceptModalOpen, setAcceptModalOpen] = useState(false);
-  const [acceptingItem, setAcceptingItem] = useState(null);
-  const [isAccepting, setIsAccepting] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    const headers = getAuthHeader();
+    getOcrConfiguration(headers)
+      .then(({ data }) => { if (mounted) setConfiguration(data); })
+      .catch(() => { if (mounted) setError('Organization OCR settings could not be loaded. Default options are shown.'); });
+    const legacyUploadId = localStorage.getItem('ocr-active-upload-id');
+    let activeUploadIds = [];
+    try { activeUploadIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { activeUploadIds = []; }
+    if (!activeUploadIds.length && legacyUploadId) activeUploadIds = [legacyUploadId];
+    if (activeUploadIds.length) setActiveExtractionIds(activeUploadIds);
+    // Failed batches from earlier browser sessions must not surface as a
+    // current workspace error. Failures are now kept only for this session.
+    localStorage.removeItem('ocr-failed-upload-ids');
+    return () => { mounted = false; };
+  }, [getAuthHeader]);
 
-  // ============================================================================
-  // Drag & Drop Handlers
-  // ============================================================================
-  
-  const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+  useEffect(() => {
+    if (!activeExtractionIds.length) return undefined;
+    let cancelled = false;
+    let timer;
+    const pollUploads = async () => {
+      const records = await Promise.all(activeExtractionIds.map((uploadId) => (
+        getOcrUpload(uploadId, getAuthHeader()).then(({ data }) => data).catch(() => null)
+      )));
+      if (cancelled) return;
+      const activeRecords = records.filter((record) => record?.upload);
+      if (activeRecords.length === records.length) {
+        setFileQueue((current) => [
+          ...activeRecords.flatMap((record) => (record.upload.files || []).map((file) => ({
+            id: `${record.upload.id}-${file.file_index}`,
+            uploadId: record.upload.id,
+            fileIndex: file.file_index,
+            filename: file.filename,
+            status: file.status || record.upload.status,
+            error: file.error,
+            uploadStatus: record.upload.status,
+          }))),
+          ...current.filter((file) => file.clientError),
+        ]);
+      }
+      const awaitingAssignmentRecords = activeRecords.filter((record) => record.upload.status === 'awaiting_facility_assignment');
+      if (awaitingAssignmentRecords.length) {
+        const stagedFiles = awaitingAssignmentRecords.flatMap((record) => (record.upload.files || []).map((file) => ({ ...file, upload_id: record.upload.id })));
+        setUpload((current) => {
+          const filesByKey = new Map((current?.files || []).map((file) => [`${file.upload_id}-${file.file_index}`, file]));
+          stagedFiles.forEach((file) => filesByKey.set(`${file.upload_id}-${file.file_index}`, file));
+          return { upload_ids: [...new Set([...(current?.upload_ids || []), ...awaitingAssignmentRecords.map((record) => record.upload.id)])], files: Array.from(filesByKey.values()) };
+        });
+        const invoiceFiles = stagedFiles.filter((file) => (
+          file.preview_supported
+          && !file.facility_id
+          && !['cancelled', 'cancel_requested'].includes(file.status)
+        ));
+        if (invoiceFiles.length) {
+          setFacilityAssignmentFiles((current) => {
+            const currentKeys = current.map((file) => `${file.upload_id}-${file.file_index}`).join('|');
+            const incomingKeys = invoiceFiles.map((file) => `${file.upload_id}-${file.file_index}`).join('|');
+            return currentKeys === incomingKeys ? current : invoiceFiles;
+          });
+          setFacilityAssignmentOpen(true);
+        }
+      }
+      const terminalRecords = activeRecords.filter((record) => ['completed', 'failed', 'cancelled'].includes(record.upload.status));
+      const pendingIds = records.flatMap((record, index) => {
+        if (!record?.upload) return [activeExtractionIds[index]];
+        return ['completed', 'failed', 'cancelled', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
+      });
+      if (terminalRecords.length) {
+        const completedRecords = terminalRecords.filter((record) => record.upload.status === 'completed');
+        const completedFiles = completedRecords.flatMap((record) => (record.upload.files || [])
+          .filter((file) => file.status === 'completed')
+          .map((file) => ({ ...file, upload_id: record.upload.id })));
+        const completedItems = completedRecords.flatMap((record) => record.line_items || []);
+        if (completedFiles.length) {
+          setUpload((current) => {
+            const filesByKey = new Map((current?.files || []).map((file) => [`${file.upload_id}-${file.file_index}`, file]));
+            completedFiles.forEach((file) => filesByKey.set(`${file.upload_id}-${file.file_index}`, file));
+            return { upload_ids: [...new Set([...(current?.upload_ids || []), ...completedRecords.map((record) => record.upload.id)])], files: Array.from(filesByKey.values()) };
+          });
+          setItems((current) => {
+            const itemsById = new Map(current.map((item) => [item.id, item]));
+            completedItems.forEach((item) => itemsById.set(item.id, item));
+            return Array.from(itemsById.values());
+          });
+          setSelectedFile((current) => current);
+          setSelectedItem((current) => current || completedItems[0] || null);
+          toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
+        }
+        const newlyFailedIds = terminalRecords
+          .filter((record) => record.upload.status === 'failed')
+          .map((record) => record.upload.id)
+          .filter((uploadId) => sessionUploadIdsRef.current.has(uploadId));
+        if (newlyFailedIds.length) {
+          toast.error('An error occurred. Try again.');
+          setFailedExtractionIds((current) => {
+            return [...new Set([...current, ...newlyFailedIds])];
+          });
+          setError('An error occurred. Try again.');
+        }
+      }
+      const retainedIds = records.flatMap((record, index) => {
+        if (!record?.upload) return [activeExtractionIds[index]];
+        return ['failed', 'cancelled', 'resolved'].includes(record.upload.status) ? [] : [record.upload.id];
+      });
+      if (retainedIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retainedIds));
+      else localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds(pendingIds);
+      if (pendingIds.length) timer = setTimeout(pollUploads, 2000);
+    };
+    pollUploads();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [activeExtractionIds, getAuthHeader]);
 
-  const handleDragIn = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(true);
-  }, []);
+  useEffect(() => () => {
+    if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+  }, [facilityPreviewUrl]);
 
-  const handleDragOut = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-  }, []);
+  const selectedFileItems = useMemo(() => (
+    selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
+  ), [items, selectedFile]);
+  const sourceFiles = useMemo(() => upload?.files || [], [upload]);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFiles(files);
-    }
-  }, []);
-
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(Array.from(e.target.files));
+  const processFiles = async () => {
+    if (!files.length) return;
+    setProcessing(true);
+    setProgress(0);
+    setError('');
+    setStagedFileErrors({});
+    setFailedExtractionIds([]);
+    localStorage.removeItem('ocr-failed-upload-ids');
+    setFileQueue(files.map((file, index) => ({ id: `queued-${index}`, filename: file.name, status: 'queued' })));
+    let staged = false;
+    try {
+      const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
+      if (!data.files?.length) {
+        const message = data.errors?.[0]?.error || 'No invoice could be staged securely.';
+        setStagedFileErrors(fileErrorMap(files, data.errors, message));
+        setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed', error: data.errors?.find((entry) => entry.filename === file.name)?.error || message })));
+        setError(message);
+        return;
+      }
+      staged = true;
+      sessionUploadIdsRef.current.add(data.upload_id);
+      let existingIds = [];
+      try { existingIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { existingIds = []; }
+      const uploadIds = [...new Set([...existingIds, data.upload_id])];
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(uploadIds));
+      localStorage.removeItem('ocr-active-upload-id');
+      setActiveExtractionIds((current) => [...new Set([...current, data.upload_id])]);
+      const stagedFiles = data.files.map((file) => ({ ...file, upload_id: data.upload_id }));
+      setFileQueue([
+        ...data.files.map((file) => ({ id: `${data.upload_id}-${file.file_index}`, uploadId: data.upload_id, fileIndex: file.file_index, filename: file.filename, status: file.status, uploadStatus: data.status, error: file.error })),
+        ...(data.errors || []).map((entry, index) => ({ id: `${data.upload_id}-rejected-${index}`, filename: entry.filename, status: 'failed', error: entry.error, clientError: true })),
+      ]);
+      setUpload({ upload_ids: [data.upload_id], files: stagedFiles });
+      setSelectedFile(null);
+      const invoiceFiles = stagedFiles.filter((file) => (
+        file.preview_supported
+        && !file.facility_id
+        && !['cancelled', 'cancel_requested'].includes(file.status)
+      ));
+      if (invoiceFiles.length) {
+        setFacilityAssignmentFiles(invoiceFiles);
+        setFacilityAssignmentOpen(true);
+      }
+      toast.success(data.status === 'awaiting_facility_assignment'
+        ? `${data.file_count} source document${data.file_count === 1 ? '' : 's'} uploaded. Assign invoice facilities to begin extraction.`
+        : `${data.file_count} source document${data.file_count === 1 ? '' : 's'} queued for extraction.`);
+    } catch (requestError) {
+      const message = responseMessage(requestError, 'Files could not be queued for extraction.');
+      setError(message);
+      setStagedFileErrors(fileErrorMap(files, [], message));
+      setFileQueue(files.map((file, index) => ({ id: `failed-${index}`, filename: file.name, status: 'failed', error: message })));
+    } finally {
+      if (staged) setFiles([]);
+      setProcessing(false);
+      setProgress(0);
     }
   };
 
-  // ============================================================================
-  // File Upload Handler
-  // ============================================================================
+  const cancelProcessing = async () => {
+    if (!activeExtractionIds.length) return;
+    setCancellingQueue(true);
+    try {
+      const results = await Promise.allSettled(activeExtractionIds.map((uploadId) => cancelOcrUpload(uploadId, getAuthHeader())));
+      const cancelledIds = new Set(results.flatMap((result, index) => result.status === 'fulfilled' ? [activeExtractionIds[index]] : []));
+      if (!cancelledIds.size) throw new Error('The queued uploads finished before they could be cancelled.');
+      const remainingIds = activeExtractionIds.filter((uploadId) => !cancelledIds.has(uploadId));
+      if (remainingIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingIds));
+      else localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds(remainingIds);
+      setFileQueue((current) => current.map((file) => (
+        cancelledIds.has(file.uploadId) && ['queued', 'processing'].includes(file.status) ? { ...file, status: 'cancelled' } : file
+      )));
+      toast.success(`${cancelledIds.size} OCR batch${cancelledIds.size === 1 ? '' : 'es'} cancelled.`);
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'OCR processing could not be cancelled.'));
+    } finally {
+      setCancellingQueue(false);
+    }
+  };
 
-  const handleFiles = async (files) => {
-    // Filter valid files
-    const validFiles = files.filter(file => {
-      const ext = file.name.toLowerCase();
-      return ext.endsWith('.pdf') || ext.endsWith('.png') || 
-             ext.endsWith('.jpg') || ext.endsWith('.jpeg');
-    });
+  const resumeQueuedExtraction = async (uploadId) => {
+    setResumingQueue(true);
+    try {
+      await resumeOcrUpload(uploadId, getAuthHeader());
+      sessionUploadIdsRef.current.add(uploadId);
+      setFileQueue((current) => current.map((file) => (
+        file.uploadId === uploadId ? { ...file, uploadStatus: 'processing' } : file
+      )));
+      toast.success('Queued OCR extraction resumed.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This queued extraction could not be resumed.'));
+    } finally {
+      setResumingQueue(false);
+    }
+  };
 
-    if (validFiles.length === 0) {
-      toast.error('Please upload PDF or image files (PNG, JPG)');
+  const cancelInvoiceProcessing = async (file) => {
+    const uploadId = file?.uploadId || file?.upload_id;
+    const fileIndex = file?.fileIndex ?? file?.file_index;
+    const queueId = file?.id || `${uploadId}-${fileIndex}`;
+    if (!uploadId || fileIndex === undefined) return;
+    setCancellingFileIds((current) => [...new Set([...current, queueId])]);
+    try {
+      const { data } = await cancelOcrUploadFile(uploadId, fileIndex, getAuthHeader());
+      setFileQueue((current) => current.map((entry) => (
+        entry.id === queueId ? { ...entry, status: data.status } : entry
+      )));
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((entry) => (
+          entry.upload_id === uploadId && entry.file_index === fileIndex ? { ...entry, status: data.status } : entry
+        )),
+      } : current);
+      setFacilityAssignmentFiles((current) => current.filter((entry) => !(
+        entry.upload_id === uploadId && entry.file_index === fileIndex
+      )));
+      if (data.processing_started || data.upload_status === 'cancelled') {
+        setFacilityAssignmentOpen(false);
+        setFacilityAssignmentFiles([]);
+      }
+      toast.success(data.status === 'cancel_requested' ? 'Invoice cancellation requested.' : 'Invoice cancelled.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This invoice could not be cancelled.'));
+    } finally {
+      setCancellingFileIds((current) => current.filter((id) => id !== queueId));
+    }
+  };
+
+  const resumeCancelledSourceFile = async (file) => {
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    setRestartingSourceFileIds((current) => [...new Set([...current, fileId])]);
+    try {
+      const { data } = await resumeOcrUploadFile(file.upload_id, file.file_index, getAuthHeader());
+      sessionUploadIdsRef.current.add(file.upload_id);
+      const resumedFile = { ...file, status: 'queued' };
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((entry) => (
+          entry.upload_id === file.upload_id && entry.file_index === file.file_index ? resumedFile : entry
+        )),
+      } : current);
+      setFileQueue((current) => {
+        const next = current.map((entry) => (
+          entry.uploadId === file.upload_id && entry.fileIndex === file.file_index ? { ...entry, status: 'queued', uploadStatus: data.awaiting_facility_assignment ? 'awaiting_facility_assignment' : 'queued' } : entry
+        ));
+        return next.some((entry) => entry.id === fileId) ? next : [...next, { id: fileId, uploadId: file.upload_id, fileIndex: file.file_index, filename: file.filename, status: 'queued', uploadStatus: data.awaiting_facility_assignment ? 'awaiting_facility_assignment' : 'queued' }];
+      });
+      let storedIds = [];
+      try { storedIds = JSON.parse(localStorage.getItem('ocr-active-upload-ids') || '[]'); } catch { storedIds = []; }
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify([...new Set([...storedIds, file.upload_id])]));
+      setActiveExtractionIds((current) => [...new Set([...current, file.upload_id])]);
+      if (data.awaiting_facility_assignment) {
+        setFacilityAssignmentFiles([resumedFile]);
+        setFacilityAssignmentOpen(true);
+      }
+      toast.success(data.awaiting_facility_assignment ? 'Invoice restored. Assign its facility to begin extraction.' : 'Invoice queued for extraction.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This cancelled invoice could not be processed.'));
+    } finally {
+      setRestartingSourceFileIds((current) => current.filter((id) => id !== fileId));
+    }
+  };
+
+  const deleteCancelledSourceFile = async (file) => {
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    setDeletingSourceFileIds((current) => [...new Set([...current, fileId])]);
+    try {
+      const { data } = await deleteOcrUploadFile(file.upload_id, file.file_index, getAuthHeader());
+      const remainingFiles = (upload?.files || []).filter((entry) => !(entry.upload_id === file.upload_id && entry.file_index === file.file_index));
+      setUpload(remainingFiles.length ? { upload_ids: [...new Set(remainingFiles.map((entry) => entry.upload_id))], files: remainingFiles } : null);
+      setFileQueue((current) => current.filter((entry) => entry.id !== fileId));
+      setSelectedFile((current) => current?.upload_id === file.upload_id && current?.file_index === file.file_index ? remainingFiles[0] || null : current);
+      if (data.upload_deleted) {
+        setActiveExtractionIds((current) => current.filter((uploadId) => uploadId !== file.upload_id));
+      }
+      toast.success('Cancelled invoice removed.');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This cancelled invoice could not be deleted.'));
+    } finally {
+      setDeletingSourceFileIds((current) => current.filter((id) => id !== fileId));
+    }
+  };
+
+  const retryFailedProcessing = async () => {
+    if (!failedExtractionIds.length) return;
+    setRetryingQueue(true);
+    try {
+      const results = await Promise.allSettled(failedExtractionIds.map((uploadId) => retryOcrUpload(uploadId, getAuthHeader())));
+      const retriedIds = results.flatMap((result, index) => result.status === 'fulfilled' ? [failedExtractionIds[index]] : []);
+      if (!retriedIds.length) throw new Error('OCR extraction could not be restarted.');
+      const remainingFailedIds = failedExtractionIds.filter((uploadId) => !retriedIds.includes(uploadId));
+      setFailedExtractionIds(remainingFailedIds);
+      retriedIds.forEach((uploadId) => sessionUploadIdsRef.current.add(uploadId));
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(retriedIds));
+      setActiveExtractionIds((current) => [...new Set([...current, ...retriedIds])]);
+      setFileQueue((current) => current.map((file) => (
+        retriedIds.includes(file.uploadId) ? { ...file, status: 'queued' } : file
+      )));
+      setError('');
+      toast.success('OCR extraction restarted.');
+    } catch (requestError) {
+      setError(responseMessage(requestError, 'An error occurred. Try again.'));
+      toast.error('An error occurred. Try again.');
+    } finally {
+      setRetryingQueue(false);
+    }
+  };
+
+  const openSourceDocument = async (file) => {
+    if (!file.preview_supported) return;
+    const fileId = `${file.upload_id}-${file.file_index}`;
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      toast.error('Allow pop-ups to view this source document.');
       return;
     }
-
-    setError(null);
-    setIsUploading(true);
-    setUploadProgress(10);
-
-    const formData = new FormData();
-    validFiles.forEach(file => {
-      formData.append('files', file);
-    });
-
+    previewWindow.opener = null;
+    setOpeningSourceFileIds((current) => [...new Set([...current, fileId])]);
     try {
-      setUploadProgress(30);
-      
-      const response = await axios.post(`${API}/api/ocr-invoice/upload`, formData, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data'
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 50) / progressEvent.total) + 30;
-          setUploadProgress(Math.min(progress, 80));
-        }
-      });
+      const response = await loadOcrPreview(file.upload_id, file.file_index, getAuthHeader());
+      const sourceUrl = URL.createObjectURL(response.data);
+      previewWindow.location.href = sourceUrl;
+      window.setTimeout(() => URL.revokeObjectURL(sourceUrl), 60000);
+    } catch (requestError) {
+      previewWindow.close();
+      toast.error(responseMessage(requestError, 'Source document could not be opened.'));
+    } finally {
+      setOpeningSourceFileIds((current) => current.filter((id) => id !== fileId));
+    }
+  };
 
-      setUploadProgress(100);
+  const previewFacilityAssignmentFile = async (file) => {
+    const requestId = facilityPreviewRequestRef.current + 1;
+    facilityPreviewRequestRef.current = requestId;
+    setFacilityPreviewFile(file);
+    setFacilityPreviewLoading(true);
+    try {
+      const response = await loadOcrPreview(file.upload_id, file.file_index, getAuthHeader());
+      if (facilityPreviewRequestRef.current !== requestId) return;
+      if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+      setFacilityPreviewUrl(URL.createObjectURL(response.data));
+    } catch (requestError) {
+      if (facilityPreviewRequestRef.current === requestId) toast.error(responseMessage(requestError, 'Secure preview could not be loaded.'));
+    } finally {
+      if (facilityPreviewRequestRef.current === requestId) setFacilityPreviewLoading(false);
+    }
+  };
 
-      if (response.data.line_items) {
-        setCurrentUploadId(response.data.upload_id);
-        setLineItems(response.data.line_items);
-        toast.success(`Extracted ${response.data.total_line_items} line items from ${response.data.file_count} file(s)`);
-      } else {
-        toast.warning('No data extracted from the invoice(s)');
+  const hideFacilityAssignmentPreview = () => {
+    facilityPreviewRequestRef.current += 1;
+    if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+    setFacilityPreviewUrl(null);
+    setFacilityPreviewFile(null);
+    setFacilityPreviewLoading(false);
+  };
+
+  const saveFacilityAssignments = async (assignments) => {
+    const byUpload = assignments.reduce((groups, assignment) => {
+      groups[assignment.upload_id] = groups[assignment.upload_id] || [];
+      groups[assignment.upload_id].push({ file_index: assignment.file_index, facility_id: assignment.facility_id });
+      return groups;
+    }, {});
+    setFacilityAssignmentSaving(true);
+    try {
+      const assignmentRequests = Object.entries(byUpload);
+      const assignmentResponses = await Promise.all(assignmentRequests.map(([uploadId, uploadAssignments]) => (
+        assignOcrUploadFacilities(uploadId, uploadAssignments, getAuthHeader())
+      )));
+      const startedUploadIds = assignmentResponses
+        .map((response, index) => response.data?.processing_started ? assignmentRequests[index][0] : null)
+        .filter(Boolean);
+      if (startedUploadIds.length) {
+        setFileQueue((current) => current.map((file) => (
+          startedUploadIds.includes(file.uploadId) && file.status === 'queued' ? { ...file, status: 'processing' } : file
+        )));
       }
-    } catch (err) {
-      const errorMsg = err.response?.data?.error || err.message || 'Failed to process invoice';
-      setError(errorMsg);
-      toast.error(errorMsg);
+      const assignmentByFile = new Map(assignments.map((assignment) => [`${assignment.upload_id}-${assignment.file_index}`, assignment]));
+      const applyAssignment = (item) => {
+        const assignment = assignmentByFile.get(`${item.upload_id}-${item.file_index}`);
+        return assignment ? { ...item, current_values: { ...item.current_values, facility_id: assignment.facility_id, location: assignment.facility_name } } : item;
+      };
+      setItems((current) => current.map(applyAssignment));
+      setSelectedItem((current) => current ? applyAssignment(current) : current);
+      setUpload((current) => current ? {
+        ...current,
+        files: current.files.map((file) => {
+          const assignment = assignmentByFile.get(`${file.upload_id}-${file.file_index}`);
+          return assignment ? { ...file, facility_id: assignment.facility_id, facility_name: assignment.facility_name } : file;
+        }),
+      } : current);
+      setFacilityAssignmentOpen(false);
+      setFacilityAssignmentFiles([]);
+      setFacilityPreviewFile(null);
+      if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
+      setFacilityPreviewUrl(null);
+      toast.success('Invoice facilities assigned');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Invoice facilities could not be assigned.'));
     } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+      setFacilityAssignmentSaving(false);
     }
   };
 
-  // ============================================================================
-  // Edit Handlers
-  // ============================================================================
-
-  const openEditModal = (item) => {
-    setEditingItem(item);
-    setEditFormData({
-      invoice_number: item.current_values?.invoice_number || '',
-      vendor_name: item.current_values?.vendor_name || '',
-      scope: item.current_values?.scope || 'scope1',
-      category: item.current_values?.category || '',
-      subcategory: item.current_values?.subcategory || '',
-      fuel_name: item.current_values?.fuel_name || '',
-      quantity: item.current_values?.quantity || '',
-      unit: item.current_values?.unit || '',
-      cost: item.current_values?.cost || '',
-      currency: item.current_values?.currency || '',
-      billing_period_start: item.current_values?.billing_period_start || '',
-      billing_period_end: item.current_values?.billing_period_end || '',
-      billing_period_text: item.current_values?.billing_period_text || ''
-    });
-    setEditModalOpen(true);
+  const chooseFile = (file) => {
+    setSelectedFile(file);
+    setSelectedItem(items.find((item) => item.upload_id === file.upload_id && item.file_index === file.file_index) || null);
   };
 
-  const handleEditSave = async () => {
+  const saveEdit = async (values) => {
     if (!editingItem) return;
-    
-    setIsSavingEdit(true);
+    setSaving(true);
     try {
-      const response = await axios.put(
-        `${API}/api/ocr-invoice/line-items/${editingItem.id}`,
-        editFormData,
-        { headers: getAuthHeader() }
-      );
-
-      // Update local state
-      setLineItems(prev => prev.map(item => 
-        item.id === editingItem.id ? response.data.line_item : item
-      ));
-
-      toast.success('Line item updated');
-      setEditModalOpen(false);
+      const { data } = await updateOcrLineItem(editingItem.id, values, getAuthHeader());
+      setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
+      setSelectedItem(data.line_item);
       setEditingItem(null);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to save changes');
+      setEditingRequiredFields([]);
+      toast.success(values.remember_override ? 'Changes saved and vendor mapping remembered' : 'Changes saved');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Changes could not be saved.'));
     } finally {
-      setIsSavingEdit(false);
+      setSaving(false);
     }
   };
 
-  // ============================================================================
-  // Accept Handlers
-  // ============================================================================
+  const saveAutomaticFactorMatch = useCallback(async (values) => {
+    if (!editingItem) return;
+    const { data } = await updateOcrLineItem(editingItem.id, values, getAuthHeader());
+    setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
+    setSelectedItem(data.line_item);
+    setEditingItem(data.line_item);
+    setEditingRequiredFields((current) => current.filter((field) => field !== 'factor_id'));
+  }, [editingItem, getAuthHeader]);
 
-  const handleAccept = async (item) => {
-    setAcceptingItem(item);
-    setIsAccepting(true);
-
+  const acceptItem = async (item) => {
+    setAcceptingId(item.id);
     try {
-      const response = await axios.post(
-        `${API}/api/ocr-invoice/line-items/${item.id}/accept`,
-        {},
-        { headers: getAuthHeader() }
-      );
-
-      const prefillData = response.data.prefill_data;
-
-      // Update local state
-      setLineItems(prev => prev.map(li => 
-        li.id === item.id ? { ...li, status: 'accepted' } : li
-      ));
-
-      // Store in OCR context for emission form
-      setOcrAcceptedData(prefillData);
-
-      toast.success('Line item accepted. Opening emission form...');
-
-      // Navigate to GHG emissions page with correct scope route
-      const scopeRoute = prefillData.scope || 'scope1';
-      setTimeout(() => {
-        navigate(`/ghg/${scopeRoute}`, { state: { openAddForm: true, ocrPrefill: prefillData } });
-      }, 500);
-
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to accept line item');
+      if (item.current_values?.scope === 'water') {
+        const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
+        setItems((current) => current.map((row) => row.id === item.id ? { ...row, status: 'accepted' } : row));
+        toast.success('Water activity accepted. Opening the Water metric form.');
+        navigate('/environment/water?tab=add-metric', { state: { openWaterForm: true, ocrWaterPrefill: data.prefill_data } });
+      } else {
+        const { data: savedData } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
+        const remainingItems = items.filter((row) => row.id !== item.id);
+        setItems(remainingItems);
+        setSelectedItem(remainingItems.find((row) => row.upload_id === item.upload_id && row.file_index === item.file_index) || remainingItems[0] || null);
+        if (savedData.file_completed) {
+          const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === item.upload_id && file.file_index === item.file_index));
+          const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
+          setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
+          setSelectedFile(remainingFiles[0] || null);
+          setFileQueue((current) => remainingFiles.length
+            ? current.filter((file) => !(file.uploadId === item.upload_id && file.fileIndex === item.file_index))
+            : []);
+          if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+          else {
+            localStorage.removeItem('ocr-active-upload-ids');
+            setActiveExtractionIds([]);
+            setFailedExtractionIds([]);
+            setSelectedItem(null);
+            setError('');
+          }
+        }
+        toast.success(
+          savedData.evidence_not_required
+            ? 'GHG entry saved.'
+            : savedData.evidence_attached
+              ? 'GHG entry calculated and saved'
+              : 'GHG entry saved; evidence transfer is pending retry'
+        );
+      }
+    } catch (requestError) {
+      if (requestError?.response?.status === 400) {
+        setEditingRequiredFields(directGhgMissingFields(item.current_values));
+        setEditingItem(item);
+      }
+      toast.error(responseMessage(requestError, 'This GHG entry could not be calculated and saved.'));
     } finally {
-      setIsAccepting(false);
-      setAcceptingItem(null);
+      setAcceptingId(null);
     }
   };
 
-  // ============================================================================
-  // Delete Upload Handler
-  // ============================================================================
-
-  const handleDeleteUpload = async () => {
-    if (!currentUploadId) return;
-
+  const rejectItem = async () => {
+    if (!rejectingItem) return;
+    setRejectingId(rejectingItem.id);
     try {
-      await axios.delete(
-        `${API}/api/ocr-invoice/uploads/${currentUploadId}`,
-        { headers: getAuthHeader() }
-      );
-
-      setCurrentUploadId(null);
-      setLineItems([]);
-      toast.success('Upload deleted');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete upload');
+      const { data } = await rejectOcrLineItem(rejectingItem.id, getAuthHeader());
+      const remainingItems = items.filter((item) => item.id !== rejectingItem.id);
+      setItems(remainingItems);
+      setSelectedItem(remainingItems.find((item) => item.upload_id === rejectingItem.upload_id && item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
+      if (data.file_completed) {
+        const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === rejectingItem.upload_id && file.file_index === rejectingItem.file_index));
+        const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
+        setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
+        setSelectedFile(remainingFiles[0] || null);
+        setFileQueue((current) => remainingFiles.length
+          ? current.filter((file) => !(file.uploadId === rejectingItem.upload_id && file.fileIndex === rejectingItem.file_index))
+          : []);
+        if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+        else {
+          localStorage.removeItem('ocr-active-upload-ids');
+          setActiveExtractionIds([]);
+          setFailedExtractionIds([]);
+          setSelectedItem(null);
+          setError('');
+        }
+      }
+      setRejectingItem(null);
+      toast.success(data.upload_completed ? 'All extracted rows have been resolved' : 'Row rejected and removed');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'This row could not be rejected.'));
+    } finally {
+      setRejectingId(null);
     }
   };
 
-  // ============================================================================
-  // Render Helpers
-  // ============================================================================
-
-  const formatPeriod = (item) => {
-    const cv = item.current_values || {};
-    if (cv.billing_period_text) return cv.billing_period_text;
-    if (cv.billing_period_start && cv.billing_period_end) {
-      return `${cv.billing_period_start} - ${cv.billing_period_end}`;
+  const removeResolvedRows = (resolvedRows) => {
+    if (!resolvedRows.length) return;
+    const resolvedIds = new Set(resolvedRows.map(({ item }) => item.id));
+    const completedFileKeys = new Set(resolvedRows
+      .filter(({ data }) => data.file_completed)
+      .map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const remainingFiles = (upload?.files || []).filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
+    const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
+    setItems((current) => current.filter((item) => !resolvedIds.has(item.id)));
+    setSelectedItem((current) => resolvedIds.has(current?.id) ? null : current);
+    setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
+    setFileQueue((current) => remainingFiles.length
+      ? current.filter((file) => !completedFileKeys.has(`${file.uploadId}-${file.fileIndex}`))
+      : []);
+    if (remainingUploadIds.length) {
+      localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
+    } else {
+      localStorage.removeItem('ocr-active-upload-ids');
+      setActiveExtractionIds([]);
+      setFailedExtractionIds([]);
+      setSelectedFile(null);
+      setSelectedItem(null);
+      setError('');
     }
-    if (cv.billing_period_start) return cv.billing_period_start;
-    return 'N/A';
   };
 
-  const renderStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending_review;
-    const Icon = config.icon;
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${config.color}`}>
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </span>
-    );
+  const saveRowsToGhg = async (rows) => {
+    const pendingRows = rows.filter((item) => item.status !== 'imported' && item.current_values?.scope !== 'water');
+    if (!pendingRows.length) return;
+    setBulkSaving(true);
+    const resolvedRows = [];
+    const failedRows = [];
+    for (const item of pendingRows) {
+      try {
+        const { data } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
+        resolvedRows.push({ item, data });
+      } catch (requestError) {
+        failedRows.push(item);
+      }
+    }
+    removeResolvedRows(resolvedRows);
+    if (resolvedRows.length) toast.success(`${resolvedRows.length} row${resolvedRows.length === 1 ? '' : 's'} saved to GHG.`);
+    if (failedRows.length) toast.error(`${failedRows.length} row${failedRows.length === 1 ? '' : 's'} could not be saved. Review them individually.`);
+    setBulkSaving(false);
   };
 
-  // ============================================================================
-  // Render
-  // ============================================================================
+  const requestBulkReject = (rows) => {
+    const pendingRows = rows.filter((item) => item.status !== 'imported');
+    if (pendingRows.length) setBulkRejectRows(pendingRows);
+  };
+
+  const rejectRows = async () => {
+    if (!bulkRejectRows.length) return;
+    setBulkRejecting(true);
+    const resolvedRows = [];
+    const failedRows = [];
+    for (const item of bulkRejectRows) {
+      try {
+        const { data } = await rejectOcrLineItem(item.id, getAuthHeader());
+        resolvedRows.push({ item, data });
+      } catch (requestError) {
+        failedRows.push(item);
+      }
+    }
+    removeResolvedRows(resolvedRows);
+    setBulkRejectRows([]);
+    if (resolvedRows.length) toast.success(`${resolvedRows.length} row${resolvedRows.length === 1 ? '' : 's'} rejected.`);
+    if (failedRows.length) toast.error(`${failedRows.length} row${failedRows.length === 1 ? '' : 's'} could not be rejected.`);
+    setBulkRejecting(false);
+  };
+
+  const downloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const response = await downloadOcrTemplate(getAuthHeader());
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ocr_activity_template.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('OCR spreadsheet template downloaded');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'The OCR spreadsheet template could not be downloaded.'));
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  const clearUpload = async () => {
+    if (!upload?.upload_ids?.length) return;
+    try {
+      await Promise.all(upload.upload_ids.map((uploadId) => deleteOcrUpload(uploadId, getAuthHeader())));
+      localStorage.removeItem('ocr-active-upload-id');
+      localStorage.removeItem('ocr-active-upload-ids');
+      setUpload(null); setItems([]); setSelectedFile(null); setSelectedItem(null); setFileQueue([]); setActiveExtractionIds([]); setFailedExtractionIds([]); setFacilityAssignmentOpen(false); setFacilityAssignmentFiles([]); setError('');
+      toast.success('Extraction workspace cleared');
+    } catch (requestError) {
+      toast.error(responseMessage(requestError, 'Workspace could not be cleared.'));
+    }
+  };
+
+  const openHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const { data } = await getOcrUploadHistory(getAuthHeader());
+      setHistory(data.history || []);
+    } catch (requestError) {
+      setHistoryError(responseMessage(requestError, 'OCR history could not be loaded.'));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   return (
-    <div className="space-y-6" data-testid="ocr-invoice-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">
-            AI Invoice Extractor
-          </h1>
-          <p className="text-text-muted mt-1">
-            Upload invoices to auto-fill emission entries. Review, edit, and import with confidence.
-          </p>
-        </div>
-        {lineItems.length > 0 && (
-          <Button 
-            variant="outline" 
-            onClick={handleDeleteUpload}
-            className="text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Clear All
-          </Button>
-        )}
-      </div>
+    <main className="mx-auto w-full max-w-[1700px] space-y-6 pb-12" data-testid="ocr-invoice-page">
+      <ModulePageHeader
+        title="OCR Extraction"
+        icon={FileText}
+        iconClassName="border-teal-200 bg-teal-50 text-teal-700"
+        testId="ocr-invoice"
+        aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
+          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
+          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
+          {upload && <>
+            <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+          </>}
+        </div>}
+      />
 
-      {/* Upload Zone - Show when no results */}
-      {!isUploading && lineItems.length === 0 && (
-        <Card 
-          className={`p-12 border-2 border-dashed transition-all cursor-pointer ${
-            isDragActive 
-              ? 'border-primary bg-primary/5' 
-              : 'border-border hover:border-primary/50 hover:bg-gray-50'
-          }`}
-          data-testid="ocr-drop-zone"
-          onDragEnter={handleDragIn}
-          onDragLeave={handleDragOut}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="flex flex-col items-center text-center">
-            <div className={`p-4 rounded-full mb-4 ${isDragActive ? 'bg-primary/10' : 'bg-gray-100'}`}>
-              <Upload className={`w-10 h-10 ${isDragActive ? 'text-primary' : 'text-text-muted'}`} />
-            </div>
-            <h2 className="text-lg font-semibold text-text-primary mb-2">
-              Drag & Drop your invoices here
-            </h2>
-            <p className="text-text-muted text-sm mb-4">
-              Supports multiple files: PDF, PNG, JPG (Max 20MB each)
-            </p>
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              className="hidden" 
-              accept=".pdf,.png,.jpg,.jpeg"
-              multiple
-              onChange={handleFileInput}
-              data-testid="ocr-file-input"
-            />
-            <Button data-testid="ocr-browse-btn">
-              <FileText className="w-4 h-4 mr-2" />
-              Browse Files
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Error Message */}
       {error && (
-        <Card className="p-4 bg-red-50 border-red-200">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-red-700 text-sm flex-1">{error}</p>
-            <Button variant="outline" size="sm" onClick={() => setError(null)}>
-              Dismiss
+        <div className="flex items-start gap-3 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert" data-testid="ocr-error-alert">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">{error}</span>
+          {failedExtractionIds.length ? (
+            <Button type="button" size="sm" variant="outline" onClick={retryFailedProcessing} disabled={retryingQueue} data-testid="ocr-retry-failed-button">
+              <RefreshCw className={`mr-2 h-4 w-4 ${retryingQueue ? 'animate-spin' : ''}`} />{retryingQueue ? 'Retrying' : 'Try again'}
             </Button>
-          </div>
-        </Card>
+          ) : <button type="button" onClick={() => setError('')} className="font-semibold underline" data-testid="ocr-dismiss-error-button">Dismiss</button>}
+        </div>
       )}
 
-      {/* Uploading State */}
-      {isUploading && (
-        <Card className="p-12">
-          <div className="flex flex-col items-center text-center">
-            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-            <p className="text-text-primary font-medium">Processing invoices with AI...</p>
-            <p className="text-text-muted text-sm mt-1">This may take a few moments</p>
-            <div className="w-64 h-2 bg-gray-200 rounded-full mt-4 overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Results Table */}
-      {lineItems.length > 0 && (
-        <Card className="overflow-hidden" data-testid="ocr-results">
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-text-primary">
-                Extracted Line Items
-              </h2>
-              <p className="text-sm text-text-muted">
-                {lineItems.length} item{lineItems.length !== 1 ? 's' : ''} • 
-                {lineItems.filter(i => i.status === 'pending_review' || i.status === 'edited').length} pending • 
-                {lineItems.filter(i => i.status === 'accepted').length} accepted • 
-                {lineItems.filter(i => i.status === 'imported').length} imported
-              </p>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Add More
-            </Button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Invoice #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Vendor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Fuel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Scope</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Quantity</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Confidence</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {lineItems.map((item) => {
-                  const cv = item.current_values || {};
-                  const isImported = item.status === 'imported';
-                  
+      {!upload ? (
+        <div className="w-full">
+          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <section className="space-y-5" aria-labelledby="ocr-source-heading" data-testid="ocr-source-workspace">
+            <aside className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
+                <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
+              </div>
+              <div className="flex flex-wrap gap-3" data-testid="ocr-source-file-list">
+                <button type="button" onClick={() => { setSelectedFile(null); setSelectedItem(null); }} aria-pressed={!selectedFile} className={`flex w-full min-w-0 items-center gap-3 border px-3 py-3 text-left transition-colors sm:w-[12rem] ${!selectedFile ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid="ocr-source-file-select-all">
+                  <FileText className="h-4 w-4 shrink-0 text-emerald-700" /><span><span className="block text-sm font-medium text-slate-900">All</span><span className="mt-1 block text-xs text-slate-500">{items.length} rows</span></span>
+                </button>
+                {sourceFiles.map((file) => {
+                  const fileId = `${file.upload_id}-${file.file_index}`;
+                  const isCancelled = file.status === 'cancelled';
+                  const isOpening = openingSourceFileIds.includes(fileId);
+                  const isRestarting = restartingSourceFileIds.includes(fileId);
+                  const isDeleting = deletingSourceFileIds.includes(fileId);
+                  const isSelected = selectedFile?.upload_id === file.upload_id && selectedFile?.file_index === file.file_index;
                   return (
-                    <tr 
-                      key={item.id} 
-                      className={`hover:bg-gray-50 ${item.needs_review && item.status !== 'imported' ? 'bg-yellow-50/50' : ''}`}
-                    >
-                      <td className="px-4 py-3 text-sm">{cv.invoice_number || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">{cv.vendor_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{cv.fuel_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">{cv.category || 'Unknown'}</td>
-                      <td className="px-4 py-3 text-sm capitalize">{cv.scope?.replace('scope', 'Scope ') || 'N/A'}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {cv.quantity ? `${cv.quantity} ${cv.unit || ''}` : 'N/A'}
-                        {!cv.unit_matched && cv.unit && (
-                          <span className="block text-xs text-orange-600">Unit needs mapping</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm">{formatPeriod(item)}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {item.confidence_score ? `${item.confidence_score}%` : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {renderStatusBadge(item.status)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {!isImported && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openEditModal(item)}
-                                data-testid={`edit-btn-${item.id}`}
-                              >
-                                <Edit3 className="w-3 h-3 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleAccept(item)}
-                                disabled={isAccepting && acceptingItem?.id === item.id}
-                                data-testid={`accept-btn-${item.id}`}
-                              >
-                                {isAccepting && acceptingItem?.id === item.id ? (
-                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                ) : (
-                                  <Check className="w-3 h-3 mr-1" />
-                                )}
-                                Accept
-                              </Button>
-                            </>
-                          )}
-                          {isImported && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => navigate('/emissions')}
-                            >
-                              <ExternalLink className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                    <article key={`${fileId}-${file.filename}`} className={`flex w-full min-w-0 items-center gap-3 border px-3 py-3 sm:w-[19rem] ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`} data-testid={`ocr-source-file-${fileId}`}>
+                      <button type="button" onClick={() => chooseFile(file)} className="flex min-w-0 flex-1 items-start gap-3 text-left" aria-pressed={isSelected} data-testid={`ocr-source-file-select-${fileId}`}>
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{file.filename}</span><span className={`mt-1 block text-xs ${isCancelled ? 'text-red-700' : 'text-slate-500'}`}>{file.line_item_count || 0} rows · {file.status}</span></span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {file.preview_supported && <Button type="button" size="icon" variant="ghost" onClick={() => openSourceDocument(file)} disabled={isOpening} aria-label={`View ${file.filename}`} data-testid={`ocr-source-file-view-${fileId}`}>{isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}</Button>}
+                        {isCancelled && <Button type="button" size="sm" variant="ghost" onClick={() => resumeCancelledSourceFile(file)} disabled={isRestarting || isDeleting} className="h-8 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800" data-testid={`ocr-source-file-process-${fileId}`}>{isRestarting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}Process</Button>}
+                        {isCancelled && <Button type="button" size="icon" variant="ghost" onClick={() => deleteCancelledSourceFile(file)} disabled={isRestarting || isDeleting} aria-label={`Delete ${file.filename}`} className="text-red-700 hover:bg-red-50 hover:text-red-800" data-testid={`ocr-source-file-delete-${fileId}`}>{isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button>}
+                      </div>
+                    </article>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </aside>
+          </section>
 
-          {/* Legend */}
-          <div className="p-4 border-t border-border bg-gray-50 flex gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-yellow-400"></span>
-              <span className="text-text-muted">Pending Review</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-400"></span>
-              <span className="text-text-muted">Edited</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-500"></span>
-              <span className="text-text-muted">Accepted</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-gray-400"></span>
-              <span className="text-text-muted">Imported</span>
-            </div>
-          </div>
-        </Card>
+          {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested', 'failed'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
+
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(!selectedFile || !selectedFile.preview_supported)} />
+
+        </div>
       )}
 
-      {/* Edit Modal */}
-      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Line Item</DialogTitle>
-            <DialogDescription>
-              Update the extracted values. Original OCR data is preserved for audit.
-            </DialogDescription>
-          </DialogHeader>
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoice_number">Invoice Number</Label>
-              <Input
-                id="invoice_number"
-                value={editFormData.invoice_number}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, invoice_number: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vendor_name">Vendor</Label>
-              <Input
-                id="vendor_name"
-                value={editFormData.vendor_name}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, vendor_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scope">Scope</Label>
-              <Select
-                value={editFormData.scope}
-                onValueChange={(value) => setEditFormData(prev => ({ ...prev, scope: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select scope" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scope1">Scope 1</SelectItem>
-                  <SelectItem value="scope2">Scope 2</SelectItem>
-                  <SelectItem value="scope3">Scope 3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={editFormData.category}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, category: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subcategory">Subcategory</Label>
-              <Input
-                id="subcategory"
-                value={editFormData.subcategory}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, subcategory: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fuel_name">Fuel Name</Label>
-              <Input
-                id="fuel_name"
-                value={editFormData.fuel_name}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, fuel_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="any"
-                value={editFormData.quantity}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || '' }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                value={editFormData.unit}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, unit: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="billing_period_start">Period Start</Label>
-              <Input
-                id="billing_period_start"
-                type="date"
-                value={editFormData.billing_period_start}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_start: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="billing_period_end">Period End</Label>
-              <Input
-                id="billing_period_end"
-                type="date"
-                value={editFormData.billing_period_end}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_end: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="billing_period_text">Period Text (Optional)</Label>
-              <Input
-                id="billing_period_text"
-                placeholder="e.g., Q1 2024, FY 2023-24"
-                value={editFormData.billing_period_text}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, billing_period_text: e.target.value }))}
-              />
-            </div>
-          </div>
+      <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onCancelFile={cancelInvoiceProcessing} cancellingFileIds={cancellingFileIds} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
+      <OcrHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} history={history} loading={historyLoading} error={historyError} />
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditSave} disabled={isSavingEdit}>
-              {isSavingEdit && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
+        <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject this extracted row?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The row will be removed from the OCR queue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(rejectingId)} data-testid="ocr-reject-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={rejectItem} disabled={Boolean(rejectingId)} className="bg-red-700 hover:bg-red-800" data-testid="ocr-reject-confirm-button">
+              {rejectingId ? 'Rejecting…' : 'Reject row'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={bulkRejectRows.length > 0} onOpenChange={(open) => { if (!open && !bulkRejecting) setBulkRejectRows([]); }}>
+        <AlertDialogContent data-testid="ocr-bulk-reject-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="ocr-bulk-reject-confirmation-title">Reject {bulkRejectRows.length} selected row{bulkRejectRows.length === 1 ? '' : 's'}?</AlertDialogTitle>
+            <AlertDialogDescription data-testid="ocr-bulk-reject-confirmation-description">Rejected rows are removed from this OCR review queue.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkRejecting} data-testid="ocr-bulk-reject-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={rejectRows} disabled={bulkRejecting} className="bg-red-700 hover:bg-red-800" data-testid="ocr-bulk-reject-confirm-button">{bulkRejecting ? 'Rejecting…' : 'Reject rows'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </main>
   );
 }

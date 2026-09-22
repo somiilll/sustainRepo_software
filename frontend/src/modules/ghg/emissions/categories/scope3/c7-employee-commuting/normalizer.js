@@ -28,6 +28,7 @@ const normalizeEmployee = (apiEmployee) => {
               inputs: data?.inputs || {},
               emissions: data?.emissions || {},
               calculation_details: data?.calculation_details || null,
+              evidences: data?.evidences || [],
             }
           ])
         )
@@ -40,6 +41,7 @@ const normalizeEmployee = (apiEmployee) => {
           emissions: apiEmployee.yearly_data.emissions || apiEmployee.emissions || {},
           calculation_details: apiEmployee.yearly_data.calculation_details || 
                                apiEmployee.calculation_details || null,
+          evidences: apiEmployee.yearly_data.evidences || apiEmployee.evidences || [],
         }
       : null,
   };

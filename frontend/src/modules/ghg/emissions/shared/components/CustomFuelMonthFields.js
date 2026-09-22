@@ -109,7 +109,22 @@ const CustomFuelMonthFields = ({
   const shouldShowDensity = hasDensitySourceValue && densityRequirement.required;
 
   useEffect(() => {
+    if (calculationMethodology === 'using_qty_basis_ef' && !data.custom_ef_unit) {
+      updateMonthData(monthKey, 'custom_ef_unit', 'kgCO2/kg');
+    }
+  }, [calculationMethodology, data.custom_ef_unit, monthKey, updateMonthData]);
+
+  useEffect(() => {
     if (isFugitiveCustomFuel) return;
+    if (!densityRequirement.required) {
+      if (data.density !== undefined && data.density !== '' && data.density !== null) {
+        updateMonthData(monthKey, 'density', '');
+      }
+      if (data.density_unit !== undefined && data.density_unit !== '' && data.density_unit !== null) {
+        updateMonthData(monthKey, 'density_unit', '');
+      }
+      return;
+    }
     if (!hasDensitySourceValue || !densityRequirement.required || !densityRequirement.densityUnit) return;
     const currentDensityUnit = data.density_unit || '';
     if (currentDensityUnit === densityRequirement.densityUnit) return;
@@ -144,9 +159,6 @@ const CustomFuelMonthFields = ({
           unitTestId={`month-${monthKey}-density-unit`}
           annualRow={isYearlyEntry}
         />
-        <p className="text-xs text-amber-700" data-testid={`month-${monthKey}-density-conversion-hint`}>
-          Conversion required: {qtyUnit} → {referenceUnit}
-        </p>
       </div>
     );
   };
@@ -234,8 +246,15 @@ const CustomFuelMonthFields = ({
             <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Carbon Content (%) <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="100"
-              value={data.custom_carbon_content || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_carbon_content', e.target.value)}
+              required
+              value={data.custom_carbon_content ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsedValue = Number.parseFloat(value);
+                if (value === '' || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 100)) {
+                  updateMonthData(monthKey, 'custom_carbon_content', value);
+                }
+              }}
               placeholder="e.g. 85" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-carbon-content`}
             />
@@ -244,8 +263,15 @@ const CustomFuelMonthFields = ({
             <Label className={isYearlyEntry ? 'mb-2 flex min-h-6 items-center justify-center text-center text-xs leading-snug' : 'text-xs'}>Oxidation Factor <span className="text-red-500">*</span></Label>
             <Input
               type="number" step="any" min="0" max="1"
-              value={data.custom_oxidation_factor || ''}
-              onChange={(e) => updateMonthData(monthKey, 'custom_oxidation_factor', e.target.value)}
+              required
+              value={data.custom_oxidation_factor ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsedValue = Number.parseFloat(value);
+                if (value === '' || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1)) {
+                  updateMonthData(monthKey, 'custom_oxidation_factor', value);
+                }
+              }}
               placeholder="e.g. 1" className={`bg-white text-sm ${isYearlyEntry ? 'h-10' : 'h-9'}`}
               data-testid={`month-${monthKey}-custom-oxidation-factor`}
             />

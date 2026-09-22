@@ -8,9 +8,10 @@
  * The parent (EmissionEntryForm) manages all state and callbacks.
  */
 
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
+import { Button } from '../../../../../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
 import { Info, Upload, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,6 +24,11 @@ import MultiEmployeeInput from '../../../../../../components/MultiEmployeeInput'
 
 // Import month constants
 import { MONTHS } from '../../../../../../constants/months';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../../utils/reportingPeriodDays';
 
 // Static help text shown next to specific dynamic field labels. Keyed by
 // `field.variable` so it matches regardless of how the label is worded.
@@ -40,6 +46,7 @@ const FUEL_DEFAULT_VALUE_KEYS = {
   ch4_ef: 'emission_factor_ch4',
   n2o_ef: 'emission_factor_n2o',
   emission_factor_basis_quantity: 'emission_factor_basis_quantity',
+  ef_quantity_electricity_co2: 'emission_factor_basis_quantity',
   co2_gwp_fugitives: 'gwp_fugitives',
 };
 
@@ -47,9 +54,18 @@ const FUEL_DEFAULT_UNIT_KEYS = {
   cv: 'calorific_value_unit',
   density: 'density_unit',
   emission_factor_basis_quantity: 'emission_factor_basis_unit',
+  ef_quantity_electricity_co2: 'emission_factor_basis_unit',
 };
 
 const hasFieldValue = (value) => value !== undefined && value !== null && value !== '';
+
+const isPureUnitlessCountField = (field = {}) => (
+  field.unitSource === 'none'
+  && !field.validationRules?.max
+  && !field.variable?.includes('factor')
+  && !field.variable?.includes('carbon')
+  && !field.variable?.includes('composition')
+);
 
 const getFieldDefaultValue = (field, selectedFuel) => {
   if (hasFieldValue(field.defaultValue)) return field.defaultValue;
@@ -76,9 +92,30 @@ const isEfField = (field = {}) => {
 
 const isCarbonContentField = (field = {}) => {
   const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
-  return /carbon.*content|composition.*carbon/i.test(identity)
-    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+  return /carbon.*(?:content|composition)|composition.*carbon/i.test(identity)
+    || /carbon.*(?:content|composition)|composition.*carbon/i.test(field.label || '');
 };
+
+const isFloorAreaShareField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+};
+
+const isInvestmentPercentageField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+};
+
+const isPercentageRangeField = (field = {}) => (
+  isCarbonContentField(field)
+  || isFloorAreaShareField(field)
+  || isInvestmentPercentageField(field)
+);
+
+const hasStoredFieldValue = (data = {}, field = {}) => (
+  Object.prototype.hasOwnProperty.call(data, field.variable)
+  || Object.prototype.hasOwnProperty.call(data, field.fieldKey)
+);
 
 const getMonthlyFieldValue = (field = {}, data = {}) => {
   const valueKey = field.valueKey || field.variable || field.fieldKey;
@@ -105,13 +142,11 @@ const resolveEffectiveFieldUnit = ({
   if (!field) return '';
   const valueKey = field.valueKey || field.variable || field.fieldKey;
   const unitKey = field.unitKey || `${valueKey}_unit`;
-  const storedValue = getMonthlyFieldValue(field, data) ?? '';
-  const defaultValue = getFieldDefaultValue(field, selectedFuel);
   const storedUnit = data[unitKey]
     || (!isProcessEmissions ? data.unit : '')
     || '';
   const defaultUnit = field.defaultUnit || getFieldDefaultUnit(field, selectedFuel, fieldUnits);
-  return !hasFieldValue(storedValue) ? defaultUnit : (storedUnit || defaultUnit);
+  return storedUnit || defaultUnit;
 };
 
 /** Keep the unit stored in monthly row state identical to the unit shown by the selector. */
@@ -131,11 +166,8 @@ const resolveMonthlyFieldUnit = ({
   });
   const valueKey = field?.valueKey || field?.variable || field?.fieldKey;
   const unitKey = field?.unitKey || `${valueKey}_unit`;
-  const storedValue = getMonthlyFieldValue(field, data);
   return resolveMonthlySelectableUnit({
-    storedUnit: hasFieldValue(storedValue)
-      ? data[unitKey] || (!isProcessEmissions ? data.unit : '') || ''
-      : '',
+    storedUnit: data[unitKey] || (!isProcessEmissions ? data.unit : '') || '',
     configuredUnit: effectiveUnit,
     allowedUnits: fieldUnits,
   });
@@ -176,7 +208,7 @@ const EvidenceIconCell = ({
           <TooltipTrigger asChild>
             <label
               htmlFor={`evidence-${monthKey}`}
-              className={`relative inline-flex cursor-pointer items-center justify-center rounded-md text-stone-500 transition-colors hover:bg-stone-100 hover:text-emerald-600 ${showLabel ? 'h-10 gap-2 border border-stone-200 bg-white px-3 text-sm font-medium' : 'h-8 w-8'}`}
+              className={`relative inline-flex cursor-pointer items-center justify-center rounded-md border border-stone-200 bg-white text-stone-900 transition-colors hover:bg-white hover:text-stone-900 ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'}`}
               data-testid={`month-${monthKey}-evidence-upload-trigger`}
             >
               <Upload className="h-4 w-4" />
@@ -188,9 +220,9 @@ const EvidenceIconCell = ({
               )}
             </label>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="max-w-xs">
+          <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
             {count === 0 ? (
-              <span className="text-xs">Upload evidence (PDF, image, Excel, Word)</span>
+              <span className="text-xs">Upload evidence (PDF, Excel, Word)</span>
             ) : (
               <div className="space-y-1.5 text-xs">
                 <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
@@ -201,7 +233,7 @@ const EvidenceIconCell = ({
                   return (
                     <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
                       <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-white underline decoration-white/70 underline-offset-2 transition-colors hover:text-white/85" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
                         {evidence.filename}
                       </a>
                       <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>
@@ -210,7 +242,7 @@ const EvidenceIconCell = ({
                     </div>
                   );
                 })}
-                <span className="text-stone-400">Click icon to add more</span>
+                <span className="text-stone-500">Click icon to add more</span>
               </div>
             )}
           </TooltipContent>
@@ -249,24 +281,15 @@ const getCustomFuelLedgerColumns = (calculationMethodology, isFugitiveCustomFuel
 const deriveLedgerColumns = (
   dynamicInputFields,
   formConfig,
-  isProcessEmissions,
-  selectedTemplate,
   useCustomFuel,
   calculationMethodology,
   isFugitiveCustomFuel,
+  scope,
 ) => {
-  if (isProcessEmissions && selectedTemplate?.input_fields?.length > 0) {
-    return selectedTemplate.input_fields.map(f => ({
-      key: f.key,
-      label: f.label,
-      unit: null,
-      required: !f.is_optional,
-    }));
-  }
   if (formConfig && dynamicInputFields.length > 0) {
     const primaryColumns = dynamicInputFields.map(f => ({
       key: f.variable,
-      label: f.label,
+      label: scope === 'scope2' && f.variable === 'qty_energy' ? 'Quantity' : f.label,
       unit: null,
       required: (f.required && !f.isOverride)
         || (isFugitiveCustomFuel && f.variable === 'co2_gwp_fugitives'),
@@ -279,6 +302,9 @@ const deriveLedgerColumns = (
   }
   // Legacy fallback
   const primaryColumns = [{ key: 'quantity', label: 'Quantity', unit: null, required: true }];
+  if (scope === 'scope2' && !useCustomFuel) {
+    primaryColumns.push({ key: 'scope2_default_factor', label: 'Emission Factor', unit: null, scope2DefaultFactor: true });
+  }
   return useCustomFuel
     ? [...primaryColumns, ...getCustomFuelLedgerColumns(calculationMethodology, isFugitiveCustomFuel)]
     : primaryColumns;
@@ -325,7 +351,6 @@ import {
   resolveDensityFieldState,
   resolveDensityRequirement,
 } from '../../utils/unitHelpers';
-import { normalizeProcessTemplateMonthlyField } from '../../utils/processTemplateMonthlyFields';
 import { buildNativeOptionsHtml } from '../../utils/nativeSelectOptions';
 import { getFieldUnits } from '../DynamicFieldRenderer';
 import {
@@ -337,6 +362,7 @@ import { resolveMonthlySelectableUnit } from '../../utils/monthlyFieldUnits';
 // Import FlightDetailsSection for C6 air travel per-month airport selection
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
 import { ReportingPeriodControls } from '../ReportingPeriodControls';
+import { C6MultiTripData } from '../../../categories/scope3/c6-business-travel/C6MultiTripData';
 
 const DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS = resolveStandardGhgFieldOptions();
 
@@ -391,6 +417,8 @@ export const Step3YearMonthlyData = ({
   // Employee commuting (C7)
   isC7EmployeeCommuting,
   scope3Method,
+  spendCurrencyConversionMethod,
+  spendCurrencyDefaults = {},
   scope3ActivityType,
   scope3ActivityId,
   employees,
@@ -405,7 +433,6 @@ export const Step3YearMonthlyData = ({
   
   // Process emissions
   isProcessEmissions,
-  selectedTemplate,
   
   // Override/fuel props
   scope,
@@ -428,24 +455,28 @@ export const Step3YearMonthlyData = ({
   // Evidence handling
   handleEvidenceUpload,
   removeEvidence,
+  onC7EvidenceUpload,
+  onC7EvidenceRemove,
+  // Business travel (C6) multi-trip entry
+  isC6MultiTrip = false,
+  c6Trips = { monthly: {}, yearly: [] },
+  addC6Trip,
+  removeC6Trip,
+  updateC6Trip,
   
   // Backend URL for file viewing
   BACKEND_URL,
 }) => {
+  const [sharedFloorAreaShare, setSharedFloorAreaShare] = useState('');
+  const [sharedInvestmentPercentage, setSharedInvestmentPercentage] = useState('');
   const isFugitiveCustomFuel = useCustomFuel && String(category || '').toLowerCase().includes('fugitive');
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]
     || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT];
   const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
     ? customFugitiveQuantityUnits
     : customFuelQuantityUnits;
-  const normalizedProcessTemplateFields = useMemo(() => (
-    isProcessEmissions && selectedTemplate?.input_fields?.length
-      ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
-      : []
-  ), [isProcessEmissions, selectedTemplate]);
   const resolveFieldUnits = useCallback((field) => {
     if (!field) return [];
-    if (field.source === 'process_template') return field.allowedUnits || [];
     return getFieldUnits({
       field,
       scope,
@@ -469,11 +500,82 @@ export const Step3YearMonthlyData = ({
     selectedFuel,
     useCustomFuel,
   ]);
-  const runtimeConversionFields = useMemo(() => (
-    isProcessEmissions && normalizedProcessTemplateFields.length > 0
-      ? normalizedProcessTemplateFields
-      : dynamicInputFields
-  ), [dynamicInputFields, isProcessEmissions, normalizedProcessTemplateFields]);
+  const runtimeConversionFields = dynamicInputFields;
+  const yearlyReportingPeriod = reportingYearType === 'financial'
+    ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+    : `CY${reportingYear}`;
+  const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+  const floorAreaShareField = useMemo(() => dynamicInputFields.find((field) => {
+    const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+    return /floor.*(?:area|share)|(?:area|share).*floor/i.test(identity);
+  }), [dynamicInputFields]);
+  const isC8FloorAreaShareMonthly = scope === 'scope3'
+    && /^c8\b/i.test(category || '')
+    && frequencyType === 'monthly'
+    && Boolean(floorAreaShareField);
+  const investmentPercentageField = useMemo(() => dynamicInputFields.find((field) => {
+    const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+    return /investment.*(?:percentage|percent|share)|(?:percentage|percent|share).*investment/i.test(identity);
+  }), [dynamicInputFields]);
+  const isC15InvestmentPercentageMonthly = scope === 'scope3'
+    && /^c15\b/i.test(category || '')
+    && frequencyType === 'monthly'
+    && Boolean(investmentPercentageField);
+  const applySharedFloorAreaShare = useCallback(() => {
+    const value = Number.parseFloat(sharedFloorAreaShare);
+    if (!Number.isFinite(value) || value < 0 || value > 100 || !floorAreaShareField) {
+      toast.error('Floor Area Share % must be between 0 and 100');
+      return;
+    }
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
+        if (isFutureMonth(monthKey, reportingYear, reportingYearType)) return;
+        const current = previousMonths[monthKey] || {};
+        if (current[floorAreaShareField.variable] === sharedFloorAreaShare) return;
+        nextMonths[monthKey] = {
+          ...current,
+          [floorAreaShareField.variable]: sharedFloorAreaShare,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, floorAreaShareField, isFutureMonth, reportingYear, reportingYearType, setMonthlyData, sharedFloorAreaShare]);
+  const applySharedInvestmentPercentage = useCallback(() => {
+    const value = Number.parseFloat(sharedInvestmentPercentage);
+    if (!Number.isFinite(value) || value <= 0 || value > 100 || !investmentPercentageField) {
+      toast.error('Investment Percentage must be greater than 0 and no more than 100');
+      return;
+    }
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = { ...previousMonths };
+      activeMonths.forEach((month) => {
+        const monthKey = month.key || month;
+        if (isFutureMonth(monthKey, reportingYear, reportingYearType)) return;
+        const current = previousMonths[monthKey] || {};
+        if (current[investmentPercentageField.variable] === sharedInvestmentPercentage) return;
+        nextMonths[monthKey] = {
+          ...current,
+          [investmentPercentageField.variable]: sharedInvestmentPercentage,
+        };
+        changed = true;
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+  }, [activeMonths, investmentPercentageField, isFutureMonth, reportingYear, reportingYearType, setMonthlyData, sharedInvestmentPercentage]);
+  const resolveSpendDefaultValue = useCallback((field, periodKey) => {
+    if (scope3Method !== 'spend_basis') return undefined;
+    const isApplicable = spendCurrencyConversionMethod === 'standard'
+      ? field.variable === 'exchange_rate'
+      : field.variable === 'ppp' || field.variable === 'inflation_rate';
+    if (!isApplicable) return undefined;
+    const value = spendCurrencyDefaults?.[periodKey]?.values?.[field.variable]?.value;
+    return hasFieldValue(value) ? value : undefined;
+  }, [scope3Method, spendCurrencyConversionMethod, spendCurrencyDefaults]);
   const resolveRowDensityState = useCallback((data = {}) => resolveDensityFieldState({
     calculationMethodology,
     fields: runtimeConversionFields,
@@ -511,7 +613,6 @@ export const Step3YearMonthlyData = ({
         if (
           storedUnit
           && (fieldUnits.length === 0 || storedUnitIsAllowed)
-          && storedUnit.toLowerCase() === initialUnit.toLowerCase()
         ) return;
 
         nextMonths[monthKey] = {
@@ -534,6 +635,32 @@ export const Step3YearMonthlyData = ({
     setMonthlyData,
     useCustomFuel,
   ]);
+
+  useEffect(() => {
+    const sourceUnit = selectedFuel?.allowed_units?.[0];
+    if (scope !== 'scope2' || formConfig || !sourceUnit) return;
+
+    if (frequencyType === 'monthly') {
+      setMonthlyData((previousMonths) => {
+        let changed = false;
+        const nextMonths = { ...previousMonths };
+        activeMonths.forEach((month) => {
+          const monthKey = month.key || month;
+          const current = previousMonths[monthKey] || {};
+          if (selectedFuel.allowed_units.includes(current.unit)) return;
+          nextMonths[monthKey] = { ...current, unit: sourceUnit };
+          changed = true;
+        });
+        return changed ? nextMonths : previousMonths;
+      });
+    } else {
+      setYearlyData((previous) => (
+        selectedFuel.allowed_units.includes(previous.unit)
+          ? previous
+          : { ...previous, unit: sourceUnit }
+      ));
+    }
+  }, [activeMonths, formConfig, frequencyType, scope, selectedFuel, setMonthlyData, setYearlyData]);
 
   useEffect(() => {
     if (useCustomFuel) return;
@@ -687,12 +814,47 @@ export const Step3YearMonthlyData = ({
               };
             })()}
             showEmissionFactorCard={false}
+            onEvidenceUpload={onC7EvidenceUpload}
+            onEvidenceRemove={onC7EvidenceRemove}
+            evidenceBackendUrl={BACKEND_URL}
           />
         </>
       )}
 
+      {isC6MultiTrip && (
+        <C6MultiTripData
+          frequencyType={frequencyType}
+          reportingYear={reportingYear}
+          reportingYearType={reportingYearType}
+          activeMonths={activeMonths}
+          isFutureMonth={isFutureMonth}
+          c6Trips={c6Trips}
+          onAddTrip={addC6Trip}
+          onRemoveTrip={removeC6Trip}
+          onUpdateTrip={updateC6Trip}
+          onUploadEvidence={handleEvidenceUpload}
+          onRemoveEvidence={removeEvidence}
+          dynamicInputFields={dynamicInputFields}
+          scope3ActivityType={scope3ActivityType}
+          capabilities={capabilities}
+          fieldRendererProps={{
+            scope,
+            scope3Method,
+            scope3ActivityId,
+            requiresSubcategory,
+            selectedFuel,
+            filteredScope3Activities,
+            centralizedUnits,
+            biogenicScopeSelection,
+            useCustomFuel,
+            reportingYear,
+            reportingYearType,
+          }}
+        />
+      )}
+
       {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
-      {!isC7EmployeeCommuting && frequencyType === 'monthly' && (
+      {!isC7EmployeeCommuting && !isC6MultiTrip && frequencyType === 'monthly' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">
@@ -714,6 +876,68 @@ export const Step3YearMonthlyData = ({
             </div>
           )}
 
+          {isC8FloorAreaShareMonthly && (
+            <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_auto]" data-testid="c8-monthly-floor-area-share">
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-600" data-testid="c8-monthly-floor-area-share-label">
+                  {floorAreaShareField.label || 'Floor Area Share %'}
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  value={sharedFloorAreaShare}
+                  onChange={(event) => setSharedFloorAreaShare(event.target.value)}
+                  placeholder="Enter percentage"
+                  data-testid="c8-monthly-floor-area-share-input"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applySharedFloorAreaShare}
+                disabled={!sharedFloorAreaShare}
+                className="w-full sm:w-auto"
+                data-testid="c8-apply-floor-area-share-all-months-button"
+              >
+                Apply to all months
+              </Button>
+            </div>
+          )}
+
+          {isC15InvestmentPercentageMonthly && (
+            <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_auto]" data-testid="c15-monthly-investment-percentage">
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-600" data-testid="c15-monthly-investment-percentage-label">
+                  {investmentPercentageField.label || 'Investment Percentage'}
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  value={sharedInvestmentPercentage}
+                  onChange={(event) => setSharedInvestmentPercentage(event.target.value)}
+                  placeholder="Enter percentage"
+                  data-testid="c15-monthly-investment-percentage-input"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applySharedInvestmentPercentage}
+                disabled={!sharedInvestmentPercentage}
+                className="w-full sm:w-auto"
+                data-testid="c15-apply-investment-percentage-all-months-button"
+              >
+                Apply to all months
+              </Button>
+            </div>
+          )}
+
           {(() => {
             const densityField = dynamicInputFields.find(isDensityField);
             const monthlyDensityStates = activeMonths.map((month) => (
@@ -726,11 +950,10 @@ export const Step3YearMonthlyData = ({
             const ledgerColumns = deriveLedgerColumns(
               dynamicInputFields,
               formConfig,
-              isProcessEmissions,
-              selectedTemplate,
               useCustomFuel,
               calculationMethodology,
               isFugitiveCustomFuel,
+              scope,
             ).filter((column) => (
               !densityField
               || column.key !== densityField.variable
@@ -744,39 +967,21 @@ export const Step3YearMonthlyData = ({
 
             // Compact cell input renderer — no labels, just input + unit
             const renderCellInput = (col, monthKey, data) => {
-              // Process emissions path
-              if (isProcessEmissions && selectedTemplate) {
-                const field = normalizedProcessTemplateFields.find((candidate) => candidate.valueKey === col.key);
-                if (!field) return null;
-                const fieldUnits = resolveFieldUnits(field);
-                const displayedUnit = resolveEffectiveFieldUnit({
-                  field,
-                  data,
-                  selectedFuel,
-                  fieldUnits,
-                  isProcessEmissions: true,
-                });
+              if (col.scope2DefaultFactor) {
+                const factor = selectedFuel?.emission_factor_basis_quantity;
+                const factorUnit = selectedFuel?.emission_factor_basis_unit || 'tCO₂/MWh';
                 return (
-                  <div className="flex items-center gap-1">
+                  <div className="flex overflow-hidden rounded border border-stone-200 bg-stone-50" data-testid={`month-${monthKey}-scope2-default-factor`}>
                     <Input
-                      type={field.data_type === 'number' ? 'number' : 'text'}
-                      step={field.data_type === 'number' ? 'any' : undefined}
-                      min="0"
-                      placeholder="—"
-                      value={getMonthlyFieldValue(field, data) || ''}
-                      onChange={(e) => updateMonthData(monthKey, field.valueKey, e.target.value)}
-                      className="h-8 w-full text-sm"
-                      data-testid={`month-${monthKey}-${field.valueKey}`}
+                      readOnly
+                      value={factor ?? ''}
+                      placeholder="Select energy source"
+                      className="h-8 min-w-0 flex-1 rounded-none border-0 bg-transparent text-sm text-stone-700 shadow-none focus-visible:ring-0"
+                      data-testid={`month-${monthKey}-scope2-default-factor-value`}
                     />
-                    {fieldUnits.length > 0 && (
-                      <select
-                        value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0]}
-                        onChange={(e) => updateMonthData(monthKey, field.unitKey, e.target.value)}
-                        className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
-                        data-testid={`month-${monthKey}-${field.valueKey}-unit`}
-                        dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
-                      />
-                    )}
+                    <span className="flex h-8 min-w-[4.5rem] items-center border-l border-l-stone-200 px-2 text-xs text-stone-600" data-testid={`month-${monthKey}-scope2-default-factor-unit`}>
+                      {factorUnit}
+                    </span>
                   </div>
                 );
               }
@@ -839,8 +1044,8 @@ export const Step3YearMonthlyData = ({
                     unitKey: 'custom_cv_unit',
                     units: fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT] || DEFAULT_CUSTOM_FUEL_FIELD_OPTIONS[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT],
                   },
-                  'carbon-content': { value: data.custom_carbon_content || '', valueKey: 'custom_carbon_content' },
-                  'oxidation-factor': { value: data.custom_oxidation_factor || '', valueKey: 'custom_oxidation_factor' },
+                  'carbon-content': { value: data.custom_carbon_content ?? '', valueKey: 'custom_carbon_content', max: 100 },
+                  'oxidation-factor': { value: data.custom_oxidation_factor ?? '', valueKey: 'custom_oxidation_factor', max: 1 },
                 }[col.customFuelField];
 
                 return (
@@ -849,9 +1054,16 @@ export const Step3YearMonthlyData = ({
                       type="number"
                       step="any"
                       min="0"
+                      max={fieldConfig.max}
                       placeholder="—"
                       value={fieldConfig.value}
-                      onChange={(event) => updateMonthData(monthKey, fieldConfig.valueKey, event.target.value)}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        const parsedValue = Number.parseFloat(value);
+                        if (value === '' || fieldConfig.max === undefined || (Number.isFinite(parsedValue) && parsedValue <= fieldConfig.max)) {
+                          updateMonthData(monthKey, fieldConfig.valueKey, value);
+                        }
+                      }}
                       className={fieldConfig.units ? sharedInputClass : 'h-8 w-full text-sm'}
                       data-testid={`month-${monthKey}-${fieldConfig.valueKey}`}
                     />
@@ -887,9 +1099,15 @@ export const Step3YearMonthlyData = ({
                 const isEnabled = densityState
                   ? densityState.required || data[overrideKey]
                   : !isOverrideOrOptional || data[overrideKey];
-                const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
+                const spendDefaultValue = resolveSpendDefaultValue(
+                  field,
+                  `${getActualYearForMonth(monthKey)}-${monthKey}`,
+                );
+                const defaultValue = densityState?.defaultDensity?.value
+                  ?? spendDefaultValue
+                  ?? getFieldDefaultValue(field, selectedFuel);
                 const storedValue = data[field.variable] ?? data[field.fieldKey] ?? '';
-                const displayedValue = hasFieldValue(storedValue) ? storedValue : defaultValue;
+                const displayedValue = hasStoredFieldValue(data, field) ? storedValue : defaultValue;
                 const renderOverrideToggle = () => (
                   <label
                     className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap text-[10px] font-medium text-amber-700"
@@ -951,6 +1169,14 @@ export const Step3YearMonthlyData = ({
                 const isTextUnitField = field.unitSource === 'text';
                 const isSupplierBasis = scope3Method === 'supplier_basis';
                 const isQtyField = isQuantityField(field);
+                const isMonthlyDayField = isAnnualDayCountField(field);
+                const monthlyDayLimit = isMonthlyDayField
+                  ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+                  : undefined;
+                const monthlyFieldMax = monthlyDayLimit
+                  ?? field.validationRules?.max
+                  ?? (isPercentageRangeField(field) ? 100 : undefined);
+                const monthlyPeriodLabel = MONTHS.find((entry) => entry.key === monthKey)?.name || monthKey;
                 const hideUnit = useCustomFuel && isQtyField;
                 const showCustomFuelQuantityUnit = useCustomFuel && isQtyField;
                 const showUnitDropdown = showCustomFuelQuantityUnit
@@ -958,6 +1184,8 @@ export const Step3YearMonthlyData = ({
                 const showTextUnit = !hideUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                 const displayedUnit = densityState
                   ? (data.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                  : isSupplierBasis
+                    ? (data[`${field.variable}_unit`] || '')
                   : resolveEffectiveFieldUnit({
                     field,
                     data,
@@ -974,12 +1202,15 @@ export const Step3YearMonthlyData = ({
                         type={field.fieldType === 'text' ? 'text' : 'number'}
                         step={field.fieldType === 'number' ? 'any' : undefined}
                         min={field.fieldType === 'number' ? '0' : undefined}
-                        placeholder="—"
+                        max={monthlyFieldMax}
+                        placeholder={isMonthlyDayField ? `≤${monthlyDayLimit}` : '—'}
                         value={displayedValue}
                         onChange={(e) => {
                           const val = e.target.value;
-                          if (field.validationRules?.max !== undefined && val !== '' && parseFloat(val) > field.validationRules.max) {
-                            toast.error(`${field.label} cannot exceed ${field.validationRules.max}`);
+                          if (monthlyFieldMax !== undefined && val !== '' && parseFloat(val) > monthlyFieldMax) {
+                            toast.error(isMonthlyDayField
+                              ? `${field.label} cannot exceed ${monthlyFieldMax} days for ${monthlyPeriodLabel}`
+                              : `${field.label} cannot exceed ${monthlyFieldMax}`);
                             return;
                           }
                           if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
@@ -1035,6 +1266,12 @@ export const Step3YearMonthlyData = ({
               }
 
               // Legacy quantity path
+              const legacyQuantityUnits = scope === 'scope2' && selectedFuel?.allowed_units?.length
+                ? selectedFuel.allowed_units
+                : allowedUnits;
+              const legacyQuantityUnit = scope === 'scope2'
+                ? (data.unit || legacyQuantityUnits[0] || '')
+                : (data.unit || defaultUnit);
               return (
                 <div className="flex items-center gap-1">
                   <Input
@@ -1052,14 +1289,14 @@ export const Step3YearMonthlyData = ({
                     data-testid={`month-${monthKey}-quantity`}
                   />
                   <select
-                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : (data.unit || defaultUnit)}
+                    value={useCustomFuel ? (data.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '') : legacyQuantityUnit}
                     onChange={(e) => {
                       if (useCustomFuel) updateMonthData(monthKey, 'custom_qty_unit', e.target.value);
                       updateMonthData(monthKey, 'unit', e.target.value);
                     }}
                     className="h-8 min-w-[4.5rem] shrink-0 rounded border border-stone-200 bg-transparent px-1 text-xs outline-none"
                     data-testid={useCustomFuel ? `month-${monthKey}-custom-qty-unit` : `month-${monthKey}-unit`}
-                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : allowedUnits) }}
+                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(useCustomFuel ? customQuantityUnitOptions : legacyQuantityUnits) }}
                   />
                 </div>
               );
@@ -1211,9 +1448,6 @@ export const Step3YearMonthlyData = ({
                                   <span className="mb-2 text-sm text-stone-600" data-testid={`month-${monthKey}-dynamic-density-unit`}>
                                     {dynamicDensityRequirement.densityUnit}
                                   </span>
-                                  <p className="col-span-2 text-xs text-amber-700" data-testid={`month-${monthKey}-dynamic-density-conversion-hint`}>
-                                    Conversion required: {quantityUnit} → {calculationMethodology === 'using_carbon_composition' ? 'kg' : getUnitDenominator(referenceUnit)}
-                                  </p>
                                 </div>
                               )}
 
@@ -1307,18 +1541,18 @@ export const Step3YearMonthlyData = ({
       )}
 
       {/* YEARLY Data Entry (non-C7) */}
-      {!isC7EmployeeCommuting && frequencyType === 'yearly' && (
+      {!isC7EmployeeCommuting && !isC6MultiTrip && frequencyType === 'yearly' && (
         <YearlyDataEntry
           reportingYearType={reportingYearType}
           reportingYear={reportingYear}
           isProcessEmissions={isProcessEmissions}
-          selectedTemplate={selectedTemplate}
           formConfig={formConfig}
           dynamicInputFields={dynamicInputFields}
           yearlyData={yearlyData}
           setYearlyData={setYearlyData}
           scope3Method={scope3Method}
           scope3ActivityType={scope3ActivityType}
+          scope={scope}
           category={category}
           selectedFuel={selectedFuel}
           capabilities={capabilities}
@@ -1332,6 +1566,9 @@ export const Step3YearMonthlyData = ({
           customFuelQtyUnit={customFuelQtyUnit}
           calculationMethodology={calculationMethodology}
           isFugitiveCustomFuel={isFugitiveCustomFuel}
+          annualDayLimit={annualDayLimit}
+          yearlyReportingPeriod={yearlyReportingPeriod}
+          resolveSpendDefaultValue={resolveSpendDefaultValue}
           handleEvidenceUpload={handleEvidenceUpload}
           removeEvidence={removeEvidence}
           backendUrl={BACKEND_URL}
@@ -1349,13 +1586,13 @@ const YearlyDataEntry = ({
   reportingYearType,
   reportingYear,
   isProcessEmissions,
-  selectedTemplate,
   formConfig,
   dynamicInputFields,
   yearlyData,
   setYearlyData,
   scope3Method,
   scope3ActivityType,
+  scope,
   category,
   selectedFuel,
   capabilities = {},
@@ -1369,6 +1606,9 @@ const YearlyDataEntry = ({
   customFuelQtyUnit,
   calculationMethodology,
   isFugitiveCustomFuel,
+  annualDayLimit,
+  yearlyReportingPeriod,
+  resolveSpendDefaultValue,
   handleEvidenceUpload,
   removeEvidence,
   backendUrl,
@@ -1378,9 +1618,13 @@ const YearlyDataEntry = ({
   const customQuantityUnitOptions = isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
     ? customFugitiveQuantityUnits
     : customFuelQuantityUnits;
-  const yearlyDensityFields = isProcessEmissions && selectedTemplate?.input_fields?.length
-    ? selectedTemplate.input_fields.map(normalizeProcessTemplateMonthlyField)
-    : dynamicInputFields;
+  const scope2QuantityUnits = scope === 'scope2' && selectedFuel?.allowed_units?.length
+    ? selectedFuel.allowed_units
+    : [];
+  const selectedScope2QuantityUnit = scope2QuantityUnits.includes(yearlyData.unit)
+    ? yearlyData.unit
+    : (scope2QuantityUnits[0] || '');
+  const yearlyDensityFields = dynamicInputFields;
   const configuredDensityField = yearlyDensityFields.find(isDensityField);
   const yearlyDensityState = resolveDensityFieldState({
     calculationMethodology,
@@ -1389,6 +1633,44 @@ const YearlyDataEntry = ({
     selectedFuel: useCustomFuel ? null : selectedFuel,
     centralizedUnits,
   });
+
+  // Yearly inputs previously showed configured defaults without adding them
+  // to yearlyData. Persist those defaults in state so required validation and
+  // the save payload see the same value shown to the user.
+  useEffect(() => {
+    if (dynamicInputFields.length === 0) return;
+    setYearlyData((previous) => {
+      let changed = false;
+      const next = { ...previous };
+      dynamicInputFields.forEach((field) => {
+        if (field.presentationOnly || field.isOverride || hasStoredFieldValue(previous, field)) return;
+        const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
+          ?? getFieldDefaultValue(field, selectedFuel);
+        if (hasFieldValue(defaultValue)) {
+          next[field.variable] = defaultValue;
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, [dynamicInputFields, resolveSpendDefaultValue, selectedFuel, setYearlyData, yearlyReportingPeriod]);
+
+  useEffect(() => {
+    if (!useCustomFuel || calculationMethodology !== 'using_carbon_composition') return;
+    setYearlyData((previous) => {
+      if (Object.prototype.hasOwnProperty.call(previous, 'custom_oxidation_factor')) return previous;
+      const oxidationField = dynamicInputFields.find((field) => /oxidation.*factor|factor.*oxidation/i.test(
+        `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`,
+      ));
+      const configuredDefault = oxidationField
+        ? getFieldDefaultValue(oxidationField, selectedFuel)
+        : '';
+      return {
+        ...previous,
+        custom_oxidation_factor: hasFieldValue(configuredDefault) ? configuredDefault : 1,
+      };
+    });
+  }, [calculationMethodology, dynamicInputFields, selectedFuel, setYearlyData, useCustomFuel]);
 
   useEffect(() => {
     if (useCustomFuel) return;
@@ -1447,39 +1729,9 @@ const YearlyDataEntry = ({
           />
         )}
 
-        {/* For Process Emissions: Show template required input field with fixed unit */}
-        {isProcessEmissions && selectedTemplate ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4" data-testid="yearly-process-fields-grid">
-            {selectedTemplate.input_fields?.map((field) => (
-              <div key={field.key} className="min-w-0 space-y-2">
-                <Label className="flex min-h-6 items-center justify-center text-center leading-snug">
-                  {field.label} (Annual Total) {!field.is_optional && '*'}
-                </Label>
-                <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
-                  <Input
-                    type={field.data_type === 'number' ? 'number' : 'text'}
-                    step={field.data_type === 'number' ? 'any' : undefined}
-                    min="0"
-                    placeholder={`Enter annual ${field.label.toLowerCase()}`}
-                    value={yearlyData[field.key] || ''}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-                    data-testid={`yearly-${field.key}`}
-                  />
-                  <select
-                    value={yearlyData[`${field.key}_unit`] || field.unit || 'kg'}
-                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.key}_unit`]: e.target.value }))}
-                    className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
-                    data-testid={`yearly-${field.key}-unit`}
-                    dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']) }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : formConfig && dynamicInputFields.length > 0 ? (
+        {formConfig && dynamicInputFields.length > 0 ? (
           /* Dynamic Fields from ce_input_field_mappings for yearly */
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-x-4 gap-y-6" data-testid="yearly-data-fields-grid">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-x-5 gap-y-7" data-testid="yearly-data-fields-grid">
             {/* Supplier Method Disclaimer */}
             {scope3Method === 'supplier_basis' && (
               <div className="col-span-full rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -1501,25 +1753,32 @@ const YearlyDataEntry = ({
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
-                  const isUnitlessCountField = isNoUnitField;
-                  const defaultValue = getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const isUnitlessCountField = isPureUnitlessCountField(field);
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
+                  const defaultValue = resolveSpendDefaultValue(field, yearlyReportingPeriod)
+                    ?? getFieldDefaultValue(field, selectedFuel);
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
-                  const displayedUnit = resolveEffectiveFieldUnit({
-                    field,
-                    data: yearlyData,
-                    selectedFuel,
-                    fieldUnits,
-                    isProcessEmissions,
-                  });
+                  const displayedUnit = isSupplierBasis
+                    ? (yearlyData[`${field.variable}_unit`] || '')
+                    : resolveEffectiveFieldUnit({
+                      field,
+                      data: yearlyData,
+                      selectedFuel,
+                      fieldUnits,
+                      isProcessEmissions,
+                    });
                   const showUnitSelector = showCustomFuelQuantityUnit
                     || (!hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis);
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <Label className="mb-2 flex min-h-6 items-center justify-center gap-2 text-center leading-snug">
+                      <Label className="mb-2 flex min-h-12 items-start justify-center gap-2 text-center leading-snug">
                         {field.label} <span className="text-red-500">*</span>
                         {field.tooltip && (
                           <TooltipProvider>
@@ -1549,16 +1808,25 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className={showUnitSelector || showUnitTextInput ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
                             min="0"
-                            placeholder={field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
+                            max={yearlyFieldMax}
+                            placeholder={isAnnualDayField
+                              ? `Max ${annualDayLimit} days`
+                              : field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
                             value={displayedValue}
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === '' || parseFloat(val) >= 0) {
+                                if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                  toast.error(isAnnualDayField
+                                    ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                    : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                  return;
+                                }
                                 if (isUnitlessCountField && val !== '') {
                                   const numVal = parseFloat(val);
                                   if (!Number.isInteger(numVal)) {
@@ -1569,7 +1837,7 @@ const YearlyDataEntry = ({
                                 setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                               }
                             }}
-                            className={showUnitSelector || showUnitTextInput ? "h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"}
+                            className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                             data-testid={`yearly-${field.fieldKey || field.variable}-input`}
                           />
                           {showUnitSelector && (
@@ -1582,7 +1850,7 @@ const YearlyDataEntry = ({
                                 ...(showCustomFuelQuantityUnit ? { custom_qty_unit: e.target.value } : {}),
                                 [`${field.variable}_unit`]: e.target.value,
                               }))}
-                              className="h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                              className="h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                               data-testid={showCustomFuelQuantityUnit ? 'yearly-custom-qty-unit' : `yearly-${field.fieldKey}-unit`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(showCustomFuelQuantityUnit ? customQuantityUnitOptions : fieldUnits) }}
                             />
@@ -1593,7 +1861,7 @@ const YearlyDataEntry = ({
                               placeholder="Unit"
                               value={displayedUnit}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className="h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
+                              className="h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0"
                               data-testid={`yearly-${field.fieldKey || field.variable}-unit-text`}
                             />
                           )}
@@ -1605,7 +1873,7 @@ const YearlyDataEntry = ({
               </div>
             )}
 
-            {yearlyDensityState.visible && !configuredDensityField && (
+            {!useCustomFuel && yearlyDensityState.visible && !configuredDensityField && (
               <div className="col-span-full grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="yearly-process-density-field">
                 <div className="space-y-1">
                   <Label htmlFor="yearly-process-density-input" className="text-sm font-medium">
@@ -1633,9 +1901,6 @@ const YearlyDataEntry = ({
                 <span className="mb-2 text-sm text-stone-600" data-testid="yearly-process-density-unit">
                   {yearlyData.density_unit || yearlyDensityState.defaultDensity?.unit || yearlyDensityState.densityUnit}
                 </span>
-                <p className="col-span-2 text-xs text-amber-700" data-testid="yearly-process-density-conversion-hint">
-                  Conversion required: {yearlyDensityState.quantityUnit} → {yearlyDensityState.referenceUnit}
-                </p>
               </div>
             )}
 
@@ -1648,18 +1913,24 @@ const YearlyDataEntry = ({
                   const isSupplierBasis = scope3Method === 'supplier_basis';
                   const isNoUnitField = field.unitSource === 'none';
                   const isTextUnitField = field.unitSource === 'text';
-                  const isUnitlessCountField = isNoUnitField;
+                  const isUnitlessCountField = isPureUnitlessCountField(field);
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
                   const defaultValue = getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
-                  const displayedUnit = resolveEffectiveFieldUnit({
-                    field,
-                    data: yearlyData,
-                    selectedFuel,
-                    fieldUnits,
-                    isProcessEmissions,
-                  });
+                  const displayedUnit = isSupplierBasis
+                    ? (yearlyData[`${field.variable}_unit`] || '')
+                    : resolveEffectiveFieldUnit({
+                      field,
+                      data: yearlyData,
+                      selectedFuel,
+                      fieldUnits,
+                      isProcessEmissions,
+                    });
                   const showUnitSelector = !hideStandardQuantityUnit && !isNoUnitField && !isTextUnitField && fieldUnits.length > 0 && !isSupplierBasis;
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   const overrideKey = `override_${field.variable}`;
@@ -1667,7 +1938,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
+                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1706,16 +1977,25 @@ const YearlyDataEntry = ({
                           Override Default
                         </label>
                       </div>
-                      <div className={showUnitSelector || showUnitTextInput ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
                           min="0"
-                          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                          max={yearlyFieldMax}
+                          placeholder={isAnnualDayField
+                            ? `Max ${annualDayLimit} days`
+                            : field.placeholder || `Enter ${field.label.toLowerCase()}`}
                           value={displayedValue}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '' || parseFloat(val) >= 0) {
+                              if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                toast.error(isAnnualDayField
+                                  ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                  : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                return;
+                              }
                               if (isUnitlessCountField && val !== '') {
                                 const numVal = parseFloat(val);
                                 if (!Number.isInteger(numVal)) {
@@ -1727,7 +2007,7 @@ const YearlyDataEntry = ({
                             }
                           }}
                           disabled={!isOverrideEnabled}
-                          className={`${showUnitSelector || showUnitTextInput ? "h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0" : "bg-white"} ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                          className={`h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                           data-testid={`yearly-${field.fieldKey || field.variable}-optional-input`}
                         />
                         {showUnitSelector && (
@@ -1735,7 +2015,7 @@ const YearlyDataEntry = ({
                             value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? "opacity-50" : ""}`}
                             data-testid={`yearly-${field.fieldKey || field.variable}-optional-unit`}
                             dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                           />
@@ -1747,7 +2027,7 @@ const YearlyDataEntry = ({
                             value={displayedUnit}
                             onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                             disabled={!isOverrideEnabled}
-                            className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
+                            className={`h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                             data-testid={`yearly-${field.fieldKey || field.variable}-optional-unit-text`}
                           />
                         )}
@@ -1788,12 +2068,21 @@ const YearlyDataEntry = ({
                   const fieldUnits = densityState
                     ? [yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit].filter(Boolean)
                     : configuredFieldUnits;
-                  const defaultValue = densityState?.defaultDensity?.value ?? getFieldDefaultValue(field, selectedFuel);
-                  const displayedValue = hasFieldValue(yearlyData[field.variable])
-                    ? yearlyData[field.variable]
+                  const isSupplierBasis = scope3Method === 'supplier_basis';
+                  const isAnnualDayField = isAnnualDayCountField(field);
+                  const yearlyFieldMax = isAnnualDayField
+                    ? annualDayLimit
+                    : field.validationRules?.max ?? (isCarbonContentField(field) ? 100 : undefined);
+                  const defaultValue = densityState?.defaultDensity?.value
+                    ?? resolveSpendDefaultValue(field, yearlyReportingPeriod)
+                    ?? getFieldDefaultValue(field, selectedFuel);
+                  const displayedValue = hasStoredFieldValue(yearlyData, field)
+                    ? (yearlyData[field.variable] ?? yearlyData[field.fieldKey] ?? '')
                     : defaultValue;
                   const displayedUnit = densityState
                     ? (yearlyData.density_unit || densityState.defaultDensity?.unit || densityState.densityUnit)
+                    : isSupplierBasis
+                      ? (yearlyData[`${field.variable}_unit`] || '')
                     : resolveEffectiveFieldUnit({
                       field,
                       data: yearlyData,
@@ -1801,11 +2090,14 @@ const YearlyDataEntry = ({
                       fieldUnits,
                       isProcessEmissions,
                     });
-                  const showStandardExpectedUnit = (densityState?.visible || field.expectedUnit) && !(useCustomFuel && isQuantityField(field));
+                  const showTextUnitInput = isSupplierBasis && !field.variable?.endsWith('_unit');
+                  const showStandardExpectedUnit = !showTextUnitInput
+                    && (densityState?.visible || field.expectedUnit)
+                    && !(useCustomFuel && isQuantityField(field));
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-6 flex-wrap items-center justify-center gap-2 text-center">
+                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label} {densityState?.required && <span className="text-red-500">*</span>}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1851,21 +2143,30 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className={showStandardExpectedUnit ? "flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" : ""}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step="any"
                           min="0"
-                          placeholder={`Enter ${field.label.toLowerCase()}`}
+                          max={yearlyFieldMax}
+                          placeholder={isAnnualDayField
+                            ? `Max ${annualDayLimit} days`
+                            : `Enter ${field.label.toLowerCase()}`}
                           value={displayedValue}
                           disabled={!isOverrideEnabled}
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '' || parseFloat(val) >= 0) {
+                              if (yearlyFieldMax !== undefined && val !== '' && parseFloat(val) > yearlyFieldMax) {
+                                toast.error(isAnnualDayField
+                                  ? `${field.label} cannot exceed ${yearlyFieldMax} days for the reporting period`
+                                  : `${field.label} cannot exceed ${yearlyFieldMax}`);
+                                return;
+                              }
                               setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                             }
                           }}
-                          className={`${showStandardExpectedUnit ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-white'} ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                          className={`h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                           data-testid={`yearly-${field.fieldKey || field.variable}-override-input`}
                         />
                         {showStandardExpectedUnit && (
@@ -1874,15 +2175,29 @@ const YearlyDataEntry = ({
                               value={fieldUnits.find((unit) => unit.toLowerCase() === displayedUnit.toLowerCase()) || fieldUnits[0] || ''}
                               disabled={!isOverrideEnabled}
                               onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                              className={`h-10 min-w-24 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                              className={`h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${!isOverrideEnabled ? 'opacity-50' : ''}`}
                               data-testid={`yearly-${field.fieldKey || field.variable}-override-unit`}
                               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
                             />
                           ) : (
-                            <div className={`flex h-10 min-w-24 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
+                            <div className={`flex h-10 w-32 shrink-0 items-center border-l border-l-stone-200 bg-stone-100 px-3 text-sm text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
                               <span>{displayedUnit}</span>
                             </div>
                           )
+                        )}
+                        {showTextUnitInput && (
+                          <Input
+                            type="text"
+                            placeholder="Unit"
+                            value={displayedUnit}
+                            disabled={!isOverrideEnabled}
+                            onChange={(e) => setYearlyData(prev => ({
+                              ...prev,
+                              [`${field.variable}_unit`]: e.target.value,
+                            }))}
+                            className={`h-10 w-32 shrink-0 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                            data-testid={`yearly-${field.fieldKey || field.variable}-override-unit-text`}
+                          />
                         )}
                       </div>
                     </div>
@@ -1894,7 +2209,7 @@ const YearlyDataEntry = ({
         ) : (
           /* Legacy mode: Simple quantity/unit input for yearly */
           <div className="space-y-4">
-            <div className={useCustomFuel ? "" : "max-w-xl"}>
+            <div className={scope === 'scope2' && !useCustomFuel ? 'grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-2' : useCustomFuel ? '' : 'max-w-xl'}>
               <div className="space-y-2">
                 <Label>Annual Quantity <span className="text-red-500">*</span></Label>
                 <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
@@ -1908,23 +2223,27 @@ const YearlyDataEntry = ({
                       const val = e.target.value;
                       if (val === '' || parseFloat(val) >= 0) setYearlyData(prev => ({ ...prev, quantity: val }));
                     }}
-                    className="h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                    className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
                     data-testid="yearly-quantity"
                   />
                   <select
                     value={useCustomFuel
                       ? (yearlyData.custom_qty_unit || customFuelQtyUnit || customQuantityUnitOptions[0] || '')
-                      : (yearlyData.unit || defaultUnit)}
+                      : scope === 'scope2'
+                        ? selectedScope2QuantityUnit
+                        : (yearlyData.unit || defaultUnit)}
                     onChange={(e) => setYearlyData(prev => ({
                       ...prev,
                       ...(useCustomFuel ? { custom_qty_unit: e.target.value } : {}),
                       unit: e.target.value,
                     }))}
-                    className="h-10 min-w-28 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
+                    className="h-10 w-32 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none"
                     data-testid={useCustomFuel ? 'yearly-custom-qty-unit' : 'yearly-unit'}
                     dangerouslySetInnerHTML={{
                       __html: useCustomFuel
                         ? buildNativeOptionsHtml(customQuantityUnitOptions)
+                      : scope === 'scope2'
+                        ? buildNativeOptionsHtml(scope2QuantityUnits)
                         : buildNativeOptionsHtml(centralizedUnits, {
                           getValue: (unit) => unit.symbol,
                           getLabel: (unit) => `${unit.symbol} (${unit.name})`,
@@ -1933,6 +2252,23 @@ const YearlyDataEntry = ({
                   />
                 </div>
               </div>
+              {scope === 'scope2' && !useCustomFuel && (
+                <div className="space-y-2" data-testid="yearly-scope2-default-factor">
+                  <Label>Default Emission Factor</Label>
+                  <div className="flex overflow-hidden rounded-md border border-stone-200 bg-stone-50">
+                    <Input
+                      readOnly
+                      value={selectedFuel?.emission_factor_basis_quantity ?? ''}
+                      placeholder="Select energy source"
+                      className="h-10 min-w-0 w-0 flex-1 rounded-none border-0 bg-transparent text-stone-700 shadow-none focus-visible:ring-0"
+                      data-testid="yearly-scope2-default-factor-value"
+                    />
+                    <span className="flex h-10 w-32 shrink-0 items-center border-l border-l-stone-200 px-3 text-sm text-stone-600" data-testid="yearly-scope2-default-factor-unit">
+                      {selectedFuel?.emission_factor_basis_unit || 'tCO₂/MWh'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {useCustomFuel && (

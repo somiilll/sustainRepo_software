@@ -1,5 +1,400 @@
 # ESG Platform Changelog
 
+## September 21, 2026 — Scope 3 Grid Power Label
+- Changed the shared Scope 3 Subcategory display label from **Energy** to **Grid Power** for C8, C10, C11, C13, and C14. The stored `energy` value, factor matching, calculations, decision trees, and historical records are unchanged.
+- Aligned Super Admin Scope 3 EF presentation: the table, factor details, and editor display **Grid Power** while continuing to save `energy`.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
+
+## September 21, 2026 — Emissions Reset Widths Placement
+- Moved **Reset widths** from the Emissions grid toolbar to the right side of the Scope tabs row. The grid exposes the same reset action through a ref, so it still clears manual column widths and returns the ledger scroll position to the start.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI TESTING** per the user’s instruction.
+
+## September 21, 2026 — C3/C5 Bulk Activity Type Persistence
+- Aligned Bulk Upload with Manual Add/Edit and OCR: after resolving an exact Scope 3 factor, C3/C5 records now persist the matched factor’s canonical `activity_type` into both top-level `scope3_activity_type` and `dynamic_field_values.scope3_activity_type`.
+- Explicit spreadsheet Activity Type remains authoritative for C6/C7, preserving existing template behavior. C3/C5 need no new spreadsheet column, formula, EF, or decision-tree change. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL BULK-UPLOAD TESTING** per the user’s instruction.
+
+## September 21, 2026 — C5 Disposal Taxonomy and Add/Edit Filtering
+- Added the C5 Activity Type capability and shared selector support. C5 users select a disposal method first, then a base Activity; the selected factor ID remains the exact existing EF record.
+- Applied `migrate_c5_activity_taxonomy.py` to all 184 local C5 factor records. It preserved every original `activity` string and factor ID while adding `activity_name`, normalized `activity_type`, and `activity_type_label`. Copper Wire now presents as one Activity with Combusted, Landfilled, and Recycled types. Backup: `/app/.emergent/backups/c5-activity-taxonomy-20260921T090000Z`.
+- Added **Composted** and **Other** to preserve all current C5 records, including Waste Water Treatment. The migration normalizes legacy double-spacing in the Wet Digestate display label without altering the original stored Activity string. Structural validation found zero records missing taxonomy fields. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL ADD/EDIT TESTING** per the user’s instruction.
+- Updated C5-only Add/Edit layout: base Activity appears first with duplicate material names collapsed, followed by Activity Type. All other Scope 3 categories retain Type-before-Activity flow. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- C5 Activity Type now lists only disposal methods available for the selected base Activity. Factors classified as `other`, including Waste Water Treatment, do not show an unnecessary Activity Type field. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Fixed the C5 selector regression where selecting one Activity Type caused the menu to show only that same type. Add/Edit now derive available C5 disposal types from the complete C5 catalog for the selected base Activity. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Fixed the C5 selection-state collision: Add/Edit now keep base material separately for presentation and reserve `scope3_ef_id` for the exact Activity + Activity Type factor. Changing type resolves the matching factor without clearing Activity; selecting a typed material clears only the stale factor until a valid type is chosen. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- C5 Edit now lays out Activity and Activity Type in the same responsive row. It persists the exact factor ID (`scope3_ef_id`) plus normalized Activity Type (`scope3_activity_type`); `activity_name` is deliberately not duplicated in the emission payload because it is deterministically available from the factor ID. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Fixed C5 detection in Edit to recognize its canonical category code, not only a display label beginning with `C5`. Waste Water Treatment now correctly omits Activity Type because its factor taxonomy is `other`. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- C5 Version History now hides `scope3_activity_type` / `activity_type` change rows without removing audit data. C3, C6, C7, and all non-C5 records continue showing relevant activity-type changes. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+
+## September 21, 2026 — Scope 1/2 Formula Clone Destinations
+- Formula Builder’s clone dialog now offers approved Scope 3 formula-group destinations plus every configured Scope 1 and Scope 2 category/subcategory.
+- Direct Scope 1/2 cloning creates an independent formula record with the target category/scope assignment and source-formula traceability; it intentionally does not alter any decision tree. Backend validation rejects direct destinations outside Scope 1/2, preserving Scope 3 group governance.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI OR API TESTING** per the user’s instruction.
+
+## September 21, 2026 — Group-Aware Bulk Upload and OCR
+- Scope 3 Bulk Upload now passes the resolved formula’s `activity_formula_group_id` through calculation context and formula definition, allowing Calc Engine to use the matching group-owned field mapping for default-unit and allowed-unit validation.
+- OCR GHG-save now carries the resolved formula group to execution and prioritizes that group’s mapping while hydrating activity inputs. Legacy mappings remain the fallback for non-group formulas and spend/supplier flows.
+- Workbook column names, Bulk Upload templates, formula definitions, emission-factor records, spend-basis, and supplier-basis logic were not changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL BULK/OCR TESTING** per the user’s instruction.
+
+## September 21, 2026 — Formula Builder Clone and Impact Guardrails
+- Replaced the dedicated Formula Groups navigation page with an in-place Formula Builder clone action. It creates an independent formula in a selected target group without silently changing a decision tree.
+- Formula Builder retains its category filter and now exposes it with an explicit test ID; Input Field Mapping gained a category filter that includes mappings assigned directly to the selected category plus global mappings. The mapping table identifies group-owned rows and inactive historical duplicates using unique test IDs.
+- Formula Builder loads an impact panel before an existing formula is published, listing every active category/branch that references it and warning when it is group-owned. Protected Super Admin APIs provide group inventory, per-formula impact, and formula cloning. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL UI OR API TESTING** per the user’s instruction.
+
+## September 21, 2026 — Scope 3 Activity-Basis Formula Groups
+- Applied the approved ten-group isolation architecture to local `test_database`: **C1/C2**, **C3**, **C4/C9**, **C5/C12**, **C6**, **C7**, **C8**, **C10/C13/C14**, **C11**, and **C15**. It created 20 new immutable formula records, 31 mutable group-owned field mappings, and re-published 15 decision trees. Activity branches now resolve only to their group’s formula family; spend-basis, supplier-basis, and Scope 3 emission-factor records were not changed.
+- C10’s activity branch is the canonical configuration for C10/C13/C14, as required by the shared group definition. C6, C8, and C11 retain their multiple existing activity branches, now as exclusive formula families within their respective group.
+- A repeated migration invocation briefly produced nested duplicate clones. No formula or mapping was deleted: the repair re-bound all trees to first-generation group clones and deactivated only the 20 duplicate formulas and 30 duplicate mappings. Backups: `/app/.emergent/backups/scope3-activity-groups-20260921T073204Z`, `/app/.emergent/backups/scope3-activity-groups-20260921T073300Z`, and `/app/.emergent/backups/scope3-activity-group-repair-20260921T073406Z`.
+- Structural ownership validation confirms 20 active group formulas, 31 active group mappings, and zero nested active clones. **NO FUNCTIONAL BROWSER OR CALCULATION TESTING** per the user’s instruction.
+
+## September 21, 2026 — C4/C9 Mapping Label Authority
+- Removed the C4/C9 frontend exception that changed the `km_travelled` mapped label to **Distance Travelled**. The shared GHG field resolver now uses `ce_input_field_mappings.field_label` directly for all categories, so a configured **Distance Travelled per day** label remains intact in both Add and Edit.
+- **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+
+## September 21, 2026 — Staging Connection Cleanup
+- Removed the temporary staging MongoDB URI and database-name settings from `backend/.env` after the approved migration/reset work.
+- Removed the target-specific bootstrap/reset utilities and restored the C3 migration to its standard local environment behavior. The retained generic catalog migration has no embedded staging URI or database name; it accepts target values only at runtime.
+
+## September 21, 2026 — Approved Staging GHG Reset (MongoDB Only)
+- Added and applied `reset_staging_ghg_data.py`, a target-locked, transaction-backed reset with a complete JSON backup manifest at `/app/.emergent/backups/staging-ghg-reset-20260921T065543Z`.
+- Deleted 7,070 staging-only GHG records/traces: 658 emission records, 1,825 emission-history rows, 17 pending records, 1,415 calculation audit logs, 122 Scope 3 bulk jobs, 900 pending bulk rows, 2,082 bulk errors, 8 Base Year records, 11 Base Year deletion records, 19 emission approval requests, and 13 emission approval-history rows. Supplier-GHG submissions and Base Year history events were already empty.
+- R2 objects and `uploaded_files` metadata were deliberately left untouched by the user’s decision. Organizations, facilities, users, supplier relationships/programs, peer benchmarking, targets, sinks, and ESG records were not changed. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+
+## September 21, 2026 — Staging GHG Catalog Version Baseline
+- Added and applied a staging-only, backup-first baseline migration for immutable calculation metadata. It found all 31 staging formulas already linked to formula versions, then created 3 missing decision-tree snapshots and populated formula-version maps for all 23 current trees. Structural validation completed with no errors; `emission_records` and `emission_history` were not queried for writes or changed.
+- Applied the C3 canonical Activity Type migration to staging: 32 non-biogenic factors now carry `fuel`, `electricity`, or `steam`. Backups are stored at `/app/.emergent/backups/staging-version-baseline-20260921T063336Z` and `/app/.emergent/backups/c3-activity-types-20260921T063346Z.json`.
+- Added explicit credential-safe CORS origins for the preview, approved staging frontend, hosted release, and local development; wildcard CORS remains rejected. **MIGRATION PREFLIGHT AND STRUCTURAL VALIDATION ONLY; NO FUNCTIONAL GHG OR BROWSER TESTING** per the user’s instruction.
+
+## September 21, 2026 — C3 Canonical Activity Type Filtering
+- Enabled the existing shared Scope 3 Activity Type → Activity filtering flow for C3 in both Add and Edit. C3 now presents **Fuel**, **Electricity**, and **Steam** in that order and requires a type before a factor can be selected.
+- Added durable `scope3_ef.activity_type` data for 32 non-biogenic C3 factors: coal-electricity generation and electricity T&D are `electricity`; Heat/Steam loss and generation is `steam`; remaining C3 factors are `fuel`. The controlled migration created `/app/.emergent/backups/c3-activity-types-20260921T060449Z.json` before applying its updates. Existing emission records, formulas, calculations, and histories were unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s explicit instruction.
+
+## September 20, 2026 — Supplier Assessment Correlated Logging
+- Added structured, customer-safe business events for Document publishing/assignment/response/reopen/archive, Training creation/assignment/archive/viewer/consumption, multipart upload lifecycle, Questionnaire authoring/assignment/changes/manual review/reopen/response, revenue actions, and supplier evidence operations.
+- Events inherit the platform `request_id` and `operation_id` and retain only safe entity IDs, counts, outcomes, and stable error codes. Background training media preparation is now observable; scoring fallback no longer uses `print`. Raw request data, content, notes, filenames, URLs, credentials, and exception text are excluded. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 20, 2026 — Safe OCR Provider Failure Diagnostics
+- Advanced Fast (Anthropic) and Think (OpenAI) OCR now convert provider request failures into bounded diagnostics stored only on the failed file job and emitted through structured server logs: provider, validated provider request ID when present, categorized failure, HTTP status, and timestamp.
+- Categories distinguish quota/credit exhaustion, rate limiting, authentication, permissions, invalid request, overload, timeout, network, provider-server, response validation, and unknown failures. Raw exception messages, provider response bodies, prompts, document content, authorization data, headers, and API keys are not persisted or logged. Existing customer-safe error and retry behavior is unchanged; customer OCR API responses omit the internal diagnostic fields. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 20, 2026 — Native OpenAI Think OCR and Emergent Dependency Removal
+- Replaced Think OCR's `emergentintegrations.LlmChat`/LiteLLM path with the official `AsyncOpenAI` Chat Completions client, preserving `gpt-5.6-sol`, `gpt-5.6-terra`, `OPEN_API_KEY_OCR`, prompt content, high-detail JPEG images, and reasoning token limits.
+- Removed `emergentintegrations` and LiteLLM from the installed backend and generated requirements. Repository-wide source/config review found no other consumers and no `sk-emergent-` literal or configured key prefix.
+- Fast OCR remains on native `AsyncAnthropic`. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 20, 2026 — Native Anthropic Fast OCR Transport
+- Replaced the advanced Fast pipeline's Emergent/LiteLLM adapter call with the official `AsyncAnthropic` client already installed in the backend.
+- Fast vision requests now send Anthropic-native Base64 image blocks followed by the extraction prompt; Fast reasoning requests send the prompt directly. Existing `claude-sonnet-5`, `claude-haiku-4-5`, prompts, API-key environment variable, queue workflow, and OCR accounting logic are preserved.
+- Think mode remains on its existing OpenAI gateway. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Session-Scoped Failure Banner
+- OCR no longer restores prior-session failed-upload IDs into a fresh workspace. Legacy failure storage is cleared when the page opens and before a new upload begins.
+- Only an upload started or retried in the active session can show the generic failure banner and its retry action; current upload failures retain the existing retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Stale Failure Banner Recovery
+- A newly and successfully queued OCR upload now removes the previous run’s persisted `ocr-failed-upload-ids` marker and clears the associated generic failure banner.
+- Failures from the newly queued batch remain visible through the existing polling and retry behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Bulk Upload Travel-Day Exclusion
+- Removed **No. of Days Travelled** from the C6 Business Travel workbook schema. Legacy C6 workbook values under either the template or formula key are stripped before validation, calculation, and persistence.
+- C6 no longer includes `qty_days_travelled` in calculation inputs or saved `dynamic_field_values`; C7 keeps its existing travel-day support. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — Adaptive Scope 3 Activity Menu Width
+- Replaced the fixed 34rem Scope 3 Activity dropdown width with a shared, measured behavior in Add and Edit. Menus retain the trigger width when all current activity labels fit, otherwise they expand only by the measured space required for the longest label, check icon, gap, and padding.
+- Menus continue to grow from the right-aligned trigger toward the left, never exceed 34rem or the mobile viewport safe width, and wrap only labels that cannot fit within that cap. Selection data, search behavior, and emission payloads are unchanged.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C4/C9 Manual Distance Label Fix
+- Corrected the frontend category matcher to recognize the canonical manual-entry codes for C4 and C9, so their `km_travelled` field now displays **Distance Travelled** instead of **Distance Travelled per Day** in Add and Edit.
+- Kept the change display-only; calculation variables, formulas, payloads, OCR behavior, and stored emission values are unchanged. Generated placeholders now use the same resolved label.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Formula Inputs Hidden by Scope/Category
+- Frontend-only visibility rule: formula-derived edit inputs are hidden for Scope 1, Scope 2, and Scope 3 categories C1, C2, C3, and C5.
+- Hidden formula inputs no longer prevent edit-form save readiness; other Scope 3 categories retain their applicable inputs.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Facility Review Warning Cleanup
+- Saving a valid facility now removes only the stale `missing facility` review reason from that row’s current values.
+- Unrelated review warnings remain intact, so a corrected facility no longer displays `Review: missing facility` after save.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Scope 1/2 Calculation Method Hidden
+- Calculation method now renders only for Scope 3 in the OCR edit dialog. Scope 1/2 show Scope across the full row instead.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Scope 1/2 Calculation Method Optional
+- Scope 1 and Scope 2 edit flows now use the internal Activity factor path without requiring Calculation method; Scope 3 retains method selection and validation.
+- Scope changes into Scope 1/2 reset the internal method to Activity, preventing hidden spend-method state from affecting factor lookup or required-field feedback.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Tick Styling Full Revert
+- Restored the original standard checkbox selection controls and original green Accept/Save buttons in desktop and mobile review actions.
+- Removed all custom thick bright-green tick styling.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Accept/Save Tick Placement Correction
+- Restored standard selection checkboxes and removed selection-row tick styling.
+- Applied the large, thick, bright-green standalone check exclusively to the Actions-column Accept/Save control on desktop and mobile.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Bold Green Ledger Tick
+- Updated the OCR selection marker to a larger, thick, bright-green standalone check mark with a slight hand-drawn tilt and no surrounding frame.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Frameless Selection Tick Correction
+- Replaced the shared checkbox primitive in the OCR ledger with a custom frameless green tick control. Selected rows retain the emerald highlight; no checkbox square is rendered.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Upload Control Label
+- Renamed the OCR upload-control label from **Browse files** to **Upload Files** without changing behavior.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Edit Form Order and Green Selection
+- Removed NAICS code and NAICS commodity from the OCR edit UI. Reordered its first rows to: Facility/Reporting Period; Calculation Method/Scope; Category/Subcategory; Item Description/Factor Database; then invoice/vendor and remaining inputs.
+- Selected review rows now receive an emerald highlight and show a simple green tick without the prior checkbox frame.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Header and Default Selection Cleanup
+- Removed the Export CSV action. The compact Fast/Think selector now matches Clear workspace width, with a lightning icon for Fast.
+- OCR completion keeps the **All** source selector active by default so review opens across every invoice and Excel workbook.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Source File Row Selector
+- Replaced source-type filters with an **All** source card followed by one compact selector per uploaded invoice or Excel workbook.
+- All displays rows across every source; choosing a source displays only that file’s rows. Source-level review hides invoice-number grouping so Excel and combined rows remain directly visible.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Source Card JSX Compile Fix
+- Corrected an extra closing parenthesis in the new Source documents card map that prevented `OCRInvoice.js` from compiling.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Source Documents Simplification
+- Removed the embedded secure-preview panel. Source documents now use compact cards with All / Invoices / Excel filters; invoice documents open through a secure eye action in a new tab, while Excel has no eye control.
+- Excel review no longer shows invoice-number grouping. Cancelled source documents now provide Process and Delete actions; processing one safely requeues only that file and requests a facility assignment again when needed.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Reporting Period Label
+- Simplified the OCR review ledger label from **Reporting period / date** to **Reporting period** on desktop and mobile.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Review Control and Ledger Cleanup
+- Renamed **Select all shown** to **Select all**. The selected count plus Save selected/Reject selected controls now appear only after at least one row is selected.
+- Replaced text-based View more actions with a compact, tooltip-labeled details icon and centered all desktop ledger headers, values, and action controls.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Queued Batch Recovery
+- Fixed the facility-assignment launch guard by including the upload status in its MongoDB projection, allowing assigned invoices to actually start their background OCR worker.
+- Added an atomic worker claim and a **Resume queued** control/API for batches left queued by the earlier launch failure; only one worker can claim and process a batch.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Cancelled-Invoice Assignment Fix
+- Cancelled invoices are now removed immediately from the early facility-assignment dialog and excluded from its polling refresh, so they cannot block or reappear in assignment.
+- Their cancelled status remains visible in the source/processing queue; remaining invoices can be assigned and extracted normally.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Invoice-Level Queue Controls and Early Facility Assignment
+- OCR uploads with invoice documents now pause immediately after secure upload for facility assignment; extraction starts only after the selected facility is saved and is carried into each extracted row.
+- Added invoice-level cancellation in both the assignment dialog and processing queue. Cancelling one invoice does not stop sibling invoices; a late cancellation is checked again immediately before row persistence.
+- Aligned the green “same facility” control and consolidated Preview/Close preview into one toggle button. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Quantity and C6 Formula Alignment
+- Excel freight extraction now always maps transported-goods quantity and units from the generic **Quantity** and **Units** columns, rather than legacy goods-specific columns.
+- C6 OCR activity-input creation no longer sends `qty_days_travelled` to formula evaluation; passenger count and distance remain available where mapped.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Template Subtitle Cleanup
+- Removed the instructional subtitle from the OCR Ledger sheet; the workbook title, column headers, and separate Instructions sheet remain unchanged.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — OCR Excel Template Redesign
+- Rebuilt the OCR Ledger into the requested 16-column order and added a bordered 500-row entry area. Facility guidance now appears only on the Facility header; Rooms and Nights headers note that they are required only for hotel stays.
+- Added light-blue optional headers for Invoice Number, Vendor Name, From Location, To Location, and Notes, plus an Instructions sheet with a colour legend and field-by-field guidance.
+- Updated spreadsheet aliases and generic Quantity/Units handling so Quantity supports fuels, purchased goods, and transported goods. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — GHG Log Width Reset
+- Added a **Reset widths** control that appears after a user manually resizes GHG log columns. It clears saved manual widths, returns the grid to screen-fit sizing, and resets horizontal position.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — GHG Logs Grid Responsiveness
+- Active Scope tabs now use the platform emerald active state; the dots-menu column is explicitly labeled **Actions** across Scope 1, Scope 2, Scope 3, and Biogenic logs.
+- Default GHG log column widths now expand to the available screen width. The first manual resize freezes current widths instead of forcing all columns back into the viewport.
+- The custom bottom horizontal scrollbar only appears when resized columns actually overflow. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Default Travel Days
+- New C6 trips now initialize `No. of Days Travelled` (`qty_days_travelled`) at 1, while existing trips and saved records remain unchanged.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Field Control Consistency
+- Standardized C6 trip fields without a unit selector to use the same visible border, stone fill, height, and focus treatment as fields with unit selectors.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Evidence Column Spacing
+- Changed the wide-screen C6 trip row from equal grid columns to flexible dynamic-field columns plus a fixed-width evidence column.
+- The upload icon now sits directly after the final input at the right edge, and calculation fields use the released space.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 No-Scroll Trip Inputs
+- Removed the C6 trip-row horizontal scroll container. Dynamic fields and the compact evidence icon stay in one row on wide screens, use two columns at medium widths, and stack on small screens.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Route Fields in Trip Header
+- Moved each trip’s Departure and Arrival inputs from the detail row into the corresponding Trip header, alongside its title and remove action.
+- The detail row remains focused on calculation fields plus the compact ledger-style evidence icon.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Compact Trip-Row Layout
+- Moved every C6 trip’s dynamic inputs, Departure, Arrival, and evidence control into one horizontally scrollable in-card row so values remain aligned and scannable.
+- Replaced the text upload control with the same compact upload icon, evidence count badge, hover file list, view links, and removal action used by the standard monthly ledger.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Add-Trip ReferenceError Fix
+- Declared the missing `testIdSuffix` default parameter in `DynamicFieldRenderer`, resolving the confirmed first-trip render error: `ReferenceError: testIdSuffix is not defined`.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Multi-Trip Render Guard
+- Removed the browser-dependent trip-ID call that ran only when **Add trip** was clicked, replacing it with a safe local ID generator.
+- Made the shared dynamic field renderer tolerate temporarily unavailable units/activity reference lists while a new C6 trip mounts.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — C6 Business Travel Multi-Trip Entry
+- C6 Create now supports multiple independently detailed trips within every monthly or yearly reporting period; each trip has its own dynamic calculation inputs, route, applicable airport lookup, and evidence attachments.
+- Every completed trip is calculated and saved as its own emission record in one rollback-protected submission batch. Existing C6 Edit deliberately remains one record/trip at a time.
+- **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per the user’s explicit instruction.
+
+## September 17, 2026 — Scope 3 Activity Search Precision
+- Replaced cmdk’s default scattered-character fuzzy search only for Scope 3 Activity selection with case-insensitive, normalized word-prefix matching.
+- Every query term must match the start of a genuine activity-name word. Exact phrases/words rank first; valid prefixes follow; no fuzzy fallback remains.
+- Search inputs such as `co`, `comp`, `copp`, `copper`, and multi-term queries now follow the intended semantic behavior without UI, API, data, or selection changes. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
+## September 17, 2026 — Scope 3 Long Activity Names
+- Scope 3 Activity menus now grow leftward from their original right edge to a responsive 34rem maximum when opened.
+- Activity names wrap in the expanded menu rather than truncating. Added in both Add and Edit without changing values or backend behavior. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
+## September 17, 2026 — Biogenic Emission-Type Form Alignment
+- Presented the Biogenic emission type label and both radio options in one neutral standard form row, removing the green container/background treatment.
+- Renamed the visible choices to **Direct Emissions** and **Indirect Emissions** while retaining their existing values and all backend behavior.
+- Applied the same visual/label treatment to Edit for consistency. **SOURCE-REVIEWED ONLY; NOT RUNTIME-TESTED** per user instruction.
+
+## September 8, 2026 — Scope 3 Bulk Spend Currency Inference
+- Spent Amount without PPP/Inflation values now defaults Bulk Upload to Standard Currency Conversion.
+- Providing Purchase Power Value or Inflation Rate selects PPP and Inflation Rate; when both are present, both are retained as overrides.
+- Updated the Excel column guidance for **Currency Conversion Method** and **Exchange Rate (Override)**. **NOT TESTED** per user instruction.
+
+## September 8, 2026 — Scope 1 Bulk Carbon Input Alignment
+- Removed incorrect override classification from bulk-uploaded Carbon Content, Oxidation Factor, and Quantity Basis EF fields.
+- Bulk Upload now persists these required formula inputs using the same `value` and `unit` shape as manual entry, while genuine Calorific Value and Density overrides remain unchanged.
+- Carbon Content/Oxidation Factor tests passed 2/2 before the user requested no further testing; EF Quantity was not tested per that instruction.
+
+## September 7, 2026 — Facility Form Spacing Consistency
+- Standardized the Facility edit form to one vertical spacing scale across sections, field rows, Address, and Attachments.
+- Made each field grid responsive so rows retain even spacing when the dialog narrows.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Facility Form Layout Polish
+- Replaced the Facility Equity Share Percentage warning panel and saved Equity badge with neutral styling.
+- Aligned Facility Person Responsible, Designation, and Contact Details in a responsive three-column row.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Organization Historical Operational Data Access
+- Removed the empty Organization form card that appeared while editing Production or Revenue data.
+- Restored all five available reporting years (current plus four prior), allowing administrators to add missing historical data directly.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Organization Operational Data Editing
+- Production and Revenue now list only reporting years containing data, with explicit **Add current** and **Add previous** reporting-year actions in edit mode.
+- Moved the operational Cancel and Save Changes actions below the reporting-year editors.
+- A period now accepts exactly one data mode: choosing Monthly clears the annual value, choosing Yearly clears monthly values, and the API ignores any inactive legacy payload values.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Organization Facility Count Restored
+- Restored the live **No. of Facilities** count in the saved Organization summary using the existing scoped Facilities API.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Organization GHG Details Layout Polish
+- Aligned Person Responsible, Designation, and Contact Details in one responsive edit row.
+- Moved Reporting Frequency from Basic Details to GHG Details while retaining Reporting Year Type under Basic Details.
+- Replaced the equity-share disclaimer’s yellow warning treatment with neutral supporting text.
+- On saved GHG Details, placed Organizational Boundaries and Uncertainty Assessment in a responsive shared row and removed tinted boundary-approach panels.
+- **NOT TESTED** per the user’s explicit instruction.
+
+## September 7, 2026 — Organization Summary and All-Years Data View
+- Removed country, timezone, reporting-year type, facility count, target count, and reporting cadence from the Organization summary.
+- Joined the corporate address into one line and removed timezone from the address card.
+- Replaced the Production/Revenue year selector with five simultaneous reporting-year editors supporting monthly and yearly entry with per-year saving.
+- Extracted the reporting-year editor into focused reusable components.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Organization Entitlement-Aware Tabs
+- Removed the BRSR/GRI framework badges from the Organization summary.
+- GHG Details now appears only for organizations with the canonical GHG entitlement.
+- Production Data and Revenue Data now appear only when at least one Environment, Social, or Governance entitlement is enabled; inaccessible active tabs fall back to Basic Details.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Organization Details Tab Structure
+- Replaced the single Organization Details view with Basic Details, GHG Details, Production Data, and Revenue Data tabs.
+- Moved Purpose of the Report, Organizational Boundaries, Uncertainty Assessment, GHG Reduction Initiatives, and Internal Performance Tracking Description into GHG Details.
+- Kept all remaining organization fields in Basic Details, separated Turnover / Revenue from Production Quantity, and removed Last updated plus Related Modules.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Monthly Day-Limit Runtime Error Fixed
+- Replaced the undefined `month` reference in Scope 3 monthly day-limit feedback with a month label resolved from `monthKey`.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Scope 3 Monthly Leap-Year Limits
+- Corrected February limits for financial-year monthly entries by mapping January–March to the financial year’s ending calendar year.
+- Standard Scope 3, C7 multi-employee, pre-save, and legacy C7 paths now share the same month/day resolver.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Scope 3 Annual Day Limits
+- Added dynamic 365/366 limits for annual Scope 3 day-count fields based on the selected calendar or financial reporting period.
+- Covered standard Scope 3 yearly entry, C7 multi-employee entry, pre-save validation, and legacy C7 validation.
+- Targeted ESLint and 38 regression tests passed.
+
+## September 7, 2026 — Scope 3 Category/Method Transition
+- Preserved Spend Basis across category changes only when supported by the destination category; unsupported methods now reset to Select Method.
+- Cleared and reinitialized all downstream category-dependent calculation state to prevent stale activities, units, formulas, and results.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Scope 3 Unit Controls Fixed
+- Supplier Basis free-text units now start blank instead of inheriting the first global unit (`2022_USD`).
+- Monthly and yearly unit choices now persist when typed or selected; valid non-default dropdown options are no longer overwritten.
+- Targeted ESLint and 8 unit-control regression tests passed.
+
+## September 7, 2026 — Exchange Rate Unit Reset Fixed
+- Removed the startup seed overwrite that repeatedly restored the Exchange Rate mapping unit to `1`.
+- Startup now inserts the mapping only when missing and preserves all later Super Admin edits.
+- Repaired the local catalog and verified a subsequent startup seed leaves Exchange Rate unitless.
+
+## September 7, 2026 — Scope 3 Spend Default Rates
+- Displayed period-specific PPP, inflation, and standard exchange-rate defaults in Scope 3 Spend Basis ledgers using the same resolver as backend calculations.
+- Preserved explicit override behavior and existing saved overrides across monthly and yearly entry.
+- Targeted static checks and resolver API verification passed.
+
+## September 7, 2026 — Scope 3 Create Selection Alignment
+- Aligned Category, Calculation Method, Activity Type when applicable, and Activity in one responsive desktop row while preserving mobile stacking.
+- **NOT TESTED at user request.**
+
+## September 7, 2026 — Local Decision-Tree Formula-Version Map Repair
+- Corrected the record-binding existence check so a legacy snapshot with a missing projected map is no longer mislabeled as a nonexistent decision-tree version.
+- Added and applied a guarded migration for missing `formula_version_map` values across current and historical decision-tree documents. It backfilled 86 documents and created a local pre-write backup.
+- **NOT TESTED at user request.**
+
+## September 4, 2026 — Immutable Formula and Decision-Tree Versions
+- Added a reusable calculation-version resolver and record-write guard. New emission records pin exact formula/tree versions and store a canonical formula snapshot generated from the server-side catalog.
+- Formula edits append formula versions and automatically append linked decision-tree versions with formula-version maps. Historical edits use pinned form configuration and calculations; switching to newer rules during edit is rejected.
+- Extended version persistence across manual emissions, C7 Employee Commuting, and Scope 1/2/3 Bulk Upload paths. Existing unversioned records are deliberately unchanged pending a separately approved migration.
+- Verified with backend unit tests (7/7), live API regressions (9/9), process-emissions tests (4/4), frontend tests/lint, production build, Python compilation, authenticated API checks, and browser smoke. No mocked APIs.
+
+## September 4, 2026 — R2-Backed Login Background
+- Uploaded the supplied WebP scene to the existing `software-image-dev` R2 bucket at `images/login-background.webp`.
+- Added the private R2 software-asset mapping and switched Login to fetch its signed background URL through `/api/software-assets/login-background`; no public raw asset URL is used by the page.
+- Verified R2 upload, signed URL generation, frontend ESLint, and live Login rendering.
+
+## September 4, 2026 — Super Admin Team Account Creation
+- Super Admins can now create and manage organization-scoped **User** and **Admin** accounts from Team Accounts, with a role selector, organization selector, separate seat-limit enforcement, secure password hashing, and invitation-email rollback on delivery failure.
+- Accounts continue to use the existing `users` collection and standard account fields; no collection or user-data migration was introduced.
+- Verified by production build, browser flow, and focused backend regression checks (13 passed; side-effecting email checks skipped safely). The known edge-proxy CORS override remains infrastructure-blocked.
+
 ## September 4, 2026 — New Organization Org Config Null-Framework Repair
 - Fixed the Org Config HTTP 500 caused by iterating over `esg_frameworks_enabled: null` while initializing newly created organizations.
 - Absence of an enabled ESG framework is now represented safely as an empty list for both legacy reads and future organization creation.

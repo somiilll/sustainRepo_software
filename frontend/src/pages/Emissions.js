@@ -11,8 +11,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import EmissionFilters from './emissions/EmissionFilters';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Filter, X, Search, Cloud } from 'lucide-react';
+import { Plus, Filter, X, Search, Cloud, RotateCcw } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { LoadErrorState } from '../components/LoadErrorState';
 import { toast } from 'sonner';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 import EmissionEditForm from '../components/EmissionEditForm';
@@ -30,7 +31,10 @@ import useEvidenceManagement from './emissions/useEvidenceManagement';
 import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/utils/persistCalcAuditLog';
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
+import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
+import { getUploadErrorMessage, validateFileSize } from '../lib/uploadUtils';
 import { categoryRegistry } from '../modules/emissions';
+import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
   deriveGhgFields,
   resolveGhgFormContext,
@@ -47,6 +51,10 @@ import {
 } from '../modules/ghg/emissions/shared/domain';
 import {
   normalizeDensityForCalcEngine,
+  normalizeCustomFuelCalorificValueUnit,
+  normalizeCustomFuelCompoundUnit,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   resolveCompoundDenominatorBasis,
   resolveProcessEfDenominatorBasis,
 } from '../modules/ghg/emissions/shared/utils/unitHelpers';
@@ -60,13 +68,6 @@ import {
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-const SUPPLIER_GHG_LOCKED_MESSAGE = 'Submitted supplier GHG entries are locked. Ask the parent organization to unlock resubmission.';
-
-const getEmissionUpdateErrorMessage = (error) => (
-  error?.response?.data?.detail === SUPPLIER_GHG_LOCKED_MESSAGE
-    ? SUPPLIER_GHG_LOCKED_MESSAGE
-    : 'Failed to update emissions. Please try again.'
-);
 
 export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
@@ -77,7 +78,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const {
     emissions, facilities, organization, fuelDatabase,
     formulaDefinitions, formulaParameters, emissionConfigurations,
-    loading, centralizedUnits, gwpConfig, processTemplates,
+    loading, loadError: coreDataLoadError, centralizedUnits, gwpConfig,
     dynamicScopes, dynamicCategories, configLabels, organizationGhgOverrides: resolvedOrganizationGhgOverrides,
     scope3EFData: initialScope3EFData,
     fugitiveEmissionsData: initialFugitiveData,
@@ -196,6 +197,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // Initial data hydrated from useEmissionsCoreData (so dropdowns work for Edit
   // dialog regardless of whether user has touched the Add form / scope tab).
   const [scope3EFData, setScope3EFData] = useState([]);
+  const emissionDataGridRef = useRef(null);
+  const [hasCustomizedColumnWidths, setHasCustomizedColumnWidths] = useState(false);
   const scope3Method = editDraft.scope3Method;
   const setScope3Method = useCallback((value) => setDraftField('scope3Method', value), [setDraftField]);
   const spendCurrencyConversionMethod = editDraft.spendCurrencyConversionMethod;
@@ -395,7 +398,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setEditFormConfigLoading(true);
       try {
         // Include method and activity in the request for better formula matching
-        let url = `${API}/calc-engine/form-config/${editContext.categoryId}?scope=${editContext.effectiveScope}`;
+        const configParams = new URLSearchParams({ scope: editContext.effectiveScope });
+        if (editingEmission?.decision_tree_version_id) {
+          configParams.set('decision_tree_version_id', editingEmission.decision_tree_version_id);
+        }
+        if (editingEmission?.formula_version_id) {
+          configParams.set('formula_version_id', editingEmission.formula_version_id);
+        }
+        let url = `${API}/calc-engine/form-config/${editContext.categoryId}?${configParams.toString()}`;
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
@@ -410,7 +420,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission?.decision_tree_version_id, editingEmission?.formula_version_id]);
   
   // ============================================================================
   // EDIT FIELD DERIVATION
@@ -426,8 +436,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     () => ({
       calculation_methodology: editCalcMethodology || 'using_heat_basis_ncv',
       ...(editProcessType ? { process_type: editProcessType } : {}),
+      ...(editDraft.allocationMethod ? { allocation_method: editDraft.allocationMethod } : {}),
     }),
-    [editCalcMethodology, editProcessType],
+    [editCalcMethodology, editProcessType, editDraft.allocationMethod],
   );
 
   const editGhgFormContext = useMemo(
@@ -441,6 +452,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         scopes: dynamicScopes,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityType,
         scope3Subcategory,
         typeOfProduct,
@@ -459,6 +471,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       dynamicScopes,
       scope3Method,
       spendCurrencyConversionMethod,
+      editDraft.allocationMethod,
       scope3ActivityType,
       scope3Subcategory,
       typeOfProduct,
@@ -554,8 +567,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // For Scope 3 (or biogenic scope3), add calculation_method_scope3 from the selected method
     if (isScope3Like && scope3Method) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
+      if (editDraft.allocationMethod) {
+        decisionInputs['allocation_method'] = editDraft.allocationMethod;
+      }
       if (scope3Method === 'spend_basis') {
-        decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
+        decisionInputs['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'standard';
       }
     }
     
@@ -594,11 +610,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (decisionInputs.calculation_methodology === 'using_qty_basis_ef') {
-        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
-          && !editUseCustomFuel;
-        if (isStandardCombustionFuel) {
-          decisionInputs.ef_quantity_basis = 'mass';
-        } else if (editGhgFormContext.categoryCode === 'process_emissions' || editUseCustomFuel) {
+        if (editGhgFormContext.isStationaryMobileOrFlaringCategory
+          || editGhgFormContext.categoryCode === 'process_emissions'
+          || editUseCustomFuel) {
           const efField = dynamicInputFields.find((field) => (
             field.variable === 'ef_quantity' || field.fieldKey === 'ef_quantity'
           ));
@@ -606,6 +620,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             ? dynamicFieldValues.custom_ef_unit || 'kgCO2/kg'
             : dynamicFieldValues.ef_quantity_unit
             || dynamicFieldValues.ef_quantity?.unit
+            || editSelectedFuel?.emission_factor_basis_unit
             || efField?.defaultUnit
             || efField?.default_unit
             || efField?.expectedUnit
@@ -616,30 +631,25 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       }
 
       if (decisionInputs.calculation_methodology === 'using_heat_basis_ncv') {
-        const isStandardCombustionFuel = editGhgFormContext.isStationaryMobileOrFlaringCategory
-          && !editUseCustomFuel;
-        if (isStandardCombustionFuel) {
-          decisionInputs.cv_quantity_basis = 'mass';
-        } else {
-          const cvField = dynamicInputFields.find((field) => (
-            field.variable === 'cv' || field.fieldKey === 'cv'
-          ));
-          const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
-            || dynamicFieldValues.cv_unit
-            || dynamicFieldValues.cv?.unit
-            || cvField?.defaultUnit
-            || cvField?.default_unit
-            || cvField?.expectedUnit
-            || cvField?.allowedUnits?.[0]
-            || 'TJ/kg';
-          const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
-          if (basis) decisionInputs.cv_quantity_basis = basis;
-        }
+        const cvField = dynamicInputFields.find((field) => (
+          field.variable === 'cv' || field.fieldKey === 'cv'
+        ));
+        const cvUnit = (editUseCustomFuel ? dynamicFieldValues.custom_cv_unit : null)
+          || dynamicFieldValues.cv_unit
+          || dynamicFieldValues.cv?.unit
+          || editSelectedFuel?.calorific_value_unit
+          || cvField?.defaultUnit
+          || cvField?.default_unit
+          || cvField?.expectedUnit
+          || cvField?.allowedUnits?.[0]
+          || 'TJ/kg';
+        const basis = resolveCompoundDenominatorBasis(cvUnit, centralizedUnits);
+        if (basis) decisionInputs.cv_quantity_basis = basis;
       }
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, biogenicScopeSelection, selectedCategory, editCalcMethodology, editProcessType, editCapabilities, editGhgFormContext.categoryCode, centralizedUnits, editUseCustomFuel, editDraft.allocationMethod, editSelectedFuel]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -796,21 +806,27 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             const saved = aliases.map(alias => savedDynamicValues[alias]).find(Boolean);
             if (saved) {
               values[key] = saved.value !== null && saved.value !== undefined ? saved.value.toString() : '';
-              if (saved.unit) values[`${key}_unit`] = saved.unit;
+              if (saved.unit) {
+                values[`${key}_unit`] = key === 'custom_cv'
+                  ? normalizeCustomFuelCalorificValueUnit(saved.unit)
+                  : normalizeCustomFuelCompoundUnit(saved.unit);
+              }
             }
           });
           // Custom fuel quantity unit is persisted on dynamic_field_values.qty.
           // Top-level fields are retained only for records saved before that contract.
           const savedQty = savedDynamicValues.qty;
           const savedQtyUnit = typeof savedQty === 'object' ? savedQty.unit : '';
-          values.custom_qty_unit = savedQtyUnit
-            || editingEmission.unit
-            || editingEmission.quantity_unit
-            || 'kg';
+          const primaryQuantity = resolveEmissionQuantity(editingEmission);
+          values.custom_qty_unit = normalizeCustomFuelQuantityUnit(savedQtyUnit
+            || primaryQuantity.unit
+            || 'kg');
           // Density from dynamic_field_values
           if (savedDynamicValues.density) {
             values.density = savedDynamicValues.density.value?.toString() || '';
-            values.density_unit = savedDynamicValues.density.unit || 'kg/L';
+            values.density_unit = normalizeCustomFuelDensityUnit(
+              savedDynamicValues.density.unit || 'kg/L',
+            );
           }
           setDynamicFieldValues({ ...values });
         }
@@ -969,6 +985,90 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     getAuthHeader,
   });
 
+  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+    const sizeError = validateFileSize(file);
+    if (sizeError) throw new Error(sizeError);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+      if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
+
+      const uploadedEvidence = {
+        url: response.data.url,
+        filename: response.data.filename || file.name,
+        file_id: response.data.file_id,
+        is_new: true,
+      };
+      setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
+        if (employee.id !== employeeId) return employee;
+        if (periodKey === 'yearly') {
+          return {
+            ...employee,
+            yearly_data: {
+              ...(employee.yearly_data || { inputs: {}, emissions: null }),
+              evidences: [...(employee.yearly_data?.evidences || []), uploadedEvidence],
+            },
+          };
+        }
+        const currentMonth = employee.monthly_data?.[periodKey] || { inputs: {}, emissions: null };
+        return {
+          ...employee,
+          monthly_data: {
+            ...employee.monthly_data,
+            [periodKey]: {
+              ...currentMonth,
+              evidences: [...(currentMonth.evidences || []), uploadedEvidence],
+            },
+          },
+        };
+      }));
+      setIsFormDirty(true);
+      toast.success('Evidence uploaded successfully');
+    } catch (error) {
+      throw new Error(getUploadErrorMessage(error, file));
+    }
+  }, [getAuthHeader, setEditEmployees]);
+
+  const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {
+    const employee = editEmployees.find((entry) => entry.id === employeeId);
+    const periodData = periodKey === 'yearly'
+      ? employee?.yearly_data
+      : employee?.monthly_data?.[periodKey];
+    const evidenceToRemove = periodData?.evidences?.[evidenceIndex] || null;
+    const fileId = evidenceToRemove?.file_id || evidenceToRemove?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (evidenceToRemove?.is_new && fileId) {
+      await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    } else if (fileId) {
+      setDraftField('c7EvidenceIdsToDelete', (currentIds = []) => (
+        currentIds.includes(fileId) ? currentIds : [...currentIds, fileId]
+      ));
+    }
+
+    setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+      const currentPeriodData = periodKey === 'yearly'
+        ? employee.yearly_data
+        : employee.monthly_data?.[periodKey];
+      const remainingEvidences = (currentPeriodData?.evidences || []).filter((_, index) => index !== evidenceIndex);
+      if (periodKey === 'yearly') {
+        return { ...employee, yearly_data: { ...employee.yearly_data, evidences: remainingEvidences } };
+      }
+      return {
+        ...employee,
+        monthly_data: {
+          ...employee.monthly_data,
+          [periodKey]: { ...currentPeriodData, evidences: remainingEvidences },
+        },
+      };
+    }));
+    setIsFormDirty(true);
+    toast.success('Evidence removed');
+  }, [editEmployees, getAuthHeader, setDraftField, setEditEmployees]);
+
   const fetchHistory = async (emission) => {
     if (isSupplierUser) return;
     try {
@@ -984,6 +1084,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   // Handle fuel selection from database
   const handleFuelSelect = (fuelId) => {
+    // A fuel change affects the calculation inputs even when Quantity itself is unchanged.
+    // Mark the edit as changed so the calculation effect replaces the persisted result.
+    setIsFormDirty(true);
     // Clear dynamic field values when fuel changes to reset units and values
     setDynamicFieldValues({});
     
@@ -1526,7 +1629,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
-    // Filter by activity_type (for C6/C7)
+    // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
       filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
     }
@@ -1776,11 +1879,26 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     calcEngineUsed,
     setCalcEngineUsed,
     isCalculatingNetwork,
+    calculationError,
+    setCalculationError,
     calculate: triggerCalcEngine,
     clearResult: clearCalcResult
   } = useEmissionsCalculator(getAuthHeader);
   
   const [useBackendCalc, setUseBackendCalc] = useState(true);
+  const [liveCalculationValidationError, setLiveCalculationValidationError] = useState('');
+
+  const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
+    setEditDraft((currentDraft) => ({
+      ...currentDraft,
+      allocationMethod,
+      scope3Subcategory: '',
+      scope3ActivityId: '',
+      dynamicFieldValues: {},
+    }));
+    setBackendCalcResult(null);
+    setIsFormDirty(true);
+  }, [setBackendCalcResult]);
   
   // Effect to trigger backend calculations when inputs change
   // Uses dynamic input fields from calculation engine configuration
@@ -1810,6 +1928,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         setBackendCalcResult(null);
         return;
       }
+      const isC8AllocationApplicable = formData.scope === 'scope3'
+        && /^c8\b/i.test(selectedCategory || formData.category || '')
+        && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+      if (isC8AllocationApplicable && !editDraft.allocationMethod) {
+        setBackendCalcResult(null);
+        return;
+      }
       // For supplier_basis with custom activity, check custom activity name
       // For supplier_basis without custom activity or other methods, check activity ID
       if (scope3Method === 'supplier_basis' && useCustomActivity) {
@@ -1830,6 +1955,38 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Check if we have dynamic input fields - if so, use them for calculation
     if (dynamicInputFields.length > 0) {
+      const unwrapFieldValue = (field) => {
+        const rawValue = dynamicFieldValues[field.variable] ?? dynamicFieldValues[field.fieldKey];
+        return rawValue && typeof rawValue === 'object' ? rawValue.value : rawValue;
+      };
+      const isBlankFieldValue = (value) => (
+        value === undefined || value === null || String(value).trim() === ''
+      );
+      const missingRequiredField = dynamicInputFields.find((field) => {
+        if (!field.required || field.isOverride || field.presentationOnly) return false;
+        const value = unwrapFieldValue(field);
+        return isBlankFieldValue(value)
+          || ((field.fieldType === 'number' || !field.fieldType) && !Number.isFinite(Number.parseFloat(value)));
+      });
+      const isC8FloorShare = formData.scope === 'scope3'
+        && /^c8\b/i.test(selectedCategory || formData.category || '')
+        && editDraft.allocationMethod === 'floor_area_share';
+      const floorShareField = isC8FloorShare
+        ? dynamicInputFields.find((field) => /floor.*(?:area|share)|(?:area|share).*floor/i.test(
+          `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`,
+        ))
+        : null;
+      const missingFloorShare = floorShareField && isBlankFieldValue(unwrapFieldValue(floorShareField));
+      const missingInputLabel = missingRequiredField?.label
+        || missingRequiredField?.variable
+        || (missingFloorShare ? floorShareField.label : 'Floor Share %');
+      if (missingRequiredField || missingFloorShare) {
+        setLiveCalculationValidationError(`${missingInputLabel} is required before emissions can be calculated.`);
+        setBackendCalcResult(null);
+        return;
+      }
+      setLiveCalculationValidationError('');
+
       // Ensure dynamicFieldValues is populated (not just initialized)
       const hasAnyValues = Object.keys(dynamicFieldValues).some(key => {
         const val = dynamicFieldValues[key];
@@ -1837,7 +1994,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
       
       if (!hasAnyValues) {
-        // Values not yet initialized, wait for them
+        setBackendCalcResult(null);
         return;
       }
       
@@ -1866,9 +2023,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
         const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
         
-        // Get base unit based on unit_source
-        let baseUnit;
-        if (field.unitSource === 'fuel') {
+        // Unitless fields must never inherit a default display or fallback unit.
+        let baseUnit = '';
+        if (field.unitSource === 'none') {
+          baseUnit = '';
+        } else if (field.unitSource === 'fuel') {
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
           if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
             baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
@@ -1883,8 +2042,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         }
         
         // Apply compound suffix if field has compoundWithVariable
-        let finalUnit = baseUnit || 'kg';
-        if (field.compoundWithVariable) {
+        let finalUnit = field.unitSource === 'none' ? '' : (baseUnit || 'kg');
+        if (field.compoundWithVariable && finalUnit) {
           const linkedUnit = dynamicFieldValues[`${field.compoundWithVariable}_unit`];
           if (linkedUnit && typeof linkedUnit === 'string' && linkedUnit.trim()) {
             // Only add suffix if baseUnit doesn't already contain it
@@ -1930,7 +2089,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         : editUseCustomFuel ? customFuelCalculation?.isReady : hasValidInput;
       
       if (!canCalculate) {
-        // Don't reset to null here - keep previous result visible
+        setBackendCalcResult(null);
         return;
       }
       
@@ -1955,7 +2114,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         if (Number.isFinite(densityValue) && densityValue > 0) {
           userOverrides.density = normalizeDensityForCalcEngine({
             value: densityValue,
-            unit: dynamicFieldValues.density_unit || 'kg/L',
+            unit: normalizeCustomFuelDensityUnit(dynamicFieldValues.density_unit || 'kg/L'),
           });
         }
       }
@@ -1984,7 +2143,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       const scope3ContextPreview = isScope3Like ? {
         calculation_method_scope3: scope3Method,
         ...(scope3Method === 'spend_basis' && {
-          spend_currency_conversion_method: spendCurrencyConversionMethod || 'ppp_inflation',
+          spend_currency_conversion_method: spendCurrencyConversionMethod || 'standard',
         }),
         scope3_ef_id: scope3ActivityId,
         // For supplier_basis with custom activity, use the custom activity name
@@ -2029,6 +2188,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         },
         user_overrides: userOverrides,
         dry_run: true,
+        ...(editingEmission?.decision_tree_version_id && {
+          decision_tree_version_id: editingEmission.decision_tree_version_id,
+        }),
+        ...(editingEmission?.formula_version_id && {
+          formula_version_id: editingEmission.formula_version_id,
+        }),
         // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
         ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
       };
@@ -2056,6 +2221,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     // Call the backend calc engine (uses its own debouncing)
+    setCalculationError('');
     executeBackendCalc({
       scope: formData.scope,
       category: formData.category || selectedCategory,
@@ -2066,6 +2232,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       gwpConfig: gwpConfig,
       dryRun: true,
       calculationMethodology: editCalcMethodology,
+      decisionTreeVersionId: editingEmission?.decision_tree_version_id || null,
+      formulaVersionId: editingEmission?.formula_version_id || null,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);
@@ -2073,11 +2241,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       } else {
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
+        setCalculationError('Calculation unavailable. Please review the entered data and try again.');
       }
     }).catch(error => {
       console.error('[CalcEngine] Backend calculation error:', error);
       setBackendCalcResult(null);
       setCalcEngineUsed(false);
+      setCalculationError("We couldn't complete this calculation. Please review the entered data and try again.");
     });
   }, [
     dialogOpen, editingEmission, isFormDirty, selectedFuel?.id, formData.quantity, formData.quantity_unit,
@@ -2086,12 +2256,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
-    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection,
+    useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection, editDraft.allocationMethod,
     editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
   ]);
   
   // Use backend calculation engine result exclusively
   const effectiveCalculatedEmissions = useMemo(() => {
+    if (liveCalculationValidationError) return null;
     // Use backend result if available
     if (backendCalcResult && useBackendCalc) {
       return {
@@ -2104,7 +2275,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // The audit log enriches the trace panel but is not required for the
     // summary numbers — records created before the audit-link fix will
     // still display their saved CO₂/CH₄/N₂O/CO₂e immediately.
-    if (editingEmission) {
+    if (editingEmission && !isFormDirty) {
       return {
         auditLog: emissionAuditLog,
         co2Emissions: editingEmission.co2_emissions,
@@ -2116,11 +2287,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         n2oOutputUnit: 'tN₂O',
         co2eOutputUnit: 'tCO₂e',
         appliedFormulaName: editingEmission.formula_name,
+        formulaId: editingEmission.formula_id,
+        formulaVersionId: editingEmission.formula_version_id,
+        decisionTreeVersionId: editingEmission.decision_tree_version_id,
       };
     }
     
     return null;
-  }, [backendCalcResult, useBackendCalc, emissionAuditLog, editingEmission]);
+  }, [backendCalcResult, useBackendCalc, emissionAuditLog, editingEmission, isFormDirty, liveCalculationValidationError]);
 
   // Track calculation state - set isCalculating true when inputs change, false after a short delay
   // This ensures the Save button is disabled while calculations are updating
@@ -2144,6 +2318,27 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (calculationError && !isEditC7EmployeeCommuting) {
+      toast.error(`Nothing was saved. ${calculationError}`);
+      return;
+    }
+
+    const missingRequiredQuantityField = dynamicInputFields.find((field) => {
+      if (!field.required || field.isOverride || field.presentationOnly) return false;
+      const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`.toLowerCase();
+      if (!/quantity|\bqty\b|activity_value|consum|energy|volume|mass|distance|travelled/.test(identity)) return false;
+      const rawValue = dynamicFieldValues?.[field.variable] ?? dynamicFieldValues?.[field.fieldKey];
+      const value = typeof rawValue === 'object' ? rawValue?.value : rawValue;
+      return value === '' || value === null || value === undefined;
+    });
+    if (missingRequiredQuantityField) {
+      const label = typeof missingRequiredQuantityField.label === 'object'
+        ? missingRequiredQuantityField.label.value
+        : (missingRequiredQuantityField.label || 'Quantity Used');
+      toast.error(`${label} missing.`);
+      return;
+    }
+
     // E3: persistCalcAuditLog moved to ./emissions/utils/persistCalcAuditLog.
     // Thin wrapper binds local state for the dispatch branches below.
     const persistCalcAuditLogLocal = (emissionId) => persistCalcAuditLogShared(emissionId, {
@@ -2166,6 +2361,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editUseCustomFuel,
       editCustomFuelName,
       editCalcMethodology,
+      editingEmission,
       getAuthHeader,
     });
     
@@ -2179,14 +2375,24 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         return;
       }
 
+      setIsSaving(true);
+      const calculation = await calculateC7EditEmployeesForSave();
+      if (calculation?.error) {
+        toast.error(`Nothing was saved. ${calculation.error}`);
+        setIsSaving(false);
+        return;
+      }
+      const employeesForSave = calculation.employees;
+
       // 1. Validate via module
       const validation = c7Module.validateEditSubmission({
-        editEmployees,
+        editEmployees: employeesForSave,
         editingEmission,
         processNames: formData.process_names,
       });
       if (!validation.valid) {
         toast.error(validation.errorMessage);
+        setIsSaving(false);
         return;
       }
 
@@ -2194,16 +2400,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       const builtPayload = c7Module.buildEditPayload({
         formData,
         editingEmission,
-        editEmployees,
+        editEmployees: employeesForSave,
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityId,
         scope3ActivityType,
         scope3CustomActivity,
         useCustomActivity,
         filteredScope3Activities,
-        editEmployeeMonthlyTotals,
-        editEmployeeYearlyTotal,
+        editEmployeeMonthlyTotals: calculation.monthlyTotals,
+        editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
       });
       const totalCo2e = builtPayload.__totalCo2e;
@@ -2212,13 +2419,22 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       delete payload.__totalCo2e;
 
       try {
-        setIsSaving(true);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
         
         if (response.data) {
-          toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          const deletedFileResults = await Promise.allSettled(
+            (editDraft.c7EvidenceIdsToDelete || []).map((fileId) => axios.delete(
+              `${API}/files/${fileId}`,
+              { headers: getAuthHeader() },
+            )),
+          );
+          const failedFileDeletes = deletedFileResults.filter((result) => result.status === 'rejected').length;
+          toast.success(`Updated ${employeesForSave.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          if (failedFileDeletes > 0) {
+            toast.error(`The record was saved, but ${failedFileDeletes} removed evidence file(s) could not be deleted.`);
+          }
           // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
           // is intentionally skipped for C7. The calc-engine endpoint expects
           // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
@@ -2254,6 +2470,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         // Scope 3 props
         scope3Method,
         spendCurrencyConversionMethod,
+        allocationMethod: editDraft.allocationMethod,
         scope3ActivityId,
         scope3CustomActivity,
         useCustomActivity,
@@ -2263,6 +2480,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         processNames: formData.process_names,
         effectiveCalculatedEmissions,
         formData,
+        frequencyType: editFrequencyType,
+        categoryCode: editGhgFormContext.categoryCode,
         capabilities: editCapabilities,
         // Scope 1 props
         isOverrideCV,
@@ -2274,6 +2493,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         // Custom fuel props
         editUseCustomFuel,
         editCustomFuelName,
+        editCalcMethodology,
         editProcessType,
       });
       if (!validation.valid) {
@@ -2286,6 +2506,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           // Scope 3 props
           scope3Method,
           spendCurrencyConversionMethod,
+          allocationMethod: editDraft.allocationMethod,
           scope3ActivityId,
           scope3ActivityType,
           scope3Subcategory,
@@ -2349,14 +2570,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   };
 
   // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
-  const handleEdit = (emission) => editEmissionDispatchShared(emission, {
-    // State reads
-    scope3EFData, fugitiveEmissionsData, fuelDatabase,
-    // Setters
-    setEditDraft, setEditingEmissionId,
-    setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
-    setEditingEmission, activeEditIdRef,
-  });
+  const handleEdit = (emission) => {
+    setLiveCalculationValidationError('');
+    return editEmissionDispatchShared(emission, {
+      // State reads
+      scope3EFData, fugitiveEmissionsData, fuelDatabase,
+      // Setters
+      setEditDraft, setEditingEmissionId,
+      setEmissionAuditLog, setIsEditLoading, setDialogOpen, setIsFormDirty,
+      setEditingEmission, activeEditIdRef,
+    });
+  };
 
   // Deep-link from /ghg/approvals: open the edit dialog for ?edit=<id> once
   // the emissions list is loaded. Strips the param after firing so a refresh
@@ -2489,6 +2713,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
     setUploadedEvidence(null);
+    setLiveCalculationValidationError('');
   };
 
   const openCreateDialog = () => {
@@ -2688,6 +2913,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           use_custom_activity: useCustomActivity,
         },
         scope3_ef_id: matchedActivity?.id || null,
+        ...(editingEmission?.decision_tree_version_id && {
+          decision_tree_version_id: editingEmission.decision_tree_version_id,
+        }),
+        ...(editingEmission?.formula_version_id && {
+          formula_version_id: editingEmission.formula_version_id,
+        }),
       };
 
       // Call calc engine
@@ -2715,6 +2946,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           audit_log: auditLog,
           applied_factors: appliedFactors,
           formula_id: response.data.resolved_formula?.id || null,
+          formula_version_id: response.data.resolved_formula?.version_id || null,
+          decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
           formula_name: response.data.resolved_formula?.name || '',
           outputs: response.data.outputs,
         };
@@ -2797,6 +3030,165 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setIsCalculatingEditEmployee(false);
     }
   }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader, useCustomActivity, scope3CustomActivity]);
+
+  const calculateC7EditEmployeesForSave = useCallback(async () => {
+    const fail = (message) => ({ error: message });
+    if (!scope3Method) return fail('Please select a calculation method first');
+    if (!scope3ActivityType) return fail('Please select an activity type first');
+    if (!useCustomActivity && !scope3ActivityId) {
+      return fail('Please select a specific activity from the dropdown');
+    }
+
+    const normalizeActivityType = (value) => (
+      value ? value.toLowerCase().replace(/\s+/g, '_') : ''
+    );
+    const normalizedActivityType = normalizeActivityType(scope3ActivityType);
+    const matchedActivity = useCustomActivity
+      ? null
+      : filteredScope3Activities.find((activity) => activity.id === scope3ActivityId)
+        || filteredScope3Activities.find((activity) => (
+          activity.activity_type === scope3ActivityType
+          || normalizeActivityType(activity.activity_type) === normalizedActivityType
+        ));
+    if (!useCustomActivity && !matchedActivity) {
+      return fail('Activity not found. Please select a valid activity from the dropdown.');
+    }
+    const categoryObj = dynamicCategories.find((item) => (
+      item.name === formData.category && item.scope_code === 'scope3'
+    ));
+    if (!categoryObj) return fail('Category not found');
+
+    setIsCalculatingEditEmployee(true);
+    try {
+      const calculatedEmployees = editEmployees.map((employee) => ({ ...employee }));
+      for (let employeeIndex = 0; employeeIndex < calculatedEmployees.length; employeeIndex += 1) {
+        let employee = calculatedEmployees[employeeIndex];
+        if (!employee.name?.trim()) return fail('Employee Name is required');
+        const isYearly = editingEmission?.frequency_type === 'yearly';
+        const periods = isYearly
+          ? ['yearly']
+          : Object.entries(employee.monthly_data || {})
+            .filter(([, monthData]) => dynamicInputFields.some((field) => {
+              const value = monthData?.inputs?.[field.variable];
+              return value !== '' && value !== null && value !== undefined;
+            }))
+            .map(([monthKey]) => monthKey);
+        if (periods.length === 0) return fail(`${employee.name}: enter at least one input value`);
+
+        for (const periodKey of periods) {
+          const inputData = isYearly ? employee.yearly_data : employee.monthly_data?.[periodKey];
+          const inputs = inputData?.inputs || {};
+          for (const field of dynamicInputFields.filter((item) => item.required && !item.isOverride)) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) {
+              return fail(`${employee.name}: ${field.label} is required`);
+            }
+          }
+
+          const formulaInputs = {};
+          for (const field of dynamicInputFields) {
+            const value = inputs[field.variable];
+            if (value === '' || value === null || value === undefined) continue;
+            const unit = inputs[`${field.variable}_unit`] || field.expectedUnit || field.unit || '';
+            if (scope3Method === 'supplier_basis' && field.unitSource !== 'none' && !String(unit).trim()) {
+              return fail(`${employee.name}: Unit is required for ${field.label}`);
+            }
+            formulaInputs[field.variable] = { value: parseFloat(value), unit };
+          }
+
+          let response;
+          try {
+            response = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              category_id: categoryObj.id,
+              decision_inputs: {
+                calculation_method_scope3: scope3Method,
+                activity_type: normalizedActivityType || scope3ActivityType,
+              },
+              inputs: formulaInputs,
+              context: {
+                calculation_method_scope3: scope3Method,
+                activity_type: normalizedActivityType || scope3ActivityType,
+                reporting_period: editingEmission.reporting_period || formData.reporting_period_start,
+                activity: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                fuel_name: matchedActivity?.activity || scope3CustomActivity || 'Custom Activity',
+                scope3_ef_id: matchedActivity?.id || null,
+                use_custom_activity: useCustomActivity,
+              },
+              scope3_ef_id: matchedActivity?.id || null,
+              ...(editingEmission?.decision_tree_version_id && {
+                decision_tree_version_id: editingEmission.decision_tree_version_id,
+              }),
+              ...(editingEmission?.formula_version_id && {
+                formula_version_id: editingEmission.formula_version_id,
+              }),
+            }, { headers: getAuthHeader() });
+          } catch (error) {
+            const detail = error.response?.data?.detail;
+            return fail(`${employee.name}: ${typeof detail === 'string' ? detail : 'Failed to calculate emissions'}`);
+          }
+          if (!response.data?.outputs) return fail(`${employee.name}: No calculation results returned`);
+
+          const emissions = {
+            co2: response.data.outputs.co2?.value ?? 0,
+            ch4: response.data.outputs.ch4?.value ?? 0,
+            n2o: response.data.outputs.n2o?.value ?? 0,
+            co2e: response.data.outputs.co2e?.value ?? 0,
+          };
+          const calculationDetails = {
+            audit_log: response.data.audit_log || [],
+            applied_factors: response.data.applied_factors || {},
+            formula_id: response.data.resolved_formula?.id || null,
+            formula_version_id: response.data.resolved_formula?.version_id || null,
+            decision_tree_version_id: response.data.resolved_decision_tree?.version_id || null,
+            formula_name: response.data.resolved_formula?.name || '',
+            outputs: response.data.outputs,
+          };
+          employee = isYearly ? {
+            ...employee,
+            yearly_data: {
+              ...employee.yearly_data,
+              emissions,
+              calculation_details: calculationDetails,
+            },
+          } : {
+            ...employee,
+            monthly_data: {
+              ...employee.monthly_data,
+              [periodKey]: {
+                ...employee.monthly_data[periodKey],
+                emissions,
+                calculation_details: calculationDetails,
+              },
+            },
+          };
+          calculatedEmployees[employeeIndex] = employee;
+        }
+      }
+
+      const monthlyTotals = {};
+      calculatedEmployees.forEach((employee) => {
+        Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+          if (monthData?.emissions?.co2e === null || monthData?.emissions?.co2e === undefined) return;
+          monthlyTotals[monthKey] = {
+            co2e: (monthlyTotals[monthKey]?.co2e || 0) + monthData.emissions.co2e,
+          };
+        });
+      });
+      const yearlyTotal = {
+        co2e: editingEmission?.frequency_type === 'yearly'
+          ? calculatedEmployees.reduce((total, employee) => (
+            total + (employee.yearly_data?.emissions?.co2e || 0)
+          ), 0)
+          : Object.values(monthlyTotals).reduce((total, month) => total + (month.co2e || 0), 0),
+      };
+      setEditEmployees(calculatedEmployees);
+      setEditEmployeeMonthlyTotals(monthlyTotals);
+      setEditEmployeeYearlyTotal(yearlyTotal);
+      return { employees: calculatedEmployees, monthlyTotals, yearlyTotal };
+    } finally {
+      setIsCalculatingEditEmployee(false);
+    }
+  }, [dynamicCategories, dynamicInputFields, editEmployees, editingEmission, filteredScope3Activities, formData.category, formData.reporting_period_start, getAuthHeader, scope3ActivityId, scope3ActivityType, scope3CustomActivity, scope3Method, useCustomActivity]);
 
   // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {
@@ -3059,6 +3451,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     );
   }
 
+  if (coreDataLoadError) {
+    return <main className="mx-auto max-w-4xl px-6 py-16" data-testid="emissions-core-data-error-page">
+      <LoadErrorState
+        title="Unable to load emission data"
+        message={coreDataLoadError}
+        onRetry={fetchData}
+        testId="emissions-core-data-load-error"
+      />
+    </main>;
+  }
+
   // Check if organization has emission access
   // If enabled_access is null/undefined, default to scope1_2. If it's an empty array, no access.
   const enabledAccess = organization?.enabled_access;
@@ -3121,6 +3524,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 style={{ width: 'calc(100vw - 2rem)', maxWidth: '72rem' }}
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
+                onKeyDownCapture={(event) => {
+                  if (event.key === '+' && event.target instanceof HTMLInputElement && event.target.type === 'number') event.preventDefault();
+                }}
+                onPasteCapture={(event) => {
+                  if (event.target instanceof HTMLInputElement && event.target.type === 'number' && event.clipboardData?.getData('text')?.includes('+')) event.preventDefault();
+                }}
                 hideCloseButton={true}
               >
                 <DialogHeader>
@@ -3148,7 +3557,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   formulaParameters={formulaParameters}
                   emissionConfigurations={emissionConfigurations}
                   gwpConfig={gwpConfig}
-                  processTemplates={processTemplates}
                   dynamicScopes={visibleScopes}
                   dynamicCategories={dynamicCategories}
                   hasScope3Access={hasScope3Access}
@@ -3178,7 +3586,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                     setIsFormDirty(false);
                     setOcrPrefillData(null);
                     fetchData();
-                    toast.success('Emissions saved successfully');
                   }}
                   onCancel={() => {
                     setOcrPrefillData(null);
@@ -3199,8 +3606,10 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   editFormConfigLoading={editFormConfigLoading}
                   dynamicInputFields={dynamicInputFields}
                   effectiveCalculatedEmissions={effectiveCalculatedEmissions}
+                  liveCalculationValidationError={liveCalculationValidationError || calculationError}
                   isCalculating={isCalculating}
                   isSaving={isSaving}
+                  onC8AllocationMethodChange={handleC8AllocationMethodChange}
                   setActivitySearchTerm={setActivitySearchTerm}
                   // ---------- core data ----------
                   facilities={facilities}
@@ -3230,6 +3639,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   fieldOptions={editGhgFieldOptions}
                   requiresSubcategory={requiresSubcategory}
                   availableSubcategories={availableSubcategories}
+                  scope3EFData={scope3EFData}
                   filteredScope3Activities={filteredScope3Activities}
                   availableQuantityUnits={availableQuantityUnits}
                   // ---------- handlers ----------
@@ -3244,6 +3654,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleRemoveEvidence={handleRemoveEvidence}
                   handleDeleteExistingEvidence={handleDeleteExistingEvidence}
                   handleDeleteAllEvidences={handleDeleteAllEvidences}
+                  handleC7EvidenceUpload={handleC7EditEvidenceUpload}
+                  handleC7EvidenceRemove={handleC7EditEvidenceRemove}
+                  handleC7EvidenceDownload={handleDownloadEvidence}
                   handleDialogChange={handleDialogChange}
                   assignedReportingPeriod={supplierReportingConfig}
                 />
@@ -3313,7 +3726,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           setBiogenicScopeSelection('');
         }
       }} className="w-full">
-        <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(0, 1fr))` }}>
+        <div className="flex flex-wrap items-center gap-3">
+        <TabsList className="inline-grid w-fit min-w-0 gap-1 rounded-full border border-emerald-950/15 bg-white p-1 shadow-sm" style={{ gridTemplateColumns: `repeat(${Math.max(visibleScopes.length, 1)}, minmax(78px, 112px))` }}>
           {visibleScopes.map(s => {
             const isScope3 = s.code === 'scope3';
             // Check both organization-level and KPI assignment-level access
@@ -3326,7 +3740,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 key={s.code}
                 value={s.code}
                 disabled={isDisabled}
-                className={isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : ''}
+                className={`rounded-full px-4 transition-[background-color,color,box-shadow] duration-200 ${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:bg-emerald-50 hover:text-emerald-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-900'}`}
                 data-testid={`scope-tab-${s.code}`}
               >
                 {s.name}
@@ -3339,11 +3753,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             );
           })}
         </TabsList>
+        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
+          <RotateCcw className="h-3.5 w-3.5" />Reset widths
+        </Button>}
+        </div>
 
         <TabsContent value={activeScope} className="mt-6">
           {/* Enterprise Data Grid Layout */}
           <EmissionDataGrid
+            ref={emissionDataGridRef}
             activeScope={activeScope}
+            onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
             filteredEmissions={filteredEmissions}
             facilities={facilities}
             filteredScope3Activities={filteredScope3Activities}
@@ -3373,7 +3793,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                         <div className="mt-2 p-2 bg-stone-50 rounded text-sm">
                           <strong>Facility:</strong> {facilities.find(f => f.id === emissionToDelete.facility_id)?.name || 'Unknown'}<br/>
                           <strong>Category:</strong> {emissionToDelete.category}<br/>
-                          <strong>Quantity:</strong> {emissionToDelete.quantity} {emissionToDelete.quantity_unit}
+                          <strong>Quantity:</strong> {formatEmissionQuantity(emissionToDelete)}
                         </div>
                       )}
                     </div>
@@ -3424,6 +3844,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           open={historyDialogOpen}
           onOpenChange={setHistoryDialogOpen}
           history={selectedEmissionHistory}
+          facilities={facilities}
         />
       )}
       

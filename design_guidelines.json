@@ -1,85 +1,102 @@
 {
-  "project_metadata": {
-    "app_type": "enterprise ESG sustainability data platform dashboard",
-    "theme": "light",
-    "archetype": "ORGANIC & EARTHY (ESG Enterprise SaaS Precision)",
-    "target_audience": "ESG Managers, Sustainability Directors, Compliance Auditors",
-    "domain_focus": "Environment -> Energy -> KPI Data Table"
-  },
-  "key_functionalities": [
-    "Energy KPI data table",
-    "KPI table filtering toolbar",
-    "Row hover behavior and contextual actions",
-    "Sophisticated status badges with subtle check icons",
-    "Clear date/time hierarchy for Last Updated column",
-    "Enhanced Category/Subcategory primary/metadata typography hierarchy",
-    "Layered page background hierarchy for enterprise SaaS character"
-  ],
-  "design_system": {
-    "colors": {
-      "page_background": "#f4f4f2",
-      "surface_card": "#fafafa",
-      "table_surface": "#ffffff",
-      "primary_text": "#064e3b",
-      "primary_text_slate": "#0f172a",
-      "secondary_text": "#64748b",
-      "border_thin": "#e2e8f0",
-      "border_subtle": "#f1f5f9",
-      "status_completed_bg": "#ecfdf5",
-      "status_completed_text": "#065f46",
-      "status_completed_border": "#a7f3d0",
-      "hover_row_bg": "rgba(241, 245, 249, 0.6)",
-      "forbidden_colors": [
-        "#1B93A4",
-        "#7351B7"
-      ]
-    },
-    "typography": {
-      "font_family_main": "Inter, sans-serif",
-      "font_family_display": "Outfit, sans-serif",
-      "forbidden_fonts": [
-        "space grotesk"
-      ],
-      "table_header": "text-[11px] font-semibold tracking-wider text-stone-500 uppercase",
-      "category_primary": "text-sm font-semibold text-emerald-950 leading-tight",
-      "category_subcategory": "text-xs font-normal text-stone-500 leading-tight mt-0.5",
-      "updated_date": "text-xs font-medium text-stone-800 leading-snug",
-      "updated_time": "text-[11px] font-normal text-stone-400 leading-snug"
-    },
-    "layout_hierarchy": {
-      "layer_1_page_bg": "bg-stone-100/70 border-none min-h-screen",
-      "layer_2_toolbar_card": "bg-stone-50/90 border border-stone-200/80 rounded-md shadow-2xs p-4 mb-4",
-      "layer_3_table_surface": "bg-white border border-stone-200 rounded-md shadow-xs overflow-hidden",
-      "layer_4_rows": "bg-white border-b border-stone-100 hover:bg-emerald-50/20 transition-colors duration-150"
-    },
-    "row_spacing_spec": {
-      "vertical_padding": "py-3.5 px-4",
-      "height_increase": "Increase vertical breathing room by 6-10px compared to standard dense tables",
-      "hover_action_prominence": "opacity-50 group-hover:opacity-100 transition-opacity duration-150"
-    },
-    "status_badge_spec": {
-      "completed": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60 shadow-2xs",
-      "check_icon": "h-3.5 w-3.5 text-emerald-600"
+  "project_name": "Supplier Portal Dashboard, ESG Modules & OCR Extraction Refactor",
+  "archetype": "ORGANIC & EARTHY WITH PRECISION SaaS DASHBOARD",
+  "theme": "Light mode primary with emerald/slate high-contrast accents",
+  "file_type_extension": ".js / .jsx",
+  "typography": {
+    "font_family_heading": "Cabinet Grotesk, Outfit, sans-serif",
+    "font_family_body": "Inter, DM Sans, system-ui, sans-serif",
+    "font_family_mono": "JetBrains Mono, Fira Code, monospace",
+    "hierarchy": {
+      "h1": "text-3xl font-bold text-emerald-950 sm:text-4xl lg:text-5xl tracking-tight",
+      "h2": "text-2xl font-semibold text-slate-900 tracking-tight",
+      "h3": "text-xl font-medium text-slate-900",
+      "h4": "text-lg font-medium text-slate-800",
+      "body": "text-sm sm:text-base text-slate-700 leading-relaxed",
+      "small": "text-xs font-medium text-slate-500 uppercase tracking-wider"
     }
   },
+  "colors": {
+    "primary": {
+      "emerald_950": "#022c22",
+      "emerald_800": "#065f46",
+      "emerald_700": "#047857",
+      "emerald_600": "#059669",
+      "emerald_100": "#d1fae5",
+      "emerald_50": "#ecfdf5"
+    },
+    "slate": {
+      "950": "#020617",
+      "900": "#0f172a",
+      "700": "#334155",
+      "600": "#475569",
+      "200": "#e2e8f0",
+      "100": "#f1f5f9",
+      "50": "#f8fafc"
+    },
+    "warning": {
+      "amber_50": "#fffbeb",
+      "amber_200": "#fde68a",
+      "amber_950": "#451a03"
+    },
+    "error": {
+      "red_50": "#fef2f2",
+      "red_700": "#b91c1c",
+      "red_800": "#991b1b"
+    }
+  },
+  "layout_and_structure": {
+    "page_container": "mx-auto w-full max-w-[1700px] space-y-6 p-4 sm:p-6 lg:p-8",
+    "grid_system": "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-12",
+    "header_pattern": "ModulePageHeader with title, icon, and aside action controls",
+    "ocr_workspace_layout": "Full width stacked/responsive layout with compact header controls"
+  },
+  "ocr_refactor_requirements": {
+    "page_header": "Use ModulePageHeader with title 'OCR Extraction', icon FileText or Sparkles, and matching Bulk Upload style (data-testid='ocr-invoice-header').",
+    "remove_hero_copy": "COMPLETELY REMOVE the introductory banner block containing 'Secure organization workspace Activity extraction Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.'",
+    "extraction_mode_relocation": "Shift Fast/Think extraction mode selector into the header action area / right-aligned inline toolbar where the Download template button is located.",
+    "extraction_mode_compact_buttons": "Compact the Fast and Think mode buttons by removing the summary text ('Rapid extraction and classification' / 'Deeper reasoning for complex documents'). Display title, model badge, and icon in a clean pill/toggle group.",
+    "full_width_workspace": "Allow source document preview, upload dropzone, batch queue, and line items review table to acquire full width across the grid without unnecessary multi-column sidebars when hero is cleared."
+  },
+  "manual_ghg_create_form_fix": {
+    "state_synchronization_bug": "Fix payload unit mismatch where 'kg' was randomly sent instead of the selected unit (e.g., 'kl' or 'L').",
+    "resolution_rule": "Ensure form state synchronization listens directly to the unit dropdown change handler and updates both internal state and dispatch payload atomically. Validate unit payload prior to POST/PUT API dispatch."
+  },
+  "image_urls": [
+    {
+      "category": "dashboard_analytics",
+      "description": "Analytics dashboard monitor",
+      "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHszfHxzdXN0YWluYWJpbGl0eSUyMGRhdGElMjBjbGVhbiUyMHJlcG9ydHxlbnwwfHx8fDE3ODk1NDEzOTF8MA&ixlib=rb-4.1.0&q=85"
+    },
+    {
+      "category": "sustainability_report",
+      "description": "Chart and report trends",
+      "url": "https://images.pexels.com/photos/7947744/pexels-photo-7947744.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    }
+  ],
+  "motion": {
+    "hover_transitions": "transition-colors duration-150 ease-in-out",
+    "button_press": "active:scale-[0.98] transition-transform",
+    "panel_fade": "animate-in fade-in duration-200"
+  },
+  "testing": {
+    "data_testid_convention": "kebab-case data-testid on every interactive and key informational element (e.g. data-testid='ocr-mode-fast-button', data-testid='ocr-download-template-button', data-testid='ocr-review-table')",
+    "required": true
+  },
   "instructions_to_main_agent": [
-    "Apply subtle tonal layer hierarchy: Page background (bg-stone-100/70) -> Toolbar card surface (bg-stone-50) -> Table container (bg-white border-stone-200) -> Rows.",
-    "Increase table row vertical height by 6-10px using py-3.5 px-4 cell padding for comfortable enterprise scanning.",
-    "Implement row hover with an almost imperceptible tint change (hover:bg-emerald-50/20 or hover:bg-stone-50/80) and make action icons/buttons transition from opacity-50 to opacity-100 on hover.",
-    "Format the Last Updated column into a two-line hierarchy: Line 1 (16 Jul 2026, text-xs font-medium text-stone-800) and Line 2 (02:42 pm, text-[11px] text-stone-400).",
-    "Refactor Status badges to use light green background (bg-emerald-50), dark forest green text (text-emerald-800), subtle border (border-emerald-200/60), minimal rounded corners (rounded-md), and a small SVG check icon (✓ / CheckCircle). Avoid overly saturated alerts.",
-    "Enhance Category cell hierarchy: Primary category title in 14px semibold dark forest-green/slate, Subcategory metadata in 12-13px muted grey with tight line height and optional tiny category icon.",
-    "Style table headers with small label typography: uppercase tracking-wider text-[11px] font-semibold text-stone-500 with proper column padding.",
-    "Ensure all interactive buttons, rows, table headers, and status badges include data-testid attributes for testing."
+    "Refactor frontend/src/pages/OCRInvoice.js and frontend/src/modules/ocr/ExtractionModeSelector.jsx to fulfill all user explicitly requested UI changes.",
+    "Integrate ModulePageHeader in OCRInvoice.js using icon={FileText} or icon={Sparkles} and title='OCR Extraction'.",
+    "Remove legacy hero copy banner from OCRInvoice.js.",
+    "Move Fast/Think mode selector into the ModulePageHeader header action area (aside slot) or header toolbar.",
+    "Reduce Fast/Think selector button sizes by removing the text 'Rapid extraction and classification' and 'Deeper reasoning for complex documents'.",
+    "Expand UploadWorkspace, DocumentPreview, and OcrReviewTable to take full width.",
+    "Verify and fix unit state synchronization in GHG Create form (e.g., DynamicFieldRenderer.js or EmissionEntryForm.js / useEmissionFormState.js) so unit changes like 'kl' or 'L' are accurately reflected in submission payload instead of falling back to 'kg'."
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Do not use transparent backgrounds on surfaces that have content underneath.",
-    "Always specify text colors explicitly on hover states to guarantee contrast.",
-    "Ensure direct parent-child hierarchy in grid layouts.",
-    "Include data-testid on all interactive buttons, inputs, headers, and key informational elements.",
-    "Avoid generic centered layouts, Space Grotesk font, and heavy gradients."
-  ],
-  "image_urls": {
-    "hero_sustainability_forest": "https://images.unsplash.com/photo-1768070841554-eae3f3bda452?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxzdXN0YWluYWJpbGl0eSUyMGRhc2hib2FyZCUyMGdyZWVuJTIwZWNvc3lzdGVtfGVufDB8fHx8MTc4ODQyODA2N3ww&ixlib=rb-4.1.0&q=85"
-  }
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Never use generic centered layouts or unstyled default HTML select/input elements.",
+    "Maintain high APCA contrast across all interactive states; hover states must explicitly declare text color.",
+    "Ensure glassmorphism and header containers always have background opacities (never pure transparent background).",
+    "Attach data-testid attributes to all buttons, inputs, tables, headers, and modal actions.",
+    "Use sonner for toast notifications."
+  ]
 }

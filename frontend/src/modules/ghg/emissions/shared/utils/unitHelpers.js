@@ -296,17 +296,43 @@ export const invertDensityUnit = (densityUnit) => {
   return numerator && denominator ? `${denominator}/${numerator}` : '';
 };
 
+export const normalizeCustomFuelQuantityUnit = (unit) => {
+  const compactUnit = String(unit || '').replace(/\s/g, '');
+  return compactUnit === 'kL' ? 'kl' : compactUnit;
+};
+
+export const normalizeCustomFuelDensityUnit = (unit) => {
+  const compactUnit = String(unit || '').replace(/\s/g, '');
+  return compactUnit
+    .split('/')
+    .map((component) => (component.toLowerCase() === 'kl' ? 'kl' : component))
+    .join('/');
+};
+
+export const normalizeCustomFuelCompoundUnit = (unit) => {
+  const compactUnit = String(unit || '').replace(/\s/g, '');
+  return compactUnit.endsWith('/kL')
+    ? `${compactUnit.slice(0, -3)}/kl`
+    : compactUnit;
+};
+
+export const normalizeCustomFuelCalorificValueUnit = (unit) => {
+  const compactUnit = String(unit || '').replace(/\s/g, '');
+  return compactUnit.endsWith('/kl')
+    ? `${compactUnit.slice(0, -3)}/kL`
+    : compactUnit;
+};
+
 /**
  * The frozen calculation engine accepts physical density as kg/L, while the
- * form also permits the equally valid inverse L/kg direction. Convert only
- * the engine-bound representation; persistence retains the user's value and
- * directional unit for accurate Edit hydration and audit history.
+ * form also permits the equally valid inverse L/kg direction. Convert the
+ * engine-bound representation while retaining directional density semantics.
  */
 export const normalizeDensityForCalcEngine = (density) => {
   const value = Number.parseFloat(density?.value);
-  const unit = String(density?.unit || '').replace(/\s/g, '');
+  const unit = normalizeCustomFuelDensityUnit(density?.unit);
   if (!Number.isFinite(value) || value <= 0 || unit.toLowerCase() !== 'l/kg') {
-    return density;
+    return { ...density, unit };
   }
   return { value: 1 / value, unit: 'kg/L' };
 };

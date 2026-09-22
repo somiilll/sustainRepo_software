@@ -8,6 +8,7 @@ import React from 'react';
 import { Button } from '../../components/ui/button';
 import { Edit, History, Trash2, Activity, FileText } from 'lucide-react';
 import { getStatusDisplay } from '../../modules/ghg/utils/approvalSchema';
+import { formatEmissionQuantity } from '../../modules/ghg/emissions/shared/utils/emissionQuantity';
 
 const EmissionTable = ({
   // Data
@@ -49,14 +50,7 @@ const EmissionTable = ({
   };
 
   // Get quantity display for Scope 1/2
-  const getQuantityDisplay = (emission) => {
-    const dfv = emission.dynamic_field_values || {};
-    let qtyField = dfv.qty || dfv.qty_energy;
-    if (qtyField?.value !== null && qtyField?.value !== undefined) {
-      return `${qtyField.value} ${qtyField.unit || 'kg'}`;
-    }
-    return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-  };
+  const getQuantityDisplay = (emission) => formatEmissionQuantity(emission);
 
   // Render table headers based on active scope
   const renderHeaders = () => {

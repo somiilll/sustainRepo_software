@@ -24,6 +24,10 @@ import {
   isQuantityField,
   resolveDensityRequirement,
 } from '../utils/unitHelpers';
+import {
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../utils/reportingPeriodDays';
 import { buildNativeOptionsHtml } from '../utils/nativeSelectOptions';
 
 // Field-level help text shown on hover next to the label as an "i" icon.
@@ -50,10 +54,14 @@ export const getFieldUnits = ({
   scope3ActivityId,
   requiresSubcategory,
   selectedFuel,
-  filteredScope3Activities,
-  centralizedUnits,
+  filteredScope3Activities = [],
+  centralizedUnits = [],
   biogenicScopeSelection,
   useCustomFuel = false,
+  frequencyType,
+  reportingYear,
+  reportingYearType,
+  testIdSuffix = '',
 }) => {
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
   let fieldUnits = [];
@@ -124,9 +132,14 @@ export const DynamicFieldRenderer = ({
   requiresSubcategory,
   selectedFuel,
   filteredScope3Activities,
-  centralizedUnits,
+  centralizedUnits = [],
   biogenicScopeSelection,
   useCustomFuel = false,
+  frequencyType,
+  reportingYear,
+  reportingYearType,
+  testIdSuffix = '',
+  compactTripRow = false,
   // Compound unit support — when set, dropdown options are suffixed with
   // "/<compoundSuffix>". Computed by the parent from the linked field's unit.
   compoundSuffix = '',
@@ -176,6 +189,13 @@ export const DynamicFieldRenderer = ({
     !field.variable?.includes('factor') && 
     !field.variable?.includes('carbon') &&
     !field.variable?.includes('composition');
+  const isMonthlyDayCountField = frequencyType === 'monthly' && isAnnualDayCountField(field);
+  const monthlyDayLimit = isMonthlyDayCountField
+    ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+    : undefined;
+  const fieldIdentity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  const isCarbonCompositionField = /carbon.*(?:content|composition)|composition.*carbon/i.test(fieldIdentity);
+  const inputMax = monthlyDayLimit ?? field.validationRules?.max ?? (isCarbonCompositionField ? 100 : undefined);
 
   // For Qty Basis EF: density is dynamically required when EF unit denominator
   // dimension mismatches the fuel's quantity unit dimension for this month
@@ -197,7 +217,7 @@ export const DynamicFieldRenderer = ({
     if (field.defaultValue !== undefined && field.defaultValue !== null) {
       const currentValue = data[field.variable];
       // Only apply default if no value exists yet
-      if (currentValue === undefined || currentValue === null || currentValue === '') {
+      if (currentValue === undefined || currentValue === null) {
         updateMonthData(monthKey, field.variable, field.defaultValue);
       }
     }
@@ -229,12 +249,15 @@ export const DynamicFieldRenderer = ({
       }
     }
     
-    // Validation rules: max value check (e.g., oxidation_factor <= 1)
-    if (field.validationRules?.max !== undefined && val !== '' && val !== null) {
+    // Date-aware month limits take precedence for days/nights, otherwise use
+    // configured field limits such as oxidation_factor <= 1.
+    if (inputMax !== undefined && val !== '' && val !== null) {
       const numVal = parseFloat(val);
-      if (numVal > field.validationRules.max) {
+      if (numVal > inputMax) {
         const fieldName = field.label || field.variable;
-        toast.error(`${fieldName} cannot be greater than ${field.validationRules.max}`);
+        toast.error(isMonthlyDayCountField
+          ? `${fieldName} cannot exceed ${inputMax} days for ${monthKey}`
+          : `${fieldName} cannot be greater than ${inputMax}`);
         return;
       }
     }
@@ -270,7 +293,7 @@ export const DynamicFieldRenderer = ({
                     type="button"
                     aria-label={`${field.label} info`}
                     className="inline-flex items-center justify-center w-4 h-4 rounded-full text-stone-400 hover:text-emerald-600 transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    data-testid={`field-help-${field.variable}`}
+                    data-testid={`field-help-${field.variable}${testIdSuffix}`}
                   >
                     <Info className="w-3.5 h-3.5" />
                   </button>
@@ -291,11 +314,11 @@ export const DynamicFieldRenderer = ({
           <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-700">
             <input
               type="checkbox"
-              id={`override-${field.variable}-${monthKey}`}
+              id={`override-${field.variable}-${monthKey}${testIdSuffix}`}
               checked={data[`override_${field.variable}`] || false}
               onChange={handleOverrideChange}
               className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-              data-testid={`override-${field.fieldKey}-${monthKey}`}
+              data-testid={`override-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
             Override Default
           </label>
@@ -309,7 +332,7 @@ export const DynamicFieldRenderer = ({
           onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
           disabled={isDisabled}
           className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-          data-testid={`select-${field.fieldKey}-${monthKey}`}
+          data-testid={`select-${field.fieldKey}-${monthKey}${testIdSuffix}`}
           dangerouslySetInnerHTML={{
             __html: buildNativeOptionsHtml(field.options, {
               placeholder: `Select ${field.label}`,
@@ -324,13 +347,18 @@ export const DynamicFieldRenderer = ({
             type={field.fieldType === 'text' ? 'text' : 'number'}
             step={field.fieldType === 'number' ? (isUnitlessCountField ? '1' : 'any') : undefined}
             min={field.fieldType === 'number' ? '0' : undefined}
-            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+            max={inputMax}
+            placeholder={isMonthlyDayCountField ? `≤${monthlyDayLimit}` : (field.placeholder || `Enter ${field.label.toLowerCase()}`)}
             value={data[field.variable] || data[field.fieldKey] || ''}
             onChange={handleValueChange}
             onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
             disabled={isDisabled}
-            className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput) ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0' : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-            data-testid={`input-${field.fieldKey}-${monthKey}`}
+            className={`${(showUnitSelector || showSupplierUnitInput || showFixedUnit || showTextUnitInput)
+              ? 'h-10 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0'
+              : compactTripRow
+                ? 'h-10 border-stone-200 bg-stone-50 shadow-none focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100'
+                : 'bg-stone-50'} ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
+            data-testid={`input-${field.fieldKey}-${monthKey}${testIdSuffix}`}
           />
           
           {/* Unit dropdown selector */}
@@ -351,7 +379,7 @@ export const DynamicFieldRenderer = ({
               }}
               disabled={isDisabled}
               className={`h-10 min-w-24 shrink-0 border-0 border-l border-l-stone-200 bg-transparent px-3 text-sm outline-none ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-${field.fieldKey}-${monthKey}${testIdSuffix}`}
               dangerouslySetInnerHTML={{ __html: buildNativeOptionsHtml(fieldUnits) }}
             />
           )}
@@ -372,7 +400,7 @@ export const DynamicFieldRenderer = ({
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
               className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-text-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
           )}
 
@@ -385,7 +413,7 @@ export const DynamicFieldRenderer = ({
               onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
               disabled={isDisabled}
               className={`h-10 min-w-24 rounded-none border-0 border-l border-l-stone-200 bg-transparent shadow-none focus-visible:ring-0 ${isDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
-              data-testid={`unit-text-input-${field.fieldKey}-${monthKey}`}
+              data-testid={`unit-text-input-${field.fieldKey}-${monthKey}${testIdSuffix}`}
             />
           )}
         </div>

@@ -6,6 +6,10 @@
  */
 
 import { isSupplierBased } from '../../../../../../constants/calculation-methods';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+} from '../../../shared/utils/reportingPeriodDays';
 
 /**
  * Validation schema for C7
@@ -47,7 +51,13 @@ export const validation = {
  * @param {string} frequencyType - 'monthly' or 'yearly'
  * @returns {Object} { isValid: boolean, errors: Object }
  */
-export const validateEmployee = (employee, calculationMethod, frequencyType = 'monthly') => {
+export const validateEmployee = (
+  employee,
+  calculationMethod,
+  frequencyType = 'monthly',
+  reportingYear,
+  reportingYearType = 'calendar',
+) => {
   const errors = {};
   
   // Employee must have a name
@@ -74,6 +84,11 @@ export const validateEmployee = (employee, calculationMethod, frequencyType = 'm
       }
       if (!inputs.no_of_days || parseFloat(inputs.no_of_days) <= 0) {
         errors.no_of_days = 'Number of days must be greater than 0';
+      } else {
+        const maxDays = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+        if (parseFloat(inputs.no_of_days) > maxDays) {
+          errors.no_of_days = `Number of days cannot exceed ${maxDays} for the reporting period`;
+        }
       }
     }
   } else {
@@ -91,6 +106,18 @@ export const validateEmployee = (employee, calculationMethod, frequencyType = 'm
     if (!hasAnyMonthData) {
       errors.monthly_data = 'At least one month must have data entered';
     }
+    for (const [monthKey, monthData] of Object.entries(monthlyData)) {
+      const value = Number.parseFloat(monthData?.inputs?.no_of_days);
+      const maxDays = getMonthlyReportingPeriodDayLimit(
+        monthKey,
+        reportingYear,
+        reportingYearType,
+      );
+      if (Number.isFinite(value) && value > maxDays) {
+        errors.monthly_data = `Number of days cannot exceed ${maxDays} for ${monthKey}`;
+        break;
+      }
+    }
   }
   
   return {
@@ -106,7 +133,13 @@ export const validateEmployee = (employee, calculationMethod, frequencyType = 'm
  * @param {string} frequencyType - 'monthly' or 'yearly'
  * @returns {Object} { isValid: boolean, errors: Object, employeeErrors: Object }
  */
-export const validateEmployees = (employees, calculationMethod, frequencyType = 'monthly') => {
+export const validateEmployees = (
+  employees,
+  calculationMethod,
+  frequencyType = 'monthly',
+  reportingYear,
+  reportingYearType = 'calendar',
+) => {
   const employeeErrors = {};
   
   if (!employees || employees.length === 0) {
@@ -120,7 +153,13 @@ export const validateEmployees = (employees, calculationMethod, frequencyType = 
   let hasAnyValidEmployee = false;
   
   for (const employee of employees) {
-    const { isValid, errors } = validateEmployee(employee, calculationMethod, frequencyType);
+    const { isValid, errors } = validateEmployee(
+      employee,
+      calculationMethod,
+      frequencyType,
+      reportingYear,
+      reportingYearType,
+    );
     if (!isValid) {
       employeeErrors[employee.id] = errors;
     } else {
@@ -154,7 +193,9 @@ export const validateC7Form = (formData) => {
   const employeeValidation = validateEmployees(
     formData.employees,
     formData.calculationMethod,
-    formData.frequencyType
+    formData.frequencyType,
+    formData.reportingYear,
+    formData.reportingYearType,
   );
   
   return {

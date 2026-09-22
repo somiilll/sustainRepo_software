@@ -537,8 +537,7 @@ class TemplateGenerator:
             "unit_quantity": "Select the unit of measurement.\nMust be compatible with selected activity.",
             "spent_amount": "Enter amount spent in INR.\nRequired for Spend Based method.",
             "spent_currency": "Optional source currency for the spent amount. Defaults to INR when omitted.",
-            "spend_currency_conversion_method": "Optional for legacy compatibility. Select standard for the market rate effective in the reporting period, or ppp_inflation for PPP and inflation adjustment.",
-            "exchange_rate": "Optional standard-rate override. Leave blank to use the configured effective rate.",
+            "exchange_rate": "Optional numeric exchange rate for Standard Currency Conversion. Leave blank to use the configured effective rate for the reporting period.",
             "distance_travelled": "Enter distance in kilometers.\nRequired for transportation activities.",
             "quantity_goods": "Enter quantity of goods transported.\nRequired for freight activities.",
             "unit_goods": "Select unit for goods quantity (t, kg, g).",
@@ -613,12 +612,6 @@ class TemplateGenerator:
             currency_validation.add(f"{currency_letter}2:{currency_letter}1001")
             ws.add_data_validation(currency_validation)
 
-        if "spend_currency_conversion_method" in col_indices:
-            conversion_letter = get_column_letter(col_indices["spend_currency_conversion_method"])
-            conversion_validation = DataValidation(type="list", formula1='"standard,ppp_inflation"', allow_blank=True)
-            conversion_validation.add(f"{conversion_letter}2:{conversion_letter}1001")
-            ws.add_data_validation(conversion_validation)
-        
         # Activity type dropdown for C6 and C7 with DISPLAY LABELS
         if config.get("has_activity_type") and "activity_type" in col_indices:
             activity_types = ACTIVITY_TYPES.get(category_code, [])

@@ -21,6 +21,7 @@ from r2_storage import get_r2_storage
 
 from app.config.env import RESEND_API_KEY, SENDER_EMAIL
 from modules.auth.contracts import UserResponse
+from modules.auth.email_templates import user_invite_email
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
 from modules.emissions.contracts import EmissionRecordCreate
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
@@ -33,9 +34,9 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
+    SuperAdminAccountCreate,
     UnitCreate, UnitResponse,
 )
 from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
@@ -414,6 +415,114 @@ async def get_org_scope3_biogenic_stats(
 
 # Super Admin - Admin management
 
+# Super Admin - Account management
+async def _create_organization_account(account_data: SuperAdminAccountCreate) -> dict:
+    email = str(account_data.email).strip().lower()
+    full_name = account_data.full_name.strip()
+    existing = await db.users.find_one(
+        {"email": email, "is_deleted": {"$ne": True}}, {"_id": 0, "id": 1}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    organization = await db.organizations.find_one(
+        {
+            "id": account_data.organization_id,
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "id": 1, "name": 1, "max_admins": 1, "max_users": 1},
+    )
+    if not organization:
+        raise HTTPException(status_code=404, detail="Active organization not found")
+
+    limit_field = "max_admins" if account_data.role == "admin" else "max_users"
+    default_limit = 5 if account_data.role == "admin" else 20
+    account_limit = organization.get(limit_field, default_limit)
+    active_accounts = await db.users.count_documents(
+        {
+            "organization_id": account_data.organization_id,
+            "role": account_data.role,
+            "is_deleted": {"$ne": True},
+        }
+    )
+    if active_accounts >= account_limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {account_data.role} limit ({account_limit}) reached for this organization",
+        )
+
+    temporary_password = generate_random_password()
+    account = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "full_name": full_name,
+        "role": account_data.role,
+        "password_hash": get_password_hash(temporary_password),
+        "organization_id": account_data.organization_id,
+        "assigned_facilities": [],
+        "requires_password_change": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(account)
+
+    frontend_url = os.environ.get("FRONTEND_URL")
+    if not frontend_url:
+        await db.users.delete_one({"id": account["id"]})
+        raise HTTPException(status_code=500, detail="Frontend URL is not configured")
+    email_body = user_invite_email(
+        full_name=full_name,
+        email=email,
+        temp_password=temporary_password,
+        org_name=organization.get("name", "your organization"),
+        login_link=f"{frontend_url.rstrip('/')}/login",
+    )
+    email_sent = await send_email(email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
+    if not email_sent:
+        await db.users.delete_one({"id": account["id"]})
+        raise HTTPException(status_code=502, detail="Account invitation email could not be sent")
+    return account
+
+
+@router.post("/super-admin/accounts", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_organization_account(
+    account_data: SuperAdminAccountCreate,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    """Create an admin or standard user for an active organization."""
+    account = await _create_organization_account(account_data)
+    return UserResponse(**account)
+
+
+@router.get("/super-admin/accounts", response_model=List[UserResponse])
+async def get_all_organization_accounts(
+    current_user: dict = Depends(get_super_admin_user),
+):
+    accounts = await db.users.find(
+        {
+            "role": {"$in": ["admin", "user"]},
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "password_hash": 0},
+    ).to_list(1000)
+    return [UserResponse(**account) for account in accounts]
+
+
+@router.delete("/super-admin/accounts/{account_id}")
+async def delete_organization_account(
+    account_id: str,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    account = await db.users.find_one(
+        {"id": account_id, "role": {"$in": ["admin", "user"]}}, {"_id": 0, "id": 1}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    await db.users.delete_one({"id": account_id})
+    return {"message": "Account deleted successfully"}
+
+
 # Super Admin - Admin management
 @router.post("/super-admin/admins")
 async def create_admin(
@@ -554,7 +663,8 @@ async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
     # Only return active (non-deleted) admins
     admins = await db.users.find({
         "role": "admin",
-        "is_deleted": {"$ne": True}
+        "is_deleted": {"$ne": True},
+        "is_active": {"$ne": False},
     }, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**a) for a in admins]
 

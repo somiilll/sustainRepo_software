@@ -78,7 +78,8 @@ export function hydrateEmissionForm(emission, config = {}) {
     const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
     const savedCurrencyMethod = emission.spend_currency_conversion_method
       || dynamicValues.spend_currency_conversion_method
-      || 'ppp_inflation';
+      || 'standard';
+    const savedAllocationMethod = emission.allocation_method || dynamicValues.allocation_method || '';
     
     // Handle activityId which may be stored as string or object {value, unit}
     let activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
@@ -170,6 +171,7 @@ export function hydrateEmissionForm(emission, config = {}) {
     return {
       method,
       spendCurrencyConversionMethod: typeof savedCurrencyMethod === 'object' ? savedCurrencyMethod.value : savedCurrencyMethod,
+      allocationMethod: typeof savedAllocationMethod === 'object' ? savedAllocationMethod.value : savedAllocationMethod,
       activityId,
       activityType,
       subcategory,
@@ -235,7 +237,7 @@ export function hydrateEmissionForm(emission, config = {}) {
       return {
         biogenicScopeSelection: biogenicSelection,
         scope3Method: method,
-        spendCurrencyConversionMethod: 'ppp_inflation',
+        spendCurrencyConversionMethod: 'standard',
         scope3ActivityType: activityType,
         scope3Subcategory: '',
         typeOfProduct: '',
@@ -278,6 +280,7 @@ export function hydrateEmissionForm(emission, config = {}) {
         }
         const monthInputs = existingMonthData.inputs || emp.inputs || {};
         const monthCalcDetails = existingMonthData.calculation_details || emp.calculation_details || null;
+        const monthEvidences = existingMonthData.evidences || emp.evidences || [];
         
         return {
           ...emp,
@@ -287,6 +290,7 @@ export function hydrateEmissionForm(emission, config = {}) {
               inputs: monthInputs,
               emissions: monthEmissions,
               calculation_details: monthCalcDetails,
+              evidences: monthEvidences,
             }
           }
         };
@@ -307,6 +311,7 @@ export function hydrateEmissionForm(emission, config = {}) {
         }
         const yearlyInputs = existingYearlyData.inputs || emp.inputs || {};
         const yearlyCalcDetails = existingYearlyData.calculation_details || emp.calculation_details || null;
+        const yearlyEvidences = existingYearlyData.evidences || emp.evidences || [];
         
         return {
           ...emp,
@@ -314,6 +319,7 @@ export function hydrateEmissionForm(emission, config = {}) {
             inputs: yearlyInputs,
             emissions: yearlyEmissions,
             calculation_details: yearlyCalcDetails,
+            evidences: yearlyEvidences,
           }
         };
       });
@@ -482,7 +488,8 @@ export function hydrateEmissionForm(emission, config = {}) {
     
     // Scope 3 fields
     scope3Method: scope3Fields.method,
-    spendCurrencyConversionMethod: scope3Fields.spendCurrencyConversionMethod || 'ppp_inflation',
+    spendCurrencyConversionMethod: scope3Fields.spendCurrencyConversionMethod || 'standard',
+    allocationMethod: scope3Fields.allocationMethod || '',
     scope3ActivityId: scope3Fields.activityId,
     scope3ActivityType: scope3Fields.activityType,
     scope3Subcategory: scope3Fields.subcategory,

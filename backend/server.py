@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -21,10 +21,11 @@ import base64
 import secrets
 import string
 import shutil
+import time
 from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
 import anthropic
-from audit_logger import AuditLogger, AuditAction, AuditModule, init_audit_logger, get_audit_logger
+from audit_logger import AuditAction, AuditModule, init_audit_logger
 
 # ============================================================================
 # Phase B1: Foundation refactor — centralized config + helpers
@@ -58,6 +59,8 @@ from shared.helpers.tokens import (
 from shared.helpers.email import send_email
 from shared.utils.emission_records import eligible_ghg_record_filter
 from app.bootstrap.contract_verifier import verify_module_contracts
+from app.errors.handlers import register_exception_handlers
+from app.logging import get_logger, log_event, reset_request_context, set_request_context
 
 # Phase B2: extracted auth deps + per-domain routers.
 # server.py keeps the legacy class definitions and route handlers commented
@@ -74,6 +77,12 @@ from modules.facilities.router import router as facilities_router
 from modules.organizations.router import router as organizations_router
 from modules.sinks.router import router as sinks_router
 from modules.base_year.sync_service import sync_base_year_emissions_for_entity
+from modules.base_year.history_service import (
+    build_snapshot,
+    compare_entries,
+    get_base_year_events,
+    record_base_year_event,
+)
 
 # Phase B4: emissions read/list router (POST/PUT remain in this file until Phase B5).
 from modules.emissions.router import router as emissions_router
@@ -126,6 +135,48 @@ from modules.airports.router import router as airports_router
 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
 
 app = FastAPI()
+register_exception_handlers(app)
+logger = get_logger(__name__)
+
+
+def _structured_log_area(path: str) -> str | None:
+    if path.startswith("/api/emissions"):
+        return "ghg"
+    if path.startswith("/api/bulk-upload"):
+        return "bulk_upload"
+    if path.startswith("/api/supplier-assessment"):
+        return "supplier_assessment"
+    return None
+
+
+@app.middleware("http")
+async def structured_request_logging(request: Request, call_next):
+    request_id = (request.headers.get("X-Request-ID") or str(uuid.uuid4()))[:128]
+    context_tokens = set_request_context(request_id)
+    area = _structured_log_area(request.url.path)
+    started_at = time.perf_counter()
+    try:
+        if area:
+            log_event(logger, logging.INFO, "api.request.started", action=f"{area}.request", outcome="started",
+                      context={"method": request.method, "path": request.url.path})
+        try:
+            response = await call_next(request)
+        except Exception:
+            if area:
+                log_event(logger, logging.ERROR, "api.request.unhandled", action=f"{area}.request", outcome="failed",
+                          error_code="INTERNAL_ERROR", context={"method": request.method, "path": request.url.path}, exc_info=True)
+            raise
+        response.headers["X-Request-ID"] = request_id
+        if area:
+            level = logging.ERROR if response.status_code >= 500 else logging.WARNING if response.status_code >= 400 else logging.INFO
+            log_event(logger, level, "api.request.completed", action=f"{area}.request",
+                      outcome="failed" if response.status_code >= 400 else "succeeded",
+                      error_code="REQUEST_FAILED" if response.status_code >= 400 else None,
+                      context={"method": request.method, "path": request.url.path, "status_code": response.status_code,
+                               "duration_ms": round((time.perf_counter() - started_at) * 1000, 2)})
+        return response
+    finally:
+        reset_request_context(context_tokens)
 api_router = APIRouter(prefix="/api")
 
 # Phase B2: include modular routers.
@@ -1243,7 +1294,7 @@ async def get_config_labels():
 # /super-admin/*, /units, /fuel-database, /scope3-ef, /emission-categories,
 # /base-year/*, /gwp-config(s), /currency-conversion, /formula-*,
 # /emission-configurations, /emission-factors, /custom-emission-factors,
-# /calculation-formulas, /sectors, /process-templates)
+# /calculation-formulas, /sectors)
 # moved to modules/superadmin/router.py.
 
 # Phase B4: DELETE /emissions/{id} moved to modules/emissions/router.py
@@ -2171,6 +2222,14 @@ async def create_base_year_emissions(
     
     await db.base_year_emissions.insert_one(record)
     record.pop("_id", None)
+    await record_base_year_event(
+        base_year_record=record,
+        event_type="configured",
+        before=None,
+        after=build_snapshot(record["base_year"], record["emissions_data"]),
+        actor=current_user,
+        reason=record["justification"],
+    )
     return record
 
 
@@ -2232,6 +2291,32 @@ async def get_base_year_emissions(
             record["justification"] = record.get("notes", "")
     
     return records
+
+
+@api_router.get("/base-year-emissions/history/{entity_type}/{entity_id}")
+async def get_base_year_history(
+    entity_type: str,
+    entity_id: str,
+    scope_group: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the readable, append-only Base Year audit trail for one entity."""
+    if entity_type not in {"organization", "facility"}:
+        raise HTTPException(status_code=400, detail="Entity type must be organization or facility")
+
+    user_org_id = current_user.get("organization_id")
+    if current_user.get("role") != "super_admin":
+        if entity_type == "organization" and entity_id != user_org_id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this organization")
+        if entity_type == "facility":
+            facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+            if not facility or facility.get("organization_id") != user_org_id:
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+            if current_user.get("role") == "user" and entity_id not in (current_user.get("assigned_facilities") or []):
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+
+    events = await get_base_year_events(entity_type, entity_id, scope_group)
+    return {"events": events, "total": len(events)}
 
 
 @api_router.get("/base-year-emissions/validate-for-report")
@@ -2445,6 +2530,17 @@ async def update_base_year_emissions(
     # Add default values for response
     if "scope_group" not in updated:
         updated["scope_group"] = "scope12"
+
+    if changed_fields:
+        await record_base_year_event(
+            base_year_record=updated,
+            event_type="base_year_updated" if change_type == "base_year_changed" else "emissions_updated",
+            before=build_snapshot(record.get("base_year"), record.get("emissions_data")),
+            after=build_snapshot(updated.get("base_year"), updated.get("emissions_data")),
+            actor=current_user,
+            reason=(data.notes or "Base year emissions were edited manually."),
+            entry_changes=compare_entries(record.get("emissions_data"), updated.get("emissions_data")),
+        )
     
     return updated
 
@@ -2452,12 +2548,15 @@ async def update_base_year_emissions(
 @api_router.delete("/base-year-emissions/{record_id}")
 async def delete_base_year_emissions(
     record_id: str,
+    deletion_reason: str = Query(..., min_length=1, description="Reason for deleting the base year"),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete base year emissions record and store deletion in history (admin only)"""
     # Admin permission required
     if current_user.get("role") not in ("admin", "super_admin"):
         raise HTTPException(status_code=403, detail="Admin permission required to delete base year emissions")
+    if not deletion_reason.strip():
+        raise HTTPException(status_code=422, detail="A written reason is required to delete a base year")
     
     # Get the record first to store in deletion history
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
@@ -2506,10 +2605,18 @@ async def delete_base_year_emissions(
         "deleted_by": current_user["id"],
         "deleted_by_name": current_user.get("full_name", "Unknown"),
         "deleted_at": datetime.now(timezone.utc).isoformat(),
-        "deletion_reason": "User initiated deletion"
+        "deletion_reason": deletion_reason.strip()
     }
     
     await db.base_year_emissions_deletions.insert_one(deletion_record)
+    await record_base_year_event(
+        base_year_record={**record, "version": record.get("version", 1) + 1},
+        event_type="deleted",
+        before=build_snapshot(record.get("base_year"), record.get("emissions_data")),
+        after=None,
+        actor=current_user,
+        reason=deletion_reason.strip(),
+    )
     
     # Now delete the actual record
     await db.base_year_emissions.delete_one({"id": record_id})
@@ -2746,6 +2853,15 @@ async def change_base_year(
     )
     
     updated_record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    await record_base_year_event(
+        base_year_record=updated_record,
+        event_type="base_year_updated",
+        before=build_snapshot(old_base_year, record.get("emissions_data")),
+        after=build_snapshot(new_base_year, new_emissions_data),
+        actor=current_user,
+        reason=change_reason,
+        entry_changes=compare_entries(record.get("emissions_data"), new_emissions_data),
+    )
     return updated_record
 
 
@@ -3312,6 +3428,7 @@ async def get_audit_filter_options(
         {"value": "user", "label": "User Management"},
         {"value": "ghg_emission", "label": "GHG Emissions"},
         {"value": "ghg_sink", "label": "GHG Sinks"},
+        {"value": "bulk_upload", "label": "Bulk Upload"},
         {"value": "fuel_database", "label": "Fuel Database"},
         {"value": "emission_factor", "label": "Emission Factors"},
         {"value": "formula", "label": "Formulas"},
@@ -3377,9 +3494,43 @@ from bulk_upload_scope3.processors import UploadProcessor
 from bulk_upload_scope3.report_generator import ReportGenerator
 from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from bulk_upload_scope3.calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
 from modules.entitlements.dependencies import assert_period_row_batch_limit
 
 scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
+
+
+async def _record_scope3_bulk_audit(
+    *,
+    action: AuditAction,
+    current_user: dict,
+    organization_id: str,
+    description: str,
+    resource_id: Optional[str] = None,
+    resource_name: Optional[str] = None,
+    old_values: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    audit_status: str = "success",
+) -> None:
+    """Persist a business audit event without interrupting a completed upload operation."""
+    try:
+        await audit_logger.log(
+            action=action,
+            module=AuditModule.BULK_UPLOAD,
+            user_id=current_user["id"],
+            user_email=current_user.get("email", ""),
+            user_role=current_user.get("role", "user"),
+            organization_id=organization_id,
+            resource_id=resource_id,
+            resource_name=resource_name,
+            description=description,
+            old_values=old_values,
+            metadata=metadata,
+            status=audit_status,
+        )
+    except Exception:
+        log_event(logger, logging.ERROR, "bulk_upload.audit.persist_failed", action="bulk_upload.audit", outcome="failed",
+                  error_code="AUDIT_LOG_FAILED", context={"audit_action": action.value, "resource_id": resource_id}, exc_info=True)
 
 @scope3_bulk_router.get("/template/download")
 async def download_scope3_template(current_user: dict = Depends(get_current_user)):
@@ -3390,6 +3541,13 @@ async def download_scope3_template(current_user: dict = Depends(get_current_user
     
     capabilities = await resolve_ghg_capabilities(db, organization_id)
     template_bytes = await generate_scope3_template(db, organization_id, capabilities=capabilities)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        description="Downloaded Scope 3 bulk upload template",
+        metadata={"scope": "scope3", "artifact": "template"},
+    )
     
     return StreamingResponse(
         template_bytes,
@@ -3430,7 +3588,35 @@ async def upload_scope3_file(
     user_name = current_user.get("full_name") or current_user.get("name") or ""
     
     processor = UploadProcessor(db, organization_id, user_id, user_email, user_name)
-    summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
+    try:
+        summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
+    except Exception:
+        await _record_scope3_bulk_audit(
+            action=AuditAction.UPLOAD,
+            current_user=current_user,
+            organization_id=organization_id,
+            description="Scope 3 bulk upload validation failed",
+            metadata={"scope": "scope3", "validate_only": validate_only},
+            audit_status="failure",
+        )
+        raise
+
+    await _record_scope3_bulk_audit(
+        action=AuditAction.UPLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=summary.job_id,
+        resource_name=f"Bulk Upload Job {summary.job_id[:8]}",
+        description="Uploaded Scope 3 file for validation",
+        metadata={
+            "scope": "scope3",
+            "validate_only": validate_only,
+            "total_rows": summary.total_rows,
+            "valid_rows": summary.success_count,
+            "invalid_rows": summary.error_count,
+            "warning_count": summary.warning_count,
+        },
+    )
     
     return summary
 
@@ -3505,14 +3691,20 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
             database=db,
         )
         created_ids = []
+        calculation_audits = prepare_bulk_calculation_audits(records_to_save)
         try:
             await db.emission_records.insert_many(records_to_save)
             created_ids = [r["id"] for r in records_to_save]
+            await persist_bulk_calculation_audits(db, calculation_audits)
             logger.info(f"[BULK_SAVE] Job {job_id}: Inserted {len(created_ids)} emission records")
         except Exception as insert_err:
             # Compensating rollback: remove any partially inserted records
             partial_ids = [r["id"] for r in records_to_save]
             rollback_result = await db.emission_records.delete_many({"id": {"$in": partial_ids}})
+            if calculation_audits:
+                await db.ce_calculation_audit_logs.delete_many({
+                    "id": {"$in": [audit["id"] for audit in calculation_audits]}
+                })
             logger.error(
                 f"[BULK_SAVE] Job {job_id}: insert_many failed ({insert_err}). "
                 f"Rolled back {rollback_result.deleted_count}/{len(partial_ids)} partial records."
@@ -3571,23 +3763,20 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         scope_summary = ", ".join([f"{s}: {c}" for s, c in scope_counts.items()])
         logger.info(f"[BULK_SAVE] Job {job_id}: Scope breakdown - {scope_summary}")
         
-        audit_logger = AuditLogger(db)
-        await audit_logger.log(
+        await _record_scope3_bulk_audit(
             action=AuditAction.IMPORT,
-            module=AuditModule.EMISSION,
-            user_id=current_user["id"],
-            user_email=current_user.get("email", ""),
-            user_role=current_user.get("role", "user"),
+            current_user=current_user,
             organization_id=organization_id,
             resource_id=job_id,
             resource_name=f"Bulk Upload Job {job_id[:8]}",
-            description=f"Bulk uploaded {len(created_ids)} emission records ({scope_summary})",
+            description=f"Imported {len(created_ids)} Scope 3 bulk upload record(s)",
             metadata={
+                "scope": "scope3",
                 "job_id": job_id,
                 "total_records": len(created_ids),
                 "scope_breakdown": scope_counts,
-                "emission_ids": created_ids[:10] if len(created_ids) > 10 else created_ids
-            }
+                "invalid_rows": job.get("error_count", 0),
+            },
         )
         logger.info(f"[BULK_SAVE] Job {job_id}: Audit log created")
         
@@ -3666,6 +3855,15 @@ async def download_scope3_error_report(job_id: str, current_user: dict = Depends
     )
     
     report_bytes = ReportGenerator.generate_error_report(summary)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Downloaded Scope 3 bulk upload validation report",
+        metadata={"scope": "scope3", "artifact": "validation_report", "error_count": len(errors)},
+    )
     return StreamingResponse(
         report_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3704,6 +3902,15 @@ async def download_scope3_results_report(job_id: str, current_user: dict = Depen
     )
     
     report_bytes = ReportGenerator.generate_results_report(summary, emissions)
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DOWNLOAD,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Downloaded Scope 3 bulk upload results report",
+        metadata={"scope": "scope3", "artifact": "results_report", "record_count": len(emissions)},
+    )
     return StreamingResponse(
         report_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3740,13 +3947,30 @@ async def delete_scope3_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
+    deleted_emission_count = 0
     if delete_emissions:
         emission_ids = job.get("created_emission_ids", [])
         if emission_ids:
-            await db.emission_records.delete_many({"id": {"$in": emission_ids}})
+            result = await db.emission_records.delete_many({"id": {"$in": emission_ids}})
+            deleted_emission_count = result.deleted_count
     
     await db.bulk_upload_errors.delete_many({"job_id": job_id})
     await db.bulk_upload_jobs.delete_one({"id": job_id})
+    await _record_scope3_bulk_audit(
+        action=AuditAction.DELETE,
+        current_user=current_user,
+        organization_id=organization_id,
+        resource_id=job_id,
+        resource_name=f"Bulk Upload Job {job_id[:8]}",
+        description="Deleted Scope 3 bulk upload job",
+        old_values={
+            "status": job.get("status"),
+            "total_rows": job.get("total_rows"),
+            "valid_rows": job.get("success_count"),
+            "invalid_rows": job.get("error_count"),
+        },
+        metadata={"scope": "scope3", "delete_emissions": delete_emissions, "deleted_emission_count": deleted_emission_count},
+    )
     
     return {"message": "Job deleted successfully", "emissions_deleted": delete_emissions}
 

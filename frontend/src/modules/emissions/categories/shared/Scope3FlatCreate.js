@@ -157,7 +157,8 @@ export function buildDecisionContext(data, ctx) {
     selectedFuel,
     biogenicScopeSelection,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -254,7 +255,8 @@ export function buildCreatePayload(monthData, ctx) {
     category,
     biogenicScopeSelection,
     scope3Method,
-    spendCurrencyConversionMethod = 'ppp_inflation',
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
@@ -286,6 +288,8 @@ export function buildCreatePayload(monthData, ctx) {
     calculatedN2O,
     calculatedCO2e,
     resolvedFormulaId,
+    formulaVersionId,
+    decisionTreeVersionId,
   } = ctx;
 
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
@@ -313,6 +317,8 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: isScope3Like ? null : useCustomFuel ? null : fuelId,
 
     formula_id: resolvedFormulaId,
+    formula_version_id: formulaVersionId || null,
+    decision_tree_version_id: decisionTreeVersionId || null,
 
     ...(scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,
@@ -337,6 +343,9 @@ export function buildCreatePayload(monthData, ctx) {
         ...(scope3Method === 'spend_basis' && {
           spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
         }),
+        ...(allocationMethod && {
+          allocation_method: { value: allocationMethod, unit: '' },
+        }),
         scope3_ef_id: {
           value: scope3Method === 'supplier_basis' && useCustomActivity ? '' : scope3ActivityId,
           unit: '',
@@ -352,6 +361,9 @@ export function buildCreatePayload(monthData, ctx) {
         scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
         ...(typeOfProduct && {
           type_of_product: { value: typeOfProduct, unit: '' },
+        }),
+        ...(useCustomActivity && {
+          use_custom_activity: { value: true, unit: '' },
         }),
       }),
       ...(scope === 'biogenic' && {

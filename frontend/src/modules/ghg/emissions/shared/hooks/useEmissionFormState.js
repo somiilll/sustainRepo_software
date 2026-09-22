@@ -40,7 +40,8 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // SCOPE 3 SPECIFIC STATE
   // ============================================================================
   const [scope3Method, setScope3Method] = useState('');
-  const [spendCurrencyConversionMethod, setSpendCurrencyConversionMethod] = useState('ppp_inflation');
+  const [spendCurrencyConversionMethod, setSpendCurrencyConversionMethod] = useState('standard');
+  const [allocationMethod, setAllocationMethod] = useState('');
   const [scope3EFData, setScope3EFData] = useState([]);
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3ActivityType, setScope3ActivityType] = useState('');
@@ -74,17 +75,15 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [c7FormulaId, setC7FormulaId] = useState(null);
   const [c7FormulaName, setC7FormulaName] = useState('');
 
+  // C6 Business Travel supports several independently saved trips in the
+  // same reporting period. Edit mode continues to hydrate the standard
+  // single-record monthly/yearly state.
+  const [c6Trips, setC6Trips] = useState({ monthly: {}, yearly: [] });
+
   // ============================================================================
   // DECISION TREE STATE
   // ============================================================================
   const [decisionFieldValues, setDecisionFieldValues] = useState({});
-
-  // ============================================================================
-  // PROCESS EMISSIONS STATE
-  // ============================================================================
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
 
   // ============================================================================
   // DYNAMIC FORM CONFIG STATE (Calc Engine Integration)
@@ -167,7 +166,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
         updated['calculation_method_scope3'] = scope3Method;
       }
       if (scope3Method === 'spend_basis') {
-        updated['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'ppp_inflation';
+        updated['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'standard';
       } else {
         delete updated['spend_currency_conversion_method'];
       }
@@ -177,12 +176,17 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
       if (scope3Subcategory) {
         updated['subcategory_selection'] = scope3Subcategory;
       }
+      if (allocationMethod) {
+        updated['allocation_method'] = allocationMethod;
+      } else {
+        delete updated['allocation_method'];
+      }
       if (typeOfProduct) {
         updated['type_of_product'] = typeOfProduct;
       }
       return updated;
     });
-  }, [scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct]);
+  }, [scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, allocationMethod]);
 
   // Auto-enable custom activity when "others" activity type is selected with supplier_basis
   useEffect(() => {
@@ -248,6 +252,7 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     // Scope 3
     scope3Method, setScope3Method,
     spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
+    allocationMethod, setAllocationMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -273,14 +278,10 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     isCalculatingEmployee, setIsCalculatingEmployee,
     c7FormulaId, setC7FormulaId,
     c7FormulaName, setC7FormulaName,
+    c6Trips, setC6Trips,
 
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-
-    // Process Emissions
-    selectedSubIndustry, setSelectedSubIndustry,
-    selectedTemplate, setSelectedTemplate,
-    templateInputValues, setTemplateInputValues,
 
     // Dynamic Form Config
     formConfig, setFormConfig,

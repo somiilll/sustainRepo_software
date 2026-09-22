@@ -18,6 +18,7 @@ export const emissionRecordToDraft = (emission, lookups = {}) => {
     biogenicScopeSelection: hydrated.biogenicScopeSelection,
     scope3Method: hydrated.scope3Method,
     spendCurrencyConversionMethod: hydrated.spendCurrencyConversionMethod,
+    allocationMethod: hydrated.allocationMethod,
     scope3ActivityId: hydrated.scope3ActivityId,
     scope3ActivityType: hydrated.scope3ActivityType,
     scope3Subcategory: hydrated.scope3Subcategory,

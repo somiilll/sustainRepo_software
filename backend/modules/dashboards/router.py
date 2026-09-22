@@ -534,6 +534,21 @@ async def get_dashboard_stats(
         scope2 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope2") * equity_factor
         scope3 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope3") * equity_factor
         biogenic = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        scope_category_totals = {"scope1": {}, "scope2": {}, "scope3": {}}
+        for emission in facility_emissions:
+            scope = emission.get("scope")
+            if scope not in scope_category_totals:
+                continue
+            category = emission.get("category") or "Uncategorized"
+            adjusted_value = get_emission_value(emission) * equity_factor
+            scope_category_totals[scope][category] = scope_category_totals[scope].get(category, 0.0) + adjusted_value
+        scope_categories = {
+            scope: [
+                {"name": category, "value": round(value, 2)}
+                for category, value in sorted(categories.items(), key=lambda item: -item[1])
+            ]
+            for scope, categories in scope_category_totals.items()
+        }
         
         emissions_by_facility.append({
             "facility_id": facility["id"],
@@ -543,26 +558,54 @@ async def get_dashboard_stats(
             "scope2_emissions": round(scope2, 2),
             "scope3_emissions": round(scope3, 2),
             "biogenic_emissions": round(biogenic, 2),
+            "scope_categories": scope_categories,
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
-    # Emissions trend - use deduplicated emissions
-    # Only include monthly (YYYY-MM) periods for trend chart to avoid mixing granularities
+    # Emissions trend. Monthly records retain their reported month. Yearly FY/CY
+    # records are evenly allocated only across their months in the active window,
+    # so the line chart stays comparable with the prorated dashboard totals.
     period_map = {}
+    annual_records_allocated = False
+
+    def covered_trend_months(period: str) -> list[str]:
+        if period.startswith("FY "):
+            start_year = int(period[3:7])
+            months = [
+                f"{start_year + ((3 + offset) // 12)}-{((3 + offset) % 12) + 1:02d}"
+                for offset in range(12)
+            ]
+        elif period.startswith("CY "):
+            year = int(period[3:7])
+            months = [f"{year}-{month:02d}" for month in range(1, 13)]
+        else:
+            return []
+        return [
+            month for month in months
+            if (not date_filter_start or month >= date_filter_start)
+            and (not date_filter_end or month <= date_filter_end)
+        ]
+
+    def add_trend_value(month: str, emission: dict, value: float) -> None:
+        if month not in period_map:
+            period_map[month] = {"period": month, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
+        period_map[month]["scope1"] += value if emission["scope"] == "scope1" else 0
+        period_map[month]["scope2"] += value if emission["scope"] == "scope2" else 0
+        period_map[month]["scope3"] += value if emission["scope"] == "scope3" else 0
+        period_map[month]["biogenic"] += value if emission["scope"] == "biogenic" else 0
+        period_map[month]["total"] += value
+
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        # Only include monthly format periods (YYYY-MM) for trend chart
-        # Exclude yearly periods (FY, CY) to prevent duplication and mixed granularity
-        if not period or not (len(period) == 7 and "-" in period and period[:4].isdigit()):
-            continue  # Skip non-monthly periods
-        adjusted_value = get_adjusted_emission(emission)
-        if period not in period_map:
-            period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
-        period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
-        period_map[period]["scope2"] += adjusted_value if emission["scope"] == "scope2" else 0
-        period_map[period]["scope3"] += adjusted_value if emission["scope"] == "scope3" else 0
-        period_map[period]["biogenic"] += adjusted_value if emission["scope"] == "biogenic" else 0
-        period_map[period]["total"] += adjusted_value
+        if len(period) == 7 and "-" in period and period[:4].isdigit():
+            add_trend_value(period, emission, get_adjusted_emission(emission))
+            continue
+        trend_months = covered_trend_months(period)
+        if trend_months:
+            monthly_value = get_adjusted_emission(emission) / len(trend_months)
+            for month in trend_months:
+                add_trend_value(month, emission, monthly_value)
+            annual_records_allocated = True
     
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
@@ -949,6 +992,8 @@ async def get_dashboard_stats(
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
+        record_count=len(deduplicated_emissions),
+        annual_records_allocated=annual_records_allocated,
         scope1_emissions=round(scope1_emissions, 2),
         scope2_emissions=round(scope2_emissions, 2),
         scope3_emissions=round(scope3_emissions, 2),

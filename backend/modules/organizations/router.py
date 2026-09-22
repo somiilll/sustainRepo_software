@@ -17,6 +17,7 @@ router = APIRouter()
 # Software asset keys stored in R2 (software_images bucket)
 SOFTWARE_ASSETS = {
     "logo": "logos/sustainrepo_logo.png",
+    "login-background": "images/login-sustainability.png",
 }
 
 
@@ -274,21 +275,27 @@ async def save_yearly_data(
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
     
+    # A reporting period has one entry type. Ignore the inactive mode even if a
+    # legacy client submits both values.
+    turnover_frequency = data.turnover_frequency or "yearly"
+    turnover_value = data.turnover if turnover_frequency == "yearly" else None
+    turnover_monthly = data.turnover_monthly if turnover_frequency == "monthly" else None
+
     # Handle turnover - save if provided, delete if empty/null
-    if data.turnover or data.turnover_monthly:
+    if turnover_value or turnover_monthly:
         update_doc = {
             "org_id": org_id,
             "reporting_year": fin_key,
-            "frequency": data.turnover_frequency or "yearly",
+            "frequency": turnover_frequency,
             "currency": data.turnover_currency or "INR",
             "updated_at": now,
             "updated_by": user_id
         }
-        if data.turnover_frequency == "monthly" and data.turnover_monthly:
-            update_doc["monthly_data"] = data.turnover_monthly
-            update_doc["turnover"] = str(sum(float(v) for v in data.turnover_monthly.values() if v))
+        if turnover_frequency == "monthly" and turnover_monthly:
+            update_doc["monthly_data"] = turnover_monthly
+            update_doc["turnover"] = str(sum(float(v) for v in turnover_monthly.values() if v))
         else:
-            update_doc["turnover"] = data.turnover
+            update_doc["turnover"] = turnover_value
             update_doc["monthly_data"] = None
         await db.organization_financials.update_one(
             {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
@@ -302,17 +309,21 @@ async def save_yearly_data(
             "reporting_year": {"$in": legacy_variants}
         })
     
+    production_frequency = data.production_quantity_frequency or "yearly"
+    production_value = data.production_quantity if production_frequency == "yearly" else None
+    production_monthly = data.production_quantity_monthly if production_frequency == "monthly" else None
+
     # Handle production quantity - save if provided, delete if empty/null
-    if data.production_quantity or data.production_quantity_monthly:
+    if production_value or production_monthly:
         import uuid
-        freq = data.production_quantity_frequency or "yearly"
+        freq = production_frequency
         qty = 0
         monthly_data = None
-        if freq == "monthly" and data.production_quantity_monthly:
-            monthly_data = data.production_quantity_monthly
+        if freq == "monthly" and production_monthly:
+            monthly_data = production_monthly
             qty = sum(float(v) for v in monthly_data.values() if v)
-        elif data.production_quantity:
-            qty = float(data.production_quantity)
+        elif production_value:
+            qty = float(production_value)
 
         existing = await db.production_quantities.find_one({
             "organization_id": org_id,

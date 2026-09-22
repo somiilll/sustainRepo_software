@@ -12,6 +12,7 @@ from ..models import (
 )
 from ..validators import FieldValidator
 from ..ghg_config_resolver import ResolvedGhgCapabilities
+from shared.utils.density_units import normalize_density_unit
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,71 @@ class Scope12RowProcessor:
             return 'purchased_steam_heat'
         
         return cat_lower.replace(' ', '_')
+
+    @staticmethod
+    def _has_value(value: Any) -> bool:
+        return value is not None and str(value).strip() != ""
+
+    @staticmethod
+    def _basis_from_unit(unit: Any) -> str:
+        value = str(unit or "").strip().lower()
+        denominator = value.split("/", 1)[1].strip() if "/" in value else value
+        volume_units = {
+            "l", "liter", "litre", "liters", "litres", "ml", "milliliter",
+            "millilitre", "milliliters", "millilitres", "kl", "kiloliter",
+            "kilolitre", "m3", "m³", "cm3", "cm³", "gal", "gallon", "gallons",
+        }
+        return "volume" if denominator in volume_units else "mass"
+
+    def _derive_scope1_methodology(self, row_data: Dict) -> str:
+        has_carbon_content = self._has_value(row_data.get("carbon_content"))
+        has_oxidation_factor = self._has_value(row_data.get("oxidation_factor"))
+        if has_carbon_content or has_oxidation_factor:
+            return "using_carbon_composition"
+        if self._has_value(row_data.get("ef_quantity")):
+            return "using_qty_basis_ef"
+        return "using_heat_basis_ncv"
+
+    @staticmethod
+    def _add_carbon_composition_inputs(row_data: Dict, inputs: Dict) -> None:
+        inputs["carbon_content"] = {
+            "value": float(row_data.get("carbon_content", 0)),
+            "unit": "%",
+        }
+        inputs["oxidation_factor"] = {
+            "value": float(row_data.get("oxidation_factor", 0)),
+            "unit": "",
+        }
+
+    @staticmethod
+    def _build_scope1_dynamic_field_values(
+        row_data: Dict,
+        inputs: Dict,
+        user_overrides: Dict,
+        derived_methodology: str,
+    ) -> Dict:
+        dynamic_field_values = {
+            "qty": inputs["qty"],
+        }
+        if derived_methodology:
+            dynamic_field_values["calculation_methodology"] = {
+                "value": derived_methodology,
+                "unit": "",
+            }
+        if row_data.get("cv"):
+            dynamic_field_values["cv"] = user_overrides.get("cv", {})
+        if row_data.get("density"):
+            dynamic_field_values["density"] = user_overrides.get("density", {})
+        if row_data.get("ef_quantity"):
+            ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
+            dynamic_field_values[ef_key] = inputs.get(ef_key, inputs.get("ef_quantity", {}))
+        if row_data.get("co2_gwp_fugitives"):
+            dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
+        if row_data.get("carbon_content"):
+            dynamic_field_values["carbon_content"] = inputs.get("carbon_content", {})
+        if row_data.get("oxidation_factor"):
+            dynamic_field_values["oxidation_factor"] = inputs.get("oxidation_factor", {})
+        return dynamic_field_values
     
     async def process_scope1_row(self, row_data: Dict, row_num: int,
                                   existing_keys: set, bulk_job_id: str) -> tuple:
@@ -269,43 +335,22 @@ class Scope12RowProcessor:
                         severity=ErrorSeverity.WARNING
                     ))
         
-        # 5b. Validate custom fuel inputs — auto-derive methodology and check required fields
-        if is_custom_fuel and fuel_data:
-            has_carbon_content = bool(row_data.get("carbon_content"))
-            has_oxidation_factor = bool(row_data.get("oxidation_factor"))
-            has_ef = bool(row_data.get("ef_quantity"))
-            has_cv = bool(row_data.get("cv"))
-            
-            # Auto-derive methodology
-            if has_carbon_content or has_oxidation_factor:
-                # Carbon Composition method
-                row_data["_derived_methodology"] = "using_carbon_composition"
-                if not has_carbon_content:
-                    errors.append(ValidationError(
-                        sheet=sheet_name, row=row_num, column="Carbon Content (%)",
-                        error_type="MISSING_CARBON_CONTENT",
-                        message="Carbon Content is required for carbon composition calculation",
-                        severity=ErrorSeverity.ERROR
-                    ))
-                if not has_oxidation_factor:
-                    errors.append(ValidationError(
-                        sheet=sheet_name, row=row_num, column="Oxidation Factor",
-                        error_type="MISSING_OXIDATION_FACTOR",
-                        message="Oxidation Factor is required for carbon composition calculation",
-                        severity=ErrorSeverity.ERROR
-                    ))
-            elif has_ef and has_cv:
-                # Heat Basis (NCV)
-                row_data["_derived_methodology"] = "using_heat_basis_ncv"
-            elif has_ef:
-                # Quantity Basis (EF)
-                row_data["_derived_methodology"] = "using_qty_basis_ef"
-            else:
+        # 5b. Auto-select the formula methodology for every Scope 1 row.
+        derived_methodology = self._derive_scope1_methodology(row_data)
+        row_data["_derived_methodology"] = derived_methodology
+        if derived_methodology == "using_carbon_composition":
+            if not self._has_value(row_data.get("carbon_content")):
                 errors.append(ValidationError(
-                    sheet=sheet_name, row=row_num, column="Emission Factor",
-                    error_type="MISSING_CUSTOM_FUEL_INPUTS",
-                    message="Custom fuel requires at least one of: Emission Factor, Emission Factor + Calorific Value, or Carbon Content + Oxidation Factor",
-                    suggestion="Provide Emission Factor (+ optional CV) for standard methods, or Carbon Content + Oxidation Factor for carbon composition",
+                    sheet=sheet_name, row=row_num, column="Carbon Content (%)",
+                    error_type="MISSING_CARBON_CONTENT",
+                    message="Carbon Content is required for carbon composition calculation",
+                    severity=ErrorSeverity.ERROR
+                ))
+            if not self._has_value(row_data.get("oxidation_factor")):
+                errors.append(ValidationError(
+                    sheet=sheet_name, row=row_num, column="Oxidation Factor",
+                    error_type="MISSING_OXIDATION_FACTOR",
+                    message="Oxidation Factor is required for carbon composition calculation",
                     severity=ErrorSeverity.ERROR
                 ))
         
@@ -606,7 +651,7 @@ class Scope12RowProcessor:
             if month_error:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Reporting Month",
-                    error_type="INVALID_REPORTING_MONTH",
+                    error_type="FUTURE_REPORTING_MONTH" if "cannot be in the future" in month_error else "INVALID_REPORTING_MONTH",
                     message=month_error,
                     severity=ErrorSeverity.ERROR
                 ))
@@ -618,7 +663,7 @@ class Scope12RowProcessor:
             if year_error:
                 errors.append(ValidationError(
                     sheet=sheet_name, row=row_num, column="Reporting Year",
-                    error_type="INVALID_REPORTING_YEAR",
+                    error_type="FUTURE_REPORTING_YEAR" if "cannot be in the future" in year_error else "INVALID_REPORTING_YEAR",
                     message=year_error,
                     severity=ErrorSeverity.ERROR
                 ))
@@ -737,9 +782,18 @@ class Scope12RowProcessor:
             "ef_quantity_provided": str(ef_quantity_provided).lower(),  # "true" or "false"
         }
         
-        # For custom fuel, add methodology to decision inputs
-        if is_custom_fuel and derived_methodology:
+        if derived_methodology:
             decision_inputs["calculation_methodology"] = derived_methodology
+            if derived_methodology == "using_heat_basis_ncv":
+                cv_reference_unit = (
+                    row_data.get("cv_unit")
+                    or fuel_data.get("calorific_value_unit")
+                    or row_data.get("unit_qty")
+                )
+                decision_inputs["cv_quantity_basis"] = self._basis_from_unit(cv_reference_unit)
+            elif derived_methodology == "using_qty_basis_ef":
+                ef_reference_unit = row_data.get("ef_quantity_unit") or row_data.get("unit_qty")
+                decision_inputs["ef_quantity_basis"] = self._basis_from_unit(ef_reference_unit)
         
         # Add process_type to decision inputs when provided (for fugitive/process emissions)
         process_type_key = ""
@@ -799,26 +853,12 @@ class Scope12RowProcessor:
         if is_custom_fuel and derived_methodology:
             # ── Custom Fuel: build inputs/overrides per auto-derived methodology ──
             if derived_methodology == "using_carbon_composition":
-                carbon_content = float(row_data.get("carbon_content", 0))
-                oxidation_factor = float(row_data.get("oxidation_factor", 0))
-                inputs["carbon_content"] = {"value": carbon_content, "unit": "%"}
-                inputs["oxidation_factor"] = {"value": oxidation_factor, "unit": ""}
-                user_overrides["carbon_content"] = {"value": carbon_content, "unit": "%", "is_override": True}
-                user_overrides["oxidation_factor"] = {"value": oxidation_factor, "unit": "", "is_override": True}
+                self._add_carbon_composition_inputs(row_data, inputs)
                 
-            elif derived_methodology == "using_heat_basis_ncv":
-                ef_value = float(row_data.get("ef_quantity", 0))
-                ef_unit = row_data.get("ef_quantity_unit", "kgCO2/TJ")
-                cv_value = float(row_data.get("cv", 0))
+            elif derived_methodology == "using_heat_basis_ncv" and self._has_value(row_data.get("cv")):
+                cv_value = float(row_data.get("cv"))
                 cv_unit = row_data.get("cv_unit", "TJ/kg")
-                inputs["ef_co2"] = {"value": ef_value, "unit": ef_unit}
-                inputs["cv"] = {"value": cv_value, "unit": cv_unit}
-                user_overrides["ef_co2"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
-                user_overrides["emission_factor"] = {"value": ef_value, "unit": ef_unit, "is_override": True}
                 user_overrides["cv"] = {"value": cv_value, "unit": cv_unit, "is_override": True}
-                # Zero out ch4/n2o for custom fuel heat basis
-                user_overrides["ef_ch4"] = {"value": 0, "unit": "kgCH4/TJ", "is_override": True}
-                user_overrides["ef_n2o"] = {"value": 0, "unit": "kgN2O/TJ", "is_override": True}
                 
             elif derived_methodology == "using_qty_basis_ef":
                 ef_value = float(row_data.get("ef_quantity", 0))
@@ -830,7 +870,7 @@ class Scope12RowProcessor:
             # Density override (applies to all custom fuel methods)
             if row_data.get("density"):
                 density_value = float(row_data.get("density"))
-                density_unit = row_data.get("density_unit", "kg/L")
+                density_unit = normalize_density_unit(row_data.get("density_unit", "kg/L"))
                 user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
         else:
             # ── Standard fuel: existing override logic ──
@@ -849,23 +889,12 @@ class Scope12RowProcessor:
             # Density override
             if row_data.get("density"):
                 density_value = float(row_data.get("density"))
-                density_unit = row_data.get("density_unit", "")
+                density_unit = normalize_density_unit(row_data.get("density_unit", ""))
                 user_overrides["density"] = {"value": density_value, "unit": density_unit, "is_override": True}
             
-            # Emission factor override - only if user provides it in bulk upload
-            if ef_quantity_provided:
-                ef_value = float(row_data.get("ef_quantity"))
-                user_overrides["ef_quantity"] = {"value": ef_value, "unit": "kgCO2/kg", "is_override": True}
-            
             # Carbon content + oxidation factor for standard stationary combustion
-            if row_data.get("carbon_content"):
-                cc_value = float(row_data.get("carbon_content"))
-                inputs["carbon_content"] = {"value": cc_value, "unit": "%"}
-                user_overrides["carbon_content"] = {"value": cc_value, "unit": "%", "is_override": True}
-            if row_data.get("oxidation_factor"):
-                of_value = float(row_data.get("oxidation_factor"))
-                inputs["oxidation_factor"] = {"value": of_value, "unit": ""}
-                user_overrides["oxidation_factor"] = {"value": of_value, "unit": "", "is_override": True}
+            if row_data.get("carbon_content") or row_data.get("oxidation_factor"):
+                self._add_carbon_composition_inputs(row_data, inputs)
         
         # GWP for fugitives - user override OR from fuel_database
         if row_data.get("co2_gwp_fugitives"):
@@ -913,23 +942,15 @@ class Scope12RowProcessor:
         else:
             logger.warning(f"[SCOPE1_BULK] No formula found for category_id={category_id}, formula_id={formula_id}")
         
-        # Build dynamic_field_values matching manual upload structure
-        dynamic_field_values = {
-            "qty": {"value": qty, "unit": unit_qty},
-        }
-        if row_data.get("cv"):
-            dynamic_field_values["cv"] = user_overrides.get("cv", {})
-        if row_data.get("density"):
-            dynamic_field_values["density"] = user_overrides.get("density", {})
-        if row_data.get("ef_quantity"):
-            ef_key = "ef_co2" if derived_methodology == "using_heat_basis_ncv" else "ef_quantity"
-            dynamic_field_values[ef_key] = user_overrides.get(ef_key, user_overrides.get("ef_quantity", {}))
-        if row_data.get("co2_gwp_fugitives"):
-            dynamic_field_values["co2_gwp_fugitives"] = user_overrides.get("co2_gwp_fugitives", {})
-        if row_data.get("carbon_content"):
-            dynamic_field_values["carbon_content"] = user_overrides.get("carbon_content", {})
-        if row_data.get("oxidation_factor"):
-            dynamic_field_values["oxidation_factor"] = user_overrides.get("oxidation_factor", {})
+        # Build dynamic_field_values matching manual upload structure.
+        # Carbon Composition and Quantity Basis EF values are required formula
+        # inputs, not persisted overrides.
+        dynamic_field_values = self._build_scope1_dynamic_field_values(
+            row_data=row_data,
+            inputs=inputs,
+            user_overrides=user_overrides,
+            derived_methodology=derived_methodology,
+        )
         
         # Build emission record matching manual upload structure
         # Flaring records are stored with category "Flaring" (or the DB name)
@@ -949,6 +970,8 @@ class Scope12RowProcessor:
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "formula_version_id": (formula or {}).get("version_id"),
+            "decision_tree_version_id": (decision_tree or {}).get("version_id"),
             "process_type": process_type_key or None,
             "is_custom_fuel": is_custom_fuel,
             "calculation_methodology": derived_methodology or None,
@@ -1135,6 +1158,8 @@ class Scope12RowProcessor:
             "fuel_type": fuel_data.get("fuel_name"),
             "fuel_database_id": fuel_data.get("id"),
             "formula_id": formula_id,
+            "formula_version_id": (formula or {}).get("version_id"),
+            "decision_tree_version_id": (decision_tree or {}).get("version_id"),
             "is_custom_fuel": fuel_data.get("is_custom", False),
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,

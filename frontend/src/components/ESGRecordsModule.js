@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { List, PlusCircle, Target } from 'lucide-react';
@@ -16,6 +16,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function ESGRecordsModule({ section = 'environment', preFilterCategory = '', preFilterSubcategory: preFilterSubcatProp = '' }) {
   const { token } = useAuth();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [ocrWaterPrefill, setOcrWaterPrefill] = useState(() => location.state?.ocrWaterPrefill || null);
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -24,7 +27,7 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
 
   const category = preFilterCategory || searchParams.get('category') || '';
   const preFilterSubcategory = preFilterSubcatProp || searchParams.get('subcategory') || '';
-  const defaultTab = searchParams.get('tab') || 'logs';
+  const defaultTab = location.state?.openWaterForm ? 'add-metric' : (searchParams.get('tab') || 'logs');
 
   const [activeTab, setActiveTab] = useState(defaultTab);
 
@@ -34,6 +37,13 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!location.state?.ocrWaterPrefill) return;
+    setOcrWaterPrefill(location.state.ocrWaterPrefill);
+    setActiveTab('add-metric');
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: {} });
+  }, [location, navigate]);
 
   useEffect(() => {
     if (!token) return;
@@ -104,6 +114,8 @@ export default function ESGRecordsModule({ section = 'environment', preFilterCat
             preFilterCategory={category}
             preFilterSubcategory={preFilterSubcategory}
             onRecordAdded={handleRecordAdded}
+            ocrWaterPrefill={ocrWaterPrefill}
+            onOcrWaterImported={() => setOcrWaterPrefill(null)}
           />
         </TabsContent>
 

@@ -14,6 +14,7 @@ from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 class SupplierCreate(BaseModel):
     """Create a new supplier invitation."""
+    vendor_code: Optional[str] = Field(default=None, max_length=100)
     company_name: str
     contact_person: str
     email: EmailStr
@@ -32,6 +33,7 @@ class SupplierCreate(BaseModel):
 
 class SupplierUpdate(BaseModel):
     """Update supplier details."""
+    vendor_code: Optional[str] = Field(default=None, max_length=100)
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
@@ -55,6 +57,7 @@ class SupplierResponse(BaseModel):
     id: str
     customer_org_id: str
     supplier_org_id: str
+    vendor_code: Optional[str] = None
     company_name: str
     contact_person: str
     contact_email: str
@@ -63,6 +66,8 @@ class SupplierResponse(BaseModel):
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
     revenue_required: bool = False
+    parts_components_manufactured: Optional[str] = None
+    plant_location: Optional[str] = None
     invitation_status: str  # pending, accepted, completed
     access_revoke_date: Optional[str] = None
     reporting_period: Optional[str] = None
@@ -89,6 +94,7 @@ class SupplierResponse(BaseModel):
     overall_score: Optional[float] = None
     canonical_score_snapshot: Optional[Dict[str, Any]] = None
     revenue_submission_status: str = "not_started"
+    revenue_submitted_at: Optional[str] = None
     
     created_by: str
     created_at: str
@@ -111,9 +117,11 @@ class SupplierListResponse(BaseModel):
 
 class RevenueInfoUpdate(BaseModel):
     """Supplier updates their revenue information."""
-    revenue_percentage: float = Field(ge=0, le=100)
+    revenue_percentage: Optional[float] = Field(default=None, ge=0, le=100)
     revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
     revenue_currency: Optional[str] = "USD"  # Currency code
+    parts_components_manufactured: Optional[str] = Field(default=None, max_length=1000)
+    plant_location: Optional[str] = Field(default=None, max_length=1000)
 
 
 class ManualScoreUpdate(BaseModel):
@@ -159,6 +167,20 @@ class TrainingConsumptionEvent(BaseModel):
     event_type: Literal["page_view", "media_progress"]
     unit_index: Optional[int] = Field(default=None, ge=1)
     position_seconds: Optional[float] = Field(default=None, ge=0)
+
+
+class TrainingUploadInitiate(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(min_length=1, max_length=120)
+    file_size: int = Field(gt=0, le=500 * 1024 * 1024)
+    title: str = Field(min_length=1, max_length=300)
+    description: str = ""
+    due_date: Optional[str] = None
+    supplier_relationship_ids: List[str] = Field(default_factory=list)
+
+
+class TrainingUploadComplete(BaseModel):
+    parts: List[Dict[str, Any]] = Field(min_length=1, max_length=10000)
 
 
 # ============================================================================

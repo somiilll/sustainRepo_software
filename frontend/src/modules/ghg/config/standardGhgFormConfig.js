@@ -13,7 +13,7 @@ export const STANDARD_SUBCATEGORY_OPTIONS = Object.freeze([
   { value: 'stationary_combustion', label: 'Stationary Combustion' },
   { value: 'mobile_combustion', label: 'Mobile Combustion' },
   { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-  { value: 'energy', label: 'Energy' },
+  { value: 'energy', label: 'Grid Power' },
 ]);
 
 /** Shared display options for the active Create and Edit selection UI. */
@@ -28,6 +28,24 @@ export const STANDARD_ACTIVITY_TYPE_OPTIONS = Object.freeze([
   { value: 'water_travel', label: 'Water Travel' },
   { value: 'hotel_stay', label: 'Hotel Stay' },
   { value: 'others', label: 'Others' },
+]);
+
+/** Canonical Activity Type values for Scope 3 Category 3 factor grouping. */
+export const C3_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'electricity', label: 'Electricity' },
+  { value: 'steam', label: 'Steam' },
+]);
+
+/** Canonical disposal methods for Scope 3 Category 5 factor grouping. */
+export const C5_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'landfilled', label: 'Landfilled' },
+  { value: 'recycled', label: 'Recycled' },
+  { value: 'combusted', label: 'Combusted' },
+  { value: 'anaerobically_digested_wet_digestate_with_curing', label: 'Anaerobically Digested (Wet Digestate with Curing)' },
+  { value: 'anaerobically_digested_dry_digestate_with_curing', label: 'Anaerobically Digested (Dry Digestate with Curing)' },
+  { value: 'composted', label: 'Composted' },
+  { value: 'other', label: 'Other' },
 ]);
 
 export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
@@ -47,7 +65,8 @@ export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
 ]);
 
 export const getStandardActivityTypeLabel = (value) => (
-  STANDARD_ACTIVITY_TYPE_OPTIONS.find((option) => option.value === value)?.label
+  [...STANDARD_ACTIVITY_TYPE_OPTIONS, ...C3_ACTIVITY_TYPE_OPTIONS, ...C5_ACTIVITY_TYPE_OPTIONS]
+    .find((option) => option.value === value)?.label
   || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 );
 
@@ -67,7 +86,15 @@ export const STANDARD_CUSTOM_FUEL_EMISSION_FACTOR_UNITS = Object.freeze([
   { value: 'tCO2/t', label: 'tCO₂/t', quantityUnit: 't' },
 ]);
 
-const CUSTOM_FUEL_QUANTITY_UNITS = Object.freeze(['kg', 'g', 't', 'L', 'kL', 'ml', 'm3', 'cm3']);
+export const STANDARD_CUSTOM_FUEL_QUANTITY_EF_UNITS = Object.freeze([
+  'kgCO2/L',
+  'kgCO2/kg',
+]);
+
+const CUSTOM_FUEL_QUANTITY_UNITS = Object.freeze(['kg', 'g', 't', 'L', 'kl', 'ml', 'm3', 'cm3']);
+const CUSTOM_FUEL_HEAT_CV_DENOMINATOR_UNITS = Object.freeze(
+  CUSTOM_FUEL_QUANTITY_UNITS.map((unit) => (unit === 'kl' ? 'kL' : unit)),
+);
 const CUSTOM_FUEL_ENERGY_UNITS = Object.freeze(['TJ', 'MJ']);
 
 export const resolveStandardGhgFieldOptions = ({ scopeCode } = {}) => ({
@@ -79,7 +106,7 @@ export const resolveStandardGhgFieldOptions = ({ scopeCode } = {}) => ({
   [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT]: CUSTOM_FUEL_QUANTITY_UNITS,
   [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_EF_UNIT]: CUSTOM_FUEL_ENERGY_UNITS.map((unit) => `tCO2/${unit}`),
   [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_HEAT_CV_UNIT]: CUSTOM_FUEL_ENERGY_UNITS.flatMap((numerator) =>
-    CUSTOM_FUEL_QUANTITY_UNITS.map((denominator) => `${numerator}/${denominator}`),
+    CUSTOM_FUEL_HEAT_CV_DENOMINATOR_UNITS.map((denominator) => `${numerator}/${denominator}`),
   ),
-  [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]: CUSTOM_FUEL_QUANTITY_UNITS.map((unit) => `kgCO2/${unit}`),
+  [GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QTY_EF_UNIT]: STANDARD_CUSTOM_FUEL_QUANTITY_EF_UNITS,
 });

@@ -27,6 +27,7 @@ from shared.helpers.audit_helpers import (
     DEFAULT_INPUT_LABEL_MAP,
 )
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.utils.emission_records import without_legacy_quantity_fields
 
 # Collection names
 PENDING_COLLECTION = "pending_records"
@@ -144,7 +145,7 @@ async def intercept_create(
     
     # User with approval enabled - create pending record
     record_id = payload.get("id") or _generate_id()
-    enriched = enrich_with_emissions(payload)
+    enriched = without_legacy_quantity_fields(enrich_with_emissions(payload))
     
     pending_record = {
         **enriched,
@@ -229,7 +230,9 @@ async def intercept_update(
     cur_status = existing.get("approval_status") or STATUS_APPROVED
     # Preserve tenant scope (organization_id / facility_id) from the
     # existing record so a PUT payload sending nulls can't wipe them.
-    enriched = _preserve_tenant_keys(enrich_with_emissions(payload), existing)
+    enriched = without_legacy_quantity_fields(
+        _preserve_tenant_keys(enrich_with_emissions(payload), existing)
+    )
     
     # Case 1: Record is already pending delete - block
     if cur_status == STATUS_PENDING_DELETE:
@@ -689,9 +692,9 @@ async def approve_request(
     if status == STATUS_PENDING_CREATE:
         # Create new record in emission_records — history fields are stripped
         # and flushed to db.emission_history instead.
-        approved_record = {
+        approved_record = without_legacy_quantity_fields({
             k: v for k, v in pending.items() if k not in _PENDING_ONLY_FIELDS
-        }
+        })
         approved_record["approval_status"] = STATUS_APPROVED
 
         await db[APPROVED_COLLECTION].insert_one(approved_record)
@@ -714,10 +717,10 @@ async def approve_request(
         
         # Build update data — strip pending-only fields. History fields are
         # NOT embedded on the approved record; they go to db.emission_history.
-        update_data = {
+        update_data = without_legacy_quantity_fields({
             k: v for k, v in pending.items()
             if k not in ("id",) + _PENDING_ONLY_FIELDS
-        }
+        })
         update_data["approval_status"] = STATUS_APPROVED
         update_data["updated_at"] = _now()
         update_data["updated_by"] = approver.get("id")

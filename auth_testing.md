@@ -27,3 +27,9 @@
 2. Confirm their active pending relationship becomes `accepted` and receives `accepted_at` after the successful login.
 3. Confirm later supplier API calls preserve `accepted` while completion is below 100%, and preserve `completed` when it is complete.
 4. Confirm an invalid login does not update supplier relationship status.
+
+## Authenticated GHG Report Download
+
+1. Sign in using an account from `/app/memory/test_credentials.md` and open Reports.
+2. Generate a GHG Inventory Report for a valid facility and reporting window.
+3. Confirm `POST /api/reports/ghg-inventory` succeeds, then `GET /api/reports/download/{download_token}` sends `Authorization: Bearer <token>` and returns the report file instead of `401 Not authenticated`.

@@ -23,6 +23,10 @@ const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
   'supplier_assessment.documents': 'documents',
   'supplier_assessment.trainings': 'training',
 };
+const SUPPLIER_PORTAL_MODULE_KEYS = {
+  'supplier_assessment.my_documents': 'documents',
+  'supplier_assessment.my_training': 'training',
+};
 const SUPPLIER_GHG_REQUIRED_MENU_KEYS = new Set(['facilities', 'environment', 'environment.ghg', 'supplier_assessment.my_ghg']);
 
 function _sectionIcons(section) {
@@ -37,13 +41,16 @@ function getIcon(name) {
 
 function withSupplierAssessmentLabels(items, resolvedConfig) {
   const modules = resolvedConfig?.supplier_assessment?.modules || {};
-  return items.map((item) => ({
-    ...item,
-    label: SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]
-      ? modules[SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key]]?.display_name || item.label
-      : item.label,
-    children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
-  }));
+  return items.reduce((visibleItems, item) => {
+    const supplierModule = SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key];
+    if (item.adminOnly && supplierModule && modules[supplierModule]?.enabled === false) return visibleItems;
+    visibleItems.push({
+      ...item,
+      label: supplierModule ? modules[supplierModule]?.display_name || item.label : item.label,
+      children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
+    });
+    return visibleItems;
+  }, []);
 }
 
 function isActive(path, loc) {
@@ -75,6 +82,8 @@ function MenuItem(props) {
   if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
   // Check supplierOnly - only show to supplier users
   if (item.supplierOnly && userType !== 'supplier' && orgType !== 'supplier') return null;
+  var supplierPortalModule = SUPPLIER_PORTAL_MODULE_KEYS[item.key];
+  if (item.supplierOnly && supplierPortalModule && (!Array.isArray(supplierModules) || !supplierModules.includes(supplierPortalModule))) return null;
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   if (!hasAccess(item.key)) return null;
@@ -165,9 +174,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   // Build the active sidebar config, replacing section children if org has custom config
   const activeConfig = useMemo(() => {
     if (isSuperAdmin) return superAdminSidebarConfig;
-    if (!resolvedConfig?.has_org_config) return sidebarConfig;
-
     const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
+    if (!resolvedConfig?.has_org_config) return configuredSidebar;
 
     const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
 

@@ -8,7 +8,6 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { Checkbox } from '../../components/ui/checkbox';
-import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import {
   Table,
   TableBody,
@@ -44,9 +43,9 @@ import {
   Factory,
   FileText,
   GraduationCap,
-  ClipboardCheck,
   CalendarDays,
   Info,
+  LockOpen,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -73,6 +72,7 @@ const RequirementDeadline = ({ dueDate, testId }) => {
 };
 
 const createSupplierForm = (reportingPeriod) => ({
+  vendor_code: '',
   company_name: '',
   contact_person: '',
   email: '',
@@ -144,7 +144,7 @@ export default function SupplierList() {
   const [formData, setFormData] = useState(() => createSupplierForm(reportingPeriod));
   const [submitting, setSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState(null);
-  const [unlockingQuestionnaireId, setUnlockingQuestionnaireId] = useState('');
+  const [unlockingOrgInformation, setUnlockingOrgInformation] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [trainings, setTrainings] = useState([]);
   const [questionnaires, setQuestionnaires] = useState([]);
@@ -153,7 +153,6 @@ export default function SupplierList() {
   const [reminderModules, setReminderModules] = useState(['all']);
   const [pendingReminderModules, setPendingReminderModules] = useState([]);
   const [reminderModulesLoading, setReminderModulesLoading] = useState(false);
-  const [reviewResponse, setReviewResponse] = useState(null);
   const resetAddSupplierForm = useCallback(() => setFormData(createSupplierForm(reportingPeriod)), [reportingPeriod]);
 
   const fetchSuppliers = useCallback(async () => {
@@ -181,16 +180,16 @@ export default function SupplierList() {
   useEffect(() => {
     if (!showAddDialog) return;
     setFormData((current) => ({ ...current, reporting_period: reportingPeriod }));
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/trainings`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
-    ]).then(([documentResponse, trainingResponse, questionnaireResponse]) => {
-      const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
+    ]).then(([documentResult, trainingResult, questionnaireResult]) => {
+      const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
+      const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
-      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
+      const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
       setFormData((current) => ({
         ...current,
@@ -199,33 +198,33 @@ export default function SupplierList() {
         document_requirement_ids: availableDocuments.map((document) => document.id),
         training_requirement_ids: availableTrainings.map((training) => training.id),
       }));
-    }).catch(() => toast.error('Could not load existing assignments'));
+    });
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
   useEffect(() => {
     if (!showEditDialog || !selectedSupplier) return;
     setQuestionnaireAssignmentsLoaded(false);
-    Promise.all([
+    Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
-    ]).then(([documentResponse, trainingResponse, questionnaireResponse, statusResponse]) => {
-      const availableDocuments = groupAvailableDocuments(documentResponse.data);
-      const availableTrainings = (trainingResponse.data || []).filter((training) => training.is_active !== false && !training.is_deleted);
+    ]).then(([documentResult, trainingResult, questionnaireResult, statusResult]) => {
+      const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
+      const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
       setDocuments(availableDocuments);
       setTrainings(availableTrainings);
       const selectedDocumentIds = availableDocuments.filter((document) => selectedSupplier.document_requirement_ids?.includes(document.id) || document.supplier_relationship_ids?.includes(selectedSupplier.id)).map((document) => document.id);
       const selectedTrainingIds = availableTrainings.filter((training) => selectedSupplier.training_requirement_ids?.includes(training.id) || training.supplier_relationship_ids?.includes(selectedSupplier.id)).map((training) => training.id);
       setFormData((current) => ({ ...current, document_requirement_ids: selectedDocumentIds, training_requirement_ids: selectedTrainingIds }));
-      const availableQuestionnaires = (questionnaireResponse.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted);
+      const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
-      setSubmissionStatus(statusResponse.data);
+      setSubmissionStatus(statusResult.status === 'fulfilled' ? statusResult.value.data : null);
       if (selectedSupplier.questionnaire_assignment_is_implicit) {
         setFormData((current) => ({ ...current, questionnaire_ids: availableQuestionnaires.map((questionnaire) => questionnaire.id) }));
       }
       setQuestionnaireAssignmentsLoaded(true);
-    }).catch(() => toast.error('Could not load questionnaire assignments'));
+    });
   }, [showEditDialog, selectedSupplier, getAuthHeader]);
 
   const handleAdd = async () => {
@@ -343,26 +342,19 @@ export default function SupplierList() {
     }
   }, [location.pathname, location.state, navigate, suppliers]);
 
-  const unlockQuestionnaire = async (questionnaireId) => {
-    if (!selectedSupplier || !window.confirm('Unlock this ESG questionnaire for resubmission? The current submitted answers stay visible until the supplier resubmits.')) return;
-    setUnlockingQuestionnaireId(questionnaireId);
+  const unlockOrgInformation = async () => {
+    if (!selectedSupplier || !window.confirm('Unlock this supplier’s Org Information for resubmission? The submitted information remains in the audit history.')) return;
+    setUnlockingOrgInformation(true);
     try {
-      await axios.post(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${questionnaireId}/reopen`, {}, { headers: getAuthHeader() });
-      toast.success('Questionnaire unlocked for resubmission');
-      setSubmissionStatus((current) => ({ ...current, esg: (current?.esg || []).filter((item) => item.questionnaire_id !== questionnaireId) }));
+      await axios.post(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/revenue/reopen`, {}, { headers: getAuthHeader() });
+      setSelectedSupplier((current) => current ? { ...current, revenue_submission_status: 'not_started' } : current);
+      toast.success('Org Information unlocked for resubmission');
+      await fetchSuppliers();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Could not unlock questionnaire');
+      toast.error(error.response?.data?.detail || 'Could not unlock Org Information');
     } finally {
-      setUnlockingQuestionnaireId('');
+      setUnlockingOrgInformation(false);
     }
-  };
-
-  const openReview = async (questionnaireId) => {
-    if (!selectedSupplier) return;
-    try {
-      const response = await axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${questionnaireId}/responses`, { headers: getAuthHeader() });
-      setReviewResponse(response.data);
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load submitted response'); }
   };
 
   // Toggle module in modules_enabled array
@@ -638,6 +630,10 @@ export default function SupplierList() {
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Vendor Code</Label>
+                <Input value={formData.vendor_code} onChange={(e) => setFormData({ ...formData, vendor_code: e.target.value })} placeholder="Enter vendor code" data-testid="supplier-vendor-code" />
+              </div>
               <div className="space-y-2">
                 <Label>Company Name *</Label>
                 <Input value={formData.company_name} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} placeholder="Enter company name" data-testid="supplier-company-name" />
@@ -968,18 +964,18 @@ export default function SupplierList() {
           </DialogHeader>
           {selectedSupplier && (
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-5" data-testid="view-supplier-scroll-area">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 sm:grid-cols-2" data-testid="view-supplier-details">
                 <div>
                   <Label className="text-stone-500">Contact Person</Label>
-                  <p className="font-medium">{selectedSupplier.contact_person}</p>
+                  <p className="font-medium" data-testid="view-supplier-contact-person">{selectedSupplier.contact_person}</p>
                 </div>
                 <div>
                   <Label className="text-stone-500">Email</Label>
-                  <p className="font-medium">{selectedSupplier.contact_email}</p>
+                  <p className="font-medium" data-testid="view-supplier-contact-email">{selectedSupplier.contact_email}</p>
                 </div>
                 <div>
                   <Label className="text-stone-500">Phone</Label>
-                  <p className="font-medium">{selectedSupplier.contact_number || '-'}</p>
+                  <p className="font-medium" data-testid="view-supplier-contact-number">{selectedSupplier.contact_number || '-'}</p>
                 </div>
                 <div>
                   <Label className="text-stone-500">Status</Label>
@@ -991,7 +987,7 @@ export default function SupplierList() {
                 </div>
                 <div>
                   <Label className="text-stone-500">Revenue %</Label>
-                  <p className="font-medium flex items-center gap-1">
+                  <p className="flex items-center gap-1 font-medium" data-testid="view-supplier-revenue-percentage">
                     <Percent className="h-3 w-3" />
                     {selectedSupplier.revenue_percentage !== null 
                       ? `${selectedSupplier.revenue_percentage}%` 
@@ -1000,7 +996,7 @@ export default function SupplierList() {
                 </div>
                 <div>
                   <Label className="text-stone-500">Revenue Amount</Label>
-                  <p className="font-medium">
+                  <p className="font-medium" data-testid="view-supplier-revenue-amount">
                     {selectedSupplier.revenue_amount !== null && selectedSupplier.revenue_amount !== undefined
                       ? `${selectedSupplier.revenue_currency || 'USD'} ${selectedSupplier.revenue_amount.toLocaleString()}`
                       : 'Not provided'}
@@ -1008,20 +1004,24 @@ export default function SupplierList() {
                 </div>
                 <div>
                   <Label className="text-stone-500">Access Revoke Date</Label>
-                  <p className="font-medium">
+                  <p className="font-medium" data-testid="view-supplier-access-revoke-date">
                     {selectedSupplier.access_revoke_date
                       ? new Date(selectedSupplier.access_revoke_date).toLocaleDateString() 
                       : '-'}
                   </p>
                 </div>
+                <div>
+                  <Label className="text-stone-500">Parts/Components Manufactured</Label>
+                  <p className="font-medium" data-testid="view-supplier-parts-components">{selectedSupplier.parts_components_manufactured || 'Not provided'}</p>
+                </div>
+                <div>
+                  <Label className="text-stone-500">Location of the Plant</Label>
+                  <p className="font-medium" data-testid="view-supplier-plant-location">{selectedSupplier.plant_location || 'Not provided'}</p>
+                </div>
               </div>
               
               <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
-              {submissionStatus?.esg?.length > 0 && <div className="border-t pt-4" data-testid="supplier-esg-submission-controls">
-                <Label className="text-stone-500">Locked ESG submissions</Label>
-                <div className="mt-2 space-y-2">{submissionStatus.esg.map((submission) => <div key={submission.questionnaire_id} className="flex items-center justify-between gap-3 rounded-md border p-2" data-testid={`supplier-esg-submission-${submission.questionnaire_id}`}><span className="text-sm">Submitted {submission.submitted_at ? new Date(submission.submitted_at).toLocaleDateString() : ''}</span><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openReview(submission.questionnaire_id)} data-testid={`review-supplier-questionnaire-${submission.questionnaire_id}`}><ClipboardCheck className="mr-1 h-4 w-4" />Review</Button><Button variant="outline" size="sm" disabled={unlockingQuestionnaireId === submission.questionnaire_id} onClick={() => unlockQuestionnaire(submission.questionnaire_id)} data-testid={`unlock-supplier-questionnaire-${submission.questionnaire_id}`}>{unlockingQuestionnaireId === submission.questionnaire_id ? 'Unlocking…' : 'Unlock'}</Button></div></div>)}</div>
-              </div>
-              }
+              {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted {selectedSupplier.revenue_submitted_at ? new Date(selectedSupplier.revenue_submitted_at).toLocaleDateString() : ''}{selectedSupplier.revenue_submitted_at ? ' · ' : ''}locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
               
               <ViewSupplierScores supplier={selectedSupplier} />
             </div>
@@ -1039,7 +1039,6 @@ export default function SupplierList() {
           <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} disabled={reminderModulesLoading || pendingReminderModules.length === 0 || reminderModules.length === 0} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={selectedSupplier?.id} getAuthHeader={getAuthHeader} onScoreSaved={() => { fetchSuppliers(); openReview(reviewResponse.id); }} />
     </div>
   );
 }

@@ -17,7 +17,14 @@ export default function EmissionHistoryDialog({
   onOpenChange,
   history: selectedEmissionHistory = [],
   fieldLabels: externalFieldLabels = {},
+  facilities = [],
 }) {
+  const facilityNamesById = React.useMemo(() => Object.fromEntries(
+    facilities
+      .filter((facility) => facility?.id)
+      .map((facility) => [facility.id, facility.name || facility.facility_name || facility.id]),
+  ), [facilities]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -49,6 +56,7 @@ export default function EmissionHistoryDialog({
                 'activity_name': 'Activity',
                 'fuel_type': 'Fuel Type',
                 'fuel_name': 'Fuel Name',
+                'facility_id': 'Facility',
                 'scope': 'Scope',
                 'reporting_period': 'Reporting Period',
                 'reporting_year': 'Reporting Year',
@@ -175,6 +183,15 @@ export default function EmissionHistoryDialog({
               // Render complex value with expandable view
               const renderValue = (val, label, field) => {
                 if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
+
+                if (field === 'facility_id' && typeof val === 'string') {
+                  const facilityName = facilityNamesById[val];
+                  return (
+                    <span data-testid={`emission-history-facility-value-${val}`}>
+                      {facilityName || formatValue(val)}
+                    </span>
+                  );
+                }
 
                 // Handle evidence field specially
                 if (field === 'evidence') {
@@ -317,12 +334,14 @@ export default function EmissionHistoryDialog({
               // Get record's frequency type from version history context (use newValues/oldValues already extracted)
               const recordFrequencyType = newValues?.frequency_type || oldValues?.frequency_type;
               const isC7Record = newValues?.category?.includes('C7') || oldValues?.category?.includes('C7');
+              const isC5Record = newValues?.category?.includes('C5') || oldValues?.category?.includes('C5');
 
               // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
               const skipFields = [
                 'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
-                'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
+                'scope3_subcategory', 'ppp', 'inflation_rate',
                 'scope3_activity', 'biogenic_scope_selection',
+                'quantity', 'quantity_unit', 'unit',
                 // Skip CO₂e emissions for Scope 3 (redundant with total_emissions)
                 'co2e_emissions'
               ];
@@ -339,6 +358,9 @@ export default function EmissionHistoryDialog({
               if (isC7Record) {
                 skipFields.push('total_emissions');
               }
+              if (isC5Record) {
+                skipFields.push('scope3_activity_type', 'activity_type');
+              }
 
               // For Scope 2 records, hide the "Activity" field (sub_category /
               // activity_name) — it duplicates the category for these records.
@@ -351,13 +373,15 @@ export default function EmissionHistoryDialog({
               if (history.field_changes && history.field_changes.length > 0) {
                 // New format: backend provides field_changes array
                 changedFields = history.field_changes
-                  .filter(fc => !skipFields.includes(fc.field))
+                  .filter(fc => !skipFields.includes(fc.field) && fc.input_key !== 'use_custom_activity')
                   .map(fc => {
                     const isSingleInputDelta = fc.field === 'input_values' && fc.input_key;
                     const oldValue = isSingleInputDelta ? { [fc.input_key]: fc.old_value } : fc.old_value;
                     const newValue = isSingleInputDelta ? { [fc.input_key]: fc.new_value } : fc.new_value;
                     return {
-                      label: fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      label: fc.field === 'facility_id'
+                        ? 'Facility'
+                        : fc.display_name || fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                       oldValue,
                       newValue,
                       field: fc.field,

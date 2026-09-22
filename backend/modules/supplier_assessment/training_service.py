@@ -4,6 +4,7 @@ import json
 import subprocess
 import tempfile
 import uuid
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,9 @@ from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
 from modules.sustainability_config import service as sustainability_config_service
+from app.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 TRAINING_BUCKET = "supplier_assessment"
 TRAINING_FOLDER = "training"
@@ -24,7 +28,7 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "audio/mpeg", "audio/mp4", "audio/wav", "video/mp4", "video/webm",
 }
-MAX_TRAINING_SIZE = 250 * 1024 * 1024
+MAX_TRAINING_SIZE = 500 * 1024 * 1024
 MAX_RENDERED_PAGES = 200
 
 def _now(): return datetime.now(timezone.utc).isoformat()
@@ -70,6 +74,16 @@ def _probe_media_duration(content: bytes, file_name: str) -> float:
             raise ValueError("Training media must have a valid duration")
         return duration
 
+
+def _probe_media_duration_from_path(source: Path) -> float:
+    result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(source)], capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        raise ValueError("Could not read this media file for in-app playback")
+    duration = float(json.loads(result.stdout).get("format", {}).get("duration") or 0)
+    if duration <= 0:
+        raise ValueError("Training media must have a valid duration")
+    return duration
+
 async def _prepare_viewer(content: bytes, file_name: str, content_type: str) -> Dict[str, Any]:
     viewer_type = _viewer_type(content_type)
     if viewer_type == "pages":
@@ -79,11 +93,11 @@ async def _prepare_viewer(content: bytes, file_name: str, content_type: str) -> 
 async def create_training(org_id: str, user_id: str, title: str, description: str, threshold: float, file_name: str, content_type: str, content: bytes, relationship_ids: List[str], due_date: Optional[str] = None):
     threshold = 100.0
     if not title.strip(): raise ValueError("Title is required")
-    if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 250MB")
+    if content_type not in ALLOWED_TYPES or not content or len(content) > MAX_TRAINING_SIZE: raise ValueError("Unsupported training file or file exceeds 500MB")
     validate_due_date(due_date)
     organization_config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
     if not (organization_config.get("modules", {}).get("training") or {}).get("enabled"):
-        raise ValueError("Enable the Training module in Organization Config before assigning training")
+        raise ValueError("Enable the Training module in Organization Config before creating training")
     relationships = await db.supplier_relationships.find(
         {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0}
     ).to_list(1000)
@@ -128,14 +142,61 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
             "training": organization_config["modules"]["training"],
         }
         revision = await get_or_create_program_revision(org_id, program_config, user_id)
-        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
+        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"assessment_program_id": revision["program_id"], "assessment_program_version": revision["version"], "training_completion_percent": 0.0, "updated_at": now}})
         assignment={"id":str(uuid.uuid4()),"supplier_relationship_id":relationship["id"],"organization_id":org_id,"training_requirement_id":requirement_id,"requirement_version_id":version_id,"reporting_period":relationship.get("reporting_period"),"assigned_at":now,"is_active":True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id",None); assignments.append(assignment)
     from modules.supplier_assessment.service import supplier_service
     for relationship in relationships:
         await supplier_service._update_completion_status(relationship["id"])
     for doc in (content_doc, version, requirement): doc.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.training.created", action="supplier_assessment.training.create", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments)})
     return {"training": requirement, "version": version, "assignments": assignments}
+
+
+async def create_training_from_multipart(org_id: str, user_id: str, title: str, description: str, file_name: str, content_type: str, file_size: int, storage_key: str, relationship_ids: List[str], due_date: Optional[str], upload_session_id: str):
+    if not title.strip() or content_type not in ALLOWED_TYPES or file_size <= 0 or file_size > MAX_TRAINING_SIZE:
+        raise ValueError("Unsupported training file or file exceeds 500MB")
+    validate_due_date(due_date)
+    existing = await db.supplier_training_requirements.find_one({"upload_session_id": upload_session_id}, {"_id": 0})
+    if existing:
+        return {"training": existing, "idempotent": True}
+    config = await sustainability_config_service.resolve_supplier_assessment_config(org_id)
+    if not (config.get("modules", {}).get("training") or {}).get("enabled"):
+        raise ValueError("Enable the Training module in Organization Config before creating training")
+    relationships = await db.supplier_relationships.find({"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0}).to_list(1000)
+    if len(relationships) != len(set(relationship_ids)):
+        raise ValueError("One or more suppliers are not available to this organization")
+    now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
+    requirement = {"id": requirement_id, "upload_session_id": upload_session_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": 100.0, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
+    await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
+    assignments = []
+    for relationship in relationships:
+        await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"training_completion_percent": 0.0, "updated_at": now}})
+        assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": version_id, "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True}
+        await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id", None); assignments.append(assignment)
+    for document in (content_doc, version, requirement): document.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.training.created", action="supplier_assessment.training.create", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments), "upload_session_id": upload_session_id})
+    return {"training": requirement, "version": version, "assignments": assignments}
+
+
+async def prepare_multipart_training_media(version_id: str) -> None:
+    version = await db.supplier_training_versions.find_one({"id": version_id, "viewer_processing_status": "processing"}, {"_id": 0})
+    if not version or (version.get("viewer_manifest") or {}).get("viewer_type") not in {"audio", "video"}:
+        return
+    log_event(logger, logging.INFO, "supplier_assessment.training.media.prepare.started", action="supplier_assessment.training.media.prepare", outcome="started", context={"training_version_id": version_id})
+    suffix = Path(version["original_filename"]).suffix.lower()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source = Path(temp_dir) / f"source{suffix}"
+        try:
+            await asyncio.to_thread(get_r2_storage().download_to_path, version["bucket_type"], version["r2_key"], str(source))
+            duration = await asyncio.to_thread(_probe_media_duration_from_path, source)
+            await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_manifest.duration_seconds": duration, "viewer_processing_status": "ready", "viewer_prepared_at": _now()}})
+            log_event(logger, logging.INFO, "supplier_assessment.training.media.prepare.completed", action="supplier_assessment.training.media.prepare", outcome="succeeded", context={"training_version_id": version_id})
+        except Exception:
+            await db.supplier_training_versions.update_one({"id": version_id}, {"$set": {"viewer_processing_status": "failed"}})
+            log_event(logger, logging.ERROR, "supplier_assessment.training.media.prepare.failed", action="supplier_assessment.training.media.prepare", outcome="failed", error_code="TRAINING_MEDIA_PREPARATION_FAILED", context={"training_version_id": version_id})
 
 async def supplier_trainings(relationship: Dict[str, Any]):
     assignments = await db.supplier_training_assignments.find({"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0}).to_list(200)
@@ -298,7 +359,7 @@ async def synchronize_training_assignments(
         {"_id": 0, "id": 1, "training_requirement_id": 1},
     ).to_list(1000)
     active_by_requirement = {assignment["training_requirement_id"]: assignment for assignment in active_assignments}
-    await db.supplier_training_assignments.update_many(
+    deactivated = await db.supplier_training_assignments.update_many(
         {
             "supplier_relationship_id": relationship["id"],
             "reporting_period": relationship.get("reporting_period"),
@@ -317,6 +378,7 @@ async def synchronize_training_assignments(
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement["id"], "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True}
         await db.supplier_training_assignments.insert_one(assignment)
         assignment_ids.append(assignment["id"])
+    log_event(logger, logging.INFO, "supplier_assessment.training.assignment.synchronized", action="supplier_assessment.training.assignment.sync", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": relationship["id"], "active_assignment_count": len(assignment_ids), "deactivated_assignment_count": deactivated.modified_count})
     return assignment_ids
 
 async def update_training(org_id: str, requirement_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -386,7 +448,9 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
         for relationship in relationships:
             from modules.supplier_assessment.service import supplier_service
             await supplier_service._update_completion_status(relationship["id"])
-    return await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+    updated = await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+    log_event(logger, logging.INFO, "supplier_assessment.training.updated", action="supplier_assessment.training.update", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "is_active": updated.get("is_active") if updated else None})
+    return updated
 
 
 async def list_training_assignments(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -425,11 +489,13 @@ async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier
     )
     if not requirement or not relationship:
         raise ValueError("Training or supplier is unavailable")
+    await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "training"}, "$set": {"training_completion_percent": 0.0, "updated_at": _now()}})
     existing = await db.supplier_training_assignments.find_one(
         {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "is_active": True}, {"_id": 0, "id": 1}
     )
     if not existing:
         await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
+        log_event(logger, logging.INFO, "supplier_assessment.training.assignment.added", action="supplier_assessment.training.assignment.add", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id})
 
 
 async def unassign_training_from_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
@@ -444,6 +510,7 @@ async def unassign_training_from_supplier(org_id: str, requirement_id: str, supp
     if completed:
         raise ValueError("A completed training cannot be unassigned")
     await db.supplier_training_assignments.update_many({"id": {"$in": [assignment["id"] for assignment in assignments]}}, {"$set": {"is_active": False, "updated_at": _now()}})
+    log_event(logger, logging.INFO, "supplier_assessment.training.assignment.removed", action="supplier_assessment.training.assignment.remove", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments)})
 
 async def archive_training(org_id: str, requirement_id: str) -> bool:
     requirement = await db.supplier_training_requirements.find_one(
@@ -486,6 +553,7 @@ async def archive_training(org_id: str, requirement_id: str) -> bool:
         await db.supplier_training_versions.update_one(
             {"id": version["id"]}, {"$set": {"r2_delete_status": "deleted", "r2_deleted_at": now, "r2_deleted_keys": deleted_keys}}
         )
+    log_event(logger, logging.INFO, "supplier_assessment.training.archive.completed", action="supplier_assessment.training.archive", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "deleted_file_count": len(deleted_keys)})
     return True
 
 async def ensure_indexes():

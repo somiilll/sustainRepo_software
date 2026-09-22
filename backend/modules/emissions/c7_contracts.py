@@ -17,16 +17,22 @@ class C7MonthlyEntryCreate(BaseModel):
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
     formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     submission_batch_id: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    evidence_url: Optional[str] = None
+    evidence_file_name: Optional[str] = None
 
 
 class C7MonthlyEntryResponse(BaseModel):
@@ -44,10 +50,18 @@ class C7MonthlyEntryResponse(BaseModel):
     activity_type: str
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
+    formula_snapshot: Optional[Dict[str, Any]] = None
     employees: List[Dict[str, Any]]
     monthly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    evidence_url: Optional[str] = None
+    evidence_file_name: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str
@@ -66,15 +80,21 @@ class C7YearlyEntryCreate(BaseModel):
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
     formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
     formula_name: Optional[str] = None
     employees: List[Dict[str, Any]]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    evidence_url: Optional[str] = None
+    evidence_file_name: Optional[str] = None
 
     @field_validator("reporting_year")
     @classmethod
@@ -100,10 +120,18 @@ class C7YearlyEntryResponse(BaseModel):
     activity_type: str
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
+    decision_tree_version_id: Optional[str] = None
+    formula_snapshot: Optional[Dict[str, Any]] = None
     employees: List[Dict[str, Any]]
     yearly_total: Dict[str, Any]
     notes: Optional[str] = None
     record_source: Optional[str] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    evidence_url: Optional[str] = None
+    evidence_file_name: Optional[str] = None
     responsible_person: Optional[str] = None
     version: int = 1
     created_at: str

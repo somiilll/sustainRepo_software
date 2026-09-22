@@ -3,9 +3,18 @@
 Lifted verbatim from server.py. Behaviour byte-identical.
 Re-imported back into server.py for legacy callers.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class SuperAdminAccountCreate(BaseModel):
+    """Super Admin request for an organization-scoped team account."""
+
+    email: EmailStr
+    full_name: str = Field(min_length=1, max_length=200)
+    organization_id: str = Field(min_length=1)
+    role: Literal["admin", "user"]
 
 
 class EmissionFactorCreate(BaseModel):
@@ -138,7 +147,9 @@ class Scope3EFCreate(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
-    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
+    activity_name: Optional[str] = None  # Display base activity for factor taxonomies (e.g., "Copper Wire")
+    activity_type: Optional[str] = None  # Activity type for C3/C5/C6/C7 (e.g., "landfilled", "hotel_stay")
+    activity_type_label: Optional[str] = None  # Human-readable Activity Type label
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity")
     sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
 
@@ -159,7 +170,9 @@ class Scope3EFResponse(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
-    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
+    activity_name: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C3/C5/C6/C7
+    activity_type_label: Optional[str] = None
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14
     sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
     created_by: Optional[str] = None
@@ -331,44 +344,6 @@ class SectorResponse(BaseModel):
     description: Optional[str] = None
     created_at: str
 
-class ProcessTemplateInputField(BaseModel):
-    key: str  # unique key for the field
-    label: str
-    unit: str
-    data_type: str = "number"  # number, text, percentage
-    is_optional: bool = False
-    default_value: Optional[str] = None  # default if user doesn't provide
-
-class ProcessTemplatePredefinedInput(BaseModel):
-    key: str  # unique key
-    label: str
-    unit: str
-    data_type: str = "number"
-    value: str  # the predefined value
-    can_override: bool = True  # whether user can override
-
-class ProcessTemplateCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    sub_industry: Optional[str] = None
-    formula: str  # formula expression using input keys
-    input_fields: List[Dict[str, Any]] = []  # required input fields
-    predefined_inputs: List[Dict[str, Any]] = []  # predefined inputs with values
-    is_active: bool = True
-
-class ProcessTemplateResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    name: str
-    description: Optional[str] = None
-    sub_industry: Optional[str] = None
-    formula: str
-    input_fields: List[Dict[str, Any]] = []
-    predefined_inputs: List[Dict[str, Any]] = []
-    is_active: bool = True
-    created_at: str
-    updated_at: Optional[str] = None
-
 class GWPConfigCreate(BaseModel):
     source_name: str  # e.g., "IPCC AR6", "IPCC AR5", "Custom"
     source_year: Optional[int] = None  # e.g., 2021 for AR6
@@ -394,10 +369,13 @@ class GWPConfigUpdate(BaseModel):
 class CurrencyConversionCreate(BaseModel):
     source_currency: str  # e.g., "USD", "EUR", "INR"
     target_currency: str = "USD"  # Default target is USD
-    year_applicable: int  # Year for which this conversion is applicable
+    applicability_type: Optional[Literal["calendar_year", "financial_year", "month"]] = None
+    year_applicable: Optional[int] = None  # Calendar year or FY ending year compatibility field
+    financial_year_start: Optional[int] = None
+    financial_year_end: Optional[int] = None
     month_applicable: Optional[int] = None  # Optional 1-12; blank means annual rate
     effective_from: Optional[str] = None  # YYYY for annual / YYYY-MM for monthly rate
-    conversion_method: str = "ppp_inflation"  # ppp_inflation | standard
+    conversion_method: str = "standard"  # ppp_inflation | standard
     purchase_parity: Optional[float] = None  # PPP (Purchasing Power Parity) factor
     inflation_factor: Optional[float] = None  # Inflation adjustment factor
     exchange_rate: Optional[float] = None  # Optional: market exchange rate
@@ -408,7 +386,10 @@ class CurrencyConversionCreate(BaseModel):
 class CurrencyConversionUpdate(BaseModel):
     source_currency: Optional[str] = None
     target_currency: Optional[str] = None
+    applicability_type: Optional[Literal["calendar_year", "financial_year", "month"]] = None
     year_applicable: Optional[int] = None
+    financial_year_start: Optional[int] = None
+    financial_year_end: Optional[int] = None
     month_applicable: Optional[int] = None
     effective_from: Optional[str] = None
     conversion_method: Optional[str] = None

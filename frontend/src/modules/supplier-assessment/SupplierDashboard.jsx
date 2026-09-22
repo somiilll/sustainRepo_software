@@ -49,6 +49,8 @@ export default function SupplierDashboard() {
   const [revenuePercentage, setRevenuePercentage] = useState('');
   const [revenueAmount, setRevenueAmount] = useState('');
   const [revenueCurrency, setRevenueCurrency] = useState('USD');
+  const [partsComponentsManufactured, setPartsComponentsManufactured] = useState('');
+  const [plantLocation, setPlantLocation] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submittingRevenue, setSubmittingRevenue] = useState(false);
@@ -75,7 +77,7 @@ export default function SupplierDashboard() {
       ]);
       setQuestionnaires(questionnaireData || []); setGhgState(ghgData); setDocuments(documentData || []); setTrainings(trainingData || []); setOnboarding(onboardingData);
       const relationship = assessmentData.relationship || {};
-      setRevenuePercentage(relationship.revenue_percentage ?? ''); setRevenueAmount(relationship.revenue_amount ?? ''); setRevenueCurrency(relationship.revenue_currency || 'USD');
+      setRevenuePercentage(relationship.revenue_percentage ?? ''); setRevenueAmount(relationship.revenue_amount ?? ''); setRevenueCurrency(relationship.revenue_currency || 'USD'); setPartsComponentsManufactured(relationship.parts_components_manufactured || ''); setPlantLocation(relationship.plant_location || '');
     } finally { setLoading(false); }
   }, [safeGet]);
 
@@ -110,35 +112,36 @@ export default function SupplierDashboard() {
   const dueDateOverdue = Boolean(dueDate && dueDate < new Date());
 
   const progressItems = [
-    { id: 'revenue', label: 'Revenue', progress: revenueSubmitted ? 100 : 0, Icon: DollarSign, iconClassName: 'bg-blue-50 text-blue-700', shadowClassName: 'shadow-[0_3px_10px_rgba(59,130,246,0.14)]' },
+    { id: 'revenue', label: 'Org Info', progress: revenueSubmitted ? 100 : 0, Icon: DollarSign, iconClassName: 'bg-blue-50 text-blue-700', shadowClassName: 'shadow-[0_3px_10px_rgba(59,130,246,0.14)]' },
     ...(modules.has('esg') ? [{ id: 'esg', label: 'ESG Questionnaire', progress: esgSubmittedProgress, Icon: ClipboardList, iconClassName: 'bg-indigo-50 text-indigo-700', shadowClassName: 'shadow-[0_3px_10px_rgba(99,102,241,0.14)]' }] : []),
     ...(modules.has('ghg') ? [{ id: 'ghg', label: 'GHG Emissions', progress: ghgProgress, Icon: Cloud, iconClassName: 'bg-emerald-50 text-emerald-700', shadowClassName: 'shadow-[0_3px_10px_rgba(16,185,129,0.14)]' }] : []),
     ...(modules.has('documents') ? [{ id: 'documents', label: 'Documents', progress: documentSubmittedProgress, Icon: FileText, iconClassName: 'bg-cyan-50 text-cyan-700', shadowClassName: 'shadow-[0_3px_10px_rgba(6,182,212,0.14)]' }] : []),
     ...(modules.has('training') ? [{ id: 'training', label: 'Training', progress: modules.get('training').completion_percent, Icon: GraduationCap, iconClassName: 'bg-amber-50 text-amber-700', shadowClassName: 'shadow-[0_3px_10px_rgba(245,158,11,0.14)]' }] : []),
   ];
 
-  const validateRevenue = () => {
+  const validateRevenue = (forSubmission = false) => {
     const percentage = revenuePercentage === '' ? null : Number(revenuePercentage);
     const amount = revenueAmount === '' ? null : Number(revenueAmount);
-    if (percentage === null || Number.isNaN(percentage) || percentage < 0 || percentage > 100) { toast.error('Revenue percentage is required and must be between 0 and 100'); return null; }
-    if (revenueRequired && (amount === null || Number.isNaN(amount) || amount < 0)) { toast.error('Annual revenue amount is required'); return null; }
+    if (percentage !== null && (Number.isNaN(percentage) || percentage < 0 || percentage > 100)) { toast.error('Revenue percentage must be between 0 and 100'); return null; }
     if (amount !== null && (Number.isNaN(amount) || amount < 0)) { toast.error('Enter a valid annual revenue amount'); return null; }
-    return { revenue_percentage: percentage, revenue_amount: amount, revenue_currency: revenueCurrency };
+    if (forSubmission && percentage === null) { toast.error('Revenue percentage is required and must be between 0 and 100'); return null; }
+    if (forSubmission && revenueRequired && amount === null) { toast.error('Annual revenue amount is required'); return null; }
+    return { revenue_percentage: percentage, revenue_amount: amount, revenue_currency: revenueCurrency, parts_components_manufactured: partsComponentsManufactured, plant_location: plantLocation };
   };
 
   const saveRevenue = async () => {
-    const payload = validateRevenue(); if (!payload) return;
+    const payload = validateRevenue(false); if (!payload) return;
     setSaving(true);
-    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); toast.success('Revenue information saved'); await load(); }
-    catch (error) { toast.error(error.response?.data?.detail || 'Failed to save revenue information'); }
+    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); toast.success('Org information saved'); await load(); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Failed to save org information'); }
     finally { setSaving(false); }
   };
 
   const submitRevenue = async () => {
-    const payload = validateRevenue(); if (!payload) return;
+    const payload = validateRevenue(true); if (!payload) return;
     setSubmittingRevenue(true);
-    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() }); toast.success('Revenue information submitted'); setShowRevenueSubmitConfirm(false); await load(); }
-    catch (error) { toast.error(error.response?.data?.detail || 'Could not submit revenue information'); }
+    try { await axios.put(`${API}/supplier-assessment/my-assessment/revenue`, payload, { headers: getAuthHeader() }); await axios.post(`${API}/supplier-assessment/my-assessment/revenue/submit`, {}, { headers: getAuthHeader() }); toast.success('Org information submitted'); setShowRevenueSubmitConfirm(false); await load(); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Could not submit org information'); }
     finally { setSubmittingRevenue(false); }
   };
 
@@ -150,8 +153,8 @@ export default function SupplierDashboard() {
     <section className="space-y-3" data-testid="supplier-assessment-modules">
       <div><p className="text-xs font-semibold uppercase text-slate-500">Assigned modules</p><h2 className="mt-1 text-lg font-semibold text-slate-900">Complete each requirement</h2></div>
       <div className="space-y-8" data-testid="supplier-module-panels">
-        <SupplierModulePanel title="Revenue Information" description={`Share your revenue relationship with ${customerName}.`} progress={revenueFilledProgress} status={statusBadge(revenueSubmitted ? 'submitted' : revenueFilledProgress ? 'in_progress' : 'pending', 'revenue-overview-status-badge')} icon={DollarSign} iconClassName="bg-blue-50 text-blue-700" shadowClassName="shadow-[0_10px_28px_rgba(59,130,246,0.18)] hover:shadow-[0_14px_34px_rgba(59,130,246,0.24)]" testId="supplier-revenue-module-panel" collapsible>
-          <SupplierRevenueContent relationship={relationship} customerName={customerName} revenueRequired={revenueRequired} revenuePercentage={revenuePercentage} setRevenuePercentage={setRevenuePercentage} revenueAmount={revenueAmount} setRevenueAmount={setRevenueAmount} revenueCurrency={revenueCurrency} setRevenueCurrency={setRevenueCurrency} saving={saving} submitting={submittingRevenue} onSave={saveRevenue} onSubmit={() => { if (validateRevenue()) setShowRevenueSubmitConfirm(true); }} />
+        <SupplierModulePanel title="Org Information" progress={revenueFilledProgress} status={statusBadge(revenueSubmitted ? 'submitted' : revenueFilledProgress ? 'in_progress' : 'pending', 'revenue-overview-status-badge')} icon={DollarSign} iconClassName="bg-blue-50 text-blue-700" shadowClassName="shadow-[0_10px_28px_rgba(59,130,246,0.18)] hover:shadow-[0_14px_34px_rgba(59,130,246,0.24)]" testId="supplier-revenue-module-panel" collapsible>
+          <SupplierRevenueContent relationship={relationship} customerName={customerName} revenueRequired={revenueRequired} revenuePercentage={revenuePercentage} setRevenuePercentage={setRevenuePercentage} revenueAmount={revenueAmount} setRevenueAmount={setRevenueAmount} revenueCurrency={revenueCurrency} setRevenueCurrency={setRevenueCurrency} partsComponentsManufactured={partsComponentsManufactured} setPartsComponentsManufactured={setPartsComponentsManufactured} plantLocation={plantLocation} setPlantLocation={setPlantLocation} saving={saving} submitting={submittingRevenue} onSave={saveRevenue} onSubmit={() => { if (validateRevenue()) setShowRevenueSubmitConfirm(true); }} />
         </SupplierModulePanel>
 
         {modules.has('esg') && questionnaires.length === 0 && <SupplierModulePanel title="ESG Questionnaire" description="No questionnaire has been assigned yet." progress={0} status={statusBadge('pending', 'supplier-esg-empty-status')} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId="supplier-esg-module-panel"><p className="text-sm text-slate-500">Your customer has not assigned an ESG questionnaire yet.</p></SupplierModulePanel>}
@@ -165,6 +168,6 @@ export default function SupplierDashboard() {
       </div>
     </section>
 
-    <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}><AlertDialogContent data-testid="confirm-revenue-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit revenue information?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-revenue-submit-description">Once submitted, this revenue information is locked and cannot be edited.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={async () => { await saveRevenue(); setShowRevenueSubmitConfirm(false); }} disabled={saving || submittingRevenue} data-testid="save-revenue-draft-from-submit-button">{saving ? 'Saving…' : 'Save as draft'}</Button><AlertDialogAction onClick={submitRevenue} disabled={submittingRevenue || saving} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting…' : 'Submit and lock'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={showRevenueSubmitConfirm} onOpenChange={setShowRevenueSubmitConfirm}><AlertDialogContent data-testid="confirm-revenue-submit-dialog"><AlertDialogHeader><AlertDialogTitle data-testid="confirm-revenue-submit-title">Submit org information?</AlertDialogTitle><AlertDialogDescription data-testid="confirm-revenue-submit-description">Once submitted, this org information is locked and cannot be edited.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-revenue-submit-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={async () => { await saveRevenue(); setShowRevenueSubmitConfirm(false); }} disabled={saving || submittingRevenue} data-testid="save-revenue-draft-from-submit-button">{saving ? 'Saving…' : 'Save as draft'}</Button><AlertDialogAction onClick={submitRevenue} disabled={submittingRevenue || saving} data-testid="confirm-revenue-submit-button">{submittingRevenue ? 'Submitting…' : 'Submit and lock'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }

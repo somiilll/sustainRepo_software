@@ -1,4 +1,5 @@
 """Supplier relationship operations extracted from the compatibility facade."""
+import logging
 import os
 import re
 import uuid
@@ -9,9 +10,12 @@ from modules.supplier_assessment.email_templates import supplier_invitation_emai
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.programs import apply_legacy_request_overrides, bind_current_program, get_or_create_program_revision, resolve_program_context
+from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+
+logger = get_logger(__name__)
 
 # ========================================================================
 # Supplier Management
@@ -53,6 +57,7 @@ async def create_supplier(
     questionnaire_ids: Optional[List[str]] = None,
     document_requirement_ids: Optional[List[str]] = None,
     training_requirement_ids: Optional[List[str]] = None,
+    vendor_code: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new supplier:
@@ -63,6 +68,7 @@ async def create_supplier(
     """
     validate_due_date(access_revoke_date)
     company_name = (company_name or "").strip()
+    email = (email or "").strip().lower()
     duplicate_supplier = await db.supplier_relationships.find_one(
         {"customer_org_id": customer_org_id, "is_active": True, "company_name": {"$regex": f"^{re.escape(company_name)}$", "$options": "i"}},
         {"_id": 0, "id": 1},
@@ -80,6 +86,22 @@ async def create_supplier(
     temp_password = None
     
     if existing_user:
+        if existing_user.get("organization_id") == customer_org_id:
+            raise ValueError(
+                "This email belongs to a user in your organization and cannot be used as a supplier contact. "
+                "Enter an email belonging to the supplier organization."
+            )
+
+        existing_user_org = await db.organizations.find_one(
+            {"id": existing_user.get("organization_id")},
+            {"_id": 0, "org_type": 1},
+        ) or {}
+        if existing_user.get("user_type") != "supplier" or existing_user_org.get("org_type") != "supplier":
+            raise ValueError(
+                "This email belongs to an existing non-supplier account and cannot be used as a supplier contact. "
+                "Enter an email belonging to the supplier organization."
+            )
+
         # User exists - check if they're already a supplier for this customer
         existing_rel = await db.supplier_relationships.find_one({
             "customer_org_id": customer_org_id,
@@ -89,16 +111,9 @@ async def create_supplier(
         if existing_rel:
             raise ValueError("This supplier is already registered")
         
-        # User exists but not as supplier for this customer
+        # Existing supplier account can be linked to this customer relationship.
         supplier_org_id = existing_user.get("organization_id")
         supplier_user_id = existing_user.get("id")
-        
-        # Update user to be a supplier if not already
-        if existing_user.get("user_type") != "supplier":
-            await db.users.update_one(
-                {"id": supplier_user_id},
-                {"$set": {"user_type": "supplier"}}
-            )
     else:
         # Create new supplier organization
         supplier_org_id = str(uuid.uuid4())
@@ -182,6 +197,7 @@ async def create_supplier(
         "id": relationship_id,
         "customer_org_id": customer_org_id,
         "supplier_org_id": supplier_org_id,
+        "vendor_code": str(vendor_code or "").strip() or None,
         "company_name": company_name,
         "contact_person": contact_person,
         "contact_email": email,
@@ -251,7 +267,12 @@ async def create_supplier(
     if temp_password:
         subject = f"Welcome! {subject}"
     
-    await send_email(email, subject, email_body)
+    try:
+        invitation_delivered = await send_email(email, subject, email_body)
+        log_event(logger, logging.INFO if invitation_delivered else logging.ERROR, "supplier_assessment.email.invitation.sent" if invitation_delivered else "supplier_assessment.email.invitation.failed", action="supplier_assessment.email.invitation", outcome="succeeded" if invitation_delivered else "failed", error_code=None if invitation_delivered else "INVITATION_EMAIL_DELIVERY_FAILED", context={"relationship_id": relationship_id})
+    except Exception:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.invitation.failed", action="supplier_assessment.email.invitation", outcome="failed", error_code="INVITATION_EMAIL_EXCEPTION", context={"relationship_id": relationship_id}, exc_info=True)
+        raise
     
     return {
         "id": relationship_id,
@@ -305,11 +326,21 @@ async def get_suppliers(
     training_ids_by_supplier: Dict[str, List[str]] = {}
     for assignment in training_assignments:
         training_ids_by_supplier.setdefault(assignment["supplier_relationship_id"], []).append(assignment["training_requirement_id"])
+    submitted_revenue = await db.supplier_revenue_submissions.find(
+        {"supplier_relationship_id": {"$in": relationship_ids}, "status": "submitted", "parent_visible": {"$ne": False}},
+        {"_id": 0, "supplier_relationship_id": 1, "submitted_at": 1},
+    ).sort("submitted_at", -1).to_list(10000)
+    submitted_revenue_at = {}
+    for submission in submitted_revenue:
+        submitted_revenue_at.setdefault(submission["supplier_relationship_id"], submission.get("submitted_at"))
     for supplier in suppliers:
         supplier["access_revoke_date"] = _access_revoke_date(supplier)
         supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
         supplier["document_requirement_ids"] = [requirement["id"] for requirement in document_requirements if _is_requirement_available_to_relationship(requirement, supplier)]
         supplier["training_requirement_ids"] = training_ids_by_supplier.get(supplier["id"], [])
+        supplier["revenue_submitted_at"] = submitted_revenue_at.get(supplier["id"])
+        if supplier["revenue_submitted_at"] and supplier.get("revenue_submission_status") != "reopened":
+            supplier["revenue_submission_status"] = "submitted"
     
     return {
         "suppliers": suppliers,
@@ -442,6 +473,7 @@ async def deactivate_supplier(self, relationship_id: str) -> bool:
                 "supplier_access_revoked_by_relationship_id": relationship_id,
             }},
         )
+        log_event(logger, logging.INFO, "supplier_assessment.supplier.access_locked", action="supplier_assessment.supplier.deactivate", outcome="locked", context={"relationship_id": relationship_id})
     return result.modified_count > 0
 
 async def send_reminder(
@@ -485,12 +517,17 @@ async def send_reminder(
         custom_message=custom_message,
     )
     
-    delivered = await send_email(
-        relationship["contact_email"],
-        f"Reminder: Complete Your Supplier Assessment for {customer_name}",
-        email_body,
-    )
+    try:
+        delivered = await send_email(
+            relationship["contact_email"],
+            f"Reminder: Complete Your Supplier Assessment for {customer_name}",
+            email_body,
+        )
+    except Exception:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.reminder.failed", action="supplier_assessment.email.reminder", outcome="failed", error_code="REMINDER_EMAIL_EXCEPTION", context={"relationship_id": relationship_id, "reporting_period": target_period}, exc_info=True)
+        raise
     if not delivered:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.reminder.failed", action="supplier_assessment.email.reminder", outcome="failed", error_code="REMINDER_EMAIL_DELIVERY_FAILED", context={"relationship_id": relationship_id, "reporting_period": target_period})
         return False
     
     # Update reminder tracking
@@ -500,6 +537,7 @@ async def send_reminder(
             "last_reminder_sent": datetime.now(timezone.utc).isoformat(),
         }, "$inc": {"reminder_count": 1}}
     )
+    log_event(logger, logging.INFO, "supplier_assessment.email.reminder.sent", action="supplier_assessment.email.reminder", outcome="succeeded", context={"relationship_id": relationship_id, "reporting_period": target_period})
     
     return True
 
@@ -523,6 +561,7 @@ async def get_pending_reminder_modules(
         "ESG Questionnaire": "esg",
         "GHG Emissions": "ghg",
         "Revenue Information": "revenue",
+        "Org Information": "revenue",
         "Document:": "documents",
         "Training:": "training",
     }
@@ -537,7 +576,7 @@ async def get_pending_reminder_modules(
         "ghg": "GHG Emissions",
         "documents": "Documents",
         "training": "Training",
-        "revenue": "Revenue Information",
+        "revenue": "Org Information",
     }
     return [{"code": code, "label": labels[code]} for code in labels if code in pending_codes]
 
@@ -546,7 +585,7 @@ async def _pending_reminder_modules(self, relationship: Dict[str, Any], requeste
     labels = {
         "esg": "ESG Questionnaire",
         "ghg": "GHG Emissions",
-        "revenue": "Revenue Information",
+        "revenue": "Org Information",
     }
     program_context = await resolve_program_context(relationship)
     enabled_module_codes = {
@@ -635,20 +674,25 @@ async def update_revenue_info(
     revenue_percentage: Optional[float] = None,
     revenue_amount: Optional[float] = None,
     revenue_currency: Optional[str] = None,
+    parts_components_manufactured: Optional[str] = None,
+    plant_location: Optional[str] = None,
 ) -> bool:
     """Supplier updates their revenue information (percentage and/or amount)."""
     relationship = await db.supplier_relationships.find_one(
-        {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0, "reporting_period": 1}
+        {"id": relationship_id, "supplier_org_id": supplier_org_id}, {"_id": 0, "reporting_period": 1, "revenue_submission_status": 1}
     )
     if not relationship:
         return False
-    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
-    submitted = await db.supplier_revenue_submissions.find_one(
-        {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
-        {"_id": 0, "id": 1},
-    )
-    if submitted:
+    if relationship.get("revenue_submission_status") == "submitted":
         raise ValueError("Revenue information is already submitted and locked")
+    if relationship.get("revenue_submission_status") != "reopened":
+        reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+        submitted = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": reporting_period, "status": "submitted", "parent_visible": {"$ne": False}},
+            {"_id": 0, "id": 1},
+        )
+        if submitted:
+            raise ValueError("Revenue information is already submitted and locked")
     update_fields = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -659,6 +703,10 @@ async def update_revenue_info(
         update_fields["revenue_amount"] = revenue_amount
     if revenue_currency is not None:
         update_fields["revenue_currency"] = revenue_currency
+    if parts_components_manufactured is not None:
+        update_fields["parts_components_manufactured"] = parts_components_manufactured.strip()
+    if plant_location is not None:
+        update_fields["plant_location"] = plant_location.strip()
     
     result = await db.supplier_relationships.update_one(
         {
@@ -687,19 +735,76 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
     if existing:
         raise ValueError("Revenue information is already submitted and locked")
     now = datetime.now(timezone.utc).isoformat()
+    latest_submission = await db.supplier_revenue_submissions.find_one(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period}, {"_id": 0, "revision": 1}, sort=[("revision", -1)]
+    ) or {}
+    await db.supplier_revenue_submissions.update_many(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period, "is_current": {"$ne": False}},
+        {"$set": {"is_current": False, "parent_visible": False, "replaced_at": now}},
+    )
     submission = {
         "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
         "supplier_org_id": supplier_org_id, "customer_org_id": relationship["customer_org_id"],
         "reporting_period": period, "revenue_percentage": relationship["revenue_percentage"],
         "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
-        "status": "submitted", "parent_visible": True, "revision": 1,
+        "parts_components_manufactured": relationship.get("parts_components_manufactured"), "plant_location": relationship.get("plant_location"),
+        "status": "submitted", "parent_visible": True, "revision": int(latest_submission.get("revision") or 0) + 1, "is_current": True,
         "submitted_by": submitted_by, "submitted_at": now,
     }
     await db.supplier_revenue_submissions.insert_one(submission)
     submission.pop("_id", None)
+    await db.supplier_relationships.update_one(
+        {"id": relationship_id}, {"$set": {"revenue_submitted_at": now, "updated_at": now}},
+    )
     await self.refresh_supplier_canonical_score(relationship_id)
     await self._update_completion_status(relationship_id)
+    log_event(logger, logging.INFO, "supplier_assessment.revenue.locked", action="supplier_assessment.revenue.submit", outcome="locked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": submission["id"]})
     return submission
+
+async def reopen_revenue_info(
+    self,
+    relationship_id: str,
+    customer_org_id: str,
+    reopened_by: str,
+) -> Dict[str, Any]:
+    """Create an editable Org Information revision without mutating its submitted audit record."""
+    relationship = await db.supplier_relationships.find_one(
+        {"id": relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
+    )
+    if not relationship:
+        raise ValueError("Supplier not found")
+    period = relationship.get("reporting_period") or self._default_reporting_period()
+    current = await db.supplier_revenue_submissions.find_one(
+        {"supplier_relationship_id": relationship_id, "reporting_period": period, "is_current": True}, {"_id": 0}, sort=[("revision", -1)]
+    )
+    if current and current.get("status") == "reopened":
+        raise ValueError("Org Information is already unlocked for resubmission")
+    if not current:
+        current = await db.supplier_revenue_submissions.find_one(
+            {"supplier_relationship_id": relationship_id, "reporting_period": period, "status": "submitted", "parent_visible": {"$ne": False}}, {"_id": 0}, sort=[("revision", -1)]
+        )
+    if not current or current.get("status") != "submitted":
+        raise ValueError("No submitted Org Information is available to unlock")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_revenue_submissions.update_one(
+        {"id": current["id"]}, {"$set": {"is_current": False, "parent_visible": False, "reopened_at": now}},
+    )
+    draft = {
+        "id": str(uuid.uuid4()), "supplier_relationship_id": relationship_id,
+        "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id,
+        "reporting_period": period, "revenue_percentage": relationship.get("revenue_percentage"),
+        "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
+        "parts_components_manufactured": relationship.get("parts_components_manufactured"), "plant_location": relationship.get("plant_location"),
+        "status": "reopened", "parent_visible": False, "revision": int(current.get("revision") or 0) + 1,
+        "is_current": True, "reopened_by": reopened_by, "reopened_at": now, "created_at": now,
+    }
+    await db.supplier_revenue_submissions.insert_one(draft)
+    draft.pop("_id", None)
+    await db.supplier_relationships.update_one(
+        {"id": relationship_id}, {"$set": {"revenue_submission_status": "reopened", "revenue_submitted_at": None, "updated_at": now}},
+    )
+    log_event(logger, logging.INFO, "supplier_assessment.revenue.unlocked", action="supplier_assessment.revenue.reopen", outcome="unlocked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": draft["id"]})
+    return draft
 
 # Keep old method for backwards compatibility
 async def update_revenue_percentage(

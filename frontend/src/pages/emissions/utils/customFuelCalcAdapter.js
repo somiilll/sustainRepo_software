@@ -1,10 +1,15 @@
 import {
+  normalizeCustomFuelCalorificValueUnit,
+  normalizeCustomFuelCompoundUnit,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
   normalizeDensityForCalcEngine,
   resolveDensityRequirement,
   resolveCompoundDenominatorBasis,
 } from '../../../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
+const CUSTOM_FUEL_QUANTITY_EF_UNITS = new Set(['kgCO2/L', 'kgCO2/kg']);
 
 const readValue = (values, keys) => {
   for (const key of keys) {
@@ -22,29 +27,11 @@ const readUnit = (values, keys, fallback = '') => {
 
 const toInput = (value, unit) => {
   const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? { value: parsed, unit } : null;
-};
-
-const normalizeEmissionFactor = (value, unit, { energyBased = false } = {}) => {
-  let normalizedValue = Number.parseFloat(value);
-  if (!Number.isFinite(normalizedValue)) return null;
-  let normalizedUnit = String(unit || '').replace(/\s/g, '');
-  const unitMatch = normalizedUnit.match(/^(tCO2|kgCO2)\/(.+)$/i);
-  if (!unitMatch) return { value: normalizedValue, unit: normalizedUnit };
-
-  const [, numerator, rawDenominator] = unitMatch;
-  let denominator = rawDenominator;
-  if (numerator.toLowerCase() === 'tco2') normalizedValue *= 1000;
-  if (energyBased && denominator.toLowerCase() === 'mj') {
-    normalizedValue *= 1000;
-    denominator = 'TJ';
-  }
-  normalizedUnit = `kgCO2/${denominator}`;
-  return { value: normalizedValue, unit: normalizedUnit };
+  return Number.isFinite(parsed) ? { value: parsed, unit: String(unit || '').replace(/\s/g, '') } : null;
 };
 
 /**
- * Normalizes Custom Fuel and legacy Custom Fuel values for the calc engine.
+ * Builds Custom Fuel and legacy Custom Fuel values for the calc engine.
  * The form owns custom_* names, while configured formulas use canonical keys.
  */
 export const buildCustomFuelCalculationPayload = ({
@@ -57,11 +44,11 @@ export const buildCustomFuelCalculationPayload = ({
 }) => {
   const values = dynamicFieldValues;
   const quantity = readValue(values, ['qty', 'quantity']) ?? formData.quantity;
-  const quantityUnit = readUnit(
+  const quantityUnit = normalizeCustomFuelQuantityUnit(readUnit(
     values,
     ['custom_qty_unit', 'qty_unit', 'quantity_unit'],
     formData.quantity_unit || 'kg',
-  );
+  ));
   const inputs = {};
   const userOverrides = {};
   const decisionInputs = {};
@@ -99,11 +86,17 @@ export const buildCustomFuelCalculationPayload = ({
 
   if (methodology === 'using_heat_basis_ncv') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
-    const efUnit = readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'tCO2/TJ');
+    const efUnit = normalizeCustomFuelCompoundUnit(
+      readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'tCO2/TJ'),
+    );
     const cv = readValue(values, ['custom_cv', 'cv', 'ncv', 'calorific_value']);
-    const cvUnit = readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg');
-    const normalizedEf = normalizeEmissionFactor(ef, efUnit, { energyBased: true });
-    const hasEf = normalizedEf && addInput('ef_co2', normalizedEf.value, normalizedEf.unit, { override: true });
+    const cvUnit = normalizeCustomFuelCalorificValueUnit(
+      readUnit(values, ['custom_cv_unit', 'cv_unit', 'ncv_unit', 'calorific_value_unit'], 'TJ/kg'),
+    );
+    // Preserve the user's EF value and unit. `ef_co2` is a formula property,
+    // so the Calc Engine resolves it through the configured Super Admin unit
+    // conversions and records the raw-to-normalized audit trail.
+    const hasEf = addInput('ef_co2', ef, efUnit, { override: true });
     if (!hasEf) missingFields.push('Emission Factor');
     if (hasEf) {
       userOverrides.emission_factor = inputs.ef_co2;
@@ -118,13 +111,25 @@ export const buildCustomFuelCalculationPayload = ({
     hasMethodInputs = hasEf && hasCv;
   } else if (methodology === 'using_qty_basis_ef') {
     const ef = readValue(values, ['custom_ef', 'ef_quantity', 'ef', 'emission_factor']);
-    const efUnit = readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg');
-    const normalizedEf = normalizeEmissionFactor(ef, efUnit);
-    hasMethodInputs = normalizedEf && addInput('ef_quantity', normalizedEf.value, normalizedEf.unit, { override: true });
+    const efUnit = normalizeCustomFuelCompoundUnit(
+      readUnit(values, ['custom_ef_unit', 'ef_quantity_unit', 'ef_unit'], 'kgCO2/kg'),
+    );
+    if (!CUSTOM_FUEL_QUANTITY_EF_UNITS.has(efUnit)) {
+      missingFields.push('Emission Factor must use kgCO2/L or kgCO2/kg');
+      return {
+        inputs,
+        userOverrides,
+        decisionInputs,
+        isReady: false,
+        missingFields,
+      };
+    }
+    const rawEf = toInput(ef, efUnit);
+    hasMethodInputs = rawEf && addInput('ef_quantity', rawEf.value, rawEf.unit, { override: true });
     if (!hasMethodInputs) missingFields.push('Emission Factor');
-    referenceUnit = normalizedEf?.unit?.split('/')[1] || efUnit.split('/')[1] || '';
+    referenceUnit = rawEf?.unit?.split('/')[1] || efUnit.split('/')[1] || '';
     if (hasMethodInputs) userOverrides.emission_factor = inputs.ef_quantity;
-    const efQuantityBasis = resolveCompoundDenominatorBasis(normalizedEf?.unit, centralizedUnits);
+    const efQuantityBasis = resolveCompoundDenominatorBasis(rawEf?.unit, centralizedUnits);
     if (efQuantityBasis) decisionInputs.ef_quantity_basis = efQuantityBasis;
   } else if (methodology === 'using_carbon_composition') {
     const carbonContent = readValue(values, ['custom_carbon_content', 'carbon_content', 'composition_of_carbon']);
@@ -137,21 +142,25 @@ export const buildCustomFuelCalculationPayload = ({
     referenceUnit = 'kg';
   }
 
-  const density = readValue(values, ['density']);
-  if (hasValue(density)) {
-    const calcDensity = normalizeDensityForCalcEngine({
-      value: density,
-      unit: readUnit(values, ['density_unit'], 'kg/L'),
-    });
-    addInput('density', calcDensity.value, calcDensity.unit, { override: true });
-  }
   const densityRequirement = resolveDensityRequirement({
     quantityUnit,
     referenceUnit,
     centralizedUnits,
   });
-  if (hasQuantity && hasMethodInputs && densityRequirement.required && !inputs.density) {
-    missingFields.push(`Density (${densityRequirement.densityUnit})`);
+  if (densityRequirement.required) {
+    const density = readValue(values, ['density']);
+    if (hasValue(density)) {
+      const calcDensity = normalizeDensityForCalcEngine({
+        value: density,
+        unit: normalizeCustomFuelDensityUnit(
+          readUnit(values, ['density_unit'], 'kg/L'),
+        ),
+      });
+      addInput('density', calcDensity.value, calcDensity.unit, { override: true });
+    }
+    if (hasQuantity && hasMethodInputs && !inputs.density) {
+      missingFields.push(`Density (${densityRequirement.densityUnit})`);
+    }
   }
 
   return {

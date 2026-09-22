@@ -13,6 +13,7 @@ export const getRequiredMonthlyFields = (fields = []) =>
 // starts a monthly record; defaults such as Density or Oxidation Factor do not.
 export const isMonthlyEntryStarted = (data, fields = []) => {
   if (!data) return false;
+  if (Array.isArray(data.evidences) && data.evidences.length > 0) return true;
 
   const requiredFields = getRequiredMonthlyFields(fields);
   const coreFields = requiredFields.filter(isCoreMonthlyInput);
@@ -31,8 +32,10 @@ export const isMonthlyEntryComplete = (data, fields = []) => {
   if (!isMonthlyEntryStarted(data, fields)) return false;
 
   const hasRequiredFields = requiredFields.every((field) => {
+    const hasStoredValue = Object.prototype.hasOwnProperty.call(data, field.variable)
+      || Object.prototype.hasOwnProperty.call(data, field.fieldKey);
     const storedValue = data[field.variable] ?? data[field.fieldKey];
-    return hasValue(storedValue) || hasValue(field.defaultValue);
+    return hasStoredValue ? hasValue(storedValue) : hasValue(field.defaultValue);
   });
   if (!hasRequiredFields) return false;
 

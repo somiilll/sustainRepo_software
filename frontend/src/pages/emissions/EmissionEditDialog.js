@@ -48,7 +48,6 @@ const EmissionEditDialog = ({
   dynamicScopes,
   dynamicCategories,
   centralizedUnits,
-  processTemplates,
   configLabels,
   hasScope3Access,
   
@@ -78,14 +77,6 @@ const EmissionEditDialog = ({
   dynamicInputFields,
   dynamicFieldValues,
   setDynamicFieldValues,
-  
-  // Process emissions
-  selectedSubIndustry,
-  setSelectedSubIndustry,
-  selectedTemplate,
-  setSelectedTemplate,
-  templateInputValues,
-  setTemplateInputValues,
   
   // Override states
   overrideCalorificValue,

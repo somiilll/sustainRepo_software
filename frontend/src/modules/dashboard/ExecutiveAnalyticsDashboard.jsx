@@ -208,7 +208,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   console.log("wasteRows", wasteRows)
 
   return (
-    <div className="space-y-6 pb-10" data-testid="executive-esg-dashboard">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-hidden pb-10" data-testid="executive-esg-dashboard">
 
       {/* ── Header / Filter Bar ── */}
       <StickyFilterBar
@@ -259,10 +259,10 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       </div>
 
       {/* ── Row 2: GHG Emissions + Scope Breakdown ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-stretch">
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-6 xl:grid-cols-12">
         
         {/* Left Chart (8 columns) */}
-        <div className="xl:col-span-8 flex flex-col">
+        <div className="flex min-w-0 flex-col xl:col-span-8">
           <AnalyticsChartCard 
             className="h-full flex-1" 
             title="GHG Emission Trend" 
@@ -294,49 +294,48 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         </div>
 
         {/* Right Summary (4 columns) */}
-        <div className="xl:col-span-4 flex flex-col">
+        <div className="flex min-w-0 flex-col xl:col-span-4">
           <ScopeBreakdownCard 
             className="h-full flex-1" 
             totals={scopeTotals} 
             activeScopes={activeScopes} 
             onToggleScope={toggleScope} 
-            onFullscreen={() => openDrilldown(scopeTotals, 'Scope Breakdown')} 
           />
         </div>
 
       </div>
 
       {/* ── Row 3: Energy ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 5: LTIFR & AP Days ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
         <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Row 6: Incidents Trend ── */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-1">
+      <div className="grid min-w-0 grid-cols-1 gap-6">
         <AnalyticsChartCard title="Incidents Trend" subtitle="Data breaches, health & safety incidents, and violations over time" data={incidentsRows} series={[{ key: 'dataBreaches', label: 'Data Breaches', color: '#DC2626' }, { key: 'healthSafety', label: 'Health & Safety', color: '#F97316' }, { key: 'violations', label: 'Violations', color: '#7C3AED' }]} chartType="bar" accent="#DC2626" testId="incidents-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
       </div>
 
       {/* ── Drilldown Panel ── */}
       {drilldown && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-sm rounded-lg border border-stone-200 bg-white p-4 shadow-xl" data-testid="chart-drilldown-panel">
+        <div className="fixed bottom-5 right-5 z-50 max-w-[calc(100vw-2.5rem)] rounded-lg border border-stone-200 bg-white p-4 shadow-xl" data-testid="chart-drilldown-panel">
           <button type="button" onClick={() => setDrilldown(null)} className="float-right text-xs font-medium text-stone-500 hover:text-stone-900" data-testid="chart-drilldown-close">
             Close
           </button>
           <p className="text-sm font-semibold text-stone-900">{drilldown.title}</p>
-          <pre className="mt-2 overflow-auto text-xs text-stone-600">
+          <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-stone-600">
             {JSON.stringify(drilldown.point, null, 2)}
           </pre>
         </div>

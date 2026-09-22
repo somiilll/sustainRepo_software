@@ -5,7 +5,12 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
+import { Plus, Trash2, User, Calculator, Users, Upload, FileText, Download, X } from 'lucide-react';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 
 /**
  * MultiEmployeeInput - Config-driven component for multi-entity data entry
@@ -40,21 +45,119 @@ const MONTHS = [
   { key: 'dec', label: 'December', days: 31 },
 ];
 
-// Helper to get days in a month for a specific year (handles leap years)
-const getDaysInMonth = (monthKey, year) => {
-  const month = MONTHS.find(m => m.key === monthKey);
-  if (!month) return 31;
-  
-  // Handle February leap year
-  if (monthKey === 'feb' && year) {
-    const yearNum = parseInt(year);
-    const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
-    return isLeapYear ? 29 : 28;
-  }
-  
-  return month.days;
+const EmployeeEvidenceCell = ({
+  employeeId,
+  employeeIndex,
+  periodKey,
+  evidences = [],
+  disabled,
+  onEvidenceUpload,
+  onEvidenceRemove,
+  onEvidenceDownload,
+  backendUrl,
+  showLabel = false,
+}) => {
+  const testIdPrefix = `employee-${employeeIndex}-${periodKey}-evidence`;
+  const inputId = `${testIdPrefix}-input`;
+
+  if (!onEvidenceUpload) return null;
+
+  return (
+    <div
+      className={`flex min-w-[4.5rem] items-center gap-1 ${showLabel ? 'justify-center' : 'justify-end'}`}
+      data-testid={`${testIdPrefix}-cell`}
+    >
+      <input
+        id={inputId}
+        type="file"
+        multiple
+        accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,.doc,.docx"
+        className="hidden"
+        disabled={disabled}
+        onChange={async (event) => {
+          try {
+            for (const file of Array.from(event.target.files || [])) {
+              await onEvidenceUpload(employeeId, periodKey, file);
+            }
+          } catch (error) {
+            toast.error(error.message || 'Could not upload evidence');
+          } finally {
+            event.target.value = '';
+          }
+        }}
+        data-testid={`${testIdPrefix}-input`}
+      />
+      <label
+        htmlFor={inputId}
+        title="Upload evidence"
+        aria-label="Upload evidence"
+        className={`relative inline-flex items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
+        data-testid={`${testIdPrefix}-upload-trigger`}
+      >
+        <Upload className="h-4 w-4" />
+        {showLabel && (
+          <span>{evidences.length > 0 ? `${evidences.length} file${evidences.length > 1 ? 's' : ''} attached` : 'Upload Evidence'}</span>
+        )}
+        {!showLabel && evidences.length > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`${testIdPrefix}-count`}>
+            {evidences.length}
+          </span>
+        )}
+      </label>
+      {evidences.map((evidence, evidenceIndex) => {
+        const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+        const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence?.url;
+        return (
+          <React.Fragment key={`${evidence?.file_id || evidence?.url || evidenceIndex}`}>
+            {viewUrl && (
+              <a
+                href={viewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={evidence.filename || `Evidence ${evidenceIndex + 1}`}
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex h-7 w-7 items-center justify-center text-emerald-700 transition-colors hover:text-emerald-900"
+                data-testid={`${testIdPrefix}-view-${evidenceIndex}`}
+              >
+                <FileText className="h-4 w-4" />
+              </a>
+            )}
+            {onEvidenceDownload && evidence?.url && (
+              <button
+                type="button"
+                title={`Download ${evidence.filename || 'evidence'}`}
+                onClick={(event) => onEvidenceDownload(evidence.url, event, evidence.filename)}
+                className="inline-flex h-7 w-7 items-center justify-center text-sky-700 transition-colors hover:text-sky-900"
+                data-testid={`${testIdPrefix}-download-${evidenceIndex}`}
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            )}
+            {onEvidenceRemove && (
+              <button
+                type="button"
+                title={`Remove ${evidence.filename || 'evidence'}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  Promise.resolve(onEvidenceRemove(employeeId, periodKey, evidenceIndex)).catch((error) => {
+                    toast.error(error.message || 'Could not remove evidence');
+                  });
+                }}
+                className="inline-flex h-7 w-7 items-center justify-center text-stone-400 transition-colors hover:text-red-600"
+                disabled={disabled}
+                data-testid={`${testIdPrefix}-remove-${evidenceIndex}`}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 };
 
+// Helper to get days in a month for a specific year (handles leap years)
 const MultiEmployeeInput = ({
   entityLabel = 'Employee',
   fields = [],
@@ -64,8 +167,6 @@ const MultiEmployeeInput = ({
   onEmployeesChange,
   activeMonths = [],
   onCalculateEmployee,
-  monthlyTotals = {},
-  yearlyTotal = {},
   isCalculating = false,
   disabled = false,
   reportingYear = '', // New: for showing year in totals
@@ -76,6 +177,10 @@ const MultiEmployeeInput = ({
   onValidationChange = null, // New: callback to report validation state
   frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
   isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
+  onEvidenceUpload = null,
+  onEvidenceRemove = null,
+  onEvidenceDownload = null,
+  evidenceBackendUrl = '',
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
@@ -85,9 +190,24 @@ const MultiEmployeeInput = ({
   
   // State for validation errors per employee
   const [validationErrors, setValidationErrors] = useState({});
+  const [monthlyWorkSchedules, setMonthlyWorkSchedules] = useState({});
 
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
+  const annualDayLimit = getAnnualReportingPeriodDayLimit(reportingYear, reportingYearType);
+  const monthlyWorkScheduleFields = fields.filter((field) => (
+    field.variable === 'working_days' || field.variable === 'working_hour_per_day'
+  ));
+  const availableMonthKeys = activeMonths.filter((monthKey) => !isFutureMonth?.(monthKey));
+  const sharedMonthlyDayLimit = availableMonthKeys.length > 0
+    ? Math.min(
+      ...availableMonthKeys.map((monthKey) => getMonthlyReportingPeriodDayLimit(
+        monthKey,
+        reportingYear,
+        reportingYearType,
+      )),
+    )
+    : 31;
 
   // Track selected month for calculation details per employee (format: { employeeId: monthKey })
   const [selectedMonthsForDetails, setSelectedMonthsForDetails] = useState({});
@@ -139,6 +259,15 @@ const MultiEmployeeInput = ({
           empErrors.push('Please enter annual data or remove the employee entry.');
           isValid = false;
         }
+
+        const yearlyInputs = employee.yearly_data?.inputs || {};
+        fields.filter(isAnnualDayCountField).forEach((field) => {
+          const value = Number.parseFloat(yearlyInputs[field.variable]);
+          if (Number.isFinite(value) && value > annualDayLimit) {
+            empErrors.push(`${field.label} cannot exceed ${annualDayLimit} days for the reporting period.`);
+            isValid = false;
+          }
+        });
         
         // For supplier_basis: validate units are provided for fields with values
         if (isSupplierBasis && hasYearlyData) {
@@ -191,6 +320,23 @@ const MultiEmployeeInput = ({
             }
           });
         }
+
+        Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+          const inputs = monthData?.inputs || {};
+          const maxDays = getMonthlyReportingPeriodDayLimit(
+            monthKey,
+            reportingYear,
+            reportingYearType,
+          );
+          fields.filter(isAnnualDayCountField).forEach((field) => {
+            const value = Number.parseFloat(inputs[field.variable]);
+            if (Number.isFinite(value) && value > maxDays) {
+              const monthLabel = MONTHS.find((month) => month.key === monthKey)?.label || monthKey;
+              empErrors.push(`${field.label} cannot exceed ${maxDays} days for ${monthLabel}.`);
+              isValid = false;
+            }
+          });
+        });
       }
       
       if (empErrors.length > 0) {
@@ -206,7 +352,7 @@ const MultiEmployeeInput = ({
     }
     
     return { isValid, errors };
-  }, [employees, onValidationChange, isYearlyMode, calculationMethod, fields]);
+  }, [annualDayLimit, employees, onValidationChange, isYearlyMode, calculationMethod, fields, reportingYear, reportingYearType]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -326,7 +472,7 @@ const MultiEmployeeInput = ({
     // Validate working_days and qty_days_travelled don't exceed days in month
     if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
-      const maxDays = getDaysInMonth(monthKey, reportingYear);
+      const maxDays = getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType);
       if (numValue > maxDays) {
         const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
         toast.error(`${fieldLabel} cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
@@ -380,7 +526,58 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange, reportingYear]);
+  }, [employees, onEmployeesChange, reportingYear, reportingYearType]);
+
+  const handleMonthlyWorkScheduleChange = useCallback((employeeId, variable, value) => {
+    if (value !== '') {
+      const numericValue = Number.parseFloat(value);
+      if (!Number.isFinite(numericValue) || numericValue < 0) return;
+      if (variable === 'working_days' && !Number.isInteger(numericValue)) {
+        toast.error('No. of Working Days must be a whole number');
+        return;
+      }
+      if (variable === 'working_days' && numericValue > sharedMonthlyDayLimit) {
+        toast.error(`No. of Working Days cannot exceed ${sharedMonthlyDayLimit} days when applied to every month`);
+        return;
+      }
+      if (variable === 'working_hour_per_day' && numericValue > 24) {
+        toast.error('Working Hours per Day cannot exceed 24 hours');
+        return;
+      }
+    }
+    setMonthlyWorkSchedules((previous) => ({
+      ...previous,
+      [employeeId]: {
+        ...previous[employeeId],
+        [variable]: value,
+      },
+    }));
+  }, [sharedMonthlyDayLimit]);
+
+  const applyMonthlyWorkSchedule = useCallback((employeeId) => {
+    const schedule = monthlyWorkSchedules[employeeId] || {};
+    const scheduleEntries = Object.entries(schedule).filter(([, value]) => value !== '');
+    if (scheduleEntries.length === 0) return;
+
+    const updatedEmployees = employees.map((employee) => {
+      if (employee.id !== employeeId) return employee;
+
+      const monthlyData = { ...employee.monthly_data };
+      availableMonthKeys.forEach((monthKey) => {
+        const currentMonth = monthlyData[monthKey] || { inputs: {}, emissions: null };
+        const nextInputs = { ...currentMonth.inputs, ...Object.fromEntries(scheduleEntries) };
+        const hasChanged = scheduleEntries.some(([variable, value]) => currentMonth.inputs?.[variable] !== value);
+        monthlyData[monthKey] = {
+          ...currentMonth,
+          inputs: nextInputs,
+          ...(hasChanged ? { emissions: null, calculation_details: null } : {}),
+        };
+      });
+
+      return { ...employee, monthly_data: monthlyData };
+    });
+    onEmployeesChange(updatedEmployees);
+  }, [availableMonthKeys, employees, monthlyWorkSchedules, onEmployeesChange]);
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
@@ -409,14 +606,12 @@ const MultiEmployeeInput = ({
       }
     }
     
-    // Validate qty_days_travelled doesn't exceed 365 days for yearly mode
-    if (variable === 'qty_days_travelled' && value !== '') {
+    // Day-count fields cannot exceed the selected annual reporting period.
+    if (isAnnualDayCountField(variable) && value !== '') {
       const numValue = parseFloat(value);
-      const yearNum = parseInt(reportingYear) || new Date().getFullYear();
-      const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
-      const maxDays = isLeapYear ? 366 : 365;
-      if (numValue > maxDays) {
-        toast.error(`No. of days travelled cannot exceed ${maxDays} days for the year`);
+      if (numValue > annualDayLimit) {
+        const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
+        toast.error(`${fieldLabel} cannot exceed ${annualDayLimit} days for the reporting period`);
         return;
       }
     }
@@ -455,7 +650,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange, reportingYear]);
+  }, [annualDayLimit, employees, onEmployeesChange]);
 
   // NEW: Calculate yearly emissions for an employee
   const handleCalculateYearly = useCallback(async (employeeId) => {
@@ -549,75 +744,6 @@ const MultiEmployeeInput = ({
       }
     }
   }, [employees, onCalculateEmployee, calculationMethod, fields]);
-
-  // Calculate all months for an employee
-  const handleCalculateAllMonths = useCallback(async (employeeId) => {
-    const employee = employees.find(emp => emp.id === employeeId);
-    if (!employee) return;
-    
-    // Validate employee name before calculating
-    if (!employee.name || employee.name.trim() === '') {
-      toast.error('Employee Name is required before calculating.');
-      // Also update validation errors state
-      setValidationErrors(prev => ({
-        ...prev,
-        [employeeId]: ['Employee Name is required.']
-      }));
-      return;
-    }
-    
-    // For supplier_basis: validate units are provided for all months with data
-    const isSupplierBasis = calculationMethod === 'supplier_basis';
-    if (isSupplierBasis) {
-      const allMissingUnits = [];
-      
-      for (const monthKey of activeMonths) {
-        const monthData = employee.monthly_data?.[monthKey];
-        const inputs = monthData?.inputs || {};
-        const hasInputData = Object.values(inputs).some(v => v !== '' && v !== null && v !== undefined && v !== 0);
-        
-        if (hasInputData) {
-          fields.forEach(field => {
-            const value = inputs[field.variable];
-            const unit = inputs[`${field.variable}_unit`];
-            if (value && value !== '' && value !== 0) {
-              if (!unit || unit.trim() === '') {
-                const monthLabel = MONTHS.find(m => m.key === monthKey)?.label || monthKey;
-                allMissingUnits.push(`${field.label} in ${monthLabel}`);
-              }
-            }
-          });
-        }
-      }
-      
-      if (allMissingUnits.length > 0) {
-        toast.error(`Units required for: ${allMissingUnits.slice(0, 3).join(', ')}${allMissingUnits.length > 3 ? ` and ${allMissingUnits.length - 3} more...` : ''}`);
-        setValidationErrors(prev => ({
-          ...prev,
-          [employeeId]: allMissingUnits.map(item => `Unit required for ${item}`)
-        }));
-        return;
-      }
-    }
-    
-    // Clear validation error for this employee if all validations pass
-    setValidationErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[employeeId];
-      return newErrors;
-    });
-    
-    if (onCalculateEmployee) {
-      for (const monthKey of activeMonths) {
-        const monthData = employee.monthly_data?.[monthKey];
-        // Check if any input has a value
-        const hasInputData = monthData?.inputs && Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
-        if (hasInputData) {
-          await onCalculateEmployee(employeeId, monthKey, employee);
-        }
-      }
-    }
-  }, [employees, activeMonths, onCalculateEmployee, calculationMethod, fields]);
 
   // Get fields for the current activity type - use fields from parent (already filtered)
   const getFieldsForActivityType = useCallback(() => {
@@ -762,16 +888,10 @@ const MultiEmployeeInput = ({
       {/* Summary Stats - Simplified for edit mode */}
       {employees.length > 0 && !isEditMode && (
         <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="text-center">
             <div>
               <p className="text-sm text-gray-600">Total {entityLabel}s</p>
               <p className="text-xl font-bold text-emerald-700">{employees.length}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Emissions</p>
-              <p className="text-xl font-bold text-emerald-700">
-                {formatNumber(employees.reduce((sum, emp) => sum + getEmployeeTotalEmissions(emp), 0))} tCO<sub>2</sub>e
-              </p>
             </div>
           </div>
         </Card>
@@ -844,16 +964,17 @@ const MultiEmployeeInput = ({
                           {isYearlyMode ? (
                             <>
                               <span className="text-purple-600 mr-2">Annual Entry</span>
-                              {hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
+                              {isEditMode && hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
                             </>
                           ) : (
                             <>
                               {filledCount} / {activeMonths.length} months with data
-                              {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
+                              {isEditMode && calculatedCount > 0 && ` • ${calculatedCount} calculated`}
                             </>
                           )}
-                          {' • '}
-                          {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
+                          {isEditMode && (
+                            <>{' • '}{formatNumber(getEmployeeTotalEmissions(employee))} tCO2e</>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -955,17 +1076,20 @@ const MultiEmployeeInput = ({
                         <Label className="text-sm font-medium text-gray-700">
                           Annual Data for {getYearDisplay()}
                         </Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCalculateYearly(employee.id)}
-                          disabled={disabled || isCalculating}
-                          className="text-xs"
-                        >
-                          <Calculator className="h-3 w-3 mr-1" />
-                          Calculate
-                        </Button>
+                        {isEditMode && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCalculateYearly(employee.id)}
+                            disabled={disabled || isCalculating}
+                            className="text-xs"
+                            data-testid={`calculate-yearly-employee-${empIndex}`}
+                          >
+                            <Calculator className="h-3 w-3 mr-1" />
+                            Calculate
+                          </Button>
+                        )}
                       </div>
                       
                       <Card className={`p-4 ${employee.yearly_data?.emissions?.co2e ? 'border-emerald-300 bg-emerald-50/50' : 'border-gray-200'}`}>
@@ -998,7 +1122,9 @@ const MultiEmployeeInput = ({
                                   type="number"
                                   step="any"
                                   min="0"
-                                  max={field.variable === 'working_hour_per_day' ? 24 : (field.variable === 'qty_days_travelled' ? (((parseInt(reportingYear) || new Date().getFullYear()) % 4 === 0 && (parseInt(reportingYear) || new Date().getFullYear()) % 100 !== 0) || ((parseInt(reportingYear) || new Date().getFullYear()) % 400 === 0) ? 366 : 365) : undefined)}
+                                  max={field.variable === 'working_hour_per_day'
+                                    ? 24
+                                    : isAnnualDayCountField(field) ? annualDayLimit : undefined}
                                   value={employee.yearly_data?.inputs?.[field.variable] || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -1006,9 +1132,14 @@ const MultiEmployeeInput = ({
                                       handleYearlyInputChange(employee.id, field.variable, val);
                                     }
                                   }}
-                                  placeholder={field.variable === 'working_hour_per_day' ? 'Max 24 hours' : (field.variable === 'qty_days_travelled' ? 'Max 365 days' : `Enter annual ${field.label.toLowerCase()}`)}
+                                  placeholder={field.variable === 'working_hour_per_day'
+                                    ? 'Max 24 hours'
+                                    : isAnnualDayCountField(field)
+                                      ? `Max ${annualDayLimit} days`
+                                      : `Enter annual ${field.label.toLowerCase()}`}
                                   disabled={disabled}
                                   className="flex-1"
+                                  data-testid={`employee-${employee.id}-yearly-${field.variable}`}
                                 />
                                 {needsUnitInput && (
                                   <Input
@@ -1028,9 +1159,28 @@ const MultiEmployeeInput = ({
                             </div>
                           )})}
                         </div>
+                        {onEvidenceUpload && (
+                          <div className="border-t border-stone-200 pt-4" data-testid={`employee-${empIndex}-yearly-evidence-field`}>
+                            <Label className="mb-2 block text-center text-xs text-gray-600" data-testid={`employee-${empIndex}-yearly-evidence-label`}>
+                              Evidence <span className="font-normal text-stone-500">(Optional)</span>
+                            </Label>
+                            <EmployeeEvidenceCell
+                              employeeId={employee.id}
+                              employeeIndex={empIndex}
+                              periodKey="yearly"
+                              evidences={employee.yearly_data?.evidences || []}
+                              disabled={disabled}
+                              onEvidenceUpload={onEvidenceUpload}
+                              onEvidenceRemove={onEvidenceRemove}
+                              onEvidenceDownload={onEvidenceDownload}
+                              backendUrl={evidenceBackendUrl}
+                              showLabel
+                            />
+                          </div>
+                        )}
                         
                         {/* Yearly emissions result */}
-                        {employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
+                        {isEditMode && employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
                           <div className="pt-3 border-t border-emerald-200">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-gray-600">Annual Emissions:</span>
@@ -1104,18 +1254,48 @@ const MultiEmployeeInput = ({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCalculateAllMonths(employee.id)}
-                          disabled={disabled || isCalculating}
-                          className="text-xs"
-                        >
-                          <Calculator className="h-3 w-3 mr-1" />
-                          Calculate All
-                        </Button>
                       </div>
+
+                      {monthlyWorkScheduleFields.length > 0 && (
+                        <div className="grid grid-cols-1 items-end gap-3 border-y border-stone-200 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid={`employee-${empIndex}-monthly-work-schedule`}>
+                          {monthlyWorkScheduleFields.map((field) => {
+                            const isWorkingDays = field.variable === 'working_days';
+                            return (
+                              <div key={field.variable} className="space-y-1">
+                                <Label className="text-xs text-gray-600" data-testid={`employee-${empIndex}-shared-${field.variable}-label`}>
+                                  {field.label}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={isWorkingDays ? sharedMonthlyDayLimit : 24}
+                                  step={isWorkingDays ? '1' : 'any'}
+                                  value={monthlyWorkSchedules[employee.id]?.[field.variable] || ''}
+                                  onChange={(event) => handleMonthlyWorkScheduleChange(
+                                    employee.id,
+                                    field.variable,
+                                    event.target.value,
+                                  )}
+                                  placeholder={isWorkingDays ? `Max ${sharedMonthlyDayLimit} days` : 'Max 24 hours'}
+                                  disabled={disabled || availableMonthKeys.length === 0}
+                                  data-testid={`employee-${empIndex}-shared-${field.variable}-input`}
+                                />
+                              </div>
+                            );
+                          })}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => applyMonthlyWorkSchedule(employee.id)}
+                            disabled={disabled || availableMonthKeys.length === 0 || !Object.values(monthlyWorkSchedules[employee.id] || {}).some((value) => value !== '')}
+                            className="w-full sm:w-auto"
+                            data-testid={`employee-${empIndex}-apply-monthly-work-schedule-button`}
+                          >
+                            Apply to all months
+                          </Button>
+                        </div>
+                      )}
                       
                       {/* Ledger Table */}
                       <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -1138,7 +1318,12 @@ const MultiEmployeeInput = ({
                                   </th>
                                 );
                               })}
-                              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
+                              {onEvidenceUpload && (
+                                <th className="w-28 px-3 py-2 text-right text-xs font-semibold text-gray-600" data-testid="employee-monthly-evidence-column-header">Evidence</th>
+                              )}
+                              {isEditMode && (
+                                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 w-28">Emissions</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
@@ -1203,7 +1388,9 @@ const MultiEmployeeInput = ({
                                           <Input
                                             type="number"
                                             min="0"
-                                            max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
+                                  max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled')
+                                    ? getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)
+                                    : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
                                             step="any"
                                             value={monthData.inputs?.[field.variable] ?? ''}
                                             onChange={(e) => handleMonthlyInputChange(
@@ -1212,7 +1399,9 @@ const MultiEmployeeInput = ({
                                               field.variable, 
                                               e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                             )}
-                                            placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `≤${getDaysInMonth(monthKey, reportingYear)}` : '—'}
+                                  placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled')
+                                    ? `≤${getMonthlyReportingPeriodDayLimit(monthKey, reportingYear, reportingYearType)}`
+                                    : '—'}
                                             disabled={disabled || isMonthInFuture}
                                             className={`h-8 text-sm ${needsUnitInput ? 'w-20' : 'w-24'}`}
                                             data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
@@ -1237,23 +1426,40 @@ const MultiEmployeeInput = ({
                                       </td>
                                     );
                                   })}
+                                  {onEvidenceUpload && (
+                                    <td className="px-3 py-1.5 align-middle">
+                                      <EmployeeEvidenceCell
+                                        employeeId={employee.id}
+                                        employeeIndex={empIndex}
+                                        periodKey={monthKey}
+                                        evidences={monthData.evidences || []}
+                                        disabled={disabled || isMonthInFuture}
+                                        onEvidenceUpload={onEvidenceUpload}
+                                        onEvidenceRemove={onEvidenceRemove}
+                                        onEvidenceDownload={onEvidenceDownload}
+                                        backendUrl={evidenceBackendUrl}
+                                      />
+                                    </td>
+                                  )}
                                   
                                   {/* Emissions Column */}
-                                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                                    {isMonthInFuture ? (
-                                      <span className="text-xs text-gray-400">—</span>
-                                    ) : hasEmissions ? (
-                                      <span className="text-sm font-semibold text-emerald-600">
-                                        {formatNumber(monthData.emissions.co2e)} tCO₂e
-                                      </span>
-                                    ) : hasData ? (
-                                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                                        Pending
-                                      </span>
-                                    ) : (
-                                      <span className="text-xs text-gray-400">—</span>
-                                    )}
-                                  </td>
+                                  {isEditMode && (
+                                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                                      {isMonthInFuture ? (
+                                        <span className="text-xs text-gray-400">—</span>
+                                      ) : hasEmissions ? (
+                                        <span className="text-sm font-semibold text-emerald-600">
+                                          {formatNumber(monthData.emissions.co2e)} tCO₂e
+                                        </span>
+                                      ) : hasData ? (
+                                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                          Pending
+                                        </span>
+                                      ) : (
+                                        <span className="text-xs text-gray-400">—</span>
+                                      )}
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -1339,6 +1545,7 @@ const MultiEmployeeInput = ({
 
 
                   {/* Employee Summary */}
+                  {isEditMode && (
                   <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{entityLabel} Total Emissions:</span>
@@ -1347,6 +1554,7 @@ const MultiEmployeeInput = ({
                       </span>
                     </div>
                   </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             );
@@ -1354,34 +1562,6 @@ const MultiEmployeeInput = ({
         </Accordion>
       )}
 
-      {/* Aggregated Monthly Totals Table with Year Label (#4) - Hide in edit mode and yearly mode */}
-      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && !isEditMode && !isYearlyMode && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-gray-700">
-              Aggregated Monthly Totals
-              {reportingYear && (
-                <span className="ml-2 text-xs font-normal text-gray-500">
-                  ({getYearDisplay()})
-                </span>
-              )}
-            </h4>
-            <span className="text-sm font-semibold text-emerald-700">
-              Total: {formatNumber(yearlyTotal?.co2e || 0)} tCO2e
-            </span>
-          </div>
-          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-            {MONTHS.filter(m => activeMonths.includes(m.key)).map((month) => (
-              <div key={month.key} className="text-center p-2 bg-gray-50 rounded">
-                <p className="text-xs text-gray-500">{month.label.substring(0, 3)}</p>
-                <p className="text-sm font-semibold text-emerald-700">
-                  {formatNumber(monthlyTotals[month.key]?.co2e || 0, 2)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 };
