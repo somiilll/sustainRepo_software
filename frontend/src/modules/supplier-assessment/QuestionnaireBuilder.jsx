@@ -46,7 +46,6 @@ import {
   Info,
   ClipboardCheck,
   CalendarDays,
-  Search,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
@@ -71,9 +70,9 @@ const sections = [
 ];
 
 const questionCategories = [
-  { value: 'policy', label: 'Policy' },
-  { value: 'reporting', label: 'Reporting' },
-  { value: 'certification', label: 'Certification' },
+  { value: 'policy', label: 'Policy', groupLabel: 'Policy' },
+  { value: 'reporting', label: 'Reporting', groupLabel: 'Reporting' },
+  { value: 'certification', label: 'Certification', groupLabel: 'Certifications' },
 ];
 
 // Scoring rules with descriptions
@@ -169,7 +168,6 @@ export default function QuestionnaireBuilder() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [questionnaireSearch, setQuestionnaireSearch] = useState('');
   
   // Dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -250,14 +248,14 @@ export default function QuestionnaireBuilder() {
     }
   }, [getAuthHeader]);
 
-  const filteredQuestionnaires = useMemo(() => {
-    const query = questionnaireSearch.trim().toLowerCase();
-    if (!query) return questionnaires;
-    return questionnaires.filter((questionnaire) => [
-      questionnaire.name,
-      questionnaire.description,
-    ].some((value) => String(value || '').toLowerCase().includes(query)));
-  }, [questionnaireSearch, questionnaires]);
+  const groupedQuestions = useMemo(() => sections.map((section) => ({
+    ...section,
+    categories: questionCategories.map((questionCategory) => ({
+      ...questionCategory,
+      questions: questions.filter((question) => question.category === section.value
+        && (question.question_category || 'policy') === questionCategory.value),
+    })),
+  })), [questions]);
 
   const openQuestionnaireAssignments = async () => {
     if (!selectedQuestionnaire) return;
@@ -767,110 +765,27 @@ export default function QuestionnaireBuilder() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="questionnaire-builder-controls">
-        <div className="relative w-full md:w-[min(430px,100%)] md:flex-none" data-testid="questionnaire-search-control">
-          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
-          <Input value={questionnaireSearch} onChange={(event) => setQuestionnaireSearch(event.target.value)} placeholder="Search questionnaires..." className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search questionnaires" data-testid="questionnaire-search-input" />
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] lg:flex-row lg:items-center" data-testid="questionnaire-builder-controls">
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-selection-control">
+          <Label htmlFor="questionnaire-builder-selector" className="shrink-0 text-sm font-medium text-stone-600" data-testid="questionnaire-selector-label">Questionnaire</Label>
+          <Select value={selectedQuestionnaire?.id || ''} onValueChange={(questionnaireId) => setSelectedQuestionnaire(questionnaires.find((questionnaire) => questionnaire.id === questionnaireId) || null)} disabled={loading || questionnaires.length === 0}>
+            <SelectTrigger id="questionnaire-builder-selector" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:max-w-md" data-testid="questionnaire-selector"><SelectValue placeholder={loading ? 'Loading questionnaires…' : 'Select questionnaire'} /></SelectTrigger>
+            <SelectContent data-testid="questionnaire-selector-menu">{questionnaires.map((questionnaire) => <SelectItem key={questionnaire.id} value={questionnaire.id} data-testid={`questionnaire-selector-option-${questionnaire.id}`}>{questionnaire.name}{!questionnaire.is_active ? ' · Inactive' : ''}</SelectItem>)}</SelectContent>
+          </Select>
         </div>
-        <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />New Questionnaire</Button>
-        <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="questionnaire-builder-period-control">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-builder-period-control">
           <Label htmlFor="questionnaire-builder-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="questionnaire-builder-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label>
-          <Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="questionnaire-builder-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="questionnaire-builder-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="questionnaire-builder-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`questionnaire-builder-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select>
+          <Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="questionnaire-builder-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="questionnaire-builder-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="questionnaire-builder-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`questionnaire-builder-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select>
+          <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />New Questionnaire</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Questionnaire List */}
-        <aside className="xl:col-span-3" data-testid="questionnaire-navigation-panel">
-          <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_4px_18px_rgba(28,55,43,0.05)]">
-            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3"><CardTitle className="text-base">Questionnaires</CardTitle><span className="text-xs text-stone-500" data-testid="questionnaire-count-label">{filteredQuestionnaires.length}</span></div>
-            <div className="p-2">
-              {loading ? (
-                <div className="p-6 text-center text-sm text-stone-500" data-testid="questionnaire-list-loading">Loading…</div>
-              ) : filteredQuestionnaires.length === 0 ? (
-                <div className="p-6 text-center text-sm text-stone-500" data-testid="questionnaire-list-empty">{questionnaireSearch ? 'No questionnaires match your search.' : 'No questionnaires yet.'}</div>
-              ) : (
-                <div className="space-y-1">
-                  {filteredQuestionnaires.map((q) => (
-                    <div
-                      key={q.id}
-                      className={`group cursor-pointer rounded-md border px-3 py-3 transition-[background-color,border-color,box-shadow] ${
-                        selectedQuestionnaire?.id === q.id ? 'border-emerald-300 bg-emerald-50/50 shadow-sm' : 'border-transparent hover:border-stone-200 hover:bg-stone-50'
-                      }`}
-                      onClick={() => setSelectedQuestionnaire(q)}
-                      data-testid={`questionnaire-${q.id}`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${selectedQuestionnaire?.id === q.id ? 'bg-emerald-500' : 'bg-stone-300'}`} />
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-sm font-semibold text-stone-900">{q.name}</h3>
-                          <p className="mt-1 text-xs text-stone-500">{q.question_count} questions</p>{!q.is_active && <Badge variant="outline" className="mt-1 border-stone-200 bg-stone-50 text-stone-600" data-testid={`questionnaire-inactive-status-${q.id}`}>Inactive</Badge>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Tooltip><TooltipTrigger asChild><Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Edit ${q.name}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openEditQuestionnaire(q);
-                              setSelectedQuestionnaire(q);
-                            }}
-                            data-testid={`edit-questionnaire-${q.id}`}
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip>
-                          <Tooltip><TooltipTrigger asChild><Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDuplicateQuestionnaire(q.id, q.name);
-                            }}
-                            data-testid={`duplicate-questionnaire-${q.id}`}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip>
-                          <Tooltip><TooltipTrigger asChild><Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`${q.is_active ? 'Deactivate' : 'Activate'} ${q.name}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuestionnaireActivation(q);
-                            }}
-                            data-testid={`toggle-questionnaire-active-${q.id}`}
-                          >
-                            <ToggleLeft className={`h-3 w-3 ${q.is_active ? 'text-emerald-700' : 'text-stone-500'}`} />
-                          </Button></TooltipTrigger><TooltipContent>{q.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip>
-                          <Tooltip><TooltipTrigger asChild><Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteQuestionnaire(q.id);
-                            }}
-                            data-testid={`delete-questionnaire-${q.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}</div>
-          </div>
-        </aside>
-
-        {/* Question Builder */}
-        <main className="xl:col-span-9">
+      <main>
           {selectedQuestionnaire ? (
             <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
                 <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
-                <div className="flex flex-wrap gap-2"><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
+                <div className="flex flex-wrap items-center justify-end gap-2"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Edit ${selectedQuestionnaire.name}`} onClick={() => openEditQuestionnaire(selectedQuestionnaire)} data-testid="edit-selected-questionnaire"><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Duplicate ${selectedQuestionnaire.name}`} onClick={() => handleDuplicateQuestionnaire(selectedQuestionnaire.id, selectedQuestionnaire.name)} data-testid="duplicate-selected-questionnaire"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`${selectedQuestionnaire.is_active ? 'Deactivate' : 'Activate'} ${selectedQuestionnaire.name}`} onClick={() => handleQuestionnaireActivation(selectedQuestionnaire)} data-testid="toggle-selected-questionnaire-active"><ToggleLeft className={`h-4 w-4 ${selectedQuestionnaire.is_active ? 'text-emerald-700' : 'text-stone-500'}`} /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" aria-label={`Delete ${selectedQuestionnaire.name}`} onClick={() => handleDeleteQuestionnaire(selectedQuestionnaire.id)} data-testid="delete-selected-questionnaire"><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
                   setQuestionDialogMode('create');
@@ -878,20 +793,28 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-4" data-testid="question-table">
-                <div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
-                {questions.length === 0 ? (
-                  <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
-                ) : (
-                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} sectionLabel={sections.find((section) => section.value === question.category)?.label || question.category} questionCategoryLabel={questionCategories.find((category) => category.value === question.question_category)?.label || question.question_category || 'Policy'} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>
-                )}
-                {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
+                <Accordion type="multiple" defaultValue={sections.map((section) => `section-${section.value}`)} className="w-full space-y-3" data-testid="question-section-groups">
+                  {groupedQuestions.map((section) => {
+                    const sectionCount = section.categories.reduce((total, category) => total + category.questions.length, 0);
+                    return <AccordionItem key={section.value} value={`section-${section.value}`} className="border border-stone-200 px-4" data-testid={`question-section-group-${section.value}`}>
+                      <AccordionTrigger className="py-4 text-base font-semibold text-emerald-950 hover:no-underline" data-testid={`question-section-toggle-${section.value}`}><span>{section.label}</span><Badge variant="outline" className="mr-3 border-stone-200 bg-stone-50 text-stone-600" data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
+                      <AccordionContent className="pb-4 pt-1">
+                        <Accordion type="multiple" defaultValue={section.categories.map((category) => `category-${section.value}-${category.value}`)} className="space-y-2" data-testid={`question-category-groups-${section.value}`}>
+                          {section.categories.map((category) => <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className="border border-stone-100 px-4" data-testid={`question-category-group-${section.value}-${category.value}`}>
+                            <AccordionTrigger className="py-3 text-sm font-semibold text-stone-800 hover:no-underline" data-testid={`question-category-toggle-${section.value}-${category.value}`}><span>{category.groupLabel}</span><Badge variant="outline" className="mr-3 border-sky-100 bg-sky-50 text-sky-800" data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
+                            <AccordionContent className="pb-2 pt-1"><h3 className="pb-2 text-sm font-medium text-stone-600" data-testid={`question-category-heading-${section.value}-${category.value}`}>{category.label} Questions</h3>{category.questions.length === 0 ? <p className="py-5 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <QuestionnaireQuestionRow key={question.id} question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>}</AccordionContent>
+                          </AccordionItem>)}
+                        </Accordion>
+                      </AccordionContent>
+                    </AccordionItem>;
+                  })}
+                </Accordion>
               </div>
             </section>
           ) : (
-            <div className="border border-dashed border-stone-300 bg-stone-50 px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">Select a questionnaire to view and edit its questions.</p></div>
+            <div className="border border-dashed border-stone-300 bg-stone-50 px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">{loading ? 'Loading questionnaires…' : questionnaires.length === 0 ? 'No questionnaires yet. Create a questionnaire to begin.' : 'Select a questionnaire to view and edit its questions.'}</p></div>
           )}
-        </main>
-      </div>
+      </main>
 
       <Dialog open={showSubmissionsDialog} onOpenChange={setShowSubmissionsDialog}>
         <DialogContent className="max-w-2xl" data-testid="questionnaire-submissions-dialog"><DialogHeader><DialogTitle data-testid="questionnaire-submissions-title">Submitted responses — {selectedQuestionnaire?.name}</DialogTitle></DialogHeader><div className="max-h-96 space-y-2 overflow-y-auto" data-testid="questionnaire-submissions-list">{loadingSubmissions ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-loading">Loading submitted responses…</p> : submissions.length === 0 ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-empty">No suppliers have submitted this questionnaire for the selected reporting period.</p> : submissions.map((submission) => <div key={submission.supplier_id} className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 py-3" data-testid={`questionnaire-submission-${submission.supplier_id}`}><div><p className="font-medium text-stone-900" data-testid={`questionnaire-submission-supplier-${submission.supplier_id}`}>{submission.supplier_name}</p><p className="text-xs text-stone-500" data-testid={`questionnaire-submission-score-${submission.supplier_id}`}>Questionnaire score: {submission.calculated_score ?? 'Pending'} · Manual questions scored: {submission.manual_question_count}</p></div><Button variant="outline" size="sm" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => openSubmissionReview(submission)} data-testid={`review-questionnaire-submission-${submission.supplier_id}`}>Review response</Button></div>)}</div><DialogFooter><Button variant="outline" onClick={() => setShowSubmissionsDialog(false)} data-testid="close-questionnaire-submissions-button">Close</Button></DialogFooter></DialogContent>
