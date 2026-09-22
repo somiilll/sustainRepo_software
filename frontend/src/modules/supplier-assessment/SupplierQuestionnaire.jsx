@@ -351,7 +351,7 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
+      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${question.parent_question_id ? 'ml-4 border-l-4 border-l-emerald-200 bg-emerald-50/30 sm:ml-8' : ''} ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
         <CardHeader>
           <div className="flex items-start gap-2">
             {answers[question.id] !== undefined ? (
@@ -361,7 +361,7 @@ export default function SupplierQuestionnaire() {
             )}
             <div>
               <CardTitle className="text-lg">
-                {index + 1}. {question.question_text}
+                {question.parent_question_id ? <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span> : `${questions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `}{question.question_text}
                 {question.required && <span className="text-red-500 ml-1">*</span>}
               </CardTitle>
               {question.description && (

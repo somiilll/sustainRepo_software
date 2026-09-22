@@ -141,7 +141,7 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
             {"questionnaire_id": questionnaire_id, "is_active": True},
             {"_id": 0}
         ).sort("order", 1).to_list(500)
-        questionnaire["questions"] = questions
+        questionnaire["questions"] = self._ordered_question_hierarchy(questions)
     return questionnaire
 
 async def update_questionnaire(
@@ -259,8 +259,26 @@ async def duplicate_questionnaire(
         created_by=created_by,
     )
     
-    # Copy questions
-    for q in original.get("questions", []):
+    # Copy parent questions first, then reconnect their subquestions to the new IDs.
+    copied_ids = {}
+    for q in [item for item in original.get("questions", []) if not item.get("parent_question_id")]:
+        copied = await self.add_question(
+            questionnaire_id=new_questionnaire["id"],
+            question_text=q["question_text"],
+            description=q.get("description"),
+            response_type=q["response_type"],
+            options=q.get("options"),
+            required=q.get("required", True),
+            evidence_requirement=q.get("evidence_requirement", "not_required"),
+            weight=q.get("weight", 1.0),
+            importance=q.get("importance"),
+            exact_numerical_weight=q.get("exact_numerical_weight"),
+            category=q["category"],
+            order=q.get("order", 0),
+            scoring=q.get("scoring"),
+        )
+        copied_ids[q["id"]] = copied["id"]
+    for q in [item for item in original.get("questions", []) if item.get("parent_question_id")]:
         await self.add_question(
             questionnaire_id=new_questionnaire["id"],
             question_text=q["question_text"],
@@ -275,6 +293,7 @@ async def duplicate_questionnaire(
             category=q["category"],
             order=q.get("order", 0),
             scoring=q.get("scoring"),
+            parent_question_id=copied_ids.get(q.get("parent_question_id")),
         )
     
     return await self.get_questionnaire(new_questionnaire["id"])
@@ -298,8 +317,18 @@ async def add_question(
     category: str,
     order: int,
     scoring: Optional[Dict[str, Any]] = None,
+    parent_question_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
+    parent_question = None
+    if parent_question_id:
+        parent_question = await db.supplier_questions.find_one(
+            {"id": parent_question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0}
+        )
+        if not parent_question:
+            raise ValueError("Parent question not found")
+        if parent_question.get("parent_question_id"):
+            raise ValueError("Subquestions cannot contain nested subquestions")
     question_id = str(uuid.uuid4())
     importance, exact_numerical_weight, effective_weight = self._resolve_question_weight(
         importance, exact_numerical_weight, weight
@@ -317,8 +346,9 @@ async def add_question(
         "weight": effective_weight,
         "importance": importance,
         "exact_numerical_weight": exact_numerical_weight,
-        "category": category,
+        "category": parent_question.get("category") if parent_question else category,
         "order": order,
+        "parent_question_id": parent_question_id,
         "scoring": scoring,  # New: Scoring configuration
         "is_active": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -342,6 +372,15 @@ async def update_question(
     existing = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if not existing:
         return None
+    if "parent_question_id" in updates and updates["parent_question_id"] != existing.get("parent_question_id"):
+        parent_question_id = updates["parent_question_id"]
+        parent_question = await db.supplier_questions.find_one(
+            {"id": parent_question_id, "questionnaire_id": existing["questionnaire_id"], "is_active": True}, {"_id": 0}
+        ) if parent_question_id else None
+        if parent_question_id and (not parent_question or parent_question.get("parent_question_id")):
+            raise ValueError("Subquestions must belong to an active top-level question")
+        if parent_question:
+            updates["category"] = parent_question.get("category")
     if {"importance", "exact_numerical_weight", "weight"}.intersection(updates):
         importance, exact_weight, effective_weight = self._resolve_question_weight(
             updates.get("importance", existing.get("importance")),
@@ -366,7 +405,7 @@ async def update_question(
         {"$set": updates}
     )
     updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
-    if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight"}.intersection(updates)):
+    if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight", "parent_question_id"}.intersection(updates)):
         from modules.supplier_assessment.scoring import ScoringEngine
         await ScoringEngine(db).recalculate_all_suppliers(updated_question["questionnaire_id"])
     return updated_question
@@ -377,18 +416,43 @@ async def delete_question(self, question_id: str) -> bool:
     if not question:
         return False
     
-    result = await db.supplier_questions.update_one(
-        {"id": question_id},
-        {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    now = datetime.now(timezone.utc).isoformat()
+    affected_ids = [question_id]
+    if not question.get("parent_question_id"):
+        children = await db.supplier_questions.find(
+            {"parent_question_id": question_id, "questionnaire_id": question["questionnaire_id"], "is_active": True}, {"_id": 0, "id": 1}
+        ).to_list(500)
+        affected_ids.extend(child["id"] for child in children)
+    result = await db.supplier_questions.update_many(
+        {"id": {"$in": affected_ids}, "is_active": True},
+        {"$set": {"is_active": False, "updated_at": now}}
     )
     
     if result.modified_count > 0:
         await db.supplier_questionnaires.update_one(
             {"id": question["questionnaire_id"]},
-            {"$inc": {"question_count": -1}}
+            {"$inc": {"question_count": -result.modified_count}}
         )
     
     return result.modified_count > 0
+
+
+def _ordered_question_hierarchy(self, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return each parent directly followed by its always-visible subquestions."""
+    question_ids = {question["id"] for question in questions}
+    children_by_parent: Dict[str, List[Dict[str, Any]]] = {}
+    parents: List[Dict[str, Any]] = []
+    for question in questions:
+        parent_id = question.get("parent_question_id")
+        if parent_id and parent_id in question_ids:
+            children_by_parent.setdefault(parent_id, []).append(question)
+        else:
+            parents.append(question)
+    ordered: List[Dict[str, Any]] = []
+    for parent in parents:
+        ordered.append(parent)
+        ordered.extend(sorted(children_by_parent.get(parent["id"], []), key=lambda item: (item.get("order", 0), item.get("created_at", ""))))
+    return ordered
 
 async def reorder_questions(
     self,

@@ -278,6 +278,7 @@ class QuestionCreate(BaseModel):
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # environment, social, governance
     order: int = 0
+    parent_question_id: Optional[str] = None
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
 
@@ -308,6 +309,7 @@ class QuestionUpdate(BaseModel):
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
     order: Optional[int] = None
+    parent_question_id: Optional[str] = None
     is_active: Optional[bool] = None
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
@@ -344,6 +346,7 @@ class QuestionResponse(BaseModel):
     exact_numerical_weight: Optional[float] = None
     category: str
     order: int = 0
+    parent_question_id: Optional[str] = None
     is_active: bool = True
     created_at: str
     # New: Scoring configuration

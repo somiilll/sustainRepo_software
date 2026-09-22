@@ -207,6 +207,7 @@ export default function QuestionnaireBuilder() {
     exact_numerical_weight: null,
     category: 'environment',
     order: 0,
+    parent_question_id: null,
     scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
   });
   
@@ -468,6 +469,20 @@ export default function QuestionnaireBuilder() {
     }
   };
 
+  const handleCreateSubquestion = async () => {
+    if (!selectedQuestionnaire || !questionForm.parent_question_id) return;
+    if (!questionForm.question_text.trim() || !validateQuestionScoring()) return;
+    setSubmitting(true);
+    try {
+      const siblingCount = questions.filter((question) => question.parent_question_id === questionForm.parent_question_id).length;
+      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, buildQuestionPayload(siblingCount), { headers: getAuthHeader() });
+      toast.success('Subquestion added');
+      handleQuestionDialogOpenChange(false);
+      fetchQuestions(selectedQuestionnaire.id);
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not add subquestion'); }
+    finally { setSubmitting(false); }
+  };
+
   const handleDeleteQuestion = async (questionId) => {
     if (!window.confirm('Delete this question?')) return;
     
@@ -521,6 +536,7 @@ export default function QuestionnaireBuilder() {
         exact_numerical_weight: null,
       category: 'environment',
       order: 0,
+      parent_question_id: null,
       scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
     });
   };
@@ -573,9 +589,22 @@ export default function QuestionnaireBuilder() {
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
       order: question.order,
+      parent_question_id: question.parent_question_id || null,
       scoring,
     });
     setQuestionDialogMode('edit');
+    setShowQuestionDialog(true);
+  };
+
+  const openAddSubquestion = (parentQuestion) => {
+    setEditingQuestion(null);
+    setQuestionForm({
+      question_text: '', description: '', response_type: 'yes_no', options: [], required: true,
+      evidence_requirement: 'not_required', importance: 'medium', exact_numerical_weight: null,
+      category: parentQuestion.category, order: 0, parent_question_id: parentQuestion.id,
+      scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
+    });
+    setQuestionDialogMode('subquestion');
     setShowQuestionDialog(true);
   };
 
@@ -704,15 +733,21 @@ export default function QuestionnaireBuilder() {
 
   const handleQuestionDrop = async (draggedQuestionId, targetQuestionId) => {
     if (!draggedQuestionId || draggedQuestionId === targetQuestionId || !selectedQuestionnaire) return;
-    const currentIndex = questions.findIndex((question) => question.id === draggedQuestionId);
-    const targetIndex = questions.findIndex((question) => question.id === targetQuestionId);
+    const roots = questions.filter((question) => !question.parent_question_id);
+    const currentIndex = roots.findIndex((question) => question.id === draggedQuestionId);
+    const targetIndex = roots.findIndex((question) => question.id === targetQuestionId);
     if (currentIndex < 0 || targetIndex < 0) return;
-    const reordered = [...questions];
-    const [moved] = reordered.splice(currentIndex, 1);
-    reordered.splice(targetIndex, 0, moved);
+    const reorderedRoots = [...roots];
+    const [moved] = reorderedRoots.splice(currentIndex, 1);
+    reorderedRoots.splice(targetIndex, 0, moved);
+    const childrenByParent = questions.reduce((grouped, question) => {
+      if (question.parent_question_id) grouped[question.parent_question_id] = [...(grouped[question.parent_question_id] || []), question];
+      return grouped;
+    }, {});
+    const reordered = reorderedRoots.flatMap((question) => [question, ...(childrenByParent[question.id] || [])]);
     setQuestions(reordered);
     try {
-      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/reorder`, reordered.map((question, index) => ({ id: question.id, order: index })), { headers: getAuthHeader() });
+      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/reorder`, reorderedRoots.map((question, index) => ({ id: question.id, order: index })), { headers: getAuthHeader() });
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Could not reorder questions');
       fetchQuestions(selectedQuestionnaire.id);
@@ -842,11 +877,11 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-4" data-testid="question-table">
-                <div className="hidden grid-cols-[2rem_minmax(12rem,1fr)_6rem_6rem_7.5rem_6.5rem_5.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[2rem_minmax(12rem,1fr)_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} categoryLabel={categories.find((category) => category.value === question.category)?.label || question.category} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>
+                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} categoryLabel={categories.find((category) => category.value === question.category)?.label || question.category} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onAddSubquestion={() => openAddSubquestion(question)} onDrop={handleQuestionDrop} />)}</div>
                 )}
                 {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
               </div>
@@ -1161,10 +1196,10 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
+      <Dialog open={showQuestionDialog && ['edit', 'subquestion'].includes(questionDialogMode)} onOpenChange={handleQuestionDialogOpenChange}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
+            <DialogTitle>{questionDialogMode === 'subquestion' ? 'Add Subquestion' : editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
             <DialogDescription>
               Configure the question, response type, and scoring behavior
             </DialogDescription>
@@ -1499,11 +1534,11 @@ export default function QuestionnaireBuilder() {
               Cancel
             </Button>
             <Button
-              onClick={handleUpdateQuestion}
+              onClick={questionDialogMode === 'subquestion' ? handleCreateSubquestion : handleUpdateQuestion}
               disabled={submitting}
-              data-testid="save-question-btn"
+              data-testid={questionDialogMode === 'subquestion' ? 'save-subquestion-button' : 'save-question-btn'}
             >
-              {submitting ? 'Saving...' : 'Update'}
+              {submitting ? 'Saving...' : questionDialogMode === 'subquestion' ? 'Add subquestion' : 'Update'}
             </Button>
           </DialogFooter>
         </DialogContent>
