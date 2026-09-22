@@ -64,10 +64,16 @@ const responseTypes = [
   { value: 'dropdown', label: 'Dropdown' },
 ];
 
-const categories = [
+const sections = [
   { value: 'environment', label: 'Environment' },
   { value: 'social', label: 'Social' },
   { value: 'governance', label: 'Governance' },
+];
+
+const questionCategories = [
+  { value: 'policy', label: 'Policy' },
+  { value: 'reporting', label: 'Reporting' },
+  { value: 'certification', label: 'Certification' },
 ];
 
 // Scoring rules with descriptions
@@ -206,6 +212,7 @@ export default function QuestionnaireBuilder() {
     importance: 'medium',
     exact_numerical_weight: null,
     category: 'environment',
+    question_category: 'policy',
     order: 0,
     parent_question_id: null,
     scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
@@ -535,6 +542,7 @@ export default function QuestionnaireBuilder() {
         importance: 'medium',
         exact_numerical_weight: null,
       category: 'environment',
+      question_category: 'policy',
       order: 0,
       parent_question_id: null,
       scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
@@ -588,6 +596,7 @@ export default function QuestionnaireBuilder() {
       importance: question.importance || 'medium',
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
+      question_category: question.question_category || 'policy',
       order: question.order,
       parent_question_id: question.parent_question_id || null,
       scoring,
@@ -601,7 +610,7 @@ export default function QuestionnaireBuilder() {
     setQuestionForm({
       question_text: '', description: '', response_type: 'yes_no', options: [], required: true,
       evidence_requirement: 'not_required', importance: 'medium', exact_numerical_weight: null,
-      category: parentQuestion.category, order: 0, parent_question_id: parentQuestion.id,
+      category: parentQuestion.category, question_category: 'policy', order: 0, parent_question_id: parentQuestion.id,
       scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
     });
     setQuestionDialogMode('subquestion');
@@ -877,11 +886,11 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-4" data-testid="question-table">
-                <div className="hidden grid-cols-[2rem_minmax(12rem,1fr)_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_10rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} categoryLabel={categories.find((category) => category.value === question.category)?.label || question.category} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onAddSubquestion={() => openAddSubquestion(question)} onDrop={handleQuestionDrop} />)}</div>
+                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} sectionLabel={sections.find((section) => section.value === question.category)?.label || question.category} questionCategoryLabel={questionCategories.find((category) => category.value === question.question_category)?.label || question.question_category || 'Policy'} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onAddSubquestion={() => openAddSubquestion(question)} onDrop={handleQuestionDrop} />)}</div>
                 )}
                 {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
               </div>
@@ -975,7 +984,7 @@ export default function QuestionnaireBuilder() {
                 <AccordionTrigger className="text-sm font-medium">
                   <div className="flex items-center gap-2">
                     <Settings2 className="h-4 w-4" />
-                    ESG Category Weight
+                    ESG Section Weight
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -1078,7 +1087,7 @@ export default function QuestionnaireBuilder() {
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="esg-weights">
                 <AccordionTrigger className="text-sm font-medium">
-                  ESG Category Weight
+                  ESG Section Weight
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="grid grid-cols-3 gap-2 pt-2">
@@ -1226,7 +1235,7 @@ export default function QuestionnaireBuilder() {
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label>Response Type</Label>
                 <Select
@@ -1244,18 +1253,28 @@ export default function QuestionnaireBuilder() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>Section</Label>
                 <Select
                   value={questionForm.category}
                   onValueChange={(v) => setQuestionForm({ ...questionForm, category: v })}
+                  disabled={questionDialogMode === 'subquestion'}
                 >
-                  <SelectTrigger data-testid="question-category">
+                  <SelectTrigger data-testid="question-section-select">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
+                  <SelectContent data-testid="question-section-options">
+                    {sections.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={questionForm.question_category} onValueChange={(question_category) => setQuestionForm({ ...questionForm, question_category })}>
+                  <SelectTrigger data-testid="question-category-select"><SelectValue /></SelectTrigger>
+                  <SelectContent data-testid="question-category-options">
+                    {questionCategories.map((category) => <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

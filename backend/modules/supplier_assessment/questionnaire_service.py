@@ -276,6 +276,7 @@ async def duplicate_questionnaire(
             category=q["category"],
             order=q.get("order", 0),
             scoring=q.get("scoring"),
+            question_category=q.get("question_category", "policy"),
         )
         copied_ids[q["id"]] = copied["id"]
     for q in [item for item in original.get("questions", []) if item.get("parent_question_id")]:
@@ -294,6 +295,7 @@ async def duplicate_questionnaire(
             order=q.get("order", 0),
             scoring=q.get("scoring"),
             parent_question_id=copied_ids.get(q.get("parent_question_id")),
+            question_category=q.get("question_category", "policy"),
         )
     
     return await self.get_questionnaire(new_questionnaire["id"])
@@ -318,6 +320,7 @@ async def add_question(
     order: int,
     scoring: Optional[Dict[str, Any]] = None,
     parent_question_id: Optional[str] = None,
+    question_category: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
     parent_question = None
@@ -347,6 +350,7 @@ async def add_question(
         "importance": importance,
         "exact_numerical_weight": exact_numerical_weight,
         "category": parent_question.get("category") if parent_question else category,
+        "question_category": question_category or "policy",
         "order": order,
         "parent_question_id": parent_question_id,
         "scoring": scoring,  # New: Scoring configuration
