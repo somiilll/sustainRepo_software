@@ -71,6 +71,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Synced all 30 platform reference catalogs from local MongoDB to staging. Document fingerprints match local, including calculation-engine formula and decision-tree version records; no version fields were rewritten.
 - Removed the unused Google/Gemini/gRPC dependency chain that caused Python 3.14 deployment resolution failure; regenerated backend requirements, passed pip consistency validation, and corrected malformed `.gitignore` entries. Deployment readiness now passes.
 - Reset staging to a clean platform baseline: a full checksum-verified backup was created, 6,491 user/company activity documents were removed from 94 collections while preserving indexes, platform catalog data was retained, and one superadmin account was created. **DATABASE VERIFICATION ONLY; NO API OR BROWSER TESTING**.
 - Completed the approved legacy utility cleanup and observability improvement: removed 27 one-off diagnostic/migration/backfill/repair/normalization/seed files while retaining named regression tests. Added structured OCR lifecycle events and Bulk Upload validation/save rejection events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
