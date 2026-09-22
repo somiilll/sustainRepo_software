@@ -127,7 +127,7 @@ export default function SupplierDocumentsAdmin() {
   const unlockResponse = async (response) => {
     if (!responseDialog || !window.confirm(`Unlock ${response.supplier_name}'s response for resubmission?`)) return;
     setUnlockingSupplierId(response.supplier_relationship_id);
-    try { await axios.post(`${API}/supplier-assessment/suppliers/${response.supplier_relationship_id}/documents/${responseDialog.id}/reopen`, {}, { headers: getAuthHeader() }); toast.success('Document response unlocked'); await viewResponses(responseDialog); }
+    try { await axios.post(`${API}/supplier-assessment/suppliers/${response.supplier_relationship_id}/documents/${response.document_requirement_id || responseDialog.id}/reopen`, {}, { headers: getAuthHeader() }); toast.success('Document response unlocked'); await viewResponses(responseDialog); }
     catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock document response'); }
     finally { setUnlockingSupplierId(''); }
   };
@@ -154,7 +154,7 @@ export default function SupplierDocumentsAdmin() {
     if (!assignmentDialog || !window.confirm(`Unlock ${row.supplier_name}'s document response for resubmission?`)) return;
     setAssignmentUnlockingId(row.supplier_relationship_id);
     try {
-      await axios.post(`${API}/supplier-assessment/suppliers/${row.supplier_relationship_id}/documents/${assignmentDialog.id}/reopen`, {}, { headers: getAuthHeader() });
+      await axios.post(`${API}/supplier-assessment/suppliers/${row.supplier_relationship_id}/documents/${row.document_requirement_id || assignmentDialog.id}/reopen`, {}, { headers: getAuthHeader() });
       setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, status: 'pending', can_unassign: true, can_unlock: false } : item));
       toast.success('Document response unlocked');
       await loadDocuments();

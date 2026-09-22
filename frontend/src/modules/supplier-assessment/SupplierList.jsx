@@ -1021,7 +1021,7 @@ export default function SupplierList() {
               </div>
               
               <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
-              {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted and locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
+              {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted {selectedSupplier.revenue_submitted_at ? new Date(selectedSupplier.revenue_submitted_at).toLocaleDateString() : ''}{selectedSupplier.revenue_submitted_at ? ' · ' : ''}locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
               
               <ViewSupplierScores supplier={selectedSupplier} />
             </div>

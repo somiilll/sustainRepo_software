@@ -326,11 +326,21 @@ async def get_suppliers(
     training_ids_by_supplier: Dict[str, List[str]] = {}
     for assignment in training_assignments:
         training_ids_by_supplier.setdefault(assignment["supplier_relationship_id"], []).append(assignment["training_requirement_id"])
+    submitted_revenue = await db.supplier_revenue_submissions.find(
+        {"supplier_relationship_id": {"$in": relationship_ids}, "status": "submitted", "parent_visible": {"$ne": False}},
+        {"_id": 0, "supplier_relationship_id": 1, "submitted_at": 1},
+    ).sort("submitted_at", -1).to_list(10000)
+    submitted_revenue_at = {}
+    for submission in submitted_revenue:
+        submitted_revenue_at.setdefault(submission["supplier_relationship_id"], submission.get("submitted_at"))
     for supplier in suppliers:
         supplier["access_revoke_date"] = _access_revoke_date(supplier)
         supplier["questionnaire_assignment_is_implicit"] = "questionnaire_ids" not in supplier
         supplier["document_requirement_ids"] = [requirement["id"] for requirement in document_requirements if _is_requirement_available_to_relationship(requirement, supplier)]
         supplier["training_requirement_ids"] = training_ids_by_supplier.get(supplier["id"], [])
+        supplier["revenue_submitted_at"] = submitted_revenue_at.get(supplier["id"])
+        if supplier["revenue_submitted_at"] and supplier.get("revenue_submission_status") != "reopened":
+            supplier["revenue_submission_status"] = "submitted"
     
     return {
         "suppliers": suppliers,
@@ -743,6 +753,9 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
     }
     await db.supplier_revenue_submissions.insert_one(submission)
     submission.pop("_id", None)
+    await db.supplier_relationships.update_one(
+        {"id": relationship_id}, {"$set": {"revenue_submitted_at": now, "updated_at": now}},
+    )
     await self.refresh_supplier_canonical_score(relationship_id)
     await self._update_completion_status(relationship_id)
     log_event(logger, logging.INFO, "supplier_assessment.revenue.locked", action="supplier_assessment.revenue.submit", outcome="locked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": submission["id"]})
@@ -788,7 +801,7 @@ async def reopen_revenue_info(
     await db.supplier_revenue_submissions.insert_one(draft)
     draft.pop("_id", None)
     await db.supplier_relationships.update_one(
-        {"id": relationship_id}, {"$set": {"revenue_submission_status": "reopened", "updated_at": now}},
+        {"id": relationship_id}, {"$set": {"revenue_submission_status": "reopened", "revenue_submitted_at": None, "updated_at": now}},
     )
     log_event(logger, logging.INFO, "supplier_assessment.revenue.unlocked", action="supplier_assessment.revenue.reopen", outcome="unlocked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": draft["id"]})
     return draft

@@ -321,6 +321,7 @@ async def list_document_assignments(customer_org_id: str, requirement_id: str) -
             "is_assigned": bool(applicable), "status": "submitted" if submitted else "pending",
             "can_unassign": bool(applicable) and not submitted,
             "can_unlock": bool(applicable) and submitted,
+            "document_requirement_id": applicable.get("id") if applicable else None,
         })
     return {"document_id": requirement_id, "document_version_id": requirement["document_version_id"], "assignments": rows}
 
@@ -573,10 +574,10 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         )
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
             response = visible_submission
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
         else:
             acceptance = visible_submission
-            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
     return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
 
 

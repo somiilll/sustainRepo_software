@@ -94,6 +94,7 @@ class SupplierResponse(BaseModel):
     overall_score: Optional[float] = None
     canonical_score_snapshot: Optional[Dict[str, Any]] = None
     revenue_submission_status: str = "not_started"
+    revenue_submitted_at: Optional[str] = None
     
     created_by: str
     created_at: str
