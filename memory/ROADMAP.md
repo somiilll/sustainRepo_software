@@ -2,6 +2,9 @@
 
 ## P0 — Immediate
 
+### Supplier Questionnaire Section Applicability Scoring
+- Fix the new per-question ESG scorer so an absent section is not emitted as `0`. When a questionnaire has no Governance questions and Governance has no configured weight, return Governance as not applicable/blank in score breakdowns, supplier snapshots, rankings, and charts. Do not penalize the ESG total; normalize only scored, weighted sections. Preserve the existing legacy scorer behavior and audit the recalculation impact for affected submitted questionnaires.
+
 ### Supplier Reporting Policy
 - Make supplier facility allowance an intentional configurable policy instead of a fallback.
 - Add a deliberate parent-controlled migration/reassignment flow for existing suppliers when a new immutable assessment-program revision changes supplier GHG permissions (Custom Fuels, Process Emissions, or Flaring). Existing and newly added suppliers must be able to be aligned explicitly without silently changing issued assessments.
