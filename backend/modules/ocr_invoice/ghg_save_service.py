@@ -8,6 +8,7 @@ from calc_engine.currency_conversion import (
     STANDARD_METHOD,
     currency_conversion_source_name,
     normalize_currency_method,
+    resolve_organization_reporting_settings,
     resolve_currency_conversion,
 )
 from calc_engine.execution import CalcEngine, CalculationError, FormulaDefinitionError
@@ -224,11 +225,18 @@ async def execute_ocr_calculation(db, values: dict, category: dict, organization
         decision_inputs["spend_currency_conversion_method"] = method
         currency = str(values.get("currency") or "").upper()
         if currency and currency != "USD":
+            reporting_settings = await resolve_organization_reporting_settings(
+                db,
+                organization_id=organization_id,
+                reporting_year_type=values.get("reporting_year_type"),
+                financial_year_start_month=values.get("financial_year_start_month"),
+            )
             conversion = await resolve_currency_conversion(
                 db,
                 source_currency=currency,
                 reporting_period=values.get("reporting_period"),
-                reporting_year_type=None,
+                reporting_year_type=reporting_settings["reporting_year_type"],
+                financial_year_start_month=reporting_settings["financial_year_start_month"],
                 method=method,
             )
             if method == STANDARD_METHOD and conversion and conversion.get("exchange_rate"):

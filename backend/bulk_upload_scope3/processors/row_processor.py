@@ -11,6 +11,7 @@ from ..models import (
 from ..validators import FieldValidator, ActivityMatcher, FormulaValidator
 from ..validators.activity_matcher import create_activity_match_error
 from .emission_calculator import EmissionCalculator
+from calc_engine.currency_conversion import resolve_organization_reporting_settings
 
 
 class RowProcessor:
@@ -27,6 +28,15 @@ class RowProcessor:
         self.formula_validator = FormulaValidator(db)
         self.emission_calculator = EmissionCalculator(db)
         self._activity_matchers = {}
+        self._reporting_settings = None
+
+    async def get_reporting_settings(self) -> dict:
+        if self._reporting_settings is None:
+            self._reporting_settings = await resolve_organization_reporting_settings(
+                self.db,
+                organization_id=self.organization_id,
+            )
+        return self._reporting_settings
     
     async def get_activity_matcher(self, category_code: str, sub_category: str = None) -> ActivityMatcher:
         """
@@ -146,6 +156,9 @@ class RowProcessor:
             else:
                 row_data["reporting_period"] = parsed_month
                 row_data["frequency_type"] = "monthly"
+                reporting_settings = await self.get_reporting_settings()
+                row_data["reporting_year_type"] = reporting_settings["reporting_year_type"]
+                row_data["financial_year_start_month"] = reporting_settings["financial_year_start_month"]
         else:
             # Yearly reporting
             parsed_year, year_type, year_error = self.field_validator.parse_reporting_year(reporting_year)

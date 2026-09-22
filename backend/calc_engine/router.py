@@ -47,6 +47,7 @@ from .currency_conversion import (
     currency_conversion_source_name,
     extract_currency_period,
     normalize_currency_method,
+    resolve_organization_reporting_settings,
     resolve_currency_conversion,
 )
 
@@ -814,11 +815,18 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             # Fetch currency conversion data if we have a currency
             if input_currency and input_currency != "USD":
                 reporting_period = enriched_context.get("reporting_period") or req.context.get("reporting_period")
+                reporting_settings = await resolve_organization_reporting_settings(
+                    db,
+                    organization_id=current_user.get("organization_id"),
+                    reporting_year_type=enriched_context.get("reporting_year_type") or req.context.get("reporting_year_type"),
+                    financial_year_start_month=enriched_context.get("financial_year_start_month") or req.context.get("financial_year_start_month"),
+                )
                 currency_conversion = await resolve_currency_conversion(
                     db,
                     source_currency=input_currency,
                     reporting_period=reporting_period,
-                    reporting_year_type=enriched_context.get("reporting_year_type") or req.context.get("reporting_year_type"),
+                    reporting_year_type=reporting_settings["reporting_year_type"],
+                    financial_year_start_month=reporting_settings["financial_year_start_month"],
                     method=currency_method,
                 )
                 
