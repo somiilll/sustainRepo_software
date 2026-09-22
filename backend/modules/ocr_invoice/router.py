@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from anthropic import Anthropic
 
+from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
 from r2_storage import R2Storage
@@ -32,7 +33,7 @@ from .template_service import generate_ocr_template
 from .taxonomy_service import SCOPE3_CATEGORY_NAMES, SCOPE_CATEGORY_NAMES, WATER_CATEGORY_NAMES
 from modules.emissions.contracts import EmissionRecordCreate
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter()
 
 # Initialize R2 storage
@@ -800,9 +801,12 @@ async def upload_invoices(
 ):
     """Stage sources immediately and process Scope 1, 2, and 3 extraction in the background."""
     org_id = _get_org(current_user)
+    log_event(logger, logging.INFO, "ocr.upload.request.started", action="ocr.upload.request", outcome="started", context={"organization_id": org_id, "file_count": len(files), "mode": mode})
     if not files:
+        log_event(logger, logging.WARNING, "ocr.upload.request.rejected", action="ocr.upload.request", outcome="rejected", error_code="NO_FILES_SELECTED", context={"organization_id": org_id, "mode": mode})
         raise HTTPException(status_code=400, detail="Select at least one invoice or spreadsheet.")
     if len(files) > MAX_FILES_PER_BATCH:
+        log_event(logger, logging.WARNING, "ocr.upload.request.rejected", action="ocr.upload.request", outcome="rejected", error_code="BATCH_LIMIT_EXCEEDED", context={"organization_id": org_id, "file_count": len(files), "mode": mode})
         raise HTTPException(status_code=400, detail=f"Select up to {MAX_FILES_PER_BATCH} files per batch.")
     try:
         _, enabled_scopes, _ = await build_org_context(org_id)
@@ -814,12 +818,15 @@ async def upload_invoices(
             background_tasks.add_task(process_queued_upload, result["upload_id"], org_id, current_user)
         return JSONResponse(status_code=202, content=result)
     except ValueError as error:
+        log_event(logger, logging.WARNING, "ocr.upload.request.rejected", action="ocr.upload.request", outcome="rejected", error_code="INVALID_UPLOAD_REQUEST", context={"organization_id": org_id, "mode": mode})
         raise HTTPException(status_code=400, detail=str(error)) from error
     except RuntimeError as error:
         logger.error("OCR configuration error", extra={"organization_id": org_id, "mode": mode})
+        log_event(logger, logging.ERROR, "ocr.upload.request.failed", action="ocr.upload.request", outcome="failed", error_code="OCR_CONFIGURATION_ERROR", context={"organization_id": org_id, "mode": mode}, exc_info=True)
         raise HTTPException(status_code=503, detail=str(error)) from error
     except Exception as error:
         logger.exception("Advanced OCR upload failed", extra={"organization_id": org_id, "mode": mode})
+        log_event(logger, logging.ERROR, "ocr.upload.request.failed", action="ocr.upload.request", outcome="failed", error_code="OCR_UPLOAD_FAILED", context={"organization_id": org_id, "mode": mode}, exc_info=True)
         raise HTTPException(status_code=500, detail="Invoice extraction failed. Please verify the file and try again.") from error
 
 
@@ -1405,6 +1412,7 @@ async def assign_upload_facilities(
         if queued.modified_count:
             processing_started = True
             background_tasks.add_task(process_queued_upload, upload_id, org_id, current_user)
+    log_event(logger, logging.INFO, "ocr.upload.facilities.assigned", action="ocr.upload.assign_facilities", outcome="succeeded", context={"organization_id": org_id, "upload_id": upload_id, "assignment_count": len(assignments_by_file), "processing_started": processing_started})
 
     return {
         "message": "Invoice facilities assigned",

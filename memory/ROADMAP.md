@@ -71,6 +71,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Completed the approved legacy utility cleanup and observability improvement: removed 27 one-off diagnostic/migration/backfill/repair/normalization/seed files while retaining named regression tests. Added structured OCR lifecycle events and Bulk Upload validation/save rejection events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Completed parent-facing Supplier Assessment unlock controls: removed the generic locked ESG panel from supplier eye detail, surfaced Parts/Components Manufactured and Plant Location, added an Org Information unlock flow with immutable revision history, and added Questionnaire/Document response unlock actions inside their Manage Suppliers dialogs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected Supplier Document unlock identifiers for grouped document versions and surfaced each submitted Org Information record’s date in parent supplier detail. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Completed remaining Supplier Assessment runtime logging: document requirement/configuration, archive processing, scoring execution and canonical score refresh, program-revision creation, and training/document assignment changes now emit structured developer events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

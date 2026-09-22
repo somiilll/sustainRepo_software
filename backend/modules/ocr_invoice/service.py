@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from bulk_upload_scope3.ghg_config_resolver import resolve_ghg_capabilities
+from app.logging import get_logger, log_event
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
@@ -20,7 +21,7 @@ from .normalization import sanitize_json
 from .provider_diagnostics import get_provider_diagnostic
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _now() -> str:
@@ -73,6 +74,15 @@ def _record_provider_failure(error: BaseException, *, organization_id: str, uplo
             "ocr_provider_status_code": diagnostic["status_code"],
         },
     )
+    log_event(
+        logger,
+        logging.ERROR,
+        "ocr.provider.request.failed",
+        action="ocr.provider.request",
+        outcome="failed",
+        error_code=str(diagnostic.get("category") or "OCR_PROVIDER_ERROR").upper(),
+        context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key, "provider": diagnostic.get("provider"), "provider_request_id": diagnostic.get("request_id"), "provider_status_code": diagnostic.get("status_code")},
+    )
     return diagnostic
 
 
@@ -109,6 +119,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
     gateway = OcrLlmGateway(mode)
     org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
     upload_id = str(uuid.uuid4())
+    log_event(logger, logging.INFO, "ocr.upload.processing.started", action="ocr.upload.process", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": len(files), "mode": mode.key})
     storage = get_r2_storage()
     upload_record = {
         "id": upload_id,
@@ -143,9 +154,11 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
         content = await upload_file.read()
         if extension not in ALLOWED_EXTENSIONS:
             errors.append({"filename": filename, "error": "Unsupported file type"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="UNSUPPORTED_FILE_TYPE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         if len(content) > MAX_FILE_BYTES:
             errors.append({"filename": filename, "error": "File exceeds the 20MB limit"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="FILE_TOO_LARGE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         try:
             upload_result = await storage.upload_file(
@@ -159,9 +172,11 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
         except Exception:
             logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "ocr_filename": filename})
             errors.append({"filename": filename, "error": "Secure storage upload failed"})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename}, exc_info=True)
             continue
         if upload_result.get("error"):
             errors.append({"filename": filename, "error": upload_result["error"]})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         file_info = {
             "filename": filename,
@@ -238,6 +253,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                     "OCR file processing failed",
                     extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key},
                 )
+                log_event(logger, logging.ERROR, "ocr.upload.file.processing_failed", action="ocr.upload.process_file", outcome="failed", error_code="FILE_PROCESSING_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key}, exc_info=True)
             file_info["status"] = "failed"
             file_info["error"] = "Processing failed for this file"
             if diagnostic:
@@ -258,6 +274,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
     await db.ocr_uploads.insert_one(upload_record.copy())
     if all_items:
         await db.ocr_line_items.insert_many([item.copy() for item in all_items])
+    log_event(logger, logging.INFO if all_items else logging.ERROR, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="succeeded" if all_items else "failed", error_code=None if all_items else "NO_ROWS_EXTRACTED", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": upload_record["file_count"], "line_item_count": len(all_items), "error_count": len(errors), "mode": mode.key})
     return sanitize_json({
         "upload_id": upload_id,
         "file_count": upload_record["file_count"],
@@ -278,6 +295,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
 async def queue_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
     """Stage sources and create a durable OCR job without waiting for AI extraction."""
     upload_id = str(uuid.uuid4())
+    log_event(logger, logging.INFO, "ocr.upload.queue.started", action="ocr.upload.queue", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "requested_file_count": len(files), "mode": mode.key})
     storage = get_r2_storage()
     upload_record = {
         "id": upload_id,
@@ -302,9 +320,11 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
         content = await upload_file.read()
         if extension not in ALLOWED_EXTENSIONS:
             upload_record["errors"].append({"filename": filename, "error": "Unsupported file type"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="UNSUPPORTED_FILE_TYPE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         if len(content) > MAX_FILE_BYTES:
             upload_record["errors"].append({"filename": filename, "error": "File exceeds the 20MB limit"})
+            log_event(logger, logging.WARNING, "ocr.upload.file.rejected", action="ocr.upload.stage", outcome="rejected", error_code="FILE_TOO_LARGE", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         try:
             upload_result = await storage.upload_file(
@@ -318,9 +338,11 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
         except Exception:
             logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "ocr_filename": filename})
             upload_record["errors"].append({"filename": filename, "error": "Secure storage upload failed"})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename}, exc_info=True)
             continue
         if upload_result.get("error"):
             upload_record["errors"].append({"filename": filename, "error": upload_result["error"]})
+            log_event(logger, logging.ERROR, "ocr.upload.file.stage_failed", action="ocr.upload.stage", outcome="failed", error_code="STORAGE_UPLOAD_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename})
             continue
         upload_record["files"].append({
             "filename": filename,
@@ -341,6 +363,7 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
     elif any(file.get("preview_supported") for file in upload_record["files"]):
         upload_record["status"] = "awaiting_facility_assignment"
     await db.ocr_uploads.insert_one(upload_record.copy())
+    log_event(logger, logging.INFO if upload_record["files"] else logging.ERROR, "ocr.upload.queue.completed", action="ocr.upload.queue", outcome="queued" if upload_record["files"] else "failed", error_code=None if upload_record["files"] else "NO_VALID_FILES", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": upload_record["file_count"], "status": upload_record["status"], "error_count": len(upload_record["errors"]), "mode": mode.key})
     return sanitize_json({
         "upload_id": upload_id,
         "file_count": upload_record["file_count"],
@@ -364,6 +387,7 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
     )
     if not claimed.modified_count:
         return
+    log_event(logger, logging.INFO, "ocr.upload.processing.started", action="ocr.upload.process", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "mode": "queued"})
     upload_record = await db.ocr_uploads.find_one(
         {"id": upload_id, "organization_id": organization_id},
         {"_id": 0},
@@ -376,6 +400,7 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
         org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
     except Exception:
         logger.exception("Queued OCR job setup failed", extra={"organization_id": organization_id, "upload_id": upload_id})
+        log_event(logger, logging.ERROR, "ocr.upload.processing.failed", action="ocr.upload.process", outcome="failed", error_code="JOB_INITIALIZATION_FAILED", context={"organization_id": organization_id, "upload_id": upload_id}, exc_info=True)
         await db.ocr_uploads.update_one(
             {"id": upload_id, "organization_id": organization_id},
             {"$set": {
@@ -523,6 +548,7 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             )
             if not diagnostic:
                 logger.exception("Queued OCR file processing failed", extra={"organization_id": organization_id, "ocr_filename": filename, "mode": mode.key})
+                log_event(logger, logging.ERROR, "ocr.upload.file.processing_failed", action="ocr.upload.process_file", outcome="failed", error_code="FILE_PROCESSING_FAILED", context={"organization_id": organization_id, "upload_id": upload_id, "filename": filename, "mode": mode.key}, exc_info=True)
             file_info["status"] = "failed"
             file_info["error"] = "An error occurred. Try again."
             if diagnostic:
@@ -537,8 +563,10 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             {"id": upload_id, "organization_id": organization_id, "status": "cancelled"},
             {"$set": {"files": upload_record["files"], "updated_at": _now()}},
         )
+        log_event(logger, logging.INFO, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="cancelled", context={"organization_id": organization_id, "upload_id": upload_id, "mode": mode.key})
         return
     total_line_items = sum(file.get("line_item_count", 0) for file in upload_record["files"])
+    final_status = "cancelled" if upload_record["files"] and all(file.get("status") == "cancelled" for file in upload_record["files"]) else "completed" if total_line_items else "failed"
     await db.ocr_uploads.update_one(
         {"id": upload_id, "organization_id": organization_id, "status": {"$ne": "cancelled"}},
         {"$set": {
@@ -546,11 +574,12 @@ async def process_queued_upload(upload_id: str, organization_id: str, user: dict
             "total_line_items": total_line_items,
             "needs_review_count": sum(1 for item in all_items if item.get("needs_review")),
             "errors": errors,
-            "status": "cancelled" if upload_record["files"] and all(file.get("status") == "cancelled" for file in upload_record["files"]) else "completed" if total_line_items else "failed",
+            "status": final_status,
             "completed_at": _now(),
             "updated_at": _now(),
         }},
     )
+    log_event(logger, logging.INFO if final_status == "completed" else logging.ERROR, "ocr.upload.processing.completed", action="ocr.upload.process", outcome="succeeded" if final_status == "completed" else final_status, error_code=None if final_status == "completed" else "NO_ROWS_EXTRACTED", context={"organization_id": organization_id, "upload_id": upload_id, "line_item_count": total_line_items, "error_count": len(errors), "mode": mode.key})
 
 
 async def save_vendor_override(organization_id: str, user: dict, current_values: dict) -> None:

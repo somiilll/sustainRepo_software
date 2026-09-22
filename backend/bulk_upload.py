@@ -156,8 +156,8 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
     @router.get("/bulk-upload/template")
     async def download_scope3_template(current_user: dict = Depends(get_admin_user)):
         """Generate Excel template for Scope 3 emissions."""
-        log_event(logger, 20, "bulk_upload.legacy_template.generate.started", action="bulk_upload.template.generate", outcome="started")
         org_id = current_user.get("organization_id")
+        log_event(logger, 20, "bulk_upload.legacy_template.generate.started", action="bulk_upload.template.generate", outcome="started", context={"organization_id": org_id})
         ref_data = await get_reference_data(org_id)
         
         wb = Workbook()
@@ -319,11 +319,12 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         current_user: dict = Depends(get_admin_user)
     ):
         """Parse and validate uploaded Scope 3 Excel file."""
-        log_event(logger, 20, "bulk_upload.legacy_validation.started", action="bulk_upload.validation", outcome="started")
+        org_id = current_user.get("organization_id")
+        log_event(logger, 20, "bulk_upload.legacy_validation.started", action="bulk_upload.validation", outcome="started", context={"organization_id": org_id, "filename": file.filename})
         if not file.filename.endswith('.xlsx'):
+            log_event(logger, 30, "bulk_upload.legacy_validation.rejected", action="bulk_upload.validation", outcome="rejected", error_code="UNSUPPORTED_FILE_TYPE", context={"organization_id": org_id, "filename": file.filename})
             raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
         
-        org_id = current_user.get("organization_id")
         upload_id = str(uuid.uuid4())
         
         contents = await file.read()
@@ -331,6 +332,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         try:
             wb = load_workbook(io.BytesIO(contents))
         except Exception as e:
+            log_event(logger, 30, "bulk_upload.legacy_validation.failed", action="bulk_upload.validation", outcome="failed", error_code="INVALID_WORKBOOK", context={"organization_id": org_id, "filename": file.filename}, exc_info=True)
             raise HTTPException(status_code=400, detail=f"Invalid Excel file: {str(e)}")
         
         ws = wb.active
@@ -575,8 +577,8 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         current_user: dict = Depends(get_admin_user)
     ):
         """Save valid rows from upload session."""
-        log_event(logger, 20, "bulk_upload.legacy_save.started", action="bulk_upload.save", outcome="started", context={"upload_id": upload_id, "save_mode": save_mode})
         org_id = current_user.get("organization_id")
+        log_event(logger, 20, "bulk_upload.legacy_save.started", action="bulk_upload.save", outcome="started", context={"organization_id": org_id, "upload_id": upload_id, "save_mode": save_mode})
         
         session = await db.bulk_upload_sessions.find_one(
             {"id": upload_id, "organization_id": org_id},
@@ -584,20 +586,24 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         )
         
         if not session:
+            log_event(logger, 30, "bulk_upload.legacy_save.rejected", action="bulk_upload.save", outcome="rejected", error_code="UPLOAD_SESSION_NOT_FOUND", context={"organization_id": org_id, "upload_id": upload_id, "save_mode": save_mode})
             raise HTTPException(status_code=404, detail="Upload session not found")
         
         if session["status"] == "completed":
+            log_event(logger, 30, "bulk_upload.legacy_save.rejected", action="bulk_upload.save", outcome="rejected", error_code="UPLOAD_ALREADY_PROCESSED", context={"organization_id": org_id, "upload_id": upload_id, "save_mode": save_mode})
             raise HTTPException(status_code=400, detail="Upload already processed")
         
         valid_rows = [r for r in session["rows"] if r["status"] == "valid"]
         
         if save_mode == "all_or_nothing" and session["invalid_rows"] > 0:
+            log_event(logger, 30, "bulk_upload.legacy_save.rejected", action="bulk_upload.save", outcome="rejected", error_code="INVALID_ROWS_PRESENT", context={"organization_id": org_id, "upload_id": upload_id, "save_mode": save_mode, "invalid_rows": session["invalid_rows"]})
             raise HTTPException(
                 status_code=400, 
                 detail=f"Cannot save: {session['invalid_rows']} rows have errors"
             )
         
         if not valid_rows:
+            log_event(logger, 30, "bulk_upload.legacy_save.rejected", action="bulk_upload.save", outcome="rejected", error_code="NO_VALID_ROWS", context={"organization_id": org_id, "upload_id": upload_id, "save_mode": save_mode})
             raise HTTPException(status_code=400, detail="No valid rows to save")
         
         saved_count = 0
