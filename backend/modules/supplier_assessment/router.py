@@ -330,6 +330,7 @@ async def create_supplier(
         await assert_supplier_limit(current_user["organization_id"])
         result = await supplier_service.create_supplier(
             customer_org_id=current_user["organization_id"],
+            vendor_code=data.vendor_code,
             company_name=data.company_name,
             contact_person=data.contact_person,
             email=data.email,
@@ -1439,6 +1440,8 @@ async def update_my_revenue(
             revenue_percentage=data.revenue_percentage,
             revenue_amount=data.revenue_amount,
             revenue_currency=data.revenue_currency,
+            parts_components_manufactured=data.parts_components_manufactured,
+            plant_location=data.plant_location,
         )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error))

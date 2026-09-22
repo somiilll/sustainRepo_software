@@ -57,6 +57,7 @@ async def create_supplier(
     questionnaire_ids: Optional[List[str]] = None,
     document_requirement_ids: Optional[List[str]] = None,
     training_requirement_ids: Optional[List[str]] = None,
+    vendor_code: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new supplier:
@@ -196,6 +197,7 @@ async def create_supplier(
         "id": relationship_id,
         "customer_org_id": customer_org_id,
         "supplier_org_id": supplier_org_id,
+        "vendor_code": str(vendor_code or "").strip() or None,
         "company_name": company_name,
         "contact_person": contact_person,
         "contact_email": email,
@@ -549,6 +551,7 @@ async def get_pending_reminder_modules(
         "ESG Questionnaire": "esg",
         "GHG Emissions": "ghg",
         "Revenue Information": "revenue",
+        "Org Information": "revenue",
         "Document:": "documents",
         "Training:": "training",
     }
@@ -563,7 +566,7 @@ async def get_pending_reminder_modules(
         "ghg": "GHG Emissions",
         "documents": "Documents",
         "training": "Training",
-        "revenue": "Revenue Information",
+        "revenue": "Org Information",
     }
     return [{"code": code, "label": labels[code]} for code in labels if code in pending_codes]
 
@@ -572,7 +575,7 @@ async def _pending_reminder_modules(self, relationship: Dict[str, Any], requeste
     labels = {
         "esg": "ESG Questionnaire",
         "ghg": "GHG Emissions",
-        "revenue": "Revenue Information",
+        "revenue": "Org Information",
     }
     program_context = await resolve_program_context(relationship)
     enabled_module_codes = {
@@ -661,6 +664,8 @@ async def update_revenue_info(
     revenue_percentage: Optional[float] = None,
     revenue_amount: Optional[float] = None,
     revenue_currency: Optional[str] = None,
+    parts_components_manufactured: Optional[str] = None,
+    plant_location: Optional[str] = None,
 ) -> bool:
     """Supplier updates their revenue information (percentage and/or amount)."""
     relationship = await db.supplier_relationships.find_one(
@@ -685,6 +690,10 @@ async def update_revenue_info(
         update_fields["revenue_amount"] = revenue_amount
     if revenue_currency is not None:
         update_fields["revenue_currency"] = revenue_currency
+    if parts_components_manufactured is not None:
+        update_fields["parts_components_manufactured"] = parts_components_manufactured.strip()
+    if plant_location is not None:
+        update_fields["plant_location"] = plant_location.strip()
     
     result = await db.supplier_relationships.update_one(
         {
@@ -718,6 +727,7 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
         "supplier_org_id": supplier_org_id, "customer_org_id": relationship["customer_org_id"],
         "reporting_period": period, "revenue_percentage": relationship["revenue_percentage"],
         "revenue_amount": relationship.get("revenue_amount"), "revenue_currency": relationship.get("revenue_currency") or "USD",
+        "parts_components_manufactured": relationship.get("parts_components_manufactured"), "plant_location": relationship.get("plant_location"),
         "status": "submitted", "parent_visible": True, "revision": 1,
         "submitted_by": submitted_by, "submitted_at": now,
     }

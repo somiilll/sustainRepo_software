@@ -1,9 +1,11 @@
 import React from 'react';
+import { Info } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
 
 const CURRENCIES = [
   { code: 'USD', symbol: '$' }, { code: 'EUR', symbol: '€' },
@@ -22,6 +24,10 @@ export const SupplierRevenueContent = ({
   setRevenueAmount,
   revenueCurrency,
   setRevenueCurrency,
+  partsComponentsManufactured,
+  setPartsComponentsManufactured,
+  plantLocation,
+  setPlantLocation,
   saving,
   submitting,
   onSave,
@@ -30,7 +36,7 @@ export const SupplierRevenueContent = ({
   const submitted = relationship.revenue_submission_status === 'submitted';
 
   return (
-    <div className="space-y-8" data-testid="supplier-revenue-content">
+    <TooltipProvider delayDuration={150}><div className="space-y-8" data-testid="supplier-revenue-content">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="supplier-revenue-percentage" className="text-sm font-medium text-slate-800">
@@ -55,13 +61,21 @@ export const SupplierRevenueContent = ({
             <Input id="supplier-revenue-amount" type="number" min="0" step="1000" value={revenueAmount} onChange={(event) => setRevenueAmount(event.target.value)} placeholder="e.g., 500000" className="min-w-0 flex-1 bg-white" aria-required="false" disabled={submitted} data-testid="revenue-amount-input" />
           </div>
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="supplier-parts-components" className="flex items-center gap-1.5 text-sm font-medium text-slate-800">Parts/Components Manufactured<Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Parts or components manufactured for ${customerName}`} className="inline-flex text-slate-400 transition-colors hover:text-emerald-700" data-testid="parts-components-info-button"><Info className="h-3.5 w-3.5" aria-hidden="true" /></button></TooltipTrigger><TooltipContent data-testid="parts-components-info-tooltip">For {customerName}</TooltipContent></Tooltip></Label>
+          <Input id="supplier-parts-components" value={partsComponentsManufactured} onChange={(event) => setPartsComponentsManufactured(event.target.value)} placeholder="Describe parts or components" disabled={submitted} data-testid="parts-components-manufactured-input" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="supplier-plant-location" className="flex items-center gap-1.5 text-sm font-medium text-slate-800">Location of the plant<Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Plant location where parts are manufactured for ${customerName}`} className="inline-flex text-slate-400 transition-colors hover:text-emerald-700" data-testid="plant-location-info-button"><Info className="h-3.5 w-3.5" aria-hidden="true" /></button></TooltipTrigger><TooltipContent data-testid="plant-location-info-tooltip">Plant where Parts manufactured for {customerName}</TooltipContent></Tooltip></Label>
+          <Input id="supplier-plant-location" value={plantLocation} onChange={(event) => setPlantLocation(event.target.value)} placeholder="Enter plant location" disabled={submitted} data-testid="plant-location-input" />
+        </div>
       </div>
       <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5" data-testid="revenue-actions">
         {submitted ? <Badge className="bg-emerald-100 text-emerald-800" data-testid="revenue-submitted-badge">Submitted</Badge> : <>
           <Button variant="outline" onClick={onSave} disabled={saving || submitting} data-testid="save-revenue-btn">{saving ? 'Saving…' : 'Save draft'}</Button>
-          <Button onClick={onSubmit} disabled={submitting || saving} data-testid="submit-revenue-button">{submitting ? 'Submitting…' : 'Submit revenue'}</Button>
+          <Button onClick={onSubmit} disabled={submitting || saving} data-testid="submit-revenue-button">{submitting ? 'Submitting…' : 'Submit org information'}</Button>
         </>}
       </div>
-    </div>
+    </div></TooltipProvider>
   );
 };

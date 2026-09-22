@@ -14,6 +14,7 @@ from shared.utils.emission_records import normalize_reporting_period_for_storage
 
 class SupplierCreate(BaseModel):
     """Create a new supplier invitation."""
+    vendor_code: Optional[str] = Field(default=None, max_length=100)
     company_name: str
     contact_person: str
     email: EmailStr
@@ -32,6 +33,7 @@ class SupplierCreate(BaseModel):
 
 class SupplierUpdate(BaseModel):
     """Update supplier details."""
+    vendor_code: Optional[str] = Field(default=None, max_length=100)
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
@@ -55,6 +57,7 @@ class SupplierResponse(BaseModel):
     id: str
     customer_org_id: str
     supplier_org_id: str
+    vendor_code: Optional[str] = None
     company_name: str
     contact_person: str
     contact_email: str
@@ -111,9 +114,11 @@ class SupplierListResponse(BaseModel):
 
 class RevenueInfoUpdate(BaseModel):
     """Supplier updates their revenue information."""
-    revenue_percentage: float = Field(ge=0, le=100)
+    revenue_percentage: Optional[float] = Field(default=None, ge=0, le=100)
     revenue_amount: Optional[float] = Field(None, ge=0)  # Amount in currency
     revenue_currency: Optional[str] = "USD"  # Currency code
+    parts_components_manufactured: Optional[str] = Field(default=None, max_length=1000)
+    plant_location: Optional[str] = Field(default=None, max_length=1000)
 
 
 class ManualScoreUpdate(BaseModel):

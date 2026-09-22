@@ -73,6 +73,7 @@ const RequirementDeadline = ({ dueDate, testId }) => {
 };
 
 const createSupplierForm = (reportingPeriod) => ({
+  vendor_code: '',
   company_name: '',
   contact_person: '',
   email: '',
@@ -638,6 +639,10 @@ export default function SupplierList() {
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-7 py-5" data-testid="add-supplier-form-scroll-area">
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Vendor Code</Label>
+                <Input value={formData.vendor_code} onChange={(e) => setFormData({ ...formData, vendor_code: e.target.value })} placeholder="Enter vendor code" data-testid="supplier-vendor-code" />
+              </div>
               <div className="space-y-2">
                 <Label>Company Name *</Label>
                 <Input value={formData.company_name} onChange={(e) => setFormData({ ...formData, company_name: e.target.value })} placeholder="Enter company name" data-testid="supplier-company-name" />
