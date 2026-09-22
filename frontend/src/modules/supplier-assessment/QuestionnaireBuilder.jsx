@@ -47,6 +47,12 @@ import {
   ClipboardCheck,
   CalendarDays,
   Search,
+  Leaf,
+  UsersRound,
+  Landmark,
+  ShieldCheck,
+  ClipboardList,
+  Award,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
@@ -77,15 +83,15 @@ const questionCategories = [
 ];
 
 const sectionStyles = {
-  environment: { container: 'border-emerald-200 bg-emerald-50/30', heading: 'text-emerald-950', badge: 'border-emerald-200 bg-emerald-100 text-emerald-800' },
-  social: { container: 'border-sky-200 bg-sky-50/30', heading: 'text-sky-950', badge: 'border-sky-200 bg-sky-100 text-sky-800' },
-  governance: { container: 'border-amber-200 bg-amber-50/30', heading: 'text-amber-950', badge: 'border-amber-200 bg-amber-100 text-amber-800' },
+  environment: { icon: Leaf, iconClass: 'text-emerald-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
+  social: { icon: UsersRound, iconClass: 'text-sky-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
+  governance: { icon: Landmark, iconClass: 'text-amber-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
 };
 
 const categoryStyles = {
-  policy: { container: 'border-indigo-200 bg-indigo-50/40', heading: 'text-indigo-950', badge: 'border-indigo-200 bg-indigo-100 text-indigo-800' },
-  reporting: { container: 'border-rose-200 bg-rose-50/40', heading: 'text-rose-950', badge: 'border-rose-200 bg-rose-100 text-rose-800' },
-  certification: { container: 'border-teal-200 bg-teal-50/40', heading: 'text-teal-950', badge: 'border-teal-200 bg-teal-100 text-teal-800' },
+  policy: { icon: ShieldCheck, iconClass: 'text-indigo-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
+  reporting: { icon: ClipboardList, iconClass: 'text-rose-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
+  certification: { icon: Award, iconClass: 'text-teal-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
 };
 
 // Scoring rules with descriptions
@@ -820,14 +826,16 @@ export default function QuestionnaireBuilder() {
                   {groupedQuestions.map((section) => {
                     const sectionCount = section.categories.reduce((total, category) => total + category.questions.length, 0);
                     const sectionStyle = sectionStyles[section.value];
+                    const SectionIcon = sectionStyle.icon;
                     return <AccordionItem key={section.value} value={`section-${section.value}`} className={`border px-4 ${sectionStyle.container}`} data-testid={`question-section-group-${section.value}`}>
-                      <AccordionTrigger className={`py-4 text-base font-semibold hover:no-underline ${sectionStyle.heading}`} data-testid={`question-section-toggle-${section.value}`}><span>{section.label}</span><Badge variant="outline" className={`mr-3 ${sectionStyle.badge}`} data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
+                      <AccordionTrigger className={`py-4 text-base font-semibold hover:no-underline ${sectionStyle.heading}`} data-testid={`question-section-toggle-${section.value}`}><span className="flex items-center gap-3"><SectionIcon className={`h-5 w-5 ${sectionStyle.iconClass}`} aria-hidden="true" /><span>{section.label}</span></span><Badge variant="outline" className={`mr-3 min-w-8 justify-center rounded-full ${sectionStyle.badge}`} data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
                       <AccordionContent className="pb-4 pt-1">
                         <Accordion type="multiple" defaultValue={section.categories.map((category) => `category-${section.value}-${category.value}`)} className="space-y-2" data-testid={`question-category-groups-${section.value}`}>
                           {section.categories.map((category) => {
                             const categoryStyle = categoryStyles[category.value];
+                            const CategoryIcon = categoryStyle.icon;
                             return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
-                            <AccordionTrigger className={`py-3 text-sm font-semibold hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span>{category.groupLabel}</span><Badge variant="outline" className={`mr-3 ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
+                            <AccordionTrigger className={`py-3 text-sm font-semibold hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span className="flex items-center gap-3"><CategoryIcon className={`h-5 w-5 ${categoryStyle.iconClass}`} aria-hidden="true" /><span>{category.groupLabel}</span></span><Badge variant="outline" className={`mr-3 min-w-8 justify-center rounded-full ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
                             <AccordionContent className="pb-2 pt-1"><h3 className="pb-2 text-sm font-medium text-stone-600" data-testid={`question-category-heading-${section.value}-${category.value}`}>{category.label} Questions</h3>{category.questions.length === 0 ? <p className="py-5 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <QuestionnaireQuestionRow key={question.id} question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>}</AccordionContent>
                           </AccordionItem>;
                           })}
