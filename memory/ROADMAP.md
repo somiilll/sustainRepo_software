@@ -46,6 +46,7 @@
 - Canonical RBAC overhaul phases 1–5 — paused until explicit user instruction.
 
 ## P2 — Later
+- Organization-specific Import Mapping Profiles for OCR and Bulk Upload: create versioned, organization-scoped profiles that map scanned logbooks and non-standard spreadsheets into one canonical import row. Support source-column/header mapping, fixed values, approved facility aliases, date-to-reporting-period transformation, unit normalization, and fixed factor/activity values. Apply the same shared mapping engine after OCR extraction or spreadsheet parsing, then retain profile/version, raw values, transformations, and review exceptions as import provenance. Keep facility ownership, factor/unit compatibility, and normal calculation validation mandatory; do not silently guess ambiguous facility aliases. Seed the existing standard OCR ledger and Scope 3 bulk template as default profiles so the current paths remain supported while custom layouts avoid per-organization code branches.
 - Design and execute the production legacy-emission migration for records created before calculation versioning:
   - Preserve stored inputs, outputs, totals, reporting periods, and timestamps without recalculation.
   - Infer missing Scope 1 methodologies from saved field signatures; send ambiguous records to manual review.
