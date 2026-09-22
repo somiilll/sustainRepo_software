@@ -71,6 +71,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Reset staging to a clean platform baseline: a full checksum-verified backup was created, 6,491 user/company activity documents were removed from 94 collections while preserving indexes, platform catalog data was retained, and one superadmin account was created. **DATABASE VERIFICATION ONLY; NO API OR BROWSER TESTING**.
 - Completed the approved legacy utility cleanup and observability improvement: removed 27 one-off diagnostic/migration/backfill/repair/normalization/seed files while retaining named regression tests. Added structured OCR lifecycle events and Bulk Upload validation/save rejection events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Completed parent-facing Supplier Assessment unlock controls: removed the generic locked ESG panel from supplier eye detail, surfaced Parts/Components Manufactured and Plant Location, added an Org Information unlock flow with immutable revision history, and added Questionnaire/Document response unlock actions inside their Manage Suppliers dialogs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected Supplier Document unlock identifiers for grouped document versions and surfaced each submitted Org Information record’s date in parent supplier detail. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
