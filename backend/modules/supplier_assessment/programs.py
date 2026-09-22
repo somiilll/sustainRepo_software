@@ -1,11 +1,15 @@
 """Program/revision binding for supplier assessments; legacy relationships remain unmodified."""
 import uuid
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict
 
 from shared.database.mongo import db
+from app.logging import get_logger, log_event
 from modules.sustainability_config.service import resolve_supplier_assessment_config
+
+logger = get_logger(__name__)
 
 
 def _now() -> str:
@@ -87,6 +91,7 @@ async def get_or_create_program_revision(customer_org_id: str, config: Dict[str,
     }
     await db.supplier_assessment_programs.insert_one(revision)
     revision.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.program.revision.created", action="supplier_assessment.program.revision.create", outcome="succeeded", context={"customer_org_id": customer_org_id, "program_id": program_id, "version": version})
     return revision
 
 

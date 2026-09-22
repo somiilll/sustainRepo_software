@@ -149,6 +149,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
     for relationship in relationships:
         await supplier_service._update_completion_status(relationship["id"])
     for doc in (content_doc, version, requirement): doc.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.training.created", action="supplier_assessment.training.create", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments)})
     return {"training": requirement, "version": version, "assignments": assignments}
 
 
@@ -176,6 +177,7 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": version_id, "reporting_period": relationship.get("reporting_period"), "assigned_at": now, "is_active": True}
         await db.supplier_training_assignments.insert_one(assignment); assignment.pop("_id", None); assignments.append(assignment)
     for document in (content_doc, version, requirement): document.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.training.created", action="supplier_assessment.training.create", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments), "upload_session_id": upload_session_id})
     return {"training": requirement, "version": version, "assignments": assignments}
 
 
@@ -357,7 +359,7 @@ async def synchronize_training_assignments(
         {"_id": 0, "id": 1, "training_requirement_id": 1},
     ).to_list(1000)
     active_by_requirement = {assignment["training_requirement_id"]: assignment for assignment in active_assignments}
-    await db.supplier_training_assignments.update_many(
+    deactivated = await db.supplier_training_assignments.update_many(
         {
             "supplier_relationship_id": relationship["id"],
             "reporting_period": relationship.get("reporting_period"),
@@ -376,6 +378,7 @@ async def synchronize_training_assignments(
         assignment = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "organization_id": org_id, "training_requirement_id": requirement["id"], "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True}
         await db.supplier_training_assignments.insert_one(assignment)
         assignment_ids.append(assignment["id"])
+    log_event(logger, logging.INFO, "supplier_assessment.training.assignment.synchronized", action="supplier_assessment.training.assignment.sync", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": relationship["id"], "active_assignment_count": len(assignment_ids), "deactivated_assignment_count": deactivated.modified_count})
     return assignment_ids
 
 async def update_training(org_id: str, requirement_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -445,7 +448,9 @@ async def update_training(org_id: str, requirement_id: str, updates: Dict[str, A
         for relationship in relationships:
             from modules.supplier_assessment.service import supplier_service
             await supplier_service._update_completion_status(relationship["id"])
-    return await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+    updated = await db.supplier_training_requirements.find_one({"id": requirement_id}, {"_id": 0})
+    log_event(logger, logging.INFO, "supplier_assessment.training.updated", action="supplier_assessment.training.update", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "is_active": updated.get("is_active") if updated else None})
+    return updated
 
 
 async def list_training_assignments(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -490,6 +495,7 @@ async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier
     )
     if not existing:
         await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
+        log_event(logger, logging.INFO, "supplier_assessment.training.assignment.added", action="supplier_assessment.training.assignment.add", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id})
 
 
 async def unassign_training_from_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
@@ -504,6 +510,7 @@ async def unassign_training_from_supplier(org_id: str, requirement_id: str, supp
     if completed:
         raise ValueError("A completed training cannot be unassigned")
     await db.supplier_training_assignments.update_many({"id": {"$in": [assignment["id"] for assignment in assignments]}}, {"$set": {"is_active": False, "updated_at": _now()}})
+    log_event(logger, logging.INFO, "supplier_assessment.training.assignment.removed", action="supplier_assessment.training.assignment.remove", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "assignment_count": len(assignments)})
 
 async def archive_training(org_id: str, requirement_id: str) -> bool:
     requirement = await db.supplier_training_requirements.find_one(
@@ -546,6 +553,7 @@ async def archive_training(org_id: str, requirement_id: str) -> bool:
         await db.supplier_training_versions.update_one(
             {"id": version["id"]}, {"$set": {"r2_delete_status": "deleted", "r2_deleted_at": now, "r2_deleted_keys": deleted_keys}}
         )
+    log_event(logger, logging.INFO, "supplier_assessment.training.archive.completed", action="supplier_assessment.training.archive", outcome="succeeded", context={"organization_id": org_id, "training_requirement_id": requirement_id, "deleted_file_count": len(deleted_keys)})
     return True
 
 async def ensure_indexes():

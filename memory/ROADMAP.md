@@ -70,6 +70,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Completed remaining Supplier Assessment runtime logging: document requirement/configuration, archive processing, scoring execution and canonical score refresh, program-revision creation, and training/document assignment changes now emit structured developer events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Updated Supplier Assessment org details: Vendor Code now appears before Company Name on supplier creation, and supplier-facing Revenue Information is now Org Information with persisted Parts/Components Manufactured and Plant Location fields plus parent-context tooltips. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Expanded Supplier Assessment developer runtime logs: invitation, reminder, assignment, and unlock email delivery now records sent/failed/skipped/deduplicated outcomes; GHG, questionnaire, document, revenue, and access lifecycle changes emit explicit locked/unlocked events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Removed unreferenced completed staging migration/ingestion utilities. A source review confirms no executable backend, frontend, or utility code retains staging Mongo target variables or the staging database name. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

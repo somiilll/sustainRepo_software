@@ -807,6 +807,7 @@ async def _calculate_questionnaire_score(
     if has_new_scoring:
         # Use new scoring engine
         engine = ScoringEngine(db)
+        log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.started", action="supplier_assessment.questionnaire.scoring", outcome="started", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "question_count": len(questions)})
         
         # Get supplier info for full calculation
         revenue_percentage = None
@@ -829,6 +830,7 @@ async def _calculate_questionnaire_score(
                 manual_scores_override={},
                 reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
             )
+            log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": breakdown.esg_score.overall_score})
             return breakdown.esg_score.overall_score, breakdown.model_dump()
         except Exception:
             log_event(
@@ -842,7 +844,9 @@ async def _calculate_questionnaire_score(
             )
     
     # Legacy scoring for backward compatibility
-    return await self._calculate_legacy_score(questionnaire, questions, answers), None
+    legacy_score = await self._calculate_legacy_score(questionnaire, questions, answers)
+    log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.legacy_completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": legacy_score})
+    return legacy_score, None
 
 async def _calculate_legacy_score(
     self,
