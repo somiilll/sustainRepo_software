@@ -436,18 +436,18 @@ export default function QuestionnaireBuilder() {
     }
   };
 
-  const handleAddLedgerQuestions = async (draftQuestions) => {
-    if (!selectedQuestionnaire) return;
+  const handleAddLedgerQuestions = async (draftQuestions, { keepOpen = false } = {}) => {
+    if (!selectedQuestionnaire) return false;
     const missingQuestion = draftQuestions.find((question) => !question.question_text.trim());
-    if (missingQuestion) { toast.error('Each ledger row needs question text before it can be added.'); return; }
+    if (missingQuestion) { toast.error('Each ledger row needs question text before it can be added.'); return false; }
     const invalidDropdown = draftQuestions.find((question) => question.response_type === 'dropdown' && question.options_text.split(',').map((value) => value.trim()).filter(Boolean).length < 2);
-    if (invalidDropdown) { toast.error('Dropdown questions need at least two comma-separated options.'); return; }
+    if (invalidDropdown) { toast.error('Dropdown questions need at least two comma-separated options.'); return false; }
     const invalidScore = draftQuestions.find((question) => {
       if (question.response_type === 'yes_no') return !isScore(question.yes_score) || !isScore(question.no_score);
       if (question.response_type === 'dropdown') return question.options_text.split(',').map((value) => value.trim()).filter(Boolean).some((value) => !isScore(question.option_scores?.[value]));
       return false;
     });
-    if (invalidScore) { toast.error('Enter a score from 0 to 100 for every Yes/No or dropdown option.'); return; }
+    if (invalidScore) { toast.error('Enter a score from 0 to 100 for every Yes/No or dropdown option.'); return false; }
     setSubmitting(true);
     try {
       const createdIdsByDraftId = {};
@@ -479,11 +479,12 @@ export default function QuestionnaireBuilder() {
         childOrderByParent[question.parent_draft_id] = childOrder + 1;
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
-      setShowQuestionDialog(false);
-      setQuestionDialogMode(null);
-      fetchQuestions(selectedQuestionnaire.id);
+      if (!keepOpen) { setShowQuestionDialog(false); setQuestionDialogMode(null); }
+      await fetchQuestions(selectedQuestionnaire.id);
+      return true;
     } catch (err) {
       toast.error('Failed to add question');
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -1502,7 +1503,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} questions={questions} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
     </div></TooltipProvider>
   );
