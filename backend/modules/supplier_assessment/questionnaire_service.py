@@ -141,7 +141,7 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
             {"questionnaire_id": questionnaire_id, "is_active": True},
             {"_id": 0}
         ).sort("order", 1).to_list(500)
-        questionnaire["questions"] = self._ordered_question_hierarchy(questions)
+        questionnaire["questions"] = ordered_question_hierarchy(questions)
     return questionnaire
 
 async def update_questionnaire(
@@ -437,7 +437,7 @@ async def delete_question(self, question_id: str) -> bool:
     return result.modified_count > 0
 
 
-def _ordered_question_hierarchy(self, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def ordered_question_hierarchy(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Return each parent directly followed by its always-visible subquestions."""
     question_ids = {question["id"] for question in questions}
     children_by_parent: Dict[str, List[Dict[str, Any]]] = {}

@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Fixed the Supplier Assessment questionnaire-load regression caused by an unexposed hierarchy helper; no questionnaire data was changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING**.
 - Added independently answerable/scored one-level subquestions to Supplier ESG Questionnaires. Admins can create multiple always-visible follow-ups, while supplier and parent review views preserve the parent-child hierarchy.
 - Added organization-aware annual FY/CY fallback for missing monthly Spend-Based currency, PPP, and inflation values across manual calculation, Bulk Upload, and OCR saves. Exact monthly values retain priority; fallback provenance is labelled.
 - Synced all 30 platform reference catalogs from local MongoDB to staging. Document fingerprints match local, including calculation-engine formula and decision-tree version records; no version fields were rewritten.
