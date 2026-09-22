@@ -484,6 +484,8 @@ async def submit_supplier_ghg_period(
     )
     log_event(logger, logging.INFO, "supplier_assessment.ghg_period.submit.completed", action="supplier_assessment.ghg_period.submit", outcome="succeeded",
               context={"relationship_id": relationship.get("id"), "period_key": period_key, "entry_count": len(entries), "revision": revision})
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.locked", action="supplier_assessment.ghg_period.submit", outcome="locked",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key, "submission_id": submission_id})
     return {key: value for key, value in document.items() if key != "history"}
 
 
@@ -528,6 +530,8 @@ async def unlock_supplier_ghg_period(
     )
     log_event(logger, logging.INFO, "supplier_assessment.ghg_period.unlock.persisted", action="supplier_assessment.ghg_period.unlock", outcome="succeeded",
               context={"relationship_id": relationship.get("id"), "period_key": period_key, "entry_count": len(copies)})
+    log_event(logger, logging.INFO, "supplier_assessment.ghg_period.unlocked", action="supplier_assessment.ghg_period.unlock", outcome="unlocked",
+              context={"relationship_id": relationship.get("id"), "period_key": period_key, "submission_id": submission["id"]})
     return {"id": submission["id"], "period_key": period_key, "status": "unlocked", "entry_count": len(copies), "unlocked_at": now, "unlock_reason": reason, "supplier_instructions": supplier_instructions or None}
 
 
@@ -707,6 +711,8 @@ async def submit_supplier_ghg(
     submission["canonical_score"] = await supplier_service.refresh_supplier_canonical_score(relationship["id"])
     log_event(logger, logging.INFO, "supplier_assessment.ghg.submit.completed", action="supplier_assessment.ghg.submit", outcome="succeeded",
               context={"relationship_id": relationship.get("id"), "entry_count": len(entries), "resubmission": is_reopened})
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.locked", action="supplier_assessment.ghg.submit", outcome="locked",
+              context={"relationship_id": relationship.get("id"), "submission_id": submission["id"]})
     return submission
 
 
@@ -747,6 +753,8 @@ async def reopen_supplier_ghg(relationship: Dict[str, Any], reopened_by: str) ->
         )
     log_event(logger, logging.INFO, "supplier_assessment.ghg.reopen.completed", action="supplier_assessment.ghg.reopen", outcome="succeeded",
               context={"relationship_id": relationship.get("id"), "entry_count": len(copies)})
+    log_event(logger, logging.INFO, "supplier_assessment.ghg.unlocked", action="supplier_assessment.ghg.reopen", outcome="unlocked",
+              context={"relationship_id": relationship.get("id"), "submission_id": source_submission_id, "entry_count": len(copies)})
     return {
         "status": "reopened",
         "source_submission_id": source_submission_id,

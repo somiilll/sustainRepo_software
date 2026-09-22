@@ -1,5 +1,6 @@
 """Focused organization-agreement document flow for Supplier Assessment."""
 import asyncio
+import logging
 import uuid
 import re
 import subprocess
@@ -10,10 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
+from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.sustainability_config import service as sustainability_config_service
 from modules.supplier_assessment.programs import get_or_create_program_revision, resolve_program_context
+
+logger = get_logger(__name__)
 
 
 DOCUMENT_BUCKET_TYPE = "supplier_assessment"
@@ -467,7 +471,9 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
         now = _now()
         await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": "Accepted", "accepted_by": supplier_user_id, "accepted_at": now, "submitted_at": now, "parent_visible": True}})
         await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
-        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        submission = await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.accept", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": existing["id"]})
+        return submission
     if existing:
         return existing
     acceptance = {
@@ -479,6 +485,7 @@ async def accept_supplier_document(relationship: Dict[str, Any], requirement_id:
     }
     await db.supplier_document_submissions.insert_one(acceptance)
     acceptance.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.accept", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": acceptance["id"]})
     return acceptance
 
 
@@ -497,7 +504,9 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
         now = _now()
         await db.supplier_document_submissions.update_one({"id": existing["id"]}, {"$set": {"status": "submitted", "response_value": response_value, "responded_by": supplier_user_id, "responded_at": now, "submitted_at": now, "parent_visible": True}})
         await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": existing["id"]}}, {"$set": {"parent_visible": False}})
-        return await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        submission = await db.supplier_document_submissions.find_one({"id": existing["id"]}, {"_id": 0})
+        log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.respond", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": existing["id"]})
+        return submission
     if existing:
         if existing.get("response_value") == response_value:
             return existing
@@ -506,6 +515,7 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
     response.update({"status": "submitted", "revision": 1, "is_current": True, "parent_visible": True, "submitted_at": response["responded_at"]})
     await db.supplier_document_submissions.insert_one(response)
     response.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.locked", action="supplier_assessment.document.respond", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": response["id"]})
     return response
 
 
@@ -613,6 +623,7 @@ async def reopen_supplier_document(customer_org_id: str, supplier_relationship_i
     draft = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id, "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "status": "reopened", "revision": (latest.get("revision", 1) + 1) if latest else 2, "is_current": True, "parent_visible": False, "reopened_by": reopened_by, "reopened_at": _now()}
     await db.supplier_document_submissions.insert_one(draft)
     draft.pop("_id", None)
+    log_event(logger, logging.INFO, "supplier_assessment.document.unlocked", action="supplier_assessment.document.reopen", outcome="unlocked", context={"supplier_id": supplier_relationship_id, "requirement_id": requirement_id, "submission_id": draft["id"]})
     return draft
 
 

@@ -1,4 +1,5 @@
 """Supplier relationship operations extracted from the compatibility facade."""
+import logging
 import os
 import re
 import uuid
@@ -9,9 +10,12 @@ from modules.supplier_assessment.email_templates import supplier_invitation_emai
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.programs import apply_legacy_request_overrides, bind_current_program, get_or_create_program_revision, resolve_program_context
+from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+
+logger = get_logger(__name__)
 
 # ========================================================================
 # Supplier Management
@@ -261,7 +265,12 @@ async def create_supplier(
     if temp_password:
         subject = f"Welcome! {subject}"
     
-    await send_email(email, subject, email_body)
+    try:
+        invitation_delivered = await send_email(email, subject, email_body)
+        log_event(logger, logging.INFO if invitation_delivered else logging.ERROR, "supplier_assessment.email.invitation.sent" if invitation_delivered else "supplier_assessment.email.invitation.failed", action="supplier_assessment.email.invitation", outcome="succeeded" if invitation_delivered else "failed", error_code=None if invitation_delivered else "INVITATION_EMAIL_DELIVERY_FAILED", context={"relationship_id": relationship_id})
+    except Exception:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.invitation.failed", action="supplier_assessment.email.invitation", outcome="failed", error_code="INVITATION_EMAIL_EXCEPTION", context={"relationship_id": relationship_id}, exc_info=True)
+        raise
     
     return {
         "id": relationship_id,
@@ -452,6 +461,7 @@ async def deactivate_supplier(self, relationship_id: str) -> bool:
                 "supplier_access_revoked_by_relationship_id": relationship_id,
             }},
         )
+        log_event(logger, logging.INFO, "supplier_assessment.supplier.access_locked", action="supplier_assessment.supplier.deactivate", outcome="locked", context={"relationship_id": relationship_id})
     return result.modified_count > 0
 
 async def send_reminder(
@@ -495,12 +505,17 @@ async def send_reminder(
         custom_message=custom_message,
     )
     
-    delivered = await send_email(
-        relationship["contact_email"],
-        f"Reminder: Complete Your Supplier Assessment for {customer_name}",
-        email_body,
-    )
+    try:
+        delivered = await send_email(
+            relationship["contact_email"],
+            f"Reminder: Complete Your Supplier Assessment for {customer_name}",
+            email_body,
+        )
+    except Exception:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.reminder.failed", action="supplier_assessment.email.reminder", outcome="failed", error_code="REMINDER_EMAIL_EXCEPTION", context={"relationship_id": relationship_id, "reporting_period": target_period}, exc_info=True)
+        raise
     if not delivered:
+        log_event(logger, logging.ERROR, "supplier_assessment.email.reminder.failed", action="supplier_assessment.email.reminder", outcome="failed", error_code="REMINDER_EMAIL_DELIVERY_FAILED", context={"relationship_id": relationship_id, "reporting_period": target_period})
         return False
     
     # Update reminder tracking
@@ -510,6 +525,7 @@ async def send_reminder(
             "last_reminder_sent": datetime.now(timezone.utc).isoformat(),
         }, "$inc": {"reminder_count": 1}}
     )
+    log_event(logger, logging.INFO, "supplier_assessment.email.reminder.sent", action="supplier_assessment.email.reminder", outcome="succeeded", context={"relationship_id": relationship_id, "reporting_period": target_period})
     
     return True
 
@@ -709,6 +725,7 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
     submission.pop("_id", None)
     await self.refresh_supplier_canonical_score(relationship_id)
     await self._update_completion_status(relationship_id)
+    log_event(logger, logging.INFO, "supplier_assessment.revenue.locked", action="supplier_assessment.revenue.submit", outcome="locked", context={"relationship_id": relationship_id, "reporting_period": period, "submission_id": submission["id"]})
     return submission
 
 # Keep old method for backwards compatibility

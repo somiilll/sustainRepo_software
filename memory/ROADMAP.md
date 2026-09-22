@@ -70,6 +70,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Expanded Supplier Assessment developer runtime logs: invitation, reminder, assignment, and unlock email delivery now records sent/failed/skipped/deduplicated outcomes; GHG, questionnaire, document, revenue, and access lifecycle changes emit explicit locked/unlocked events. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Removed unreferenced completed staging migration/ingestion utilities. A source review confirms no executable backend, frontend, or utility code retains staging Mongo target variables or the staging database name. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Extended 48 Scope 1 liquid-volume fuel records to allow `L`, `kl`, `ml`, `m3`, `cm3`, preserving mass-unit order/defaults and leaving all 406 fuels without liquid-volume units unchanged. Backup: `/app/.emergent/backups/scope1-fuel-liquid-volume-units-20260921T123302Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Reordered 100 C10/C11/C13/C14 Scope 3 EF factors that already allowed `L` to `L`, `kl`, `ml`, `m3`, `cm3`, preserving each unit set/default and leaving all 64 non-`L` factors untouched. Backup: `/app/.emergent/backups/c10-c11-c13-c14-existing-l-allowed-units-order-20260921T123020Z.json`. **DATABASE CHANGE ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

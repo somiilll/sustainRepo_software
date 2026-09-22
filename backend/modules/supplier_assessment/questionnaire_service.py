@@ -701,6 +701,7 @@ async def submit_supplier_answers(
         score_breakdown = None
     
     if response_doc:
+        response_id = response_doc["id"]
         # Update existing
         update_data = {
             "answers": answers_dict,
@@ -752,11 +753,13 @@ async def submit_supplier_answers(
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.supplier_questionnaire_responses.insert_one(new_doc)
+        response_id = new_doc["id"]
     
     # Update completion status
     canonical_score = None
     if not is_draft:
         canonical_score = await self.refresh_supplier_canonical_score(supplier_relationship_id)
+        log_event(logger, logging.INFO, "supplier_assessment.questionnaire.locked", action="supplier_assessment.questionnaire.submit", outcome="locked", context={"supplier_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "response_id": response_id, "reporting_period": reporting_period})
     await self._update_completion_status(supplier_relationship_id)
     
     return {
@@ -1134,6 +1137,7 @@ async def reopen_questionnaire(
         "reopened_by": reopened_by, "created_at": now, "updated_at": now,
     }
     await db.supplier_questionnaire_responses.insert_one(draft)
+    log_event(logger, logging.INFO, "supplier_assessment.questionnaire.unlocked", action="supplier_assessment.questionnaire.reopen", outcome="unlocked", context={"supplier_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "response_id": draft["id"], "reporting_period": reporting_period})
     return True
 
 async def get_supplier_submission_status(self, supplier_relationship_id: str) -> Dict[str, Any]:
