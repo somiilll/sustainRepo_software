@@ -431,15 +431,33 @@ export default function QuestionnaireBuilder() {
     if (invalidScore) { toast.error('Enter a score from 0 to 100 for every Yes/No or dropdown option.'); return; }
     setSubmitting(true);
     try {
-      for (const [index, question] of draftQuestions.entries()) {
-        const values = question.response_type === 'dropdown' ? question.options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
+      const createdIdsByDraftId = {};
+      const roots = draftQuestions.filter((question) => !question.parent_draft_id);
+      const children = draftQuestions.filter((question) => question.parent_draft_id);
+      const rootOrder = questions.filter((question) => !question.parent_question_id).length;
+      const createLedgerQuestion = async (question, order, parentQuestionId = null) => {
+        const { draft_id, parent_draft_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
+        const values = question.response_type === 'dropdown' ? options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
-        const scoring = question.scoring_rule === 'lower_is_better'
+        const scoring = scoring_rule === 'lower_is_better'
           ? { rule: 'lower_is_better', min: 0, max_acceptable: 100, max_score: 100 }
-          : { ...getDefaultScoringConfig(question.response_type), rule: question.scoring_rule };
+          : { ...getDefaultScoringConfig(question.response_type), rule: scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
         if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
-        await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...question, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order: questions.length + index }, { headers: getAuthHeader() });
+        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
+        return response.data;
+      };
+      for (const [index, question] of roots.entries()) {
+        const created = await createLedgerQuestion(question, rootOrder + index);
+        createdIdsByDraftId[question.draft_id] = created.id;
+      }
+      const childOrderByParent = {};
+      for (const question of children) {
+        const parentQuestionId = createdIdsByDraftId[question.parent_draft_id];
+        if (!parentQuestionId) throw new Error('A follow-up question is missing its parent.');
+        const childOrder = childOrderByParent[question.parent_draft_id] || 0;
+        await createLedgerQuestion(question, childOrder, parentQuestionId);
+        childOrderByParent[question.parent_draft_id] = childOrder + 1;
       }
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       setShowQuestionDialog(false);
@@ -474,20 +492,6 @@ export default function QuestionnaireBuilder() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleCreateSubquestion = async () => {
-    if (!selectedQuestionnaire || !questionForm.parent_question_id) return;
-    if (!questionForm.question_text.trim() || !validateQuestionScoring()) return;
-    setSubmitting(true);
-    try {
-      const siblingCount = questions.filter((question) => question.parent_question_id === questionForm.parent_question_id).length;
-      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, buildQuestionPayload(siblingCount), { headers: getAuthHeader() });
-      toast.success('Subquestion added');
-      handleQuestionDialogOpenChange(false);
-      fetchQuestions(selectedQuestionnaire.id);
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not add subquestion'); }
-    finally { setSubmitting(false); }
   };
 
   const handleDeleteQuestion = async (questionId) => {
@@ -602,18 +606,6 @@ export default function QuestionnaireBuilder() {
       scoring,
     });
     setQuestionDialogMode('edit');
-    setShowQuestionDialog(true);
-  };
-
-  const openAddSubquestion = (parentQuestion) => {
-    setEditingQuestion(null);
-    setQuestionForm({
-      question_text: '', description: '', response_type: 'yes_no', options: [], required: true,
-      evidence_requirement: 'not_required', importance: 'medium', exact_numerical_weight: null,
-      category: parentQuestion.category, question_category: 'policy', order: 0, parent_question_id: parentQuestion.id,
-      scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
-    });
-    setQuestionDialogMode('subquestion');
     setShowQuestionDialog(true);
   };
 
@@ -886,11 +878,11 @@ export default function QuestionnaireBuilder() {
                 }} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
               </div>
               <div className="px-5 py-4" data-testid="question-table">
-                <div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_10rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
+                <div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 border-b border-stone-100 pb-3 text-[11px] font-medium uppercase tracking-wide text-stone-500 md:grid" data-testid="question-table-header"><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Importance</span><span className="text-right">Actions</span></div>
                 {questions.length === 0 ? (
                   <div className="py-14 text-center text-stone-500" data-testid="question-list-empty"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">No questions yet. Add your first question.</p></div>
                 ) : (
-                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} sectionLabel={sections.find((section) => section.value === question.category)?.label || question.category} questionCategoryLabel={questionCategories.find((category) => category.value === question.question_category)?.label || question.question_category || 'Policy'} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onAddSubquestion={() => openAddSubquestion(question)} onDrop={handleQuestionDrop} />)}</div>
+                  <div>{questions.map((question, index) => <QuestionnaireQuestionRow key={question.id} question={question} index={index} sectionLabel={sections.find((section) => section.value === question.category)?.label || question.category} questionCategoryLabel={questionCategories.find((category) => category.value === question.question_category)?.label || question.question_category || 'Policy'} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} />)}</div>
                 )}
                 {questions.length > 1 && <p className="pt-3 text-xs text-stone-400" data-testid="question-reorder-hint">Drag and drop to reorder questions</p>}
               </div>
@@ -1205,10 +1197,10 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog && ['edit', 'subquestion'].includes(questionDialogMode)} onOpenChange={handleQuestionDialogOpenChange}>
+      <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{questionDialogMode === 'subquestion' ? 'Add Subquestion' : editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
+            <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
             <DialogDescription>
               Configure the question, response type, and scoring behavior
             </DialogDescription>
@@ -1257,7 +1249,6 @@ export default function QuestionnaireBuilder() {
                 <Select
                   value={questionForm.category}
                   onValueChange={(v) => setQuestionForm({ ...questionForm, category: v })}
-                  disabled={questionDialogMode === 'subquestion'}
                 >
                   <SelectTrigger data-testid="question-section-select">
                     <SelectValue />
@@ -1553,11 +1544,11 @@ export default function QuestionnaireBuilder() {
               Cancel
             </Button>
             <Button
-              onClick={questionDialogMode === 'subquestion' ? handleCreateSubquestion : handleUpdateQuestion}
+              onClick={handleUpdateQuestion}
               disabled={submitting}
-              data-testid={questionDialogMode === 'subquestion' ? 'save-subquestion-button' : 'save-question-btn'}
+              data-testid="save-question-btn"
             >
-              {submitting ? 'Saving...' : questionDialogMode === 'subquestion' ? 'Add subquestion' : 'Update'}
+              {submitting ? 'Saving...' : 'Update'}
             </Button>
           </DialogFooter>
         </DialogContent>
