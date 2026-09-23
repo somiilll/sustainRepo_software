@@ -895,9 +895,9 @@ export default function OrganizationDetails() {
             </div>
 
             <div className={activeTab === 'ghg' ? 'space-y-4' : 'hidden'}>
-            {/* Purpose of the Report */}
+            {/* Purpose of the GHG Report */}
             <div className="space-y-2">
-              <Label>Purpose of the Report</Label>
+              <Label>Purpose of the GHG Report</Label>
               <textarea 
                 value={formData.report_purpose} 
                 onChange={(e) => setFormData({ ...formData, report_purpose: e.target.value })} 
@@ -1511,14 +1511,14 @@ export default function OrganizationDetails() {
           </div>
 
           <div className={activeTab === 'ghg' ? 'flex flex-col gap-4' : 'hidden'}>
-          {/* === PURPOSE OF REPORT === */}
+          {/* === PURPOSE OF GHG REPORT === */}
           {organization?.report_purpose && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 rounded-lg bg-indigo-50">
                   <FileText className="w-5 h-5 text-indigo-600" />
                 </div>
-                <h3 className="font-semibold text-text-primary">Purpose of the Report</h3>
+                <h3 className="font-semibold text-text-primary">Purpose of the GHG Report</h3>
               </div>
               <p className="text-text-secondary leading-relaxed">{organization.report_purpose}</p>
             </Card>

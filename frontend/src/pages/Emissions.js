@@ -3992,7 +3992,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             );
           })}
         </TabsList>
-        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
+        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="ml-auto h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
           <RotateCcw className="h-3.5 w-3.5" />Reset widths
         </Button>}
         </div>

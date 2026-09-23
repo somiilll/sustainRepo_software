@@ -1709,7 +1709,7 @@ const YearlyDataEntry = ({
     });
   }, [setYearlyData, useCustomFuel, yearlyDensityState.densityUnit, yearlyDensityState.required, yearlyDensityState.visible]);
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label className="text-base font-semibold">
           Annual Data for {reportingYearType === 'financial' 
@@ -1718,7 +1718,7 @@ const YearlyDataEntry = ({
         </Label>
       </div>
 
-      <div className="space-y-5 rounded-lg border border-stone-200 bg-white p-4 sm:p-5">
+      <div className="space-y-4 rounded-lg border border-stone-200 bg-white px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
         {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
         {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
           <FlightDetailsSection

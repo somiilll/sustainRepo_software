@@ -509,12 +509,9 @@ export default function Reports({ showMISFoundation = false }) {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
-                <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Available</span>
               </div>
               <p className="text-sm text-text-secondary mb-4">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
-                Includes organization details, facility information, emissions inventory, and analysis.
-                {hasScope3Access ? ' Supports Scope 1, 2, 3 & Biogenic emissions.' : ' Covers Scope 1, 2 & Biogenic emissions.'}
               </p>
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <DialogTrigger asChild>
@@ -785,8 +782,7 @@ export default function Reports({ showMISFoundation = false }) {
                 <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">AI-Powered</span>
               </div>
               <p className="text-sm text-text-secondary mb-4">
-                Generate an AI-powered executive summary of your emissions data. Perfect for board presentations, 
-                stakeholder reports, and quick insights.
+                Generate an AI-powered executive summary of your emissions data.
               </p>
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>

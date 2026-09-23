@@ -144,7 +144,7 @@ export const ColourfulEmissionSummary = ({ calculation, isCalculating, isScope3L
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs" data-testid="calculated-emissions-rounding-tooltip">
-              Values rounded to 4 decimal places
+              Calculated Emissions are rounded to 2 decimal places
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
