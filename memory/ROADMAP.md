@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Corrected records converted into C7 so Save persists canonical Employee Commuting identity/model metadata and clears incompatible prior-category fields. Existing malformed conversions reopen through a safe C7 identity fallback and self-canonicalize on their next Save. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed C7 Edit category conversion so the generic record-level calculator and quantity validator no longer inspect employee-row fields. C7 continues through its dedicated employee-period calculation and submission validation, eliminating the false **Distance Travelled per Day is required** warning. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Completed the R2 draft-only evidence workflow for Organization Details, Facilities, ESG Records, and Sinks. Files remain local with preview/removal until Save; uploads and stored-file deletions begin only after the primary entity save succeeds, and failed record-link operations clean up newly uploaded objects. Sink evidence cleanup now follows its successful database update. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed the Supplier Assessment questionnaire-load regression caused by an unexposed hierarchy helper; no questionnaire data was changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING**.

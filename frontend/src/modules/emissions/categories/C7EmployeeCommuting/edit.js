@@ -198,6 +198,7 @@ const sanitizeEvidences = (evidences = []) => evidences
  * @param {Object} ctx.editEmployeeMonthlyTotals
  * @param {number} ctx.editEmployeeYearlyTotal
  * @param {Array}  ctx.validProcessNames
+ * @param {string} ctx.categoryId
  * @returns {Object} payload
  */
 export function buildEditPayload(ctx) {
@@ -215,6 +216,7 @@ export function buildEditPayload(ctx) {
     editEmployeeYearlyTotal,
     validProcessNames,
     preserveOriginalVersion,
+    categoryId,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
@@ -248,7 +250,9 @@ export function buildEditPayload(ctx) {
     reporting_period: c7ReportingPeriod,
     frequency_type: editingEmission?.frequency_type || 'monthly',
     scope: 'scope3',
-    category: formData.category,
+    category: 'C7 - Employee Commuting',
+    category_code: 'employee_commuting',
+    category_id: categoryId || null,
     sub_category: useCustomActivity
       ? scope3CustomActivity || ''
       : formData.sub_category || '',
@@ -299,7 +303,9 @@ export function buildEditPayload(ctx) {
     // flat dynamic state contains display primitives and must never be sent as
     // the record-level canonical dictionary. Preserve only existing canonical
     // values for backwards compatibility.
-    dynamic_field_values: preserveCanonicalDynamicValues(editingEmission),
+    dynamic_field_values: preserveOriginalVersion
+      ? preserveCanonicalDynamicValues(editingEmission)
+      : {},
     evidence_url: formData.evidence_url || '',
     supplier_name: formData.supplier_name || '',
     supplier_code: formData.supplier_code || '',

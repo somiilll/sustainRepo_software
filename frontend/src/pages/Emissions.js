@@ -512,7 +512,15 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         scope: formData.scope,
         biogenicScopeSelection,
         categoryName: formData.category || selectedCategory,
-        categoryCode: isOriginalEditSelection ? editingEmission?.category_code || null : null,
+        // Records converted to C7 before canonical category metadata was
+        // persisted can still carry the previous category_code. Prefer C7's
+        // canonical identity when the saved display category is unambiguously
+        // Employee Commuting so those records reopen in the employee-row form.
+        categoryCode: isOriginalEditSelection
+          ? (/^c7\b|employee commuting/i.test(formData.category || selectedCategory || '')
+              ? 'employee_commuting'
+              : editingEmission?.category_code || null)
+          : null,
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
@@ -2651,6 +2659,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
         preserveOriginalVersion: isOriginalEditSelection,
+        categoryId: editGhgFormContext.categoryId,
       });
       const totalCo2e = builtPayload.__totalCo2e;
       // Strip orchestration-only field before sending

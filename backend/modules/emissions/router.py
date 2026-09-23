@@ -8,6 +8,7 @@ V3: Refactored to use unified approval_requests collection for all approval work
 """
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -58,6 +59,58 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 CUSTOM_FUEL_QUANTITY_EF_UNITS = {"kgCO2/L", "kgCO2/kg"}
+C7_CATEGORY_NAME = "C7 - Employee Commuting"
+C7_CATEGORY_CODE = "employee_commuting"
+C7_MONTH_KEYS = (
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+)
+C7_INCOMPATIBLE_RECORD_FIELDS = (
+    "fuel_type",
+    "fuel_database_id",
+    "is_custom_fuel",
+    "custom_fuel_name",
+    "calculation_methodology",
+    "process_type",
+    "biogenic_scope_selection",
+    "scope3_subcategory",
+    "type_of_product",
+    "quantity",
+    "quantity_unit",
+    "unit",
+    "co2_emissions",
+    "ch4_emissions",
+    "n2o_emissions",
+)
+
+
+def _is_c7_employee_commuting(record_data: EmissionRecordCreate) -> bool:
+    identity = f"{record_data.category_code or ''} {record_data.category or ''}".lower()
+    return record_data.scope == "scope3" and bool(
+        re.search(r"(^|\s)c7\b|employee[_\s-]*commuting", identity)
+    )
+
+
+def _canonicalize_c7_update(payload: dict, record_data: EmissionRecordCreate) -> dict:
+    """Apply the same identity metadata used by dedicated C7 create routes."""
+    normalized = dict(payload)
+    normalized.update({
+        "scope": "scope3",
+        "category": C7_CATEGORY_NAME,
+        "category_code": C7_CATEGORY_CODE,
+        "c7_data_model_version": 2,
+        "activity_type": record_data.scope3_activity_type,
+    })
+    if record_data.frequency_type == "monthly":
+        match = re.match(r"^(\d{4})-(\d{2})$", record_data.reporting_period or "")
+        if match:
+            year, month = int(match.group(1)), int(match.group(2))
+            normalized["reporting_year"] = year
+            if 1 <= month <= 12:
+                normalized["reporting_month"] = C7_MONTH_KEYS[month - 1]
+    elif record_data.frequency_type == "yearly":
+        normalized["reporting_year"] = record_data.reporting_period
+    return normalized
 
 
 def _process_input_entry(dynamic_values: dict, predicate) -> tuple[Optional[str], Optional[dict]]:
@@ -1316,6 +1369,11 @@ async def update_emission_record(
     except CalculationVersionError as error:
         raise HTTPException(status_code=409, detail=str(error))
 
+    is_c7_employee_commuting = _is_c7_employee_commuting(record_data)
+    if is_c7_employee_commuting:
+        versioned_record_data = _canonicalize_c7_update(versioned_record_data, record_data)
+        versioned_update_data = _canonicalize_c7_update(versioned_update_data, record_data)
+
     await assert_ghg_scope_access(
         existing.get("organization_id"),
         existing.get("scope"),
@@ -1478,10 +1536,9 @@ async def update_emission_record(
         if scope3_activity:
             update_dict["sub_category"] = scope3_activity
     
-    # C7 Employee Commuting stores employee-derived CO2e totals only. Do not
-    # manufacture Scope 1/2 gas-breakdown zeroes when its specialised edit
-    # payload is saved through this shared endpoint.
-    is_c7_employee_commuting = existing.get("category") == "C7 - Employee Commuting"
+    # C7 Employee Commuting stores employee-derived CO2e totals only. Identify
+    # it from the incoming category so conversions into and away from C7 are
+    # handled according to the new record shape, not the previous category.
 
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
@@ -1495,6 +1552,11 @@ async def update_emission_record(
             c7_total = existing.get("co2e_emissions", existing.get("total_emissions", 0))
         update_dict["co2e_emissions"] = c7_total or 0
         update_dict["total_emissions"] = c7_total or 0
+        if record_data.frequency_type == "monthly":
+            update_dict["monthly_total"] = {
+                "co2e": c7_total or 0,
+                "employee_count": len(record_data.employees or []),
+            }
         for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
             update_dict.pop(gas_field, None)
     else:
@@ -1572,8 +1634,16 @@ async def update_emission_record(
     }
     await db.emission_history.insert_one(history_dict)
 
-    # Update the record directly in emission_records
-    await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": update_dict})
+    # Update the record directly in emission_records. A conversion into C7 must
+    # not retain flat-input or gas-breakdown fields from the prior category.
+    update_operation = {"$set": update_dict}
+    if is_c7_employee_commuting:
+        update_operation["$unset"] = {
+            field: ""
+            for field in C7_INCOMPATIBLE_RECORD_FIELDS
+            if field in existing and field not in update_dict
+        }
+    await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
 
     try:

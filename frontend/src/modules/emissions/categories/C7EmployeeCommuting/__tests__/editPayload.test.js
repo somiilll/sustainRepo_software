@@ -28,6 +28,8 @@ const buildContext = (editingEmission) => ({
   editEmployeeMonthlyTotals: { apr: { co2e: 0.05844132 } },
   editEmployeeYearlyTotal: null,
   validProcessNames: [],
+  preserveOriginalVersion: true,
+  categoryId: 'category-c7',
 });
 
 describe('C7 edit payload', () => {
@@ -59,5 +61,23 @@ describe('C7 edit payload', () => {
     expect(payload.dynamic_field_values).toEqual({
       legacy_distance: { value: 21, unit: 'km' },
     });
+  });
+
+  test('writes canonical C7 identity and clears prior-category dynamic values on conversion', () => {
+    const payload = buildEditPayload({
+      ...buildContext({
+        frequency_type: 'monthly',
+        category_code: 'waste_generated_in_operations',
+        dynamic_field_values: {
+          qty: { value: 50, unit: 'kg' },
+        },
+      }),
+      preserveOriginalVersion: false,
+    });
+
+    expect(payload.category).toBe('C7 - Employee Commuting');
+    expect(payload.category_code).toBe('employee_commuting');
+    expect(payload.category_id).toBe('category-c7');
+    expect(payload.dynamic_field_values).toEqual({});
   });
 });
