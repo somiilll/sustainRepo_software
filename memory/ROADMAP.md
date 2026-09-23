@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Fixed direct OCR Save to use the same first-configured input fallback as Edit after an unambiguous factor match, removing the unnecessary Edit round-trip for valid rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected Excel invoice payload handling: stopped generating `ROW-###`, and defensively strips legacy generated placeholders before OCR-to-GHG saves and final provenance generation. Genuine invoice numbers remain untouched. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR defaults and scroll presentation: missing currency now defaults to INR, generated Excel row IDs become blank editable Invoice number fields, and only the neutral custom ledger scrollbar is visible. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR ledger overflow with an explicit column-width content rail, ensuring the GHG-style scrollbar appears whenever required; selected-only OCR actions again appear only after selecting rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

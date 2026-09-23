@@ -302,7 +302,7 @@ def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> s
         aliases = option.get("unit_aliases", {}).get(allowed_value, [allowed_value])
         if any(normalize_option(alias) == normalize_option(raw_value) for alias in aliases):
             return allowed_value
-    return ""
+    return allowed_values[0] if allowed_values else ""
 
 
 async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> tuple[dict, dict]:
