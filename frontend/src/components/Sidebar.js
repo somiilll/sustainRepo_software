@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { ChevronDown, ChevronRight, Lock, LogOut, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
@@ -113,7 +113,7 @@ function MenuItem(props) {
           Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
           React.createElement('span', null, item.label)
         ),
-        React.createElement('span', { className: 'flex items-center gap-1.5' }, lockedForOrganisation ? React.createElement(Lock, { className: 'h-3.5 w-3.5', 'data-testid': 'sidebar-locked-' + item.key }) : null, isOpen ? React.createElement(ChevronDown, { className: 'h-3.5 w-3.5' }) : React.createElement(ChevronRight, { className: 'h-3.5 w-3.5' }))
+        isOpen ? React.createElement(ChevronDown, { className: 'h-3.5 w-3.5' }) : React.createElement(ChevronRight, { className: 'h-3.5 w-3.5' })
       ),
       isOpen ? React.createElement('div', { className: 'mt-0.5 space-y-0.5' },
         item.children.map(function(child) {
@@ -134,8 +134,7 @@ function MenuItem(props) {
     'data-testid': 'sidebar-' + item.key,
   },
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
-    React.createElement('span', null, item.label),
-    lockedForOrganisation ? React.createElement(Lock, { className: 'ml-auto h-3.5 w-3.5 shrink-0', 'data-testid': 'sidebar-locked-' + item.key }) : null
+    React.createElement('span', null, item.label)
   );
   return linkContent;
 }

@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { getNavigationModuleForPath } from '../config/moduleNavigationAccess';
 import { ModuleUnavailableState } from './ModuleUnavailableState';
-import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
+import { AlertTriangle, Menu, X } from 'lucide-react';
 import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
 import { ContactSalesDialog } from './ContactSalesDialog';
 
@@ -34,36 +34,6 @@ const SUPPLIER_MODULE_ROUTES = [
   { path: '/supplier-assessment/documents/review', module: 'documents' },
   { path: '/supplier-assessment/training', module: 'training' },
 ];
-
-// Locked overlay for supplier users - Full screen coverage
-const SupplierLockedOverlay = ({ children, onContactSales }) => (
-  <div className="fixed inset-0 z-50 lg:left-64 left-0"> {/* Account for sidebar width on large screens */}
-    {/* Blurred background for sneak peek */}
-    <div className="absolute inset-0 overflow-hidden">
-      <div className="filter blur-sm opacity-30 pointer-events-none select-none h-full overflow-auto p-4">
-        {children}
-      </div>
-    </div>
-    
-    {/* Lock overlay - full screen */}
-    <div className="absolute inset-0 bg-gradient-to-b from-white/90 via-white/80 to-white/90 backdrop-blur-[3px] flex items-center justify-center">
-      <div className="text-center p-8 max-w-md mx-4">
-        <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-5">
-          <Lock className="w-10 h-10 text-emerald-600" />
-        </div>
-        <h3 className="text-xl font-semibold text-stone-800 mb-3">
-          {SUPPLIER_PREMIUM_TOOLTIP.title}
-        </h3>
-        <p className="text-stone-500 text-sm mb-6 leading-relaxed">
-          {SUPPLIER_PREMIUM_TOOLTIP.description}
-        </p>
-        <button onClick={onContactSales} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm" data-testid="contact-sales-button">
-          Contact Sales
-        </button>
-      </div>
-    </div>
-  </div>
-);
 
 export default function Layout() {
   const { user, token, getAuthHeader } = useAuth();
@@ -201,11 +171,11 @@ export default function Layout() {
             {isDisabledSupplierModuleRoute ? (
               <Navigate to="/supplier-assessment/supplier" replace />
             ) : isSupplier && (isExplicitlyLockedSupplierRoute || isUnassignedSupplierGhgPremiumRoute || !isAllowedRoute) ? (
-              <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
+              <ModuleUnavailableState title={SUPPLIER_PREMIUM_TOOLTIP.title} description={SUPPLIER_PREMIUM_TOOLTIP.description} onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
-              </SupplierLockedOverlay>
+              </ModuleUnavailableState>
             ) : isOrganisationModuleUnavailable ? (
-              <ModuleUnavailableState moduleName={activeNavigationModule.label} />
+              <ModuleUnavailableState moduleName={activeNavigationModule.label} description={`${activeNavigationModule.label} is not enabled for your organisation. Contact your organisation administrator to request access.`} onContactSales={() => setContactSalesOpen(true)}><Outlet /></ModuleUnavailableState>
             ) : (
               <Outlet />
             )}
