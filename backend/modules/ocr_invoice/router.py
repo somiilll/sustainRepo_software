@@ -53,6 +53,7 @@ OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-ha
 OCR_UPLOADS_COLLECTION = "ocr_uploads"
 OCR_LINE_ITEMS_COLLECTION = "ocr_line_items"
 SPREADSHEET_EXTENSIONS = {".csv", ".xls", ".xlsx"}
+GENERATED_SPREADSHEET_ROW_PATTERN = re.compile(r"^row[-_\s]?\d+$", re.IGNORECASE)
 
 
 # ============================================================================
@@ -136,11 +137,26 @@ def _is_spreadsheet_ocr_item(item: dict) -> bool:
     return os.path.splitext(str(item.get("filename") or ""))[1].lower() in SPREADSHEET_EXTENSIONS
 
 
+def _is_generated_spreadsheet_row_identifier(value: object) -> bool:
+    return bool(GENERATED_SPREADSHEET_ROW_PATTERN.fullmatch(str(value or "").strip()))
+
+
+def _without_generated_spreadsheet_row_identifier(item: dict, values: dict) -> dict:
+    sanitized = dict(values)
+    if _is_spreadsheet_ocr_item(item) and _is_generated_spreadsheet_row_identifier(sanitized.get("invoice_number")):
+        sanitized["invoice_number"] = ""
+    return sanitized
+
+
 def _ocr_record_metadata(item: dict, values: dict) -> dict:
     """Build OCR provenance and Scope 1-only extracted context notes."""
     original_values = item.get("original_values") or {}
 
     def field(name: str) -> str:
+        if name == "invoice_number" and _is_spreadsheet_ocr_item(item):
+            candidate = values.get(name)
+            if not candidate or _is_generated_spreadsheet_row_identifier(candidate):
+                return ""
         return str(values.get(name) or original_values.get(name) or "").strip()
 
     note_parts = []
@@ -1749,7 +1765,10 @@ async def save_line_item_to_ghg(
         raise HTTPException(status_code=404, detail="Line item not found")
     if item.get("status") == "imported":
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
-    values = canonicalize_calculation_units(item.get("current_values") or {})
+    values = _without_generated_spreadsheet_row_identifier(
+        item,
+        canonicalize_calculation_units(item.get("current_values") or {})
+    )
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
         raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
     if not OCR_SAVE_SCOPE_RULES.get(values["scope"], {}).get("enabled"):
@@ -1828,6 +1847,7 @@ async def save_line_item_to_ghg(
             "current_values.naics_label": values.get("naics_label"),
             "current_values.unit": values.get("unit"),
             "current_values.currency": values.get("currency"),
+            "current_values.invoice_number": values.get("invoice_number"),
             "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
             "current_values.calculation_methodology": resolved_decisions.get("calculation_methodology"),
             "current_values.calculation_method_scope3": resolved_scope3_method,
