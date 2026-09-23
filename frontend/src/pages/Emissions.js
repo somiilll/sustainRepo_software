@@ -1017,44 +1017,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     populateDynamicFields();
   }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
-  // C5 selectors display the first allowed Scope 3 EF unit. Persist that same
-  // default in the local draft so calculation preview and the visible selector
-  // never resolve different units before the user makes a unit change.
-  useEffect(() => {
-    const category = selectedCategory || formData.category || '';
-    if (!dialogOpen || !/^c5\b/i.test(category) || !scope3ActivityId || dynamicInputFields.length === 0) return;
-
-    const matchedActivity = scope3EFData.find((activity) => activity.id === scope3ActivityId);
-    if (!matchedActivity) return;
-
-    setDynamicFieldValues((currentValues) => {
-      const nextValues = { ...currentValues };
-      let changed = false;
-
-      dynamicInputFields.forEach((field) => {
-        if (field.unitSource !== 'scope3_ef' || currentValues[`${field.variable}_unit`]) return;
-        const displayDefaultUnit = matchedActivity.allowed_units?.[0]
-          || field.allowedUnits?.[0]
-          || field.expectedUnit
-          || matchedActivity.default_unit
-          || '';
-        if (!displayDefaultUnit) return;
-        nextValues[`${field.variable}_unit`] = displayDefaultUnit;
-        changed = true;
-      });
-
-      return changed ? nextValues : currentValues;
-    });
-  }, [
-    dialogOpen,
-    selectedCategory,
-    formData.category,
-    scope3ActivityId,
-    scope3EFData,
-    dynamicInputFields,
-    setDynamicFieldValues,
-  ]);
-
   // Check if two unit strings match using centralized unit aliases
   // E1: Pure unit-matching utility (delegates to shared util)
   const unitsMatch = (unit1, unit2) => unitsMatchShared(unit1, unit2, centralizedUnits);
@@ -1935,6 +1897,67 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     return fuelDatabase.find(f => f.id === formData.fuel_id);
   }, [formData.fuel_id, fuelDatabase]);
 
+  // Persist the same default unit that every visible dynamic selector uses.
+  // This keeps all Scope 1–3 calculation previews and later Save payloads in
+  // sync before a user manually changes a unit.
+  useEffect(() => {
+    if (!dialogOpen || dynamicInputFields.length === 0) return;
+
+    const isScope3Like = formData.scope === 'scope3'
+      || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+    const matchedScope3Activity = scope3ActivityId
+      ? filteredScope3Activities.find((activity) => activity.id === scope3ActivityId)
+      : null;
+
+    setDynamicFieldValues((currentValues) => {
+      const nextValues = { ...currentValues };
+      let changed = false;
+
+      dynamicInputFields.forEach((field) => {
+        const unitKey = `${field.variable}_unit`;
+        if (field.unitSource === 'none' || field.variable?.endsWith('_unit') || currentValues[unitKey]) return;
+
+        let visibleUnits = [];
+        if (field.unitSource === 'fuel') {
+          const factorForUnit = isScope3Like && requiresSubcategory && !selectedFuel
+            ? matchedScope3Activity
+            : selectedFuel;
+          visibleUnits = factorForUnit?.allowed_units || [];
+        } else if (field.unitSource === 'all_units') {
+          visibleUnits = centralizedUnits.map((unit) => unit.symbol);
+        } else if (field.unitSource === 'scope3_ef') {
+          visibleUnits = matchedScope3Activity?.allowed_units?.length > 0
+            ? matchedScope3Activity.allowed_units
+            : field.allowedUnits?.length > 0
+              ? field.allowedUnits
+              : [field.expectedUnit].filter(Boolean);
+        } else {
+          visibleUnits = field.allowedUnits?.length > 0
+            ? field.allowedUnits
+            : [field.expectedUnit].filter(Boolean);
+        }
+
+        const displayDefaultUnit = visibleUnits[0] || field.expectedUnit || '';
+        if (!displayDefaultUnit) return;
+        nextValues[unitKey] = displayDefaultUnit;
+        changed = true;
+      });
+
+      return changed ? nextValues : currentValues;
+    });
+  }, [
+    dialogOpen,
+    formData.scope,
+    biogenicScopeSelection,
+    dynamicInputFields,
+    scope3ActivityId,
+    filteredScope3Activities,
+    selectedFuel,
+    requiresSubcategory,
+    centralizedUnits,
+    setDynamicFieldValues,
+  ]);
+
   // E5: Dead-code block removed (getParameterValueDynamic, getParameterValue,
   // findFormulaForScope, executeFormula) — these were never called from production
   // paths after migration to backend calc engine. Saved ~304 lines.
@@ -2176,8 +2199,10 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           // Match the selector's default priority: the first allowed Scope 3 EF
           // unit is what users see before making an explicit choice.
           baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
+        } else if (field.unitSource === 'all_units') {
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || centralizedUnits[0]?.symbol || field.expectedUnit || '';
         } else {
-          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.allowedUnits?.[0] || field.expectedUnit || '';
         }
         
         // Apply compound suffix if field has compoundWithVariable
