@@ -92,11 +92,10 @@ export default function PremiumKpiCard({
           )}
         </div>
         
-        <div className="flex shrink-0 items-start gap-3">
-          {secondaryLabel && <div className="-mt-0.5 text-right"><div className="flex items-center justify-end gap-1.5 text-sm font-medium text-stone-600" data-testid={`${secondaryTestId}-label`}><span>{secondaryLabel}</span><UserRound className="h-4 w-4 text-violet-600" aria-hidden="true" /></div><div className="mt-2 flex items-center justify-end gap-2"><span className={`h-3 w-3 rounded-full ${secondaryStatusDotClass}`} data-testid={`${secondaryTestId}-status`} /><p className="text-xl font-bold text-stone-900 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div></div>}
-          {trend !== 'flat' && <TrendArrow trend={trend} color={trendArrowColor} />}
-        </div>
+        {trend !== 'flat' && <TrendArrow trend={trend} color={trendArrowColor} />}
       </div>
+
+      {secondaryLabel && <div className="absolute right-5 top-[3.75rem] text-right"><div className="flex items-center justify-end gap-1.5 text-sm font-medium text-stone-600" data-testid={`${secondaryTestId}-label`}><span>{secondaryLabel}</span><UserRound className="h-4 w-4 text-violet-600" aria-hidden="true" /></div><div className="mt-2 flex items-center justify-end gap-2"><span className={`h-3 w-3 rounded-full ${secondaryStatusDotClass}`} data-testid={`${secondaryTestId}-status`} /><p className="text-xl font-bold text-stone-900 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div></div>}
 
       {targetValue != null && (
         <div className="flex items-center gap-2 text-xs mt-3">
