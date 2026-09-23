@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
@@ -494,11 +494,12 @@ export default function Facilities() {
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
+            <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto p-0">
+              <DialogHeader className="border-b border-stone-200 px-7 py-6">
+                <DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
+                <p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6 px-7 py-6">
                 {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
                 {!editingFacility && organization && !isSupplier && (
                   <div className="p-4 border border-green-200 rounded-lg bg-green-50">
@@ -539,7 +540,9 @@ export default function Facilities() {
                 ) : (
                   /* Full form for non-suppliers */
                   <>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_21rem]">
+                  <div className="min-w-0 space-y-7">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
@@ -946,15 +949,21 @@ export default function Facilities() {
                   />
                 </div>
 
-                {/* Production Quantity Section - Only show when editing existing facility */}
-                {(editingFacility || autoSavedId) && (
-                  <FacilityProductionSection 
-                    facilityId={editingFacility?.id || autoSavedId}
-                    facilityName={formData.name}
-                    readOnly={subscriptionExpired}
-                    yearType={organization?.reporting_year_type || 'financial_year'}
-                  />
-                )}
+                  </div>
+                  <aside className="sticky top-0" data-testid="facility-production-panel">
+                    {(editingFacility || autoSavedId) ? (
+                      <FacilityProductionSection 
+                        facilityId={editingFacility?.id || autoSavedId}
+                        facilityName={formData.name}
+                        readOnly={subscriptionExpired}
+                        yearType={organization?.reporting_year_type || 'financial_year'}
+                        defaultExpanded
+                      />
+                    ) : (
+                      <div className="border border-stone-200 bg-stone-50/60 p-5 text-center"><div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="mt-2 text-xs leading-5 text-stone-500">Save the facility first to record its annual production quantity.</p></div>
+                    )}
+                  </aside>
+                </div>
                   </>
                 )}
 

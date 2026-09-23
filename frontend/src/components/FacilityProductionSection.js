@@ -23,10 +23,11 @@ export default function FacilityProductionSection({
   facilityName, 
   readOnly = false,
   yearType = 'financial_year',  // Organization's reporting year type
-  framework = null              // Optional framework override (e.g., 'BRSR' forces FY)
+  framework = null,             // Optional framework override (e.g., 'BRSR' forces FY)
+  defaultExpanded = false
 }) {
   const { getAuthHeader, subscriptionExpired } = useAuth();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
