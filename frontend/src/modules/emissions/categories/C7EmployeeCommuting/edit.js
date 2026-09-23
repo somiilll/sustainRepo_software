@@ -214,6 +214,7 @@ export function buildEditPayload(ctx) {
     editEmployeeMonthlyTotals,
     editEmployeeYearlyTotal,
     validProcessNames,
+    preserveOriginalVersion,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
@@ -259,7 +260,7 @@ export function buildEditPayload(ctx) {
     use_custom_activity: useCustomActivity,
     formula_id: extractedFormulaId,
     formula_version_id: extractedFormulaVersionId,
-    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
+    decision_tree_version_id: preserveOriginalVersion ? editingEmission?.decision_tree_version_id || null : null,
 
     employees: editEmployees.map((emp) => {
       const baseEmployee = {

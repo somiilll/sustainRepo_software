@@ -18,8 +18,10 @@ export function useEmissionsCalculator(getAuthHeader) {
   const [isCalculatingNetwork, setIsCalculatingNetwork] = useState(false);
   const [calculationError, setCalculationError] = useState('');
   const calcTriggerRef = useRef(null);
+  const requestRevisionRef = useRef(0);
 
   const calculate = (payload, debounceMs = 400) => {
+    const requestRevision = ++requestRevisionRef.current;
     // Clear previous timeout
     if (calcTriggerRef.current) {
       clearTimeout(calcTriggerRef.current);
@@ -36,6 +38,7 @@ export function useEmissionsCalculator(getAuthHeader) {
           payload,
           { headers: getAuthHeader() }
         );
+        if (requestRevision !== requestRevisionRef.current) return;
 
         if (response.data?.ok) {
           const outputs = response.data.outputs || {};
@@ -59,17 +62,21 @@ export function useEmissionsCalculator(getAuthHeader) {
           setCalculationError('Calculation unavailable. Please review the entered data and try again.');
         }
       } catch (error) {
+        if (requestRevision !== requestRevisionRef.current) return;
         console.error('[CalcEngine] Backend calculation error:', error);
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
         setCalculationError(getUserFriendlyError(error, "We couldn't complete this calculation. Please review the entered data and try again."));
       } finally {
-        setIsCalculatingNetwork(false);
+        if (requestRevision === requestRevisionRef.current) {
+          setIsCalculatingNetwork(false);
+        }
       }
     }, debounceMs);
   };
 
-  const clearResult = () => {
+  const clearResult = useCallback(() => {
+    requestRevisionRef.current += 1;
     if (calcTriggerRef.current) {
       clearTimeout(calcTriggerRef.current);
     }
@@ -77,7 +84,7 @@ export function useEmissionsCalculator(getAuthHeader) {
     setCalcEngineUsed(false);
     setIsCalculatingNetwork(false);
     setCalculationError('');
-  };
+  }, []);
 
   // Cleanup timeout on unmount
   useEffect(() => {

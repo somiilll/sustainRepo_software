@@ -203,6 +203,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
+  const [hasChangedCalculationSelection, setHasChangedCalculationSelection] = useState(false);
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
@@ -435,21 +436,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       try {
         // Include method and activity in the request for better formula matching
         const configParams = new URLSearchParams({ scope: editContext.effectiveScope });
-        const isOriginalSelection = matchesOriginalEditSelection({
-          emission: editingEmission,
-          scope: formData.scope,
-          category: formData.category,
-          biogenicScopeSelection,
-          scope3Method,
-          scope3ActivityType,
-          scope3ActivityId,
-        });
-        if (isOriginalSelection && editingEmission?.decision_tree_version_id) {
-          configParams.set('decision_tree_version_id', editingEmission.decision_tree_version_id);
-        }
-        if (isOriginalSelection && editingEmission?.formula_version_id) {
-          configParams.set('formula_version_id', editingEmission.formula_version_id);
-        }
         let url = `${API}/calc-engine/form-config/${editContext.categoryId}?${configParams.toString()}`;
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
@@ -470,7 +456,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     return () => {
       cancelled = true;
     };
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission, hasChangedCalculationSelection]);
   
   // ============================================================================
   // EDIT FIELD DERIVATION
@@ -491,7 +477,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     [editCalcMethodology, editProcessType, editDraft.allocationMethod],
   );
 
-  const isOriginalEditSelection = useMemo(() => matchesOriginalEditSelection({
+  const isOriginalEditSelection = useMemo(() => !hasChangedCalculationSelection && matchesOriginalEditSelection({
     emission: editingEmission,
     scope: formData.scope,
     category: formData.category,
@@ -507,6 +493,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     scope3Method,
     scope3ActivityType,
     scope3ActivityId,
+    hasChangedCalculationSelection,
   ]);
 
   const editGhgFormContext = useMemo(
@@ -1947,6 +1934,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [clearCalcResult, setBackendCalcResult]);
 
   const handleCategorySelect = useCallback((category) => {
+    setHasChangedCalculationSelection(true);
     setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
       scope: currentDraft.values.scope,
       category,
@@ -1960,6 +1948,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [resetEditCalculationPreview]);
 
   const handleEditScopeChange = useCallback((scope) => {
+    setHasChangedCalculationSelection(true);
     setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, { scope }));
     setActivitySearchTerm('');
     resetEditCalculationPreview();
@@ -1967,6 +1956,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [resetEditCalculationPreview]);
 
   const handleEditBiogenicScopeChange = useCallback((biogenicScopeSelection) => {
+    setHasChangedCalculationSelection(true);
     setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
       scope: 'biogenic',
       biogenicScopeSelection,
@@ -1977,11 +1967,26 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   }, [resetEditCalculationPreview]);
 
   const handleEditScope3MethodChange = useCallback((scope3Method) => {
+    setHasChangedCalculationSelection(true);
     setEditDraft((currentDraft) => resetEmissionDraftForScope3MethodChange(currentDraft, scope3Method));
     setActivitySearchTerm('');
     resetEditCalculationPreview();
     setIsFormDirty(true);
   }, [resetEditCalculationPreview]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingEmission?.id) return;
+    clearCalcResult();
+    setBackendCalcResult(null);
+    setLiveCalculationValidationError('');
+  }, [
+    dialogOpen,
+    editingEmission?.id,
+    formData.scope,
+    formData.category,
+    clearCalcResult,
+    setBackendCalcResult,
+  ]);
 
   const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
     setEditDraft((currentDraft) => ({
@@ -2283,12 +2288,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         },
         user_overrides: userOverrides,
         dry_run: true,
-        ...(editingEmission?.decision_tree_version_id && {
-          decision_tree_version_id: editingEmission.decision_tree_version_id,
-        }),
-        ...(editingEmission?.formula_version_id && {
-          formula_version_id: editingEmission.formula_version_id,
-        }),
         // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
         ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
       };
@@ -2327,8 +2326,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       gwpConfig: gwpConfig,
       dryRun: true,
       calculationMethodology: editCalcMethodology,
-      decisionTreeVersionId: editingEmission?.decision_tree_version_id || null,
-      formulaVersionId: editingEmission?.formula_version_id || null,
+      decisionTreeVersionId: null,
+      formulaVersionId: null,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);
@@ -2352,7 +2351,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection, editDraft.allocationMethod,
-    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel,
+    isOriginalEditSelection,
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2457,6 +2457,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editCustomFuelName,
       editCalcMethodology,
       editingEmission,
+      preserveOriginalVersion: isOriginalEditSelection,
       getAuthHeader,
     });
     
@@ -2507,6 +2508,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editEmployeeMonthlyTotals: calculation.monthlyTotals,
         editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
+        preserveOriginalVersion: isOriginalEditSelection,
       });
       const totalCo2e = builtPayload.__totalCo2e;
       // Strip orchestration-only field before sending
@@ -2608,6 +2610,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           dynamicInputFields,
           dynamicFieldValues,
           effectiveCalculatedEmissions,
+          preserveOriginalVersion: isOriginalEditSelection,
           selectedFuel,
           filteredScope3Activities,
           centralizedUnits,
@@ -2659,6 +2662,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
   const handleEdit = (emission) => {
     setLiveCalculationValidationError('');
+    clearCalcResult();
+    setBackendCalcResult(null);
+    setHasChangedCalculationSelection(false);
     return editEmissionDispatchShared(emission, {
       // State reads
       scope3EFData, fugitiveEmissionsData, fuelDatabase,
@@ -2802,6 +2808,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setEditFormConfig(null); // Clear form config
     setUploadedEvidence(null);
     setLiveCalculationValidationError('');
+    clearCalcResult();
+    setBackendCalcResult(null);
   };
 
   const openCreateDialog = () => {
@@ -3001,12 +3009,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           use_custom_activity: useCustomActivity,
         },
         scope3_ef_id: matchedActivity?.id || null,
-        ...(editingEmission?.decision_tree_version_id && {
-          decision_tree_version_id: editingEmission.decision_tree_version_id,
-        }),
-        ...(editingEmission?.formula_version_id && {
-          formula_version_id: editingEmission.formula_version_id,
-        }),
       };
 
       // Call calc engine
@@ -3203,12 +3205,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 use_custom_activity: useCustomActivity,
               },
               scope3_ef_id: matchedActivity?.id || null,
-              ...(editingEmission?.decision_tree_version_id && {
-                decision_tree_version_id: editingEmission.decision_tree_version_id,
-              }),
-              ...(editingEmission?.formula_version_id && {
-                formula_version_id: editingEmission.formula_version_id,
-              }),
             }, { headers: getAuthHeader() });
           } catch (error) {
             const detail = error.response?.data?.detail;

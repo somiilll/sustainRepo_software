@@ -293,6 +293,7 @@ export function buildEditPayload(ctx) {
     biogenicScopeSelection,
     filteredScope3Activities,
     effectiveCalculatedEmissions,
+    preserveOriginalVersion,
   } = ctx;
 
   const isBiogenicScope3Save = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -326,11 +327,12 @@ export function buildEditPayload(ctx) {
     fuel_type: formData.fuel_type,
     fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
 
-    formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
-    formula_version_id: editingEmission?.formula_version_id
-      ? (effectiveCalculatedEmissions?.formulaVersionId || editingEmission.formula_version_id)
-      : null,
-    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
+    formula_id: effectiveCalculatedEmissions?.formulaId
+      || (preserveOriginalVersion ? editingEmission?.formula_id : null),
+    formula_version_id: effectiveCalculatedEmissions?.formulaVersionId
+      || (preserveOriginalVersion ? editingEmission?.formula_version_id : null),
+    decision_tree_version_id: effectiveCalculatedEmissions?.decisionTreeVersionId
+      || (preserveOriginalVersion ? editingEmission?.decision_tree_version_id : null),
 
     ...(formData.scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,

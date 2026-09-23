@@ -726,7 +726,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 req.decision_tree_version_id,
             )
         except CalculationVersionError as error:
-            raise HTTPException(status_code=409, detail=str(error))
+            if req.dry_run:
+                # Edit previews must always follow the newly selected category.
+                # A stale browser request can still carry a historical version
+                # from the original record; never let that block an unsaved
+                # scope/category/method transition.
+                tree = await get_decision_tree_for_execution(db, req.category_id)
+            else:
+                raise HTTPException(status_code=409, detail=str(error))
         formula_id = None
         tree_path = []
         
