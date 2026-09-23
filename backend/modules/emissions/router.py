@@ -82,6 +82,17 @@ C7_INCOMPATIBLE_RECORD_FIELDS = (
     "ch4_emissions",
     "n2o_emissions",
 )
+SCOPE3_SELECTION_FIELDS = (
+    "calculation_method_scope3",
+    "spend_currency_conversion_method",
+    "scope3_ef_id",
+    "scope3_activity_id",
+    "scope3_activity",
+    "scope3_activity_type",
+    "scope3_subcategory",
+    "type_of_product",
+)
+SCOPE3_SELECTION_DYNAMIC_FIELDS = frozenset((*SCOPE3_SELECTION_FIELDS, "use_custom_activity"))
 
 
 def _is_c7_employee_commuting(record_data: EmissionRecordCreate) -> bool:
@@ -89,6 +100,26 @@ def _is_c7_employee_commuting(record_data: EmissionRecordCreate) -> bool:
     return record_data.scope == "scope3" and bool(
         re.search(r"(^|\s)c7\b|employee[_\s-]*commuting", identity)
     )
+
+
+def _uses_scope3_selection(scope: Optional[str], biogenic_scope_selection: Optional[str]) -> bool:
+    return scope == "scope3" or (
+        scope == "biogenic" and biogenic_scope_selection == "scope3"
+    )
+
+
+def _without_scope3_selection_fields(record: dict) -> dict:
+    sanitized = dict(record)
+    for field in SCOPE3_SELECTION_FIELDS:
+        sanitized.pop(field, None)
+    dynamic_values = sanitized.get("dynamic_field_values")
+    if isinstance(dynamic_values, dict):
+        sanitized["dynamic_field_values"] = {
+            key: value
+            for key, value in dynamic_values.items()
+            if key not in SCOPE3_SELECTION_DYNAMIC_FIELDS
+        }
+    return sanitized
 
 
 def _canonicalize_c7_update(payload: dict, record_data: EmissionRecordCreate) -> dict:
@@ -1518,7 +1549,15 @@ async def update_emission_record(
             detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
         )
     
-    update_dict = versioned_update_data
+    clear_scope3_selection = not _uses_scope3_selection(
+        record_data.scope,
+        record_data.biogenic_scope_selection,
+    )
+    update_dict = (
+        _without_scope3_selection_fields(versioned_update_data)
+        if clear_scope3_selection
+        else versioned_update_data
+    )
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
     removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
@@ -1567,7 +1606,11 @@ async def update_emission_record(
         update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
-    history_new_values = dict(versioned_record_data)
+    history_new_values = (
+        _without_scope3_selection_fields(versioned_record_data)
+        if clear_scope3_selection
+        else dict(versioned_record_data)
+    )
     if is_c7_employee_commuting:
         for gas_field in ("co2_emissions", "ch4_emissions", "n2o_emissions"):
             history_new_values.pop(gas_field, None)
@@ -1637,12 +1680,17 @@ async def update_emission_record(
     # Update the record directly in emission_records. A conversion into C7 must
     # not retain flat-input or gas-breakdown fields from the prior category.
     update_operation = {"$set": update_dict}
-    if is_c7_employee_commuting:
+    if clear_scope3_selection:
         update_operation["$unset"] = {
+            field: ""
+            for field in SCOPE3_SELECTION_FIELDS
+        }
+    if is_c7_employee_commuting:
+        update_operation.setdefault("$unset", {}).update({
             field: ""
             for field in C7_INCOMPATIBLE_RECORD_FIELDS
             if field in existing and field not in update_dict
-        }
+        })
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
 
