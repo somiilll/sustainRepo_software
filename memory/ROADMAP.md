@@ -74,6 +74,8 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Aligned OCR horizontal scrolling with GHG’s overflow-gated draggable scrollbar and wheel behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Refined OCR Scope 3 cost display and edit defaults: zero/missing costs render as `—`, edit currency defaults to INR through factor selection, and reporting periods display date-only values. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined OCR review operations: kept the horizontal scrollbar visible, moved bulk Save/Reject controls into the filter row, styled Clear workspace as a primary action, and hid generated `row-###` invoice placeholders in edit dialogs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Enforced compact label-to-input stacks for every yearly-field variant, including Quantity Used, and lifted input rows 12px to remove residual blank space without changing annual data or calculations. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Repaired malformed OCR ledger JSX that triggered the application error boundary after successful OCR processing. OCR upload data and extracted rows were not changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

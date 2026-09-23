@@ -63,10 +63,16 @@ const daysTravelledValue = (values) => isBusinessTravel(values) ? inputValue(val
 const roomsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_room', values.rooms, '') : '—';
 const nightsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_nights', values.nights, '') : '—';
 
-const costValue = (values) => hasValue(values.cost)
-  ? `${values.currency ? `${values.currency} ` : ''}${values.cost}`
-  : '—';
-const reportingPeriodDateValue = (values) => values.billing_period_text || values.reporting_period || values.date;
+const costValue = (values) => {
+  const cost = Number(values.cost);
+  if (values.scope === 'scope3' && (!hasValue(values.cost) || !Number.isFinite(cost) || cost === 0)) return '—';
+  return hasValue(values.cost) ? `${values.currency ? `${values.currency} ` : ''}${values.cost}` : '—';
+};
+const reportingPeriodDateValue = (values) => {
+  const raw = values.billing_period_text || values.reporting_period || values.date;
+  if (!hasValue(raw)) return raw;
+  return String(raw).replace(/(?:T|\s)\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/, '');
+};
 
 const OCR_LEDGER_DEFAULT_WIDTHS = {
   select: 48,
@@ -314,6 +320,15 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
     const bounds = event.currentTarget.getBoundingClientRect();
     setLedgerScrollFromThumbPosition(event.clientX - bounds.left - scrollbarThumbWidth / 2);
   };
+  const handleLedgerWheel = (event) => {
+    if (!event.deltaX) return;
+    const ledger = ledgerScrollRef.current;
+    if (!ledger) return;
+    const nextScrollLeft = Math.max(0, Math.min(maxHorizontalScroll, ledger.scrollLeft + event.deltaX));
+    if (nextScrollLeft === ledger.scrollLeft) return;
+    event.preventDefault();
+    ledger.scrollLeft = nextScrollLeft;
+  };
   const invoiceGroups = useMemo(() => Object.values(items.reduce((groups, item) => {
     const invoice = item.current_values?.invoice_number || 'Unnumbered invoice';
     groups[invoice] = groups[invoice] || { invoice, items: [] };
@@ -402,7 +417,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       )}
 
       <div className="hidden overflow-hidden border border-slate-200 bg-white lg:block" data-testid="ocr-review-desktop-table">
-        <div ref={ledgerScrollRef} className="overflow-x-auto" data-testid="ocr-review-ledger-scroll-region">
+        <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="overflow-x-auto" data-testid="ocr-review-ledger-scroll-region">
         <Table className="table-fixed" style={{ width: Math.max(totalColumnWidth, ledgerMetrics.viewportWidth) }}>
           <colgroup>{visibleColumnKeys.map((columnKey) => <col key={columnKey} style={{ width: effectiveColumnWidths[columnKey] }} />)}</colgroup>
           <TableHeader className="bg-slate-50 [&_th]:text-center">
@@ -472,11 +487,11 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           </TableBody>
         </Table>
         </div>
-        <div className="border-t border-slate-200 bg-slate-50 px-4 py-1.5" data-testid="ocr-review-ledger-bottom-scrollbar">
-          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-slate-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll OCR ledger columns horizontally" aria-disabled={!hasHorizontalOverflow} aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerMetrics.scrollLeft)} data-testid="ocr-review-ledger-bottom-scrollbar-track">
+        {hasHorizontalOverflow && <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="ocr-review-ledger-bottom-scrollbar">
+          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll OCR ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerMetrics.scrollLeft)} data-testid="ocr-review-ledger-bottom-scrollbar-track">
             <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-slate-400 transition-colors hover:bg-slate-500 active:bg-slate-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll OCR ledger columns horizontally" data-testid="ocr-review-ledger-bottom-scrollbar-thumb" />
           </div>
-        </div>
+        </div>}
       </div>
 
       <div className="grid gap-2 lg:hidden" data-testid="ocr-review-mobile-list">

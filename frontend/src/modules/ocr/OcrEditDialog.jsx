@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { deriveGhgFields } from '../ghg/config/deriveGhgFields';
 import { getOcrFactorOptions, getOcrFormConfig } from './ocrApi';
 
-const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
+const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', currency: 'INR', reporting_period: '', remember_override: false };
 const taxonomyMatchValue = (value) => String(value || '').replace(/\s*\((?:non_renewable|renewable|landfill|recycling|composting|combustion)\)\s*$/i, '');
 const normalize = (value) => taxonomyMatchValue(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 const words = (value) => {
@@ -127,6 +127,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
+        currency: current.currency || 'INR',
         facility_id: current.facility_id || matchingFacility?.id || '',
         reporting_period: reportingPeriodFromDate(current.reporting_period)
           || reportingPeriodFromDate(current.billing_period_start)
@@ -212,7 +213,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
             scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
-            ...(isSpendMethod ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+            ...(isSpendMethod ? { currency: matchedInput || values.currency || 'INR' } : { unit: matchedInput || '' }),
           };
           setValues(nextValues);
           const automaticMatchKey = `${item?.id}:${factorFacilityId}:${selected.id}`;
@@ -243,7 +244,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             return {
               ...current,
               factor_id: '', fuel_id: '', scope3_ef_id: '', subcategory: '', fuel_name: '', ef_lookup_key: '', ef_database: '',
-              ...(current.scope === 'scope3' && current.ef_method === 'spend' ? { currency: '' } : { unit: '' }),
+              ...(current.scope === 'scope3' && current.ef_method === 'spend' ? { currency: current.currency || 'INR' } : { unit: '' }),
             };
           }
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
@@ -261,7 +262,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
-            ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+            ...(isSpend ? { currency: matchedInput || current.currency || 'INR' } : { unit: matchedInput || '' }),
           };
           const automaticMatchKey = automaticFactor ? `${item?.id}:${factorFacilityId}:${automaticFactor.id}` : '';
           if (automaticFactor && onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
@@ -332,7 +333,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
       scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: matchedInput || current.currency || 'INR' } : { unit: matchedInput || '' }),
     }));
   };
 
@@ -353,7 +354,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
       scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: matchedInput || values.currency || 'INR' } : { unit: matchedInput || '' }),
     };
     const automaticMatchKey = `${item?.id}:${factorFacilityId}:${factor.id}`;
     automaticMatchRef.current = automaticMatchKey;
