@@ -794,7 +794,7 @@ export default function OCRInvoice() {
         iconClassName="border-teal-200 bg-teal-50 text-teal-700"
         testId="ocr-invoice"
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
-          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-teal-200 bg-teal-50 text-teal-950 hover:bg-teal-100" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
+          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
             <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
@@ -823,7 +823,6 @@ export default function OCRInvoice() {
             <aside className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="ocr-source-heading" className="text-sm font-semibold text-slate-900">Source documents</h2>
-                <Button type="button" size="icon" variant="ghost" onClick={clearUpload} aria-label="Start another extraction" data-testid="ocr-start-new-button"><RefreshCw className="h-4 w-4" /></Button>
               </div>
               <div className="flex flex-wrap gap-3" data-testid="ocr-source-file-list">
                 <button type="button" onClick={() => { setSelectedFile(null); setSelectedItem(null); }} aria-pressed={!selectedFile} className={`flex w-full min-w-0 items-center gap-3 border px-3 py-3 text-left transition-colors sm:w-[12rem] ${!selectedFile ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`} data-testid="ocr-source-file-select-all">

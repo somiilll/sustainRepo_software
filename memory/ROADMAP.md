@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Aligned OCR’s primary actions with Bulk Upload’s primary color; removed its duplicate refresh-style clear control and redundant bulk-bar Select all checkbox, keeping the ledger header selector. Removed remaining fixed label-height reserves from yearly optional/override inputs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Removed the Reports-page AI-Powered badge and eliminated the fixed yearly-input label height that created a large gap above Quantity Used. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined GHG yearly-entry spacing and reporting labels: changed Organization wording to **Purpose of the GHG Report**, removed the GHG report Available badge, and clarified calculated-emissions rounding. Status is now sortable in the GHG ledger, while Reset widths sits on the far right of the scope controls. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined OCR Extraction surfaces and the desktop review ledger: History/Upload Files/Download template now have a distinct light-teal surface, while the ledger supports horizontal scrolling, per-column resize persistence, keyboard scrollbar control, and Reset widths. Mobile remains unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

@@ -381,12 +381,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-y border-slate-200 py-3 xl:flex-row xl:items-center xl:justify-between" data-testid="ocr-bulk-actions-bar">
-        <div className="flex flex-wrap items-center gap-3">
-          <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all rows shown" data-testid="ocr-select-all-visible-checkbox" />
-          <label className="text-sm font-medium text-slate-800" data-testid="ocr-select-all-visible-label">Select all</label>
-          {selectedRows.length > 0 && <span className="text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-2 border-y border-slate-200 py-3" data-testid="ocr-bulk-actions-bar">
+          {selectedRows.length > 0 && <span className="mr-auto text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
         <div className="flex flex-wrap items-center gap-2" data-testid="ocr-bulk-action-buttons">
           {selectedRows.length > 0 && <>
             <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
@@ -394,7 +390,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           </>}
           <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
           <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
-        </div>
+      </div>
       </div>
 
       {!hideInvoiceTabs && invoiceGroups.length > 1 && (

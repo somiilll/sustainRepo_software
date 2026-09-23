@@ -1938,7 +1938,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
+                      <div className="mb-1 flex flex-wrap items-start justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -2097,7 +2097,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
+                      <div className="mb-1 flex flex-wrap items-start justify-center gap-2 text-center">
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label} {densityState?.required && <span className="text-red-500">*</span>}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
