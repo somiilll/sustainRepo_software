@@ -67,11 +67,12 @@ export default function PremiumKpiCard({
           {loading ? (
             <div className="h-9 w-28 bg-stone-100 rounded animate-pulse" />
           ) : (
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="text-3xl font-bold text-stone-900 tabular-nums tracking-tight">
                 <AnimatedNumber value={displayValue || 0} decimals={displayValue >= 100 ? 0 : 2} />
               </span>
               <span className="text-sm text-stone-500 font-medium">{displayUnit}</span>
+              {secondaryLabel && <span className="ml-1 inline-flex items-baseline gap-1 border-l border-stone-200 pl-3 text-sm"><span className="text-stone-500">{secondaryLabel}</span><span className="font-semibold text-stone-800 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? Number(secondaryValue).toLocaleString() : '—'} {secondaryUnit}</span></span>}
             </div>
           )}
           
@@ -108,14 +109,6 @@ export default function PremiumKpiCard({
         </div>
       )}
 
-      {secondaryLabel && (
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-100 pt-3 text-xs">
-          <span className="text-stone-500">{secondaryLabel}</span>
-          <span className="font-semibold text-stone-800 tabular-nums" data-testid={secondaryTestId}>
-            {secondaryValue != null ? Number(secondaryValue).toLocaleString() : '—'} {secondaryUnit}
-          </span>
-        </div>
-      )}
     </Card>
   );
 }
