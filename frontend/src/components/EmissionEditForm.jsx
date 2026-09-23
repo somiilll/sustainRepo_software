@@ -382,12 +382,10 @@ export default function EmissionEditForm(props) {
   // employee data). Lifted verbatim from the legacy inline IIFE in
   // pages/Emissions.js.
   // ─────────────────────────────────────────────────────────────────────
-  // For C7, check that employees are populated with valid data
-  const isC7DataReady =
-    !isEditC7EmployeeCommuting || (editEmployees.length > 0 && editEmployees[0]?.id);
-
-  // Show loading if explicitly loading OR if C7 data isn't ready yet
-  if (isEditLoading || !isC7DataReady) {
+  // `isEditLoading` represents only real record hydration. An empty employee
+  // list is a valid local C7 draft after converting another category, where
+  // MultiEmployeeInput provides the Add Employee action.
+  if (isEditLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
