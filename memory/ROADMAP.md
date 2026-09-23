@@ -74,6 +74,8 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Corrected OCR ledger overflow with an explicit column-width content rail, ensuring the GHG-style scrollbar appears whenever required; selected-only OCR actions again appear only after selecting rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
+- Simplified the OCR review toolbar: removed All rows and fixed the action-first order of Save/Reject Selected, Save/Reject All, Search, and Scope. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Aligned OCR horizontal scrolling with GHG’s overflow-gated draggable scrollbar and wheel behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined OCR Scope 3 cost display and edit defaults: zero/missing costs render as `—`, edit currency defaults to INR through factor selection, and reporting periods display date-only values. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined OCR review operations: kept the horizontal scrollbar visible, moved bulk Save/Reject controls into the filter row, styled Clear workspace as a primary action, and hid generated `row-###` invoice placeholders in edit dialogs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
