@@ -1017,6 +1017,44 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     populateDynamicFields();
   }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
+  // C5 selectors display the first allowed Scope 3 EF unit. Persist that same
+  // default in the local draft so calculation preview and the visible selector
+  // never resolve different units before the user makes a unit change.
+  useEffect(() => {
+    const category = selectedCategory || formData.category || '';
+    if (!dialogOpen || !/^c5\b/i.test(category) || !scope3ActivityId || dynamicInputFields.length === 0) return;
+
+    const matchedActivity = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    if (!matchedActivity) return;
+
+    setDynamicFieldValues((currentValues) => {
+      const nextValues = { ...currentValues };
+      let changed = false;
+
+      dynamicInputFields.forEach((field) => {
+        if (field.unitSource !== 'scope3_ef' || currentValues[`${field.variable}_unit`]) return;
+        const displayDefaultUnit = matchedActivity.allowed_units?.[0]
+          || field.allowedUnits?.[0]
+          || field.expectedUnit
+          || matchedActivity.default_unit
+          || '';
+        if (!displayDefaultUnit) return;
+        nextValues[`${field.variable}_unit`] = displayDefaultUnit;
+        changed = true;
+      });
+
+      return changed ? nextValues : currentValues;
+    });
+  }, [
+    dialogOpen,
+    selectedCategory,
+    formData.category,
+    scope3ActivityId,
+    filteredScope3Activities,
+    dynamicInputFields,
+    setDynamicFieldValues,
+  ]);
+
   // Check if two unit strings match using centralized unit aliases
   // E1: Pure unit-matching utility (delegates to shared util)
   const unitsMatch = (unit1, unit2) => unitsMatchShared(unit1, unit2, centralizedUnits);
@@ -2135,8 +2173,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             baseUnit = dynamicFieldValues[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
           }
         } else if (field.unitSource === 'scope3_ef') {
-          // For scope3_ef: use dynamicFieldValues unit, or fallback to matched activity's default/allowed units
-          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.default_unit || matchedActivityForEdit?.allowed_units?.[0] || field.expectedUnit || 'kg';
+          // Match the selector's default priority: the first allowed Scope 3 EF
+          // unit is what users see before making an explicit choice.
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
         } else {
           baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
         }
