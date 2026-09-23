@@ -31,6 +31,10 @@ import {
   getStandardActivityTypeLabel,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../../../../config/standardGhgFormConfig';
+import {
+  getWasteDisposalCategoryKey,
+  resolveWasteActivityFactors,
+} from '../../../../config/wasteActivityTaxonomy';
 
 const escapeOptionHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -160,35 +164,50 @@ export const Step1BasicSelection = ({
   });
   const CategoryIcon = getCategoryIcon(category);
   const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
-  const isC5Category = scope === 'scope3' && /^c5\b/i.test(category || '');
-  const [c5BaseActivity, setC5BaseActivity] = useState('');
-  const c5CatalogActivities = useMemo(() => scope3EFData.filter((activity) => (
-    isC5Category
-    && activity.category === category
-    && activity.method === scope3Method
-    && activity.sub_scope !== 'biogenic'
-  )), [category, isC5Category, scope3EFData, scope3Method]);
-  const c5ActivityOptions = useMemo(() => {
-    if (!isC5Category) return [];
+  const wasteCategoryKey = scope === 'scope3'
+    ? getWasteDisposalCategoryKey(category)
+    : null;
+  const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
+  const [wasteBaseActivity, setWasteBaseActivity] = useState('');
+  const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
+    scope3EFData.filter((activity) => (
+      usesWasteDisposalTaxonomy
+      && activity.category === category
+      && activity.method === scope3Method
+      && activity.sub_scope !== 'biogenic'
+    )),
+  ), [category, scope3EFData, scope3Method, usesWasteDisposalTaxonomy]);
+  const wasteActivityOptions = useMemo(() => {
+    if (!usesWasteDisposalTaxonomy) return [];
     const byName = new Map();
-    c5CatalogActivities.forEach((activity) => {
-      const name = activity.activity_name || activity.activity;
+    wasteCatalogActivities.forEach((activity) => {
+      const name = activity.activity_name;
+      if (!name) return;
       if (!byName.has(name)) byName.set(name, activity);
     });
     return Array.from(byName.values());
-  }, [c5CatalogActivities, isC5Category]);
+  }, [usesWasteDisposalTaxonomy, wasteCatalogActivities]);
   useEffect(() => {
-    if (!isC5Category || !scope3ActivityId) return;
-    const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
-    if (selected) setC5BaseActivity(selected.activity_name || selected.activity);
-  }, [c5CatalogActivities, isC5Category, scope3ActivityId]);
-  const c5SelectedActivityName = c5BaseActivity;
-  const c5ActivityTypes = useMemo(() => Array.from(new Set(
-    c5CatalogActivities
-      .filter((activity) => (activity.activity_name || activity.activity) === c5SelectedActivityName)
+    if (!usesWasteDisposalTaxonomy) {
+      setWasteBaseActivity('');
+      return;
+    }
+    const selected = wasteCatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) {
+      setWasteBaseActivity(selected.activity_name);
+      if (selected.activity_type !== 'other' && scope3ActivityType !== selected.activity_type) {
+        setScope3ActivityType(selected.activity_type);
+      }
+    } else if (!wasteActivityOptions.some((activity) => activity.activity_name === wasteBaseActivity)) {
+      setWasteBaseActivity('');
+    }
+  }, [scope3ActivityId, scope3ActivityType, setScope3ActivityType, usesWasteDisposalTaxonomy, wasteActivityOptions, wasteBaseActivity, wasteCatalogActivities]);
+  const wasteActivityTypes = useMemo(() => Array.from(new Set(
+    wasteCatalogActivities
+      .filter((activity) => activity.activity_name === wasteBaseActivity)
       .map((activity) => activity.activity_type)
       .filter((type) => type && type !== 'other'),
-  )), [c5CatalogActivities, c5SelectedActivityName]);
+  )), [wasteBaseActivity, wasteCatalogActivities]);
   const isC8AllocationApplicable = isC8Category
     && ['activity_basis', 'supplier_basis'].includes(scope3Method);
   const usesDirectFuelLayout = scope === 'scope1'
@@ -636,8 +655,8 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
-          {/* Activity Type Filter (only for C6/C7) */}
-          {scope3Method && !isC5Category && availableScope3ActivityTypes.length > 0 && (
+          {/* Generic Activity Type filter; C5/C12 use Activity-first disposal taxonomy below. */}
+          {scope3Method && !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && (
             <div className="min-w-0 space-y-2">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
@@ -738,13 +757,13 @@ export const Step1BasicSelection = ({
               ) : (
                 <div className="mt-2 min-w-0">
                   <SearchableSelect
-                    value={isC5Category ? c5BaseActivity : scope3ActivityId}
-                    options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: isC5Category ? (activity.activity_name || activity.activity) : activity.id, label: activity.activity_name || activity.activity }))}
+                    value={usesWasteDisposalTaxonomy ? wasteBaseActivity : scope3ActivityId}
+                    options={(usesWasteDisposalTaxonomy ? wasteActivityOptions : filteredScope3Activities).map((activity) => ({ value: usesWasteDisposalTaxonomy ? activity.activity_name : activity.id, label: activity.activity_name || activity.activity }))}
                     onValueChange={(value) => {
-                      if (isC5Category) {
-                        setC5BaseActivity(value);
+                      if (usesWasteDisposalTaxonomy) {
+                        setWasteBaseActivity(value);
                         setScope3ActivityType('');
-                        const matches = c5CatalogActivities.filter((activity) => (activity.activity_name || activity.activity) === value);
+                        const matches = wasteCatalogActivities.filter((activity) => activity.activity_name === value);
                         const untyped = matches.find((activity) => activity.activity_type === 'other');
                         setScope3ActivityId(untyped?.id || '');
                       } else {
@@ -753,7 +772,7 @@ export const Step1BasicSelection = ({
                       setFuelSearchTerm('');
                     }}
                     placeholder={
-                      !isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                      !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
                         ? 'Select activity type first'
                         : requiresSubcategory && !scope3Subcategory
                           ? 'Select sub-category first'
@@ -762,7 +781,7 @@ export const Step1BasicSelection = ({
                             : 'Search or select activity'
                     }
                     searchPlaceholder="Search activities..."
-                    disabled={(!isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
+                    disabled={(!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
                     testId="scope3-activity-select"
                     menuAlign="end"
                     menuClassName="max-w-[calc(100vw-2rem)]"
@@ -778,25 +797,26 @@ export const Step1BasicSelection = ({
             </div>
           )}
 
-          {scope3Method && isC5Category && c5BaseActivity && c5ActivityTypes.length > 0 && (
-            <div className="min-w-0 space-y-2" data-testid="c5-activity-type-section">
-              <Label>Activity Type <span className="text-red-500">*</span></Label>
+          {scope3Method && usesWasteDisposalTaxonomy && wasteBaseActivity && wasteActivityTypes.length > 0 && (
+            <div className="min-w-0 space-y-2" data-testid={`${wasteCategoryKey}-activity-type-section`}>
+              <Label htmlFor={`${wasteCategoryKey}-activity-type-select`}>Activity Type <span className="text-red-500">*</span></Label>
               <select
+                id={`${wasteCategoryKey}-activity-type-select`}
                 value={scope3ActivityType}
                 onChange={(e) => {
                   const nextType = e.target.value;
-                  const matching = c5CatalogActivities.find((activity) => (
-                    (activity.activity_name || activity.activity) === c5BaseActivity
+                  const matching = wasteCatalogActivities.find((activity) => (
+                    activity.activity_name === wasteBaseActivity
                     && activity.activity_type === nextType
                   ));
                   setScope3ActivityType(nextType);
                   setScope3ActivityId(matching?.id || '');
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                data-testid="c5-activity-type-select"
+                data-testid={`${wasteCategoryKey}-activity-type-select`}
               >
                 <option value="">Select activity type...</option>
-                {c5ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                {wasteActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
               </select>
             </div>
           )}

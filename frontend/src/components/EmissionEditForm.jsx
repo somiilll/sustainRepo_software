@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { SearchableSelect } from './ui/searchable-select';
@@ -24,6 +24,10 @@ import {
   GHG_FIELD_OPTION_KEYS,
   STANDARD_TYPE_OF_PRODUCT_OPTIONS,
 } from '../modules/ghg/config/standardGhgFormConfig';
+import {
+  getWasteDisposalCategoryKey,
+  resolveWasteActivityFactors,
+} from '../modules/ghg/config/wasteActivityTaxonomy';
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
@@ -250,29 +254,46 @@ export default function EmissionEditForm(props) {
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
-  const isC5Category = selectedCategory?.code === 'waste_generated_in_operations'
-    || /^c5\b/i.test(selectedCategory?.code || selectedCategory?.name || formData.category || '');
-  const [c5BaseActivity, setC5BaseActivity] = useState('');
-  const c5CatalogActivities = scope3EFData.filter((activity) => (
-    isC5Category
-    && activity.category === (formData.category || selectedCategory?.name)
-    && activity.method === scope3Method
-    && activity.sub_scope !== 'biogenic'
-  ));
-  const c5ActivityOptions = isC5Category
-    ? Array.from(new Map(c5CatalogActivities.map((activity) => [activity.activity_name || activity.activity, activity])).values())
-    : [];
+  const selectedCategoryName = formData.category || selectedCategory?.name;
+  const wasteCategoryKey = formData.scope === 'scope3'
+    ? getWasteDisposalCategoryKey(selectedCategory?.code, selectedCategory?.name, formData.category)
+    : null;
+  const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
+  const [wasteBaseActivity, setWasteBaseActivity] = useState('');
+  const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
+    scope3EFData.filter((activity) => (
+      usesWasteDisposalTaxonomy
+      && activity.category === selectedCategoryName
+      && activity.method === scope3Method
+      && activity.sub_scope !== 'biogenic'
+    )),
+  ), [scope3EFData, scope3Method, selectedCategoryName, usesWasteDisposalTaxonomy]);
+  const wasteActivityOptions = useMemo(() => (
+    usesWasteDisposalTaxonomy
+      ? Array.from(new Map(wasteCatalogActivities.map((activity) => [activity.activity_name, activity])).values())
+      : []
+  ), [usesWasteDisposalTaxonomy, wasteCatalogActivities]);
   useEffect(() => {
-    if (!isC5Category || !scope3ActivityId) return;
-    const selected = c5CatalogActivities.find((activity) => activity.id === scope3ActivityId);
-    if (selected) setC5BaseActivity(selected.activity_name || selected.activity);
-  }, [c5CatalogActivities, isC5Category, scope3ActivityId]);
-  const c5ActivityTypes = Array.from(new Set(
-    c5CatalogActivities
-      .filter((activity) => (activity.activity_name || activity.activity) === c5BaseActivity)
+    if (!usesWasteDisposalTaxonomy) {
+      setWasteBaseActivity('');
+      return;
+    }
+    const selected = wasteCatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) {
+      setWasteBaseActivity(selected.activity_name);
+      if (selected.activity_type !== 'other' && scope3ActivityType !== selected.activity_type) {
+        setDraftField('scope3ActivityType', selected.activity_type);
+      }
+    } else if (!wasteActivityOptions.some((activity) => activity.activity_name === wasteBaseActivity)) {
+      setWasteBaseActivity('');
+    }
+  }, [scope3ActivityId, scope3ActivityType, setDraftField, usesWasteDisposalTaxonomy, wasteActivityOptions, wasteBaseActivity, wasteCatalogActivities]);
+  const wasteActivityTypes = useMemo(() => Array.from(new Set(
+    wasteCatalogActivities
+      .filter((activity) => activity.activity_name === wasteBaseActivity)
       .map((activity) => activity.activity_type)
       .filter((type) => type && type !== 'other'),
-  ));
+  )), [wasteBaseActivity, wasteCatalogActivities]);
   const useCustomActivity = draft.useCustomActivity;
   const typeOfProduct = draft.typeOfProduct;
   const editCalcMethodology = draft.calculationMethodology;
@@ -561,7 +582,7 @@ export default function EmissionEditForm(props) {
                                 </select>
                               </div>
                             )}
-                            {!isC5Category && availableScope3ActivityTypes.length > 0 && (
+                            {!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && (
                               <div className="space-y-1.5" data-testid="scope3-activity-type-section">
                                 <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
                                 <div className="relative">
@@ -757,7 +778,7 @@ export default function EmissionEditForm(props) {
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className={isC5Category ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={isC5Category ? 'edit-c5-activity-row' : undefined}>
+                          <div className={usesWasteDisposalTaxonomy ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={usesWasteDisposalTaxonomy ? `edit-${wasteCategoryKey}-activity-row` : undefined}>
                           <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
                             <Label htmlFor="scope3_activity_select">Activity *</Label>
                             {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
@@ -799,13 +820,13 @@ export default function EmissionEditForm(props) {
                             ) : (
                               <div className="mt-1.5 min-w-0">
                                 <SearchableSelect
-                                  value={isC5Category ? c5BaseActivity : scope3ActivityId}
-                                  options={(isC5Category ? c5ActivityOptions : filteredScope3Activities).map((activity) => ({ value: isC5Category ? (activity.activity_name || activity.activity) : activity.id, label: activity.activity_name || activity.activity }))}
+                                  value={usesWasteDisposalTaxonomy ? wasteBaseActivity : scope3ActivityId}
+                                  options={(usesWasteDisposalTaxonomy ? wasteActivityOptions : filteredScope3Activities).map((activity) => ({ value: usesWasteDisposalTaxonomy ? activity.activity_name : activity.id, label: activity.activity_name || activity.activity }))}
                                   onValueChange={(value) => {
-                                    if (isC5Category) {
-                                      setC5BaseActivity(value);
+                                    if (usesWasteDisposalTaxonomy) {
+                                      setWasteBaseActivity(value);
                                       setScope3ActivityType('');
-                                      const matches = c5CatalogActivities.filter((activity) => (activity.activity_name || activity.activity) === value);
+                                      const matches = wasteCatalogActivities.filter((activity) => activity.activity_name === value);
                                       const untyped = matches.find((activity) => activity.activity_type === 'other');
                                       setScope3ActivityId(untyped?.id || '');
                                     } else {
@@ -817,14 +838,14 @@ export default function EmissionEditForm(props) {
                                   placeholder={
                                     !scope3Method
                                       ? 'Select method first'
-                                      : !isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                      : !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
                                         ? 'Select activity type first'
                                         : requiresSubcategory && !scope3Subcategory
                                           ? 'Select subcategory first'
                                           : 'Search or select activity'
                                   }
                                   searchPlaceholder="Search activities..."
-                                  disabled={!scope3Method || (!isC5Category && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  disabled={!scope3Method || (!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                                   testId="scope3-activity-select"
                                   menuAlign="end"
                                   menuClassName="max-w-[calc(100vw-2rem)]"
@@ -839,16 +860,16 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
-                          {isC5Category && c5BaseActivity && c5ActivityTypes.length > 0 && (
-                            <div className="space-y-1.5" data-testid="edit-c5-activity-type-section">
-                              <Label htmlFor="edit-c5-activity-type-select">Activity Type *</Label>
+                          {usesWasteDisposalTaxonomy && wasteBaseActivity && wasteActivityTypes.length > 0 && (
+                            <div className="space-y-1.5" data-testid={`edit-${wasteCategoryKey}-activity-type-section`}>
+                              <Label htmlFor={`edit-${wasteCategoryKey}-activity-type-select`}>Activity Type *</Label>
                               <select
-                                id="edit-c5-activity-type-select"
+                                id={`edit-${wasteCategoryKey}-activity-type-select`}
                                 value={scope3ActivityType}
                                 onChange={(e) => {
                                   const nextType = e.target.value;
-                                  const matching = c5CatalogActivities.find((activity) => (
-                                    (activity.activity_name || activity.activity) === c5BaseActivity
+                                  const matching = wasteCatalogActivities.find((activity) => (
+                                    activity.activity_name === wasteBaseActivity
                                     && activity.activity_type === nextType
                                   ));
                                   setScope3ActivityType(nextType);
@@ -857,10 +878,10 @@ export default function EmissionEditForm(props) {
                                 }}
                                 required
                                 className={editSelectClass}
-                                data-testid="edit-c5-activity-type-select"
+                                data-testid={`edit-${wasteCategoryKey}-activity-type-select`}
                               >
                                 <option value="">Select activity type...</option>
-                                {c5ActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                                {wasteActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
                               </select>
                             </div>
                           )}
