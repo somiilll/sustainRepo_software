@@ -1024,7 +1024,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     const category = selectedCategory || formData.category || '';
     if (!dialogOpen || !/^c5\b/i.test(category) || !scope3ActivityId || dynamicInputFields.length === 0) return;
 
-    const matchedActivity = filteredScope3Activities.find((activity) => activity.id === scope3ActivityId);
+    const matchedActivity = scope3EFData.find((activity) => activity.id === scope3ActivityId);
     if (!matchedActivity) return;
 
     setDynamicFieldValues((currentValues) => {
@@ -1050,7 +1050,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     selectedCategory,
     formData.category,
     scope3ActivityId,
-    filteredScope3Activities,
+    scope3EFData,
     dynamicInputFields,
     setDynamicFieldValues,
   ]);
