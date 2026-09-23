@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Corrected OCR mismatch highlighting so a valid factor stays unhighlighted and only the incompatible Unit/Currency input receives the required/error treatment. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR mismatch UX: matching factors remain selected while only the incompatible Unit/Currency value is cleared; allowed values are shown and Save stays blocked pending an explicit compatible selection. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Replaced OCR’s unsafe factor-unit fallback with explicit source-unit validation: direct Save and Edit auto-matching now show the selected factor’s allowed units and never substitute an incompatible extracted unit. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed direct OCR Save to use the same first-configured input fallback as Edit after an unambiguous factor match, removing the unnecessary Edit round-trip for valid rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

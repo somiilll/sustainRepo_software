@@ -62,7 +62,7 @@ const fileErrorMap = (sourceFiles, errors = [], fallback = '') => Object.fromEnt
     return message ? [[stagedFileKey(file), message]] : [];
   }),
 );
-const directGhgMissingFields = (values = {}) => {
+const directGhgMissingFields = (values = {}, errorDetail = '') => {
   const missing = [];
   const hasValue = (value) => value !== undefined && value !== null && value !== '';
   const isStructuredScope3Activity = values.scope === 'scope3'
@@ -78,7 +78,13 @@ const directGhgMissingFields = (values = {}) => {
     if (!hasValue(values.quantity)) missing.push('quantity');
     if (!values.unit) missing.push('unit');
   }
-  return missing;
+  const mismatch = String(errorDetail).match(/^Extracted (unit|currency) .*Allowed (units|currencies) are:/i);
+  if (!mismatch) return missing;
+  const inputField = mismatch[1].toLowerCase() === 'currency' ? 'currency' : 'unit';
+  return [...new Set([
+    ...missing.filter((field) => field !== 'factor_id'),
+    inputField,
+  ])];
 };
 
 export default function OCRInvoice() {
@@ -624,11 +630,12 @@ export default function OCRInvoice() {
         );
       }
     } catch (requestError) {
+      const errorDetail = responseMessage(requestError, 'This GHG entry could not be calculated and saved.');
       if (requestError?.response?.status === 400) {
-        setEditingRequiredFields(directGhgMissingFields(item.current_values));
+        setEditingRequiredFields(directGhgMissingFields(item.current_values, errorDetail));
         setEditingItem(item);
       }
-      toast.error(responseMessage(requestError, 'This GHG entry could not be calculated and saved.'));
+      toast.error(errorDetail);
     } finally {
       setAcceptingId(null);
     }
