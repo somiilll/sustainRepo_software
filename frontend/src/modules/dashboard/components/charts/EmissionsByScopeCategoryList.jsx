@@ -109,7 +109,7 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
           <div className="flex h-32 items-center justify-center text-sm text-stone-400" data-testid="emission-category-list-empty">No emission categories for this scope in the selected window.</div>
         )}
         <div className="flex justify-end bg-stone-50 px-3 py-3">
-          <button type="button" onClick={() => navigate('/emissions')} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 transition-colors hover:text-teal-900" data-testid="view-all-emission-categories-button">View all categories <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <button type="button" onClick={() => navigate('/emissions')} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 transition-colors hover:text-teal-900" data-testid="view-all-emission-categories-button">View all GHG data <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></button>
         </div>
       </div>
     </div>
