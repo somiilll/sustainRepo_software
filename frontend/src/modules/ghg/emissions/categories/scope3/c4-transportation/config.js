@@ -3,6 +3,8 @@
  * Category Module
  */
 
+import { TRANSPORT_ACTIVITY_TYPE_OPTIONS } from '../../../../config/standardGhgFormConfig';
+
 export const config = {
   code: 'c4',
   name: 'C4 - Upstream Transportation and Distribution',
@@ -10,7 +12,8 @@ export const config = {
   requiresSubcategory: false,
   requiresAssetName: false,
   requiresLocation: true, // Requires from/to location
-  hasActivityType: false,
+  hasActivityType: true,
+  activityTypes: TRANSPORT_ACTIVITY_TYPE_OPTIONS,
   supportsMonthly: true,
   supportsYearly: true,
   multiEmployee: false,

@@ -42,6 +42,7 @@ import {
   resolveGhgFormArchitecture,
   resolveGhgCategoryOptions,
   resolveGhgScope3Options,
+  resolveTransportActivityType,
   resolveEffectiveScopeCode,
   GHG_FIELD_OPTION_KEYS,
 } from '../modules/ghg/config';
@@ -1648,7 +1649,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
-      filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
+      const isTransportCategory = /^c[49]\b/i.test(selectedCategory || '');
+      filtered = filtered.filter((ef) => (
+        isTransportCategory
+          ? resolveTransportActivityType(ef.activity) === scope3ActivityType
+          : ef.activity_type === scope3ActivityType
+      ));
     }
     
     // Filter by industry sector (if facility has one)
