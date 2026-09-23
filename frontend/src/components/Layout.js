@@ -3,6 +3,9 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleAccess } from '../hooks/useModuleAccess';
+import { getNavigationModuleForPath } from '../config/moduleNavigationAccess';
+import { ModuleUnavailableState } from './ModuleUnavailableState';
 import { AlertTriangle, Menu, X, Lock } from 'lucide-react';
 import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
 import { ContactSalesDialog } from './ContactSalesDialog';
@@ -64,6 +67,7 @@ const SupplierLockedOverlay = ({ children, onContactSales }) => (
 
 export default function Layout() {
   const { user, token, getAuthHeader } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
   const [subscriptionWarning, setSubscriptionWarning] = useState(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -86,6 +90,8 @@ export default function Layout() {
   const isDisabledSupplierModuleRoute = isSupplier && Array.isArray(supplierModules) && requiredSupplierModule && !supplierModules.includes(requiredSupplierModule);
   const isSupplierGhgPremiumRoute = location.pathname === '/facilities' || location.pathname.startsWith('/ghg');
   const isUnassignedSupplierGhgPremiumRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgPremiumRoute;
+  const activeNavigationModule = getNavigationModuleForPath(location.pathname);
+  const isOrganisationModuleUnavailable = !isSupplier && user?.role !== 'super_admin' && !moduleAccessLoading && activeNavigationModule && !hasAccess(activeNavigationModule.key);
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -198,6 +204,8 @@ export default function Layout() {
               <SupplierLockedOverlay onContactSales={() => setContactSalesOpen(true)}>
                 <Outlet />
               </SupplierLockedOverlay>
+            ) : isOrganisationModuleUnavailable ? (
+              <ModuleUnavailableState moduleName={activeNavigationModule.label} />
             ) : (
               <Outlet />
             )}

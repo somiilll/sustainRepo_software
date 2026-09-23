@@ -1,0 +1,4 @@
+import React from 'react';
+import { LockKeyhole } from 'lucide-react';
+
+export const ModuleUnavailableState = ({ moduleName = 'This module' }) => <div className="flex min-h-[58vh] items-center justify-center" data-testid="module-unavailable-state"><div className="max-w-md px-6 text-center"><div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-stone-200 bg-stone-100"><LockKeyhole className="h-7 w-7 text-stone-600" /></div><h1 className="text-2xl font-semibold text-stone-900" data-testid="module-unavailable-title">{moduleName} is not enabled</h1><p className="mt-3 text-sm leading-6 text-stone-500" data-testid="module-unavailable-message">This module is not available for your organisation. Contact your organisation administrator to request access.</p></div></div>;
