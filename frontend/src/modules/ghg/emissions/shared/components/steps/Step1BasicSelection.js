@@ -195,7 +195,7 @@ export const Step1BasicSelection = ({
     const selected = wasteCatalogActivities.find((activity) => activity.id === scope3ActivityId);
     if (selected) {
       setWasteBaseActivity(selected.activity_name);
-      if (selected.activity_type !== 'other' && scope3ActivityType !== selected.activity_type) {
+      if (scope3ActivityType !== selected.activity_type) {
         setScope3ActivityType(selected.activity_type);
       }
     } else if (!wasteActivityOptions.some((activity) => activity.activity_name === wasteBaseActivity)) {
@@ -762,9 +762,9 @@ export const Step1BasicSelection = ({
                     onValueChange={(value) => {
                       if (usesWasteDisposalTaxonomy) {
                         setWasteBaseActivity(value);
-                        setScope3ActivityType('');
                         const matches = wasteCatalogActivities.filter((activity) => activity.activity_name === value);
                         const untyped = matches.find((activity) => activity.activity_type === 'other');
+                        setScope3ActivityType(untyped?.activity_type || '');
                         setScope3ActivityId(untyped?.id || '');
                       } else {
                         setScope3ActivityId(value);

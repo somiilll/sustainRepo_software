@@ -6,7 +6,9 @@ export const resolveEmissionQuantity = (record = {}, allowLegacy = true) => {
   const dynamicValues = record.dynamic_field_values || {};
   const preferredKeys = record.scope === 'scope2'
     ? ['qty_energy', 'qty', 'quantity']
-    : ['qty', 'qty_energy', 'quantity'];
+    : record.scope === 'scope3'
+      ? ['qty', 'activity_value', 'qty_energy', 'quantity']
+      : ['qty', 'qty_energy', 'quantity'];
   let key = preferredKeys.find((candidate) => hasValue(dynamicValues[candidate]));
 
   if (!key && record.scope !== 'scope3') {
