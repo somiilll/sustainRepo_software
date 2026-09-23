@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package } from 'lucide-react';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
@@ -33,6 +33,11 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'Other'
 ];
 
+const createProductionDraft = (yearType = 'financial_year') => {
+  const year = new Date().getFullYear();
+  return { reportingYear: yearType === 'calendar_year' ? String(year) : `FY ${year}-${String(year + 1).slice(-2)}`, unit: 'MT', quantity: '' };
+};
+
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
   const [sectors, setSectors] = useState([]);
@@ -48,6 +53,7 @@ export default function Facilities() {
   const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
   const [autoSavedId, setAutoSavedId] = useState(null); // Track ID from auto-save create
+  const [productionDraft, setProductionDraft] = useState(createProductionDraft());
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -288,9 +294,16 @@ export default function Facilities() {
         toast.success('Facility updated successfully');
       } else {
         // Create new
-        await axios.post(`${API}/facilities`, formData, {
+        const response = await axios.post(`${API}/facilities`, formData, {
           headers: getAuthHeader()
         });
+        if (productionDraft.quantity !== '') {
+          await axios.post(`${API}/facilities/${response.data.id}/production/${productionDraft.reportingYear}`, {
+            input_type: 'yearly',
+            unit: productionDraft.unit,
+            quantity: parseFloat(productionDraft.quantity) || 0,
+          }, { headers: getAuthHeader() });
+        }
         toast.success('Facility created successfully');
       }
       setDialogOpen(false);
@@ -367,6 +380,7 @@ export default function Facilities() {
     setEditingFacility(null);
     setSameAsOrg(false);
     setAutoSavedId(null);
+    setProductionDraft(createProductionDraft(organization?.reporting_year_type || 'financial_year'));
     resetAutoSave();
     setFormData({
       name: '',
@@ -490,25 +504,9 @@ export default function Facilities() {
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto bg-white p-0 text-stone-900">
               <DialogHeader className="border-b border-stone-200 px-7 py-6">
-                <DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
-                <p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p>
+                <div className="flex items-start justify-between gap-4"><div><DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle><p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p></div>{!editingFacility && organization && !isSupplier && <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-1 text-sm text-stone-600"><input type="checkbox" checked={sameAsOrg} onChange={(e) => handleSameAsOrg(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" /><span>Use organisation address</span></label>}</div>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-6 bg-white px-7 py-6 [&_input]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
-                {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
-                {!editingFacility && organization && !isSupplier && (
-                  <div className="flex justify-end">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-600">
-                      <input
-                        type="checkbox"
-                        checked={sameAsOrg}
-                        onChange={(e) => handleSameAsOrg(e.target.checked)}
-                        className="h-4 w-4 rounded text-emerald-600"
-                      />
-                      <span>Use organisation address</span>
-                    </label>
-                  </div>
-                )}
-                
                 {/* Supplier simplified form - only name */}
                 {isSupplier ? (
                   <div className="space-y-6">
@@ -533,8 +531,8 @@ export default function Facilities() {
                   /* Full form for non-suppliers */
                   <>
                 <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_21rem]">
-                  <div className="min-w-0 space-y-7">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="min-w-0 space-y-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
@@ -546,7 +544,7 @@ export default function Facilities() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sector">Sector/Industry *</Label>
+                    <Label htmlFor="sector" className="flex items-center gap-1.5">Sector/Industry *<span title="Contact Administrator to add new sectors" data-testid="facility-sector-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></Label>
                     <select
                       id="sector"
                       value={formData.sector}
@@ -559,7 +557,6 @@ export default function Facilities() {
                         <option key={s.id} value={s.name}>{s.name}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-text-muted">Contact Administrator to add new sectors</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sub_sector">Sub-Sector</Label>
@@ -574,7 +571,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Address Section */}
-                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
+                <div className="space-y-4 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <MapPin className="w-4 h-4" />
                     Address Details
@@ -589,7 +586,7 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="city">City *</Label>
                       <Input
@@ -610,23 +607,6 @@ export default function Facilities() {
                         className="bg-stone-50"
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Country *</Label>
-                      <select
-                        id="country"
-                        value={formData.country}
-                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                        required
-                        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      >
-                        <option value="">Select Country</option>
-                        {COUNTRIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="pincode">PIN/ZIP Code *</Label>
                       <Input
@@ -640,6 +620,10 @@ export default function Facilities() {
                       />
                       {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country *</Label>
+                    <select id="country" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} required className="h-10 w-full border border-stone-200 bg-stone-50 px-3"><option value="">Select Country</option>{COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
                   </div>
                 </div>
 
@@ -717,13 +701,8 @@ export default function Facilities() {
 
                 {/* Equity Share Percentage - Only show if organization uses equity share approach */}
                 {organization?.org_boundaries_approach === 'equity_share' && (
-                  <div className="space-y-2 border-l-2 border-stone-300 pl-4" data-testid="facility-equity-share-guidance">
-                    <Label htmlFor="equity_share_percentage" className="font-medium text-text-primary">
-                      Equity Share Percentage (%) <span className="text-red-500">*</span>
-                    </Label>
-                    <p className="mb-2 text-xs text-text-muted">
-                      Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.
-                    </p>
+                  <div className="space-y-2" data-testid="facility-equity-share-guidance">
+                    <Label htmlFor="equity_share_percentage" className="flex items-center gap-1.5 font-medium text-text-primary">Equity Share Percentage (%) <span className="text-red-500">*</span><span title="Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns." data-testid="facility-equity-share-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></Label>
                     <Input
                       id="equity_share_percentage"
                       type="number"
@@ -741,9 +720,6 @@ export default function Facilities() {
                       placeholder="e.g., 100"
                       data-testid="facility-equity-share-percentage-input"
                     />
-                    <p className="mt-1 text-xs text-text-muted">
-                      Default is 100%. Enter a value between 0 and 100.
-                    </p>
                   </div>
                 )}
 
@@ -957,7 +933,7 @@ export default function Facilities() {
                         defaultExpanded
                       />
                     ) : (
-                      <div className="border border-stone-200 bg-white p-5 text-center"><div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="mt-2 text-xs leading-5 text-stone-500">Save the facility first to record its annual production quantity.</p></div>
+                      <div className="border border-stone-200 bg-white p-5"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="text-xs text-stone-500">Annual production for this facility</p></div></div><div className="space-y-4"><div className="space-y-2"><Label htmlFor="facility-production-year">Financial Year</Label><Input id="facility-production-year" value={productionDraft.reportingYear} onChange={(event) => setProductionDraft({ ...productionDraft, reportingYear: event.target.value })} data-testid="facility-production-year" /></div><div className="space-y-2"><Label htmlFor="facility-production-unit">Unit</Label><select id="facility-production-unit" value={productionDraft.unit} onChange={(event) => setProductionDraft({ ...productionDraft, unit: event.target.value })} className="h-10 w-full border border-stone-200 bg-white px-3" data-testid="facility-production-unit"><option value="MT">MT</option><option value="KL">KL</option><option value="Units">Units</option></select></div><div className="space-y-2"><Label htmlFor="facility-production-quantity">Total Production</Label><Input id="facility-production-quantity" type="number" min="0" step="any" value={productionDraft.quantity} onChange={(event) => setProductionDraft({ ...productionDraft, quantity: event.target.value })} placeholder="Enter total production" data-testid="facility-production-quantity" /></div></div></div>
                     )}
                   </aside>
                 </div>
