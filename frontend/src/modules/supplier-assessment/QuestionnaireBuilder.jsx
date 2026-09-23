@@ -455,12 +455,9 @@ export default function QuestionnaireBuilder() {
     if (invalidScore) { toast.error('Enter a score from 0 to 100 for every Yes/No or dropdown option.'); return false; }
     setSubmitting(true);
     try {
-      const createdIdsByDraftId = {};
-      const roots = draftQuestions.filter((question) => !question.parent_draft_id);
-      const children = draftQuestions.filter((question) => question.parent_draft_id);
       const rootOrder = questions.filter((question) => !question.parent_question_id).length;
       const createLedgerQuestion = async (question, order, parentQuestionId = null) => {
-        const { draft_id, parent_draft_id, existing_parent_question_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
+        const { draft_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
         const values = question.response_type === 'dropdown' ? options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
         const scoring = scoring_rule === 'lower_is_better'
@@ -471,20 +468,7 @@ export default function QuestionnaireBuilder() {
         const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
         return response.data;
       };
-      for (const [index, question] of roots.entries()) {
-        const parentQuestionId = question.existing_parent_question_id || null;
-        const siblingOrder = parentQuestionId ? questions.filter((item) => item.parent_question_id === parentQuestionId).length : rootOrder + index;
-        const created = await createLedgerQuestion(question, siblingOrder, parentQuestionId);
-        createdIdsByDraftId[question.draft_id] = created.id;
-      }
-      const childOrderByParent = {};
-      for (const question of children) {
-        const parentQuestionId = createdIdsByDraftId[question.parent_draft_id];
-        if (!parentQuestionId) throw new Error('A follow-up question is missing its parent.');
-        const childOrder = childOrderByParent[question.parent_draft_id] || 0;
-        await createLedgerQuestion(question, childOrder, parentQuestionId);
-        childOrderByParent[question.parent_draft_id] = childOrder + 1;
-      }
+      for (const [index, question] of draftQuestions.entries()) await createLedgerQuestion(question, rootOrder + index);
       toast.success(`${draftQuestions.length} question${draftQuestions.length === 1 ? '' : 's'} added`);
       if (!keepOpen) { setShowQuestionDialog(false); setQuestionDialogMode(null); }
       await fetchQuestions(selectedQuestionnaire.id);
