@@ -1,3 +1,9 @@
+# September 23, 2026 — Draft-Only Evidence Workflow Completed
+- Added a shared browser-side draft evidence utility for local object previews, persisted/draft separation, post-save uploads, cleanup, and deferred deletion.
+- Converted Organization Details (including logo replacement), Facilities, ESG Records, ESG operational data entry, and monthly/yearly Sinks to stage files locally and upload only after the associated record save succeeds.
+- Protected Organization and Facility auto-save from staged attachment data, added local preview/removal controls, and moved Sink R2 cleanup after the MongoDB update.
+- Source review confirmed the target selection/removal handlers no longer call upload or delete APIs directly. **NO FUNCTIONAL, API, BROWSER, SCREENSHOT, OR TESTING-AGENT EXECUTION** per user instruction.
+
 # ESG Platform Changelog
 
 ## September 21, 2026 — Scope 3 Grid Power Label

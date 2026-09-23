@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -10,10 +10,21 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
-import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import FacilityProductionSection from '../components/FacilityProductionSection';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -56,6 +67,7 @@ export default function Facilities() {
   const [sameAsOrg, setSameAsOrg] = useState(false);
   const [autoSavedId, setAutoSavedId] = useState(null); // Track ID from auto-save create
   const [productionDraft, setProductionDraft] = useState(createProductionDraft());
+  const pendingDeletionIds = useRef(new Set());
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -116,6 +128,10 @@ export default function Facilities() {
   // Auto-save handler
   const handleAutoSave = useCallback(async (data, isUpdate, existingId) => {
     const recordId = isUpdate ? existingId : (editingFacility?.id || autoSavedId);
+    const safeData = {
+      ...data,
+      attachments: editingFacility?.attachments || [],
+    };
     
     // Check for duplicate names
     const duplicate = facilities.find(f => 
@@ -129,14 +145,14 @@ export default function Facilities() {
     
     if (recordId) {
       // Update existing
-      await axios.put(`${API}/facilities/${recordId}`, data, {
+      await axios.put(`${API}/facilities/${recordId}`, safeData, {
         headers: getAuthHeader()
       });
       fetchFacilities(); // Refresh list silently
       return { id: recordId };
     } else {
       // Create new
-      const response = await axios.post(`${API}/facilities`, data, {
+      const response = await axios.post(`${API}/facilities`, safeData, {
         headers: getAuthHeader()
       });
       const newId = response.data?.id;
@@ -288,17 +304,21 @@ export default function Facilities() {
     }
     
     try {
+      const persistedAttachments = persistedEvidence(formData.attachments).map(toEvidencePayload);
+      const baseData = { ...formData, attachments: persistedAttachments };
+      let savedFacilityId = currentId;
       if (currentId) {
         // Update existing (either editing or auto-saved)
-        await axios.put(`${API}/facilities/${currentId}`, formData, {
+        await axios.put(`${API}/facilities/${currentId}`, baseData, {
           headers: getAuthHeader()
         });
-        toast.success('Facility updated successfully');
       } else {
         // Create new
-        const response = await axios.post(`${API}/facilities`, formData, {
+        const response = await axios.post(`${API}/facilities`, baseData, {
           headers: getAuthHeader()
         });
+        savedFacilityId = response.data.id;
+        setAutoSavedId(savedFacilityId);
         const hasMonthlyProduction = Object.values(productionDraft.monthlyData).some((quantity) => quantity !== '');
         if (productionDraft.quantity !== '' || hasMonthlyProduction) {
           const productionPayload = { input_type: productionDraft.inputType, unit: productionDraft.unit };
@@ -307,10 +327,40 @@ export default function Facilities() {
           } else {
             productionPayload.quantity = Math.max(0, parseFloat(productionDraft.quantity) || 0);
           }
-          await axios.post(`${API}/facilities/${response.data.id}/production/${productionDraft.reportingYear}`, productionPayload, { headers: getAuthHeader() });
+          await axios.post(`${API}/facilities/${savedFacilityId}/production/${productionDraft.reportingYear}`, productionPayload, { headers: getAuthHeader() });
         }
-        toast.success('Facility created successfully');
       }
+
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(formData.attachments),
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded, draft) => ({
+          type: 'file',
+          name: draft.name,
+          url: uploaded.url,
+          file_id: uploaded.file_id,
+        }),
+      });
+      if (uploadResult.uploaded.length > 0) {
+        try {
+          await axios.put(`${API}/facilities/${savedFacilityId}`, {
+            ...baseData,
+            attachments: [...persistedAttachments, ...uploadResult.uploaded],
+          }, { headers: getAuthHeader() });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), API, getAuthHeader());
+          throw error;
+        }
+      }
+
+      const deletionFailures = await deleteEvidenceFiles(pendingDeletionIds.current, API, getAuthHeader());
+      pendingDeletionIds.current.clear();
+      revokeDraftEvidences(draftEvidence(formData.attachments));
+      if (uploadResult.failed.length || deletionFailures) {
+        toast.error(`Facility saved, but ${uploadResult.failed.length + deletionFailures} attachment change(s) could not be completed.`);
+      }
+      toast.success(currentId ? 'Facility updated successfully' : 'Facility created successfully');
       setDialogOpen(false);
       resetForm();
       fetchFacilities();
@@ -382,6 +432,8 @@ export default function Facilities() {
   };
 
   const resetForm = () => {
+    revokeDraftEvidences(draftEvidence(formData.attachments));
+    pendingDeletionIds.current.clear();
     setEditingFacility(null);
     setSameAsOrg(false);
     setAutoSavedId(null);
@@ -430,19 +482,13 @@ export default function Facilities() {
 
   const removeAttachment = async (index) => {
     const attachment = formData.attachments[index];
-    const fileId = attachment?.file_id || attachment?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (fileId) {
-      try {
-        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-      } catch (error) {
-        toast.error(error.response?.data?.detail || 'Could not remove attachment from storage');
-        return;
-      }
-    }
-    setFormData({
-      ...formData,
-      attachments: formData.attachments.filter((_, i) => i !== index)
-    });
+    const fileId = getEvidenceFileId(attachment);
+    if (attachment?.is_draft) revokeDraftEvidence(attachment);
+    if (!attachment?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
   };
 
   // Filter facilities based on active status
@@ -770,13 +816,13 @@ export default function Facilities() {
                     <div className="space-y-2">
                       {formData.attachments.map((att, idx) => {
                         // Determine if this is an uploaded file or external link
-                        const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
+                        const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
                         
                         // For uploaded files, construct proper view/download URLs
-                        let viewUrl = att.url;
+                        let viewUrl = att.is_draft ? att.preview_url : att.url;
                         let downloadUrl = att.url;
                         
-                        if (isUploadedFile) {
+                        if (isUploadedFile && !att.is_draft) {
                           // Extract file ID from URL patterns like:
                           // /api/files/{id}/view or /api/files/{id} or full URL with same pattern
                           const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
@@ -801,12 +847,13 @@ export default function Facilities() {
                               rel="noopener noreferrer" 
                               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                               title="View file"
+                              data-testid={`facility-attachment-view-${idx}`}
                             >
                               <Eye className="w-3 h-3" />
                               View
                             </a>
                             {/* Only show Download for uploaded files, not external links */}
-                            {isUploadedFile && (
+                            {isUploadedFile && !att.is_draft && (
                               <button 
                                 type="button"
                                 onClick={(e) => { 
@@ -815,12 +862,13 @@ export default function Facilities() {
                                 }}
                                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                 title="Download file"
+                                data-testid={`facility-attachment-download-${idx}`}
                               >
                                 <Download className="w-3 h-3" />
                                 Download
                               </button>
                             )}
-                            <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)} data-testid={`facility-attachment-remove-${idx}`}>
                               <X className="w-3 h-3" />
                             </Button>
                           </div>
@@ -866,8 +914,6 @@ export default function Facilities() {
                         onChange={async (e) => {
                           const files = Array.from(e.target.files || []);
                           if (files.length === 0) return;
-                          
-                          let uploadedCount = 0;
                           const newAttachments = [];
                           
                           for (const file of files) {
@@ -876,33 +922,19 @@ export default function Facilities() {
                               toast.error(sizeErr);
                               continue;
                             }
-                            const uploadFormData = new FormData();
-                            uploadFormData.append('file', file);
-                            try {
-                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-                                headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-                              });
-                              newAttachments.push({ 
-                                type: 'file', 
-                                name: file.name, 
-                                url: response.data.url,
-                                file_id: response.data.file_id
-                              });
-                              uploadedCount++;
-                            } catch (error) {
-                              toast.error(getUploadErrorMessage(error, file));
-                            }
+                            newAttachments.push(createDraftEvidence(file, { type: 'file' }));
                           }
                           
                           if (newAttachments.length > 0) {
-                            setFormData({
-                              ...formData,
-                              attachments: [...formData.attachments, ...newAttachments]
-                            });
-                            toast.success(`${uploadedCount} file(s) uploaded successfully`);
+                            setFormData(prev => ({
+                              ...prev,
+                              attachments: [...prev.attachments, ...newAttachments]
+                            }));
+                            toast.success(`${newAttachments.length} file(s) staged for save`);
                           }
                           e.target.value = '';
                         }}
+                        data-testid="facility-attachments-file-input"
                       />
                       <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                       <p className="text-sm text-text-muted">Drop files here or click to upload</p>
@@ -952,10 +984,10 @@ export default function Facilities() {
                     errorMessage={errorMessage}
                   />
                   <div className="flex gap-3">
-                    <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
+                    <Button type="button" variant="outline" onClick={() => handleDialogChange(false)} data-testid="facility-form-cancel-button">
                       Cancel
                     </Button>
-                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="facility-form-save-button">
                       {editingFacility || autoSavedId ? 'Update' : 'Create'} Facility
                     </Button>
                   </div>
