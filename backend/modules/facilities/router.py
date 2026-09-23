@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_admin_user, get_current_user
@@ -27,7 +27,7 @@ router = APIRouter()
 class FacilityProductionCreate(BaseModel):
     """Model for facility production data - supports monthly or yearly input"""
     input_type: str = "yearly"  # "monthly" or "yearly"
-    quantity: Optional[float] = None  # For yearly input
+    quantity: Optional[float] = Field(default=None, ge=0)  # For yearly input
     unit: Optional[str] = "MT"
     monthly_data: Optional[dict] = None  # {"Apr": 100, "May": 120, ...} for monthly input
 
@@ -410,6 +410,12 @@ async def save_facility_production(
     org_id = facility["organization_id"]
     now = datetime.now(timezone.utc)
     user_id = current_user.get("id")
+
+    if data.monthly_data:
+        for month_name, month_data in data.monthly_data.items():
+            quantity = month_data.get("quantity", 0) if isinstance(month_data, dict) else month_data
+            if float(quantity or 0) < 0:
+                raise HTTPException(status_code=422, detail=f"Production quantity for {month_name} cannot be negative")
     
     # Compute legacy format for matching old records
     import re as _re
