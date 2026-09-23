@@ -20,8 +20,8 @@ router = APIRouter()
 DOCS_COLLECTION = "repo_pilot_documents"
 
 
-async def _check_repo_pilot_access(org_id: str):
-    await assert_entitlement(org_id, "repo_pilot")
+async def _check_data_retrieval_access(org_id: str):
+    await assert_entitlement(org_id, "repo_pilot.data_retrieval")
 
 
 def _get_org(user: dict) -> str:
@@ -43,7 +43,7 @@ async def upload_document(
     background_tasks: BackgroundTasks = None,
 ):
     org_id = _get_org(current_user)
-    await _check_repo_pilot_access(org_id)
+    await _check_data_retrieval_access(org_id)
 
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
@@ -212,7 +212,7 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 async def chat(data: ChatRequest, current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
-    await _check_repo_pilot_access(org_id)
+    await _check_data_retrieval_access(org_id)
 
     from .rag_engine import query_esg
     result = await query_esg(org_id, data.message, length=data.length, doc_filters=data.doc_filters)
@@ -226,7 +226,7 @@ async def chat(data: ChatRequest, current_user: dict = Depends(get_current_user)
 @router.get("/documents")
 async def list_documents(current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
-    await _check_repo_pilot_access(org_id)
+    await _check_data_retrieval_access(org_id)
     docs = await db[DOCS_COLLECTION].find(
         {"organization_id": org_id}, {"_id": 0, "embedding": 0}
     ).sort("created_at", -1).to_list(100)
@@ -260,7 +260,7 @@ async def regenerate_images(
 ):
     """Re-upload page images to R2 for a document whose images are missing."""
     org_id = _get_org(current_user)
-    await _check_repo_pilot_access(org_id)
+    await _check_data_retrieval_access(org_id)
     doc = await db[DOCS_COLLECTION].find_one({"organization_id": org_id, "doc_id": doc_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -336,7 +336,7 @@ async def _regenerate_images_async(document_id: str, org_id: str, doc_id: str, r
 @router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, current_user: dict = Depends(get_current_user)):
     org_id = _get_org(current_user)
-    await _check_repo_pilot_access(org_id)
+    await _check_data_retrieval_access(org_id)
 
     document = await db[DOCS_COLLECTION].find_one({"organization_id": org_id, "doc_id": doc_id}, {"_id": 0})
     if not document:
