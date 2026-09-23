@@ -37,7 +37,7 @@ export default function EmissionsByScopeDonut({ data = [], height = 200 }) {
               cy="50%"
               innerRadius={64}
               outerRadius={88}
-              paddingAngle={3}
+              paddingAngle={0}
               stroke="none"
               onMouseEnter={(_, idx) => setHoverIdx(idx)}
               onMouseLeave={() => setHoverIdx(null)}

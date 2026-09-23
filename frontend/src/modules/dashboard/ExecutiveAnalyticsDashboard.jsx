@@ -157,7 +157,11 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     governance: {},
   };
   console.log("analyticsData", analyticsData)
-  const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3', 'previousTotal']);
+  const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3'])
+    .map((row) => ({
+      ...row,
+      totalEmissions: Number(row.scope1 || 0) + Number(row.scope2 || 0) + Number(row.scope3 || 0),
+    }));
   const energyRows = aggregateSeries(analyticsData.energy, granularity, ['renewable', 'nonRenewable']);
   const waterRows = aggregateSeries(analyticsData.water, granularity, ['withdrawn', 'consumed', 'discharged', 'recycled']);
   const wasteRows = aggregateSeries(analyticsData.waste, granularity, ['generated', 'recovered', 'disposed']);
@@ -177,7 +181,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
   const emissionSeries = [
     ...EMISSION_SERIES_BASE.filter((s) => !activeScopes.length || activeScopes.includes(s.key)),
-    { key: 'previousTotal', label: 'Previous Year', color: '#A8A29E' },
+    { key: 'totalEmissions', label: 'Total Emissions', color: '#334155' },
   ];
 
   // --------------- Interaction helpers ---------------
@@ -263,7 +267,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
           <AnalyticsChartCard 
             className="h-full flex-1" 
             title="GHG Emission Trend" 
-            subtitle="Scope emissions with previous-year comparison" 
+            subtitle="Scope emissions and total-emissions trend" 
             data={emissionRows} 
             series={emissionSeries} 
             chartType="area" 

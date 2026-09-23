@@ -9,7 +9,7 @@ const SCOPE_TABS = [
 ];
 
 const ALL_BARS = [
-  { key: 'total', label: 'Total', color: '#0F766E' },
+  { key: 'total', label: 'Total', color: '#334155' },
   { key: 'scope1', label: 'Scope 1', color: '#059669' },
   { key: 'scope2', label: 'Scope 2', color: '#2563EB' },
   { key: 'scope3', label: 'Scope 3', color: '#7C3AED' },

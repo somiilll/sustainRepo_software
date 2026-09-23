@@ -64,7 +64,7 @@ export const ScopeBreakdownCard = ({
                   nameKey="label"
                   innerRadius={50} 
                   outerRadius={73} 
-                  paddingAngle={3} 
+                  paddingAngle={0} 
                   stroke="none"
                 >
                   {data.map((item) => (

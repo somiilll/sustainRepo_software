@@ -47,6 +47,8 @@ import {
 } from '../modules/ghg/config';
 import {
   createEmptyEmissionDraft,
+  resetEmissionDraftForScope3MethodChange,
+  resetEmissionDraftForSelectionChange,
   updateDraftField,
   updateDraftValues,
 } from '../modules/ghg/emissions/shared/domain';
@@ -69,6 +71,36 @@ import {
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const readPersistedSelectionValue = (value) => (
+  value && typeof value === 'object' ? value.value || '' : value || ''
+);
+
+const matchesOriginalEditSelection = ({
+  emission,
+  scope,
+  category,
+  biogenicScopeSelection,
+  scope3Method,
+  scope3ActivityType,
+  scope3ActivityId,
+}) => {
+  if (!emission || emission.scope !== scope || emission.category !== category) return false;
+  const savedValues = emission.dynamic_field_values || {};
+  const savedMethod = emission.calculation_method_scope3
+    || readPersistedSelectionValue(savedValues.calculation_method_scope3);
+  const savedActivityType = emission.scope3_activity_type
+    || readPersistedSelectionValue(savedValues.scope3_activity_type);
+  const savedActivityId = emission.scope3_ef_id
+    || readPersistedSelectionValue(savedValues.scope3_ef_id);
+  const savedBiogenicScope = emission.biogenic_scope_selection
+    || readPersistedSelectionValue(savedValues.biogenic_scope_selection);
+
+  return savedMethod === scope3Method
+    && savedActivityType === scope3ActivityType
+    && savedActivityId === scope3ActivityId
+    && (scope !== 'biogenic' || savedBiogenicScope === biogenicScopeSelection);
+};
 
 export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
@@ -378,9 +410,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // This loads dynamic input field mappings from the backend
   // ============================================================================
   useEffect(() => {
+    let cancelled = false;
     const fetchFormConfig = async () => {
       if (!dialogOpen || !formData.category || !formData.scope) {
         setEditFormConfig(null);
+        setEditFormConfigLoading(false);
         return;
       }
       
@@ -393,6 +427,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
       if (!editContext.categoryId) {
         setEditFormConfig(null);
+        setEditFormConfigLoading(false);
         return;
       }
       
@@ -400,10 +435,19 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       try {
         // Include method and activity in the request for better formula matching
         const configParams = new URLSearchParams({ scope: editContext.effectiveScope });
-        if (editingEmission?.decision_tree_version_id) {
+        const isOriginalSelection = matchesOriginalEditSelection({
+          emission: editingEmission,
+          scope: formData.scope,
+          category: formData.category,
+          biogenicScopeSelection,
+          scope3Method,
+          scope3ActivityType,
+          scope3ActivityId,
+        });
+        if (isOriginalSelection && editingEmission?.decision_tree_version_id) {
           configParams.set('decision_tree_version_id', editingEmission.decision_tree_version_id);
         }
-        if (editingEmission?.formula_version_id) {
+        if (isOriginalSelection && editingEmission?.formula_version_id) {
           configParams.set('formula_version_id', editingEmission.formula_version_id);
         }
         let url = `${API}/calc-engine/form-config/${editContext.categoryId}?${configParams.toString()}`;
@@ -411,17 +455,22 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
         const response = await axios.get(url, { headers: getAuthHeader() });
-        setEditFormConfig(response.data);
+        if (!cancelled) setEditFormConfig(response.data);
       } catch (err) {
-        console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
-        setEditFormConfig(null);
+        if (!cancelled) {
+          console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
+          setEditFormConfig(null);
+        }
       } finally {
-        setEditFormConfigLoading(false);
+        if (!cancelled) setEditFormConfigLoading(false);
       }
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission?.decision_tree_version_id, editingEmission?.formula_version_id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission]);
   
   // ============================================================================
   // EDIT FIELD DERIVATION
@@ -442,13 +491,31 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     [editCalcMethodology, editProcessType, editDraft.allocationMethod],
   );
 
+  const isOriginalEditSelection = useMemo(() => matchesOriginalEditSelection({
+    emission: editingEmission,
+    scope: formData.scope,
+    category: formData.category,
+    biogenicScopeSelection,
+    scope3Method,
+    scope3ActivityType,
+    scope3ActivityId,
+  }), [
+    editingEmission,
+    formData.scope,
+    formData.category,
+    biogenicScopeSelection,
+    scope3Method,
+    scope3ActivityType,
+    scope3ActivityId,
+  ]);
+
   const editGhgFormContext = useMemo(
     () =>
       resolveGhgFormContext({
         scope: formData.scope,
         biogenicScopeSelection,
         categoryName: formData.category || selectedCategory,
-        categoryCode: editingEmission?.category_code || null,
+        categoryCode: isOriginalEditSelection ? editingEmission?.category_code || null : null,
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
@@ -460,7 +527,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         decisionFieldValues: editDecisionFieldValues,
         useCustomFuel: editUseCustomFuel,
         selectedFuel: editSelectedFuel,
-        savedFormulaId: editingEmission?.formula_id || null,
+        savedFormulaId: isOriginalEditSelection ? editingEmission?.formula_id || null : null,
       }),
     [
       formData.scope,
@@ -480,6 +547,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editUseCustomFuel,
       editSelectedFuel,
       editingEmission?.formula_id,
+      isOriginalEditSelection,
     ],
   );
 
@@ -1190,40 +1258,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     }
   };
 
-  // Handle category selection (step 1)
-  const handleCategorySelect = (category) => {
-    setSelectedCategory(category);
-    // Clear dynamic field values when category changes to reset inputs
-    setDynamicFieldValues({});
-    // Reset fuel selection and Scope 3 fields when category changes
-    setFormData(prev => ({
-      ...prev,
-      fuel_id: '',
-      fuel_type: '',
-      category: category,
-      sub_category: '',
-      emission_factor_co2: '',
-      emission_factor_ch4: '',
-      emission_factor_n2o: '',
-      emission_factor_basis_quantity: '',
-      emission_factor_basis_unit: '',
-      calorific_value: '',
-      calorific_value_unit: '',
-      density: '',
-      density_unit: '',
-      source_of_information: ''
-    }));
-    // Reset Scope 3 specific fields
-    setScope3Method('');
-    setScope3ActivityId('');
-    setScope3ActivityType('');
-    setScope3Subcategory('');
-    setTypeOfProduct('');
-    setScope3CustomActivity('');
-    setUseCustomActivity(false);
-    setActivitySearchTerm(''); // Clear activity search
-  };
-
   // Get the selected facility's sector and country for filtering fuels
   const selectedFacilitySector = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);
@@ -1904,6 +1938,50 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   
   const [useBackendCalc, setUseBackendCalc] = useState(true);
   const [liveCalculationValidationError, setLiveCalculationValidationError] = useState('');
+
+  const resetEditCalculationPreview = useCallback(() => {
+    setEditFormConfig(null);
+    setBackendCalcResult(null);
+    clearCalcResult();
+    setLiveCalculationValidationError('');
+  }, [clearCalcResult, setBackendCalcResult]);
+
+  const handleCategorySelect = useCallback((category) => {
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
+      scope: currentDraft.values.scope,
+      category,
+      biogenicScopeSelection: currentDraft.values.scope === 'biogenic'
+        ? currentDraft.biogenicScopeSelection
+        : '',
+    }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  const handleEditScopeChange = useCallback((scope) => {
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, { scope }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  const handleEditBiogenicScopeChange = useCallback((biogenicScopeSelection) => {
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
+      scope: 'biogenic',
+      biogenicScopeSelection,
+    }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  const handleEditScope3MethodChange = useCallback((scope3Method) => {
+    setEditDraft((currentDraft) => resetEmissionDraftForScope3MethodChange(currentDraft, scope3Method));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
 
   const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
     setEditDraft((currentDraft) => ({
@@ -3656,6 +3734,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleSubmit={handleSubmit}
                   handleFuelSelect={handleFuelSelect}
                   handleCategorySelect={handleCategorySelect}
+                  handleScopeChange={handleEditScopeChange}
+                  handleBiogenicScopeChange={handleEditBiogenicScopeChange}
+                  handleScope3MethodChange={handleEditScope3MethodChange}
                   markFormDirty={markFormDirty}
                   updateDynamicFieldValue={updateDynamicFieldValue}
                   getMethodLabel={getMethodLabel}

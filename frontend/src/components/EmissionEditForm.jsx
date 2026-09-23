@@ -198,6 +198,9 @@ export default function EmissionEditForm(props) {
     handleSubmit,
     handleFuelSelect,
     handleCategorySelect,
+    handleScopeChange,
+    handleScope3MethodChange,
+    handleBiogenicScopeChange,
     markFormDirty,
     updateDynamicFieldValue,
     getMethodLabel,
@@ -406,6 +409,7 @@ export default function EmissionEditForm(props) {
                   dynamicScopes={dynamicScopes}
                   hasScope3Access={hasScope3Access}
                   handleFuelSelect={handleFuelSelect}
+                  onScopeChange={handleScopeChange}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
                   readOnly={readOnly}
@@ -452,6 +456,7 @@ export default function EmissionEditForm(props) {
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   hasScope3Access={hasScope3Access}
                   handleFuelSelect={handleFuelSelect}
+                  onBiogenicScopeChange={handleBiogenicScopeChange}
                   loadingBiogenicCategories={loadingBiogenicCategories}
                 />
 
@@ -503,15 +508,7 @@ export default function EmissionEditForm(props) {
                                   id="scope3_method_select"
                                   value={scope3Method}
                                   onChange={(e) => {
-                                    const newMethod = e.target.value;
-                                    setScope3Method(newMethod);
-                                    setDraftField('allocationMethod', '');
-                                    setScope3ActivityType('');
-                                    setScope3Subcategory('');
-                                    setTypeOfProduct('');
-                                    setScope3ActivityId('');
-                                    setDynamicFieldValues({});
-                                    markFormDirty();
+                                    handleScope3MethodChange(e.target.value);
                                   }}
                                   required
                                   disabled={!selectedCategory}
