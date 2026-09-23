@@ -2,7 +2,7 @@
  * PremiumKpiCard — Premium KPI card for BRSR Dashboard
  */
 import React from 'react';
-import { Target, Minus, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { Target, Minus, ArrowUpRight, ArrowDownRight, Activity, UserRound } from 'lucide-react';
 import { Card } from '../../../../components/ui/card';
 import AnimatedNumber from '../../components/shared/AnimatedNumber';
 import TrendArrow from '../../components/shared/TrendArrow';
@@ -41,13 +41,13 @@ export default function PremiumKpiCard({
     ? (trend === 'up' ? '#EF4444' : '#10B981')
     : (trend === 'up' ? '#10B981' : '#EF4444');
   const secondaryNumericValue = Number(secondaryValue);
-  const secondaryStatusClass = !Number.isFinite(secondaryNumericValue)
-    ? 'text-stone-500'
+  const secondaryStatusDotClass = !Number.isFinite(secondaryNumericValue)
+    ? 'bg-stone-400'
     : secondaryNumericValue < 30
-      ? 'text-rose-600'
+      ? 'bg-rose-500'
       : secondaryNumericValue < 50
-        ? 'text-amber-600'
-        : 'text-emerald-600';
+        ? 'bg-amber-400'
+        : 'bg-emerald-500';
 
   return (
     <Card 
@@ -93,7 +93,7 @@ export default function PremiumKpiCard({
         </div>
         
         <div className="flex shrink-0 items-start gap-3">
-          {secondaryLabel && <div className="-mt-0.5 text-right"><p className="text-xs font-medium text-stone-500" data-testid={`${secondaryTestId}-label`}>{secondaryLabel}</p><p className={`mt-1 text-xl font-bold tabular-nums ${secondaryStatusClass}`} data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div>}
+          {secondaryLabel && <div className="-mt-0.5 text-right"><div className="flex items-center justify-end gap-1.5 text-sm font-medium text-stone-600" data-testid={`${secondaryTestId}-label`}><span>{secondaryLabel}</span><UserRound className="h-4 w-4 text-violet-600" aria-hidden="true" /></div><div className="mt-2 flex items-center justify-end gap-2"><span className={`h-3 w-3 rounded-full ${secondaryStatusDotClass}`} data-testid={`${secondaryTestId}-status`} /><p className="text-xl font-bold text-stone-900 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div></div>}
           {trend !== 'flat' && <TrendArrow trend={trend} color={trendArrowColor} />}
         </div>
       </div>
