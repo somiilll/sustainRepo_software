@@ -794,7 +794,7 @@ export default function OCRInvoice() {
         iconClassName="border-teal-200 bg-teal-50 text-teal-700"
         testId="ocr-invoice"
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
-          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
+          <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-teal-200 bg-teal-50 text-teal-950 hover:bg-teal-100" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
             <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
