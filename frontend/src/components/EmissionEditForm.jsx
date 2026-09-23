@@ -254,7 +254,6 @@ export default function EmissionEditForm(props) {
   const scope3Subcategory = draft.scope3Subcategory;
   const scope3ActivityId = draft.scope3ActivityId;
   const scope3CustomActivity = draft.scope3CustomActivity;
-  const selectedCategoryName = formData.category || selectedCategory?.name;
   const wasteCategoryKey = formData.scope === 'scope3'
     ? getWasteDisposalCategoryKey(selectedCategory?.code, selectedCategory?.name, formData.category)
     : null;
@@ -263,11 +262,11 @@ export default function EmissionEditForm(props) {
   const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
     scope3EFData.filter((activity) => (
       usesWasteDisposalTaxonomy
-      && activity.category === selectedCategoryName
+      && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
       && activity.method === scope3Method
       && activity.sub_scope !== 'biogenic'
     )),
-  ), [scope3EFData, scope3Method, selectedCategoryName, usesWasteDisposalTaxonomy]);
+  ), [scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
   const wasteActivityOptions = useMemo(() => (
     usesWasteDisposalTaxonomy
       ? Array.from(new Map(wasteCatalogActivities.map((activity) => [activity.activity_name, activity])).values())

@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Hardened C12 Activity-first disposal selection for new records. Add/Edit now recognize C12’s code and display-name variants and resolve factors by canonical category identity, so a user selects a base Activity such as **Mixed Plastics** before valid Activity Types. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Extended the C5 Activity-first disposal taxonomy to C12 Add/Edit through one shared resolver. Legacy combined C12 names are presented as base Activity + valid Activity Type, existing records infer type from their saved factor ID, and variantless activities keep the Activity Type hidden without changing factor IDs or formulas. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected records converted into C7 so Save persists canonical Employee Commuting identity/model metadata and clears incompatible prior-category fields. Existing malformed conversions reopen through a safe C7 identity fallback and self-canonicalize on their next Save. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed C7 Edit category conversion so the generic record-level calculator and quantity validator no longer inspect employee-row fields. C7 continues through its dedicated employee-period calculation and submission validation, eliminating the false **Distance Travelled per Day is required** warning. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

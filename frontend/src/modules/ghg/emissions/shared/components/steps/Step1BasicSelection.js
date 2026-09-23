@@ -172,11 +172,11 @@ export const Step1BasicSelection = ({
   const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
     scope3EFData.filter((activity) => (
       usesWasteDisposalTaxonomy
-      && activity.category === category
+      && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
       && activity.method === scope3Method
       && activity.sub_scope !== 'biogenic'
     )),
-  ), [category, scope3EFData, scope3Method, usesWasteDisposalTaxonomy]);
+  ), [scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
   const wasteActivityOptions = useMemo(() => {
     if (!usesWasteDisposalTaxonomy) return [];
     const byName = new Map();

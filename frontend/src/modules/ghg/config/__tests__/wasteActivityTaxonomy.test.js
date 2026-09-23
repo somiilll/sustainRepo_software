@@ -7,6 +7,7 @@ describe('shared C5/C12 waste activity taxonomy', () => {
   it('recognizes both canonical category identities', () => {
     expect(getWasteDisposalCategoryKey('waste_generated_in_operations')).toBe('c5');
     expect(getWasteDisposalCategoryKey('C12 - End-of-Life Treatment of Sold Products')).toBe('c12');
+    expect(getWasteDisposalCategoryKey('End of Life Treatment of Sold Products')).toBe('c12');
   });
 
   it('derives a base activity and disposal type from legacy C12 names', () => {

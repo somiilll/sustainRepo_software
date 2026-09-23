@@ -9,10 +9,14 @@ const normalizedIdentity = (value) => String(value || '').trim().toLowerCase();
 export const getWasteDisposalCategoryKey = (...identities) => {
   const normalized = identities.map(normalizedIdentity).filter(Boolean);
   if (normalized.some((value) => (
-    value === 'end_of_life_treatment_of_sold_products' || /^c12\b/.test(value)
+    value === 'end_of_life_treatment_of_sold_products'
+    || /^c12\b/.test(value)
+    || /end[-\s]?of[-\s]?life.*sold products/.test(value)
   ))) return 'c12';
   if (normalized.some((value) => (
-    value === 'waste_generated_in_operations' || /^c5\b/.test(value)
+    value === 'waste_generated_in_operations'
+    || /^c5\b/.test(value)
+    || /waste generated in operations/.test(value)
   ))) return 'c5';
   return null;
 };
