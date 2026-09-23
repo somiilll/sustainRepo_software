@@ -74,10 +74,14 @@ class R2Storage:
         
         if org_name:
             # Sanitize org_name for use in path
-            safe_org = ''.join(c if c.isalnum() or c in '-_' else '_' for c in org_name)
-            if folder:
-                return f"{folder}/{safe_org}/{timestamp}/{base_name}"
-            return f"{safe_org}/{timestamp}/{base_name}"
+            normalized_org_name = str(org_name).strip()
+            safe_org = ''.join(c if c.isalnum() or c in '-_' else '_' for c in normalized_org_name).rstrip('_')
+            if not safe_org:
+                safe_org = None
+            if safe_org:
+                if folder:
+                    return f"{folder}/{safe_org}/{timestamp}/{base_name}"
+                return f"{safe_org}/{timestamp}/{base_name}"
         
         if folder:
             return f"{folder}/{timestamp}/{base_name}"

@@ -16,9 +16,10 @@
  * pure relative to its own scope — no external state ownership.
  */
 import axios from 'axios';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 
-import { validateFileSize, getUploadErrorMessage } from '../../lib/uploadUtils';
+import { validateFileSize } from '../../lib/uploadUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -47,66 +48,29 @@ export function useEvidenceManagement({
   // Helpers
   getAuthHeader,
 }) {
+  const pendingDeletionIds = useRef(new Set());
+
   const handleFileUpload = async (file) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       throw new Error(sizeErr);
     }
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formDataUpload, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Don't set uploadedEvidence for multi-file uploads - it blocks the upload zone
-      // Instead, we track files in existingEvidences which are displayed separately
-
-      // Append new evidence URL to existing ones (don't replace)
-      setFormData(prev => {
-        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
-        const newUrls = [...existingUrls, response.data.url];
-        return {
-          ...prev,
-          evidence_url: newUrls.join(','),
-        };
-      });
-
-      // Add to existingEvidences for immediate display - use original filename from server response
-      setExistingEvidences(prev => [...prev, {
-        url: response.data.url,
-        filename: response.data.filename || file.name,  // Use original filename
-        file_id: response.data.file_id,
-        is_new: true,
-      }]);
-
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error(getUploadErrorMessage(error, file));
-    }
+    setExistingEvidences(prev => [...prev, {
+      filename: file.name,
+      file,
+      size: file.size,
+      content_type: file.type,
+      is_draft: true,
+    }]);
+    toast.success('File staged for save');
   };
 
   const handleDeleteExistingEvidence = async (index) => {
     const evidenceToDelete = existingEvidences[index];
 
-    // New uploads are not yet linked to a saved emission, so remove them now.
-    // Persisted evidence is deleted by the server only after a successful save.
     const fileId = getUploadedFileId(evidenceToDelete);
-    if (evidenceToDelete.is_new && fileId) {
-        try {
-          await axios.delete(`${API}/files/${fileId}`, {
-            headers: getAuthHeader(),
-          });
-        } catch (error) {
-          console.error('Failed to delete file from server:', error);
-          toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
-          return;
-        }
+    if (!evidenceToDelete?.is_draft && fileId) {
+      pendingDeletionIds.current.add(fileId);
     }
 
     // Remove from existingEvidences state
@@ -116,28 +80,16 @@ export function useEvidenceManagement({
     // Update evidence_url in formData
     setFormData(prev => ({
       ...prev,
-      evidence_url: newEvidences.map(e => e.url).join(','),
+      evidence_url: newEvidences.map(e => e.url).filter(Boolean).join(','),
     }));
 
     toast.success('Evidence removed');
   };
 
   const handleDeleteAllEvidences = async () => {
-    // Only delete uncommitted uploads here. Saved evidence is removed after the
-    // update itself succeeds, so canceling an edit preserves the original file.
     for (const evidence of existingEvidences) {
       const fileId = getUploadedFileId(evidence);
-      if (evidence.is_new && fileId) {
-          try {
-            await axios.delete(`${API}/files/${fileId}`, {
-              headers: getAuthHeader(),
-            });
-          } catch (error) {
-            console.error('Failed to delete file from server:', error);
-            toast.error(error.response?.data?.detail || 'Could not remove all evidence from storage');
-            return;
-          }
-      }
+      if (!evidence.is_draft && fileId) pendingDeletionIds.current.add(fileId);
     }
 
     setExistingEvidences([]);
@@ -147,17 +99,32 @@ export function useEvidenceManagement({
 
   const handleRemoveEvidence = async () => {
     const fileId = getUploadedFileId(uploadedEvidence);
-    if (fileId) {
-      try {
-        await axios.delete(`${API}/files/${fileId}`, {
-          headers: getAuthHeader(),
-        });
-      } catch (error) {
-        console.error('Failed to delete file:', error);
-      }
-    }
+    if (!uploadedEvidence?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
     setUploadedEvidence(null);
     setFormData(prev => ({ ...prev, evidence_url: '' }));
+  };
+
+  const commitEvidenceChanges = async (emissionId) => {
+    const drafts = existingEvidences.filter((evidence) => evidence?.is_draft && evidence?.file);
+    const uploadResults = await Promise.allSettled(drafts.map((evidence) => {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', evidence.file);
+      return axios.post(`${API}/emissions/${emissionId}/evidence`, formDataUpload, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+    }));
+    const deletionResults = await Promise.allSettled([...pendingDeletionIds.current].map((fileId) => (
+      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
+    )));
+    pendingDeletionIds.current.clear();
+    const failures = [...uploadResults, ...deletionResults].filter((result) => result.status === 'rejected').length;
+    if (failures) {
+      toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
+    }
+  };
+
+  const discardEvidenceChanges = () => {
+    pendingDeletionIds.current.clear();
   };
 
   const handleViewEvidence = (evidenceUrl, e) => {
@@ -216,6 +183,8 @@ export function useEvidenceManagement({
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
     handleRemoveEvidence,
+    commitEvidenceChanges,
+    discardEvidenceChanges,
     handleViewEvidence,
     handleDownloadEvidence,
   };

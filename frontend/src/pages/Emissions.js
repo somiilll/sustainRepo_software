@@ -32,7 +32,7 @@ import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/ut
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
-import { getUploadErrorMessage, validateFileSize } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
@@ -974,6 +974,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
     handleRemoveEvidence,
+    commitEvidenceChanges,
+    discardEvidenceChanges,
     handleViewEvidence,
     handleDownloadEvidence,
   } = useEvidenceManagement({
@@ -989,20 +991,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     const sizeError = validateFileSize(file);
     if (sizeError) throw new Error(sizeError);
 
-    try {
-      const uploadData = new FormData();
-      uploadData.append('file', file);
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
-      });
-      if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
-
-      const uploadedEvidence = {
-        url: response.data.url,
-        filename: response.data.filename || file.name,
-        file_id: response.data.file_id,
-        is_new: true,
-      };
+    const uploadedEvidence = {
+      filename: file.name,
+      file,
+      is_draft: true,
+    };
       setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
         if (employee.id !== employeeId) return employee;
         if (periodKey === 'yearly') {
@@ -1027,10 +1020,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         };
       }));
       setIsFormDirty(true);
-      toast.success('Evidence uploaded successfully');
-    } catch (error) {
-      throw new Error(getUploadErrorMessage(error, file));
-    }
+    toast.success('Evidence staged for save');
   }, [getAuthHeader, setEditEmployees]);
 
   const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {
@@ -1040,9 +1030,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       : employee?.monthly_data?.[periodKey];
     const evidenceToRemove = periodData?.evidences?.[evidenceIndex] || null;
     const fileId = evidenceToRemove?.file_id || evidenceToRemove?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (evidenceToRemove?.is_new && fileId) {
-      await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-    } else if (fileId) {
+    if (!evidenceToRemove?.is_draft && fileId) {
       setDraftField('c7EvidenceIdsToDelete', (currentIds = []) => (
         currentIds.includes(fileId) ? currentIds : [...currentIds, fileId]
       ));
@@ -1068,6 +1056,31 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setIsFormDirty(true);
     toast.success('Evidence removed');
   }, [editEmployees, getAuthHeader, setDraftField, setEditEmployees]);
+
+  const commitC7EvidenceChanges = useCallback(async (emissionId, employeesToCommit) => {
+    const drafts = employeesToCommit.flatMap((employee) => {
+      const yearly = (employee.yearly_data?.evidences || []).map((evidence) => ({
+        evidence, employeeId: employee.id, periodKey: 'yearly',
+      }));
+      const monthly = Object.entries(employee.monthly_data || {}).flatMap(([periodKey, monthData]) => (
+        (monthData?.evidences || []).map((evidence) => ({ evidence, employeeId: employee.id, periodKey }))
+      ));
+      return [...yearly, ...monthly];
+    }).filter(({ evidence }) => evidence?.is_draft && evidence?.file);
+    const uploads = await Promise.allSettled(drafts.map(({ evidence, employeeId, periodKey }) => {
+      const uploadData = new FormData();
+      uploadData.append('file', evidence.file);
+      const query = new URLSearchParams({ employee_id: employeeId, period_key: periodKey });
+      return axios.post(`${API}/emissions/${emissionId}/evidence?${query.toString()}`, uploadData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+    }));
+    const deletions = await Promise.allSettled((editDraft.c7EvidenceIdsToDelete || []).map((fileId) => (
+      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
+    )));
+    const failures = [...uploads, ...deletions].filter((result) => result.status === 'rejected').length;
+    if (failures) toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
+  }, [editDraft.c7EvidenceIdsToDelete, getAuthHeader]);
 
   const fetchHistory = async (emission) => {
     if (isSupplierUser) return;
@@ -2424,17 +2437,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         });
         
         if (response.data) {
-          const deletedFileResults = await Promise.allSettled(
-            (editDraft.c7EvidenceIdsToDelete || []).map((fileId) => axios.delete(
-              `${API}/files/${fileId}`,
-              { headers: getAuthHeader() },
-            )),
-          );
-          const failedFileDeletes = deletedFileResults.filter((result) => result.status === 'rejected').length;
+          await commitC7EvidenceChanges(editingEmission.id, employeesForSave);
           toast.success(`Updated ${employeesForSave.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
-          if (failedFileDeletes > 0) {
-            toast.error(`The record was saved, but ${failedFileDeletes} removed evidence file(s) could not be deleted.`);
-          }
           // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
           // is intentionally skipped for C7. The calc-engine endpoint expects
           // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
@@ -2542,6 +2546,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           headers: getAuthHeader()
         });
         if (response.data) {
+          await commitEvidenceChanges(editingEmission.id);
           toast.success('Emission updated successfully');
           // Persist calc audit log so override sources reload correctly on re-edit
           await persistCalcAuditLogLocal(editingEmission.id);
@@ -2709,6 +2714,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const resetForm = () => {
     activeEditIdRef.current = null;
+    discardEvidenceChanges();
     setEditingEmission(null);
     setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config

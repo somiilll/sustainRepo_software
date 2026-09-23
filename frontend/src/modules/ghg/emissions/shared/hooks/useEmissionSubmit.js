@@ -92,6 +92,8 @@ export function useEmissionSubmit(ctx) {
       assignedReportingPeriod = null,
       // OCR context for finalize-import
       ocrPrefillData = null,
+      // Evidence files are staged locally and only uploaded after record persistence.
+      commitDraftEvidence = null,
     } = ctx;
     
     // Helper to finalize OCR import after successful emission save
@@ -144,6 +146,16 @@ export function useEmissionSubmit(ctx) {
         }, { headers: getAuthHeader() });
       } catch (err) {
         console.warn('[useEmissionSubmit] Failed to link audit log:', err);
+      }
+    };
+
+    const commitSavedEvidence = async (savedRecords) => {
+      if (!commitDraftEvidence || savedRecords.length === 0) return;
+      try {
+        await commitDraftEvidence(savedRecords);
+      } catch (error) {
+        console.error('[useEmissionSubmit] evidence commit failed:', error);
+        toast.error(`The emission was saved, but ${error.message || 'some evidence could not be uploaded'}.`);
       }
     };
 
@@ -412,12 +424,17 @@ export function useEmissionSubmit(ctx) {
         }
 
         const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
         let saveError = null;
         for (const { tripRow, calculation, payload } of preparedTrips) {
           try {
             const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
             if (response.data?.id) {
               savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                evidences: tripRow.data?.evidences || [],
+              });
               linkAuditLog(calculation.auditLogId, response.data.id);
             }
           } catch (error) {
@@ -440,6 +457,7 @@ export function useEmissionSubmit(ctx) {
         }
 
         if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
+        await commitSavedEvidence(savedEvidenceRecords);
         toast.success(`Created ${preparedTrips.length} business travel trip${preparedTrips.length === 1 ? '' : 's'}`);
         onSuccess?.();
         setIsSaving(false);
@@ -502,6 +520,19 @@ export function useEmissionSubmit(ctx) {
               headers: getAuthHeader(),
             });
             if (response.data?.id) await finalizeOcrImport([response.data.id]);
+            if (response.data?.id) {
+              await commitSavedEvidence([{
+                id: response.data.id,
+                drafts: submissionEmployees.flatMap((employee) => (
+                  (employee.yearly_data?.evidences || []).map((evidence) => ({
+                    id: response.data.id,
+                    evidence,
+                    employeeId: employee.id,
+                    periodKey: 'yearly',
+                  }))
+                )),
+              }]);
+            }
             toast.success(`Created yearly C7 Employee Commuting record for ${c7Built.reportingPeriod}`);
             onSuccess?.();
           } catch (error) {
@@ -526,6 +557,7 @@ export function useEmissionSubmit(ctx) {
 
         let totalCo2e = 0;
         const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
         const submissionBatchId = createSubmissionBatchId();
         let saveError = null;
         for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
@@ -537,7 +569,20 @@ export function useEmissionSubmit(ctx) {
             }, ocrPrefillData), {
               headers: getAuthHeader(),
             });
-            if (response.data?.id) savedEmissionIds.push(response.data.id);
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                drafts: submissionEmployees.flatMap((employee) => (
+                  (employee.monthly_data?.[monthKey]?.evidences || []).map((evidence) => ({
+                    id: response.data.id,
+                    evidence,
+                    employeeId: employee.id,
+                    periodKey: monthKey,
+                  }))
+                )),
+              });
+            }
           } catch (err) {
             console.error(`[C7] Failed to save ${monthKey}:`, err);
             saveError = `${monthKey}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
@@ -556,6 +601,7 @@ export function useEmissionSubmit(ctx) {
         }
 
         if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
+        await commitSavedEvidence(savedEvidenceRecords);
 
         toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${submissionEmployees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
         if (typeof onSuccess === 'function') onSuccess();
@@ -685,6 +731,10 @@ export function useEmissionSubmit(ctx) {
             if (yResp.data?.id) {
               linkAuditLog(yearlyCalculation.auditLogId, yResp.data.id);
               await finalizeOcrImport([yResp.data.id]);
+              await commitSavedEvidence([{
+                id: yResp.data.id,
+                evidences: yearlyData.evidences || [],
+              }]);
             }
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
@@ -812,6 +862,7 @@ export function useEmissionSubmit(ctx) {
 
           preparedRows.push({
             monthKey,
+            data,
             calculation: rowCalculation,
             payload: applyOcrEmissionMetadata({
               ...dispatchActiveModule.buildCreatePayload(data, {
@@ -830,12 +881,17 @@ export function useEmissionSubmit(ctx) {
         }
 
         const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
         let saveError = null;
-        for (const { monthKey, calculation, payload } of preparedRows) {
+        for (const { monthKey, data, calculation, payload } of preparedRows) {
           try {
             const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
             if (response.data?.id) {
               savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                evidences: data.evidences || [],
+              });
               linkAuditLog(calculation.auditLogId, response.data.id);
             }
           } catch (err) {
@@ -858,6 +914,7 @@ export function useEmissionSubmit(ctx) {
         if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
           await finalizeOcrImport(savedEmissionIds);
         }
+        await commitSavedEvidence(savedEvidenceRecords);
         toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
         onSuccess?.();
         setIsSaving(false);

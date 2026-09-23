@@ -177,7 +177,9 @@ const preserveCanonicalDynamicValues = (editingEmission) => Object.fromEntries(
   )
 );
 
-const sanitizeEvidences = (evidences = []) => evidences.map(({ is_new, ...evidence }) => evidence);
+const sanitizeEvidences = (evidences = []) => evidences
+  .filter((evidence) => !evidence?.is_draft)
+  .map(({ file, is_draft, is_new, ...evidence }) => evidence);
 
 /**
  * Build the exact PUT payload that the C7 edit dialog used to send.

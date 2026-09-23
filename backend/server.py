@@ -3085,6 +3085,77 @@ async def upload_evidence_file(
         logging.error(f"R2 upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
+
+@api_router.post("/emissions/{emission_id}/evidence")
+async def attach_emission_evidence(
+    emission_id: str,
+    file: UploadFile = File(...),
+    employee_id: Optional[str] = Query(default=None),
+    period_key: Optional[str] = Query(default=None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Upload a committed evidence draft and attach it to an already-saved emission."""
+    emission = await db.emission_records.find_one({"id": emission_id}, {"_id": 0})
+    if not emission:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+
+    organization_id = emission.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != organization_id:
+        raise HTTPException(status_code=403, detail="Not authorized to add evidence to this emission")
+
+    uploaded = await upload_evidence_file(
+        file=file,
+        bucket_type="emission_evidence",
+        organization_id=organization_id,
+        current_user=current_user,
+    )
+    evidence = {
+        "url": uploaded["url"],
+        "filename": uploaded["filename"],
+        "file_id": uploaded["file_id"],
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        if employee_id:
+            employees = emission.get("employees") or []
+            employee_found = False
+            for employee in employees:
+                if employee.get("id") != employee_id:
+                    continue
+                employee_found = True
+                if period_key == "yearly":
+                    yearly_data = employee.setdefault("yearly_data", {})
+                    yearly_data["evidences"] = [*(yearly_data.get("evidences") or []), evidence]
+                else:
+                    monthly_data = employee.setdefault("monthly_data", {})
+                    month_data = monthly_data.setdefault(period_key or "", {})
+                    month_data["evidences"] = [*(month_data.get("evidences") or []), evidence]
+                break
+            if not employee_found:
+                raise HTTPException(status_code=404, detail="Employee evidence target not found")
+            await db.emission_records.update_one(
+                {"id": emission_id},
+                {"$set": {"employees": employees, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+        else:
+            existing_urls = [url for url in (emission.get("evidence_url") or "").split(",") if url]
+            await db.emission_records.update_one(
+                {"id": emission_id},
+                {"$set": {
+                    "evidence_url": ",".join([*existing_urls, uploaded["url"]]),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+    except Exception:
+        try:
+            await delete_uploaded_files(db, [uploaded["file_id"]])
+        except Exception:
+            logger.exception("Could not clean up evidence after attachment failed")
+        raise
+
+    return {**uploaded, "evidence": evidence}
+
 # File download endpoint - returns presigned URL for R2 files
 @api_router.get("/files/{file_id}")
 async def download_file(
