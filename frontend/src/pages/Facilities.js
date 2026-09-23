@@ -255,12 +255,6 @@ export default function Facilities() {
     
     // Suppliers only need name
     if (!isSupplier) {
-      // Validation: Person Responsible is mandatory for non-suppliers
-      if (!formData.responsible_person || formData.responsible_person.trim() === '') {
-        toast.error('Person Responsible is mandatory');
-        return;
-      }
-      
       // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
       const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
       const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
@@ -494,25 +488,23 @@ export default function Facilities() {
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto p-0">
+            <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto bg-white p-0 text-stone-900">
               <DialogHeader className="border-b border-stone-200 px-7 py-6">
                 <DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
                 <p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-6 px-7 py-6">
+              <form onSubmit={handleSubmit} className="space-y-6 bg-white px-7 py-6 [&_input]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
                 {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
                 {!editingFacility && organization && !isSupplier && (
-                  <div className="p-4 border border-green-200 rounded-lg bg-green-50">
-                    <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="flex justify-end">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-600">
                       <input
                         type="checkbox"
                         checked={sameAsOrg}
                         onChange={(e) => handleSameAsOrg(e.target.checked)}
-                        className="w-4 h-4 text-green-600 rounded"
+                        className="h-4 w-4 rounded text-emerald-600"
                       />
-                      <div>
-                        <p className="font-medium text-green-800">Same as Organization</p>
-                      </div>
+                      <span>Use organisation address</span>
                     </label>
                   </div>
                 )}
@@ -685,15 +677,17 @@ export default function Facilities() {
                   />
                 </div>
 
+                <details className="border-t border-stone-200 pt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-stone-700">Additional facility details</summary>
+                  <div className="mt-5 space-y-7">
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="responsible_person">Person Responsible</Label>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
                       className="bg-stone-50"
-                      required
                       data-testid="facility-person-responsible-input"
                     />
                   </div>
@@ -950,6 +944,9 @@ export default function Facilities() {
                 </div>
 
                   </div>
+                </details>
+
+                  </div>
                   <aside className="sticky top-0" data-testid="facility-production-panel">
                     {(editingFacility || autoSavedId) ? (
                       <FacilityProductionSection 
@@ -960,7 +957,7 @@ export default function Facilities() {
                         defaultExpanded
                       />
                     ) : (
-                      <div className="border border-stone-200 bg-stone-50/60 p-5 text-center"><div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="mt-2 text-xs leading-5 text-stone-500">Save the facility first to record its annual production quantity.</p></div>
+                      <div className="border border-stone-200 bg-white p-5 text-center"><div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="mt-2 text-xs leading-5 text-stone-500">Save the facility first to record its annual production quantity.</p></div>
                     )}
                   </aside>
                 </div>
