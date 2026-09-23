@@ -36,7 +36,6 @@ export {
 export {
   resolveGhgScope3Options,
   resolveScope3MethodsForCategory,
-  resolveTransportActivityType,
 } from './resolveGhgScope3Options';
 export {
   findCategoryDefinition,

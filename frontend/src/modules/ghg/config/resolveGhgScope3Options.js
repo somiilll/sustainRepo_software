@@ -18,18 +18,6 @@ const isC3Category = (category = '') => /^c3\b/i.test(String(category).trim());
 const isC5Category = (category = '') => /^c5\b/i.test(String(category).trim());
 const isTransportCategory = (category = '') => /^c[49]\b/i.test(String(category).trim());
 
-export const resolveTransportActivityType = (activity = '') => {
-  const value = String(activity || '').trim().toLowerCase();
-  if (/^van\b/.test(value)) return 'van';
-  if (/^sea\s+tanker\b/.test(value)) return 'sea_tanker';
-  if (/^cargo\s+ship\b/.test(value)) return 'cargo_ship';
-  if (/^road\s*-\s*hdv\b/.test(value)) return 'road_hdv';
-  if (/^air\b/.test(value)) return 'air';
-  if (/\b(?:inland\s+)?waterways?\b/.test(value)) return 'waterways';
-  if (/^rail\b/.test(value)) return 'rail';
-  return '';
-};
-
 const orderActivityTypes = (types, category) => {
   const available = new Set(types.filter(Boolean));
   if (isC3Category(category)) {
@@ -39,6 +27,11 @@ const orderActivityTypes = (types, category) => {
   }
   if (isC5Category(category)) {
     return C5_ACTIVITY_TYPE_OPTIONS.map((option) => option.value).filter((value) => available.has(value));
+  }
+  if (isTransportCategory(category)) {
+    return TRANSPORT_ACTIVITY_TYPE_OPTIONS
+      .map((option) => option.value)
+      .filter((value) => available.has(value));
   }
   return uniqueSorted(types);
 };
@@ -107,14 +100,12 @@ export const resolveGhgScope3Options = ({
   });
 
   const activityTypes = scope === 'scope3' && capabilities.activityType
-    ? isTransportCategory(category)
-      ? TRANSPORT_ACTIVITY_TYPE_OPTIONS.map((option) => option.value)
-      : orderActivityTypes([
-        ...categoryRecords
-          .filter((entry) => !scope3Method || scope3Method === 'supplier_basis' || entry.method === scope3Method)
-          .map((entry) => entry.activity_type),
-        ...(scope3Method === 'supplier_basis' && capabilities.supplierBasisOtherActivity ? ['others'] : []),
-      ], category)
+    ? orderActivityTypes([
+      ...categoryRecords
+        .filter((entry) => !scope3Method || scope3Method === 'supplier_basis' || entry.method === scope3Method)
+        .map((entry) => entry.activity_type),
+      ...(scope3Method === 'supplier_basis' && capabilities.supplierBasisOtherActivity ? ['others'] : []),
+    ], category)
     : [];
 
   const subcategories = requiresSubcategory && scope3Method
