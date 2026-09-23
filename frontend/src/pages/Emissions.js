@@ -2137,6 +2137,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       return;
     }
 
+    // C7 owns its calculation and validation at employee-period level. Its
+    // configured fields describe each employee row, so running the generic
+    // record-level preview against dynamicFieldValues produces false missing
+    // field warnings when a record is converted to Employee Commuting.
+    if (isEditC7EmployeeCommuting) {
+      clearCalcResult();
+      setBackendCalcResult(null);
+      setLiveCalculationValidationError('');
+      return;
+    }
+
     // Stored records already show their persisted/audited result. Do not issue a
     // transient calculation while their category, decision fields, units and
     // dynamic values are still hydrating; calculate after an actual Edit only.
@@ -2483,7 +2494,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection, editDraft.allocationMethod,
     editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel,
-    isOriginalEditSelection,
+    isOriginalEditSelection, isEditC7EmployeeCommuting, clearCalcResult,
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2549,7 +2560,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       return;
     }
 
-    const missingRequiredQuantityField = dynamicInputFields.find((field) => {
+    const missingRequiredQuantityField = !isEditC7EmployeeCommuting && dynamicInputFields.find((field) => {
       if (!field.required || field.isOverride || field.presentationOnly) return false;
       const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`.toLowerCase();
       if (!/quantity|\bqty\b|activity_value|consum|energy|volume|mass|distance|travelled/.test(identity)) return false;
