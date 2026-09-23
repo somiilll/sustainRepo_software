@@ -1778,7 +1778,7 @@ const YearlyDataEntry = ({
                   
                   return (
                     <div key={field.variable} className="min-w-0">
-                      <Label className="mb-2 flex min-h-12 items-start justify-center gap-2 text-center leading-snug">
+                      <Label className="mb-1 flex items-start justify-center gap-2 text-center leading-snug">
                         {field.label} <span className="text-red-500">*</span>
                         {field.tooltip && (
                           <TooltipProvider>

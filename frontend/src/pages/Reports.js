@@ -779,7 +779,6 @@ export default function Reports({ showMISFoundation = false }) {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
-                <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">AI-Powered</span>
               </div>
               <p className="text-sm text-text-secondary mb-4">
                 Generate an AI-powered executive summary of your emissions data.

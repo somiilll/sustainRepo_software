@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Removed the Reports-page AI-Powered badge and eliminated the fixed yearly-input label height that created a large gap above Quantity Used. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined GHG yearly-entry spacing and reporting labels: changed Organization wording to **Purpose of the GHG Report**, removed the GHG report Available badge, and clarified calculated-emissions rounding. Status is now sortable in the GHG ledger, while Reset widths sits on the far right of the scope controls. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Refined OCR Extraction surfaces and the desktop review ledger: History/Upload Files/Download template now have a distinct light-teal surface, while the ledger supports horizontal scrolling, per-column resize persistence, keyboard scrollbar control, and Reset widths. Mobile remains unchanged. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Fixed C5/C12 Waste Water Treatment’s untyped disposal path: Add/Edit now retain canonical `activity_type: other`, and Scope 3 `activity_value` is recognized as Quantity Used for display. Existing records and audit history were not rewritten. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
