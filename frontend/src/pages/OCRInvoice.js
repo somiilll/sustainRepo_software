@@ -81,10 +81,7 @@ const directGhgMissingFields = (values = {}, errorDetail = '') => {
   const mismatch = String(errorDetail).match(/^Extracted (unit|currency) .*Allowed (units|currencies) are:/i);
   if (!mismatch) return missing;
   const inputField = mismatch[1].toLowerCase() === 'currency' ? 'currency' : 'unit';
-  return [...new Set([
-    ...missing.filter((field) => field !== 'factor_id'),
-    inputField,
-  ])];
+  return [inputField];
 };
 
 export default function OCRInvoice() {
