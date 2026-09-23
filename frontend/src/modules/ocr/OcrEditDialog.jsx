@@ -208,10 +208,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
           const extractedInput = isSpendMethod ? values.currency : values.unit;
           const matchedInput = matchingUnit(selected, extractedInput);
-          if (extractedInput && !matchedInput) {
-            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpendMethod));
-            return;
-          }
+          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...values,
             facility_id: values.facility_id || factorFacilityId,
@@ -225,9 +222,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
             scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
-            ...(isSpendMethod ? { currency: matchedInput || values.currency || 'INR' } : { unit: matchedInput || '' }),
+            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
           };
           setValues(nextValues);
+          if (hasIncompatibleInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpendMethod));
+            return;
+          }
           const automaticMatchKey = `${item?.id}:${factorFacilityId}:${selected.id}`;
           if (onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
             automaticMatchRef.current = automaticMatchKey;
@@ -262,10 +263,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
           const extractedInput = isSpend ? (current.currency || original.currency) : (current.unit || original.unit);
           const matchedInput = matchingUnit(selected, extractedInput);
-          if (extractedInput && !matchedInput) {
-            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
-            return current;
-          }
+          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...current,
             facility_id: current.facility_id || factorFacilityId,
@@ -279,8 +277,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
-            ...(isSpend ? { currency: matchedInput || current.currency || 'INR' } : { unit: matchedInput || '' }),
+            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
           };
+          if (hasIncompatibleInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
+            return nextValues;
+          }
           const automaticMatchKey = automaticFactor ? `${item?.id}:${factorFacilityId}:${automaticFactor.id}` : '';
           if (automaticFactor && onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
             automaticMatchRef.current = automaticMatchKey;
@@ -339,7 +341,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     setFactorError('');
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    if (extractedInput && !matchedInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
+    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    if (hasIncompatibleInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
     setValues((current) => ({
       ...current,
       factor_id: factor.id,
@@ -352,7 +355,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
       scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || current.currency || 'INR' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
     }));
   };
 
@@ -363,10 +366,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     if (values.scope === 'scope1' && !factorFacilityId) return;
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    if (extractedInput && !matchedInput) {
-      setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
-      return;
-    }
+    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
     const nextValues = {
       ...values,
       facility_id: values.facility_id || factorFacilityId,
@@ -378,8 +378,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
       scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || values.currency || 'INR' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
     };
+    if (hasIncompatibleInput) {
+      setValues(nextValues);
+      setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
+      return;
+    }
     const automaticMatchKey = `${item?.id}:${factorFacilityId}:${factor.id}`;
     automaticMatchRef.current = automaticMatchKey;
     setValues(nextValues);
