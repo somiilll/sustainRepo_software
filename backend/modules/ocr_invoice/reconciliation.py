@@ -24,7 +24,7 @@ def reconcile_invoice_items(invoice: dict) -> list[dict]:
     grand_total = financials.get("grand_total")
     if grand_total is None:
         grand_total = invoice.get("grand_total")
-    currency = financials.get("currency") or invoice.get("currency") or "USD"
+    currency = financials.get("currency") or invoice.get("currency") or "INR"
     raw_items = invoice.get("primary_activity_items") or invoice.get("line_items") or []
     items = [dict(item) for item in raw_items if isinstance(item, dict)]
     if len(items) > 1:

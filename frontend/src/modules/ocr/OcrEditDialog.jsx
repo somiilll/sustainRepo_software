@@ -114,20 +114,21 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const [formConfigLoading, setFormConfigLoading] = useState(false);
   const automaticMatchRef = useRef('');
   const original = item?.original_values || {};
-  const hasInvoiceNumber = Boolean(values.invoice_number) && !isGeneratedRowInvoice(values.invoice_number);
 
   useEffect(() => { automaticMatchRef.current = ''; }, [item?.id]);
 
   useEffect(() => {
     if (item) {
       const current = { ...emptyValues, ...(item.current_values || {}) };
+      const generatedExcelRow = isGeneratedRowInvoice(current.invoice_number);
       const matchingFacility = configuration.facilities?.find((facility) => (
         facility.id === current.facility_id || facility.name === current.location
       ));
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
-        currency: current.currency || 'INR',
+        currency: generatedExcelRow && current.currency === 'USD' ? 'INR' : current.currency || 'INR',
+        invoice_number: generatedExcelRow ? '' : current.invoice_number,
         facility_id: current.facility_id || matchingFacility?.id || '',
         reporting_period: reportingPeriodFromDate(current.reporting_period)
           || reportingPeriodFromDate(current.billing_period_start)
@@ -483,8 +484,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <div className="space-y-2"><Label htmlFor="ocr-item-description">Item description</Label><Input id="ocr-item-description" value={values.item_description ?? ''} onChange={(event) => set('item_description', event.target.value)} data-testid="ocr-edit-item-description-input" /></div>
             <div className="space-y-2"><Label htmlFor="ocr-ef-database">Factor database</Label><Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" /></div>
           </div>
-          <div className={`grid gap-4 sm:col-span-2 ${hasInvoiceNumber ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`} data-testid="ocr-edit-invoice-vendor-row">
-            {hasInvoiceNumber && <div className="space-y-2"><Label htmlFor="ocr-invoice-number">Invoice number</Label><Input id="ocr-invoice-number" value={values.invoice_number ?? ''} onChange={(event) => set('invoice_number', event.target.value)} data-testid="ocr-edit-invoice-number-input" /></div>}
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-invoice-vendor-row">
+            <div className="space-y-2"><Label htmlFor="ocr-invoice-number">Invoice number</Label><Input id="ocr-invoice-number" value={values.invoice_number ?? ''} onChange={(event) => set('invoice_number', event.target.value)} data-testid="ocr-edit-invoice-number-input" /></div>
             <div className="space-y-2"><Label htmlFor="ocr-vendor-name">Vendor</Label><Input id="ocr-vendor-name" value={values.vendor_name ?? ''} onChange={(event) => set('vendor_name', event.target.value)} data-testid="ocr-edit-vendor-name-input" /></div>
           </div>
           {!hasStructuredScope3Inputs && <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">

@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Corrected OCR defaults and scroll presentation: missing currency now defaults to INR, generated Excel row IDs become blank editable Invoice number fields, and only the neutral custom ledger scrollbar is visible. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR ledger overflow with an explicit column-width content rail, ensuring the GHG-style scrollbar appears whenever required; selected-only OCR actions again appear only after selecting rows. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Simplified the OCR review toolbar: removed All rows and fixed the action-first order of Save/Reject Selected, Save/Reject All, Search, and Scope. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Aligned OCR horizontal scrolling with GHG’s overflow-gated draggable scrollbar and wheel behavior. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
