@@ -6,6 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
@@ -35,8 +36,9 @@ const COUNTRIES = [
 
 const createProductionDraft = (yearType = 'financial_year') => {
   const year = new Date().getFullYear();
-  return { reportingYear: yearType === 'calendar_year' ? String(year) : `FY ${year}-${String(year + 1).slice(-2)}`, unit: 'MT', quantity: '' };
+  return { reportingYear: yearType === 'calendar_year' ? String(year) : `FY ${year}-${String(year + 1).slice(-2)}`, inputType: 'yearly', unit: 'MT', quantity: '', monthlyData: {} };
 };
+const PRODUCTION_MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
 
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
@@ -297,12 +299,15 @@ export default function Facilities() {
         const response = await axios.post(`${API}/facilities`, formData, {
           headers: getAuthHeader()
         });
-        if (productionDraft.quantity !== '') {
-          await axios.post(`${API}/facilities/${response.data.id}/production/${productionDraft.reportingYear}`, {
-            input_type: 'yearly',
-            unit: productionDraft.unit,
-            quantity: Math.max(0, parseFloat(productionDraft.quantity) || 0),
-          }, { headers: getAuthHeader() });
+        const hasMonthlyProduction = Object.values(productionDraft.monthlyData).some((quantity) => quantity !== '');
+        if (productionDraft.quantity !== '' || hasMonthlyProduction) {
+          const productionPayload = { input_type: productionDraft.inputType, unit: productionDraft.unit };
+          if (productionDraft.inputType === 'monthly') {
+            productionPayload.monthly_data = Object.fromEntries(Object.entries(productionDraft.monthlyData).filter(([, quantity]) => quantity !== '').map(([month, quantity]) => [month, { quantity: Math.max(0, parseFloat(quantity) || 0), unit: productionDraft.unit }]));
+          } else {
+            productionPayload.quantity = Math.max(0, parseFloat(productionDraft.quantity) || 0);
+          }
+          await axios.post(`${API}/facilities/${response.data.id}/production/${productionDraft.reportingYear}`, productionPayload, { headers: getAuthHeader() });
         }
         toast.success('Facility created successfully');
       }
@@ -532,8 +537,8 @@ export default function Facilities() {
                   <>
                 <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_21rem]">
                   <div className="min-w-0 space-y-6">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="min-w-0 space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
                       id="name"
@@ -543,8 +548,8 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sector" className="flex items-center gap-1.5">Sector/Industry *<span title="Contact Administrator to add new sectors" data-testid="facility-sector-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></Label>
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="sector" className="flex items-center gap-1.5">Sector/Industry *<TooltipProvider><Tooltip><TooltipTrigger asChild><span className="inline-flex cursor-help" data-testid="facility-sector-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></TooltipTrigger><TooltipContent>Contact Administrator to add new sectors</TooltipContent></Tooltip></TooltipProvider></Label>
                     <select
                       id="sector"
                       value={formData.sector}
@@ -558,7 +563,7 @@ export default function Facilities() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     <Label htmlFor="sub_sector">Sub-Sector</Label>
                     <Input
                       id="sub_sector"
@@ -701,8 +706,8 @@ export default function Facilities() {
 
                 {/* Equity Share Percentage - Only show if organization uses equity share approach */}
                 {organization?.org_boundaries_approach === 'equity_share' && (
-                  <div className="space-y-2" data-testid="facility-equity-share-guidance">
-                    <Label htmlFor="equity_share_percentage" className="flex items-center gap-1.5 font-medium text-text-primary">Equity Share Percentage (%) <span className="text-red-500">*</span><span title="Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns." data-testid="facility-equity-share-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></Label>
+                  <div className="mt-6 space-y-2 border-t border-stone-100 pt-6" data-testid="facility-equity-share-guidance">
+                    <Label htmlFor="equity_share_percentage" className="flex items-center gap-1.5 font-medium text-text-primary">Equity Share Percentage (%) <span className="text-red-500">*</span><TooltipProvider><Tooltip><TooltipTrigger asChild><span className="inline-flex cursor-help" data-testid="facility-equity-share-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></TooltipTrigger><TooltipContent className="max-w-xs">Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.</TooltipContent></Tooltip></TooltipProvider></Label>
                     <Input
                       id="equity_share_percentage"
                       type="number"
@@ -933,7 +938,7 @@ export default function Facilities() {
                         defaultExpanded
                       />
                     ) : (
-                      <div className="border border-stone-200 bg-white p-5"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="text-xs text-stone-500">Annual production for this facility</p></div></div><div className="space-y-4"><div className="space-y-2"><Label htmlFor="facility-production-year">Financial Year</Label><Input id="facility-production-year" value={productionDraft.reportingYear} onChange={(event) => setProductionDraft({ ...productionDraft, reportingYear: event.target.value })} data-testid="facility-production-year" /></div><div className="space-y-2"><Label htmlFor="facility-production-unit">Unit</Label><select id="facility-production-unit" value={productionDraft.unit} onChange={(event) => setProductionDraft({ ...productionDraft, unit: event.target.value })} className="h-10 w-full border border-stone-200 bg-white px-3" data-testid="facility-production-unit"><option value="MT">MT</option><option value="KL">KL</option><option value="Units">Units</option></select></div><div className="space-y-2"><Label htmlFor="facility-production-quantity">Total Production</Label><Input id="facility-production-quantity" type="number" min="0" step="any" value={productionDraft.quantity} onChange={(event) => { if (event.target.value === '' || Number(event.target.value) >= 0) setProductionDraft({ ...productionDraft, quantity: event.target.value }); }} placeholder="Enter total production" data-testid="facility-production-quantity" /></div></div></div>
+                      <div className="border border-stone-200 bg-white p-5"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="text-xs text-stone-500">Production for this facility</p></div></div><div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="facility-production-year">Financial Year</Label><Input id="facility-production-year" value={productionDraft.reportingYear} onChange={(event) => setProductionDraft({ ...productionDraft, reportingYear: event.target.value })} data-testid="facility-production-year" /></div><div className="space-y-2"><Label>Input Type</Label><div className="flex rounded-full bg-stone-100 p-1"><button type="button" onClick={() => setProductionDraft({ ...productionDraft, inputType: 'yearly' })} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium ${productionDraft.inputType === 'yearly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500'}`} data-testid="facility-production-yearly">Yearly</button><button type="button" onClick={() => setProductionDraft({ ...productionDraft, inputType: 'monthly' })} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium ${productionDraft.inputType === 'monthly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500'}`} data-testid="facility-production-monthly">Monthly</button></div></div></div><div className="space-y-2"><Label htmlFor="facility-production-unit">Unit</Label><Input id="facility-production-unit" value={productionDraft.unit} onChange={(event) => setProductionDraft({ ...productionDraft, unit: event.target.value })} placeholder="MT" data-testid="facility-production-unit" /></div>{productionDraft.inputType === 'yearly' ? <div className="space-y-2"><Label htmlFor="facility-production-quantity">Total Production</Label><Input id="facility-production-quantity" type="number" min="0" step="any" value={productionDraft.quantity} onChange={(event) => { if (event.target.value === '' || Number(event.target.value) >= 0) setProductionDraft({ ...productionDraft, quantity: event.target.value }); }} placeholder="Enter total production" data-testid="facility-production-quantity" /></div> : <div className="space-y-2"><Label>Monthly Production</Label><div className="grid grid-cols-3 gap-3">{PRODUCTION_MONTHS.map((month) => <div key={month} className="space-y-1"><Label className="text-xs text-stone-500">{month}</Label><Input type="number" min="0" value={productionDraft.monthlyData[month] || ''} onChange={(event) => { if (event.target.value === '' || Number(event.target.value) >= 0) setProductionDraft({ ...productionDraft, monthlyData: { ...productionDraft.monthlyData, [month]: event.target.value } }); }} placeholder="0" data-testid={`facility-production-month-${month}`} /></div>)}</div></div>}</div></div>
                     )}
                   </aside>
                 </div>
