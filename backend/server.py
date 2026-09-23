@@ -3107,6 +3107,7 @@ async def attach_emission_evidence(
         file=file,
         bucket_type="emission_evidence",
         organization_id=organization_id,
+        folder=None,
         current_user=current_user,
     )
     evidence = {
