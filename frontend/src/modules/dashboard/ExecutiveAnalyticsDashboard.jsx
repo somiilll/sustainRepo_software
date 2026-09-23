@@ -246,7 +246,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         <PremiumKpiCard title="Waste Recovery" value={metrics?.waste?.recovered} unit="MT" icon={Trash2} accentColor="#57534E" loading={analyticsLoading} />
         <PremiumKpiCard
           title="Employees" value={summary?.kpis?.total_employees?.value}
-          secondaryLabel="Female Workforce" secondaryValue={summary?.kpis?.diversity_pct?.value}
+          secondaryLabel="Female" secondaryValue={summary?.kpis?.diversity_pct?.value}
           secondaryUnit="%" secondaryTestId="kpi-employees-female-workforce"
           unit="" icon={Users} accentColor="#7C3AED"
         />

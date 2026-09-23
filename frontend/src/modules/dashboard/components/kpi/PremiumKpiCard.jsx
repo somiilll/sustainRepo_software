@@ -40,6 +40,14 @@ export default function PremiumKpiCard({
   const trendArrowColor = invertedTrend
     ? (trend === 'up' ? '#EF4444' : '#10B981')
     : (trend === 'up' ? '#10B981' : '#EF4444');
+  const secondaryNumericValue = Number(secondaryValue);
+  const secondaryStatusClass = !Number.isFinite(secondaryNumericValue)
+    ? 'text-stone-500'
+    : secondaryNumericValue < 30
+      ? 'text-rose-600'
+      : secondaryNumericValue < 50
+        ? 'text-amber-600'
+        : 'text-emerald-600';
 
   return (
     <Card 
@@ -62,7 +70,7 @@ export default function PremiumKpiCard({
         <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{title}</p>
       </div>
 
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {loading ? (
             <div className="h-9 w-28 bg-stone-100 rounded animate-pulse" />
@@ -72,7 +80,6 @@ export default function PremiumKpiCard({
                 <AnimatedNumber value={displayValue || 0} decimals={displayValue >= 100 ? 0 : 2} />
               </span>
               <span className="text-sm text-stone-500 font-medium">{displayUnit}</span>
-              {secondaryLabel && <span className="ml-1 inline-flex items-baseline gap-1 border-l border-stone-200 pl-3 text-sm"><span className="text-stone-500">{secondaryLabel}</span><span className="font-semibold text-stone-800 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? Number(secondaryValue).toLocaleString() : '—'} {secondaryUnit}</span></span>}
             </div>
           )}
           
@@ -85,10 +92,10 @@ export default function PremiumKpiCard({
           )}
         </div>
         
-        {/* TrendArrow on the right */}
-        {trend !== 'flat' && (
-          <TrendArrow trend={trend} color={trendArrowColor} />
-        )}
+        <div className="flex shrink-0 items-start gap-3">
+          {secondaryLabel && <div className="-mt-0.5 text-right"><p className="text-xs font-medium text-stone-500" data-testid={`${secondaryTestId}-label`}>{secondaryLabel}</p><p className={`mt-1 text-xl font-bold tabular-nums ${secondaryStatusClass}`} data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div>}
+          {trend !== 'flat' && <TrendArrow trend={trend} color={trendArrowColor} />}
+        </div>
       </div>
 
       {targetValue != null && (
