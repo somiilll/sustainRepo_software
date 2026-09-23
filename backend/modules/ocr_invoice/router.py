@@ -302,7 +302,16 @@ def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> s
         aliases = option.get("unit_aliases", {}).get(allowed_value, [allowed_value])
         if any(normalize_option(alias) == normalize_option(raw_value) for alias in aliases):
             return allowed_value
-    return allowed_values[0] if allowed_values else ""
+    return ""
+
+
+def _extracted_factor_input(values: dict, input_field: str) -> str:
+    if input_field == "currency":
+        return str(values.get("currency") or "").strip()
+    activity_value = (values.get("dynamic_field_values") or {}).get("activity_value")
+    if isinstance(activity_value, dict) and str(activity_value.get("unit") or "").strip():
+        return str(activity_value["unit"]).strip()
+    return str(values.get("unit") or "").strip()
 
 
 async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> tuple[dict, dict]:
@@ -357,17 +366,24 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("ef_method") or "",
             matched_factor.get("activity_type") or "",
         )
+        extracted_input = _extracted_factor_input(values, input_field)
         canonical_input = (
-            values.get(input_field) or ""
+            extracted_input
             if structured_scope3_activity
             else _canonical_option_input(
                 matched_factor,
-                values.get(input_field) or "",
+                extracted_input,
                 input_field,
             )
         )
         if not canonical_input and not structured_scope3_activity:
-            raise ValueError(f"The extracted {input_field} is not allowed for the resolved factor. Review this row before saving.")
+            allowed_inputs = ", ".join(matched_factor.get("allowed_units") or []) or "none configured"
+            label = "currencies" if input_field == "currency" else "units"
+            raise ValueError(
+                f"Extracted {input_field} '{extracted_input or 'not provided'}' is not allowed for "
+                f"'{matched_factor['label']}'. Allowed {label} are: {allowed_inputs}. "
+                "Choose a matching factor or correct the source data."
+            )
         values.update({
             "factor_id": matched_factor["id"],
             "fuel_id": matched_factor["id"] if matched_factor["collection"] == "fuel_database" else None,

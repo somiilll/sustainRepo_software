@@ -74,7 +74,13 @@ const preferredFactor = (options, candidates, scope, category, saveRules) => {
 const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit) => {
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
-}) || factor?.allowed_units?.[0] || '';
+}) || (!String(value || '').trim() ? factor?.allowed_units?.[0] || '' : '');
+const unsupportedInputMessage = (factor, value, isSpend) => {
+  const label = isSpend ? 'currency' : 'unit';
+  const allowedLabel = isSpend ? 'currencies' : 'units';
+  const allowed = (factor?.allowed_units || []).join(', ') || 'none configured';
+  return `Extracted ${label} '${value}' is not allowed for '${factor?.label || 'this factor'}'. Allowed ${allowedLabel} are: ${allowed}. Choose a matching factor or correct the source data.`;
+};
 const reportingPeriodFromDate = (value) => {
   const raw = String(value || '').trim();
   const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
@@ -200,7 +206,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         if (options.length === 1 && !values.factor_id) {
           const selected = options[0];
           const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
-          const matchedInput = matchingUnit(selected, isSpendMethod ? values.currency : values.unit);
+          const extractedInput = isSpendMethod ? values.currency : values.unit;
+          const matchedInput = matchingUnit(selected, extractedInput);
+          if (extractedInput && !matchedInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpendMethod));
+            return;
+          }
           const nextValues = {
             ...values,
             facility_id: values.facility_id || factorFacilityId,
@@ -249,7 +260,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             };
           }
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
-          const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
+          const extractedInput = isSpend ? (current.currency || original.currency) : (current.unit || original.unit);
+          const matchedInput = matchingUnit(selected, extractedInput);
+          if (extractedInput && !matchedInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
+            return current;
+          }
           const nextValues = {
             ...current,
             facility_id: current.facility_id || factorFacilityId,
@@ -321,7 +337,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     const factor = factors.find((option) => option.id === factorId);
     if (!factor) return;
     setFactorError('');
-    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
+    const extractedInput = isSpend ? values.currency : values.unit;
+    const matchedInput = matchingUnit(factor, extractedInput);
+    if (extractedInput && !matchedInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
     setValues((current) => ({
       ...current,
       factor_id: factor.id,
@@ -343,7 +361,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     const factor = factors[0];
     const factorFacilityId = values.scope === 'scope1' ? resolvedFacilityId : values.facility_id;
     if (values.scope === 'scope1' && !factorFacilityId) return;
-    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
+    const extractedInput = isSpend ? values.currency : values.unit;
+    const matchedInput = matchingUnit(factor, extractedInput);
+    if (extractedInput && !matchedInput) {
+      setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
+      return;
+    }
     const nextValues = {
       ...values,
       facility_id: values.facility_id || factorFacilityId,
