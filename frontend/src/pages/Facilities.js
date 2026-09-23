@@ -930,7 +930,7 @@ export default function Facilities() {
                               ...prev,
                               attachments: [...prev.attachments, ...newAttachments]
                             }));
-                            toast.success(`${newAttachments.length} file(s) staged for save`);
+                            toast.success(`${newAttachments.length} file(s) uploaded`);
                           }
                           e.target.value = '';
                         }}

@@ -390,7 +390,7 @@ export default function Sinks() {
         const currentEvidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
         return { ...prev, [monthIndex]: { value: currentValue, evidence: [...currentEvidence, ...newFiles] } };
       });
-      toast.success(`${newFiles.length} file(s) staged for ${MONTHS[monthIndex]}`);
+      toast.success(`${newFiles.length} file(s) uploaded for ${MONTHS[monthIndex]}`);
     }
     
     e.target.value = '';
@@ -430,7 +430,7 @@ export default function Sinks() {
         ...prev,
         evidence: [...(prev.evidence || []), ...newFiles]
       }));
-      toast.success(`${newFiles.length} file(s) staged for save`);
+      toast.success(`${newFiles.length} file(s) uploaded`);
     }
     
     e.target.value = '';

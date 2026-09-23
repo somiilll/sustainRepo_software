@@ -2658,7 +2658,7 @@ export default function EmissionEntryForm({
       : periodKey === 'yearly'
       ? 'annual data'
       : MONTHS.find((month) => month.key === periodKey)?.name;
-    toast.success(`Evidence staged for ${periodLabel}`);
+    toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
   const handleC7EmployeeEvidenceUpload = async (employeeId, periodKey, file) => {
@@ -2695,7 +2695,10 @@ export default function EmissionEntryForm({
       };
     }));
     onFormChange?.();
-    toast.success('Evidence staged for save');
+    const periodLabel = periodKey === 'yearly'
+      ? 'annual data'
+      : MONTHS.find((month) => month.key === periodKey)?.name || 'the selected period';
+    toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
   const handleC7EmployeeEvidenceRemove = async (employeeId, periodKey, evidenceIndex) => {

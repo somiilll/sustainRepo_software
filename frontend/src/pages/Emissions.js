@@ -33,6 +33,7 @@ import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelC
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
 import { validateFileSize } from '../lib/uploadUtils';
+import { MONTHS } from '../modules/ghg/emissions/shared/constants/emission-form-constants';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
@@ -1020,7 +1021,10 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         };
       }));
       setIsFormDirty(true);
-    toast.success('Evidence staged for save');
+      const periodLabel = periodKey === 'yearly'
+        ? 'annual data'
+        : MONTHS.find((month) => month.key === periodKey)?.name || 'the selected period';
+      toast.success(`Evidence uploaded for ${periodLabel}`);
   }, [getAuthHeader, setEditEmployees]);
 
   const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {

@@ -376,7 +376,7 @@ export default function OrganizationDetails() {
       revokeDraftEvidence(pendingLogo);
       setPendingLogo(createDraftEvidence(file, { type: 'logo' }));
       setLogoError(false);
-      toast.success('Logo staged for save');
+      toast.success('Logo uploaded');
     } catch (error) {
       toast.error(getUploadErrorMessage(error, file));
     } finally {
@@ -429,7 +429,7 @@ export default function OrganizationDetails() {
         ...prev,
         attachments: [...prev.attachments, ...newAttachments]
       }));
-      toast.success(`${newAttachments.length} file(s) staged for save`);
+      toast.success(`${newAttachments.length} file(s) uploaded`);
     }
     
     e.target.value = '';

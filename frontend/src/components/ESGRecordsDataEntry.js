@@ -288,7 +288,7 @@ export default function ESGRecordsDataEntry({
       } else {
         setFormEvidences(prev => [...prev, ...newEvidences]);
       }
-      toast.success(`${newEvidences.length} file(s) staged for save`);
+      toast.success(`${newEvidences.length} file(s) uploaded`);
     }
     setUploadingEvidence(false);
   };

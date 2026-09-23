@@ -62,7 +62,7 @@ export function useEvidenceManagement({
       content_type: file.type,
       is_draft: true,
     }]);
-    toast.success('File staged for save');
+    toast.success('File uploaded');
   };
 
   const handleDeleteExistingEvidence = async (index) => {
