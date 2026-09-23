@@ -608,7 +608,7 @@ export default function OrganizationDetails() {
         icon={Building}
         iconClassName="border-blue-200 bg-blue-50 text-blue-700"
         testId="organization"
-        aside={user?.role === 'admin' && !editing && activeTab === 'basic' && (
+        aside={user?.role === 'admin' && !editing && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -616,6 +616,7 @@ export default function OrganizationDetails() {
                 return;
               }
               setLogoError(false); // Reset logo error when entering edit mode
+              setActiveTab('basic');
               setEditing(true);
             }} 
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
