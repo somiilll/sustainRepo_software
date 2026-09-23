@@ -140,6 +140,7 @@ export const resetEmissionDraftForSelectionChange = (draft, {
   scope = draft.values.scope,
   category = '',
   biogenicScopeSelection = '',
+  c7Month = null,
 } = {}) => ({
   ...draft,
   values: {
@@ -191,7 +192,7 @@ export const resetEmissionDraftForSelectionChange = (draft, {
   employees: [],
   employeeMonthlyTotals: {},
   employeeYearlyTotal: {},
-  c7Month: null,
+  c7Month,
 });
 
 /** Reset local values that are invalidated by a Scope 3 method change. */

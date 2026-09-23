@@ -76,6 +76,16 @@ const readPersistedSelectionValue = (value) => (
   value && typeof value === 'object' ? value.value || '' : value || ''
 );
 
+const C7_MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+const resolveC7ReportingMonth = (reportingPeriod) => {
+  const value = String(reportingPeriod || '');
+  const numericMatch = value.match(/^\d{4}-(\d{2})/);
+  const numericIndex = numericMatch ? Number(numericMatch[1]) - 1 : -1;
+  if (C7_MONTH_KEYS[numericIndex]) return C7_MONTH_KEYS[numericIndex];
+  return C7_MONTH_KEYS.find((monthKey) => new RegExp(`\\b${monthKey}\\w*`, 'i').test(value)) || null;
+};
+
 const matchesOriginalEditSelection = ({
   emission,
   scope,
@@ -729,6 +739,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       if (dynamicInputFields.length === 0) {
         return;
       }
+
+      // Do not rehydrate the original record's inputs after the user changes
+      // scope, category, method, or activity in the current edit draft.
+      if (!isOriginalEditSelection) {
+        return;
+      }
       
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
@@ -1015,7 +1031,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     populateDynamicFields();
-  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
+  }, [
+    dialogOpen,
+    editingEmissionId,
+    editingEmission,
+    dynamicInputFields,
+    getAuthHeader,
+    isOriginalEditSelection,
+  ]);
 
   // Check if two unit strings match using centralized unit aliases
   // E1: Pure unit-matching utility (delegates to shared util)
@@ -1370,11 +1393,20 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const editActiveMonths = useMemo(() => {
     // For C7 records, extract months from the employees data
     if (!editingEmission || !isEditC7EmployeeCommuting) return [];
+
+    if (editFrequencyType === 'yearly') return ['yearly'];
     
     // For new monthly model, only show the single month being edited
     if (editC7Month) {
       return [editC7Month];
     }
+
+    // A monthly emission record represents exactly its reporting month,
+    // including a record converted to C7 during Edit.
+    const reportingMonthKey = resolveC7ReportingMonth(
+      formData.reporting_period_start || editingEmission.reporting_period,
+    );
+    if (reportingMonthKey) return [reportingMonthKey];
     
     // Try to determine months from the employees data (old model with monthly_data)
     const monthsWithData = new Set();
@@ -1391,7 +1423,39 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Fallback to all 12 months
     return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  }, [editingEmission, isEditC7EmployeeCommuting, editEmployees, editC7Month]);
+  }, [
+    editingEmission,
+    isEditC7EmployeeCommuting,
+    editEmployees,
+    editC7Month,
+    editFrequencyType,
+    formData.reporting_period_start,
+    editingEmission?.reporting_period,
+  ]);
+
+  useEffect(() => {
+    if (
+      !dialogOpen
+      || !isEditC7EmployeeCommuting
+      || editFrequencyType === 'yearly'
+      || editC7Month
+    ) {
+      return;
+    }
+
+    const reportingMonthKey = resolveC7ReportingMonth(
+      formData.reporting_period_start || editingEmission?.reporting_period,
+    );
+    if (reportingMonthKey) setEditC7Month(reportingMonthKey);
+  }, [
+    dialogOpen,
+    isEditC7EmployeeCommuting,
+    editFrequencyType,
+    editC7Month,
+    formData.reporting_period_start,
+    editingEmission?.reporting_period,
+    setEditC7Month,
+  ]);
 
   /**
    * Helper function to apply region + year priority fallback
@@ -2002,11 +2066,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       biogenicScopeSelection: currentDraft.values.scope === 'biogenic'
         ? currentDraft.biogenicScopeSelection
         : '',
+      c7Month: /^c7\b/i.test(category)
+        ? resolveC7ReportingMonth(currentDraft.values.reporting_period_start || editingEmission?.reporting_period)
+        : null,
     }));
     setActivitySearchTerm('');
     resetEditCalculationPreview();
     setIsFormDirty(true);
-  }, [resetEditCalculationPreview]);
+  }, [resetEditCalculationPreview, editingEmission?.reporting_period]);
 
   const handleEditScopeChange = useCallback((scope) => {
     setHasChangedCalculationSelection(true);
@@ -3746,6 +3813,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   draft={editDraft}
                   onDraftChange={setEditDraft}
                   editingEmission={editingEmission}
+                  useHistoricalEditValues={isOriginalEditSelection}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}

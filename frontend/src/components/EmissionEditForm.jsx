@@ -156,6 +156,7 @@ export default function EmissionEditForm(props) {
     draft,
     onDraftChange,
     editingEmission,
+    useHistoricalEditValues = true,
     loadingScope3EF,
     loadingBiogenicCategories,
     isCalculatingEditEmployee,
@@ -338,11 +339,11 @@ export default function EmissionEditForm(props) {
       : dynamicInputFields.find(isCarbonContentField);
   const getSavedFieldValue = (field) => (
     dynamicFieldValues[field?.variable]
-    ?? editingEmission?.dynamic_field_values?.[field?.variable]?.value
+    ?? (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.[field?.variable]?.value : undefined)
   );
   const getSavedFieldUnit = (field) => (
     dynamicFieldValues[`${field?.variable}_unit`]
-    || editingEmission?.dynamic_field_values?.[field?.variable]?.unit
+    || (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.[field?.variable]?.unit : '')
     || field?.expectedUnit
     || ''
   );
@@ -364,7 +365,7 @@ export default function EmissionEditForm(props) {
     && hasNumericValue(getSavedFieldValue(virtualDensityReferenceField))
     && virtualDensityRequirement.required;
   const savedVirtualDensity = dynamicFieldValues.density
-    ?? editingEmission?.dynamic_field_values?.density?.value
+    ?? (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.density?.value : undefined)
     ?? '';
   const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
   const isFugitiveCustomFuel = editUseCustomFuel
@@ -1069,7 +1070,7 @@ export default function EmissionEditForm(props) {
                         if (field.compoundWithVariable) {
                           const linkedVar = field.compoundWithVariable;
                           let linkedUnitRaw = dynamicFieldValues[`${linkedVar}_unit`];
-                          if (!linkedUnitRaw && editingEmission?.dynamic_field_values?.[linkedVar]) {
+                          if (!linkedUnitRaw && useHistoricalEditValues && editingEmission?.dynamic_field_values?.[linkedVar]) {
                             linkedUnitRaw = editingEmission.dynamic_field_values[linkedVar]?.unit;
                           }
                           const linkedUnit = (typeof linkedUnitRaw === 'object' ? linkedUnitRaw?.value : linkedUnitRaw) || '';
