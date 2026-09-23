@@ -358,8 +358,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
             {filtered.length} of {items.length} rows · {items.filter((item) => item.needs_review).length} need attention
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem_10rem]">
-          <div className="relative">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="relative min-w-[14rem] flex-1 sm:flex-none sm:w-60">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search rows" className="pl-9" data-testid="ocr-review-search-input" />
           </div>
@@ -378,19 +378,16 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <SelectItem value="ready" data-testid="ocr-review-filter-ready">Ready</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex flex-wrap items-center gap-2" data-testid="ocr-bulk-action-buttons">
+            {selectedRows.length > 0 && <span className="text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
+            {selectedRows.length > 0 && <>
+              <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
+              <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
+            </>}
+            <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
+            <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
+          </div>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-2 border-y border-slate-200 py-3" data-testid="ocr-bulk-actions-bar">
-          {selectedRows.length > 0 && <span className="mr-auto text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
-        <div className="flex flex-wrap items-center gap-2" data-testid="ocr-bulk-action-buttons">
-          {selectedRows.length > 0 && <>
-            <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
-            <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
-          </>}
-          <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
-          <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
-      </div>
       </div>
 
       {!hideInvoiceTabs && invoiceGroups.length > 1 && (
@@ -475,11 +472,11 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           </TableBody>
         </Table>
         </div>
-        {hasHorizontalOverflow && <div className="border-t border-slate-200 bg-slate-50 px-4 py-1.5" data-testid="ocr-review-ledger-bottom-scrollbar">
-          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-slate-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll OCR ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerMetrics.scrollLeft)} data-testid="ocr-review-ledger-bottom-scrollbar-track">
+        <div className="border-t border-slate-200 bg-slate-50 px-4 py-1.5" data-testid="ocr-review-ledger-bottom-scrollbar">
+          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-slate-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll OCR ledger columns horizontally" aria-disabled={!hasHorizontalOverflow} aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerMetrics.scrollLeft)} data-testid="ocr-review-ledger-bottom-scrollbar-track">
             <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-slate-400 transition-colors hover:bg-slate-500 active:bg-slate-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll OCR ledger columns horizontally" data-testid="ocr-review-ledger-bottom-scrollbar-thumb" />
           </div>
-        </div>}
+        </div>
       </div>
 
       <div className="grid gap-2 lg:hidden" data-testid="ocr-review-mobile-list">

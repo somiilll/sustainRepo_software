@@ -74,6 +74,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Refined OCR review operations: kept the horizontal scrollbar visible, moved bulk Save/Reject controls into the filter row, styled Clear workspace as a primary action, and hid generated `row-###` invoice placeholders in edit dialogs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Enforced compact label-to-input stacks for every yearly-field variant, including Quantity Used, and lifted input rows 12px to remove residual blank space without changing annual data or calculations. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Repaired malformed OCR ledger JSX that triggered the application error boundary after successful OCR processing. OCR upload data and extracted rows were not changed. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Aligned OCR’s primary actions with Bulk Upload’s primary color; removed its duplicate refresh-style clear control and redundant bulk-bar Select all checkbox, keeping the ledger header selector. Removed remaining fixed label-height reserves from yearly optional/override inputs. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.

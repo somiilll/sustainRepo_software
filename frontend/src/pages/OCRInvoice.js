@@ -797,7 +797,7 @@ export default function OCRInvoice() {
           <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
-            <Button type="button" variant="outline" onClick={clearUpload} className="text-red-700 hover:bg-red-50" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+            <Button type="button" variant="outline" onClick={clearUpload} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
           </>}
         </div>}
       />

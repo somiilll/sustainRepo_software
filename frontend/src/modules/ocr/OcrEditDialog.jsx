@@ -97,6 +97,7 @@ const dynamicValue = (values, variable) => {
   const value = values.dynamic_field_values?.[variable];
   return value && typeof value === 'object' ? value.value : values[variable] ?? '';
 };
+const isGeneratedRowInvoice = (value) => /^row[-_\s]?\d+$/i.test(String(value || '').trim());
 
 const ExtractedValue = ({ label, value, field }) => (
   <p className="text-xs text-slate-500" data-testid={`ocr-edit-extracted-${field}`}>
@@ -113,6 +114,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   const [formConfigLoading, setFormConfigLoading] = useState(false);
   const automaticMatchRef = useRef('');
   const original = item?.original_values || {};
+  const hasInvoiceNumber = Boolean(values.invoice_number) && !isGeneratedRowInvoice(values.invoice_number);
 
   useEffect(() => { automaticMatchRef.current = ''; }, [item?.id]);
 
@@ -480,8 +482,8 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             <div className="space-y-2"><Label htmlFor="ocr-item-description">Item description</Label><Input id="ocr-item-description" value={values.item_description ?? ''} onChange={(event) => set('item_description', event.target.value)} data-testid="ocr-edit-item-description-input" /></div>
             <div className="space-y-2"><Label htmlFor="ocr-ef-database">Factor database</Label><Input id="ocr-ef-database" value={values.ef_database || ''} readOnly data-testid="ocr-edit-ef-database-input" /></div>
           </div>
-          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-invoice-vendor-row">
-            <div className="space-y-2"><Label htmlFor="ocr-invoice-number">Invoice number</Label><Input id="ocr-invoice-number" value={values.invoice_number ?? ''} onChange={(event) => set('invoice_number', event.target.value)} data-testid="ocr-edit-invoice-number-input" /></div>
+          <div className={`grid gap-4 sm:col-span-2 ${hasInvoiceNumber ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`} data-testid="ocr-edit-invoice-vendor-row">
+            {hasInvoiceNumber && <div className="space-y-2"><Label htmlFor="ocr-invoice-number">Invoice number</Label><Input id="ocr-invoice-number" value={values.invoice_number ?? ''} onChange={(event) => set('invoice_number', event.target.value)} data-testid="ocr-edit-invoice-number-input" /></div>}
             <div className="space-y-2"><Label htmlFor="ocr-vendor-name">Vendor</Label><Input id="ocr-vendor-name" value={values.vendor_name ?? ''} onChange={(event) => set('vendor_name', event.target.value)} data-testid="ocr-edit-vendor-name-input" /></div>
           </div>
           {!hasStructuredScope3Inputs && <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-quantity-unit-row">
