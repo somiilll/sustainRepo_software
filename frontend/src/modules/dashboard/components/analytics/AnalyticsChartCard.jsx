@@ -170,7 +170,7 @@ export const AnalyticsChartCard = ({
     <>
       <section
         data-testid={testId}
-        className={`relative flex min-w-0 flex-col overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
+        className={`relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 shadow-sm hover:shadow-lg ${className}`}
       >
         <div
           className="absolute inset-x-0 top-0 h-1"

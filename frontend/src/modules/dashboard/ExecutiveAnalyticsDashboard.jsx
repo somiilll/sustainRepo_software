@@ -147,6 +147,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     scope1: totals.scope1 || emissionData.total_scope1 || 0,
     scope2: totals.scope2 || emissionData.total_scope2 || 0,
     scope3: totals.scope3 || emissionData.total_scope3 || 0,
+    biogenic: totals.biogenic || emissionData.total_biogenic || 0,
   };
 
   // --------------- Chart data series ---------------

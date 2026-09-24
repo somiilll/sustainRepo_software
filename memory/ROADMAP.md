@@ -204,3 +204,4 @@
 - **Executive dashboard KPI polish:** compacted Reduction Target states, standardized Heatmap controls to teal, and added accented KPI heading icons. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Sinks reporting period UX:** replaced Financial Year/month labels with Reporting Period controls, including a native month-year picker for monthly edits and full FY/CY labels for annual entries. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **KPI spacing:** added slight value-to-comparison separation in executive GHG cards. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Executive GHG presentation:** preserves two-decimal tCO₂e values, adds Biogenic to Scope Breakdown, and aligns analytics chart card corners with the GHG dashboard. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
