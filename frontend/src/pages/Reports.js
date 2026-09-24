@@ -992,6 +992,7 @@ export default function Reports({ showMISFoundation = false }) {
             </div>
           </div>
         </Card>
+        </div>
       )}
 
       {!showMISFoundation && facilities.length === 0 && (
