@@ -86,6 +86,7 @@ class EmissionRecordCreate(BaseModel):
     employees: Optional[List[Dict[str, Any]]] = None
     monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
     yearly_total: Optional[Dict[str, float]] = None
+    c7_data_model_version: Optional[int] = None
 
     # Dynamic field values + outputs
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
@@ -190,6 +191,7 @@ class EmissionRecordResponse(BaseModel):
     scope: str
     category: str
     category_code: Optional[str] = None
+    category_id: Optional[str] = None
     sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
 
@@ -235,6 +237,11 @@ class EmissionRecordResponse(BaseModel):
     employees: Optional[List[Dict[str, Any]]] = None
     monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
     yearly_total: Optional[Dict[str, float]] = None
+    c7_data_model_version: Optional[int] = None
+    reporting_year: Optional[Any] = None
+    reporting_month: Optional[str] = None
+    activity_type: Optional[str] = None
+    monthly_total: Optional[Dict[str, Any]] = None
 
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
     outputs: Optional[Dict[str, Dict[str, Any]]] = {}

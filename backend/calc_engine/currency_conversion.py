@@ -61,6 +61,42 @@ def normalize_currency_method(method: Optional[str]) -> str:
     return PPP_INFLATION_METHOD if method == PPP_INFLATION_METHOD else STANDARD_METHOD
 
 
+def normalize_reporting_year_type(value: Optional[str]) -> str:
+    return "financial" if str(value or "").lower() in {"financial", "financial_year", "fy"} else "calendar"
+
+
+def normalize_financial_year_start_month(value: Optional[int]) -> int:
+    try:
+        month = int(value or 4)
+    except (TypeError, ValueError):
+        return 4
+    return month if 1 <= month <= 12 else 4
+
+
+async def resolve_organization_reporting_settings(
+    db,
+    *,
+    organization_id: Optional[str],
+    reporting_year_type: Optional[str] = None,
+    financial_year_start_month: Optional[int] = None,
+) -> dict:
+    """Use the organization's reporting calendar when one is available."""
+    organization = None
+    if organization_id:
+        organization = await db.organizations.find_one(
+            {"id": organization_id},
+            {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1},
+        )
+    return {
+        "reporting_year_type": normalize_reporting_year_type(
+            (organization or {}).get("reporting_year_type") or reporting_year_type,
+        ),
+        "financial_year_start_month": normalize_financial_year_start_month(
+            (organization or {}).get("financial_year_start_month") or financial_year_start_month,
+        ),
+    }
+
+
 def currency_record_period(record: Optional[dict]) -> Optional[str]:
     if not record:
         return None
@@ -145,6 +181,7 @@ async def resolve_currency_conversion(
     target_currency: str = "USD",
     reporting_period: Optional[str] = None,
     reporting_year_type: Optional[str] = None,
+    financial_year_start_month: Optional[int] = None,
     method: Optional[str] = None,
 ) -> Optional[dict]:
     """Resolve exact period data first, followed by deterministic compatible fallbacks."""
@@ -181,13 +218,10 @@ async def resolve_currency_conversion(
         if monthly:
             return _with_resolution(monthly, resolution="exact", requested_period=requested_period)
 
-        is_financial_reporting_year = str(reporting_year_type or "").lower() in {
-            "financial",
-            "financial_year",
-            "fy",
-        }
+        is_financial_reporting_year = normalize_reporting_year_type(reporting_year_type) == "financial"
         if is_financial_reporting_year:
-            financial_year_start = year if month >= 4 else year - 1
+            fiscal_start_month = normalize_financial_year_start_month(financial_year_start_month)
+            financial_year_start = year if month >= fiscal_start_month else year - 1
             financial_year_end = financial_year_start + 1
             financial_year = await find_period(
                 _financial_year_clause(financial_year_start, financial_year_end),

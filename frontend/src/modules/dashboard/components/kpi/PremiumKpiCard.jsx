@@ -2,7 +2,7 @@
  * PremiumKpiCard — Premium KPI card for BRSR Dashboard
  */
 import React from 'react';
-import { Target, Minus, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { Target, Minus, ArrowUpRight, ArrowDownRight, Activity, UserRound } from 'lucide-react';
 import { Card } from '../../../../components/ui/card';
 import AnimatedNumber from '../../components/shared/AnimatedNumber';
 import TrendArrow from '../../components/shared/TrendArrow';
@@ -40,6 +40,14 @@ export default function PremiumKpiCard({
   const trendArrowColor = invertedTrend
     ? (trend === 'up' ? '#EF4444' : '#10B981')
     : (trend === 'up' ? '#10B981' : '#EF4444');
+  const secondaryNumericValue = Number(secondaryValue);
+  const secondaryStatusDotClass = !Number.isFinite(secondaryNumericValue)
+    ? 'bg-stone-400'
+    : secondaryNumericValue < 30
+      ? 'bg-rose-500'
+      : secondaryNumericValue < 50
+        ? 'bg-amber-400'
+        : 'bg-emerald-500';
 
   return (
     <Card 
@@ -62,12 +70,12 @@ export default function PremiumKpiCard({
         <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{title}</p>
       </div>
 
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {loading ? (
             <div className="h-9 w-28 bg-stone-100 rounded animate-pulse" />
           ) : (
-            <div className="flex items-baseline gap-2">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="text-3xl font-bold text-stone-900 tabular-nums tracking-tight">
                 <AnimatedNumber value={displayValue || 0} decimals={displayValue >= 100 ? 0 : 2} />
               </span>
@@ -84,11 +92,10 @@ export default function PremiumKpiCard({
           )}
         </div>
         
-        {/* TrendArrow on the right */}
-        {trend !== 'flat' && (
-          <TrendArrow trend={trend} color={trendArrowColor} />
-        )}
+        {trend !== 'flat' && <TrendArrow trend={trend} color={trendArrowColor} />}
       </div>
+
+      {secondaryLabel && <div className="absolute right-5 top-[3.75rem] text-right"><div className="flex items-center justify-end gap-1.5 text-sm font-medium text-stone-600" data-testid={`${secondaryTestId}-label`}><span>{secondaryLabel}</span><UserRound className="h-4 w-4 text-violet-600" aria-hidden="true" /></div><div className="mt-2 flex items-center justify-end gap-2"><span className={`h-3 w-3 rounded-full ${secondaryStatusDotClass}`} data-testid={`${secondaryTestId}-status`} /><p className="text-xl font-bold text-stone-900 tabular-nums" data-testid={secondaryTestId}>{secondaryValue != null ? `${secondaryNumericValue.toFixed(1)}${secondaryUnit}` : '—'}</p></div></div>}
 
       {targetValue != null && (
         <div className="flex items-center gap-2 text-xs mt-3">
@@ -108,14 +115,6 @@ export default function PremiumKpiCard({
         </div>
       )}
 
-      {secondaryLabel && (
-        <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-100 pt-3 text-xs">
-          <span className="text-stone-500">{secondaryLabel}</span>
-          <span className="font-semibold text-stone-800 tabular-nums" data-testid={secondaryTestId}>
-            {secondaryValue != null ? Number(secondaryValue).toLocaleString() : '—'} {secondaryUnit}
-          </span>
-        </div>
-      )}
     </Card>
   );
 }

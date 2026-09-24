@@ -1709,7 +1709,7 @@ const YearlyDataEntry = ({
     });
   }, [setYearlyData, useCustomFuel, yearlyDensityState.densityUnit, yearlyDensityState.required, yearlyDensityState.visible]);
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label className="text-base font-semibold">
           Annual Data for {reportingYearType === 'financial' 
@@ -1718,7 +1718,7 @@ const YearlyDataEntry = ({
         </Label>
       </div>
 
-      <div className="space-y-5 rounded-lg border border-stone-200 bg-white p-4 sm:p-5">
+      <div className="space-y-4 rounded-lg border border-stone-200 bg-white px-4 pb-4 pt-3 sm:px-5 sm:pb-5 sm:pt-4">
         {/* Flight Details — C6 Business Travel + air_travel (yearly mode) */}
         {scope3ActivityType === 'air_travel' && capabilities.flightDetails && (
           <FlightDetailsSection
@@ -1777,8 +1777,8 @@ const YearlyDataEntry = ({
                   const showUnitTextInput = !hideStandardQuantityUnit && !isNoUnitField && (isTextUnitField || isSupplierBasis) && !field.variable?.endsWith('_unit');
                   
                   return (
-                    <div key={field.variable} className="min-w-0">
-                      <Label className="mb-2 flex min-h-12 items-start justify-center gap-2 text-center leading-snug">
+                    <div key={field.variable} className="min-w-0 space-y-1">
+                      <Label className="!mb-0 !min-h-0 flex items-start justify-center gap-2 text-center leading-snug" style={{ minHeight: 0, marginBottom: 0 }}>
                         {field.label} <span className="text-red-500">*</span>
                         {field.tooltip && (
                           <TooltipProvider>
@@ -1798,6 +1798,7 @@ const YearlyDataEntry = ({
                           value={displayedValue}
                           onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          style={{ marginTop: -12 }}
                           data-testid={`yearly-${field.fieldKey || field.variable}-select`}
                           dangerouslySetInnerHTML={{
                             __html: buildNativeOptionsHtml(field.options, {
@@ -1808,7 +1809,7 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
@@ -1937,8 +1938,8 @@ const YearlyDataEntry = ({
                   const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                   
                   return (
-                    <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
+                    <div key={field.variable} className="min-w-0 space-y-1">
+                      <div className="!mb-0 !min-h-0 flex flex-wrap items-start justify-center gap-2 text-center" style={{ minHeight: 0, marginBottom: 0 }}>
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -1977,7 +1978,7 @@ const YearlyDataEntry = ({
                           Override Default
                         </label>
                       </div>
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
@@ -2096,8 +2097,8 @@ const YearlyDataEntry = ({
                     && !(useCustomFuel && isQuantityField(field));
                   
                   return (
-                    <div key={field.variable} className="min-w-0">
-                      <div className="mb-2 flex min-h-12 flex-wrap items-start justify-center gap-2 text-center">
+                    <div key={field.variable} className="min-w-0 space-y-1">
+                      <div className="!mb-0 !min-h-0 flex flex-wrap items-start justify-center gap-2 text-center" style={{ minHeight: 0, marginBottom: 0 }}>
                         <Label className="flex items-center gap-2 text-center leading-snug">
                           {field.label} {densityState?.required && <span className="text-red-500">*</span>}
                           {(field.tooltip || FIELD_HELP[field.variable]) && (
@@ -2143,7 +2144,7 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
                         <Input
                           type="number"
                           step="any"

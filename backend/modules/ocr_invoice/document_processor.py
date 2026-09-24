@@ -267,7 +267,7 @@ def read_spreadsheet(path: str) -> list[dict]:
         destination = value("destination")
         distance = value("distance_km")
         extracted.append({
-            "invoice_number": str(value("invoice_number") or f"ROW-{len(extracted) + 1:03d}"),
+            "invoice_number": str(value("invoice_number") or "").strip() or None,
             "date": value("date"),
             "billing_period_text": reporting_period,
             "vendor_name": str(value("vendor_name") or "Corporate Expenditure"),

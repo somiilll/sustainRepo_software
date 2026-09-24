@@ -1,4 +1,13 @@
-import { C3_ACTIVITY_TYPE_OPTIONS, C5_ACTIVITY_TYPE_OPTIONS, getStandardActivityTypeLabel } from './standardGhgFormConfig';
+import {
+  C3_ACTIVITY_TYPE_OPTIONS,
+  C5_ACTIVITY_TYPE_OPTIONS,
+  TRANSPORT_ACTIVITY_TYPE_OPTIONS,
+  getStandardActivityTypeLabel,
+} from './standardGhgFormConfig';
+import {
+  isWasteDisposalCategory,
+  resolveWasteActivityFactor,
+} from './wasteActivityTaxonomy';
 
 const METHOD_ORDER = Object.freeze(['spend_basis', 'activity_basis', 'supplier_basis']);
 
@@ -10,7 +19,7 @@ const matchesCategory = (entry, category) => (
 const uniqueSorted = (values) => Array.from(new Set(values.filter(Boolean))).sort();
 
 const isC3Category = (category = '') => /^c3\b/i.test(String(category).trim());
-const isC5Category = (category = '') => /^c5\b/i.test(String(category).trim());
+const isTransportCategory = (category = '') => /^c[49]\b/i.test(String(category).trim());
 
 const orderActivityTypes = (types, category) => {
   const available = new Set(types.filter(Boolean));
@@ -19,8 +28,13 @@ const orderActivityTypes = (types, category) => {
       .map((option) => option.value)
       .filter((value) => available.has(value));
   }
-  if (isC5Category(category)) {
+  if (isWasteDisposalCategory(category)) {
     return C5_ACTIVITY_TYPE_OPTIONS.map((option) => option.value).filter((value) => available.has(value));
+  }
+  if (isTransportCategory(category)) {
+    return TRANSPORT_ACTIVITY_TYPE_OPTIONS
+      .map((option) => option.value)
+      .filter((value) => available.has(value));
   }
   return uniqueSorted(types);
 };
@@ -92,7 +106,11 @@ export const resolveGhgScope3Options = ({
     ? orderActivityTypes([
       ...categoryRecords
         .filter((entry) => !scope3Method || scope3Method === 'supplier_basis' || entry.method === scope3Method)
-        .map((entry) => entry.activity_type),
+        .map((entry) => (
+          isWasteDisposalCategory(category)
+            ? resolveWasteActivityFactor(entry).activity_type
+            : entry.activity_type
+        )),
       ...(scope3Method === 'supplier_basis' && capabilities.supplierBasisOtherActivity ? ['others'] : []),
     ], category)
     : [];

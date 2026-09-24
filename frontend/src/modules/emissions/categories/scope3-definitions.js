@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { resolveGhgCapabilities } from '../../ghg/config/resolveGhgCapabilities';
+import { TRANSPORT_ACTIVITY_TYPE_OPTIONS } from '../../ghg/config/standardGhgFormConfig';
 
 /**
  * Activity types for travel categories (C6, C7)
@@ -166,7 +167,9 @@ export const CATEGORY_CONFIGS = Object.fromEntries(
     const { capabilities } = resolveGhgCapabilities({ categoryCode: code, scopeCode: 'scope3' });
     return [code, {
       ...metadata,
-      activityTypes: capabilities.activityType ? TRAVEL_ACTIVITY_TYPES : undefined,
+      activityTypes: capabilities.activityType
+        ? (['c4', 'c9'].includes(code) ? TRANSPORT_ACTIVITY_TYPE_OPTIONS : TRAVEL_ACTIVITY_TYPES)
+        : undefined,
       requiresSubcategory: capabilities.subcategory,
       requiresAssetName: capabilities.assetName,
       requiresLocation: capabilities.journeyLocations,

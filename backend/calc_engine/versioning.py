@@ -160,7 +160,29 @@ async def apply_record_version_binding(
     bound = dict(payload)
     version_fields = ("decision_tree_version_id", "formula_version_id", "formula_snapshot")
 
-    if existing_record is not None and not (
+    # A record's historical calculation binding is valid only for its original
+    # scope/category identity. Changing that identity creates a new calculation
+    # context, so the current selection must resolve against its own active
+    # decision tree and formula rather than inheriting the old binding.
+    selection_identity_fields = (
+        "scope",
+        "category",
+        "category_code",
+        "biogenic_scope_selection",
+    )
+    selection_identity_changed = existing_record is not None and any(
+        field in bound and bound.get(field) != existing_record.get(field)
+        for field in selection_identity_fields
+    )
+    if selection_identity_changed:
+        existing_record = {
+            **existing_record,
+            "decision_tree_version_id": None,
+            "formula_version_id": None,
+            "formula_id": None,
+        }
+
+    if existing_record is not None and not selection_identity_changed and not (
         existing_record.get("decision_tree_version_id")
         or existing_record.get("formula_version_id")
     ):

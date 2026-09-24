@@ -48,6 +48,17 @@ export const C5_ACTIVITY_TYPE_OPTIONS = Object.freeze([
   { value: 'other', label: 'Other' },
 ]);
 
+/** Canonical freight modes for Scope 3 Categories 4 and 9. */
+export const TRANSPORT_ACTIVITY_TYPE_OPTIONS = Object.freeze([
+  { value: 'van', label: 'Van' },
+  { value: 'sea_tanker', label: 'Sea Tanker' },
+  { value: 'cargo_ship', label: 'Cargo Ship' },
+  { value: 'road_hdv', label: 'Road - HDV' },
+  { value: 'air', label: 'Air' },
+  { value: 'waterways', label: 'Waterways' },
+  { value: 'rail', label: 'Rail' },
+]);
+
 export const STANDARD_PROCESS_TYPE_OPTIONS = Object.freeze([
   { value: 'venting', label: 'Venting' },
   { value: 'n2o_overall_combustion', label: 'N2O from Overall Combustion' },
@@ -65,7 +76,12 @@ export const STANDARD_TYPE_OF_PRODUCT_OPTIONS = Object.freeze([
 ]);
 
 export const getStandardActivityTypeLabel = (value) => (
-  [...STANDARD_ACTIVITY_TYPE_OPTIONS, ...C3_ACTIVITY_TYPE_OPTIONS, ...C5_ACTIVITY_TYPE_OPTIONS]
+  [
+    ...STANDARD_ACTIVITY_TYPE_OPTIONS,
+    ...C3_ACTIVITY_TYPE_OPTIONS,
+    ...C5_ACTIVITY_TYPE_OPTIONS,
+    ...TRANSPORT_ACTIVITY_TYPE_OPTIONS,
+  ]
     .find((option) => option.value === value)?.label
   || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 );

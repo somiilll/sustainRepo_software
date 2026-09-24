@@ -89,6 +89,7 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "updated_at": None,
     }
     await db.sinks.insert_one(sink_dict)
+    sink_dict.pop("_id", None)
     try:
         await sync_changed_sink_base_years(None, sink_dict, current_user)
     except Exception:
@@ -169,12 +170,16 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
-    try:
-        await delete_uploaded_files(db, removed_file_ids)
-    except Exception as error:
-        raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The sink was not updated.") from error
     await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
     updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    if removed_file_ids:
+        try:
+            await delete_uploaded_files(db, removed_file_ids)
+        except Exception:
+            logger.exception(
+                "Sink was updated, but removed evidence cleanup failed",
+                extra={"sink_id": sink_id, "file_ids": sorted(removed_file_ids)},
+            )
     try:
         await sync_changed_sink_base_years(existing, updated, current_user)
     except Exception:

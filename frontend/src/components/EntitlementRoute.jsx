@@ -1,6 +1,6 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
 import { useModuleAccess } from '../hooks/useModuleAccess';
+import { ModuleUnavailableState } from './ModuleUnavailableState';
 
 export default function EntitlementRoute({ entitlement, children }) {
   const { hasAccess, loading, loadError } = useModuleAccess();
@@ -14,7 +14,7 @@ export default function EntitlementRoute({ entitlement, children }) {
   }
 
   if (loadError || !hasAccess(entitlement)) {
-    return <Navigate to="/dashboard" replace />;
+    return <ModuleUnavailableState moduleName={entitlement.split('.').pop().replace(/_/g, ' ')} />;
   }
 
   return children;

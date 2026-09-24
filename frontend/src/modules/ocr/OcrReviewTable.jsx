@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronRight, Edit3, MoreHorizontal, Search, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronRight, Edit3, GripVertical, MoreHorizontal, RotateCcw, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -63,10 +63,62 @@ const daysTravelledValue = (values) => isBusinessTravel(values) ? inputValue(val
 const roomsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_room', values.rooms, '') : '—';
 const nightsValue = (values) => isBusinessTravel(values) ? inputValue(values, 'qty_nights', values.nights, '') : '—';
 
-const costValue = (values) => hasValue(values.cost)
-  ? `${values.currency ? `${values.currency} ` : ''}${values.cost}`
-  : '—';
-const reportingPeriodDateValue = (values) => values.billing_period_text || values.reporting_period || values.date;
+const costValue = (values) => {
+  const cost = Number(values.cost);
+  if (values.scope === 'scope3' && (!hasValue(values.cost) || !Number.isFinite(cost) || cost === 0)) return '—';
+  return hasValue(values.cost) ? `${values.currency ? `${values.currency} ` : ''}${values.cost}` : '—';
+};
+const reportingPeriodDateValue = (values) => {
+  const raw = values.billing_period_text || values.reporting_period || values.date;
+  if (!hasValue(raw)) return raw;
+  return String(raw).replace(/(?:T|\s)\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/, '');
+};
+
+const OCR_LEDGER_DEFAULT_WIDTHS = {
+  select: 48,
+  facility: 160,
+  extractedItem: 270,
+  reportingPeriod: 145,
+  scope: 100,
+  category: 200,
+  subcategory: 210,
+  efMethod: 120,
+  quantity: 130,
+  goodsTravelled: 150,
+  distanceTravelled: 160,
+  passengers: 110,
+  daysTravelled: 130,
+  rooms: 135,
+  nights: 135,
+  fromLocation: 170,
+  toLocation: 170,
+  cost: 135,
+  confidence: 140,
+  status: 145,
+  actions: 155,
+};
+
+const ResizableColumnHeader = ({ columnKey, width, onResize, children, testId }) => {
+  const startResize = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = width;
+    const resize = (moveEvent) => onResize(columnKey, startWidth + moveEvent.clientX - startX);
+    const stopResize = () => {
+      window.removeEventListener('pointermove', resize);
+      window.removeEventListener('pointerup', stopResize);
+    };
+    window.addEventListener('pointermove', resize);
+    window.addEventListener('pointerup', stopResize);
+  };
+  return (
+    <TableHead className="relative px-2 text-center" style={{ width }} data-testid={testId}>
+      {children}
+      <button type="button" onPointerDown={startResize} className="absolute right-0 top-0 z-10 flex h-full w-4 touch-none items-center justify-center text-slate-400 transition-colors hover:bg-teal-50 hover:text-teal-800 cursor-col-resize" aria-label={`Resize ${columnKey} column`} title={`Resize ${columnKey} column`} data-testid={`ocr-resize-column-${columnKey}`}><GripVertical className="h-3.5 w-3.5" /></button>
+    </TableHead>
+  );
+};
 
 const MobileField = ({ label, value, itemId, field, wide = false, children }) => (
   <div className={wide ? 'col-span-2' : ''}>
@@ -144,10 +196,20 @@ const MoreDetailsDialog = ({ item, open, onOpenChange }) => {
 export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, acceptingId, rejectingId, bulkSaving, bulkRejecting, hideInvoiceTabs = false }) => {
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
-  const [reviewFilter, setReviewFilter] = useState('all');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
   const [detailsItem, setDetailsItem] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const ledgerScrollRef = useRef(null);
+  const bottomScrollbarRef = useRef(null);
+  const scrollbarDragRef = useRef(null);
+  const [manualColumnWidths, setManualColumnWidths] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ocr-review-column-widths-v1') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [ledgerMetrics, setLedgerMetrics] = useState({ scrollWidth: 0, viewportWidth: 0, scrollLeft: 0, scrollbarWidth: 0 });
   useEffect(() => {
     if (hideInvoiceTabs) setInvoiceFilter('all');
   }, [hideInvoiceTabs]);
@@ -162,6 +224,111 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
   const showFromLocation = items.some((item) => hasValue(item.current_values?.origin));
   const showToLocation = items.some((item) => hasValue(item.current_values?.destination));
   const showCost = items.some((item) => hasValue(item.current_values?.cost));
+  const visibleColumnKeys = useMemo(() => [
+    'select', 'facility', 'extractedItem', 'reportingPeriod', 'scope', 'category', 'subcategory',
+    ...(showEfMethod ? ['efMethod'] : []),
+    ...(showQuantity ? ['quantity'] : []),
+    ...(showGoodsTravelled ? ['goodsTravelled'] : []),
+    ...(showDistanceTravelled ? ['distanceTravelled'] : []),
+    ...(showPassengers ? ['passengers'] : []),
+    ...(showDaysTravelled ? ['daysTravelled'] : []),
+    ...(showRooms ? ['rooms'] : []),
+    ...(showNights ? ['nights'] : []),
+    ...(showFromLocation ? ['fromLocation'] : []),
+    ...(showToLocation ? ['toLocation'] : []),
+    ...(showCost ? ['cost'] : []),
+    'confidence', 'status', 'actions',
+  ], [showCost, showDaysTravelled, showDistanceTravelled, showEfMethod, showFromLocation, showGoodsTravelled, showNights, showPassengers, showQuantity, showRooms, showToLocation]);
+  const effectiveColumnWidths = useMemo(() => ({
+    ...OCR_LEDGER_DEFAULT_WIDTHS,
+    ...manualColumnWidths,
+  }), [manualColumnWidths]);
+  const totalColumnWidth = visibleColumnKeys.reduce((total, key) => total + effectiveColumnWidths[key], 0);
+  const hasCustomizedColumnWidths = Object.keys(manualColumnWidths).length > 0;
+
+  useEffect(() => {
+    localStorage.setItem('ocr-review-column-widths-v1', JSON.stringify(manualColumnWidths));
+  }, [manualColumnWidths]);
+
+  useEffect(() => {
+    const ledger = ledgerScrollRef.current;
+    const bottomScrollbar = bottomScrollbarRef.current;
+    if (!ledger) return undefined;
+    const sync = () => setLedgerMetrics({
+      scrollWidth: ledger.scrollWidth,
+      viewportWidth: ledger.clientWidth,
+      scrollLeft: ledger.scrollLeft,
+      scrollbarWidth: bottomScrollbar?.clientWidth || ledger.clientWidth,
+    });
+    sync();
+    ledger.addEventListener('scroll', sync, { passive: true });
+    const observer = new ResizeObserver(sync);
+    observer.observe(ledger);
+    if (bottomScrollbar) observer.observe(bottomScrollbar);
+    return () => {
+      ledger.removeEventListener('scroll', sync);
+      observer.disconnect();
+    };
+  }, [items.length, totalColumnWidth]);
+
+  const resizeColumn = (columnKey, width) => {
+    const nextWidth = Math.min(480, Math.max(76, Math.round(width)));
+    setManualColumnWidths((current) => {
+      const next = { ...current };
+      if (nextWidth === OCR_LEDGER_DEFAULT_WIDTHS[columnKey]) delete next[columnKey];
+      else next[columnKey] = nextWidth;
+      return next;
+    });
+  };
+  const resetColumnWidths = () => {
+    setManualColumnWidths({});
+    if (ledgerScrollRef.current) ledgerScrollRef.current.scrollLeft = 0;
+  };
+  const ledgerContentWidth = Math.max(totalColumnWidth, ledgerMetrics.viewportWidth);
+  const maxHorizontalScroll = Math.max(0, ledgerContentWidth - ledgerMetrics.viewportWidth);
+  const hasHorizontalOverflow = maxHorizontalScroll > 1;
+  const scrollbarThumbWidth = ledgerMetrics.scrollbarWidth
+    ? Math.max(40, Math.min(ledgerMetrics.scrollbarWidth, (ledgerMetrics.viewportWidth / Math.max(ledgerContentWidth, 1)) * ledgerMetrics.scrollbarWidth))
+    : 0;
+  const maxThumbTravel = Math.max(0, ledgerMetrics.scrollbarWidth - scrollbarThumbWidth);
+  const scrollbarThumbLeft = maxHorizontalScroll && maxThumbTravel
+    ? (ledgerMetrics.scrollLeft / maxHorizontalScroll) * maxThumbTravel
+    : 0;
+  const setLedgerScrollFromThumbPosition = (thumbLeft) => {
+    const ledger = ledgerScrollRef.current;
+    if (!ledger || !maxThumbTravel || !maxHorizontalScroll) return;
+    ledger.scrollLeft = Math.max(0, Math.min(maxThumbTravel, thumbLeft)) / maxThumbTravel * maxHorizontalScroll;
+  };
+  const stopScrollbarDrag = () => {
+    window.removeEventListener('pointermove', moveScrollbarDrag);
+    window.removeEventListener('pointerup', stopScrollbarDrag);
+    scrollbarDragRef.current = null;
+  };
+  const moveScrollbarDrag = (event) => {
+    if (!scrollbarDragRef.current) return;
+    setLedgerScrollFromThumbPosition(scrollbarDragRef.current.startLeft + event.clientX - scrollbarDragRef.current.startX);
+  };
+  const startScrollbarDrag = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollbarDragRef.current = { startX: event.clientX, startLeft: scrollbarThumbLeft };
+    window.addEventListener('pointermove', moveScrollbarDrag);
+    window.addEventListener('pointerup', stopScrollbarDrag);
+  };
+  const handleScrollbarTrackClick = (event) => {
+    if (event.target !== event.currentTarget) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setLedgerScrollFromThumbPosition(event.clientX - bounds.left - scrollbarThumbWidth / 2);
+  };
+  const handleLedgerWheel = (event) => {
+    if (!event.deltaX) return;
+    const ledger = ledgerScrollRef.current;
+    if (!ledger) return;
+    const nextScrollLeft = Math.max(0, Math.min(maxHorizontalScroll, ledger.scrollLeft + event.deltaX));
+    if (nextScrollLeft === ledger.scrollLeft) return;
+    event.preventDefault();
+    ledger.scrollLeft = nextScrollLeft;
+  };
   const invoiceGroups = useMemo(() => Object.values(items.reduce((groups, item) => {
     const invoice = item.current_values?.invoice_number || 'Unnumbered invoice';
     groups[invoice] = groups[invoice] || { invoice, items: [] };
@@ -173,9 +340,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
     const searchable = `${values.vendor_name || ''} ${values.item_description || ''} ${values.category || ''}`.toLowerCase();
     return (invoiceFilter === 'all' || (values.invoice_number || 'Unnumbered invoice') === invoiceFilter)
       && searchable.includes(query.toLowerCase())
-      && (scopeFilter === 'all' || values.scope === scopeFilter)
-      && (reviewFilter === 'all' || (reviewFilter === 'review' ? item.needs_review : !item.needs_review));
-  }), [items, invoiceFilter, query, scopeFilter, reviewFilter]);
+      && (scopeFilter === 'all' || values.scope === scopeFilter);
+  }), [items, invoiceFilter, query, scopeFilter]);
   const selectableRows = filtered.filter((item) => item.status !== 'imported');
   const selectedRows = items.filter((item) => selectedIds.includes(item.id) && item.status !== 'imported');
   const selectedSavableRows = selectedRows.filter((item) => item.current_values?.scope !== 'water');
@@ -198,47 +364,34 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
     <section className="space-y-3" aria-labelledby="ocr-review-heading" data-testid="ocr-review-section">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 id="ocr-review-heading" className="text-lg font-semibold text-slate-950">Review extracted activity</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="ocr-review-heading" className="text-lg font-semibold text-slate-950">Review extracted activity</h2>
+            {hasCustomizedColumnWidths && <Button type="button" size="sm" variant="ghost" onClick={resetColumnWidths} className="h-8 gap-1.5 text-xs text-slate-600 hover:bg-teal-50 hover:text-teal-800" data-testid="ocr-reset-column-widths-button"><RotateCcw className="h-3.5 w-3.5" />Reset widths</Button>}
+          </div>
           <p className="mt-1 text-sm text-slate-600" data-testid="ocr-review-summary">
             {filtered.length} of {items.length} rows · {items.filter((item) => item.needs_review).length} need attention
           </p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(14rem,1fr)_10rem_10rem]">
-          <div className="relative">
+        <div className="flex max-w-full items-center justify-end gap-2 overflow-x-auto lg:flex-nowrap">
+          <div className="flex shrink-0 items-center gap-2" data-testid="ocr-bulk-actions-bar">
+            {selectedRows.length > 0 && <>
+              <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
+              <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
+            </>}
+            <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
+            <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
+          </div>
+          <div className="relative min-w-[14rem] shrink-0 sm:w-60">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search rows" className="pl-9" data-testid="ocr-review-search-input" />
           </div>
           <Select value={scopeFilter} onValueChange={setScopeFilter}>
-            <SelectTrigger data-testid="ocr-scope-filter"><SelectValue placeholder="All scopes" /></SelectTrigger>
+            <SelectTrigger className="w-36 shrink-0" data-testid="ocr-scope-filter"><SelectValue placeholder="All scopes" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" data-testid="ocr-scope-filter-all">All scopes</SelectItem>
               {enabledScopes.map((scope) => <SelectItem key={scope} value={scope} data-testid={`ocr-scope-filter-${scope}`}>{scope.replace('scope', 'Scope ')}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={reviewFilter} onValueChange={setReviewFilter}>
-            <SelectTrigger data-testid="ocr-review-filter"><SelectValue placeholder="All rows" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" data-testid="ocr-review-filter-all">All rows</SelectItem>
-              <SelectItem value="review" data-testid="ocr-review-filter-needs-review">Needs review</SelectItem>
-              <SelectItem value="ready" data-testid="ocr-review-filter-ready">Ready</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 border-y border-slate-200 py-3 xl:flex-row xl:items-center xl:justify-between" data-testid="ocr-bulk-actions-bar">
-        <div className="flex flex-wrap items-center gap-3">
-          <Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all rows shown" data-testid="ocr-select-all-visible-checkbox" />
-          <label className="text-sm font-medium text-slate-800" data-testid="ocr-select-all-visible-label">Select all</label>
-          {selectedRows.length > 0 && <span className="text-sm text-slate-600" data-testid="ocr-selected-row-count">{selectedRows.length} selected</span>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2" data-testid="ocr-bulk-action-buttons">
-          {selectedRows.length > 0 && <>
-            <Button type="button" size="sm" variant="outline" onClick={() => onBulkSave(selectedSavableRows)} disabled={!selectedSavableRows.length || isBulkActionRunning} data-testid="ocr-save-selected-button"><Check className="mr-2 h-4 w-4" />Save selected</Button>
-            <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
-          </>}
-          <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
-          <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
         </div>
       </div>
 
@@ -253,31 +406,34 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
         </div>
       )}
 
-      <div className="hidden overflow-x-auto border border-slate-200 bg-white lg:block" data-testid="ocr-review-desktop-table">
-        <Table className="min-w-[1700px]">
+      <div className="hidden overflow-hidden border border-slate-200 bg-white lg:block" data-testid="ocr-review-desktop-table">
+        <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="ocr-review-ledger-scroll-region">
+        <div style={{ minWidth: totalColumnWidth, width: ledgerContentWidth }}>
+        <Table className="table-fixed">
+          <colgroup>{visibleColumnKeys.map((columnKey) => <col key={columnKey} style={{ width: effectiveColumnWidths[columnKey] }} />)}</colgroup>
           <TableHeader className="bg-slate-50 [&_th]:text-center">
             <TableRow>
-              <TableHead className="w-10" data-testid="ocr-ledger-header-select"><Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></TableHead>
-              <TableHead data-testid="ocr-ledger-header-facility">Facility</TableHead>
-              <TableHead data-testid="ocr-ledger-header-extracted-item">Extracted item</TableHead>
-              <TableHead data-testid="ocr-ledger-header-reporting-period-date">Reporting period</TableHead>
-              <TableHead data-testid="ocr-ledger-header-scope">Scope</TableHead>
-              <TableHead data-testid="ocr-ledger-header-category">Category</TableHead>
-              <TableHead data-testid="ocr-ledger-header-subcategory">Subcategory</TableHead>
-              {showEfMethod && <TableHead data-testid="ocr-ledger-header-ef-method">EF method</TableHead>}
-              {showQuantity && <TableHead data-testid="ocr-ledger-header-quantity">Quantity</TableHead>}
-              {showGoodsTravelled && <TableHead data-testid="ocr-ledger-header-goods-travelled">Goods travelled</TableHead>}
-              {showDistanceTravelled && <TableHead data-testid="ocr-ledger-header-distance-travelled">Distance travelled</TableHead>}
-              {showPassengers && <TableHead data-testid="ocr-ledger-header-passengers">Passengers</TableHead>}
-              {showDaysTravelled && <TableHead data-testid="ocr-ledger-header-days-travelled">Days travelled</TableHead>}
-              {showRooms && <TableHead data-testid="ocr-ledger-header-rooms">Number of rooms</TableHead>}
-              {showNights && <TableHead data-testid="ocr-ledger-header-nights">Number of nights</TableHead>}
-              {showFromLocation && <TableHead data-testid="ocr-ledger-header-from-location">From location</TableHead>}
-              {showToLocation && <TableHead data-testid="ocr-ledger-header-to-location">To location</TableHead>}
-              {showCost && <TableHead data-testid="ocr-ledger-header-cost">Cost</TableHead>}
-              <TableHead data-testid="ocr-ledger-header-confidence">Confidence score</TableHead>
-              <TableHead data-testid="ocr-ledger-header-status">Review status</TableHead>
-              <TableHead data-testid="ocr-ledger-header-actions">Actions</TableHead>
+              <ResizableColumnHeader columnKey="select" width={effectiveColumnWidths.select} onResize={resizeColumn} testId="ocr-ledger-header-select"><Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="facility" width={effectiveColumnWidths.facility} onResize={resizeColumn} testId="ocr-ledger-header-facility">Facility</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="extractedItem" width={effectiveColumnWidths.extractedItem} onResize={resizeColumn} testId="ocr-ledger-header-extracted-item">Extracted item</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="reportingPeriod" width={effectiveColumnWidths.reportingPeriod} onResize={resizeColumn} testId="ocr-ledger-header-reporting-period-date">Reporting period</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="scope" width={effectiveColumnWidths.scope} onResize={resizeColumn} testId="ocr-ledger-header-scope">Scope</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="category" width={effectiveColumnWidths.category} onResize={resizeColumn} testId="ocr-ledger-header-category">Category</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="subcategory" width={effectiveColumnWidths.subcategory} onResize={resizeColumn} testId="ocr-ledger-header-subcategory">Subcategory</ResizableColumnHeader>
+              {showEfMethod && <ResizableColumnHeader columnKey="efMethod" width={effectiveColumnWidths.efMethod} onResize={resizeColumn} testId="ocr-ledger-header-ef-method">EF method</ResizableColumnHeader>}
+              {showQuantity && <ResizableColumnHeader columnKey="quantity" width={effectiveColumnWidths.quantity} onResize={resizeColumn} testId="ocr-ledger-header-quantity">Quantity</ResizableColumnHeader>}
+              {showGoodsTravelled && <ResizableColumnHeader columnKey="goodsTravelled" width={effectiveColumnWidths.goodsTravelled} onResize={resizeColumn} testId="ocr-ledger-header-goods-travelled">Goods travelled</ResizableColumnHeader>}
+              {showDistanceTravelled && <ResizableColumnHeader columnKey="distanceTravelled" width={effectiveColumnWidths.distanceTravelled} onResize={resizeColumn} testId="ocr-ledger-header-distance-travelled">Distance travelled</ResizableColumnHeader>}
+              {showPassengers && <ResizableColumnHeader columnKey="passengers" width={effectiveColumnWidths.passengers} onResize={resizeColumn} testId="ocr-ledger-header-passengers">Passengers</ResizableColumnHeader>}
+              {showDaysTravelled && <ResizableColumnHeader columnKey="daysTravelled" width={effectiveColumnWidths.daysTravelled} onResize={resizeColumn} testId="ocr-ledger-header-days-travelled">Days travelled</ResizableColumnHeader>}
+              {showRooms && <ResizableColumnHeader columnKey="rooms" width={effectiveColumnWidths.rooms} onResize={resizeColumn} testId="ocr-ledger-header-rooms">Number of rooms</ResizableColumnHeader>}
+              {showNights && <ResizableColumnHeader columnKey="nights" width={effectiveColumnWidths.nights} onResize={resizeColumn} testId="ocr-ledger-header-nights">Number of nights</ResizableColumnHeader>}
+              {showFromLocation && <ResizableColumnHeader columnKey="fromLocation" width={effectiveColumnWidths.fromLocation} onResize={resizeColumn} testId="ocr-ledger-header-from-location">From location</ResizableColumnHeader>}
+              {showToLocation && <ResizableColumnHeader columnKey="toLocation" width={effectiveColumnWidths.toLocation} onResize={resizeColumn} testId="ocr-ledger-header-to-location">To location</ResizableColumnHeader>}
+              {showCost && <ResizableColumnHeader columnKey="cost" width={effectiveColumnWidths.cost} onResize={resizeColumn} testId="ocr-ledger-header-cost">Cost</ResizableColumnHeader>}
+              <ResizableColumnHeader columnKey="confidence" width={effectiveColumnWidths.confidence} onResize={resizeColumn} testId="ocr-ledger-header-confidence">Confidence score</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={effectiveColumnWidths.status} onResize={resizeColumn} testId="ocr-ledger-header-status">Review status</ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="actions" width={effectiveColumnWidths.actions} onResize={resizeColumn} testId="ocr-ledger-header-actions">Actions</ResizableColumnHeader>
             </TableRow>
           </TableHeader>
           <TableBody className="[&_td]:text-center">
@@ -321,6 +477,13 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
             })}
           </TableBody>
         </Table>
+        </div>
+        </div>
+        {hasHorizontalOverflow && <div className="border-t border-stone-200 bg-stone-50 px-4 py-1" data-testid="ocr-review-ledger-bottom-scrollbar">
+          <div ref={bottomScrollbarRef} className="relative h-2 w-full rounded-full bg-stone-200" onPointerDown={handleScrollbarTrackClick} onKeyDown={(event) => { if (event.key === 'ArrowLeft') setLedgerScrollFromThumbPosition(scrollbarThumbLeft - 80); if (event.key === 'ArrowRight') setLedgerScrollFromThumbPosition(scrollbarThumbLeft + 80); }} role="scrollbar" tabIndex={0} aria-label="Scroll OCR ledger columns horizontally" aria-valuemin={0} aria-valuemax={maxHorizontalScroll} aria-valuenow={Math.round(ledgerMetrics.scrollLeft)} data-testid="ocr-review-ledger-bottom-scrollbar-track">
+            <button type="button" onPointerDown={startScrollbarDrag} className="absolute top-0 h-2 rounded-full bg-stone-400 transition-colors hover:bg-stone-500 active:bg-stone-600" style={{ width: scrollbarThumbWidth, transform: `translateX(${scrollbarThumbLeft}px)` }} aria-label="Drag to scroll OCR ledger columns horizontally" data-testid="ocr-review-ledger-bottom-scrollbar-thumb" />
+          </div>
+        </div>}
       </div>
 
       <div className="grid gap-2 lg:hidden" data-testid="ocr-review-mobile-list">

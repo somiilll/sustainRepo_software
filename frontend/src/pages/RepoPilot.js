@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleAccess } from '../hooks/useModuleAccess';
+import { ModuleUnavailableState } from '../components/ModuleUnavailableState';
+import { ContactSalesDialog } from '../components/ContactSalesDialog';
 import { toast } from 'sonner';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -308,9 +311,12 @@ function formatMarkdown(text) {
 }
 
 export default function RepoPilotPage() {
-  const { token, user } = useAuth();
+  const { token, user, getAuthHeader } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
   const headers = { Authorization: `Bearer ${token}` };
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const internalDataAiEnabled = moduleAccessLoading || hasAccess('repo_pilot.internal_data_ai');
+  const dataRetrievalEnabled = moduleAccessLoading || hasAccess('repo_pilot.data_retrieval');
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -319,6 +325,8 @@ export default function RepoPilotPage() {
   const [uploading, setUploading] = useState(false);
   const [docFilter, setDocFilter] = useState([]);
   const [aiMode, setAiMode] = useState('document'); // 'document' | 'internal'
+  const [showInternalDataAiLock, setShowInternalDataAiLock] = useState(false);
+  const [contactSalesOpen, setContactSalesOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -326,16 +334,19 @@ export default function RepoPilotPage() {
   useEffect(() => { scrollToBottom(); }, [messages]);
 
   const fetchDocs = useCallback(async () => {
+    if (!dataRetrievalEnabled) { setDocuments([]); return; }
     try {
       const res = await axios.get(`${API}/api/repo-pilot/documents`, { headers });
       setDocuments(res.data?.documents || []);
     } catch (e) { /* silent */ }
-  }, [token]);
+  }, [token, dataRetrievalEnabled]);
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+    if (aiMode === 'internal' && !internalDataAiEnabled) { setShowInternalDataAiLock(true); return; }
+    if (aiMode === 'document' && !dataRetrievalEnabled) return;
     const userMsg = { role: 'user', content: input.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -484,7 +495,8 @@ export default function RepoPilotPage() {
               variant="outline"
               size="sm"
               className="gap-1.5 text-xs"
-              onClick={() => setDocsOpen(o => !o)}
+              onClick={() => dataRetrievalEnabled && setDocsOpen(o => !o)}
+              disabled={!dataRetrievalEnabled}
               data-testid="docs-panel-toggle"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -492,7 +504,7 @@ export default function RepoPilotPage() {
               {docFilter.length > 0 && <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 rounded-full">{docFilter.length} filtered</span>}
             </Button>
 
-            {docsOpen && (
+            {docsOpen && dataRetrievalEnabled && (
               <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border border-stone-200 shadow-xl z-50 flex flex-col max-h-[420px]">
                 <div className="p-3 border-b">
                   <div className="flex items-center justify-between mb-2">
@@ -502,7 +514,7 @@ export default function RepoPilotPage() {
                     </Button>
                   </div>
                   <input type="file" ref={fileInputRef} accept=".pdf" onChange={handleUpload} className="hidden" />
-                  <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                  <Button size="sm" className="w-full bg-emerald-600 hover:bg-emerald-700 gap-1" onClick={() => fileInputRef.current?.click()} disabled={uploading || !dataRetrievalEnabled}>
                     {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
                     {uploading ? 'Processing...' : 'Upload PDF'}
                   </Button>
@@ -553,7 +565,7 @@ export default function RepoPilotPage() {
               <Bot className="w-16 h-16 text-stone-200 mb-4" />
               <h3 className="text-lg font-semibold text-text-primary mb-1">Hello, I am your ESG expert.</h3>
               <p className="text-sm text-text-muted mb-6">How can I help you today?</p>
-              <div className="grid grid-cols-2 gap-2 max-w-lg">
+              {dataRetrievalEnabled && <div className="grid grid-cols-2 gap-2 max-w-lg">
                 {[
                   'Show our Scope 1 and Scope 2 emissions.',
                   'Does our company have a Child Labour Policy?',
@@ -569,7 +581,7 @@ export default function RepoPilotPage() {
                     {q}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
           {messages.map((msg, i) => <ChatMessage key={i} msg={msg} documents={documents} />)}
@@ -604,11 +616,11 @@ export default function RepoPilotPage() {
                 Document AI
               </button>
               <button
-                onClick={() => { setAiMode('internal'); setMessages([]); }}
+                onClick={() => { if (internalDataAiEnabled) { setAiMode('internal'); setMessages([]); } else { setShowInternalDataAiLock(true); } }}
                 className={`px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
                   aiMode === 'internal'
                     ? 'bg-white text-blue-700 shadow-sm border border-blue-200'
-                    : 'text-stone-500 hover:text-stone-700'
+                    : internalDataAiEnabled ? 'text-stone-500 hover:text-stone-700' : 'text-stone-400 opacity-55 hover:text-stone-500'
                 }`}
                 data-testid="ai-mode-internal"
               >
@@ -622,15 +634,17 @@ export default function RepoPilotPage() {
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
               placeholder={aiMode === 'internal' ? 'Ask about your ESG data, targets, emission factors...' : 'Ask about your ESG documents...'}
               className="flex-1"
-              disabled={loading}
+              disabled={loading || (aiMode === 'document' && !dataRetrievalEnabled)}
               data-testid="chat-input"
             />
-            <Button onClick={handleSend} disabled={!input.trim() || loading} className={aiMode === 'internal' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} data-testid="chat-send">
+            <Button onClick={handleSend} disabled={!input.trim() || loading || (aiMode === 'document' && !dataRetrievalEnabled)} className={aiMode === 'internal' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} data-testid="chat-send">
               <Send className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </Card>
+      {showInternalDataAiLock && <ModuleUnavailableState moduleName="Internal Data AI" description="Internal Data AI is not enabled for your organisation. Contact your organisation administrator to request access." onContactSales={() => setContactSalesOpen(true)} />}
+      <ContactSalesDialog open={contactSalesOpen} onOpenChange={setContactSalesOpen} user={user} getAuthHeader={getAuthHeader} />
     </div>
   );
 }

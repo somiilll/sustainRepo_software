@@ -9,7 +9,7 @@
  * - Discard draft option
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
@@ -50,6 +50,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -257,6 +268,7 @@ export default function ESGRecordsDataEntry({
   const [formEvidences, setFormEvidences] = useState([]);
   const [editEvidences, setEditEvidences] = useState([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const pendingEditEvidenceDeletionIds = useRef(new Set());
 
   const handleEvidenceUpload = async (files, isEdit = false) => {
     if (!files || files.length === 0) return;
@@ -268,26 +280,7 @@ export default function ESGRecordsDataEntry({
         toast.error(`${file.name} exceeds 5MB limit`);
         continue;
       }
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      try {
-        const res = await axios.post(
-          `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
-          uploadFormData,
-          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
-        );
-        newEvidences.push({
-          id: res.data.file_id,
-          filename: file.name,
-          file_type: file.name.split('.').pop() || 'unknown',
-          file_size: file.size,
-          upload_url: `/api/files/${res.data.file_id}`,
-          uploaded_at: new Date().toISOString(),
-          uploaded_by: user?.id || '',
-        });
-      } catch (err) {
-        toast.error(`Failed to upload ${file.name}`);
-      }
+      newEvidences.push(createDraftEvidence(file));
     }
     if (newEvidences.length > 0) {
       if (isEdit) {
@@ -301,12 +294,11 @@ export default function ESGRecordsDataEntry({
   };
 
   const removeEvidence = async (evidenceId, isEdit = false) => {
-    try {
-      await axios.delete(`${API}/api/files/${evidenceId}`, { headers });
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
-      return;
-    }
+    const collection = isEdit ? editEvidences : formEvidences;
+    const evidence = collection.find((item) => item.id === evidenceId);
+    const uploadedFileId = getEvidenceFileId(evidence);
+    if (evidence?.is_draft) revokeDraftEvidence(evidence);
+    if (isEdit && !evidence?.is_draft && uploadedFileId) pendingEditEvidenceDeletionIds.current.add(uploadedFileId);
     if (isEdit) {
       setEditEvidences(prev => prev.filter(e => e.id !== evidenceId));
     } else {
@@ -604,19 +596,48 @@ export default function ESGRecordsDataEntry({
         record_level: formData.facility_id && formData.facility_id !== 'org_level' ? 'facility' : 'organization',
         reporting_period: reportingPeriod,
         field_values: formData.field_values,
-        evidence_files: formEvidences,
+        evidence_files: persistedEvidence(formEvidences).map(toEvidencePayload),
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         status: asDraft ? 'draft' : 'completed',  // Send status to backend
       };
 
       const response = await axios.post(`${API}/api/esg-records/records/${section}`, payload, { headers });
+      const recordId = response.data?.record?.id;
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(formEvidences),
+        uploadUrl: `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id || '',
+        }),
+      });
+      if (uploadResult.uploaded.length > 0 && recordId) {
+        try {
+          await axios.put(`${API}/api/esg-records/records/${section}/${recordId}`, {
+            evidence_files: [...payload.evidence_files, ...uploadResult.uploaded],
+          }, { headers });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), `${API}/api`, headers);
+          throw error;
+        }
+      }
       if (!asDraft && ocrWaterPrefill?.line_item_id && response.data?.record?.id) {
         await axios.post(`${API}/api/ocr-invoice/finalize-water-import`, {
           line_item_id: ocrWaterPrefill.line_item_id,
           esg_record_id: response.data.record.id,
         }, { headers });
         onOcrWaterImported?.();
+      }
+      if (uploadResult.failed.length > 0) {
+        toast.error(`Metric saved, but ${uploadResult.failed.length} evidence file(s) could not be uploaded.`);
       }
       
       toast.success(asDraft ? 'Saved as draft' : 'Metric saved');
@@ -637,6 +658,7 @@ export default function ESGRecordsDataEntry({
       });
       setFormErrors({});
       setAddFormCategory(null);
+      revokeDraftEvidences(formEvidences);
       setFormEvidences([]);
       
       if (onRecordAdded) onRecordAdded();
@@ -794,6 +816,8 @@ export default function ESGRecordsDataEntry({
   // Open edit modal
   const openEditModal = async (record) => {
     setSelectedRecord(record);
+    revokeDraftEvidences(editEvidences);
+    pendingEditEvidenceDeletionIds.current.clear();
     
     // Extract reporting period info
     const reportingPeriod = record.reporting_period || {};
@@ -899,21 +923,53 @@ export default function ESGRecordsDataEntry({
         }
       }
       
+      const baseEvidence = persistedEvidence(editEvidences).map(toEvidencePayload);
+      const updatePayload = {
+        field_values: editData.field_values,
+        notes: editData.notes,
+        source_of_information: editData.source_of_information,
+        evidence_files: baseEvidence,
+        status: asDraft ? 'draft' : 'completed',
+        reporting_period: reportingPeriod,
+        facility_id: editData.facility_id === 'org_level' ? null : (editData.facility_id || null),
+        record_level: editData.facility_id && editData.facility_id !== 'org_level' ? 'facility' : 'organization',
+      };
       await axios.put(
         `${API}/api/esg-records/records/${section}/${selectedRecord.id}`,
-        {
-          field_values: editData.field_values,
-          notes: editData.notes,
-          source_of_information: editData.source_of_information,
-          evidence_files: editEvidences,
-          status: asDraft ? 'draft' : 'completed',
-          // Include reporting period and facility changes
-          reporting_period: reportingPeriod,
-          facility_id: editData.facility_id === 'org_level' ? null : (editData.facility_id || null),
-          record_level: editData.facility_id && editData.facility_id !== 'org_level' ? 'facility' : 'organization',
-        },
+        updatePayload,
         { headers }
       );
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(editEvidences),
+        uploadUrl: `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id || '',
+        }),
+      });
+      if (uploadResult.uploaded.length > 0) {
+        try {
+          await axios.put(`${API}/api/esg-records/records/${section}/${selectedRecord.id}`, {
+            evidence_files: [...baseEvidence, ...uploadResult.uploaded],
+          }, { headers });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), `${API}/api`, headers);
+          throw error;
+        }
+      }
+      const deletionFailures = await deleteEvidenceFiles(pendingEditEvidenceDeletionIds.current, `${API}/api`, headers);
+      pendingEditEvidenceDeletionIds.current.clear();
+      revokeDraftEvidences(editEvidences);
+      if (uploadResult.failed.length || deletionFailures) {
+        toast.error(`Metric saved, but ${uploadResult.failed.length + deletionFailures} evidence change(s) could not be completed.`);
+      }
       
       toast.success(asDraft ? 'Saved as draft' : 'Metric updated');
       setShowEditModal(false);
@@ -944,6 +1000,9 @@ export default function ESGRecordsDataEntry({
 
   // Discard edit (close modal without saving)
   const discardEdit = () => {
+    revokeDraftEvidences(editEvidences);
+    pendingEditEvidenceDeletionIds.current.clear();
+    setEditEvidences([]);
     setShowEditModal(false);
     setSelectedRecord(null);
     setSelectedCategory(null);
@@ -1271,8 +1330,8 @@ export default function ESGRecordsDataEntry({
                         <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                         <span className="flex-1 truncate">{ev.filename}</span>
                         <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                        <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                        <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600">
+                        <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`add-metric-evidence-view-${ev.id}`}>View</a>
+                        <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600" data-testid={`add-metric-evidence-remove-${ev.id}`}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -1285,12 +1344,13 @@ export default function ESGRecordsDataEntry({
                 >
                   <input id="add-evidence-upload" type="file" className="hidden" multiple
                     onChange={(e) => { handleEvidenceUpload(e.target.files, false); e.target.value = ''; }}
+                    data-testid="add-metric-evidence-file-input"
                   />
                   {uploadingEvidence
                     ? <Loader2 className="w-4 h-4 animate-spin mx-auto text-emerald-600" />
                     : <>
                         <Upload className="w-4 h-4 mx-auto text-stone-400 mb-1" />
-                        <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
+                        <p className="text-xs text-stone-500">Drop files or click to select (max 5MB each)</p>
                       </>
                   }
                 </div>
@@ -1299,12 +1359,12 @@ export default function ESGRecordsDataEntry({
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="outline" onClick={() => handleSaveRecord(true)} disabled={saving.form}
-                  className="border-yellow-300 text-yellow-700 hover:bg-yellow-50">
+                  className="border-yellow-300 text-yellow-700 hover:bg-yellow-50" data-testid="add-metric-save-draft-button">
                   {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileEdit className="w-4 h-4 mr-2" />}
                   Save as Draft
                 </Button>
                 <Button onClick={() => handleSaveRecord(false)} disabled={saving.form}
-                  className="bg-emerald-600 hover:bg-emerald-700">
+                  className="bg-emerald-600 hover:bg-emerald-700" data-testid="add-metric-save-button">
                   {saving.form ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Metric
                 </Button>
@@ -1839,7 +1899,7 @@ export default function ESGRecordsDataEntry({
       </Dialog>
 
       {/* Edit Metric Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+      <Dialog open={showEditModal} onOpenChange={(isOpen) => { if (!isOpen) discardEdit(); }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="edit-metric-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2065,8 +2125,8 @@ export default function ESGRecordsDataEntry({
                       <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
                       <span className="flex-1 truncate">{ev.filename}</span>
                       <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                      <a href={`${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                      <button type="button" onClick={() => removeEvidence(ev.id, true)} className="text-red-400 hover:text-red-600">
+                      <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`edit-metric-evidence-view-${ev.id}`}>View</a>
+                      <button type="button" onClick={() => removeEvidence(ev.id, true)} className="text-red-400 hover:text-red-600" data-testid={`edit-metric-evidence-remove-${ev.id}`}>
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -2083,13 +2143,14 @@ export default function ESGRecordsDataEntry({
                   className="hidden"
                   multiple
                   onChange={(e) => { handleEvidenceUpload(e.target.files, true); e.target.value = ''; }}
+                  data-testid="edit-metric-evidence-file-input"
                 />
                 {uploadingEvidence ? (
                   <Loader2 className="w-5 h-5 animate-spin mx-auto text-emerald-600" />
                 ) : (
                   <>
                     <Upload className="w-5 h-5 mx-auto text-stone-400 mb-1" />
-                    <p className="text-xs text-stone-500">Drop files or click to upload (max 5MB each)</p>
+                    <p className="text-xs text-stone-500">Drop files or click to select (max 5MB each)</p>
                   </>
                 )}
               </div>
@@ -2111,6 +2172,7 @@ export default function ESGRecordsDataEntry({
               onClick={() => handleSaveEdit(true)}
               disabled={saving.edit}
               className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+              data-testid="edit-metric-save-draft-button"
             >
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileEdit className="w-4 h-4 mr-2" />}
               Save as Draft

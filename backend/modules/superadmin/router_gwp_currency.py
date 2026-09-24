@@ -40,6 +40,7 @@ from calc_engine.currency_conversion import (
     STANDARD_METHOD,
     currency_record_period,
     normalize_currency_method,
+    resolve_organization_reporting_settings,
     resolve_currency_conversion,
 )
 from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
@@ -444,7 +445,6 @@ async def get_resolved_currency_conversion_defaults(
     current_user: dict = Depends(get_current_user),
 ):
     """Resolve the same period-specific spend defaults used by the calculation engine."""
-    del current_user
     periods = list(dict.fromkeys(
         period.strip() for period in reporting_periods.split(",") if period.strip()
     ))
@@ -453,13 +453,19 @@ async def get_resolved_currency_conversion_defaults(
 
     method = normalize_currency_method(conversion_method)
     source = source_currency.strip().upper()
+    reporting_settings = await resolve_organization_reporting_settings(
+        db,
+        organization_id=current_user.get("organization_id"),
+        reporting_year_type=reporting_year_type,
+    )
     defaults: Dict[str, Dict[str, Any]] = {}
     for period in periods:
         config = await resolve_currency_conversion(
             db,
             source_currency=source,
             reporting_period=period,
-            reporting_year_type=reporting_year_type,
+            reporting_year_type=reporting_settings["reporting_year_type"],
+            financial_year_start_month=reporting_settings["financial_year_start_month"],
             method=method,
         )
         source_name = (config or {}).get("source") or "Unavailable"
@@ -498,7 +504,7 @@ async def get_resolved_currency_conversion_defaults(
             "resolution_metadata": (config or {}).get("resolution_metadata"),
         }
 
-    return {"defaults": defaults}
+    return {"defaults": defaults, **reporting_settings}
 
 # Get all currency conversions (SuperAdmin)
 

@@ -81,10 +81,10 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
             Invoices, utility bills, receipts, CSV ledgers and Excel workbooks. Upload up to 20 files at once; the first 15 pages of each PDF are processed, with a 20MB limit per file.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} data-testid="ocr-browse-files-button">
+            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-browse-files-button">
               <FileText className="mr-2 h-4 w-4" aria-hidden="true" />Upload Files
             </Button>
-            <Button type="button" variant="outline" onClick={onDownloadTemplate} disabled={processing || downloadingTemplate} data-testid="ocr-download-template-upload-button">
+            <Button type="button" variant="outline" onClick={onDownloadTemplate} disabled={processing || downloadingTemplate} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-download-template-upload-button">
               {downloadingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}Download template
             </Button>
           </div>

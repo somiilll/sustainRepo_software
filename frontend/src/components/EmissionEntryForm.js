@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Button } from './ui/button';
 import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
 
 // Import Step components for modular form rendering
 import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
@@ -974,7 +974,7 @@ export default function EmissionEntryForm({
     
     // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
-      filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
+      filtered = filtered.filter((ef) => ef.activity_type === scope3ActivityType);
     }
     
     // Filter by industry sector (if facility has one)
@@ -2627,72 +2627,49 @@ export default function EmissionEntryForm({
       return;
     }
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formData, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      
-      if (response.data?.url) {
-        // Use functional update to ensure we always read the latest state
-        const uploadedFile = {
-          url: response.data.url,
-          filename: file.name,
-          file_id: response.data.file_id,
-          uploaded_at: new Date().toISOString()
+    const draftEvidence = {
+      filename: file.name,
+      file,
+      size: file.size,
+      content_type: file.type,
+      is_draft: true,
+    };
+    if (tripId) {
+      updateC6Trip(periodKey, tripId, 'evidences', (evidences = []) => [...evidences, draftEvidence]);
+    } else if (periodKey === 'yearly') {
+      setYearlyData(prev => ({
+        ...prev,
+        evidences: [...(prev.evidences || []), draftEvidence]
+      }));
+    } else {
+      setMonthlyData(prev => {
+        const currentEvidences = prev[periodKey]?.evidences || [];
+        return {
+          ...prev,
+          [periodKey]: {
+            ...(prev[periodKey] || {}),
+            evidences: [...currentEvidences, draftEvidence]
+          }
         };
-        if (tripId) {
-          updateC6Trip(periodKey, tripId, 'evidences', (evidences = []) => [...evidences, uploadedFile]);
-        } else if (periodKey === 'yearly') {
-          setYearlyData(prev => ({
-            ...prev,
-            evidences: [...(prev.evidences || []), uploadedFile]
-          }));
-        } else {
-          setMonthlyData(prev => {
-            const currentEvidences = prev[periodKey]?.evidences || [];
-            return {
-              ...prev,
-              [periodKey]: {
-                ...(prev[periodKey] || {}),
-                evidences: [...currentEvidences, uploadedFile]
-              }
-            };
-          });
-        }
-        const periodLabel = tripId
-          ? 'trip'
-          : periodKey === 'yearly'
-          ? 'annual data'
-          : MONTHS.find((month) => month.key === periodKey)?.name;
-        toast.success(`Evidence uploaded for ${periodLabel}`);
-      }
-    } catch (error) {
-      console.error('Evidence upload failed:', error);
-      toast.error(getUploadErrorMessage(error, file));
+      });
     }
+    const periodLabel = tripId
+      ? 'trip'
+      : periodKey === 'yearly'
+      ? 'annual data'
+      : MONTHS.find((month) => month.key === periodKey)?.name;
+    toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
   const handleC7EmployeeEvidenceUpload = async (employeeId, periodKey, file) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) throw new Error(sizeErr);
-    const uploadData = new FormData();
-    uploadData.append('file', file);
-    const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
-      headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
-    });
-    if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
     const uploadedEvidence = {
-      url: response.data.url,
-      filename: response.data.filename || file.name,
-      file_id: response.data.file_id,
+      filename: file.name,
+      file,
       size: file.size,
       content_type: file.type,
+      is_draft: true,
     };
     setEmployees((previousEmployees) => previousEmployees.map((employee) => {
       if (employee.id !== employeeId) return employee;
@@ -2718,17 +2695,13 @@ export default function EmissionEntryForm({
       };
     }));
     onFormChange?.();
-    toast.success('Evidence uploaded successfully');
+    const periodLabel = periodKey === 'yearly'
+      ? 'annual data'
+      : MONTHS.find((month) => month.key === periodKey)?.name || 'the selected period';
+    toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
   const handleC7EmployeeEvidenceRemove = async (employeeId, periodKey, evidenceIndex) => {
-    const employee = employees.find((entry) => entry.id === employeeId);
-    const periodData = periodKey === 'yearly'
-      ? employee?.yearly_data
-      : employee?.monthly_data?.[periodKey];
-    const evidence = periodData?.evidences?.[evidenceIndex];
-    const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (fileId) await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
     setEmployees((previousEmployees) => previousEmployees.map((entry) => {
       if (entry.id !== employeeId) return entry;
       if (periodKey === 'yearly') {
@@ -2752,7 +2725,7 @@ export default function EmissionEntryForm({
       };
     }));
     onFormChange?.();
-    toast.success('Evidence removed');
+    toast.success('Evidence removed from draft');
   };
 
   const removeEvidence = async (periodKey, evidenceIndexOrTripId, maybeEvidenceIndex = null) => {
@@ -2768,16 +2741,6 @@ export default function EmissionEntryForm({
       : periodKey === 'yearly'
       ? yearlyData.evidences || []
       : monthlyData[periodKey]?.evidences || [];
-    const evidence = evidences[evidenceIndex];
-    const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (fileId) {
-      try {
-        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-      } catch (error) {
-        toast.error(error.response?.data?.detail || 'Could not remove evidence from storage');
-        return;
-      }
-    }
     if (tripId) {
       updateC6Trip(periodKey, tripId, 'evidences', (items = []) => items.filter((_, index) => index !== evidenceIndex));
       return;
@@ -2793,6 +2756,26 @@ export default function EmissionEntryForm({
       evidences.filter((_, index) => index !== evidenceIndex)
     );
   };
+
+  const commitDraftEvidence = useCallback(async (savedRecords) => {
+    const uploads = savedRecords.flatMap(({ id, evidences = [], drafts = [] }) => [
+      ...evidences.map((evidence) => ({ id, evidence })),
+      ...drafts,
+    ].filter(({ evidence }) => evidence?.is_draft && evidence?.file));
+    const results = await Promise.allSettled(uploads.map(({ id, evidence, employeeId, periodKey }) => {
+      const uploadData = new FormData();
+      uploadData.append('file', evidence.file);
+      const query = new URLSearchParams();
+      if (employeeId) query.set('employee_id', employeeId);
+      if (periodKey) query.set('period_key', periodKey);
+      const endpoint = `${API}/emissions/${id}/evidence${query.size ? `?${query.toString()}` : ''}`;
+      return axios.post(endpoint, uploadData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+    }));
+    const failures = results.filter((result) => result.status === 'rejected').length;
+    if (failures) throw new Error(`${failures} evidence file(s) could not be uploaded`);
+  }, [getAuthHeader]);
 
 
   // Helper function to render a dynamic field (for cleaner grouping in Step 3)
@@ -3460,6 +3443,7 @@ export default function EmissionEntryForm({
     c6Trips,
     // Helpers
     canProceedToStep: validateFullForm, getAuthHeader, onSuccess, getActualYearForMonth,
+    commitDraftEvidence,
     buildDecisionInputs,
     // Decision state for custom fuel methodology
     decisionFieldValues,

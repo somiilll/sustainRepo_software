@@ -276,8 +276,10 @@ class QuestionCreate(BaseModel):
     weight: Optional[float] = None
     importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
-    category: str  # environment, social, governance
+    category: str  # ESG section: environment, social, governance
+    question_category: Literal["policy", "reporting", "certification"] = "policy"
     order: int = 0
+    parent_question_id: Optional[str] = None
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
 
@@ -307,7 +309,9 @@ class QuestionUpdate(BaseModel):
     importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
+    question_category: Optional[Literal["policy", "reporting", "certification"]] = None
     order: Optional[int] = None
+    parent_question_id: Optional[str] = None
     is_active: Optional[bool] = None
     # New: Scoring configuration
     scoring: Optional[QuestionScoringConfig] = None
@@ -343,7 +347,9 @@ class QuestionResponse(BaseModel):
     importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
     category: str
+    question_category: Literal["policy", "reporting", "certification"] = "policy"
     order: int = 0
+    parent_question_id: Optional[str] = None
     is_active: bool = True
     created_at: str
     # New: Scoring configuration

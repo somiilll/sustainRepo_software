@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
@@ -12,6 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -654,52 +665,19 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
     setUploading(true);
     const newFiles = [];
 
-    for (const file of files) {
-      try {
-        const formDataUpload = new FormData();
-        formDataUpload.append('file', file);
-
-        const res = await axios.post(
-          `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
-          formDataUpload,
-          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
-        );
-
-        if (res.data.url) {
-          newFiles.push({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            filename: file.name,
-            file_type: file.type.split('/')[1] || 'unknown',
-            file_size: file.size,
-            upload_url: res.data.url,
-            uploaded_at: new Date().toISOString(),
-            uploaded_by: 'current_user'
-          });
-        }
-      } catch (error) {
-        console.error('Failed to upload file:', error);
-      }
-    }
+    for (const file of files) newFiles.push(createDraftEvidence(file));
 
     setFormData(prev => ({
       ...prev,
       evidence_files: [...prev.evidence_files, ...newFiles]
     }));
     setUploading(false);
+    e.target.value = '';
   };
 
   const removeEvidence = async (fileId) => {
     const evidence = formData.evidence_files.find(file => file.id === fileId);
-    const uploadedFileId = evidence?.file_id || evidence?.upload_url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (uploadedFileId) {
-      try {
-        await axios.delete(`${BACKEND_URL}/api/files/${uploadedFileId}`, { headers });
-      } catch (error) {
-        console.error('Failed to delete evidence:', error);
-        alert(error.response?.data?.detail || 'Could not remove evidence from storage.');
-        return;
-      }
-    }
+    revokeDraftEvidence(evidence);
     setFormData(prev => ({
       ...prev,
       evidence_files: prev.evidence_files.filter(f => f.id !== fileId)
@@ -761,10 +739,40 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
         field_values: formData.field_values,
         source_of_information: formData.source_of_information || null,
         notes: formData.notes || null,
-        evidence_files: formData.evidence_files
+        evidence_files: persistedEvidence(formData.evidence_files).map(toEvidencePayload)
       };
 
-      await axios.post(`${BACKEND_URL}/api/esg-records/records/${section}`, payload, { headers });
+      const response = await axios.post(`${BACKEND_URL}/api/esg-records/records/${section}`, payload, { headers });
+      const recordId = response.data.record?.id;
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(formData.evidence_files),
+        uploadUrl: `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: 'current_user',
+        }),
+      });
+      if (uploadResult.uploaded.length > 0 && recordId) {
+        try {
+          await axios.put(`${BACKEND_URL}/api/esg-records/records/${section}/${recordId}`, {
+            evidence_files: [...payload.evidence_files, ...uploadResult.uploaded],
+          }, { headers });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), `${BACKEND_URL}/api`, headers);
+          throw error;
+        }
+      }
+      revokeDraftEvidences(formData.evidence_files);
+      if (uploadResult.failed.length > 0) {
+        alert(`Record saved, but ${uploadResult.failed.length} evidence file(s) could not be uploaded.`);
+      }
       
       // Reset form
       setStep(1);
@@ -813,7 +821,13 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
     : [];
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        revokeDraftEvidences(formData.evidence_files);
+        setFormData(prev => ({ ...prev, evidence_files: [] }));
+        onClose();
+      }
+    }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1071,7 +1085,8 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                           <span className="truncate max-w-[200px]">{file.filename}</span>
                           <Badge variant="outline" className="text-[10px]">{Math.round(file.file_size / 1024)} KB</Badge>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500">
+                        {file.preview_url && <a href={file.preview_url} target="_blank" rel="noopener noreferrer" className="text-blue-600" data-testid={`add-esg-evidence-view-${file.id}`}><Eye className="w-3 h-3" /></a>}
+                        <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500" data-testid={`add-esg-evidence-remove-${file.id}`}>
                           <X className="w-3 h-3" />
                         </Button>
                       </div>
@@ -1085,6 +1100,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                     onChange={handleEvidenceUpload}
                     className="hidden"
                     accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx"
+                    data-testid="add-esg-evidence-file-input"
                   />
                   {uploading ? (
                     <Loader2 className="w-6 h-6 mx-auto text-emerald-600 animate-spin" />
@@ -1092,7 +1108,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                     <Upload className="w-6 h-6 mx-auto text-stone-400" />
                   )}
                   <p className="text-xs text-text-muted mt-2">
-                    {uploading ? 'Uploading...' : 'Click to upload PDF, Images, Excel, CSV'}
+                    {uploading ? 'Staging...' : 'Click to select PDF, Images, Excel, CSV'}
                   </p>
                 </label>
               </div>
@@ -1109,13 +1125,13 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" onClick={() => { revokeDraftEvidences(formData.evidence_files); setFormData(prev => ({ ...prev, evidence_files: [] })); onClose(); }} data-testid="add-esg-record-cancel-button">Cancel</Button>
             {step < 4 ? (
               <Button onClick={() => setStep(s => s + 1)} disabled={!canProceed()}>
                 Next <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={handleSubmit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+              <Button onClick={handleSubmit} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700" data-testid="add-esg-record-save-button">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Create Record
               </Button>
@@ -1156,6 +1172,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
   });
 
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const pendingDeletionIds = useRef(new Set());
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -1202,47 +1219,24 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
     if (!files || files.length === 0) return;
     setUploading(true);
     const newFiles = [];
-    for (const file of files) {
-      try {
-        const formDataUpload = new FormData();
-        formDataUpload.append('file', file);
-        const res = await axios.post(
-          `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
-          formDataUpload,
-          { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
-        );
-        if (res.data.url) {
-          newFiles.push({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            filename: file.name,
-            file_type: file.type.split('/')[1] || 'unknown',
-            file_size: file.size,
-            upload_url: res.data.url,
-            uploaded_at: new Date().toISOString(),
-            uploaded_by: 'current_user'
-          });
-        }
-      } catch (error) {
-        console.error('Failed to upload file:', error);
-      }
-    }
+    for (const file of files) newFiles.push(createDraftEvidence(file));
     setFormData(prev => ({ ...prev, evidence_files: [...prev.evidence_files, ...newFiles] }));
     setUploading(false);
+    e.target.value = '';
   };
 
   const removeEvidence = async (fileId) => {
     const evidence = formData.evidence_files.find(file => file.id === fileId);
-    const uploadedFileId = evidence?.file_id || evidence?.upload_url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (uploadedFileId) {
-      try {
-        await axios.delete(`${BACKEND_URL}/api/files/${uploadedFileId}`, { headers });
-      } catch (error) {
-        console.error('Failed to delete evidence:', error);
-        alert(error.response?.data?.detail || 'Could not remove evidence from storage.');
-        return;
-      }
-    }
+    const uploadedFileId = getEvidenceFileId(evidence);
+    if (evidence?.is_draft) revokeDraftEvidence(evidence);
+    if (!evidence?.is_draft && uploadedFileId) pendingDeletionIds.current.add(uploadedFileId);
     setFormData(prev => ({ ...prev, evidence_files: prev.evidence_files.filter(f => f.id !== fileId) }));
+  };
+
+  const handleClose = () => {
+    revokeDraftEvidences(formData.evidence_files);
+    pendingDeletionIds.current.clear();
+    onClose();
   };
 
   const buildReportingPeriod = () => {
@@ -1282,10 +1276,41 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
         field_values: formData.field_values,
         source_of_information: formData.source_of_information || null,
         notes: formData.notes || null,
-        evidence_files: formData.evidence_files,
+        evidence_files: persistedEvidence(formData.evidence_files).map(toEvidencePayload),
         change_reason: formData.change_reason || null
       };
       await axios.put(`${BACKEND_URL}/api/esg-records/records/${section}/${record.id}`, payload, { headers });
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(formData.evidence_files),
+        uploadUrl: `${BACKEND_URL}/api/upload/evidence?bucket_type=esg_records_evidence&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: 'current_user',
+        }),
+      });
+      if (uploadResult.uploaded.length > 0) {
+        try {
+          await axios.put(`${BACKEND_URL}/api/esg-records/records/${section}/${record.id}`, {
+            evidence_files: [...payload.evidence_files, ...uploadResult.uploaded],
+          }, { headers });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), `${BACKEND_URL}/api`, headers);
+          throw error;
+        }
+      }
+      const deletionFailures = await deleteEvidenceFiles(pendingDeletionIds.current, `${BACKEND_URL}/api`, headers);
+      pendingDeletionIds.current.clear();
+      revokeDraftEvidences(formData.evidence_files);
+      if (uploadResult.failed.length || deletionFailures) {
+        alert(`Record saved, but ${uploadResult.failed.length + deletionFailures} evidence change(s) could not be completed.`);
+      }
       onSuccess();
     } catch (error) {
       console.error('Failed to update record:', error);
@@ -1298,7 +1323,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
   if (!record) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1520,25 +1545,28 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
                         <span className="truncate">{file.filename}</span>
                         <Badge variant="outline" className="text-xs flex-shrink-0">{Math.round(file.file_size / 1024)} KB</Badge>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-7 w-7 p-0 text-red-500 flex-shrink-0">
+                      <div className="flex items-center gap-1">
+                        {(file.preview_url || file.upload_url) && <a href={file.preview_url || `${BACKEND_URL}${file.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 p-1" data-testid={`edit-esg-evidence-view-${file.id}`}><Eye className="w-4 h-4" /></a>}
+                      <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-7 w-7 p-0 text-red-500 flex-shrink-0" data-testid={`edit-esg-evidence-remove-${file.id}`}>
                         <X className="w-4 h-4" />
                       </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
               <label className="block p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:bg-stone-50 transition-colors">
-                <input type="file" multiple onChange={handleEvidenceUpload} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx" />
+                <input type="file" multiple onChange={handleEvidenceUpload} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv,.doc,.docx" data-testid="edit-esg-evidence-file-input" />
                 {uploading ? <Loader2 className="w-6 h-6 mx-auto text-emerald-600 animate-spin" /> : <Upload className="w-6 h-6 mx-auto text-stone-400" />}
-                <p className="text-sm text-text-muted mt-2">{uploading ? 'Uploading...' : 'Click to upload PDF, Images, Excel, CSV'}</p>
+                <p className="text-sm text-text-muted mt-2">{uploading ? 'Staging...' : 'Click to select PDF, Images, Excel, CSV'}</p>
               </label>
             </div>
           </div>
         </div>
 
         <DialogFooter className="mt-6 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+          <Button variant="outline" onClick={handleClose} data-testid="edit-esg-record-cancel-button">Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving} className="bg-blue-600 hover:bg-blue-700" data-testid="edit-esg-record-save-button">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Save Changes
           </Button>

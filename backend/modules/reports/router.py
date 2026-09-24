@@ -41,6 +41,8 @@ from modules.auth.dependencies import get_current_user
 from shared.cache.downloads import pending_downloads
 from shared.database.mongo import db
 from shared.utils.emission_records import eligible_ghg_record_filter
+from shared.services.ghg_reporting import adjusted_reporting_records, adjusted_sink_value, facility_equity_factors
+from modules.reports.ghg_summary_excel import build_ghg_summary_excel
 
 import re
 
@@ -521,7 +523,7 @@ class GHGReportRequest(BaseModel):
     reporting_period_end: str    # Format: YYYY-MM
     include_previous_years: bool = False
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
-    output_format: str = "docx"  # "docx" or "pdf"
+    output_format: str = "docx"  # "docx", "xlsx", or "pdf"
     report_type: str = "scope_1_2"  # "scope_1_2" or "scope_1_2_3"
     is_complete_organization: bool = True  # Whether all org facilities are included (for org-level sections)
 
@@ -582,11 +584,12 @@ async def generate_ghg_inventory_report(
     if not facilities_data:
         raise HTTPException(status_code=404, detail="No accessible facilities found")
     
-    # Base year validation based on is_complete_organization flag
+    # The Excel summary is also a shareable template, so it remains available
+    # when base-year information has not yet been configured.
     # If is_complete_organization = true: Org-level base year for Scope 1,2 must exist
     # If is_complete_organization = false: Each selected facility must have base year for Scope 1,2
     
-    if request.is_complete_organization:
+    if request.output_format != "xlsx" and request.is_complete_organization:
         # Check for org-level base year data
         org_base_year_record = await db.base_year_emissions.find_one(
             {"organization_id": org_id, "facility_id": None},
@@ -597,7 +600,7 @@ async def generate_ghg_inventory_report(
                 status_code=400, 
                 detail="Organization-level Base Year Emissions data is required when including all facilities. Please configure base year emissions at the organization level first."
             )
-    else:
+    elif request.output_format != "xlsx":
         # Check individual facility base year data
         missing_base_year = []
         for facility in facilities_data:
@@ -644,7 +647,7 @@ async def generate_ghg_inventory_report(
     
     # Get previous years data if requested
     previous_years_data = []
-    if request.include_previous_years:
+    if request.include_previous_years and request.output_format != "xlsx":
         for facility in facilities_data:
             # Get ONLY emissions BEFORE the reporting period start (not within the period)
             # This prevents double-counting emissions that are already in emissions_data
@@ -710,10 +713,10 @@ async def generate_ghg_inventory_report(
         s['_proportion'] = proportion
         total_sinks += s.get("total_emissions_reduced", 0) * proportion
     
-    # Filter emissions based on report_type
-    # For scope_1_2 report: exclude scope3 emissions, include only biogenic scope1
-    # For scope_1_2_3 report: include all emissions
-    if request.report_type == "scope_1_2":
+    # The Excel GHG Summary always contains C1–C15 and must therefore receive
+    # all three scopes, regardless of the legacy document report-type control.
+    # The scope_1_2 filter remains specific to Word/PDF inventory reports.
+    if request.report_type == "scope_1_2" and request.output_format != "xlsx":
         filtered_emissions = []
         for e in emissions_data:
             scope = (e.get("scope") or "").lower()
@@ -729,9 +732,35 @@ async def generate_ghg_inventory_report(
             # Exclude scope3
         emissions_data = filtered_emissions
     # For scope_1_2_3: include everything (no filtering needed)
+
+    if request.output_format == "xlsx":
+        equity_factors = facility_equity_factors(organization, facilities_data)
+        period_filtered_emissions = adjusted_reporting_records(
+            emissions_data, request.reporting_period_start, request.reporting_period_end, equity_factors
+        )
+        adjusted_sinks = []
+        for sink in sinks_data:
+            adjusted_sink = dict(sink)
+            adjusted_sink["reporting_value"] = adjusted_sink_value(adjusted_sink, equity_factors)
+            adjusted_sinks.append(adjusted_sink)
+        workbook_bytes = build_ghg_summary_excel(
+            organization=organization,
+            facilities=facilities_data,
+            records=period_filtered_emissions,
+            sinks=adjusted_sinks,
+            reporting_period_start=request.reporting_period_start,
+            reporting_period_end=request.reporting_period_end,
+        )
+        org_name = re.sub(r"[^A-Za-z0-9_-]+", "_", organization.get("name", "Organization")).strip("_") or "Organization"
+        filename = f"GHG_Emissions_Summary_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.xlsx"
+        download_token = str(uuid.uuid4())
+        current_time = datetime.now(timezone.utc)
+        for token in [key for key, value in pending_downloads.items() if not value.get("created_at") or (current_time - value["created_at"]).total_seconds() > 300]:
+            del pending_downloads[token]
+        pending_downloads[download_token] = {"buffer": workbook_bytes, "filename": filename, "created_at": current_time}
+        return {"download_token": download_token, "filename": filename}
     
     # Fetch facility production data from production_quantities collection with proportional allocation
-    import re
     
     async def get_production_for_period(facility_id_or_none, start_period, end_period, org_id):
         """
@@ -1033,6 +1062,8 @@ async def download_report(download_token: str):
     filename = download_data['filename']
     if filename.endswith('.pdf'):
         content_type = "application/pdf"
+    elif filename.endswith('.xlsx'):
+        content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     else:
         content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     

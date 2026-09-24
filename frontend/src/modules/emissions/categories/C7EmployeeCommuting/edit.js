@@ -177,7 +177,9 @@ const preserveCanonicalDynamicValues = (editingEmission) => Object.fromEntries(
   )
 );
 
-const sanitizeEvidences = (evidences = []) => evidences.map(({ is_new, ...evidence }) => evidence);
+const sanitizeEvidences = (evidences = []) => evidences
+  .filter((evidence) => !evidence?.is_draft)
+  .map(({ file, is_draft, is_new, ...evidence }) => evidence);
 
 /**
  * Build the exact PUT payload that the C7 edit dialog used to send.
@@ -196,6 +198,7 @@ const sanitizeEvidences = (evidences = []) => evidences.map(({ is_new, ...eviden
  * @param {Object} ctx.editEmployeeMonthlyTotals
  * @param {number} ctx.editEmployeeYearlyTotal
  * @param {Array}  ctx.validProcessNames
+ * @param {string} ctx.categoryId
  * @returns {Object} payload
  */
 export function buildEditPayload(ctx) {
@@ -212,6 +215,8 @@ export function buildEditPayload(ctx) {
     editEmployeeMonthlyTotals,
     editEmployeeYearlyTotal,
     validProcessNames,
+    preserveOriginalVersion,
+    categoryId,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
@@ -245,7 +250,9 @@ export function buildEditPayload(ctx) {
     reporting_period: c7ReportingPeriod,
     frequency_type: editingEmission?.frequency_type || 'monthly',
     scope: 'scope3',
-    category: formData.category,
+    category: 'C7 - Employee Commuting',
+    category_code: 'employee_commuting',
+    category_id: categoryId || null,
     sub_category: useCustomActivity
       ? scope3CustomActivity || ''
       : formData.sub_category || '',
@@ -257,7 +264,7 @@ export function buildEditPayload(ctx) {
     use_custom_activity: useCustomActivity,
     formula_id: extractedFormulaId,
     formula_version_id: extractedFormulaVersionId,
-    decision_tree_version_id: editingEmission?.decision_tree_version_id || null,
+    decision_tree_version_id: preserveOriginalVersion ? editingEmission?.decision_tree_version_id || null : null,
 
     employees: editEmployees.map((emp) => {
       const baseEmployee = {
@@ -296,7 +303,9 @@ export function buildEditPayload(ctx) {
     // flat dynamic state contains display primitives and must never be sent as
     // the record-level canonical dictionary. Preserve only existing canonical
     // values for backwards compatibility.
-    dynamic_field_values: preserveCanonicalDynamicValues(editingEmission),
+    dynamic_field_values: preserveOriginalVersion
+      ? preserveCanonicalDynamicValues(editingEmission)
+      : {},
     evidence_url: formData.evidence_url || '',
     supplier_name: formData.supplier_name || '',
     supplier_code: formData.supplier_code || '',

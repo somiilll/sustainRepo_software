@@ -2,6 +2,8 @@ import { resolveGhgCapabilities } from '../resolveGhgCapabilities';
 import fixtures from './fixtures/form-config-fixtures.json';
 
 const expectations = {
+  waste_generated_in_operations: { activityType: true },
+  end_of_life_treatment_of_sold_products: { activityType: true },
   upstream_transportation_distribution: { journeyLocations: true },
   business_travel: { activityType: true, journeyLocations: true, flightDetails: true, supplierBasisOtherActivity: true },
   employee_commuting: { activityType: true, multiEmployee: true },

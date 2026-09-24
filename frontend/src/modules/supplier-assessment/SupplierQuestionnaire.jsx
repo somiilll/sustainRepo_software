@@ -186,13 +186,6 @@ export default function SupplierQuestionnaire() {
       focusQuestion(requiredUnanswered[0].id);
       return;
     }
-    const requiredEvidenceMissing = questions.filter((q) => q.evidence_requirement === 'required' && !(q.evidence_files || []).length);
-    if (requiredEvidenceMissing.length > 0) {
-      toast.error(`Please attach evidence for all required questions (${requiredEvidenceMissing.length} remaining)`);
-      focusQuestion(requiredEvidenceMissing[0].id);
-      return;
-    }
-    
     setVerificationAccepted(false);
     setShowSubmitConfirm(true);
   };
@@ -294,11 +287,12 @@ export default function SupplierQuestionnaire() {
 
   const renderQuestionEvidence = (question) => {
     const files = question.evidence_files || [];
-    const required = question.evidence_requirement === 'required';
-    const optional = question.evidence_requirement === 'optional';
-    if (!required && !optional && files.length === 0) return null;
+    const evidenceEnabled = ['required', 'optional'].includes(question.evidence_requirement);
+    const answerAllowsUpload = question.response_type !== 'yes_no' || answers[question.id] === true;
+    const showUpload = evidenceEnabled && answerAllowsUpload;
+    if (!showUpload && files.length === 0) return null;
     return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence {required ? <span className="text-rose-600">required</span> : <span className="text-stone-500">optional</span>}</p><p className="mt-1 text-xs text-stone-500">Attach supporting documents for this response.</p></div>{!isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { uploadEvidence(question, event.target.files); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">optional</span></p><p className="mt-1 text-xs text-stone-500">Attach supporting documents for this response.</p></div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { uploadEvidence(question, event.target.files); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
       {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
       {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!isReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
     </div>;
@@ -351,7 +345,7 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
+      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${question.parent_question_id ? 'ml-4 border-l-4 border-l-emerald-200 bg-emerald-50/30 sm:ml-8' : ''} ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
         <CardHeader>
           <div className="flex items-start gap-2">
             {answers[question.id] !== undefined ? (
@@ -361,7 +355,7 @@ export default function SupplierQuestionnaire() {
             )}
             <div>
               <CardTitle className="text-lg">
-                {index + 1}. {question.question_text}
+                {question.parent_question_id ? <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span> : `${questions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `}{question.question_text}
                 {question.required && <span className="text-red-500 ml-1">*</span>}
               </CardTitle>
               {question.description && (

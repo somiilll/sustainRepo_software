@@ -32,7 +32,8 @@ import { persistCalcAuditLog as persistCalcAuditLogShared } from './emissions/ut
 import { buildCustomFuelCalculationPayload } from './emissions/utils/customFuelCalcAdapter';
 import { editEmissionDispatch as editEmissionDispatchShared } from './emissions/utils/editEmissionDispatch';
 import { getEmissionUpdateErrorMessage } from './emissions/utils/apiErrorMessage';
-import { getUploadErrorMessage, validateFileSize } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
+import { MONTHS } from '../modules/ghg/emissions/shared/constants/emission-form-constants';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
 import {
@@ -46,6 +47,8 @@ import {
 } from '../modules/ghg/config';
 import {
   createEmptyEmissionDraft,
+  resetEmissionDraftForScope3MethodChange,
+  resetEmissionDraftForSelectionChange,
   updateDraftField,
   updateDraftValues,
 } from '../modules/ghg/emissions/shared/domain';
@@ -68,6 +71,46 @@ import {
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const readPersistedSelectionValue = (value) => (
+  value && typeof value === 'object' ? value.value || '' : value || ''
+);
+
+const C7_MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+const resolveC7ReportingMonth = (reportingPeriod) => {
+  const value = String(reportingPeriod || '');
+  const numericMatch = value.match(/^\d{4}-(\d{2})/);
+  const numericIndex = numericMatch ? Number(numericMatch[1]) - 1 : -1;
+  if (C7_MONTH_KEYS[numericIndex]) return C7_MONTH_KEYS[numericIndex];
+  return C7_MONTH_KEYS.find((monthKey) => new RegExp(`\\b${monthKey}\\w*`, 'i').test(value)) || null;
+};
+
+const matchesOriginalEditSelection = ({
+  emission,
+  scope,
+  category,
+  biogenicScopeSelection,
+  scope3Method,
+  scope3ActivityType,
+  scope3ActivityId,
+}) => {
+  if (!emission || emission.scope !== scope || emission.category !== category) return false;
+  const savedValues = emission.dynamic_field_values || {};
+  const savedMethod = emission.calculation_method_scope3
+    || readPersistedSelectionValue(savedValues.calculation_method_scope3);
+  const savedActivityType = emission.scope3_activity_type
+    || readPersistedSelectionValue(savedValues.scope3_activity_type);
+  const savedActivityId = emission.scope3_ef_id
+    || readPersistedSelectionValue(savedValues.scope3_ef_id);
+  const savedBiogenicScope = emission.biogenic_scope_selection
+    || readPersistedSelectionValue(savedValues.biogenic_scope_selection);
+
+  return savedMethod === scope3Method
+    && savedActivityType === scope3ActivityType
+    && savedActivityId === scope3ActivityId
+    && (scope !== 'biogenic' || savedBiogenicScope === biogenicScopeSelection);
+};
 
 export default function Emissions({ organizationGhgOverrides = null }) {
   // ============================================================================
@@ -170,6 +213,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
+  const [hasChangedCalculationSelection, setHasChangedCalculationSelection] = useState(false);
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
@@ -377,9 +421,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // This loads dynamic input field mappings from the backend
   // ============================================================================
   useEffect(() => {
+    let cancelled = false;
     const fetchFormConfig = async () => {
       if (!dialogOpen || !formData.category || !formData.scope) {
         setEditFormConfig(null);
+        setEditFormConfigLoading(false);
         return;
       }
       
@@ -392,6 +438,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
       if (!editContext.categoryId) {
         setEditFormConfig(null);
+        setEditFormConfigLoading(false);
         return;
       }
       
@@ -399,28 +446,27 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       try {
         // Include method and activity in the request for better formula matching
         const configParams = new URLSearchParams({ scope: editContext.effectiveScope });
-        if (editingEmission?.decision_tree_version_id) {
-          configParams.set('decision_tree_version_id', editingEmission.decision_tree_version_id);
-        }
-        if (editingEmission?.formula_version_id) {
-          configParams.set('formula_version_id', editingEmission.formula_version_id);
-        }
         let url = `${API}/calc-engine/form-config/${editContext.categoryId}?${configParams.toString()}`;
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
         const response = await axios.get(url, { headers: getAuthHeader() });
-        setEditFormConfig(response.data);
+        if (!cancelled) setEditFormConfig(response.data);
       } catch (err) {
-        console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
-        setEditFormConfig(null);
+        if (!cancelled) {
+          console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
+          setEditFormConfig(null);
+        }
       } finally {
-        setEditFormConfigLoading(false);
+        if (!cancelled) setEditFormConfigLoading(false);
       }
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission?.decision_tree_version_id, editingEmission?.formula_version_id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, dynamicScopes, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId, editingEmission, hasChangedCalculationSelection]);
   
   // ============================================================================
   // EDIT FIELD DERIVATION
@@ -441,13 +487,40 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     [editCalcMethodology, editProcessType, editDraft.allocationMethod],
   );
 
+  const isOriginalEditSelection = useMemo(() => !hasChangedCalculationSelection && matchesOriginalEditSelection({
+    emission: editingEmission,
+    scope: formData.scope,
+    category: formData.category,
+    biogenicScopeSelection,
+    scope3Method,
+    scope3ActivityType,
+    scope3ActivityId,
+  }), [
+    editingEmission,
+    formData.scope,
+    formData.category,
+    biogenicScopeSelection,
+    scope3Method,
+    scope3ActivityType,
+    scope3ActivityId,
+    hasChangedCalculationSelection,
+  ]);
+
   const editGhgFormContext = useMemo(
     () =>
       resolveGhgFormContext({
         scope: formData.scope,
         biogenicScopeSelection,
         categoryName: formData.category || selectedCategory,
-        categoryCode: editingEmission?.category_code || null,
+        // Records converted to C7 before canonical category metadata was
+        // persisted can still carry the previous category_code. Prefer C7's
+        // canonical identity when the saved display category is unambiguously
+        // Employee Commuting so those records reopen in the employee-row form.
+        categoryCode: isOriginalEditSelection
+          ? (/^c7\b|employee commuting/i.test(formData.category || selectedCategory || '')
+              ? 'employee_commuting'
+              : editingEmission?.category_code || null)
+          : null,
         categories: dynamicCategories,
         scopes: dynamicScopes,
         scope3Method,
@@ -459,7 +532,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         decisionFieldValues: editDecisionFieldValues,
         useCustomFuel: editUseCustomFuel,
         selectedFuel: editSelectedFuel,
-        savedFormulaId: editingEmission?.formula_id || null,
+        savedFormulaId: isOriginalEditSelection ? editingEmission?.formula_id || null : null,
       }),
     [
       formData.scope,
@@ -479,6 +552,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editUseCustomFuel,
       editSelectedFuel,
       editingEmission?.formula_id,
+      isOriginalEditSelection,
     ],
   );
 
@@ -671,6 +745,12 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       
       // Wait for dynamicInputFields to be loaded
       if (dynamicInputFields.length === 0) {
+        return;
+      }
+
+      // Do not rehydrate the original record's inputs after the user changes
+      // scope, category, method, or activity in the current edit draft.
+      if (!isOriginalEditSelection) {
         return;
       }
       
@@ -959,7 +1039,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     };
     
     populateDynamicFields();
-  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
+  }, [
+    dialogOpen,
+    editingEmissionId,
+    editingEmission,
+    dynamicInputFields,
+    getAuthHeader,
+    isOriginalEditSelection,
+  ]);
 
   // Check if two unit strings match using centralized unit aliases
   // E1: Pure unit-matching utility (delegates to shared util)
@@ -974,6 +1061,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
     handleRemoveEvidence,
+    commitEvidenceChanges,
+    discardEvidenceChanges,
     handleViewEvidence,
     handleDownloadEvidence,
   } = useEvidenceManagement({
@@ -989,20 +1078,11 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     const sizeError = validateFileSize(file);
     if (sizeError) throw new Error(sizeError);
 
-    try {
-      const uploadData = new FormData();
-      uploadData.append('file', file);
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, uploadData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
-      });
-      if (!response.data?.url) throw new Error('Evidence upload did not return a file URL');
-
-      const uploadedEvidence = {
-        url: response.data.url,
-        filename: response.data.filename || file.name,
-        file_id: response.data.file_id,
-        is_new: true,
-      };
+    const uploadedEvidence = {
+      filename: file.name,
+      file,
+      is_draft: true,
+    };
       setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
         if (employee.id !== employeeId) return employee;
         if (periodKey === 'yearly') {
@@ -1027,10 +1107,10 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         };
       }));
       setIsFormDirty(true);
-      toast.success('Evidence uploaded successfully');
-    } catch (error) {
-      throw new Error(getUploadErrorMessage(error, file));
-    }
+      const periodLabel = periodKey === 'yearly'
+        ? 'annual data'
+        : MONTHS.find((month) => month.key === periodKey)?.name || 'the selected period';
+      toast.success(`Evidence uploaded for ${periodLabel}`);
   }, [getAuthHeader, setEditEmployees]);
 
   const handleC7EditEvidenceRemove = useCallback(async (employeeId, periodKey, evidenceIndex) => {
@@ -1040,9 +1120,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       : employee?.monthly_data?.[periodKey];
     const evidenceToRemove = periodData?.evidences?.[evidenceIndex] || null;
     const fileId = evidenceToRemove?.file_id || evidenceToRemove?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (evidenceToRemove?.is_new && fileId) {
-      await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-    } else if (fileId) {
+    if (!evidenceToRemove?.is_draft && fileId) {
       setDraftField('c7EvidenceIdsToDelete', (currentIds = []) => (
         currentIds.includes(fileId) ? currentIds : [...currentIds, fileId]
       ));
@@ -1068,6 +1146,31 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     setIsFormDirty(true);
     toast.success('Evidence removed');
   }, [editEmployees, getAuthHeader, setDraftField, setEditEmployees]);
+
+  const commitC7EvidenceChanges = useCallback(async (emissionId, employeesToCommit) => {
+    const drafts = employeesToCommit.flatMap((employee) => {
+      const yearly = (employee.yearly_data?.evidences || []).map((evidence) => ({
+        evidence, employeeId: employee.id, periodKey: 'yearly',
+      }));
+      const monthly = Object.entries(employee.monthly_data || {}).flatMap(([periodKey, monthData]) => (
+        (monthData?.evidences || []).map((evidence) => ({ evidence, employeeId: employee.id, periodKey }))
+      ));
+      return [...yearly, ...monthly];
+    }).filter(({ evidence }) => evidence?.is_draft && evidence?.file);
+    const uploads = await Promise.allSettled(drafts.map(({ evidence, employeeId, periodKey }) => {
+      const uploadData = new FormData();
+      uploadData.append('file', evidence.file);
+      const query = new URLSearchParams({ employee_id: employeeId, period_key: periodKey });
+      return axios.post(`${API}/emissions/${emissionId}/evidence?${query.toString()}`, uploadData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+    }));
+    const deletions = await Promise.allSettled((editDraft.c7EvidenceIdsToDelete || []).map((fileId) => (
+      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
+    )));
+    const failures = [...uploads, ...deletions].filter((result) => result.status === 'rejected').length;
+    if (failures) toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
+  }, [editDraft.c7EvidenceIdsToDelete, getAuthHeader]);
 
   const fetchHistory = async (emission) => {
     if (isSupplierUser) return;
@@ -1171,40 +1274,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       setOverrideCalorificValue(false);
       setOverrideDensity(false);
     }
-  };
-
-  // Handle category selection (step 1)
-  const handleCategorySelect = (category) => {
-    setSelectedCategory(category);
-    // Clear dynamic field values when category changes to reset inputs
-    setDynamicFieldValues({});
-    // Reset fuel selection and Scope 3 fields when category changes
-    setFormData(prev => ({
-      ...prev,
-      fuel_id: '',
-      fuel_type: '',
-      category: category,
-      sub_category: '',
-      emission_factor_co2: '',
-      emission_factor_ch4: '',
-      emission_factor_n2o: '',
-      emission_factor_basis_quantity: '',
-      emission_factor_basis_unit: '',
-      calorific_value: '',
-      calorific_value_unit: '',
-      density: '',
-      density_unit: '',
-      source_of_information: ''
-    }));
-    // Reset Scope 3 specific fields
-    setScope3Method('');
-    setScope3ActivityId('');
-    setScope3ActivityType('');
-    setScope3Subcategory('');
-    setTypeOfProduct('');
-    setScope3CustomActivity('');
-    setUseCustomActivity(false);
-    setActivitySearchTerm(''); // Clear activity search
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -1332,11 +1401,20 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const editActiveMonths = useMemo(() => {
     // For C7 records, extract months from the employees data
     if (!editingEmission || !isEditC7EmployeeCommuting) return [];
+
+    if (editFrequencyType === 'yearly') return ['yearly'];
     
     // For new monthly model, only show the single month being edited
     if (editC7Month) {
       return [editC7Month];
     }
+
+    // A monthly emission record represents exactly its reporting month,
+    // including a record converted to C7 during Edit.
+    const reportingMonthKey = resolveC7ReportingMonth(
+      formData.reporting_period_start || editingEmission.reporting_period,
+    );
+    if (reportingMonthKey) return [reportingMonthKey];
     
     // Try to determine months from the employees data (old model with monthly_data)
     const monthsWithData = new Set();
@@ -1353,7 +1431,39 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Fallback to all 12 months
     return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  }, [editingEmission, isEditC7EmployeeCommuting, editEmployees, editC7Month]);
+  }, [
+    editingEmission,
+    isEditC7EmployeeCommuting,
+    editEmployees,
+    editC7Month,
+    editFrequencyType,
+    formData.reporting_period_start,
+    editingEmission?.reporting_period,
+  ]);
+
+  useEffect(() => {
+    if (
+      !dialogOpen
+      || !isEditC7EmployeeCommuting
+      || editFrequencyType === 'yearly'
+      || editC7Month
+    ) {
+      return;
+    }
+
+    const reportingMonthKey = resolveC7ReportingMonth(
+      formData.reporting_period_start || editingEmission?.reporting_period,
+    );
+    if (reportingMonthKey) setEditC7Month(reportingMonthKey);
+  }, [
+    dialogOpen,
+    isEditC7EmployeeCommuting,
+    editFrequencyType,
+    editC7Month,
+    formData.reporting_period_start,
+    editingEmission?.reporting_period,
+    setEditC7Month,
+  ]);
 
   /**
    * Helper function to apply region + year priority fallback
@@ -1631,7 +1741,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     
     // Filter by activity_type for categories that expose an Activity Type selector.
     if (scope3ActivityType) {
-      filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
+      filtered = filtered.filter((ef) => ef.activity_type === scope3ActivityType);
     }
     
     // Filter by industry sector (if facility has one)
@@ -1859,6 +1969,67 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     return fuelDatabase.find(f => f.id === formData.fuel_id);
   }, [formData.fuel_id, fuelDatabase]);
 
+  // Persist the same default unit that every visible dynamic selector uses.
+  // This keeps all Scope 1–3 calculation previews and later Save payloads in
+  // sync before a user manually changes a unit.
+  useEffect(() => {
+    if (!dialogOpen || dynamicInputFields.length === 0) return;
+
+    const isScope3Like = formData.scope === 'scope3'
+      || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+    const matchedScope3Activity = scope3ActivityId
+      ? filteredScope3Activities.find((activity) => activity.id === scope3ActivityId)
+      : null;
+
+    setDynamicFieldValues((currentValues) => {
+      const nextValues = { ...currentValues };
+      let changed = false;
+
+      dynamicInputFields.forEach((field) => {
+        const unitKey = `${field.variable}_unit`;
+        if (field.unitSource === 'none' || field.variable?.endsWith('_unit') || currentValues[unitKey]) return;
+
+        let visibleUnits = [];
+        if (field.unitSource === 'fuel') {
+          const factorForUnit = isScope3Like && requiresSubcategory && !selectedFuel
+            ? matchedScope3Activity
+            : selectedFuel;
+          visibleUnits = factorForUnit?.allowed_units || [];
+        } else if (field.unitSource === 'all_units') {
+          visibleUnits = centralizedUnits.map((unit) => unit.symbol);
+        } else if (field.unitSource === 'scope3_ef') {
+          visibleUnits = matchedScope3Activity?.allowed_units?.length > 0
+            ? matchedScope3Activity.allowed_units
+            : field.allowedUnits?.length > 0
+              ? field.allowedUnits
+              : [field.expectedUnit].filter(Boolean);
+        } else {
+          visibleUnits = field.allowedUnits?.length > 0
+            ? field.allowedUnits
+            : [field.expectedUnit].filter(Boolean);
+        }
+
+        const displayDefaultUnit = visibleUnits[0] || field.expectedUnit || '';
+        if (!displayDefaultUnit) return;
+        nextValues[unitKey] = displayDefaultUnit;
+        changed = true;
+      });
+
+      return changed ? nextValues : currentValues;
+    });
+  }, [
+    dialogOpen,
+    formData.scope,
+    biogenicScopeSelection,
+    dynamicInputFields,
+    scope3ActivityId,
+    filteredScope3Activities,
+    selectedFuel,
+    requiresSubcategory,
+    centralizedUnits,
+    setDynamicFieldValues,
+  ]);
+
   // E5: Dead-code block removed (getParameterValueDynamic, getParameterValue,
   // findFormulaForScope, executeFormula) — these were never called from production
   // paths after migration to backend calc engine. Saved ~304 lines.
@@ -1888,6 +2059,71 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [useBackendCalc, setUseBackendCalc] = useState(true);
   const [liveCalculationValidationError, setLiveCalculationValidationError] = useState('');
 
+  const resetEditCalculationPreview = useCallback(() => {
+    setEditFormConfig(null);
+    setBackendCalcResult(null);
+    clearCalcResult();
+    setLiveCalculationValidationError('');
+  }, [clearCalcResult, setBackendCalcResult]);
+
+  const handleCategorySelect = useCallback((category) => {
+    setHasChangedCalculationSelection(true);
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
+      scope: currentDraft.values.scope,
+      category,
+      biogenicScopeSelection: currentDraft.values.scope === 'biogenic'
+        ? currentDraft.biogenicScopeSelection
+        : '',
+      c7Month: /^c7\b/i.test(category)
+        ? resolveC7ReportingMonth(currentDraft.values.reporting_period_start || editingEmission?.reporting_period)
+        : null,
+    }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview, editingEmission?.reporting_period]);
+
+  const handleEditScopeChange = useCallback((scope) => {
+    setHasChangedCalculationSelection(true);
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, { scope }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  const handleEditBiogenicScopeChange = useCallback((biogenicScopeSelection) => {
+    setHasChangedCalculationSelection(true);
+    setEditDraft((currentDraft) => resetEmissionDraftForSelectionChange(currentDraft, {
+      scope: 'biogenic',
+      biogenicScopeSelection,
+    }));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  const handleEditScope3MethodChange = useCallback((scope3Method) => {
+    setHasChangedCalculationSelection(true);
+    setEditDraft((currentDraft) => resetEmissionDraftForScope3MethodChange(currentDraft, scope3Method));
+    setActivitySearchTerm('');
+    resetEditCalculationPreview();
+    setIsFormDirty(true);
+  }, [resetEditCalculationPreview]);
+
+  useEffect(() => {
+    if (!dialogOpen || !editingEmission?.id) return;
+    clearCalcResult();
+    setBackendCalcResult(null);
+    setLiveCalculationValidationError('');
+  }, [
+    dialogOpen,
+    editingEmission?.id,
+    formData.scope,
+    formData.category,
+    clearCalcResult,
+    setBackendCalcResult,
+  ]);
+
   const handleC8AllocationMethodChange = useCallback((allocationMethod) => {
     setEditDraft((currentDraft) => ({
       ...currentDraft,
@@ -1906,6 +2142,17 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     // Skip if dialog not open
     if (!dialogOpen) {
       clearCalcResult();
+      return;
+    }
+
+    // C7 owns its calculation and validation at employee-period level. Its
+    // configured fields describe each employee row, so running the generic
+    // record-level preview against dynamicFieldValues produces false missing
+    // field warnings when a record is converted to Employee Commuting.
+    if (isEditC7EmployeeCommuting) {
+      clearCalcResult();
+      setBackendCalcResult(null);
+      setLiveCalculationValidationError('');
       return;
     }
 
@@ -2035,10 +2282,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             baseUnit = dynamicFieldValues[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
           }
         } else if (field.unitSource === 'scope3_ef') {
-          // For scope3_ef: use dynamicFieldValues unit, or fallback to matched activity's default/allowed units
-          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.default_unit || matchedActivityForEdit?.allowed_units?.[0] || field.expectedUnit || 'kg';
+          // Match the selector's default priority: the first allowed Scope 3 EF
+          // unit is what users see before making an explicit choice.
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivityForEdit?.allowed_units?.[0] || matchedActivityForEdit?.default_unit || field.expectedUnit || 'kg';
+        } else if (field.unitSource === 'all_units') {
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || centralizedUnits[0]?.symbol || field.expectedUnit || '';
         } else {
-          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          baseUnit = dynamicFieldValues[`${field.variable}_unit`] || field.allowedUnits?.[0] || field.expectedUnit || '';
         }
         
         // Apply compound suffix if field has compoundWithVariable
@@ -2188,12 +2438,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         },
         user_overrides: userOverrides,
         dry_run: true,
-        ...(editingEmission?.decision_tree_version_id && {
-          decision_tree_version_id: editingEmission.decision_tree_version_id,
-        }),
-        ...(editingEmission?.formula_version_id && {
-          formula_version_id: editingEmission.formula_version_id,
-        }),
         // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
         ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
       };
@@ -2232,8 +2476,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       gwpConfig: gwpConfig,
       dryRun: true,
       calculationMethodology: editCalcMethodology,
-      decisionTreeVersionId: editingEmission?.decision_tree_version_id || null,
-      formulaVersionId: editingEmission?.formula_version_id || null,
+      decisionTreeVersionId: null,
+      formulaVersionId: null,
     }).then(result => {
       if (result) {
         setBackendCalcResult(result);
@@ -2257,7 +2501,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, spendCurrencyConversionMethod, scope3ActivityId, filteredScope3Activities,
     useCustomActivity, scope3CustomActivity, scope3Subcategory, typeOfProduct, biogenicScopeSelection, editDraft.allocationMethod,
-    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel
+    editCalcMethodology, editUseCustomFuel, editCustomFuelName, editProcessType, editCapabilities.requiresFuel,
+    isOriginalEditSelection, isEditC7EmployeeCommuting, clearCalcResult,
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2323,7 +2568,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       return;
     }
 
-    const missingRequiredQuantityField = dynamicInputFields.find((field) => {
+    const missingRequiredQuantityField = !isEditC7EmployeeCommuting && dynamicInputFields.find((field) => {
       if (!field.required || field.isOverride || field.presentationOnly) return false;
       const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`.toLowerCase();
       if (!/quantity|\bqty\b|activity_value|consum|energy|volume|mass|distance|travelled/.test(identity)) return false;
@@ -2362,6 +2607,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       editCustomFuelName,
       editCalcMethodology,
       editingEmission,
+      preserveOriginalVersion: isOriginalEditSelection,
       getAuthHeader,
     });
     
@@ -2412,6 +2658,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         editEmployeeMonthlyTotals: calculation.monthlyTotals,
         editEmployeeYearlyTotal: calculation.yearlyTotal,
         validProcessNames: validation.validProcessNames,
+        preserveOriginalVersion: isOriginalEditSelection,
+        categoryId: editGhgFormContext.categoryId,
       });
       const totalCo2e = builtPayload.__totalCo2e;
       // Strip orchestration-only field before sending
@@ -2424,17 +2672,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         });
         
         if (response.data) {
-          const deletedFileResults = await Promise.allSettled(
-            (editDraft.c7EvidenceIdsToDelete || []).map((fileId) => axios.delete(
-              `${API}/files/${fileId}`,
-              { headers: getAuthHeader() },
-            )),
-          );
-          const failedFileDeletes = deletedFileResults.filter((result) => result.status === 'rejected').length;
+          await commitC7EvidenceChanges(editingEmission.id, employeesForSave);
           toast.success(`Updated ${employeesForSave.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
-          if (failedFileDeletes > 0) {
-            toast.error(`The record was saved, but ${failedFileDeletes} removed evidence file(s) could not be deleted.`);
-          }
           // NOTE: Audit log persistence (POST /calc-engine/execute-by-category)
           // is intentionally skipped for C7. The calc-engine endpoint expects
           // aggregated `dynamicFieldValues`-based inputs; C7's per-employee
@@ -2522,6 +2761,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           dynamicInputFields,
           dynamicFieldValues,
           effectiveCalculatedEmissions,
+          preserveOriginalVersion: isOriginalEditSelection,
           selectedFuel,
           filteredScope3Activities,
           centralizedUnits,
@@ -2542,6 +2782,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           headers: getAuthHeader()
         });
         if (response.data) {
+          await commitEvidenceChanges(editingEmission.id);
           toast.success('Emission updated successfully');
           // Persist calc audit log so override sources reload correctly on re-edit
           await persistCalcAuditLogLocal(editingEmission.id);
@@ -2572,6 +2813,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // E4: handleEdit body extracted to ./emissions/utils/editEmissionDispatch.js.
   const handleEdit = (emission) => {
     setLiveCalculationValidationError('');
+    clearCalcResult();
+    setBackendCalcResult(null);
+    setHasChangedCalculationSelection(false);
     return editEmissionDispatchShared(emission, {
       // State reads
       scope3EFData, fugitiveEmissionsData, fuelDatabase,
@@ -2709,11 +2953,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
 
   const resetForm = () => {
     activeEditIdRef.current = null;
+    discardEvidenceChanges();
     setEditingEmission(null);
     setEditDraft(createEmptyEmissionDraft(activeScope));
     setEditFormConfig(null); // Clear form config
     setUploadedEvidence(null);
     setLiveCalculationValidationError('');
+    clearCalcResult();
+    setBackendCalcResult(null);
   };
 
   const openCreateDialog = () => {
@@ -2913,12 +3160,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           use_custom_activity: useCustomActivity,
         },
         scope3_ef_id: matchedActivity?.id || null,
-        ...(editingEmission?.decision_tree_version_id && {
-          decision_tree_version_id: editingEmission.decision_tree_version_id,
-        }),
-        ...(editingEmission?.formula_version_id && {
-          formula_version_id: editingEmission.formula_version_id,
-        }),
       };
 
       // Call calc engine
@@ -3115,12 +3356,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 use_custom_activity: useCustomActivity,
               },
               scope3_ef_id: matchedActivity?.id || null,
-              ...(editingEmission?.decision_tree_version_id && {
-                decision_tree_version_id: editingEmission.decision_tree_version_id,
-              }),
-              ...(editingEmission?.formula_version_id && {
-                formula_version_id: editingEmission.formula_version_id,
-              }),
             }, { headers: getAuthHeader() });
           } catch (error) {
             const detail = error.response?.data?.detail;
@@ -3598,6 +3833,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   draft={editDraft}
                   onDraftChange={setEditDraft}
                   editingEmission={editingEmission}
+                  useHistoricalEditValues={isOriginalEditSelection}
                   activitySearchTerm={activitySearchTerm}
                   loadingScope3EF={loadingScope3EF}
                   loadingBiogenicCategories={loadingBiogenicCategories}
@@ -3646,6 +3882,9 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                   handleSubmit={handleSubmit}
                   handleFuelSelect={handleFuelSelect}
                   handleCategorySelect={handleCategorySelect}
+                  handleScopeChange={handleEditScopeChange}
+                  handleBiogenicScopeChange={handleEditBiogenicScopeChange}
+                  handleScope3MethodChange={handleEditScope3MethodChange}
                   markFormDirty={markFormDirty}
                   updateDynamicFieldValue={updateDynamicFieldValue}
                   getMethodLabel={getMethodLabel}
@@ -3753,7 +3992,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
             );
           })}
         </TabsList>
-        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
+        {hasCustomizedColumnWidths && <Button type="button" variant="ghost" size="sm" onClick={() => { emissionDataGridRef.current?.resetColumnWidths(); setHasCustomizedColumnWidths(false); }} className="ml-auto h-9 shrink-0 gap-1.5 text-xs text-stone-600 hover:bg-emerald-50 hover:text-emerald-700" data-testid="emissions-reset-column-widths-button">
           <RotateCcw className="h-3.5 w-3.5" />Reset widths
         </Button>}
         </div>

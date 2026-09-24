@@ -106,7 +106,6 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [granularity, setGranularity] = useState(MONTH);
   const [activeScopes, setActiveScopes] = useState([]);
-  const [drilldown, setDrilldown] = useState(null);
   const { productionQty, productionUnit } = useIntensityData(dateRange, selectedFacilities);
 
   // --------------- Data fetching ---------------
@@ -158,7 +157,11 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     governance: {},
   };
   console.log("analyticsData", analyticsData)
-  const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3', 'previousTotal']);
+  const emissionRows = aggregateSeries(analyticsData.emissions, granularity, ['scope1', 'scope2', 'scope3'])
+    .map((row) => ({
+      ...row,
+      totalEmissions: Number(row.scope1 || 0) + Number(row.scope2 || 0) + Number(row.scope3 || 0),
+    }));
   const energyRows = aggregateSeries(analyticsData.energy, granularity, ['renewable', 'nonRenewable']);
   const waterRows = aggregateSeries(analyticsData.water, granularity, ['withdrawn', 'consumed', 'discharged', 'recycled']);
   const wasteRows = aggregateSeries(analyticsData.waste, granularity, ['generated', 'recovered', 'disposed']);
@@ -178,7 +181,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
   const emissionSeries = [
     ...EMISSION_SERIES_BASE.filter((s) => !activeScopes.length || activeScopes.includes(s.key)),
-    { key: 'previousTotal', label: 'Previous Year', color: '#A8A29E' },
+    { key: 'totalEmissions', label: 'Total Emissions', color: '#334155' },
   ];
 
   // --------------- Interaction helpers ---------------
@@ -190,8 +193,6 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
     dateRange, setDateRange, facilities, selectedFacilities, setSelectedFacilities,
     showFacilityDropdown, setShowFacilityDropdown, facilityDropdownRef, getCurrentFinancialYear,
   };
-
-  const openDrilldown = (point, title) => setDrilldown({ point, title });
 
   // --------------- Render ---------------
 
@@ -249,7 +250,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
         <PremiumKpiCard title="Waste Recovery" value={metrics?.waste?.recovered} unit="MT" icon={Trash2} accentColor="#57534E" loading={analyticsLoading} />
         <PremiumKpiCard
           title="Employees" value={summary?.kpis?.total_employees?.value}
-          secondaryLabel="Female Workforce" secondaryValue={summary?.kpis?.diversity_pct?.value}
+          secondaryLabel="Female" secondaryValue={summary?.kpis?.diversity_pct?.value}
           secondaryUnit="%" secondaryTestId="kpi-employees-female-workforce"
           unit="" icon={Users} accentColor="#7C3AED"
         />
@@ -266,7 +267,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
           <AnalyticsChartCard 
             className="h-full flex-1" 
             title="GHG Emission Trend" 
-            subtitle="Scope emissions with previous-year comparison" 
+            subtitle="Scope emissions and total-emissions trend" 
             data={emissionRows} 
             series={emissionSeries} 
             chartType="area" 
@@ -274,7 +275,6 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
             unit="tCO₂e" 
             testId="ghg-emission-trend" 
             loading={analyticsLoading} 
-            onDrilldown={openDrilldown}
             // Pass the toggle inside the card using a custom prop
             headerAction={
               <div className="flex gap-1" data-testid="emission-granularity-toggle">
@@ -307,39 +307,27 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
       {/* ── Row 3: Energy ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 5: LTIFR & AP Days ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
-        <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="LTIFR Trend" subtitle="Lost-time injury frequency rate" data={workforceRows} series={[{ key: 'ltifr', label: 'LTIFR', color: '#DC2626' }]} accent="#DC2626" testId="ltifr-trend-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Accounts Payable Days" subtitle="Days payable outstanding" data={financeRows} series={[{ key: 'apDays', label: 'AP Days', color: '#4F46E5' }]} accent="#4F46E5" unit="days" testId="ap-days-chart" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 6: Incidents Trend ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6">
-        <AnalyticsChartCard title="Incidents Trend" subtitle="Data breaches, health & safety incidents, and violations over time" data={incidentsRows} series={[{ key: 'dataBreaches', label: 'Data Breaches', color: '#DC2626' }, { key: 'healthSafety', label: 'Health & Safety', color: '#F97316' }, { key: 'violations', label: 'Violations', color: '#7C3AED' }]} chartType="bar" accent="#DC2626" testId="incidents-trend-chart" loading={analyticsLoading} onDrilldown={openDrilldown} />
+        <AnalyticsChartCard title="Incidents Trend" subtitle="Data breaches, health & safety incidents, and violations over time" data={incidentsRows} series={[{ key: 'dataBreaches', label: 'Data Breaches', color: '#DC2626' }, { key: 'healthSafety', label: 'Health & Safety', color: '#F97316' }, { key: 'violations', label: 'Violations', color: '#7C3AED' }]} chartType="bar" accent="#DC2626" testId="incidents-trend-chart" loading={analyticsLoading} />
       </div>
 
-      {/* ── Drilldown Panel ── */}
-      {drilldown && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-[calc(100vw-2.5rem)] rounded-lg border border-stone-200 bg-white p-4 shadow-xl" data-testid="chart-drilldown-panel">
-          <button type="button" onClick={() => setDrilldown(null)} className="float-right text-xs font-medium text-stone-500 hover:text-stone-900" data-testid="chart-drilldown-close">
-            Close
-          </button>
-          <p className="text-sm font-semibold text-stone-900">{drilldown.title}</p>
-          <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-stone-600">
-            {JSON.stringify(drilldown.point, null, 2)}
-          </pre>
-        </div>
-      )}
     </div>
   );
 }

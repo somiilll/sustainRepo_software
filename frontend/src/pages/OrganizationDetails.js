@@ -15,6 +15,17 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -35,23 +46,6 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to delete file from R2 storage
-const deleteFileFromR2 = async (fileUrl, authHeader) => {
-  const fileIdMatch = fileUrl?.match(/\/api\/files\/([a-f0-9-]+)/i);
-  if (fileIdMatch) {
-    try {
-      await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-        headers: authHeader
-      });
-      return true;
-    } catch (error) {
-      console.error('Failed to delete file from storage:', error);
-      return false;
-    }
-  }
-  return false;
-};
-
 export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +55,8 @@ export default function OrganizationDetails() {
   const [pincodeError, setPincodeError] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
   const [facilityCount, setFacilityCount] = useState(0);
+  const [pendingLogo, setPendingLogo] = useState(null);
+  const pendingDeletionIds = useRef(new Set());
   
   // Collapsible text states
   const [expandedSections, setExpandedSections] = useState({});
@@ -206,18 +202,16 @@ export default function OrganizationDetails() {
       country: data.country || null,
       timezone: data.timezone || null,
       pincode: data.pincode || null,
-      logo: data.logo || null
+      logo: organization?.logo || null,
+      attachments: organization?.attachments || [],
     };
     
     await axios.put(`${API}/organizations/my`, submitData, {
       headers: getAuthHeader()
     });
     
-    // Silently refresh
-    fetchOrganization();
-    
     return { id: organization?.id };
-  }, [getAuthHeader, organization?.id]);
+  }, [getAuthHeader, organization?.attachments, organization?.id, organization?.logo]);
 
   // Auto-save hook
   const { 
@@ -371,7 +365,6 @@ export default function OrganizationDetails() {
     }
 
     setUploadingLogo(true);
-    
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       toast.error(sizeErr);
@@ -379,36 +372,28 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Delete old logo from R2 if it exists (before uploading new one)
-    if (formData.logo) {
-      const deleted = await deleteFileFromR2(formData.logo, getAuthHeader());
-      if (!deleted) {
-        toast.error('Could not replace logo because the old file is still in storage');
-        setUploadingLogo(false);
-        return;
-      }
-    }
-    
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', file);
-
     try {
-      // Pass organization_id for proper file path structure
-      const orgId = organization?.id || '';
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      });
-      
-      // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
-      const logoUrl = `${response.data.url}/view`;
-      setFormData({ ...formData, logo: logoUrl });
+      revokeDraftEvidence(pendingLogo);
+      setPendingLogo(createDraftEvidence(file, { type: 'logo' }));
       setLogoError(false);
-      toast.success('Logo uploaded successfully');
+      toast.success('Logo uploaded');
     } catch (error) {
       toast.error(getUploadErrorMessage(error, file));
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
     }
+  };
+
+  const handleRemoveLogo = () => {
+    if (pendingLogo) {
+      revokeDraftEvidence(pendingLogo);
+      setPendingLogo(null);
+      return;
+    }
+    const fileId = getEvidenceFileId({ url: formData.logo });
+    if (fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({ ...prev, logo: '' }));
   };
 
   const addAttachment = () => {
@@ -427,7 +412,6 @@ export default function OrganizationDetails() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    let uploadedCount = 0;
     const newAttachments = [];
 
     for (const file of files) {
@@ -437,37 +421,15 @@ export default function OrganizationDetails() {
         continue;
       }
 
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-
-      try {
-        // Pass organization_id for proper file path structure
-        const orgId = organization?.id || '';
-        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-        });
-        
-        // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
-        const fileUrl = file.type.startsWith('image/') 
-          ? `${response.data.url}/view`
-          : response.data.url;
-        
-        newAttachments.push({ 
-          name: file.name, 
-          url: fileUrl 
-        });
-        uploadedCount++;
-      } catch (error) {
-        toast.error(getUploadErrorMessage(error, file));
-      }
+      newAttachments.push(createDraftEvidence(file, { type: 'file' }));
     }
 
     if (newAttachments.length > 0) {
-      setFormData({
-        ...formData,
-        attachments: [...formData.attachments, ...newAttachments]
-      });
-      toast.success(`${uploadedCount} file(s) uploaded successfully`);
+      setFormData(prev => ({
+        ...prev,
+        attachments: [...prev.attachments, ...newAttachments]
+      }));
+      toast.success(`${newAttachments.length} file(s) uploaded`);
     }
     
     e.target.value = '';
@@ -475,21 +437,21 @@ export default function OrganizationDetails() {
 
   const removeAttachment = async (index) => {
     const attachment = formData.attachments[index];
-    
-    // Delete from R2 storage if it's an uploaded file
-    if (attachment?.url) {
-      const deleted = await deleteFileFromR2(attachment.url, getAuthHeader());
-      if (!deleted) {
-        toast.error('Could not remove attachment from storage');
-        return;
-      }
-    }
-    
-    setFormData({
-      ...formData,
-      attachments: formData.attachments.filter((_, i) => i !== index)
-    });
+    if (attachment?.is_draft) revokeDraftEvidence(attachment);
+    const fileId = getEvidenceFileId(attachment);
+    if (!attachment?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
     toast.success('Attachment removed');
+  };
+
+  const discardFileChanges = () => {
+    revokeDraftEvidence(pendingLogo);
+    revokeDraftEvidences(draftEvidence(formData.attachments));
+    setPendingLogo(null);
+    pendingDeletionIds.current.clear();
   };
 
   const handleSubmit = async (e) => {
@@ -543,8 +505,10 @@ export default function OrganizationDetails() {
     
     try {
       // Prepare data, converting empty strings to null for optional fields
+      const persistedAttachments = persistedEvidence(formData.attachments).map(toEvidencePayload);
       const submitData = {
         ...formData,
+        attachments: persistedAttachments,
         reporting_frequency: formData.reporting_frequency || 'yearly',
         reporting_year_type: formData.reporting_year_type,
         // Convert empty strings to null for optional numeric fields
@@ -578,6 +542,53 @@ export default function OrganizationDetails() {
       await axios.put(`${API}/organizations/my`, submitData, {
         headers: getAuthHeader()
       });
+
+      const stagedAttachments = draftEvidence(formData.attachments);
+      const attachmentsResult = await uploadDraftEvidences({
+        items: stagedAttachments,
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded, draft) => ({
+          type: 'file',
+          name: draft.name,
+          url: draft.content_type?.startsWith('image/') ? `${uploaded.url}/view` : uploaded.url,
+          file_id: uploaded.file_id,
+        }),
+      });
+      const logoResult = pendingLogo ? await uploadDraftEvidences({
+        items: [pendingLogo],
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded) => ({ url: `${uploaded.url}/view`, file_id: uploaded.file_id }),
+      }) : { uploaded: [], failed: [] };
+
+      const uploadedFiles = [...attachmentsResult.uploaded, ...logoResult.uploaded];
+      const finalAttachments = [...persistedAttachments, ...attachmentsResult.uploaded];
+      const finalLogo = logoResult.uploaded[0]?.url || submitData.logo;
+      if (uploadedFiles.length > 0) {
+        try {
+          await axios.put(`${API}/organizations/my`, {
+            ...submitData,
+            attachments: finalAttachments,
+            logo: finalLogo,
+          }, { headers: getAuthHeader() });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadedFiles.map(getEvidenceFileId), API, getAuthHeader());
+          throw error;
+        }
+      }
+
+      if (logoResult.uploaded.length > 0) {
+        const previousLogoId = getEvidenceFileId({ url: organization?.logo });
+        if (previousLogoId) pendingDeletionIds.current.add(previousLogoId);
+      }
+      const deletionFailures = await deleteEvidenceFiles(pendingDeletionIds.current, API, getAuthHeader());
+      pendingDeletionIds.current.clear();
+      const uploadFailures = attachmentsResult.failed.length + logoResult.failed.length;
+      if (uploadFailures || deletionFailures) {
+        toast.error(`Organization saved, but ${uploadFailures + deletionFailures} file change(s) could not be completed.`);
+      }
+      discardFileChanges();
       toast.success('Organization updated successfully');
       setEditing(false);
       fetchOrganization();
@@ -608,7 +619,7 @@ export default function OrganizationDetails() {
         icon={Building}
         iconClassName="border-blue-200 bg-blue-50 text-blue-700"
         testId="organization"
-        aside={user?.role === 'admin' && !editing && activeTab === 'basic' && (
+        aside={user?.role === 'admin' && !editing && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
@@ -616,6 +627,7 @@ export default function OrganizationDetails() {
                 return;
               }
               setLogoError(false); // Reset logo error when entering edit mode
+              setActiveTab('basic');
               setEditing(true);
             }} 
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
@@ -713,9 +725,9 @@ export default function OrganizationDetails() {
               <div className="space-y-2">
                 <Label>Logo (Upload)</Label>
                 <div className="flex items-center gap-4">
-                  {formData.logo && !logoError ? (
+                  {(pendingLogo?.preview_url || formData.logo) && !logoError ? (
                     <img 
-                      src={getFullLogoUrl(formData.logo)} 
+                      src={pendingLogo?.preview_url || getFullLogoUrl(formData.logo)} 
                       alt="Logo preview" 
                       className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
                       onError={() => setLogoError(true)}
@@ -739,17 +751,19 @@ export default function OrganizationDetails() {
                       variant="outline" 
                       onClick={() => document.getElementById('logo-upload')?.click()}
                       disabled={uploadingLogo}
+                      data-testid="organization-logo-upload-button"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                      {uploadingLogo ? 'Staging...' : 'Upload Logo'}
                     </Button>
-                    {formData.logo && (
+                    {(pendingLogo || formData.logo) && (
                       <Button 
                         type="button" 
                         variant="ghost" 
                         size="sm"
                         className="ml-2 text-accent"
-                        onClick={() => setFormData({ ...formData, logo: '' })}
+                        onClick={handleRemoveLogo}
+                        data-testid="organization-logo-remove-button"
                       >
                         Remove
                       </Button>
@@ -881,9 +895,9 @@ export default function OrganizationDetails() {
             </div>
 
             <div className={activeTab === 'ghg' ? 'space-y-4' : 'hidden'}>
-            {/* Purpose of the Report */}
+            {/* Purpose of the GHG Report */}
             <div className="space-y-2">
-              <Label>Purpose of the Report</Label>
+              <Label>Purpose of the GHG Report</Label>
               <textarea 
                 value={formData.report_purpose} 
                 onChange={(e) => setFormData({ ...formData, report_purpose: e.target.value })} 
@@ -1228,10 +1242,10 @@ export default function OrganizationDetails() {
                 <div className="space-y-2">
                   {formData.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
-                    const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
+                    const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
+                    let viewUrl = att.is_draft ? att.preview_url : (isUploadedFile ? att.url : ensureProtocol(att.url));
                     let downloadUrl = att.url;
-                    if (isUploadedFile) {
+                    if (isUploadedFile && !att.is_draft) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
                         viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
@@ -1242,19 +1256,20 @@ export default function OrganizationDetails() {
                       <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm truncate">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
                         {/* Only show Download for uploaded files, not external links */}
-                        {isUploadedFile && (
+                        {isUploadedFile && !att.is_draft && (
                           <button 
                             type="button"
                             onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
                             className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                            data-testid={`organization-attachment-download-${idx}`}
                           >
                             <Download className="w-3 h-3" /> 
                             Download
                           </button>
                         )}
-                        <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)} data-testid={`organization-attachment-remove-${idx}`}>
                           <X className="w-3 h-3" />
                         </Button>
                       </div>
@@ -1298,6 +1313,7 @@ export default function OrganizationDetails() {
                     className="hidden"
                     onChange={handleFileUpload}
                     multiple
+                    data-testid="organization-attachments-file-input"
                   />
                   <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                   <p className="text-sm text-text-muted">Drop files here or click to upload</p>
@@ -1327,7 +1343,7 @@ export default function OrganizationDetails() {
                 errorMessage={errorMessage}
               />
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }} data-testid="cancel-org-btn">Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { discardFileChanges(); setEditing(false); resetAutoSave(); fetchOrganization(); }} data-testid="cancel-org-btn">Cancel</Button>
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
               </div>
             </div>
@@ -1495,14 +1511,14 @@ export default function OrganizationDetails() {
           </div>
 
           <div className={activeTab === 'ghg' ? 'flex flex-col gap-4' : 'hidden'}>
-          {/* === PURPOSE OF REPORT === */}
+          {/* === PURPOSE OF GHG REPORT === */}
           {organization?.report_purpose && (
             <Card className="p-6 border border-stone-200 rounded-xl bg-white">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 rounded-lg bg-indigo-50">
                   <FileText className="w-5 h-5 text-indigo-600" />
                 </div>
-                <h3 className="font-semibold text-text-primary">Purpose of the Report</h3>
+                <h3 className="font-semibold text-text-primary">Purpose of the GHG Report</h3>
               </div>
               <p className="text-text-secondary leading-relaxed">{organization.report_purpose}</p>
             </Card>

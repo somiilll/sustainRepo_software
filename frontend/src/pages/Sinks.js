@@ -12,10 +12,21 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
-import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
 import { LoadErrorState } from '../components/LoadErrorState';
 import { getUserFriendlyError } from '../lib/userFriendlyError';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -179,6 +190,36 @@ export default function Sinks() {
   const [yearlyData, setYearlyData] = useState({ value: '', evidence: [] });
   const [uploadingYearly, setUploadingYearly] = useState(false);
 
+  const commitSinkDraftEvidence = async (sinkId, payload, evidenceItems) => {
+    const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
+    const result = await uploadDraftEvidences({
+      items: draftEvidence(evidenceItems),
+      uploadUrl: `${API}/upload/evidence?bucket_type=sinks_evidence`,
+      headers: getAuthHeader(),
+      mapUploaded: (uploaded, draft) => ({
+        name: draft.name,
+        url: uploaded.url,
+        file_id: uploaded.file_id,
+        uploaded_at: new Date().toISOString(),
+      }),
+    });
+    if (result.uploaded.length > 0) {
+      try {
+        await axios.put(`${API}/sinks/${sinkId}`, {
+          ...payload,
+          evidence_urls: [...storedEvidence, ...result.uploaded].map((item) => item.url).filter(Boolean),
+          evidence_files: [...storedEvidence, ...result.uploaded],
+        }, { headers: getAuthHeader() });
+      } catch (error) {
+        await deleteEvidenceFiles(result.uploaded.map(getEvidenceFileId), API, getAuthHeader());
+        throw error;
+      }
+    }
+    if (result.failed.length > 0) {
+      toast.error(`Sink saved, but ${result.failed.length} evidence file(s) could not be uploaded.`);
+    }
+  };
+
   useEffect(() => {
     loadSinksPage();
   }, []);
@@ -330,7 +371,6 @@ export default function Sinks() {
     if (files.length === 0) return;
 
     setUploadingMonth(monthIndex);
-    let uploadedCount = 0;
     const newFiles = [];
 
     for (const file of files) {
@@ -340,20 +380,7 @@ export default function Sinks() {
         continue;
       }
 
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-
-      try {
-        const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-        });
-
-        newFiles.push({ name: file.name, url: response.data.url, file_id: response.data.file_id });
-        uploadedCount++;
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        toast.error(getUploadErrorMessage(error, file));
-      }
+      newFiles.push(createDraftEvidence(file));
     }
 
     if (newFiles.length > 0) {
@@ -363,7 +390,7 @@ export default function Sinks() {
         const currentEvidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
         return { ...prev, [monthIndex]: { value: currentValue, evidence: [...currentEvidence, ...newFiles] } };
       });
-      toast.success(`${uploadedCount} file(s) uploaded for ${MONTHS[monthIndex]}`);
+      toast.success(`${newFiles.length} file(s) uploaded for ${MONTHS[monthIndex]}`);
     }
     
     e.target.value = '';
@@ -372,14 +399,7 @@ export default function Sinks() {
 
   const removeMonthEvidence = async (monthIndex, fileIndex) => {
     const evidence = monthlyData[monthIndex]?.evidence?.[fileIndex];
-    if (!editingSink && evidence?.file_id) {
-      try {
-        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
-      } catch (error) {
-        toast.error(getUserFriendlyError(error, 'We could not remove this evidence file.'));
-        return;
-      }
-    }
+    revokeDraftEvidence(evidence);
     setMonthlyData(prev => {
       const existing = prev[monthIndex];
       if (!existing || typeof existing !== 'object') return prev;
@@ -393,7 +413,6 @@ export default function Sinks() {
     if (files.length === 0) return;
 
     setUploadingYearly(true);
-    let uploadedCount = 0;
     const newFiles = [];
 
     for (const file of files) {
@@ -403,20 +422,7 @@ export default function Sinks() {
         continue;
       }
 
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-
-      try {
-        const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-        });
-
-        newFiles.push({ name: file.name, url: response.data.url, file_id: response.data.file_id });
-        uploadedCount++;
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        toast.error(getUploadErrorMessage(error, file));
-      }
+      newFiles.push(createDraftEvidence(file));
     }
 
     if (newFiles.length > 0) {
@@ -424,7 +430,7 @@ export default function Sinks() {
         ...prev,
         evidence: [...(prev.evidence || []), ...newFiles]
       }));
-      toast.success(`${uploadedCount} file(s) uploaded`);
+      toast.success(`${newFiles.length} file(s) uploaded`);
     }
     
     e.target.value = '';
@@ -433,14 +439,7 @@ export default function Sinks() {
 
   const removeYearlyEvidence = async (fileIndex) => {
     const evidence = yearlyData.evidence?.[fileIndex];
-    if (!editingSink && evidence?.file_id) {
-      try {
-        await axios.delete(`${API}/files/${evidence.file_id}`, { headers: getAuthHeader() });
-      } catch (error) {
-        toast.error(getUserFriendlyError(error, 'We could not remove this evidence file.'));
-        return;
-      }
-    }
+    revokeDraftEvidence(evidence);
     setYearlyData(prev => ({
       ...prev,
       evidence: prev.evidence.filter((_, i) => i !== fileIndex)
@@ -483,39 +482,44 @@ export default function Sinks() {
         // Editing: update single record
         if (frequencyType === 'yearly' || editingSink.frequency_type === 'yearly') {
           // Yearly record edit
+          const evidenceItems = yearlyData.evidence || [];
+          const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
             facility_id: formData.facility_id,
             reporting_period: getYearlyReportingPeriod(formData.reporting_year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
-            evidence_urls: (yearlyData.evidence || []).map(f => f.url),
-            evidence_files: yearlyData.evidence || [],
+            evidence_urls: storedEvidence.map(f => f.url).filter(Boolean),
+            evidence_files: storedEvidence,
             frequency_type: 'yearly',
           };
 
           await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
             headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
           });
+          await commitSinkDraftEvidence(editingSink.id, payload, evidenceItems);
         } else {
           // Monthly record edit
           const monthIndex = editMonth ?? 0;
           const entry = monthlyData[monthIndex];
           const value = typeof entry === 'object' ? entry.value : entry;
           const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+          const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
           const payload = {
             facility_id: formData.facility_id,
             reporting_period: getMonthlyReportingPeriod(monthIndex, formData.reporting_year, reportingYearType, organization?.financial_year_start_month),
             total_emissions_reduced: parseFloat(value) || 0,
             description: formData.description,
-            evidence_urls: evidence.map(f => f.url),
-            evidence_files: evidence,
+            evidence_urls: storedEvidence.map(f => f.url).filter(Boolean),
+            evidence_files: storedEvidence,
             frequency_type: 'monthly',
           };
 
           await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
             headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
           });
+          await commitSinkDraftEvidence(editingSink.id, payload, evidence);
         }
         toast.success('Sink record updated successfully');
       } else {
@@ -524,19 +528,22 @@ export default function Sinks() {
         
         if (frequencyType === 'yearly') {
           // Create single yearly record
+          const evidenceItems = yearlyData.evidence || [];
+          const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
             facility_id: formData.facility_id,
             reporting_period: getYearlyReportingPeriod(year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
-            evidence_urls: (yearlyData.evidence || []).map(f => f.url),
-            evidence_files: yearlyData.evidence || [],
+            evidence_urls: storedEvidence.map(f => f.url).filter(Boolean),
+            evidence_files: storedEvidence,
             frequency_type: 'yearly',
           };
 
-          await axios.post(`${API}/sinks`, payload, {
+          const response = await axios.post(`${API}/sinks`, payload, {
             headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
           });
+          await commitSinkDraftEvidence(response.data.id, payload, evidenceItems);
           toast.success('Yearly sink record added successfully');
         } else {
           // Create monthly records
@@ -550,20 +557,22 @@ export default function Sinks() {
             const mi = parseInt(monthIdx);
             const value = typeof entry === 'object' ? entry.value : entry;
             const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+            const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
             const payload = {
               facility_id: formData.facility_id,
               reporting_period: getMonthlyReportingPeriod(mi, year, reportingYearType, organization?.financial_year_start_month),
               total_emissions_reduced: parseFloat(value) || 0,
               description: formData.description,
-              evidence_urls: evidence.map(f => f.url),
-              evidence_files: evidence,
+              evidence_urls: storedEvidence.map(f => f.url).filter(Boolean),
+              evidence_files: storedEvidence,
               frequency_type: 'monthly',
             };
 
-            await axios.post(`${API}/sinks`, payload, {
+            const response = await axios.post(`${API}/sinks`, payload, {
               headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
             });
+            await commitSinkDraftEvidence(response.data.id, payload, evidence);
             created++;
           }
           toast.success(`${created} sink record${created > 1 ? 's' : ''} added successfully`);
@@ -644,6 +653,8 @@ export default function Sinks() {
   };
 
   const resetForm = () => {
+    Object.values(monthlyData).forEach((entry) => revokeDraftEvidences(entry?.evidence || []));
+    revokeDraftEvidences(yearlyData.evidence || []);
     setFormData({ facility_id: '', reporting_year: currentReportingYear, description: '' });
     setMonthlyData({});
     setYearlyData({ value: '', evidence: [] });
@@ -914,13 +925,13 @@ export default function Sinks() {
                           <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`yearly-evidence-file-${fileIdx}`}>
                             <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-                            <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
+                            <a href={file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
                               <Eye className="w-3.5 h-3.5" />
                             </a>
                             <button 
                               type="button"
                               onClick={async () => {
-                                const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                                const downloadUrl = file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/download`;
                                 window.location.href = downloadUrl;
                               }}
                               className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
@@ -950,7 +961,7 @@ export default function Sinks() {
                       />
                       <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
                         {uploadingYearly ? (
-                          <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
+                          <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Staging...</span></>
                         ) : (
                           <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
                         )}
@@ -1341,13 +1352,13 @@ function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, on
             <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`evidence-file-${monthIndex}-${fileIdx}`}>
               <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
               <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-              <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
+              <a href={file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
                 <Eye className="w-3.5 h-3.5" />
               </a>
               <button 
                 type="button"
                 onClick={async () => {
-                  const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                  const downloadUrl = file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/download`;
                   await downloadFileHelper(downloadUrl, file.name);
                 }}
                 className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
@@ -1377,7 +1388,7 @@ function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, on
           />
           <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
             {uploading ? (
-              <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
+              <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Staging...</span></>
             ) : (
               <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
             )}

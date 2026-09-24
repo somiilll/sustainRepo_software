@@ -28,12 +28,13 @@ const directFuel = (caps = {}) => ({
 
 export const STANDARD_GHG_CAPABILITIES = Object.freeze({
   'fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2|scope3': scope3({ activityType: true }),
-  'upstream_transportation_distribution|scope3': scope3({ journeyLocations: true }),
+  'upstream_transportation_distribution|scope3': scope3({ activityType: true, journeyLocations: true }),
   'waste_generated_in_operations|scope3': scope3({ activityType: true }),
+  'end_of_life_treatment_of_sold_products|scope3': scope3({ activityType: true }),
   'business_travel|scope3': scope3({ activityType: true, journeyLocations: true, flightDetails: true, supplierBasisOtherActivity: true }),
   'employee_commuting|scope3': scope3({ activityType: true, multiEmployee: true }),
   'upstream_leased_assets|scope3': scope3({ subcategory: true, assetName: true }),
-  'downstream_transportation_and_distribution|scope3': scope3({ journeyLocations: true, customerCounterparty: true }),
+  'downstream_transportation_and_distribution|scope3': scope3({ activityType: true, journeyLocations: true, customerCounterparty: true }),
   'processing_of_sold_products|scope3': scope3({ subcategory: true }),
   'use_of_sold_products|scope3': scope3({ subcategory: true, typeOfProduct: true }),
   'downstream_leased_assets|scope3': scope3({ subcategory: true, assetName: true }),

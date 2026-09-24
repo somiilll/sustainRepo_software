@@ -138,16 +138,9 @@ const EmissionEditDialog = ({
   // Early return if no editing emission
   if (!editingEmission) return null;
   
-  // C7 category check
-  const isC7Category = formData.category?.toLowerCase()?.includes('c7') || 
-                       formData.category?.toLowerCase()?.includes('employee commuting');
-  
-  // For C7, check that employees are populated with valid data
-  const isC7DataReady = !isC7Category || 
-                        (editEmployees.length > 0 && editEmployees[0]?.id);
-  
-  // Show loading if explicitly loading OR if C7 data isn't ready yet
-  if (isEditLoading || !isC7DataReady) {
+  // An empty employee list is a valid C7 draft when another category is
+  // converted to Employee Commuting. Only actual record hydration may load.
+  if (isEditLoading) {
     return (
       <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
         <DialogContent 

@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { deriveGhgFields } from '../ghg/config/deriveGhgFields';
 import { getOcrFactorOptions, getOcrFormConfig } from './ocrApi';
 
-const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', reporting_period: '', remember_override: false };
+const emptyValues = { scope: 'scope1', category: '', ef_method: 'activity', quantity: '', cost: '', currency: 'INR', reporting_period: '', remember_override: false };
 const taxonomyMatchValue = (value) => String(value || '').replace(/\s*\((?:non_renewable|renewable|landfill|recycling|composting|combustion)\)\s*$/i, '');
 const normalize = (value) => taxonomyMatchValue(value).toLowerCase().replace(/[^a-z0-9]/g, '');
 const words = (value) => {
@@ -74,7 +74,13 @@ const preferredFactor = (options, candidates, scope, category, saveRules) => {
 const matchingUnit = (factor, value) => (factor?.allowed_units || []).find((unit) => {
   const aliases = factor?.unit_aliases?.[unit] || [unit];
   return aliases.some((alias) => normalize(alias) === normalize(value));
-}) || factor?.allowed_units?.[0] || '';
+}) || (!String(value || '').trim() ? factor?.allowed_units?.[0] || '' : '');
+const unsupportedInputMessage = (factor, value, isSpend) => {
+  const label = isSpend ? 'currency' : 'unit';
+  const allowedLabel = isSpend ? 'currencies' : 'units';
+  const allowed = (factor?.allowed_units || []).join(', ') || 'none configured';
+  return `Extracted ${label} '${value}' is not allowed for '${factor?.label || 'this factor'}'. Allowed ${allowedLabel} are: ${allowed}. Choose a matching factor or correct the source data.`;
+};
 const reportingPeriodFromDate = (value) => {
   const raw = String(value || '').trim();
   const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
@@ -97,6 +103,7 @@ const dynamicValue = (values, variable) => {
   const value = values.dynamic_field_values?.[variable];
   return value && typeof value === 'object' ? value.value : values[variable] ?? '';
 };
+const isGeneratedRowInvoice = (value) => /^row[-_\s]?\d+$/i.test(String(value || '').trim());
 
 const ExtractedValue = ({ label, value, field }) => (
   <p className="text-xs text-slate-500" data-testid={`ocr-edit-extracted-${field}`}>
@@ -119,12 +126,15 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   useEffect(() => {
     if (item) {
       const current = { ...emptyValues, ...(item.current_values || {}) };
+      const generatedExcelRow = isGeneratedRowInvoice(current.invoice_number);
       const matchingFacility = configuration.facilities?.find((facility) => (
         facility.id === current.facility_id || facility.name === current.location
       ));
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
+        currency: generatedExcelRow && current.currency === 'USD' ? 'INR' : current.currency || 'INR',
+        invoice_number: generatedExcelRow ? '' : current.invoice_number,
         facility_id: current.facility_id || matchingFacility?.id || '',
         reporting_period: reportingPeriodFromDate(current.reporting_period)
           || reportingPeriodFromDate(current.billing_period_start)
@@ -196,7 +206,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
         if (options.length === 1 && !values.factor_id) {
           const selected = options[0];
           const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
-          const matchedInput = matchingUnit(selected, isSpendMethod ? values.currency : values.unit);
+          const extractedInput = isSpendMethod ? values.currency : values.unit;
+          const matchedInput = matchingUnit(selected, extractedInput);
+          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...values,
             facility_id: values.facility_id || factorFacilityId,
@@ -210,9 +222,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
             scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
-            ...(isSpendMethod ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
           };
           setValues(nextValues);
+          if (hasIncompatibleInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpendMethod));
+            return;
+          }
           const automaticMatchKey = `${item?.id}:${factorFacilityId}:${selected.id}`;
           if (onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
             automaticMatchRef.current = automaticMatchKey;
@@ -241,11 +257,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             return {
               ...current,
               factor_id: '', fuel_id: '', scope3_ef_id: '', subcategory: '', fuel_name: '', ef_lookup_key: '', ef_database: '',
-              ...(current.scope === 'scope3' && current.ef_method === 'spend' ? { currency: '' } : { unit: '' }),
+              ...(current.scope === 'scope3' && current.ef_method === 'spend' ? { currency: current.currency || 'INR' } : { unit: '' }),
             };
           }
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
-          const matchedInput = matchingUnit(selected, isSpend ? (current.currency || original.currency) : (current.unit || original.unit));
+          const extractedInput = isSpend ? (current.currency || original.currency) : (current.unit || original.unit);
+          const matchedInput = matchingUnit(selected, extractedInput);
+          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...current,
             facility_id: current.facility_id || factorFacilityId,
@@ -259,8 +277,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
-            ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
           };
+          if (hasIncompatibleInput) {
+            setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
+            return nextValues;
+          }
           const automaticMatchKey = automaticFactor ? `${item?.id}:${factorFacilityId}:${automaticFactor.id}` : '';
           if (automaticFactor && onAutoMatch && automaticMatchRef.current !== automaticMatchKey) {
             automaticMatchRef.current = automaticMatchKey;
@@ -317,7 +339,10 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     const factor = factors.find((option) => option.id === factorId);
     if (!factor) return;
     setFactorError('');
-    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
+    const extractedInput = isSpend ? values.currency : values.unit;
+    const matchedInput = matchingUnit(factor, extractedInput);
+    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    if (hasIncompatibleInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
     setValues((current) => ({
       ...current,
       factor_id: factor.id,
@@ -330,7 +355,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
       scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
     }));
   };
 
@@ -339,7 +364,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     const factor = factors[0];
     const factorFacilityId = values.scope === 'scope1' ? resolvedFacilityId : values.facility_id;
     if (values.scope === 'scope1' && !factorFacilityId) return;
-    const matchedInput = matchingUnit(factor, isSpend ? values.currency : values.unit);
+    const extractedInput = isSpend ? values.currency : values.unit;
+    const matchedInput = matchingUnit(factor, extractedInput);
+    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
     const nextValues = {
       ...values,
       facility_id: values.facility_id || factorFacilityId,
@@ -351,8 +378,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
       scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
-      ...(isSpend ? { currency: matchedInput || '' } : { unit: matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
     };
+    if (hasIncompatibleInput) {
+      setValues(nextValues);
+      setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
+      return;
+    }
     const automaticMatchKey = `${item?.id}:${factorFacilityId}:${factor.id}`;
     automaticMatchRef.current = automaticMatchKey;
     setValues(nextValues);

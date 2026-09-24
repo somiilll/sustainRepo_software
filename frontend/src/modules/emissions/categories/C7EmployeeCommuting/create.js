@@ -30,6 +30,10 @@ const hasAnyMonthData = (emp) =>
     );
   });
 
+const serializeEvidences = (evidences = []) => evidences
+  .filter((evidence) => !evidence?.is_draft)
+  .map(({ file, is_draft, is_new, ...evidence }) => evidence);
+
 // ---------- validation ----------
 
 /**
@@ -161,7 +165,7 @@ export function buildYearlyCreatePayload(ctx) {
       inputs: emp.yearly_data?.inputs || {},
       emissions: emp.yearly_data?.emissions || {},
       calculation_details: emp.yearly_data?.calculation_details || null,
-      evidences: emp.yearly_data?.evidences || [],
+      evidences: serializeEvidences(emp.yearly_data?.evidences || []),
     }));
 
   return {
@@ -245,7 +249,7 @@ export function buildMonthlyCreatePayloads(ctx) {
           inputs: monthData.inputs || {},
           emissions: monthData.emissions || {},
           calculation_details: monthData.calculation_details || null,
-          evidences: monthData.evidences || [],
+          evidences: serializeEvidences(monthData.evidences || []),
         });
       }
     });

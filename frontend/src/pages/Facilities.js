@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -6,13 +6,25 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle, Package, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
-import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { validateFileSize } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import FacilityProductionSection from '../components/FacilityProductionSection';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -33,6 +45,12 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'Other'
 ];
 
+const createProductionDraft = (yearType = 'financial_year') => {
+  const year = new Date().getFullYear();
+  return { reportingYear: yearType === 'calendar_year' ? String(year) : `FY ${year}-${String(year + 1).slice(-2)}`, inputType: 'yearly', unit: 'MT', quantity: '', monthlyData: {} };
+};
+const PRODUCTION_MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
   const [sectors, setSectors] = useState([]);
@@ -48,6 +66,8 @@ export default function Facilities() {
   const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
   const [autoSavedId, setAutoSavedId] = useState(null); // Track ID from auto-save create
+  const [productionDraft, setProductionDraft] = useState(createProductionDraft());
+  const pendingDeletionIds = useRef(new Set());
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -108,6 +128,10 @@ export default function Facilities() {
   // Auto-save handler
   const handleAutoSave = useCallback(async (data, isUpdate, existingId) => {
     const recordId = isUpdate ? existingId : (editingFacility?.id || autoSavedId);
+    const safeData = {
+      ...data,
+      attachments: editingFacility?.attachments || [],
+    };
     
     // Check for duplicate names
     const duplicate = facilities.find(f => 
@@ -121,14 +145,14 @@ export default function Facilities() {
     
     if (recordId) {
       // Update existing
-      await axios.put(`${API}/facilities/${recordId}`, data, {
+      await axios.put(`${API}/facilities/${recordId}`, safeData, {
         headers: getAuthHeader()
       });
       fetchFacilities(); // Refresh list silently
       return { id: recordId };
     } else {
       // Create new
-      const response = await axios.post(`${API}/facilities`, data, {
+      const response = await axios.post(`${API}/facilities`, safeData, {
         headers: getAuthHeader()
       });
       const newId = response.data?.id;
@@ -255,12 +279,6 @@ export default function Facilities() {
     
     // Suppliers only need name
     if (!isSupplier) {
-      // Validation: Person Responsible is mandatory for non-suppliers
-      if (!formData.responsible_person || formData.responsible_person.trim() === '') {
-        toast.error('Person Responsible is mandatory');
-        return;
-      }
-      
       // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
       const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
       const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
@@ -286,19 +304,63 @@ export default function Facilities() {
     }
     
     try {
+      const persistedAttachments = persistedEvidence(formData.attachments).map(toEvidencePayload);
+      const baseData = { ...formData, attachments: persistedAttachments };
+      let savedFacilityId = currentId;
       if (currentId) {
         // Update existing (either editing or auto-saved)
-        await axios.put(`${API}/facilities/${currentId}`, formData, {
+        await axios.put(`${API}/facilities/${currentId}`, baseData, {
           headers: getAuthHeader()
         });
-        toast.success('Facility updated successfully');
       } else {
         // Create new
-        await axios.post(`${API}/facilities`, formData, {
+        const response = await axios.post(`${API}/facilities`, baseData, {
           headers: getAuthHeader()
         });
-        toast.success('Facility created successfully');
+        savedFacilityId = response.data.id;
+        setAutoSavedId(savedFacilityId);
+        const hasMonthlyProduction = Object.values(productionDraft.monthlyData).some((quantity) => quantity !== '');
+        if (productionDraft.quantity !== '' || hasMonthlyProduction) {
+          const productionPayload = { input_type: productionDraft.inputType, unit: productionDraft.unit };
+          if (productionDraft.inputType === 'monthly') {
+            productionPayload.monthly_data = Object.fromEntries(Object.entries(productionDraft.monthlyData).filter(([, quantity]) => quantity !== '').map(([month, quantity]) => [month, { quantity: Math.max(0, parseFloat(quantity) || 0), unit: productionDraft.unit }]));
+          } else {
+            productionPayload.quantity = Math.max(0, parseFloat(productionDraft.quantity) || 0);
+          }
+          await axios.post(`${API}/facilities/${savedFacilityId}/production/${productionDraft.reportingYear}`, productionPayload, { headers: getAuthHeader() });
+        }
       }
+
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(formData.attachments),
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded, draft) => ({
+          type: 'file',
+          name: draft.name,
+          url: uploaded.url,
+          file_id: uploaded.file_id,
+        }),
+      });
+      if (uploadResult.uploaded.length > 0) {
+        try {
+          await axios.put(`${API}/facilities/${savedFacilityId}`, {
+            ...baseData,
+            attachments: [...persistedAttachments, ...uploadResult.uploaded],
+          }, { headers: getAuthHeader() });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadResult.uploaded.map(getEvidenceFileId), API, getAuthHeader());
+          throw error;
+        }
+      }
+
+      const deletionFailures = await deleteEvidenceFiles(pendingDeletionIds.current, API, getAuthHeader());
+      pendingDeletionIds.current.clear();
+      revokeDraftEvidences(draftEvidence(formData.attachments));
+      if (uploadResult.failed.length || deletionFailures) {
+        toast.error(`Facility saved, but ${uploadResult.failed.length + deletionFailures} attachment change(s) could not be completed.`);
+      }
+      toast.success(currentId ? 'Facility updated successfully' : 'Facility created successfully');
       setDialogOpen(false);
       resetForm();
       fetchFacilities();
@@ -370,9 +432,12 @@ export default function Facilities() {
   };
 
   const resetForm = () => {
+    revokeDraftEvidences(draftEvidence(formData.attachments));
+    pendingDeletionIds.current.clear();
     setEditingFacility(null);
     setSameAsOrg(false);
     setAutoSavedId(null);
+    setProductionDraft(createProductionDraft(organization?.reporting_year_type || 'financial_year'));
     resetAutoSave();
     setFormData({
       name: '',
@@ -417,19 +482,13 @@ export default function Facilities() {
 
   const removeAttachment = async (index) => {
     const attachment = formData.attachments[index];
-    const fileId = attachment?.file_id || attachment?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-    if (fileId) {
-      try {
-        await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
-      } catch (error) {
-        toast.error(error.response?.data?.detail || 'Could not remove attachment from storage');
-        return;
-      }
-    }
-    setFormData({
-      ...formData,
-      attachments: formData.attachments.filter((_, i) => i !== index)
-    });
+    const fileId = getEvidenceFileId(attachment);
+    if (attachment?.is_draft) revokeDraftEvidence(attachment);
+    if (!attachment?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
   };
 
   // Filter facilities based on active status
@@ -494,28 +553,11 @@ export default function Facilities() {
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
+            <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto bg-white p-0 text-stone-900">
+              <DialogHeader className="border-b border-stone-200 px-7 py-6">
+                <div className="flex items-start justify-between gap-4"><div><DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle><p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p></div>{!editingFacility && organization && !isSupplier && <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-1 text-sm text-stone-600"><input type="checkbox" checked={sameAsOrg} onChange={(e) => handleSameAsOrg(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" /><span>Use organisation details</span></label>}</div>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Same as Organization Checkbox - only show when adding new facility (not for suppliers) */}
-                {!editingFacility && organization && !isSupplier && (
-                  <div className="p-4 border border-green-200 rounded-lg bg-green-50">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={sameAsOrg}
-                        onChange={(e) => handleSameAsOrg(e.target.checked)}
-                        className="w-4 h-4 text-green-600 rounded"
-                      />
-                      <div>
-                        <p className="font-medium text-green-800">Same as Organization</p>
-                      </div>
-                    </label>
-                  </div>
-                )}
-                
+              <form onSubmit={handleSubmit} className="space-y-6 bg-white px-7 py-6 [&_input]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
                 {/* Supplier simplified form - only name */}
                 {isSupplier ? (
                   <div className="space-y-6">
@@ -539,8 +581,10 @@ export default function Facilities() {
                 ) : (
                   /* Full form for non-suppliers */
                   <>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="space-y-2">
+                <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_21rem]">
+                  <div className="min-w-0 space-y-6">
+                <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="min-w-0 space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
                     <Input
                       id="name"
@@ -550,8 +594,8 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sector">Sector/Industry *</Label>
+                  <div className="min-w-0 space-y-2">
+                    <Label htmlFor="sector" className="flex items-center gap-1.5">Sector/Industry *<TooltipProvider><Tooltip><TooltipTrigger asChild><span className="inline-flex cursor-help" data-testid="facility-sector-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></TooltipTrigger><TooltipContent>Contact Administrator to add new sectors</TooltipContent></Tooltip></TooltipProvider></Label>
                     <select
                       id="sector"
                       value={formData.sector}
@@ -564,9 +608,8 @@ export default function Facilities() {
                         <option key={s.id} value={s.name}>{s.name}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-text-muted">Contact Administrator to add new sectors</p>
                   </div>
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     <Label htmlFor="sub_sector">Sub-Sector</Label>
                     <Input
                       id="sub_sector"
@@ -579,7 +622,7 @@ export default function Facilities() {
                 </div>
 
                 {/* Address Section */}
-                <div className="space-y-6 rounded-lg border border-stone-200 p-4">
+                <div className="space-y-4 rounded-lg border border-stone-200 p-4">
                   <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                     <MapPin className="w-4 h-4" />
                     Address Details
@@ -594,7 +637,7 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="city">City *</Label>
                       <Input
@@ -615,23 +658,6 @@ export default function Facilities() {
                         className="bg-stone-50"
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Country *</Label>
-                      <select
-                        id="country"
-                        value={formData.country}
-                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                        required
-                        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      >
-                        <option value="">Select Country</option>
-                        {COUNTRIES.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="pincode">PIN/ZIP Code *</Label>
                       <Input
@@ -645,6 +671,10 @@ export default function Facilities() {
                       />
                       {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country *</Label>
+                    <select id="country" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} required className="h-10 w-full border border-stone-200 bg-stone-50 px-3"><option value="">Select Country</option>{COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}</select>
                   </div>
                 </div>
 
@@ -682,15 +712,17 @@ export default function Facilities() {
                   />
                 </div>
 
+                <details className="border-t border-stone-200 pt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-stone-700">Additional facility details</summary>
+                  <div className="mt-5 space-y-7">
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
+                    <Label htmlFor="responsible_person">Person Responsible</Label>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
                       className="bg-stone-50"
-                      required
                       data-testid="facility-person-responsible-input"
                     />
                   </div>
@@ -720,13 +752,8 @@ export default function Facilities() {
 
                 {/* Equity Share Percentage - Only show if organization uses equity share approach */}
                 {organization?.org_boundaries_approach === 'equity_share' && (
-                  <div className="space-y-2 border-l-2 border-stone-300 pl-4" data-testid="facility-equity-share-guidance">
-                    <Label htmlFor="equity_share_percentage" className="font-medium text-text-primary">
-                      Equity Share Percentage (%) <span className="text-red-500">*</span>
-                    </Label>
-                    <p className="mb-2 text-xs text-text-muted">
-                      Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.
-                    </p>
+                  <div className="mt-6 space-y-2 border-t border-stone-100 pt-6" data-testid="facility-equity-share-guidance">
+                    <Label htmlFor="equity_share_percentage" className="flex items-center gap-1.5 font-medium text-text-primary">Equity Share Percentage (%) <span className="text-red-500">*</span><TooltipProvider><Tooltip><TooltipTrigger asChild><span className="inline-flex cursor-help" data-testid="facility-equity-share-help"><Info className="h-3.5 w-3.5 text-stone-400" /></span></TooltipTrigger><TooltipContent className="max-w-xs">Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.</TooltipContent></Tooltip></TooltipProvider></Label>
                     <Input
                       id="equity_share_percentage"
                       type="number"
@@ -744,9 +771,6 @@ export default function Facilities() {
                       placeholder="e.g., 100"
                       data-testid="facility-equity-share-percentage-input"
                     />
-                    <p className="mt-1 text-xs text-text-muted">
-                      Default is 100%. Enter a value between 0 and 100.
-                    </p>
                   </div>
                 )}
 
@@ -792,13 +816,13 @@ export default function Facilities() {
                     <div className="space-y-2">
                       {formData.attachments.map((att, idx) => {
                         // Determine if this is an uploaded file or external link
-                        const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
+                        const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
                         
                         // For uploaded files, construct proper view/download URLs
-                        let viewUrl = att.url;
+                        let viewUrl = att.is_draft ? att.preview_url : att.url;
                         let downloadUrl = att.url;
                         
-                        if (isUploadedFile) {
+                        if (isUploadedFile && !att.is_draft) {
                           // Extract file ID from URL patterns like:
                           // /api/files/{id}/view or /api/files/{id} or full URL with same pattern
                           const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
@@ -823,12 +847,13 @@ export default function Facilities() {
                               rel="noopener noreferrer" 
                               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                               title="View file"
+                              data-testid={`facility-attachment-view-${idx}`}
                             >
                               <Eye className="w-3 h-3" />
                               View
                             </a>
                             {/* Only show Download for uploaded files, not external links */}
-                            {isUploadedFile && (
+                            {isUploadedFile && !att.is_draft && (
                               <button 
                                 type="button"
                                 onClick={(e) => { 
@@ -837,12 +862,13 @@ export default function Facilities() {
                                 }}
                                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                 title="Download file"
+                                data-testid={`facility-attachment-download-${idx}`}
                               >
                                 <Download className="w-3 h-3" />
                                 Download
                               </button>
                             )}
-                            <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)} data-testid={`facility-attachment-remove-${idx}`}>
                               <X className="w-3 h-3" />
                             </Button>
                           </div>
@@ -888,8 +914,6 @@ export default function Facilities() {
                         onChange={async (e) => {
                           const files = Array.from(e.target.files || []);
                           if (files.length === 0) return;
-                          
-                          let uploadedCount = 0;
                           const newAttachments = [];
                           
                           for (const file of files) {
@@ -898,33 +922,19 @@ export default function Facilities() {
                               toast.error(sizeErr);
                               continue;
                             }
-                            const uploadFormData = new FormData();
-                            uploadFormData.append('file', file);
-                            try {
-                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-                                headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-                              });
-                              newAttachments.push({ 
-                                type: 'file', 
-                                name: file.name, 
-                                url: response.data.url,
-                                file_id: response.data.file_id
-                              });
-                              uploadedCount++;
-                            } catch (error) {
-                              toast.error(getUploadErrorMessage(error, file));
-                            }
+                            newAttachments.push(createDraftEvidence(file, { type: 'file' }));
                           }
                           
                           if (newAttachments.length > 0) {
-                            setFormData({
-                              ...formData,
-                              attachments: [...formData.attachments, ...newAttachments]
-                            });
-                            toast.success(`${uploadedCount} file(s) uploaded successfully`);
+                            setFormData(prev => ({
+                              ...prev,
+                              attachments: [...prev.attachments, ...newAttachments]
+                            }));
+                            toast.success(`${newAttachments.length} file(s) uploaded`);
                           }
                           e.target.value = '';
                         }}
+                        data-testid="facility-attachments-file-input"
                       />
                       <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                       <p className="text-sm text-text-muted">Drop files here or click to upload</p>
@@ -946,15 +956,24 @@ export default function Facilities() {
                   />
                 </div>
 
-                {/* Production Quantity Section - Only show when editing existing facility */}
-                {(editingFacility || autoSavedId) && (
-                  <FacilityProductionSection 
-                    facilityId={editingFacility?.id || autoSavedId}
-                    facilityName={formData.name}
-                    readOnly={subscriptionExpired}
-                    yearType={organization?.reporting_year_type || 'financial_year'}
-                  />
-                )}
+                  </div>
+                </details>
+
+                  </div>
+                  <aside className="sticky top-0" data-testid="facility-production-panel">
+                    {(editingFacility || autoSavedId) ? (
+                      <FacilityProductionSection 
+                        facilityId={editingFacility?.id || autoSavedId}
+                        facilityName={formData.name}
+                        readOnly={subscriptionExpired}
+                        yearType={organization?.reporting_year_type || 'financial_year'}
+                        defaultExpanded
+                      />
+                    ) : (
+                      <div className="border border-stone-200 bg-white p-5"><div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50"><Package className="h-5 w-5 text-emerald-700" /></div><div><h3 className="text-sm font-semibold text-stone-900">Production Quantity</h3><p className="text-xs text-stone-500">Production for this facility</p></div></div><div className="space-y-4"><div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="facility-production-year">Financial Year</Label><Input id="facility-production-year" value={productionDraft.reportingYear} onChange={(event) => setProductionDraft({ ...productionDraft, reportingYear: event.target.value })} data-testid="facility-production-year" /></div><div className="space-y-2"><Label>Input Type</Label><div className="flex rounded-full bg-stone-100 p-1"><button type="button" onClick={() => setProductionDraft({ ...productionDraft, inputType: 'yearly' })} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium ${productionDraft.inputType === 'yearly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500'}`} data-testid="facility-production-yearly">Yearly</button><button type="button" onClick={() => setProductionDraft({ ...productionDraft, inputType: 'monthly' })} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium ${productionDraft.inputType === 'monthly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-stone-500'}`} data-testid="facility-production-monthly">Monthly</button></div></div></div><div className="space-y-2"><Label htmlFor="facility-production-unit">Unit</Label><Input id="facility-production-unit" value={productionDraft.unit} onChange={(event) => setProductionDraft({ ...productionDraft, unit: event.target.value })} placeholder="MT" data-testid="facility-production-unit" /></div>{productionDraft.inputType === 'yearly' ? <div className="space-y-2"><Label htmlFor="facility-production-quantity">Total Production</Label><Input id="facility-production-quantity" type="number" min="0" step="any" value={productionDraft.quantity} onChange={(event) => { if (event.target.value === '' || Number(event.target.value) >= 0) setProductionDraft({ ...productionDraft, quantity: event.target.value }); }} placeholder="Enter total production" data-testid="facility-production-quantity" /></div> : <div className="space-y-2"><Label>Monthly Production</Label><div className="grid grid-cols-3 gap-3">{PRODUCTION_MONTHS.map((month) => <div key={month} className="space-y-1"><Label className="text-xs text-stone-500">{month}</Label><Input type="number" min="0" value={productionDraft.monthlyData[month] || ''} onChange={(event) => { if (event.target.value === '' || Number(event.target.value) >= 0) setProductionDraft({ ...productionDraft, monthlyData: { ...productionDraft.monthlyData, [month]: event.target.value } }); }} placeholder="0" data-testid={`facility-production-month-${month}`} /></div>)}</div></div>}</div></div>
+                    )}
+                  </aside>
+                </div>
                   </>
                 )}
 
@@ -965,10 +984,10 @@ export default function Facilities() {
                     errorMessage={errorMessage}
                   />
                   <div className="flex gap-3">
-                    <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
+                    <Button type="button" variant="outline" onClick={() => handleDialogChange(false)} data-testid="facility-form-cancel-button">
                       Cancel
                     </Button>
-                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="facility-form-save-button">
                       {editingFacility || autoSavedId ? 'Update' : 'Create'} Facility
                     </Button>
                   </div>

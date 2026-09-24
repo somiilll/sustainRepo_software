@@ -106,6 +106,12 @@ const StatusCell = ({ emission }) => {
   );
 };
 
+const getStatusSortValue = (emission) => (
+  emission.is_my_pending_proposal
+    ? 'completed awaiting approval'
+    : getStatusDisplay(emission.approval_status).text.toLowerCase()
+);
+
 const OverrideBadge = ({ emissionId }) => (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
@@ -426,6 +432,10 @@ const EmissionDataGrid = forwardRef(({
           aVal = (a.biogenic_scope_selection || '').toLowerCase();
           bVal = (b.biogenic_scope_selection || '').toLowerCase();
           break;
+        case 'status':
+          aVal = getStatusSortValue(a);
+          bVal = getStatusSortValue(b);
+          break;
         case 'lastUpdated':
           aVal = getLastUpdatedAt(a) || '';
           bVal = getLastUpdatedAt(b) || '';
@@ -501,7 +511,7 @@ const EmissionDataGrid = forwardRef(({
               <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
@@ -524,7 +534,7 @@ const EmissionDataGrid = forwardRef(({
               <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>
@@ -550,7 +560,7 @@ const EmissionDataGrid = forwardRef(({
               <ResizableColumnHeader columnKey="emissions" width={columnWidths.emissions} onResize={resizeColumn}>
                 <SortableHeader label="tCO₂e" sortKey="emissions" currentSort={sort} onSort={handleSort} className="justify-center normal-case" />
               </ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><span className="w-full text-center">Status</span></ResizableColumnHeader>
+              <ResizableColumnHeader columnKey="status" width={columnWidths.status} onResize={resizeColumn}><SortableHeader label="Status" sortKey="status" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="updated" width={columnWidths.updated} onResize={resizeColumn}><SortableHeader label="Updated" sortKey="lastUpdated" currentSort={sort} onSort={handleSort} className="justify-center" /></ResizableColumnHeader>
               <ResizableColumnHeader columnKey="actions" width={columnWidths.actions} onResize={resizeColumn}><span className="w-full text-center" data-testid="emissions-actions-column-label">Actions</span></ResizableColumnHeader>
             </>

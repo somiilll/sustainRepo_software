@@ -1046,8 +1046,10 @@ async def add_question(
         category=data.category,
         order=data.order,
         scoring=data.scoring.model_dump() if data.scoring else None,
+        parent_question_id=data.parent_question_id,
+        question_category=data.question_category,
     )
-    _log_supplier_event("supplier_assessment.question.created", action="supplier_assessment.question.create", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": result.get("id")})
+    _log_supplier_event("supplier_assessment.question.created", action="supplier_assessment.question.create", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": result.get("id"), "parent_question_id": result.get("parent_question_id")})
     return result
 
 

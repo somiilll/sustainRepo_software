@@ -587,6 +587,7 @@ class EmissionCalculator:
                 source_currency=spent_currency,
                 reporting_period=reporting_period,
                 reporting_year_type=row_data.get("reporting_year_type"),
+                financial_year_start_month=row_data.get("financial_year_start_month"),
                 method=currency_method,
             )
             if (

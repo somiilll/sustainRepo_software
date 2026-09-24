@@ -53,6 +53,7 @@ OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-ha
 OCR_UPLOADS_COLLECTION = "ocr_uploads"
 OCR_LINE_ITEMS_COLLECTION = "ocr_line_items"
 SPREADSHEET_EXTENSIONS = {".csv", ".xls", ".xlsx"}
+GENERATED_SPREADSHEET_ROW_PATTERN = re.compile(r"^row[-_\s]?\d+$", re.IGNORECASE)
 
 
 # ============================================================================
@@ -136,11 +137,26 @@ def _is_spreadsheet_ocr_item(item: dict) -> bool:
     return os.path.splitext(str(item.get("filename") or ""))[1].lower() in SPREADSHEET_EXTENSIONS
 
 
+def _is_generated_spreadsheet_row_identifier(value: object) -> bool:
+    return bool(GENERATED_SPREADSHEET_ROW_PATTERN.fullmatch(str(value or "").strip()))
+
+
+def _without_generated_spreadsheet_row_identifier(item: dict, values: dict) -> dict:
+    sanitized = dict(values)
+    if _is_spreadsheet_ocr_item(item) and _is_generated_spreadsheet_row_identifier(sanitized.get("invoice_number")):
+        sanitized["invoice_number"] = ""
+    return sanitized
+
+
 def _ocr_record_metadata(item: dict, values: dict) -> dict:
     """Build OCR provenance and Scope 1-only extracted context notes."""
     original_values = item.get("original_values") or {}
 
     def field(name: str) -> str:
+        if name == "invoice_number" and _is_spreadsheet_ocr_item(item):
+            candidate = values.get(name)
+            if not candidate or _is_generated_spreadsheet_row_identifier(candidate):
+                return ""
         return str(values.get(name) or original_values.get(name) or "").strip()
 
     note_parts = []
@@ -289,6 +305,15 @@ def _canonical_option_input(option: dict, raw_value: str, input_field: str) -> s
     return ""
 
 
+def _extracted_factor_input(values: dict, input_field: str) -> str:
+    if input_field == "currency":
+        return str(values.get("currency") or "").strip()
+    activity_value = (values.get("dynamic_field_values") or {}).get("activity_value")
+    if isinstance(activity_value, dict) and str(activity_value.get("unit") or "").strip():
+        return str(activity_value["unit"]).strip()
+    return str(values.get("unit") or "").strip()
+
+
 async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> tuple[dict, dict]:
     """Resolve unambiguous OCR values so direct Save GHG does not require an edit round-trip."""
     facility = None
@@ -341,17 +366,24 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("ef_method") or "",
             matched_factor.get("activity_type") or "",
         )
+        extracted_input = _extracted_factor_input(values, input_field)
         canonical_input = (
-            values.get(input_field) or ""
+            extracted_input
             if structured_scope3_activity
             else _canonical_option_input(
                 matched_factor,
-                values.get(input_field) or "",
+                extracted_input,
                 input_field,
             )
         )
         if not canonical_input and not structured_scope3_activity:
-            raise ValueError(f"The extracted {input_field} is not allowed for the resolved factor. Review this row before saving.")
+            allowed_inputs = ", ".join(matched_factor.get("allowed_units") or []) or "none configured"
+            label = "currencies" if input_field == "currency" else "units"
+            raise ValueError(
+                f"Extracted {input_field} '{extracted_input or 'not provided'}' is not allowed for "
+                f"'{matched_factor['label']}'. Allowed {label} are: {allowed_inputs}. "
+                "Choose a matching factor or correct the source data."
+            )
         values.update({
             "factor_id": matched_factor["id"],
             "fuel_id": matched_factor["id"] if matched_factor["collection"] == "fuel_database" else None,
@@ -1749,7 +1781,10 @@ async def save_line_item_to_ghg(
         raise HTTPException(status_code=404, detail="Line item not found")
     if item.get("status") == "imported":
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
-    values = canonicalize_calculation_units(item.get("current_values") or {})
+    values = _without_generated_spreadsheet_row_identifier(
+        item,
+        canonicalize_calculation_units(item.get("current_values") or {})
+    )
     if values.get("scope") not in {"scope1", "scope2", "scope3"}:
         raise HTTPException(status_code=400, detail="Only Scope 1, Scope 2, and Scope 3 OCR rows can be saved directly to GHG records")
     if not OCR_SAVE_SCOPE_RULES.get(values["scope"], {}).get("enabled"):
@@ -1828,6 +1863,7 @@ async def save_line_item_to_ghg(
             "current_values.naics_label": values.get("naics_label"),
             "current_values.unit": values.get("unit"),
             "current_values.currency": values.get("currency"),
+            "current_values.invoice_number": values.get("invoice_number"),
             "current_values.spend_currency_conversion_method": resolved_decisions.get("spend_currency_conversion_method"),
             "current_values.calculation_methodology": resolved_decisions.get("calculation_methodology"),
             "current_values.calculation_method_scope3": resolved_scope3_method,

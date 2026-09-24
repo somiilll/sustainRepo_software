@@ -142,10 +142,11 @@ export const AnalyticsChartCard = ({
         />
 
         <Tooltip
-          formatter={(value) => [
+          formatter={(value, name) => [
             `${Number(value).toLocaleString(undefined, {
               maximumFractionDigits: 2,
             })}${unit ? ` ${unit}` : ""}`,
+            name,
           ]}
           contentStyle={{
             borderRadius: 10,

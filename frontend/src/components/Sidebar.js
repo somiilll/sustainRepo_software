@@ -43,10 +43,10 @@ function withSupplierAssessmentLabels(items, resolvedConfig) {
   const modules = resolvedConfig?.supplier_assessment?.modules || {};
   return items.reduce((visibleItems, item) => {
     const supplierModule = SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key];
-    if (item.adminOnly && supplierModule && modules[supplierModule]?.enabled === false) return visibleItems;
     visibleItems.push({
       ...item,
       label: supplierModule ? modules[supplierModule]?.display_name || item.label : item.label,
+      orgDisabled: Boolean(item.adminOnly && supplierModule && modules[supplierModule]?.enabled === false),
       children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
     });
     return visibleItems;
@@ -86,13 +86,13 @@ function MenuItem(props) {
   if (item.supplierOnly && supplierPortalModule && (!Array.isArray(supplierModules) || !supplierModules.includes(supplierPortalModule))) return null;
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
-  if (!hasAccess(item.key)) return null;
-
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
+  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key));
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
   var missingSupplierGhgAssignment = isSupplier && Array.isArray(supplierModules) && !supplierModules.includes('ghg') && SUPPLIER_GHG_REQUIRED_MENU_KEYS.has(item.key);
   var lockedForSupplier = inheritedLocked || missingSupplierGhgAssignment;
   var mutedForSupplier = lockedForSupplier || inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
+  var muted = mutedForSupplier || lockedForOrganisation;
 
   var hasChildren = item.children && item.children.length > 0;
   var active = item.path ? isActive(item.path, location) : false;
@@ -106,7 +106,7 @@ function MenuItem(props) {
       React.createElement('button', {
         type: 'button',
         onClick: function() { onToggle(item.key); },
-        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (muted ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
         'data-testid': 'sidebar-' + item.key,
       },
         React.createElement('span', { className: 'flex items-center gap-2.5' },
@@ -130,7 +130,7 @@ function MenuItem(props) {
 
   var linkContent = React.createElement(Link, {
     to: item.path,
-    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (mutedForSupplier ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (muted ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
     'data-testid': 'sidebar-' + item.key,
   },
     Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
@@ -185,8 +185,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
     // Build environment children based on mode
     const buildEnvChildren = () => {
       const icons = _sectionIcons('environment');
-      const disabledModules = new Set((resolvedConfig.disabled_modules || []).map(m => m.toLowerCase()));
-
       // GHG Module is always static
       const ghg = {
         key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
@@ -229,7 +227,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         const code = item.key.replace('environment.', '');
         if (code === 'others') { othersItem = item; continue; }
         if (code === 'analysis') { analysisItem = item; continue; }
-        if (disabledModules.has(code)) continue;
         filtered.push(item);
       }
 

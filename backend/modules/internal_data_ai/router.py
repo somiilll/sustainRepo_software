@@ -10,6 +10,7 @@ from typing import Optional, List
 
 from shared.database.mongo import db
 from modules.auth.dependencies import get_current_user
+from modules.entitlements.dependencies import assert_entitlement
 from modules.internal_data_ai.entity_guards import category_is_explicitly_mentioned
 from modules.internal_data_ai.intent_detector import detect_intent
 from modules.internal_data_ai.planner import plan_service_calls
@@ -61,6 +62,7 @@ async def internal_ai_chat(
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
+    await assert_entitlement(org_id, "repo_pilot.internal_data_ai")
 
     # Get user's assigned facilities for permission filtering
     facility_ids = authorized_facility_scope(current_user)

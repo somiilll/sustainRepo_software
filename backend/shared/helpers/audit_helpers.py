@@ -192,6 +192,27 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "evidence"
         })
     
+    def is_scope3_like(record: dict) -> bool:
+        dynamic_values = record.get("dynamic_field_values", {}) or {}
+        biogenic_scope = record.get("biogenic_scope_selection")
+        if isinstance(biogenic_scope, dict):
+            biogenic_scope = biogenic_scope.get("value")
+        if not biogenic_scope:
+            dynamic_biogenic_scope = dynamic_values.get("biogenic_scope_selection")
+            biogenic_scope = (
+                dynamic_biogenic_scope.get("value")
+                if isinstance(dynamic_biogenic_scope, dict)
+                else dynamic_biogenic_scope
+            )
+        return record.get("scope") == "scope3" or (
+            record.get("scope") == "biogenic" and biogenic_scope == "scope3"
+        )
+
+    old_is_scope3_like = is_scope3_like(old_values)
+    new_is_scope3_like = is_scope3_like(new_values)
+    old_dfv = old_values.get("dynamic_field_values", {}) or {}
+    new_dfv = new_values.get("dynamic_field_values", {}) or {}
+
     # Track calculation method changes with readable names (only *_basis, no *_based fallbacks)
     method_names = {
         'spend_basis': 'Spend Based',
@@ -207,14 +228,14 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
         'equity_basis': 'Equity Based'
     }
     
-    old_method = old_values.get("calculation_method_scope3")
-    new_method = new_values.get("calculation_method_scope3")
+    old_method = old_values.get("calculation_method_scope3") if old_is_scope3_like else None
+    new_method = new_values.get("calculation_method_scope3") if new_is_scope3_like else None
     # Also check in dynamic_field_values
-    if not old_method:
+    if old_is_scope3_like and not old_method:
         old_dfv = old_values.get("dynamic_field_values", {}) or {}
         old_method_field = old_dfv.get("calculation_method_scope3", {})
         old_method = old_method_field.get("value") if isinstance(old_method_field, dict) else old_method_field
-    if not new_method:
+    if new_is_scope3_like and not new_method:
         new_dfv = new_values.get("dynamic_field_values", {}) or {}
         new_method_field = new_dfv.get("calculation_method_scope3", {})
         new_method = new_method_field.get("value") if isinstance(new_method_field, dict) else new_method_field
@@ -229,25 +250,22 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     
     # Track activity changes - prioritize scope3_activity over sub_category to avoid showing category name
     # The sub_category often contains "Employee Commuting" (category) instead of actual activity like "Local bus"
-    old_dfv = old_values.get("dynamic_field_values", {}) or {}
-    new_dfv = new_values.get("dynamic_field_values", {}) or {}
-    
     # First check scope3_activity directly, then in dynamic_field_values, then fallback to sub_category
-    old_activity = old_values.get("scope3_activity")
-    if not old_activity:
+    old_activity = old_values.get("scope3_activity") if old_is_scope3_like else None
+    if old_is_scope3_like and not old_activity:
         old_act_field = old_dfv.get("scope3_activity", {})
         old_activity = old_act_field.get("value") if isinstance(old_act_field, dict) else old_act_field
-    if not old_activity:
+    if old_is_scope3_like and not old_activity:
         # Only use sub_category if it's different from the category (C7 - Employee Commuting)
         old_sub = old_values.get("sub_category")
         if old_sub and "Employee Commuting" not in str(old_sub) and "C7" not in str(old_sub):
             old_activity = old_sub
     
-    new_activity = new_values.get("scope3_activity")
-    if not new_activity:
+    new_activity = new_values.get("scope3_activity") if new_is_scope3_like else None
+    if new_is_scope3_like and not new_activity:
         new_act_field = new_dfv.get("scope3_activity", {})
         new_activity = new_act_field.get("value") if isinstance(new_act_field, dict) else new_act_field
-    if not new_activity:
+    if new_is_scope3_like and not new_activity:
         # Only use sub_category if it's different from the category
         new_sub = new_values.get("sub_category")
         if new_sub and "Employee Commuting" not in str(new_sub) and "C7" not in str(new_sub):
@@ -567,6 +585,10 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     for field in fields_to_track:
         # Skip fields that are handled specially above
         if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "activity", "activity_name", "process_names", "process_descriptions", "employees", "monthly_totals", "yearly_total"]:
+            continue
+        if field in {"scope3_activity_type", "scope3_ef_id"} and not (
+            old_is_scope3_like or new_is_scope3_like
+        ):
             continue
             
         old_val = old_values.get(field)

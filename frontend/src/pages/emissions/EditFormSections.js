@@ -25,6 +25,7 @@ export const FacilityScopeSection = ({
   dynamicScopes,
   hasScope3Access,
   handleFuelSelect,
+  onScopeChange,
   setBiogenicScopeSelection,
   markFormDirty,
   reportingPeriod,
@@ -68,13 +69,7 @@ export const FacilityScopeSection = ({
                 value={scope.code}
                 checked={formData.scope === scope.code}
                 disabled={isDisabled}
-                onChange={(e) => {
-                  setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
-                  handleFuelSelect('');
-                  if (e.target.value !== 'biogenic') {
-                    setBiogenicScopeSelection('');
-                  }
-                }}
+                onChange={(e) => onScopeChange(e.target.value)}
                 className="h-4 w-4 accent-emerald-600"
                 data-testid={`scope-radio-${scope.code}`}
               />
@@ -103,6 +98,7 @@ export const BiogenicScopeSection = ({
   setBiogenicScopeSelection,
   hasScope3Access,
   handleFuelSelect,
+  onBiogenicScopeChange,
   loadingBiogenicCategories,
 }) => {
   if (formData.scope !== 'biogenic') return null;
@@ -116,11 +112,7 @@ export const BiogenicScopeSection = ({
             type="radio"
             value="scope1"
             checked={biogenicScopeSelection === 'scope1'}
-            onChange={(e) => {
-              setBiogenicScopeSelection(e.target.value);
-              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-              handleFuelSelect('');
-            }}
+            onChange={(e) => onBiogenicScopeChange(e.target.value)}
             className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope1"
           />
@@ -132,11 +124,7 @@ export const BiogenicScopeSection = ({
             value="scope3"
             checked={biogenicScopeSelection === 'scope3'}
             disabled={!hasScope3Access}
-            onChange={(e) => {
-              setBiogenicScopeSelection(e.target.value);
-              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-              handleFuelSelect('');
-            }}
+            onChange={(e) => onBiogenicScopeChange(e.target.value)}
             className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope3"
           />

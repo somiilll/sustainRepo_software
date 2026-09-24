@@ -23,10 +23,11 @@ export default function FacilityProductionSection({
   facilityName, 
   readOnly = false,
   yearType = 'financial_year',  // Organization's reporting year type
-  framework = null              // Optional framework override (e.g., 'BRSR' forces FY)
+  framework = null,             // Optional framework override (e.g., 'BRSR' forces FY)
+  defaultExpanded = false
 }) {
   const { getAuthHeader, subscriptionExpired } = useAuth();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -58,14 +59,15 @@ export default function FacilityProductionSection({
       
       if (response.data) {
         setInputType(response.data.input_type || 'yearly');
-        setYearlyQuantity(response.data.quantity ? String(response.data.quantity) : '');
+        setYearlyQuantity(response.data.quantity ? String(Math.max(0, Number(response.data.quantity))) : '');
         setUnit(response.data.unit || 'MT');
         
         // Convert monthly data format
         const monthly = {};
         if (response.data.monthly_data) {
           Object.entries(response.data.monthly_data).forEach(([month, data]) => {
-            monthly[month] = typeof data === 'object' ? String(data.quantity || '') : String(data || '');
+            const quantity = typeof data === 'object' ? data.quantity : data;
+            monthly[month] = quantity === '' || quantity == null ? '' : String(Math.max(0, Number(quantity) || 0));
           });
         }
         setMonthlyData(monthly);
@@ -104,12 +106,12 @@ export default function FacilityProductionSection({
         months.forEach(month => {
           const val = monthlyData[month];
           if (val !== undefined && val !== '') {
-            monthlyPayload[month] = { quantity: parseFloat(val) || 0, unit };
+            monthlyPayload[month] = { quantity: Math.max(0, parseFloat(val) || 0), unit };
           }
         });
         payload.monthly_data = monthlyPayload;
       } else {
-        payload.quantity = parseFloat(yearlyQuantity) || 0;
+        payload.quantity = Math.max(0, parseFloat(yearlyQuantity) || 0);
       }
       
       await axios.post(
@@ -136,9 +138,9 @@ export default function FacilityProductionSection({
 
   const calculateTotal = () => {
     if (inputType === 'yearly') {
-      return parseFloat(yearlyQuantity) || 0;
+      return Math.max(0, parseFloat(yearlyQuantity) || 0);
     }
-    return months.reduce((sum, month) => sum + (parseFloat(monthlyData[month]) || 0), 0);
+    return months.reduce((sum, month) => sum + Math.max(0, parseFloat(monthlyData[month]) || 0), 0);
   };
 
   const isDisabled = readOnly || subscriptionExpired;
@@ -171,62 +173,25 @@ export default function FacilityProductionSection({
       {expanded && (
         <div className="p-4 space-y-4 border-t border-stone-200">
           {/* Year and Input Type Selection */}
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-text-muted" />
-              <Label className="text-sm">{effectiveYearType === 'calendar_year' ? 'Calendar Year:' : 'Financial Year:'}</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5 text-sm"><Calendar className="h-4 w-4 text-text-muted" />{effectiveYearType === 'calendar_year' ? 'Calendar Year' : 'Financial Year'}</Label>
               <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isDisabled}>
-                <SelectTrigger className="w-40 bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {yearOptions.map(year => (
-                    <SelectItem key={year} value={year}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger className="w-full bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>{yearOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="text-sm">Input Type:</Label>
-              <div className="flex bg-stone-100 rounded-lg p-1">
-                <button
-                  type="button"
-                  onClick={() => !isDisabled && setInputType('yearly')}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    inputType === 'yearly' 
-                      ? 'bg-white text-emerald-700 shadow-sm' 
-                      : 'text-text-muted hover:text-text-primary'
-                  }`}
-                  disabled={isDisabled}
-                >
-                  Yearly
-                </button>
-                <button
-                  type="button"
-                  onClick={() => !isDisabled && setInputType('monthly')}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    inputType === 'monthly' 
-                      ? 'bg-white text-emerald-700 shadow-sm' 
-                      : 'text-text-muted hover:text-text-primary'
-                  }`}
-                  disabled={isDisabled}
-                >
-                  Monthly
-                </button>
+            <div className="space-y-2">
+              <Label className="text-sm">Input Type</Label>
+              <div className="flex w-full rounded-full bg-stone-100 p-1">
+                <button type="button" onClick={() => !isDisabled && setInputType('yearly')} className={`flex-1 rounded-full px-3 py-1.5 text-sm transition-colors ${inputType === 'yearly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-text-muted hover:text-text-primary'}`} disabled={isDisabled}>Yearly</button>
+                <button type="button" onClick={() => !isDisabled && setInputType('monthly')} className={`flex-1 rounded-full px-3 py-1.5 text-sm transition-colors ${inputType === 'monthly' ? 'bg-white text-emerald-700 shadow-sm' : 'text-text-muted hover:text-text-primary'}`} disabled={isDisabled}>Monthly</button>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Label className="text-sm">Unit:</Label>
-              <Input
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-24 bg-white"
-                placeholder="MT"
-                disabled={isDisabled}
-              />
-            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Label className="text-sm">Unit:</Label>
+            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="w-24 bg-white" placeholder="MT" disabled={isDisabled} />
           </div>
 
           {loading ? (
@@ -243,7 +208,8 @@ export default function FacilityProductionSection({
                     <Input
                       type="number"
                       value={yearlyQuantity}
-                      onChange={(e) => setYearlyQuantity(e.target.value)}
+                      min="0"
+                      onChange={(e) => { if (e.target.value === '' || Number(e.target.value) >= 0) setYearlyQuantity(e.target.value); }}
                       placeholder="Enter total production quantity"
                       className="max-w-xs bg-white"
                       disabled={isDisabled}
@@ -254,14 +220,15 @@ export default function FacilityProductionSection({
               ) : (
                 <div className="space-y-3">
                   <Label>Monthly Production for {selectedYear}</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     {months.map(month => (
                       <div key={month} className="space-y-1">
                         <Label className="text-xs text-text-muted">{month}</Label>
                         <Input
                           type="number"
                           value={monthlyData[month] || ''}
-                          onChange={(e) => handleMonthlyChange(month, e.target.value)}
+                          min="0"
+                          onChange={(e) => { if (e.target.value === '' || Number(e.target.value) >= 0) handleMonthlyChange(month, e.target.value); }}
                           placeholder="0"
                           className="bg-white"
                           disabled={isDisabled}
