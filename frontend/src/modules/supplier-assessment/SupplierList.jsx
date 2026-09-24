@@ -403,7 +403,7 @@ export default function SupplierList() {
   return (
     <div className="space-y-7" data-testid="supplier-list">
       {/* Header */}
-      <div className="border-b border-stone-200 pb-5" data-testid="supplier-list-header">
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 xl:flex-row xl:items-center xl:justify-between" data-testid="supplier-list-header">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm" data-testid="supplier-list-heading-icon">
             <Building2 className="h-6 w-6" aria-hidden="true" />
@@ -412,35 +412,33 @@ export default function SupplierList() {
             <h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-list-heading">Suppliers</h1>
           </div>
         </div>
-      </div>
-
-      {/* Supplier controls */}
-      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-list-controls">
-        <div className="relative w-full md:w-[min(430px,100%)] md:flex-none">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:flex-nowrap" data-testid="supplier-list-controls">
+        <div className="relative w-full sm:w-64 sm:flex-none">
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
           <Input
             placeholder="Search suppliers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100"
+            className="h-10 rounded-full border-stone-200 bg-stone-50 pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100"
             aria-label="Search suppliers"
             data-testid="supplier-search"
           />
         </div>
-        <Button className="h-10 shrink-0 bg-emerald-800 px-4 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAddDialog(true)} data-testid="add-supplier-btn">
+        <Button className="h-10 shrink-0 rounded-full bg-emerald-800 px-6 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowAddDialog(true)} data-testid="add-supplier-btn">
           <Plus className="h-4 w-4" aria-hidden="true" />
           Add Supplier
         </Button>
-        <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-list-period-control">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="supplier-list-period-control">
           <Label htmlFor="supplier-list-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-list-reporting-period-label">
             <CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />
             Reporting period
           </Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-            <SelectTrigger id="supplier-list-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-list-reporting-period-selector"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="supplier-list-reporting-period" className="h-10 w-full rounded-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="supplier-list-reporting-period-selector"><SelectValue /></SelectTrigger>
             <SelectContent data-testid="supplier-list-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-list-period-option-${period}`}>{period}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+      </div>
       </div>
 
       {/* Table */}

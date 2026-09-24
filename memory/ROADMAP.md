@@ -206,3 +206,4 @@
 - **KPI spacing:** added slight value-to-comparison separation in executive GHG cards. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Executive GHG presentation:** preserves two-decimal tCO₂e values, adds Biogenic to Scope Breakdown, and aligns analytics chart card corners with the GHG dashboard. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Sinks evidence placement:** moved the compact evidence indicator next to Emissions Reduced. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Supplier list header:** moved search, Add Supplier, and Reporting Period into a responsive GHG-style header; Add Supplier now uses rounded-pill styling. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
