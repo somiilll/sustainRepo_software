@@ -27,6 +27,7 @@ from shared.utils.emission_records import (
     emission_proration,
     reporting_period_query_values,
 )
+from shared.services.ghg_reporting import adjusted_numeric_value, display_round, facility_equity_factors
 router = APIRouter()
 
 
@@ -148,9 +149,10 @@ async def get_dashboard_stats(
         ).to_list(1000)
         
         # Build facility equity map
-        for f in facilities:
-            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
-            facility_equity_map[f["id"]] = equity_pct / 100.0  # Convert to decimal
+        facility_equity_map = {
+            facility_id: float(factor)
+            for facility_id, factor in facility_equity_factors(organization, facilities).items()
+        }
         
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
@@ -436,16 +438,15 @@ async def get_dashboard_stats(
         if emission_value is None:
             emission_value = get_emission_value(emission)
         
-        emission_id = emission.get("id", id(emission))
-        proration = proration_factors.get(emission_id, 1.0)
-        adjusted_value = emission_value * proration
-        
-        if use_equity_share:
-            fac_id = emission.get("facility_id")
-            equity_factor = facility_equity_map.get(fac_id, 1.0)
-            adjusted_value = adjusted_value * equity_factor
-        
-        return adjusted_value
+        equity_factors = facility_equity_map if use_equity_share else None
+        return float(adjusted_numeric_value(
+            emission_value,
+            emission.get("reporting_period", ""),
+            emission.get("facility_id"),
+            date_filter_start,
+            date_filter_end,
+            equity_factors,
+        ))
 
     # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
     total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
@@ -529,22 +530,22 @@ async def get_dashboard_stats(
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
         
-        total = sum(get_emission_value(e) for e in facility_emissions) * equity_factor
-        scope1 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope1") * equity_factor
-        scope2 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope2") * equity_factor
-        scope3 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope3") * equity_factor
-        biogenic = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        total = sum(get_adjusted_emission(e) for e in facility_emissions)
+        scope1 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope1")
+        scope2 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope2")
+        scope3 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope3")
+        biogenic = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "biogenic")
         scope_category_totals = {"scope1": {}, "scope2": {}, "scope3": {}}
         for emission in facility_emissions:
             scope = emission.get("scope")
             if scope not in scope_category_totals:
                 continue
             category = emission.get("category") or "Uncategorized"
-            adjusted_value = get_emission_value(emission) * equity_factor
+            adjusted_value = get_adjusted_emission(emission)
             scope_category_totals[scope][category] = scope_category_totals[scope].get(category, 0.0) + adjusted_value
         scope_categories = {
             scope: [
-                {"name": category, "value": round(value, 2)}
+                {"name": category, "value": float(display_round(value))}
                 for category, value in sorted(categories.items(), key=lambda item: -item[1])
             ]
             for scope, categories in scope_category_totals.items()
@@ -553,11 +554,11 @@ async def get_dashboard_stats(
         emissions_by_facility.append({
             "facility_id": facility["id"],
             "facility_name": facility["name"],
-            "total_emissions": round(total, 2),
-            "scope1_emissions": round(scope1, 2),
-            "scope2_emissions": round(scope2, 2),
-            "scope3_emissions": round(scope3, 2),
-            "biogenic_emissions": round(biogenic, 2),
+            "total_emissions": float(display_round(total)),
+            "scope1_emissions": float(display_round(scope1)),
+            "scope2_emissions": float(display_round(scope2)),
+            "scope3_emissions": float(display_round(scope3)),
+            "biogenic_emissions": float(display_round(biogenic)),
             "scope_categories": scope_categories,
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
@@ -991,15 +992,15 @@ async def get_dashboard_stats(
     
     return DashboardStats(
         total_facilities=len(facilities),
-        total_emissions=round(total_emissions, 2),
+        total_emissions=float(display_round(total_emissions)),
         record_count=len(deduplicated_emissions),
         annual_records_allocated=annual_records_allocated,
-        scope1_emissions=round(scope1_emissions, 2),
-        scope2_emissions=round(scope2_emissions, 2),
-        scope3_emissions=round(scope3_emissions, 2),
-        biogenic_emissions=round(biogenic_emissions, 2),
-        biogenic_direct=round(biogenic_direct, 2),
-        biogenic_indirect=round(biogenic_indirect, 2),
+        scope1_emissions=float(display_round(scope1_emissions)),
+        scope2_emissions=float(display_round(scope2_emissions)),
+        scope3_emissions=float(display_round(scope3_emissions)),
+        biogenic_emissions=float(display_round(biogenic_emissions)),
+        biogenic_direct=float(display_round(biogenic_direct)),
+        biogenic_indirect=float(display_round(biogenic_indirect)),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
         emissions_by_facility=emissions_by_facility,
         emissions_trend=emissions_trend,
@@ -1008,7 +1009,7 @@ async def get_dashboard_stats(
         yearly_fuel_analysis=yearly_fuel_analysis,
         yearly_facility_analysis=yearly_facility_analysis,
         monthly_comparison=monthly_comparison,
-        sinks_total=round(sinks_total, 2),
+        sinks_total=float(display_round(sinks_total)),
         sinks_by_facility=sinks_by_facility,
         scope3_by_category=scope3_by_category,
         scope3_by_methodology=scope3_by_methodology,

@@ -1,5 +1,6 @@
 """Formula-driven GHG emissions summary workbook export."""
 from collections import defaultdict
+from decimal import Decimal
 from io import BytesIO
 import re
 from typing import Any, Dict, Iterable, List
@@ -36,13 +37,20 @@ TOTAL_FILL = PatternFill("solid", fgColor="EAF5EF")
 NUMBER_FORMAT = '#,##0.00;[Red]-#,##0.00;"-"'
 
 
-def _emission_value(record: Dict[str, Any]) -> float:
+def _emission_value(record: Dict[str, Any]) -> Decimal:
+    if record.get("reporting_value") is not None:
+        return record["reporting_value"]
     for field in ("total_emissions", "calculated_co2e", "co2e_emissions"):
         try:
-            return float(record.get(field) or 0)
-        except (TypeError, ValueError):
+            return Decimal(str(record.get(field) or 0))
+        except (TypeError, ValueError, ArithmeticError):
             continue
-    return 0.0
+    return Decimal("0")
+
+
+def _worksheet_number(value: Any) -> Any:
+    """OpenPyXL receives a numeric cell value only after reporting aggregation."""
+    return float(value) if isinstance(value, Decimal) else value
 
 
 def _scope_key(record: Dict[str, Any]) -> str:
@@ -91,9 +99,9 @@ def _scope3_bucket(record: Dict[str, Any]) -> str | None:
 
 
 def _summary_data(records: Iterable[Dict[str, Any]], sinks: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
-    scope1, scope2, scope3 = defaultdict(float), defaultdict(float), defaultdict(float)
-    biogenic = defaultdict(float)
-    facilities = defaultdict(lambda: {"scope1": 0.0, "scope2": 0.0, "scope3": 0.0, "biogenic": 0.0, "sinks": 0.0})
+    scope1, scope2, scope3 = defaultdict(lambda: Decimal("0")), defaultdict(lambda: Decimal("0")), defaultdict(lambda: Decimal("0"))
+    biogenic = defaultdict(lambda: Decimal("0"))
+    facilities = defaultdict(lambda: {"scope1": Decimal("0"), "scope2": Decimal("0"), "scope3": Decimal("0"), "biogenic": Decimal("0"), "sinks": Decimal("0")})
     for record in records:
         amount = _emission_value(record)
         facility_id = record.get("facility_id")
@@ -119,10 +127,7 @@ def _summary_data(records: Iterable[Dict[str, Any]], sinks: Iterable[Dict[str, A
             biogenic["Indirect Biogenic" if selection in {"scope2", "indirect"} else "Direct Biogenic"] += amount
     for sink in sinks:
         facility_id = sink.get("facility_id")
-        try:
-            amount = float(sink.get("total_emissions_reduced") or 0) * float(sink.get("_proportion") or 1)
-        except (TypeError, ValueError):
-            amount = 0.0
+        amount = sink.get("reporting_value", Decimal("0"))
         facilities[facility_id]["sinks"] += amount
     return {"scope1": scope1, "scope2": scope2, "scope3": scope3, "biogenic": biogenic, "facilities": facilities}
 
@@ -163,7 +168,7 @@ def _write_detail_section(ws, start_row: int, title: str, rows: List[str], value
     for offset, label in enumerate(rows):
         row = first_data_row + offset
         ws.cell(row, 1, label)
-        value_cell = ws.cell(row, 2, values[label] if label in values else "-")
+        value_cell = ws.cell(row, 2, _worksheet_number(values[label]) if label in values else "-")
         value_cell.number_format = NUMBER_FORMAT
         for cell in ws[row][:2]:
             cell.border = TABLE_BORDER
@@ -205,7 +210,7 @@ def build_ghg_summary_excel(
 
     scope1_total_row, next_row = _write_detail_section(summary, 8, "Scope 1 Emissions", ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"], data["scope1"])
     scope2_total_row, next_row = _write_detail_section(summary, next_row, "Scope 2 Emissions", ["Purchased Electricity", "Purchased Heat/Steam"], data["scope2"])
-    scope3_total_row, next_row = _write_detail_section(summary, next_row, "Scope 3 Emissions", SCOPE3_CATEGORIES, {label: data["scope3"].get(label.split(" - ", 1)[0], 0) for label in SCOPE3_CATEGORIES if data["scope3"].get(label.split(" - ", 1)[0]) is not None})
+    scope3_total_row, next_row = _write_detail_section(summary, next_row, "Scope 3 Emissions", SCOPE3_CATEGORIES, {label: data["scope3"].get(label.split(" - ", 1)[0], Decimal("0")) for label in SCOPE3_CATEGORIES if data["scope3"].get(label.split(" - ", 1)[0]) is not None})
     biogenic_total_row, next_row = _write_detail_section(summary, next_row, "Biogenic Emissions", ["Direct Biogenic", "Indirect Biogenic"], data["biogenic"])
 
     summary.cell(next_row, 1, "Total Emissions")
@@ -247,7 +252,7 @@ def build_ghg_summary_excel(
         values = data["facilities"].get(facility.get("id"), {})
         facility_sheet.cell(index, 1, facility.get("name") or "Facility")
         for column, key in enumerate(("scope1", "scope2", "scope3", "biogenic", "sinks"), start=2):
-            cell = facility_sheet.cell(index, column, values[key] if key in values else "-")
+            cell = facility_sheet.cell(index, column, _worksheet_number(values[key]) if key in values else "-")
             cell.number_format = NUMBER_FORMAT
         facility_sheet.cell(index, 7, f"=SUM(B{index}:D{index})").number_format = NUMBER_FORMAT
         facility_sheet.cell(index, 8, f"=G{index}-F{index}").number_format = NUMBER_FORMAT

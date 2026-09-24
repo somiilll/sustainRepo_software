@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from shared.services.ghg_reporting import display_round, facility_equity_factors, reporting_period_proration, uses_equity_share
 
 
 class GHGReportGenerator:
@@ -102,8 +103,7 @@ class GHGReportGenerator:
         try:
             if value is None:
                 return '0.00'
-            num = float(value)
-            return f"{num:,.{decimals}f}"
+            return f"{display_round(value, decimals):,.{decimals}f}"
         except (ValueError, TypeError):
             return '0.00'
     
@@ -1564,6 +1564,9 @@ class GHGReportGenerator:
         """
         if not emission_period or not target_start or not target_end:
             return 1.0, False
+
+        canonical_factor = float(reporting_period_proration(emission_period, target_start, target_end))
+        return canonical_factor, canonical_factor < 1.0
         
         emission_period = emission_period.strip()
         
@@ -4074,13 +4077,11 @@ class GHGReportGenerator:
         doc.add_paragraph()
         
         # Check if organization uses equity share approach
-        use_equity_share = organization.get('org_boundaries_approach') == 'equity_share'
-        
-        # Build facility equity share map
-        facility_equity_map = {}
-        for f in facilities:
-            equity_pct = f.get('equity_share_percentage', 100.0) or 100.0
-            facility_equity_map[f.get('id')] = equity_pct
+        use_equity_share = uses_equity_share(organization)
+        facility_equity_map = {
+            facility_id: float(factor)
+            for facility_id, factor in facility_equity_factors(organization, facilities).items()
+        }
         
         # 4.1 Methodology
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
@@ -4414,8 +4415,8 @@ class GHGReportGenerator:
             raw_totals = self._calculate_facility_totals(facility_emissions, facility_id)
             
             # Get equity share percentage for this facility
-            equity_pct = facility_equity_map.get(facility_id, 100.0)
-            equity_factor = equity_pct / 100.0
+            equity_factor = facility_equity_map.get(facility_id, 1.0)
+            equity_pct = equity_factor * 100
             
             # Apply equity share adjustment if applicable
             if use_equity_share and equity_factor < 1.0:

@@ -41,6 +41,7 @@ from modules.auth.dependencies import get_current_user
 from shared.cache.downloads import pending_downloads
 from shared.database.mongo import db
 from shared.utils.emission_records import eligible_ghg_record_filter
+from shared.services.ghg_reporting import adjusted_reporting_records, adjusted_sink_value, facility_equity_factors
 from modules.reports.ghg_summary_excel import build_ghg_summary_excel
 
 import re
@@ -733,21 +734,20 @@ async def generate_ghg_inventory_report(
     # For scope_1_2_3: include everything (no filtering needed)
 
     if request.output_format == "xlsx":
-        period_filtered_emissions = GHGReportGenerator()._filter_emissions_by_period(
-            emissions_data,
-            request.reporting_period_start,
-            request.reporting_period_end,
+        equity_factors = facility_equity_factors(organization, facilities_data)
+        period_filtered_emissions = adjusted_reporting_records(
+            emissions_data, request.reporting_period_start, request.reporting_period_end, equity_factors
         )
-        period_filtered_emissions, _ = GHGReportGenerator()._apply_proration_to_emissions(
-            period_filtered_emissions,
-            request.reporting_period_start,
-            request.reporting_period_end,
-        )
+        adjusted_sinks = []
+        for sink in sinks_data:
+            adjusted_sink = dict(sink)
+            adjusted_sink["reporting_value"] = adjusted_sink_value(adjusted_sink, equity_factors)
+            adjusted_sinks.append(adjusted_sink)
         workbook_bytes = build_ghg_summary_excel(
             organization=organization,
             facilities=facilities_data,
             records=period_filtered_emissions,
-            sinks=sinks_data,
+            sinks=adjusted_sinks,
             reporting_period_start=request.reporting_period_start,
             reporting_period_end=request.reporting_period_end,
         )
