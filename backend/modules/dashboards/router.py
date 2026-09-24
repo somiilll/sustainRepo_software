@@ -887,7 +887,13 @@ async def get_dashboard_stats(
     if facility_id and len(facility_id) > 0:
         sinks_query["facility_id"] = {"$in": facility_id}
     else:
-        sinks_query["facility_id"] = {"$in": facility_ids}
+        sinks_query = {
+            "organization_id": org_id,
+            "$or": [
+                {"facility_id": {"$in": facility_ids}},
+                {"facility_id": None},
+            ],
+        }
     
     # Apply date filtering to sinks using start_date (YYYY-MM-DD format, present on all sinks)
     if start_period or end_period:
@@ -978,7 +984,7 @@ async def get_dashboard_stats(
     sinks_by_facility_map = {}
     for sink in all_sinks:
         fac_id = sink.get("facility_id", "")
-        fac_name = facility_name_map.get(fac_id, "Unknown")
+        fac_name = facility_name_map.get(fac_id, "Organization" if not fac_id else "Unknown")
         proportion = sink.get('_proportion', 1.0)
         sink_value = sink.get("total_emissions_reduced", 0) * proportion
         

@@ -198,3 +198,4 @@
 - **Staging Scope 3 metadata sync:** C12 activity taxonomy and C4/C9 transport activity types are now aligned with local. No further action required for these 336 records.
 - **Environment Others entitlement:** Others now locks when Climate Change, Material, and Other Emissions are all unavailable, with matching sidebar and route guards. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **OCR concurrent action state:** line-item Save and Reject loading are now independently keyed by OCR line-item ID across desktop, mobile, and edit-dialog actions. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Organization-level Sinks and ledger polish:** Sinks supports organization-level records alongside facilities, includes them in organization reporting, and uses a stable two-line Description ledger column. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.

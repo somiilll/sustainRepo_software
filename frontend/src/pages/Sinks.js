@@ -41,6 +41,8 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const ORGANIZATION_SINK_VALUE = '__organization_level__';
+const toSinkFacilityId = (facilityId) => facilityId === ORGANIZATION_SINK_VALUE ? null : facilityId;
 
 const getCurrentReportingYear = (yearType = 'calendar', fiscalStartMonth = 4) => {
   const now = new Date();
@@ -243,6 +245,9 @@ export default function Sinks() {
     // Check KPI assignment for sinks
     return canAccessSinks;
   }, [user?.role, canAccessSinks]);
+  const canManageOrganizationSinks = user?.role === 'admin'
+    || user?.role === 'super_admin'
+    || (canAccessSinks && (hasFullKPIAccess || accessInfo?.facility_restrictions?.sinks == null));
   
   // Filter facilities based on KPI assignment for sinks
   const kpiFilteredFacilities = useMemo(() => {
@@ -450,7 +455,7 @@ export default function Sinks() {
     e.preventDefault();
 
     const errors = {};
-    if (!formData.facility_id) errors.facility_id = 'Select the facility for this sink record.';
+    if (!formData.facility_id) errors.facility_id = 'Select a facility or organization for this sink record.';
     if (!formData.reporting_year) errors.reporting_year = 'Select the reporting year.';
 
     if (frequencyType === 'yearly') {
@@ -485,7 +490,7 @@ export default function Sinks() {
           const evidenceItems = yearlyData.evidence || [];
           const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getYearlyReportingPeriod(formData.reporting_year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
@@ -507,7 +512,7 @@ export default function Sinks() {
           const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getMonthlyReportingPeriod(monthIndex, formData.reporting_year, reportingYearType, organization?.financial_year_start_month),
             total_emissions_reduced: parseFloat(value) || 0,
             description: formData.description,
@@ -531,7 +536,7 @@ export default function Sinks() {
           const evidenceItems = yearlyData.evidence || [];
           const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getYearlyReportingPeriod(year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
@@ -560,7 +565,7 @@ export default function Sinks() {
             const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
             const payload = {
-              facility_id: formData.facility_id,
+              facility_id: toSinkFacilityId(formData.facility_id),
               reporting_period: getMonthlyReportingPeriod(mi, year, reportingYearType, organization?.financial_year_start_month),
               total_emissions_reduced: parseFloat(value) || 0,
               description: formData.description,
@@ -621,7 +626,7 @@ export default function Sinks() {
     }
 
     setFormData({
-      facility_id: sink.facility_id,
+      facility_id: sink.facility_id || ORGANIZATION_SINK_VALUE,
       reporting_year: year,
       description: sink.description || ''
     });
@@ -665,6 +670,7 @@ export default function Sinks() {
   };
 
   const getFacilityName = (facilityId) => {
+    if (!facilityId) return 'Organization';
     const facility = facilities.find(f => f.id === facilityId);
     return facility ? facility.name : 'Unknown Facility';
   };
@@ -705,12 +711,15 @@ export default function Sinks() {
     // KPI assignment-based filtering: only show sinks for allowed facilities
     if (user?.role !== 'admin' && user?.role !== 'super_admin') {
       const allowedFacilityIds = kpiFilteredFacilities.map(f => f.id);
-      result = result.filter(sink => allowedFacilityIds.includes(sink.facility_id));
+      result = result.filter(sink => sink.facility_id
+        ? allowedFacilityIds.includes(sink.facility_id)
+        : canManageOrganizationSinks);
     }
 
     // Filter by facility
     if (filterFacility !== 'all') {
-      result = result.filter(sink => sink.facility_id === filterFacility);
+      const selectedFacilityId = toSinkFacilityId(filterFacility);
+      result = result.filter(sink => sink.facility_id === selectedFacilityId);
     }
 
     // Filter by inclusive reporting month range
@@ -748,7 +757,7 @@ export default function Sinks() {
     });
 
     return result;
-  }, [sinks, filterFacility, filterStartMonth, filterEndMonth, sortBy, sortOrder, facilities, kpiFilteredFacilities, user?.role, reportingYearType, organization?.financial_year_start_month]);
+  }, [sinks, filterFacility, filterStartMonth, filterEndMonth, sortBy, sortOrder, facilities, kpiFilteredFacilities, canManageOrganizationSinks, user?.role, reportingYearType, organization?.financial_year_start_month]);
 
   // Filtered total
   const filteredTotalReduction = useMemo(() => {
@@ -810,7 +819,7 @@ export default function Sinks() {
               )}
               <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Facility <span className="text-red-600">*</span></Label>
+                  <Label>Reporting entity <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.facility_id}
                     onValueChange={(value) => {
@@ -819,9 +828,10 @@ export default function Sinks() {
                     }}
                   >
                     <SelectTrigger className={`bg-stone-50 ${formErrors.facility_id ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.facility_id)} data-testid="sink-facility-select">
-                      <SelectValue placeholder="Select a facility" />
+                      <SelectValue placeholder="Select a facility or organization" />
                     </SelectTrigger>
                     <SelectContent>
+                      {canManageOrganizationSinks && <SelectItem value={ORGANIZATION_SINK_VALUE}>Organization-level</SelectItem>}
                       {kpiFilteredFacilities.map((facility) => (
                         <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
                       ))}
@@ -1147,6 +1157,7 @@ export default function Sinks() {
               <Label htmlFor="sink-facility-filter" className="text-xs text-stone-600">Facility</Label>
               <select id="sink-facility-filter" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-facility-filter">
                 <option value="all">All facilities</option>
+                <option value={ORGANIZATION_SINK_VALUE}>Organization-level</option>
                 {kpiFilteredFacilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
@@ -1188,7 +1199,11 @@ export default function Sinks() {
       {filteredSinks.length > 0 ? (
         <Card className="max-w-full overflow-hidden border border-stone-200 rounded-xl bg-white">
           <div className="max-w-full overflow-x-auto" data-testid="sinks-table-scroll-area">
-            <table className="w-full min-w-[760px]" data-testid="sinks-table">
+            <table className="w-full min-w-[920px] table-fixed" data-testid="sinks-table">
+              <colgroup>
+                <col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[17%]" />
+                <col className="w-[30%]" /><col className="w-[10%]" /><col className="w-[13%]" />
+              </colgroup>
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">
@@ -1243,8 +1258,8 @@ export default function Sinks() {
                       <td className="px-6 py-4 text-center">
                         <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <p className="text-sm text-text-secondary">{sink.description || '-'}</p>
+                      <td className="px-6 py-4 align-top text-left">
+                        <p className="line-clamp-2 break-words text-sm text-text-secondary" title={sink.description || ''} data-testid={`sink-description-${sink.id}`}>{sink.description || '-'}</p>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {evidenceCount > 0 ? (

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SinkCreate(BaseModel):
-    facility_id: str
+    facility_id: Optional[str] = None
     reporting_period: Optional[str] = None
     reporting_year: Optional[str] = None
     reporting_month: Optional[int] = None  # 0-11; null for yearly
@@ -24,7 +24,7 @@ class SinkCreate(BaseModel):
 class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    facility_id: str
+    facility_id: Optional[str] = None
     organization_id: Optional[str] = None
     reporting_year: Optional[str] = None
     reporting_month: Optional[int] = None

@@ -235,7 +235,10 @@ def build_ghg_summary_excel(
         value_cell.number_format = NUMBER_FORMAT
         for cell in summary[offset][:2]:
             cell.border = TABLE_BORDER
-    facility_total_row = 6 + len(facilities)
+    facility_rows = list(facilities)
+    if None in data["facilities"]:
+        facility_rows.append({"id": None, "name": "Organization"})
+    facility_total_row = 6 + len(facility_rows)
     summary.cell(next_row + 7, 2, f"='Facility-Level Emissions'!F{facility_total_row}")
     _style_total(summary[next_row + 5][:2])
     _style_total(summary[next_row + 8][:2])
@@ -250,7 +253,7 @@ def build_ghg_summary_excel(
     for column, label in enumerate(headers, start=1):
         facility_sheet.cell(5, column, label)
     _style_header(facility_sheet[5][:8])
-    for index, facility in enumerate(facilities, start=6):
+    for index, facility in enumerate(facility_rows, start=6):
         values = data["facilities"].get(facility.get("id"), {})
         facility_sheet.cell(index, 1, facility.get("name") or "Facility")
         for column, key in enumerate(("scope1", "scope2", "scope3", "biogenic", "sinks"), start=2):

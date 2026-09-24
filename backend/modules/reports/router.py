@@ -678,6 +678,13 @@ async def generate_ghg_inventory_report(
         cursor = db.sinks.find(sinks_query, {"_id": 0})
         facility_sinks = await cursor.to_list(length=1000)
         sinks_data.extend(facility_sinks)
+
+    organization_sink_query = {"organization_id": org_id, "facility_id": None}
+    if sinks_start_date and sinks_end_date:
+        organization_sink_query["start_date"] = {"$lte": sinks_end_date}
+        organization_sink_query["end_date"] = {"$gte": sinks_start_date}
+    organization_sinks = await db.sinks.find(organization_sink_query, {"_id": 0}).to_list(length=1000)
+    sinks_data.extend(organization_sinks)
     
     # Calculate proportional sinks for this period
     def calculate_sink_proportion(sink, report_start, report_end):
