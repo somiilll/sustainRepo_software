@@ -193,3 +193,4 @@
 - **Reports dialog simplification:** removed historical-data and output-format controls; dedicated report cards determine the unchanged existing output format. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports action refinement:** Excel bypasses all-facilities confirmation, Word retains its history option, and report-card actions are centered. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports spacing refinement:** removed forced vertical card spacing and reduced action-card height. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **OCR template alignment:** the OCR download now follows the supplied 15-column Activity Ledger workbook structure, colors, validations, guide, and hidden lookup sheets. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
