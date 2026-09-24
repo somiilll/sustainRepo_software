@@ -361,7 +361,7 @@ export default function BaseYearChart({
         <p className="mt-1 max-w-sm text-xs leading-5 text-stone-500">Set a base year to compare your current emissions progress by scope.</p>
         <Button
           size="sm"
-          className="mt-4 bg-teal-700 text-white hover:bg-teal-800"
+          className="mt-4 border border-teal-700 bg-teal-700 text-white hover:bg-teal-800"
           onClick={() => navigate('/ghg/base-year')}
           data-testid="configure-base-year-button"
         >
