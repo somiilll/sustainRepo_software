@@ -195,3 +195,4 @@
 - **Reports spacing refinement:** removed forced vertical card spacing and reduced action-card height. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **OCR template alignment:** the OCR download now follows the supplied 15-column Activity Ledger workbook structure, colors, validations, guide, and hidden lookup sheets. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **OCR template exact-match correction:** rebuilt the template from the uploaded workbook’s actual XML/styles after the first extraction proved incomplete; source sheet order, guide rows, header colors, comments, and ledger dimensions now align with the provided file. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Staging Scope 3 metadata sync:** C12 activity taxonomy and C4/C9 transport activity types are now aligned with local. No further action required for these 336 records.
