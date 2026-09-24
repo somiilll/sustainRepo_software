@@ -69,7 +69,7 @@ export default function KpiCard({
         {!loading && value != null && Number.isFinite(Number(value)) && <span className="text-[11px] font-medium text-stone-500">{unit}</span>}
       </div>
       {deltaPct != null && (
-        <div className={`mt-2 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
           <TrendIcon className="w-3.5 h-3.5" />
           <span>{Math.abs(deltaPct).toFixed(1)}%</span>
           <span className="font-normal text-stone-400">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</span>
