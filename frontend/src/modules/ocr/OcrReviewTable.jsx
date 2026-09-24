@@ -193,7 +193,7 @@ const MoreDetailsDialog = ({ item, open, onOpenChange }) => {
   );
 };
 
-export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, acceptingId, rejectingId, bulkSaving, bulkRejecting, hideInvoiceTabs = false }) => {
+export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onEdit, onAccept, onReject, onBulkSave, onBulkReject, savingItemIds = {}, rejectingItemIds = {}, bulkSaving, bulkRejecting, hideInvoiceTabs = false }) => {
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
@@ -439,6 +439,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           <TableBody className="[&_td]:text-center">
             {filtered.map((item) => {
               const values = item.current_values || {};
+              const isSaving = Boolean(savingItemIds[item.id]);
+              const isRejecting = Boolean(rejectingItemIds[item.id]);
               return (
                 <TableRow key={item.id} className={selectedId === item.id ? 'bg-emerald-50/60' : ''} onClick={() => onSelect(item)} data-testid={`ocr-review-row-${item.id}`}>
                   <TableCell onClick={(event) => event.stopPropagation()}><Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={(checked) => toggleRow(item.id, checked === true)} disabled={item.status === 'imported' || isBulkActionRunning} aria-label={`Select ${values.item_description || 'OCR row'}`} data-testid={`ocr-select-row-${item.id}-checkbox`} /></TableCell>
@@ -468,8 +470,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
                     <div className="flex justify-center gap-1">
                       <DetailsButton item={item} onOpen={setDetailsItem} />
                       <Button type="button" size="icon" variant="ghost" onClick={(event) => { event.stopPropagation(); onEdit(item); }} aria-label="Edit row" data-testid={`ocr-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
-                      <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={rejectingId === item.id || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                      <Button type="button" size="icon" onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={acceptingId === item.id || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                      <Button type="button" size={isRejecting ? 'sm' : 'icon'} variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={(event) => { event.stopPropagation(); onReject(item); }} disabled={isSaving || isRejecting || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-reject-row-${item.id}`}>{isRejecting ? 'Rejecting...' : <XCircle className="h-4 w-4" />}</Button>
+                      <Button type="button" size={isSaving ? 'sm' : 'icon'} onClick={(event) => { event.stopPropagation(); onAccept(item); }} disabled={isSaving || isRejecting || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-save-ghg-row-${item.id}`}>{isSaving ? 'Saving...' : <Check className="h-4 w-4" />}</Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -489,6 +491,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       <div className="grid gap-2 lg:hidden" data-testid="ocr-review-mobile-list">
         {filtered.map((item) => {
           const values = item.current_values || {};
+          const isSaving = Boolean(savingItemIds[item.id]);
+          const isRejecting = Boolean(rejectingItemIds[item.id]);
           return (
             <article key={item.id} className={`border bg-white p-4 ${selectedId === item.id ? 'border-emerald-600' : 'border-slate-200'}`} data-testid={`ocr-review-card-${item.id}`}>
               <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -523,8 +527,8 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4" data-testid={`ocr-mobile-actions-${item.id}`}>
                 <DetailsButton item={item} onOpen={setDetailsItem} mobile />
                 <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(item)} aria-label="Edit row" data-testid={`ocr-mobile-edit-row-${item.id}`}><Edit3 className="h-4 w-4" /></Button>
-                <Button type="button" size="icon" variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={rejectingId === item.id || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}><XCircle className="h-4 w-4" /></Button>
-                <Button type="button" size="icon" onClick={() => onAccept(item)} disabled={acceptingId === item.id || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-mobile-save-ghg-row-${item.id}`}><Check className="h-4 w-4" /></Button>
+                <Button type="button" size={isRejecting ? 'sm' : 'icon'} variant="ghost" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onReject(item)} disabled={isSaving || isRejecting || isBulkActionRunning} aria-label="Reject row" data-testid={`ocr-mobile-reject-row-${item.id}`}>{isRejecting ? 'Rejecting...' : <XCircle className="h-4 w-4" />}</Button>
+                <Button type="button" size={isSaving ? 'sm' : 'icon'} onClick={() => onAccept(item)} disabled={isSaving || isRejecting || item.status === 'imported' || isBulkActionRunning} aria-label="Calculate and save GHG entry" title="Save GHG" data-testid={`ocr-mobile-save-ghg-row-${item.id}`}>{isSaving ? 'Saving...' : <Check className="h-4 w-4" />}</Button>
               </div>
             </article>
           );
