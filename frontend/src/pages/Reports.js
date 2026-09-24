@@ -304,7 +304,7 @@ export default function Reports({ showMISFoundation = false }) {
       // Download through Axios so the current bearer token is included.
       const { download_token, filename } = response.data;
       await downloadAuthenticatedReport(download_token, filename);
-      toast.success('GHG Inventory Report download started!');
+      toast.success(ghgReportConfig.output_format === 'xlsx' ? 'GHG Emissions Summary download started!' : 'GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
       toast.error(getErrorMessage(error, 'Failed to generate report'));
@@ -671,7 +671,7 @@ export default function Reports({ showMISFoundation = false }) {
                   {/* Output Format Selection */}
                   <div className="space-y-4">
                     <Label className="text-base font-semibold">Output Format</Label>
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-4">
                       <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
                         style={{ borderColor: ghgReportConfig.output_format === 'docx' ? '#16a34a' : 'transparent' }}>
                         <input
@@ -685,6 +685,23 @@ export default function Reports({ showMISFoundation = false }) {
                         <div>
                           <p className="font-medium text-text-primary">Word Document (.docx)</p>
                           <p className="text-xs text-text-muted">Editable format</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
+                        style={{ borderColor: ghgReportConfig.output_format === 'xlsx' ? '#16a34a' : 'transparent' }}
+                        data-testid="ghg-output-xlsx-option">
+                        <input
+                          type="radio"
+                          name="output_format"
+                          value="xlsx"
+                          checked={ghgReportConfig.output_format === 'xlsx'}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
+                          className="text-green-600"
+                          data-testid="ghg-output-xlsx-input"
+                        />
+                        <div>
+                          <p className="font-medium text-text-primary">Excel Summary (.xlsx)</p>
+                          <p className="text-xs text-text-muted">Formula-driven emissions summary</p>
                         </div>
                       </label>
                       {/* PDF option temporarily hidden

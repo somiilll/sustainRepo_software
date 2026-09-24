@@ -172,3 +172,11 @@
 - Scope 1/2/3 capability parity, Flaring, Process Emissions, and custom-fuel auto-detection.
 - Upload preview summary, 24-hour pending-record TTL, save rollback, and file/row stability limits.
 - Per-month and per-year GHG row allowance enforcement across manual and Bulk Upload paths.
+
+## P0 — Active
+- **OCR mismatch isolation remains broken in user verification:** ensure a Unit/Currency incompatibility highlights only the incompatible input, never Facility, Reporting Period, Subcategory, Quantity, or Cost. Retain the valid factor selection.
+- **Immediate OCR validation clearing:** remove an individual field highlight as soon as that field is corrected; do not defer visual state clearing until another Save attempt.
+- **Supplier ESG scorer:** empty, zero-weight sections must render N/A rather than 0; weighted empty sections must be excluded and active section weights re-normalized.
+
+## Recently Completed
+- **GHG Emissions Summary Excel export:** Reports now offers a two-sheet `.xlsx` download with editable reporting information, Scope 1/2/3 and biogenic tables, facility-level results, 2-decimal presentation, and formula-driven totals. The export remains available as a blank/partial template without configured base-year data. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
