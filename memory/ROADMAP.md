@@ -211,3 +211,4 @@
 - **Supplier Documents & Training headers:** moved creation/search/period controls into responsive header rows and standardized their rounded controls; Supplier GHG search is narrower for a one-line desktop header. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier GHG desktop fit:** compacted search, tab copy, and period labeling to keep the heading/control toolbar on one line. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier GHG toolbar rebalance:** restored the full summary-tab label and increased Search to 224px while retaining compact title/period treatment. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Supplier GHG heading parity:** restored the common 3xl heading size and tightened the title-to-toolbar gap. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
