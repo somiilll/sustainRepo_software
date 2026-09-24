@@ -33,7 +33,7 @@ TITLE_FILL = PatternFill("solid", fgColor="0F3D35")
 SECTION_FILL = PatternFill("solid", fgColor="E6F1EE")
 HEADER_FILL = PatternFill("solid", fgColor="F1F5F9")
 TOTAL_FILL = PatternFill("solid", fgColor="EAF5EF")
-NUMBER_FORMAT = '#,##0.00;[Red]-#,##0.00;'-''
+NUMBER_FORMAT = '#,##0.00;[Red]-#,##0.00;"-"'
 
 
 def _emission_value(record: Dict[str, Any]) -> float:

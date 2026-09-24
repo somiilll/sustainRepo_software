@@ -180,3 +180,4 @@
 
 ## Recently Completed
 - **GHG Emissions Summary Excel export:** Reports now offers a two-sheet `.xlsx` download with editable reporting information, Scope 1/2/3 and biogenic tables, facility-level results, 2-decimal presentation, and formula-driven totals. The export remains available as a blank/partial template without configured base-year data. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Reports-module startup repair:** corrected the malformed Excel number-format literal that could stop the backend during module import/reload and interrupt login availability. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
