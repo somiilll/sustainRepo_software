@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, Filter, LockOpen, Paperclip } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, FileText, Filter, LockOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnlyDialog';
@@ -30,6 +31,22 @@ import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnl
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
 const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
+
+const SupplierEvidenceIndicator = ({ emissionId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 cursor-help" tabIndex={0} data-testid={`supplier-emission-evidence-icon-${emissionId}`}>
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`supplier-emission-evidence-tooltip-${emissionId}`}>
+        <p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p>
+        <p>View more in View.</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 const EmissionValue = ({ value, testId, emphasized = false }) => (
   <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
@@ -303,7 +320,7 @@ export default function SupplierGHGView() {
                         {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
                       </Badge>
                     </TableCell>
-                    <TableCell><span className="inline-flex items-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <Paperclip className="h-3.5 w-3.5 text-sky-700" aria-label="Evidence attached" title="Evidence attached" data-testid={`supplier-emission-evidence-icon-${emission.id}`} />}</span></TableCell>
+                    <TableCell><span className="inline-flex items-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <SupplierEvidenceIndicator emissionId={emission.id} count={emission.evidence_files.length} />}</span></TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
                     <TableCell className="pr-6 text-right font-mono">
                       {displayValue(emission.attributed_emissions, 4)}

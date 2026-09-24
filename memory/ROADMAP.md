@@ -213,3 +213,4 @@
 - **Supplier GHG toolbar rebalance:** restored the full summary-tab label and increased Search to 224px while retaining compact title/period treatment. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier GHG heading parity:** restored the common 3xl heading size and tightened the title-to-toolbar gap. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier GHG toolbar alignment:** right-aligned desktop controls to remove trailing header whitespace after Reporting Period. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Supplier GHG evidence icon:** log entries now use the main GHG ledger’s blue document evidence icon and count tooltip. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
