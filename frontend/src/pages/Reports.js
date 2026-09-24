@@ -320,8 +320,22 @@ export default function Reports({ showMISFoundation = false }) {
       reporting_period_end: '',
       include_previous_years: false,
       output_format: 'docx',
-      report_type: 'scope_1_2'
+      report_type: 'scope_1_2',
+      is_complete_organization: true
     });
+  };
+
+  const openGhgReportDialog = (outputFormat = 'docx') => {
+    setGhgReportConfig({
+      facility_ids: [],
+      reporting_period_start: '',
+      reporting_period_end: '',
+      include_previous_years: false,
+      output_format: outputFormat,
+      report_type: 'scope_1_2',
+      is_complete_organization: true
+    });
+    setGhgDialogOpen(true);
   };
 
   const setFinancialYear = () => {
@@ -514,16 +528,27 @@ export default function Reports({ showMISFoundation = false }) {
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    data-testid="generate-ghg-inventory-btn"
+                <div className="flex flex-wrap gap-3">
+                  <DialogTrigger asChild>
+                    <Button 
+                      onClick={() => openGhgReportDialog('docx')}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      data-testid="generate-ghg-inventory-btn"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </DialogTrigger>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openGhgReportDialog('xlsx')}
+                    data-testid="open-ghg-excel-summary-button"
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Generate Report
+                    Excel Summary
                   </Button>
-                </DialogTrigger>
+                </div>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
