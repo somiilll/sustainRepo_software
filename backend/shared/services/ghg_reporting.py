@@ -84,7 +84,7 @@ def adjusted_numeric_value(
 ) -> Decimal:
     """Apply canonical reporting adjustments to a supplied unrounded numeric value."""
     proration = reporting_period_proration(reporting_period, reporting_period_start, reporting_period_end)
-    equity_factor = (equity_factors or {}).get(facility_id, ONE)
+    equity_factor = decimal_value((equity_factors or {}).get(facility_id, ONE))
     return decimal_value(value) * proration * equity_factor
 
 
@@ -110,7 +110,7 @@ def adjusted_reporting_records(
 def adjusted_sink_value(sink: Dict[str, Any], equity_factors: Dict[str, Decimal] | None = None) -> Decimal:
     """Apply the already-resolved reporting-period share and equity allocation."""
     period_share = decimal_value(sink.get("_proportion", ONE))
-    equity_factor = (equity_factors or {}).get(sink.get("facility_id"), ONE)
+    equity_factor = decimal_value((equity_factors or {}).get(sink.get("facility_id"), ONE))
     return decimal_value(sink.get("total_emissions_reduced")) * period_share * equity_factor
 
 
