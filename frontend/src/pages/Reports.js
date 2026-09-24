@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { FileText, FileSpreadsheet, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 import MISReportsFoundation from '../modules/mis-reports/MISReportsFoundation';
@@ -513,41 +513,34 @@ export default function Reports({ showMISFoundation = false }) {
         <ModulePageHeader title="Reports" icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="reports" />
       )}
 
-      {/* GHG Inventory Report Card - Only show if org has GHG module enabled */}
+      {/* Reporting actions */}
       {hasScope12Access && hasGhgEnabled && (
-        <Card className={`${showMISFoundation ? 'hidden' : ''} p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white`}>
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-green-100 rounded-xl">
-              <FileText className="w-10 h-10 text-green-600" />
+        <div className={`${showMISFoundation ? 'hidden' : ''} grid grid-cols-1 items-stretch gap-5 md:grid-cols-3`} data-testid="report-action-cards">
+        <Card className="flex min-h-[270px] flex-col rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex h-full flex-col">
+            <div className="inline-flex w-fit rounded-lg bg-teal-50 p-3">
+              <FileText className="w-10 h-10 text-teal-700" />
             </div>
-            <div className="flex-1">
+            <div className="mt-5 flex flex-1 flex-col">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
               </div>
-              <p className="text-sm text-text-secondary mb-4">
+              <p className="text-sm text-text-secondary mb-auto">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
+              <div className="pt-6">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <div className="flex flex-wrap gap-3">
                   <DialogTrigger asChild>
                     <Button 
                       onClick={() => openGhgReportDialog('docx')}
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="bg-teal-700 hover:bg-teal-800 text-white"
                       data-testid="generate-ghg-inventory-btn"
                     >
-                      <Download className="w-4 h-4 mr-2" />
+                      <FileText className="w-4 h-4 mr-2" />
                       Generate Report
                     </Button>
                   </DialogTrigger>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openGhgReportDialog('xlsx')}
-                    data-testid="open-ghg-excel-summary-button"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Excel Summary
-                  </Button>
                 </div>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
@@ -776,10 +769,33 @@ export default function Reports({ showMISFoundation = false }) {
                 </div>
               </DialogContent>
             </Dialog>
+              </div>
           </div>
         </div>
       </Card>
-      )}
+
+      <Card className="flex min-h-[270px] flex-col rounded-xl border border-stone-200 bg-white p-6 shadow-sm" data-testid="ghg-excel-card">
+        <div className="flex h-full flex-col">
+          <div className="inline-flex w-fit rounded-lg bg-teal-50 p-3">
+            <FileSpreadsheet className="w-10 h-10 text-teal-700" />
+          </div>
+          <div className="mt-5 flex flex-1 flex-col">
+            <h3 className="text-xl font-heading font-bold text-text-primary">GHG Excel</h3>
+            <p className="mt-1 text-sm text-text-secondary mb-auto">Download a structured Excel summary of your GHG emissions data.</p>
+            <div className="pt-6">
+              <Button
+                type="button"
+                onClick={() => openGhgReportDialog('xlsx')}
+                className="bg-teal-700 hover:bg-teal-800 text-white"
+                data-testid="open-ghg-excel-summary-button"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Download Excel
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* All Facilities Confirmation Dialog */}
       <Dialog open={showAllFacilitiesConfirm} onOpenChange={setShowAllFacilitiesConfirm}>
@@ -811,25 +827,24 @@ export default function Reports({ showMISFoundation = false }) {
         </DialogContent>
       </Dialog>
 
-      {/* AI Report Card - Only show if org has GHG module enabled */}
-      {hasScope12Access && hasGhgEnabled && (
-        <Card className={`${showMISFoundation ? 'hidden' : ''} p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white`}>
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-purple-100 rounded-xl">
-              <Sparkles className="w-10 h-10 text-purple-600" />
+      <Card className="flex min-h-[270px] flex-col rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="flex h-full flex-col">
+            <div className="inline-flex w-fit rounded-lg bg-stone-100 p-3">
+              <Sparkles className="w-10 h-10 text-stone-700" />
             </div>
-            <div className="flex-1">
+            <div className="mt-5 flex flex-1 flex-col">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
               </div>
-              <p className="text-sm text-text-secondary mb-4">
+              <p className="text-sm text-text-secondary mb-auto">
                 Generate an AI-powered executive summary of your emissions data.
               </p>
+              <div className="pt-6">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
                     onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    className="bg-teal-700 hover:bg-teal-800 text-white"
                     data-testid="generate-ai-report-btn"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
@@ -973,6 +988,7 @@ export default function Reports({ showMISFoundation = false }) {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
           </div>
         </Card>
