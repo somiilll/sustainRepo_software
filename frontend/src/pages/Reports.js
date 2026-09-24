@@ -332,7 +332,7 @@ export default function Reports({ showMISFoundation = false }) {
       reporting_period_end: '',
       include_previous_years: false,
       output_format: outputFormat,
-      report_type: 'scope_1_2',
+      report_type: outputFormat === 'xlsx' ? 'scope_1_2_3' : 'scope_1_2',
       is_complete_organization: true
     });
     setGhgDialogOpen(true);
@@ -720,7 +720,7 @@ export default function Reports({ showMISFoundation = false }) {
                           name="output_format"
                           value="xlsx"
                           checked={ghgReportConfig.output_format === 'xlsx'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value, report_type: 'scope_1_2_3' }))}
                           className="text-green-600"
                           data-testid="ghg-output-xlsx-input"
                         />

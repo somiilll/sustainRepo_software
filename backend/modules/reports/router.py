@@ -712,10 +712,10 @@ async def generate_ghg_inventory_report(
         s['_proportion'] = proportion
         total_sinks += s.get("total_emissions_reduced", 0) * proportion
     
-    # Filter emissions based on report_type
-    # For scope_1_2 report: exclude scope3 emissions, include only biogenic scope1
-    # For scope_1_2_3 report: include all emissions
-    if request.report_type == "scope_1_2":
+    # The Excel GHG Summary always contains C1–C15 and must therefore receive
+    # all three scopes, regardless of the legacy document report-type control.
+    # The scope_1_2 filter remains specific to Word/PDF inventory reports.
+    if request.report_type == "scope_1_2" and request.output_format != "xlsx":
         filtered_emissions = []
         for e in emissions_data:
             scope = (e.get("scope") or "").lower()
