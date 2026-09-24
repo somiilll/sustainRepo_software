@@ -291,7 +291,7 @@ export default function Sinks() {
   // Helper function to format reporting year display
   const formatReportingYear = (year) => {
     if (reportingYearType === 'financial') {
-      return `FY ${year}-${(parseInt(year) + 1).toString().slice(-2)}`;
+      return `FY ${year}-${parseInt(year) + 1}`;
     }
     return `CY ${year}`;
   };
@@ -313,12 +313,12 @@ export default function Sinks() {
     if (reportingYearType === 'financial') {
       // For financial year: Jan-Mar belong to next calendar year
       if (monthIndex >= 0 && monthIndex <= 2) {
-        return `${MONTHS[monthIndex]} - ${year + 1}`;
+        return `${MONTHS[monthIndex]} ${year + 1}`;
       }
-      return `${MONTHS[monthIndex]} - ${year}`;
+      return `${MONTHS[monthIndex]} ${year}`;
     }
     // Calendar year: all months are same year
-    return `${MONTHS[monthIndex]} - ${year}`;
+    return `${MONTHS[monthIndex]} ${year}`;
   };
 
   const fetchSinks = async () => {
@@ -472,7 +472,7 @@ export default function Sinks() {
 
     const errors = {};
     if (!formData.facility_id) errors.facility_id = 'Select a facility or organization for this sink record.';
-    if (!formData.reporting_year) errors.reporting_year = 'Select the reporting year.';
+    if (!formData.reporting_year) errors.reporting_year = 'Select a reporting period.';
 
     if (frequencyType === 'yearly') {
       if (!yearlyData.value || parseFloat(yearlyData.value) <= 0) {
@@ -788,6 +788,31 @@ export default function Sinks() {
   const isEditMode = !!editingSink;
   const isEditingYearly = isEditMode && (editingSink?.frequency_type === 'yearly' || editingSink?.reporting_month === null);
   const editMonth = isEditingYearly ? null : (selectedEditMonth ?? editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
+  const editMonthlyReportingPeriod = editMonth === null
+    ? ''
+    : getMonthlyReportingPeriod(editMonth, formData.reporting_year, reportingYearType, organization?.financial_year_start_month);
+
+  const updateEditMonthlyReportingPeriod = (value) => {
+    if (!value) return;
+    const [actualYear, actualMonth] = value.split('-').map(Number);
+    const nextMonth = actualMonth - 1;
+    const fiscalStartMonth = Number(organization?.financial_year_start_month || 4);
+    const nextReportingYear = reportingYearType === 'financial' && actualMonth < fiscalStartMonth
+      ? actualYear - 1
+      : actualYear;
+
+    setMonthlyData((current) => {
+      const currentEntry = current[editMonth] || { value: '', evidence: [] };
+      const next = { ...current };
+      if (nextMonth !== editMonth) delete next[editMonth];
+      next[nextMonth] = currentEntry;
+      return next;
+    });
+    setFormData((current) => ({ ...current, reporting_year: String(nextReportingYear) }));
+    setSelectedEditMonth(nextMonth);
+    clearFormError('reporting_year');
+    clearFormError('monthly_value');
+  };
 
   if (loading) {
     return (
@@ -855,34 +880,31 @@ export default function Sinks() {
                   </Select>
                   {formErrors.facility_id && <p className="text-xs font-medium text-red-600" data-testid="sink-facility-error">{formErrors.facility_id}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label>{reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-600">*</span></Label>
+                {(!isEditMode || isEditingYearly) && <div className="space-y-2">
+                  <Label>Reporting Period <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.reporting_year}
                     onValueChange={(value) => {
                       setFormData(prev => ({ ...prev, reporting_year: value }));
                       clearFormError('reporting_year');
                     }}
-                    disabled={isEditMode}
                   >
-                    <SelectTrigger className={`bg-stone-50 ${formErrors.reporting_year ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.reporting_year)} data-testid="sink-year-select">
-                      <SelectValue placeholder="Select year" />
+                    <SelectTrigger className={`bg-stone-50 ${formErrors.reporting_year ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.reporting_year)} data-testid="sink-reporting-period-select">
+                      <SelectValue placeholder="Select reporting period" />
                     </SelectTrigger>
                     <SelectContent>
                       {[...Array(5)].map((_, i) => {
                         const year = new Date().getFullYear() - i;
                         return (
                           <SelectItem key={year} value={year.toString()}>
-                            {reportingYearType === 'financial' 
-                              ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
-                              : year}
+                            {formatReportingYear(year)}
                           </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
-                  {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-year-error">{formErrors.reporting_year}</p>}
-                </div>
+                  {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-reporting-period-error">{formErrors.reporting_year}</p>}
+                </div>}
                 <div className="space-y-2">
                   <Label>Data Entry Frequency <span className="text-red-600">*</span></Label>
                   <select
@@ -907,13 +929,6 @@ export default function Sinks() {
                   </select>
                   {isEditMode && <p className="text-xs text-amber-600">Frequency is locked when editing</p>}
                 </div>
-              </div>
-
-              {/* Frequency Badge */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-stone-600">
-                  {formatReportingYear(formData.reporting_year)}
-                </span>
               </div>
 
               {/* Data Entry Section - Conditional based on frequency */}
@@ -1001,31 +1016,19 @@ export default function Sinks() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     {isEditMode ? (
                       <div className="space-y-2">
-                        <Label>Month <span className="text-red-600">*</span></Label>
-                        <Select value={String(editMonth ?? '')} onValueChange={(value) => {
-                          const nextMonth = Number(value);
-                          setMonthlyData((current) => {
-                            if (current[nextMonth]) return current;
-                            const currentEntry = current[editMonth];
-                            return {
-                              ...current,
-                              [nextMonth]: currentEntry
-                                ? { ...currentEntry, evidence: [...(currentEntry.evidence || [])] }
-                                : { value: '', evidence: [] },
-                            };
-                          });
-                          setSelectedEditMonth(nextMonth);
-                          clearFormError('monthly_value');
-                        }}>
-                          <SelectTrigger className="w-full bg-stone-50 sm:w-52" data-testid="sink-edit-month-select">
-                            <SelectValue placeholder="Select month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getOrderedMonthIndices().map((monthIndex) => (
-                              <SelectItem key={monthIndex} value={String(monthIndex)}>{getMonthLabelWithYear(monthIndex, formData.reporting_year)}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Reporting Period <span className="text-red-600">*</span></Label>
+                        <div className="relative w-full sm:w-52">
+                          <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
+                          <Input
+                            type="month"
+                            value={editMonthlyReportingPeriod}
+                            onChange={(event) => updateEditMonthlyReportingPeriod(event.target.value)}
+                            className="bg-stone-50 pl-9"
+                            data-testid="sink-edit-reporting-period-input"
+                            aria-label="Reporting Period"
+                          />
+                        </div>
+                        {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-edit-reporting-period-error">{formErrors.reporting_year}</p>}
                       </div>
                     ) : (
                       <Label>Monthly Carbon Offset (tCO2e) <span className="text-red-600">*</span></Label>
