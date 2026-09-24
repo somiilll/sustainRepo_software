@@ -44,6 +44,22 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 const ORGANIZATION_SINK_VALUE = '__organization_level__';
 const toSinkFacilityId = (facilityId) => facilityId === ORGANIZATION_SINK_VALUE ? null : facilityId;
 
+const SinkEvidenceIndicator = ({ sinkId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 cursor-help" tabIndex={0} data-testid={`sink-evidence-indicator-${sinkId}`}>
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`sink-evidence-tooltip-${sinkId}`}>
+        <p>{count} evidence file{count === 1 ? '' : 's'} uploaded.</p>
+        <p>View more in Edit.</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
 const getCurrentReportingYear = (yearType = 'calendar', fiscalStartMonth = 4) => {
   const now = new Date();
   const startsLaterThisYear = yearType === 'financial' && (now.getMonth() + 1) < Number(fiscalStartMonth || 4);
@@ -1199,10 +1215,10 @@ export default function Sinks() {
       {filteredSinks.length > 0 ? (
         <Card className="max-w-full overflow-hidden border border-stone-200 rounded-xl bg-white">
           <div className="max-w-full overflow-x-auto" data-testid="sinks-table-scroll-area">
-            <table className="w-full min-w-[920px] table-fixed" data-testid="sinks-table">
+            <table className="w-full min-w-[1000px] table-fixed" data-testid="sinks-table">
               <colgroup>
-                <col className="w-[15%]" /><col className="w-[15%]" /><col className="w-[17%]" />
-                <col className="w-[30%]" /><col className="w-[10%]" /><col className="w-[13%]" />
+                <col className="w-[170px]" /><col className="w-[155px]" /><col className="w-[190px]" />
+                <col className="w-[360px]" /><col className="w-[125px]" />
               </colgroup>
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
@@ -1236,8 +1252,7 @@ export default function Sinks() {
                       {sortBy === 'emissions' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Description</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Evidence</th>
+                  <th className="w-[360px] px-6 py-4 text-left text-sm font-semibold text-text-primary">Description</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Actions</th>
                 </tr>
               </thead>
@@ -1258,18 +1273,11 @@ export default function Sinks() {
                       <td className="px-6 py-4 text-center">
                         <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
                       </td>
-                      <td className="px-6 py-4 align-top text-left">
-                        <p className="line-clamp-2 break-words text-sm text-text-secondary" title={sink.description || ''} data-testid={`sink-description-${sink.id}`}>{sink.description || '-'}</p>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {evidenceCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" data-testid={`evidence-count-${sink.id}`}>
-                            <FileText className="w-3 h-3" />
-                            {evidenceCount}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-stone-400">-</span>
-                        )}
+                      <td className="w-[360px] max-w-[360px] px-6 py-4 align-top text-left">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <p className="line-clamp-2 min-w-0 flex-1 break-words text-sm text-text-secondary" title={sink.description || ''} data-testid={`sink-description-${sink.id}`}>{sink.description || '-'}</p>
+                          {evidenceCount > 0 && <SinkEvidenceIndicator sinkId={sink.id} count={evidenceCount} />}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
