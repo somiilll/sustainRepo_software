@@ -208,3 +208,4 @@
 - **Sinks evidence placement:** moved the compact evidence indicator next to Emissions Reduced. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier list header:** moved search, Add Supplier, and Reporting Period into a responsive GHG-style header; Add Supplier now uses rounded-pill styling. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Supplier GHG header:** moved search, view toggle, and Reporting Period into a responsive GHG-style header; the toggle uses compact pill styling. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Supplier Documents & Training headers:** moved creation/search/period controls into responsive header rows and standardized their rounded controls; Supplier GHG search is narrower for a one-line desktop header. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
