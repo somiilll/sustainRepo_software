@@ -528,7 +528,7 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary mb-auto">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
-              <div className="pt-6">
+              <div className="pt-4">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <div className="flex flex-wrap gap-3">
                   <DialogTrigger asChild>
@@ -670,78 +670,6 @@ export default function Reports({ showMISFoundation = false }) {
                     </p>
                   </div>
 
-                  {/* Additional Options */}
-                  <div className="space-y-4">
-                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={ghgReportConfig.include_previous_years}
-                        onChange={(e) => setGhgReportConfig(prev => ({ ...prev, include_previous_years: e.target.checked }))}
-                        className="rounded text-green-600"
-                      />
-                      <div>
-                        <p className="font-medium text-text-primary">Include Previous Years Data</p>
-                        <p className="text-xs text-text-muted">Add historical emissions comparison section</p>
-                      </div>
-                    </label>
-                  </div>
-
-                  {/* Output Format Selection */}
-                  <div className="space-y-4">
-                    <Label className="text-base font-semibold">Output Format</Label>
-                    <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
-                        style={{ borderColor: ghgReportConfig.output_format === 'docx' ? '#16a34a' : 'transparent' }}>
-                        <input
-                          type="radio"
-                          name="output_format"
-                          value="docx"
-                          checked={ghgReportConfig.output_format === 'docx'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
-                          className="text-green-600"
-                        />
-                        <div>
-                          <p className="font-medium text-text-primary">Word Document (.docx)</p>
-                          <p className="text-xs text-text-muted">Editable format</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
-                        style={{ borderColor: ghgReportConfig.output_format === 'xlsx' ? '#16a34a' : 'transparent' }}
-                        data-testid="ghg-output-xlsx-option">
-                        <input
-                          type="radio"
-                          name="output_format"
-                          value="xlsx"
-                          checked={ghgReportConfig.output_format === 'xlsx'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value, report_type: 'scope_1_2_3' }))}
-                          className="text-green-600"
-                          data-testid="ghg-output-xlsx-input"
-                        />
-                        <div>
-                          <p className="font-medium text-text-primary">Excel Summary (.xlsx)</p>
-                          <p className="text-xs text-text-muted">Formula-driven emissions summary</p>
-                        </div>
-                      </label>
-                      {/* PDF option temporarily hidden
-                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
-                        style={{ borderColor: ghgReportConfig.output_format === 'pdf' ? '#16a34a' : 'transparent' }}>
-                        <input
-                          type="radio"
-                          name="output_format"
-                          value="pdf"
-                          checked={ghgReportConfig.output_format === 'pdf'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
-                          className="text-green-600"
-                        />
-                        <div>
-                          <p className="font-medium text-text-primary">PDF Document (.pdf)</p>
-                          <p className="text-xs text-text-muted">Fixed format for sharing</p>
-                        </div>
-                      </label>
-                      */}
-                    </div>
-                  </div>
-
                   {/* Generate Button */}
                   <div className="flex gap-3 pt-4 border-t">
                     <Button variant="outline" onClick={() => setGhgDialogOpen(false)} className="flex-1">
@@ -784,7 +712,7 @@ export default function Reports({ showMISFoundation = false }) {
           </div>
           <div className="mt-4 flex flex-1 flex-col">
             <p className="text-sm text-text-secondary mb-auto">Download a structured Excel summary of your GHG emissions data.</p>
-            <div className="pt-6">
+            <div className="pt-4">
               <Button
                 type="button"
                 onClick={() => openGhgReportDialog('xlsx')}
@@ -841,7 +769,7 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary mb-auto">
                 Generate an AI-powered executive summary of your emissions data.
               </p>
-              <div className="pt-6">
+              <div className="pt-4">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 

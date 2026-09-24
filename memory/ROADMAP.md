@@ -190,3 +190,4 @@
 - **Reports action layout:** replaced the two horizontal action boxes with three equal responsive cards for GHG Inventory Report, GHG Excel, and AI Executive Summary; this was frontend presentation work only. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports build repair:** restored the missing Reports action-grid closing tag that caused Babel to stop at the page’s closing JSX. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports card compaction:** removed the Report Contents panel and tightened report-card height, padding, and icon/title layout. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Reports dialog simplification:** removed historical-data and output-format controls; dedicated report cards determine the unchanged existing output format. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
