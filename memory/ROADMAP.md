@@ -192,3 +192,4 @@
 - **Reports card compaction:** removed the Report Contents panel and tightened report-card height, padding, and icon/title layout. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports dialog simplification:** removed historical-data and output-format controls; dedicated report cards determine the unchanged existing output format. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **Reports action refinement:** Excel bypasses all-facilities confirmation, Word retains its history option, and report-card actions are centered. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
+- **Reports spacing refinement:** removed forced vertical card spacing and reduced action-card height. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.

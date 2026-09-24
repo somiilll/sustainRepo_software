@@ -520,7 +520,7 @@ export default function Reports({ showMISFoundation = false }) {
       {/* Reporting actions */}
       {hasScope12Access && hasGhgEnabled && (
         <div className={`${showMISFoundation ? 'hidden' : ''} grid grid-cols-1 items-stretch gap-5 md:grid-cols-3`} data-testid="report-action-cards">
-        <Card className="flex min-h-[220px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+        <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-3">
               <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
@@ -529,10 +529,10 @@ export default function Reports({ showMISFoundation = false }) {
               <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
             </div>
             <div className="mt-4 flex flex-1 flex-col">
-              <p className="text-sm text-text-secondary mb-auto">
+              <p className="text-sm text-text-secondary">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
-              <div className="pt-4 flex justify-center">
+              <div className="pt-2 flex justify-center">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <div className="flex flex-wrap justify-center gap-3">
                   <DialogTrigger asChild>
@@ -722,7 +722,7 @@ export default function Reports({ showMISFoundation = false }) {
         </div>
       </Card>
 
-      <Card className="flex min-h-[220px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="ghg-excel-card">
+      <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="ghg-excel-card">
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-3">
             <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
@@ -731,8 +731,8 @@ export default function Reports({ showMISFoundation = false }) {
             <h3 className="text-xl font-heading font-bold text-text-primary">GHG Excel</h3>
           </div>
           <div className="mt-4 flex flex-1 flex-col">
-            <p className="text-sm text-text-secondary mb-auto">Download a structured Excel summary of your GHG emissions data.</p>
-            <div className="pt-4 flex justify-center">
+            <p className="text-sm text-text-secondary">Download a structured Excel summary of your GHG emissions data.</p>
+            <div className="pt-2 flex justify-center">
               <Button
                 type="button"
                 onClick={() => openGhgReportDialog('xlsx')}
@@ -777,7 +777,7 @@ export default function Reports({ showMISFoundation = false }) {
         </DialogContent>
       </Dialog>
 
-      <Card className="flex min-h-[220px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+      <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex h-full flex-col">
             <div className="flex items-center gap-3">
               <div className="inline-flex w-fit rounded-lg bg-stone-100 p-2">
@@ -786,10 +786,10 @@ export default function Reports({ showMISFoundation = false }) {
               <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
             </div>
             <div className="mt-4 flex flex-1 flex-col">
-              <p className="text-sm text-text-secondary mb-auto">
+              <p className="text-sm text-text-secondary">
                 Generate an AI-powered executive summary of your emissions data.
               </p>
-              <div className="pt-4 flex justify-center">
+              <div className="pt-2 flex justify-center">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
