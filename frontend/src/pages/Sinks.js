@@ -1274,12 +1274,14 @@ export default function Sinks() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
+                        <span className="inline-flex items-center gap-1.5 text-lg font-semibold text-green-600">
+                          {sink.total_emissions_reduced.toFixed(2)}
+                          {evidenceCount > 0 && <SinkEvidenceIndicator sinkId={sink.id} count={evidenceCount} />}
+                        </span>
                       </td>
                       <td className="w-[360px] max-w-[360px] px-6 py-4 align-top text-left">
                         <div className="flex min-w-0 items-start gap-2">
                           <p className="line-clamp-2 min-w-0 flex-1 break-words text-sm text-text-secondary" title={sink.description || ''} data-testid={`sink-description-${sink.id}`}>{sink.description || '-'}</p>
-                          {evidenceCount > 0 && <SinkEvidenceIndicator sinkId={sink.id} count={evidenceCount} />}
                         </div>
                       </td>
                       <td className="px-6 py-4">
