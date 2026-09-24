@@ -16,6 +16,7 @@ export default function KpiCard({
   invertedColor = false,     // for "Total Sinks" — positive delta is GOOD (green up arrow ok)
   sparkData = [],
   sparkColor = '#10B981',
+  icon: Icon,
   rightSlot = null,
   loading = false,
   ariaLabel,
@@ -46,8 +47,11 @@ export default function KpiCard({
         className="absolute inset-x-0 top-0 h-[3px] opacity-80"
         style={{ background: `linear-gradient(90deg, ${sparkColor}40 0%, ${sparkColor} 50%, ${sparkColor}40 100%)` }}
       />
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {Icon && <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${sparkColor}15` }}><Icon className="h-4 w-4" style={{ color: sparkColor }} aria-hidden="true" /></div>}
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
+        </div>
         {rightSlot}
       </div>
       <div className="flex items-baseline gap-1.5">

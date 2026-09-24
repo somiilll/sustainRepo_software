@@ -51,8 +51,8 @@ export default function GaugeCard({
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Reduction Target Achieved</p>
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
-          <TargetIcon className="w-7 h-7 text-amber-500" />
+        <div className="flex flex-col items-center justify-center gap-1.5 py-1 text-center">
+          <TargetIcon className="h-5 w-5 text-amber-500" />
           <p className="text-xs text-stone-600">No reduction targets configured</p>
           <Button
             size="sm"
@@ -91,8 +91,8 @@ export default function GaugeCard({
             </select>
           )}
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
-          <TargetIcon className="w-7 h-7 text-amber-500" />
+        <div className="flex flex-col items-center justify-center gap-1.5 py-1 text-center">
+          <TargetIcon className="h-5 w-5 text-amber-500" />
           <p className="text-xs text-stone-600 leading-snug">Target progress is not available for this reporting period.</p>
           <Button
             size="sm"
