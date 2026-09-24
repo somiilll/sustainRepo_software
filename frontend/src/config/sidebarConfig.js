@@ -55,7 +55,10 @@ const sidebarConfig = [
           { key: 'environment.waste.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/waste/analysis' },
       ] },
       { key: 'environment.biodiversity', label: 'Biodiversity', icon: 'TreeDeciduous', path: '/environment/biodiversity' },
-      { key: 'environment.others', label: 'Others', icon: 'Leaf', path: '/environment/others' },
+      {
+        key: 'environment.others', label: 'Others', icon: 'Leaf', path: '/environment/others',
+        anyAccess: ['environment.climate_change', 'environment.material', 'environment.other_emissions'],
+      },
       { key: 'environment.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/analysis' },
     ],
   },

@@ -87,7 +87,8 @@ function MenuItem(props) {
   // Hide admin supplier items from supplier users
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
-  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key));
+  var hasAnyRequiredAccess = !item.anyAccess || item.anyAccess.some(function(accessKey) { return hasAccess(accessKey); });
+  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key) || !hasAnyRequiredAccess);
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
   var missingSupplierGhgAssignment = isSupplier && Array.isArray(supplierModules) && !supplierModules.includes('ghg') && SUPPLIER_GHG_REQUIRED_MENU_KEYS.has(item.key);
   var lockedForSupplier = inheritedLocked || missingSupplierGhgAssignment;
