@@ -197,16 +197,18 @@ def build_ghg_summary_excel(
 
     summary["A1"] = "GHG Emissions Summary"
     _style_title(summary["A1"])
-    summary["A3"], summary["B3"] = "Organization Name", organization.get("name") or ""
-    summary["D3"], summary["E3"] = "Reporting Year", f"{reporting_period_start[:4]}–{reporting_period_end[:4]}"
-    summary["A4"], summary["B4"] = "Reporting Period", f"{reporting_period_start} to {reporting_period_end}"
-    summary["D4"], summary["E4"] = "Number of Facilities", len(facilities)
-    summary["A5"], summary["B5"] = "Reporting Boundary", organization.get("reporting_boundary") or organization.get("org_boundaries_approach") or ""
-    summary["D5"], summary["E5"] = "Unit", "tCO2e"
-    for row in range(3, 6):
-        for col in (1, 2, 4, 5):
-            summary.cell(row, col).border = TABLE_BORDER
-        summary.cell(row, 1).font = summary.cell(row, 4).font = Font(bold=True)
+    reporting_information = [
+        ("A3", "B3", "Organization Name", organization.get("name") or ""),
+        ("D3", "E3", "Number of Facilities", len(facilities)),
+        ("A4", "B4", "Reporting Period", f"{reporting_period_start} to {reporting_period_end}"),
+        ("A5", "B5", "Reporting Boundary", organization.get("reporting_boundary") or organization.get("org_boundaries_approach") or ""),
+    ]
+    for label_cell, value_cell, label, value in reporting_information:
+        summary[label_cell] = label
+        summary[value_cell] = value
+        summary[label_cell].font = Font(bold=True)
+        summary[label_cell].border = TABLE_BORDER
+        summary[value_cell].border = TABLE_BORDER
 
     scope1_total_row, next_row = _write_detail_section(summary, 8, "Scope 1 Emissions", ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"], data["scope1"])
     scope2_total_row, next_row = _write_detail_section(summary, next_row, "Scope 2 Emissions", ["Purchased Electricity", "Purchased Heat/Steam"], data["scope2"])
