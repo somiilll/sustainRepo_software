@@ -449,11 +449,11 @@ async def get_dashboard_stats(
         ))
 
     # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
-    total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
     scope1_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope1")
     scope2_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope2")
     scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
     biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
+    total_emissions = scope1_emissions + scope2_emissions + scope3_emissions
     
     # Helper function to check if biogenic is direct (Scope 1) or indirect (Scope 3)
     def is_indirect_biogenic(emission):
@@ -530,11 +530,11 @@ async def get_dashboard_stats(
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
         
-        total = sum(get_adjusted_emission(e) for e in facility_emissions)
         scope1 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope1")
         scope2 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope2")
         scope3 = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "scope3")
         biogenic = sum(get_adjusted_emission(e) for e in facility_emissions if e["scope"] == "biogenic")
+        total = scope1 + scope2 + scope3
         scope_category_totals = {"scope1": {}, "scope2": {}, "scope3": {}}
         for emission in facility_emissions:
             scope = emission.get("scope")
@@ -594,7 +594,8 @@ async def get_dashboard_stats(
         period_map[month]["scope2"] += value if emission["scope"] == "scope2" else 0
         period_map[month]["scope3"] += value if emission["scope"] == "scope3" else 0
         period_map[month]["biogenic"] += value if emission["scope"] == "biogenic" else 0
-        period_map[month]["total"] += value
+        if emission["scope"] != "biogenic":
+            period_map[month]["total"] += value
 
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
@@ -628,15 +629,16 @@ async def get_dashboard_stats(
     for emission in deduplicated_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
-        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
-        if category not in category_map:
-            category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
-        category_map[category]["total_emissions"] += adjusted_value
-        if emission["scope"] == "scope1":
-            category_map[category]["scope1"] += adjusted_value
-        elif emission["scope"] == "scope2":
-            category_map[category]["scope2"] += adjusted_value
-    emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
+        scope = emission.get("scope") or "unknown"
+        category_key = (scope, category)
+        adjusted_value = get_adjusted_emission(emission)
+        if category_key not in category_map:
+            category_map[category_key] = {"category": category, "scope": scope, "total_emissions": 0}
+        category_map[category_key]["total_emissions"] += adjusted_value
+    emissions_by_category = [
+        {**category, "total_emissions": float(display_round(category["total_emissions"]))}
+        for category in sorted(category_map.values(), key=lambda x: -x["total_emissions"])
+    ]
     
     # Fuel analysis - use deduplicated emissions
     fuel_map = {}

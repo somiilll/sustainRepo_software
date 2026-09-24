@@ -205,7 +205,7 @@ export function useDashboardData() {
       biogenicIndirect: stats.biogenic_indirect || 0,
       total: 0,
     };
-    totals.total = totals.scope1 + totals.scope2 + totals.biogenic + (hasScope3Access ? totals.scope3 : 0);
+    totals.total = totals.scope1 + totals.scope2 + (hasScope3Access ? totals.scope3 : 0);
     const filteredSinks = stats.sinks_total || 0;
     return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
   }, [stats, hasScope3Access]);

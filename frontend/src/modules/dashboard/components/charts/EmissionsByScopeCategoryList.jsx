@@ -15,7 +15,10 @@ const SCOPE_STYLE = {
   scope3: { label: 'Scope 3', color: '#7C3AED', pill: 'bg-violet-50 text-violet-700', icon: Box, iconWrap: 'bg-violet-100 text-violet-700' },
 };
 
-const formatValue = (value) => Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const formatValue = (value) => Number(value || 0).toLocaleString('en-IN', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function getCategoryVisual(item) {
   const scope = SCOPE_STYLE[item.scope] || SCOPE_STYLE.scope1;
