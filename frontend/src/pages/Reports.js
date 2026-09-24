@@ -269,6 +269,10 @@ export default function Reports({ showMISFoundation = false }) {
 
     // If all facilities are selected, show confirmation dialog
     const allFacilitiesSelected = ghgReportConfig.facility_ids.length === facilities.length && facilities.length > 0;
+    if (ghgReportConfig.output_format === 'xlsx') {
+      await proceedWithReportGeneration(allFacilitiesSelected);
+      return;
+    }
     if (allFacilitiesSelected) {
       setShowAllFacilitiesConfirm(true);
       return;
@@ -528,9 +532,9 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary mb-auto">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
-              <div className="pt-4">
+              <div className="pt-4 flex justify-center">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap justify-center gap-3">
                   <DialogTrigger asChild>
                     <Button 
                       onClick={() => openGhgReportDialog('docx')}
@@ -670,6 +674,22 @@ export default function Reports({ showMISFoundation = false }) {
                     </p>
                   </div>
 
+                  {ghgReportConfig.output_format === 'docx' && (
+                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer" data-testid="include-previous-years-option">
+                      <input
+                        type="checkbox"
+                        checked={ghgReportConfig.include_previous_years}
+                        onChange={(e) => setGhgReportConfig(prev => ({ ...prev, include_previous_years: e.target.checked }))}
+                        className="rounded text-green-600"
+                        data-testid="include-previous-years-checkbox"
+                      />
+                      <div>
+                        <p className="font-medium text-text-primary">Include Previous Years Data</p>
+                        <p className="text-xs text-text-muted">Add historical emissions comparison section</p>
+                      </div>
+                    </label>
+                  )}
+
                   {/* Generate Button */}
                   <div className="flex gap-3 pt-4 border-t">
                     <Button variant="outline" onClick={() => setGhgDialogOpen(false)} className="flex-1">
@@ -712,7 +732,7 @@ export default function Reports({ showMISFoundation = false }) {
           </div>
           <div className="mt-4 flex flex-1 flex-col">
             <p className="text-sm text-text-secondary mb-auto">Download a structured Excel summary of your GHG emissions data.</p>
-            <div className="pt-4">
+            <div className="pt-4 flex justify-center">
               <Button
                 type="button"
                 onClick={() => openGhgReportDialog('xlsx')}
@@ -769,7 +789,7 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary mb-auto">
                 Generate an AI-powered executive summary of your emissions data.
               </p>
-              <div className="pt-4">
+              <div className="pt-4 flex justify-center">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
