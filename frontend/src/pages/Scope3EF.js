@@ -100,6 +100,7 @@ export default function Scope3EF() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const [pageSize] = useState(50);
+  const [availableYears, setAvailableYears] = useState([]);
   
   // Dynamic scopes and categories from backend
   const [scopes, setScopes] = useState([]);
@@ -136,7 +137,22 @@ export default function Scope3EF() {
     fetchEntries();
     fetchScopesAndCategories();
     fetchSectorsAndUnits();
+    fetchFilterOptions();
   }, []);
+
+  const fetchFilterOptions = async () => {
+    try {
+      const endpoint = isSuperAdmin
+        ? '/super-admin/scope3-ef/filter-options'
+        : '/scope3-ef/filter-options';
+      const response = await axios.get(`${API}${endpoint}`, {
+        headers: getAuthHeader()
+      });
+      setAvailableYears(response.data?.years || []);
+    } catch (error) {
+      console.error('Failed to fetch Scope 3 filter options:', error);
+    }
+  };
 
   const fetchSectorsAndUnits = async () => {
     try {
@@ -452,11 +468,6 @@ export default function Scope3EF() {
     return cats.sort();
   }, [entries]);
 
-  const uniqueYears = useMemo(() => {
-    const years = [...new Set(entries.map(e => e.year_applicable).filter(Boolean))];
-    return years.sort((a, b) => b - a); // Sort descending
-  }, [entries]);
-
   const uniqueSources = useMemo(() => {
     const sources = [...new Set(entries.map(e => e.source).filter(Boolean))];
     return sources.sort();
@@ -539,7 +550,7 @@ export default function Scope3EF() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Years</SelectItem>
-              {uniqueYears.map(year => (
+              {availableYears.map(year => (
                 <SelectItem key={year} value={String(year)}>{year}</SelectItem>
               ))}
             </SelectContent>
