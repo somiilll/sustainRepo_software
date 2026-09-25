@@ -350,6 +350,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   );
   const allowedUnits = selectedFactor?.allowed_units || [];
   const isSpend = values.scope === 'scope3' && values.ef_method === 'spend';
+  const isStructuredFreightActivity = values.scope === 'scope3'
+    && values.ef_method === 'activity'
+    && /^(c4|c9)\b/i.test(values.category_code || values.category_key || values.category || '');
   const applicableRequiredFields = values.scope === 'scope3'
     ? requiredFields
     : requiredFields.filter((field) => !['ef_method', 'calculation_method'].includes(field));
@@ -382,7 +385,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     setFactorError('');
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    const hasIncompatibleInput = !isStructuredFreightActivity && Boolean(extractedInput && !matchedInput);
     if (hasIncompatibleInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
     setValues((current) => ({
       ...current,
@@ -396,7 +399,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
       scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
-      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredFreightActivity ? current.unit || '' : matchedInput || '') }),
     }));
   };
 
@@ -407,7 +410,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     if (values.scope === 'scope1' && !factorFacilityId) return;
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    const hasIncompatibleInput = !isStructuredFreightActivity && Boolean(extractedInput && !matchedInput);
     const nextValues = {
       ...values,
       facility_id: values.facility_id || factorFacilityId,
@@ -419,7 +422,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
       scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
-      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredFreightActivity ? values.unit || '' : matchedInput || '') }),
     };
     if (hasIncompatibleInput) {
       setValues(nextValues);
@@ -432,7 +435,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     onAutoMatch?.(nextValues).catch(() => {
       setFactorError('The matched factor could not be saved. Select it and save changes manually.');
     });
-  }, [open, values, factors, isSpend, resolvedFacilityId, item?.id, onAutoMatch]);
+  }, [open, values, factors, isSpend, isStructuredFreightActivity, resolvedFacilityId, item?.id, onAutoMatch]);
 
   const dynamicFields = useMemo(() => {
     if (values.scope !== 'scope3' || !formConfig) return [];
