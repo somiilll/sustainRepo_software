@@ -357,8 +357,8 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
                       onClick={() => setHeatmapView('india')}
                       className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
                         heatmapView === 'india'
-                          ? 'bg-teal-700 text-white border-teal-700'
-                          : 'bg-white border-stone-200 text-stone-600 hover:border-teal-300 hover:text-teal-800'
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white border-stone-200 text-stone-600 hover:border-primary/30 hover:text-primary'
                       }`}
                       data-testid="heatmap-toggle-india"
                     >
@@ -369,8 +369,8 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
                       onClick={() => setHeatmapView('global')}
                       className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
                         heatmapView === 'global'
-                          ? 'bg-teal-700 text-white border-teal-700'
-                          : 'bg-white border-stone-200 text-stone-600 hover:border-teal-300 hover:text-teal-800'
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white border-stone-200 text-stone-600 hover:border-primary/30 hover:text-primary'
                       }`}
                       data-testid="heatmap-toggle-global"
                     >

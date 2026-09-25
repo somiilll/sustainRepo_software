@@ -56,7 +56,7 @@ export default function GaugeCard({
           <p className="text-xs text-stone-600">No reduction targets configured</p>
           <Button
             size="sm"
-            className="border border-teal-700 bg-teal-700 text-xs text-white hover:bg-teal-800"
+            className="bg-primary text-xs text-white hover:bg-primary/90"
             onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-add-target-btn"
           >

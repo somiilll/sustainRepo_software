@@ -15,7 +15,7 @@ const ALL_BARS = [
   { key: 'scope3', label: 'Scope 3', color: '#7C3AED' },
 ];
 
-const CATEGORY_COLORS = ['#0F766E', '#14B8A6', '#2563EB', '#7C3AED', '#D97706', '#DB2777', '#64748B', '#0891B2', '#65A30D', '#EA580C', '#BE123C', '#4F46E5', '#0D9488', '#9333EA', '#CA8A04'];
+const CATEGORY_COLORS = ['#047857', '#D97706', '#2563EB', '#C026D3', '#4D7C0F', '#E11D48', '#0891B2', '#4338CA', '#EA580C', '#7C3AED', '#A16207', '#0369A1', '#B91C1C', '#15803D', '#6D28D9'];
 
 const formatEmissions = (value) => Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
@@ -81,7 +81,7 @@ export default function FacilityChart({ facilities = [], height = 400, className
     <div className={`flex min-h-0 w-full flex-col ${className}`} data-testid="facility-chart">
       <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Facility emissions scope filter">
         {tabs.map((tab) => (
-          <button key={tab.id} type="button" role="tab" aria-selected={activeScope === tab.id} onClick={() => setActiveScope(tab.id)} data-testid={`facility-emissions-filter-${tab.id}`} className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${activeScope === tab.id ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-200 bg-white text-stone-600 hover:border-teal-300 hover:text-teal-800'}`}>{tab.label}</button>
+          <button key={tab.id} type="button" role="tab" aria-selected={activeScope === tab.id} onClick={() => setActiveScope(tab.id)} data-testid={`facility-emissions-filter-${tab.id}`} className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${activeScope === tab.id ? 'border-primary bg-primary text-white' : 'border-stone-200 bg-white text-stone-600 hover:border-primary/30 hover:text-primary'}`}>{tab.label}</button>
         ))}
       </div>
       <div className={isFluid ? 'min-h-[350px] flex-1' : ''}>
