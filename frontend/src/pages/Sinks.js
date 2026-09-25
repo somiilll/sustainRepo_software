@@ -41,6 +41,24 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const ORGANIZATION_SINK_VALUE = '__organization_level__';
+const toSinkFacilityId = (facilityId) => facilityId === ORGANIZATION_SINK_VALUE ? null : facilityId;
+
+const SinkEvidenceIndicator = ({ sinkId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 cursor-help" tabIndex={0} data-testid={`sink-evidence-indicator-${sinkId}`}>
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`sink-evidence-tooltip-${sinkId}`}>
+        <p>{count} evidence file{count === 1 ? '' : 's'} uploaded.</p>
+        <p>View more in Edit.</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 const getCurrentReportingYear = (yearType = 'calendar', fiscalStartMonth = 4) => {
   const now = new Date();
@@ -243,6 +261,9 @@ export default function Sinks() {
     // Check KPI assignment for sinks
     return canAccessSinks;
   }, [user?.role, canAccessSinks]);
+  const canManageOrganizationSinks = user?.role === 'admin'
+    || user?.role === 'super_admin'
+    || (canAccessSinks && (hasFullKPIAccess || accessInfo?.facility_restrictions?.sinks == null));
   
   // Filter facilities based on KPI assignment for sinks
   const kpiFilteredFacilities = useMemo(() => {
@@ -270,7 +291,7 @@ export default function Sinks() {
   // Helper function to format reporting year display
   const formatReportingYear = (year) => {
     if (reportingYearType === 'financial') {
-      return `FY ${year}-${(parseInt(year) + 1).toString().slice(-2)}`;
+      return `FY ${year}-${parseInt(year) + 1}`;
     }
     return `CY ${year}`;
   };
@@ -292,12 +313,12 @@ export default function Sinks() {
     if (reportingYearType === 'financial') {
       // For financial year: Jan-Mar belong to next calendar year
       if (monthIndex >= 0 && monthIndex <= 2) {
-        return `${MONTHS[monthIndex]} - ${year + 1}`;
+        return `${MONTHS[monthIndex]} ${year + 1}`;
       }
-      return `${MONTHS[monthIndex]} - ${year}`;
+      return `${MONTHS[monthIndex]} ${year}`;
     }
     // Calendar year: all months are same year
-    return `${MONTHS[monthIndex]} - ${year}`;
+    return `${MONTHS[monthIndex]} ${year}`;
   };
 
   const fetchSinks = async () => {
@@ -450,8 +471,8 @@ export default function Sinks() {
     e.preventDefault();
 
     const errors = {};
-    if (!formData.facility_id) errors.facility_id = 'Select the facility for this sink record.';
-    if (!formData.reporting_year) errors.reporting_year = 'Select the reporting year.';
+    if (!formData.facility_id) errors.facility_id = 'Select a facility or organization for this sink record.';
+    if (!formData.reporting_year) errors.reporting_year = 'Select a reporting period.';
 
     if (frequencyType === 'yearly') {
       if (!yearlyData.value || parseFloat(yearlyData.value) <= 0) {
@@ -485,7 +506,7 @@ export default function Sinks() {
           const evidenceItems = yearlyData.evidence || [];
           const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getYearlyReportingPeriod(formData.reporting_year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
@@ -507,7 +528,7 @@ export default function Sinks() {
           const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getMonthlyReportingPeriod(monthIndex, formData.reporting_year, reportingYearType, organization?.financial_year_start_month),
             total_emissions_reduced: parseFloat(value) || 0,
             description: formData.description,
@@ -531,7 +552,7 @@ export default function Sinks() {
           const evidenceItems = yearlyData.evidence || [];
           const storedEvidence = persistedEvidence(evidenceItems).map(toEvidencePayload);
           const payload = {
-            facility_id: formData.facility_id,
+            facility_id: toSinkFacilityId(formData.facility_id),
             reporting_period: getYearlyReportingPeriod(year, reportingYearType),
             total_emissions_reduced: parseFloat(yearlyData.value) || 0,
             description: formData.description,
@@ -560,7 +581,7 @@ export default function Sinks() {
             const storedEvidence = persistedEvidence(evidence).map(toEvidencePayload);
 
             const payload = {
-              facility_id: formData.facility_id,
+              facility_id: toSinkFacilityId(formData.facility_id),
               reporting_period: getMonthlyReportingPeriod(mi, year, reportingYearType, organization?.financial_year_start_month),
               total_emissions_reduced: parseFloat(value) || 0,
               description: formData.description,
@@ -621,7 +642,7 @@ export default function Sinks() {
     }
 
     setFormData({
-      facility_id: sink.facility_id,
+      facility_id: sink.facility_id || ORGANIZATION_SINK_VALUE,
       reporting_year: year,
       description: sink.description || ''
     });
@@ -665,6 +686,7 @@ export default function Sinks() {
   };
 
   const getFacilityName = (facilityId) => {
+    if (!facilityId) return 'Organization';
     const facility = facilities.find(f => f.id === facilityId);
     return facility ? facility.name : 'Unknown Facility';
   };
@@ -705,12 +727,15 @@ export default function Sinks() {
     // KPI assignment-based filtering: only show sinks for allowed facilities
     if (user?.role !== 'admin' && user?.role !== 'super_admin') {
       const allowedFacilityIds = kpiFilteredFacilities.map(f => f.id);
-      result = result.filter(sink => allowedFacilityIds.includes(sink.facility_id));
+      result = result.filter(sink => sink.facility_id
+        ? allowedFacilityIds.includes(sink.facility_id)
+        : canManageOrganizationSinks);
     }
 
     // Filter by facility
     if (filterFacility !== 'all') {
-      result = result.filter(sink => sink.facility_id === filterFacility);
+      const selectedFacilityId = toSinkFacilityId(filterFacility);
+      result = result.filter(sink => sink.facility_id === selectedFacilityId);
     }
 
     // Filter by inclusive reporting month range
@@ -748,7 +773,7 @@ export default function Sinks() {
     });
 
     return result;
-  }, [sinks, filterFacility, filterStartMonth, filterEndMonth, sortBy, sortOrder, facilities, kpiFilteredFacilities, user?.role, reportingYearType, organization?.financial_year_start_month]);
+  }, [sinks, filterFacility, filterStartMonth, filterEndMonth, sortBy, sortOrder, facilities, kpiFilteredFacilities, canManageOrganizationSinks, user?.role, reportingYearType, organization?.financial_year_start_month]);
 
   // Filtered total
   const filteredTotalReduction = useMemo(() => {
@@ -763,6 +788,31 @@ export default function Sinks() {
   const isEditMode = !!editingSink;
   const isEditingYearly = isEditMode && (editingSink?.frequency_type === 'yearly' || editingSink?.reporting_month === null);
   const editMonth = isEditingYearly ? null : (selectedEditMonth ?? editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
+  const editMonthlyReportingPeriod = editMonth === null
+    ? ''
+    : getMonthlyReportingPeriod(editMonth, formData.reporting_year, reportingYearType, organization?.financial_year_start_month);
+
+  const updateEditMonthlyReportingPeriod = (value) => {
+    if (!value) return;
+    const [actualYear, actualMonth] = value.split('-').map(Number);
+    const nextMonth = actualMonth - 1;
+    const fiscalStartMonth = Number(organization?.financial_year_start_month || 4);
+    const nextReportingYear = reportingYearType === 'financial' && actualMonth < fiscalStartMonth
+      ? actualYear - 1
+      : actualYear;
+
+    setMonthlyData((current) => {
+      const currentEntry = current[editMonth] || { value: '', evidence: [] };
+      const next = { ...current };
+      if (nextMonth !== editMonth) delete next[editMonth];
+      next[nextMonth] = currentEntry;
+      return next;
+    });
+    setFormData((current) => ({ ...current, reporting_year: String(nextReportingYear) }));
+    setSelectedEditMonth(nextMonth);
+    clearFormError('reporting_year');
+    clearFormError('monthly_value');
+  };
 
   if (loading) {
     return (
@@ -810,7 +860,7 @@ export default function Sinks() {
               )}
               <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Facility <span className="text-red-600">*</span></Label>
+                  <Label>Reporting entity <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.facility_id}
                     onValueChange={(value) => {
@@ -819,9 +869,10 @@ export default function Sinks() {
                     }}
                   >
                     <SelectTrigger className={`bg-stone-50 ${formErrors.facility_id ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.facility_id)} data-testid="sink-facility-select">
-                      <SelectValue placeholder="Select a facility" />
+                      <SelectValue placeholder="Select a facility or organization" />
                     </SelectTrigger>
                     <SelectContent>
+                      {canManageOrganizationSinks && <SelectItem value={ORGANIZATION_SINK_VALUE}>Organization-level</SelectItem>}
                       {kpiFilteredFacilities.map((facility) => (
                         <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
                       ))}
@@ -829,34 +880,31 @@ export default function Sinks() {
                   </Select>
                   {formErrors.facility_id && <p className="text-xs font-medium text-red-600" data-testid="sink-facility-error">{formErrors.facility_id}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label>{reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-600">*</span></Label>
+                {(!isEditMode || isEditingYearly) && <div className="space-y-2">
+                  <Label>Reporting Period <span className="text-red-600">*</span></Label>
                   <Select
                     value={formData.reporting_year}
                     onValueChange={(value) => {
                       setFormData(prev => ({ ...prev, reporting_year: value }));
                       clearFormError('reporting_year');
                     }}
-                    disabled={isEditMode}
                   >
-                    <SelectTrigger className={`bg-stone-50 ${formErrors.reporting_year ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.reporting_year)} data-testid="sink-year-select">
-                      <SelectValue placeholder="Select year" />
+                    <SelectTrigger className={`bg-stone-50 ${formErrors.reporting_year ? 'border-red-500 ring-1 ring-red-200' : ''}`} aria-invalid={Boolean(formErrors.reporting_year)} data-testid="sink-reporting-period-select">
+                      <SelectValue placeholder="Select reporting period" />
                     </SelectTrigger>
                     <SelectContent>
                       {[...Array(5)].map((_, i) => {
                         const year = new Date().getFullYear() - i;
                         return (
                           <SelectItem key={year} value={year.toString()}>
-                            {reportingYearType === 'financial' 
-                              ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
-                              : year}
+                            {formatReportingYear(year)}
                           </SelectItem>
                         );
                       })}
                     </SelectContent>
                   </Select>
-                  {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-year-error">{formErrors.reporting_year}</p>}
-                </div>
+                  {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-reporting-period-error">{formErrors.reporting_year}</p>}
+                </div>}
                 <div className="space-y-2">
                   <Label>Data Entry Frequency <span className="text-red-600">*</span></Label>
                   <select
@@ -881,13 +929,6 @@ export default function Sinks() {
                   </select>
                   {isEditMode && <p className="text-xs text-amber-600">Frequency is locked when editing</p>}
                 </div>
-              </div>
-
-              {/* Frequency Badge */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-stone-600">
-                  {formatReportingYear(formData.reporting_year)}
-                </span>
               </div>
 
               {/* Data Entry Section - Conditional based on frequency */}
@@ -975,31 +1016,19 @@ export default function Sinks() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     {isEditMode ? (
                       <div className="space-y-2">
-                        <Label>Month <span className="text-red-600">*</span></Label>
-                        <Select value={String(editMonth ?? '')} onValueChange={(value) => {
-                          const nextMonth = Number(value);
-                          setMonthlyData((current) => {
-                            if (current[nextMonth]) return current;
-                            const currentEntry = current[editMonth];
-                            return {
-                              ...current,
-                              [nextMonth]: currentEntry
-                                ? { ...currentEntry, evidence: [...(currentEntry.evidence || [])] }
-                                : { value: '', evidence: [] },
-                            };
-                          });
-                          setSelectedEditMonth(nextMonth);
-                          clearFormError('monthly_value');
-                        }}>
-                          <SelectTrigger className="w-full bg-stone-50 sm:w-52" data-testid="sink-edit-month-select">
-                            <SelectValue placeholder="Select month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getOrderedMonthIndices().map((monthIndex) => (
-                              <SelectItem key={monthIndex} value={String(monthIndex)}>{getMonthLabelWithYear(monthIndex, formData.reporting_year)}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Reporting Period <span className="text-red-600">*</span></Label>
+                        <div className="relative w-full sm:w-52">
+                          <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
+                          <Input
+                            type="month"
+                            value={editMonthlyReportingPeriod}
+                            onChange={(event) => updateEditMonthlyReportingPeriod(event.target.value)}
+                            className="bg-stone-50 pl-9"
+                            data-testid="sink-edit-reporting-period-input"
+                            aria-label="Reporting Period"
+                          />
+                        </div>
+                        {formErrors.reporting_year && <p className="text-xs font-medium text-red-600" data-testid="sink-edit-reporting-period-error">{formErrors.reporting_year}</p>}
                       </div>
                     ) : (
                       <Label>Monthly Carbon Offset (tCO2e) <span className="text-red-600">*</span></Label>
@@ -1147,6 +1176,7 @@ export default function Sinks() {
               <Label htmlFor="sink-facility-filter" className="text-xs text-stone-600">Facility</Label>
               <select id="sink-facility-filter" value={filterFacility} onChange={(e) => setFilterFacility(e.target.value)} className="h-9 w-full rounded-lg border border-stone-200 bg-white px-3 text-sm" data-testid="sink-facility-filter">
                 <option value="all">All facilities</option>
+                <option value={ORGANIZATION_SINK_VALUE}>Organization-level</option>
                 {kpiFilteredFacilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
@@ -1188,7 +1218,11 @@ export default function Sinks() {
       {filteredSinks.length > 0 ? (
         <Card className="max-w-full overflow-hidden border border-stone-200 rounded-xl bg-white">
           <div className="max-w-full overflow-x-auto" data-testid="sinks-table-scroll-area">
-            <table className="w-full min-w-[760px]" data-testid="sinks-table">
+            <table className="w-full min-w-[1000px] table-fixed" data-testid="sinks-table">
+              <colgroup>
+                <col className="w-[170px]" /><col className="w-[155px]" /><col className="w-[190px]" />
+                <col className="w-[360px]" /><col className="w-[125px]" />
+              </colgroup>
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">
@@ -1221,8 +1255,7 @@ export default function Sinks() {
                       {sortBy === 'emissions' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                     </button>
                   </th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Description</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Evidence</th>
+                  <th className="w-[360px] px-6 py-4 text-left text-sm font-semibold text-text-primary">Description</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Actions</th>
                 </tr>
               </thead>
@@ -1241,20 +1274,15 @@ export default function Sinks() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
+                        <span className="inline-flex items-center gap-1.5 text-lg font-semibold text-green-600">
+                          {sink.total_emissions_reduced.toFixed(2)}
+                          {evidenceCount > 0 && <SinkEvidenceIndicator sinkId={sink.id} count={evidenceCount} />}
+                        </span>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <p className="text-sm text-text-secondary">{sink.description || '-'}</p>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {evidenceCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" data-testid={`evidence-count-${sink.id}`}>
-                            <FileText className="w-3 h-3" />
-                            {evidenceCount}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-stone-400">-</span>
-                        )}
+                      <td className="w-[360px] max-w-[360px] px-6 py-4 align-top text-left">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <p className="line-clamp-2 min-w-0 flex-1 break-words text-sm text-text-secondary" title={sink.description || ''} data-testid={`sink-description-${sink.id}`}>{sink.description || '-'}</p>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -22,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, Filter, LockOpen, Paperclip } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, FileText, Filter, LockOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnlyDialog';
@@ -30,6 +31,22 @@ import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnl
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
 const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
+
+const SupplierEvidenceIndicator = ({ emissionId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 cursor-help" tabIndex={0} data-testid={`supplier-emission-evidence-icon-${emissionId}`}>
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`supplier-emission-evidence-tooltip-${emissionId}`}>
+        <p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p>
+        <p>View more in View.</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
 
 const EmissionValue = ({ value, testId, emphasized = false }) => (
   <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
@@ -156,14 +173,13 @@ export default function SupplierGHGView() {
     <div className="space-y-6" data-testid="supplier-ghg-view">
       <Tabs defaultValue="supplier-summary" className="space-y-7" data-testid="supplier-ghg-tabs">
       {/* Header */}
-      <div className="border-b border-stone-200 pb-5" data-testid="supplier-ghg-header">
-        <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] md:flex-row md:flex-wrap md:items-center lg:flex-nowrap" data-testid="supplier-ghg-controls">
-        <div className="relative w-full md:w-[min(430px,100%)] md:flex-none" data-testid="supplier-ghg-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input placeholder="Search emissions..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search emissions" data-testid="supplier-ghg-search-input" /></div>
-        <TabsList className="h-10 shrink-0 rounded-lg border border-stone-200 bg-stone-50 p-1" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" className="h-8 rounded-md px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" className="h-8 rounded-md px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
-        <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center md:gap-3" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ghg-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 md:w-44" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 xl:flex-row xl:items-center xl:justify-start" data-testid="supplier-ghg-header">
+        <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="whitespace-nowrap text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:ml-auto xl:w-auto xl:flex-nowrap" data-testid="supplier-ghg-controls">
+          <div className="relative w-full sm:w-56 sm:flex-none" data-testid="supplier-ghg-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input placeholder="Search emissions..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-full border-stone-200 bg-stone-50 pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search emissions" data-testid="supplier-ghg-search-input" /></div>
+          <TabsList className="h-10 shrink-0 rounded-full border border-stone-200 bg-stone-50 p-1" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" className="h-8 rounded-full px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" className="h-8 rounded-full px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ghg-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" /><span className="sr-only 2xl:not-sr-only">Reporting period</span></label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-10 w-full rounded-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+        </div>
       </div>
 
         <TabsContent value="supplier-summary" className="mt-5 space-y-6" data-testid="supplier-ghg-summary-panel">
@@ -304,7 +320,7 @@ export default function SupplierGHGView() {
                         {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
                       </Badge>
                     </TableCell>
-                    <TableCell><span className="inline-flex items-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <Paperclip className="h-3.5 w-3.5 text-sky-700" aria-label="Evidence attached" title="Evidence attached" data-testid={`supplier-emission-evidence-icon-${emission.id}`} />}</span></TableCell>
+                    <TableCell><span className="inline-flex items-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <SupplierEvidenceIndicator emissionId={emission.id} count={emission.evidence_files.length} />}</span></TableCell>
                     <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
                     <TableCell className="pr-6 text-right font-mono">
                       {displayValue(emission.attributed_emissions, 4)}

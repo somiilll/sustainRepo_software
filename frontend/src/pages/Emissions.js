@@ -36,6 +36,7 @@ import { validateFileSize } from '../lib/uploadUtils';
 import { MONTHS } from '../modules/ghg/emissions/shared/constants/emission-form-constants';
 import { categoryRegistry } from '../modules/emissions';
 import { formatEmissionQuantity, resolveEmissionQuantity } from '../modules/ghg/emissions/shared/utils/emissionQuantity';
+import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
 import {
   deriveGhgFields,
   resolveGhgFormContext,
@@ -1649,16 +1650,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         filtered = filtered.filter(ef => ef.method === scope3Method);
       }
       
-      // Get unique activities
-      const uniqueActivities = [];
-      const seenActivities = new Set();
-      filtered.forEach(ef => {
-        if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
-          seenActivities.add(ef.activity.toLowerCase());
-          uniqueActivities.push(ef);
-        }
-      });
-      return uniqueActivities;
+      return selectClosestScope3Factors(filtered, reportingYearFromPeriod);
     }
     
     // For REGULAR scope3 with subcategory-based categories (C8, C10, C11, C13, C14), handle specially
@@ -1710,16 +1702,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           filtered = filtered.filter(ef => ef.method === scope3Method);
         }
         
-        // Get unique activities
-        const uniqueActivities = [];
-        const seenActivities = new Set();
-        filtered.forEach(ef => {
-          if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
-            seenActivities.add(ef.activity.toLowerCase());
-            uniqueActivities.push(ef);
-          }
-        });
-        return uniqueActivities;
+        return selectClosestScope3Factors(filtered, reportingYearFromPeriod);
       }
     }
     
@@ -1756,18 +1739,18 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       });
     }
     
-    // Get unique activities (avoid duplicates)
-    const uniqueActivities = [];
-    const seenActivities = new Set();
-    filtered.forEach(ef => {
-      if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
-        seenActivities.add(ef.activity.toLowerCase());
-        uniqueActivities.push(ef);
-      }
-    });
-    
-    return uniqueActivities;
-  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection, editCapabilities]);
+    return selectClosestScope3Factors(filtered, reportingYearFromPeriod);
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection, editCapabilities, reportingYearFromPeriod]);
+
+  useEffect(() => {
+    if (!scope3ActivityId || filteredScope3Activities.some((activity) => activity.id === scope3ActivityId)) return;
+    const previouslySelected = scope3EFData.find((activity) => activity.id === scope3ActivityId);
+    const replacement = filteredScope3Activities.find((activity) => (
+      previouslySelected?.activity
+      && activity.activity?.toLowerCase() === previouslySelected.activity.toLowerCase()
+    ));
+    if (replacement) setScope3ActivityId(replacement.id);
+  }, [filteredScope3Activities, scope3ActivityId, scope3EFData, setScope3ActivityId]);
 
   // Get unique categories for the scope
   const standardCategoriesForScope = useMemo(() => {
@@ -2432,6 +2415,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           scope: effectiveScope, // Use effective scope for context
           category: formData.category || selectedCategory,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          reporting_year: reportingYearFromPeriod,
           is_custom_fuel: editUseCustomFuel || false,
           // Scope 3 specific context
           ...scope3ContextPreview,

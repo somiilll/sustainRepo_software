@@ -2,7 +2,7 @@ import React from 'react';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModuleUnavailableState } from './ModuleUnavailableState';
 
-export default function EntitlementRoute({ entitlement, children }) {
+export default function EntitlementRoute({ entitlement, anyOf, moduleName, children }) {
   const { hasAccess, loading, loadError } = useModuleAccess();
 
   if (loading) {
@@ -13,8 +13,9 @@ export default function EntitlementRoute({ entitlement, children }) {
     );
   }
 
-  if (loadError || !hasAccess(entitlement)) {
-    return <ModuleUnavailableState moduleName={entitlement.split('.').pop().replace(/_/g, ' ')} />;
+  const permitted = anyOf ? anyOf.some((accessKey) => hasAccess(accessKey)) : hasAccess(entitlement);
+  if (loadError || !permitted) {
+    return <ModuleUnavailableState moduleName={moduleName || entitlement.split('.').pop().replace(/_/g, ' ')} />;
   }
 
   return children;

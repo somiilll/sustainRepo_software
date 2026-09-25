@@ -29,6 +29,7 @@ import {
   getFieldUnits as getFieldUnitsShared,
 } from '../modules/ghg/emissions/shared/components/DynamicFieldRenderer';
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
+import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -945,16 +946,7 @@ export default function EmissionEntryForm({
           filtered = filtered.filter(ef => ef.method === scope3Method);
         }
         
-        // Get unique activities
-        const uniqueActivities = [];
-        const seenActivities = new Set();
-        filtered.forEach(ef => {
-          if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
-            seenActivities.add(ef.activity.toLowerCase());
-            uniqueActivities.push(ef);
-          }
-        });
-        return uniqueActivities;
+        return selectClosestScope3Factors(filtered, reportingYear);
       }
     }
     
@@ -991,21 +983,18 @@ export default function EmissionEntryForm({
       });
     }
     
-    // Year filtering will be handled later when reporting year is selected (Step 3)
-    // For now, we show all matching activities
-    
-    // Get unique activities (avoid duplicates like Steel appearing twice for spend/activity)
-    const uniqueActivities = [];
-    const seenActivities = new Set();
-    filtered.forEach(ef => {
-      if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
-        seenActivities.add(ef.activity.toLowerCase());
-        uniqueActivities.push(ef);
-      }
-    });
-    
-    return uniqueActivities;
-  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection, hasSubcategoryCapability]);
+    return selectClosestScope3Factors(filtered, reportingYear);
+  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId, biogenicScopeSelection, hasSubcategoryCapability, reportingYear]);
+
+  useEffect(() => {
+    if (!scope3ActivityId || filteredScope3Activities.some((activity) => activity.id === scope3ActivityId)) return;
+    const previouslySelected = scope3EFData.find((activity) => activity.id === scope3ActivityId);
+    const replacement = filteredScope3Activities.find((activity) => (
+      previouslySelected?.activity
+      && activity.activity?.toLowerCase() === previouslySelected.activity.toLowerCase()
+    ));
+    if (replacement) setScope3ActivityId(replacement.id);
+  }, [filteredScope3Activities, scope3ActivityId, scope3EFData, setScope3ActivityId]);
 
   // Get available activity types for categories configured with that capability.
   const availableScope3ActivityTypes = scope3PresentationOptions.activityTypes;
@@ -2042,6 +2031,7 @@ export default function EmissionEntryForm({
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        reporting_year: Number.parseInt(reportingYear, 10),
         reporting_year_type: reportingYearType,
         is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {
@@ -3553,6 +3543,7 @@ export default function EmissionEntryForm({
           setTypeOfProduct={setTypeOfProduct}
           scope3ActivityId={scope3ActivityId}
           scope3EFData={scope3EFData}
+          reportingYear={reportingYear}
           filteredScope3Activities={filteredScope3Activities}
           useCustomActivity={useCustomActivity}
           setUseCustomActivity={setUseCustomActivity}

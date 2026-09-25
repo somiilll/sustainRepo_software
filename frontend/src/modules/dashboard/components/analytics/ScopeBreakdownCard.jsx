@@ -5,7 +5,8 @@ import { Expand } from 'lucide-react';
 const scopes = [
   { key: 'scope1', label: 'Scope 1', color: '#10B981' }, 
   { key: 'scope2', label: 'Scope 2', color: '#3B82F6' }, 
-  { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' }
+  { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' },
+  { key: 'biogenic', label: 'Biogenic', color: '#F59E0B' },
 ];
 
 const ScopeBreakdownTooltip = ({ active, payload }) => {
@@ -32,7 +33,7 @@ export const ScopeBreakdownCard = ({
 
   return (
     <section
-      className={`relative flex flex-col min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-stone-700 dark:bg-stone-900 ${className}`}
+      className={`relative flex flex-col min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-stone-700 dark:bg-stone-900 ${className}`}
       data-testid="scope-breakdown-card"
     >
       <div className="absolute inset-x-0 top-0 h-1 bg-[#2563EB]" />

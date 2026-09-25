@@ -354,6 +354,7 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
             values.get("category") or "",
             values.get("ef_method") or "",
             facility.get("sector", ""),
+            values.get("reporting_period") or "",
         )
         matched_factor = _match_ocr_factor_option(options, item, values)
         matched_factor = matched_factor or _preferred_factor_option(scope, options, item, values)
@@ -1338,6 +1339,7 @@ async def get_ocr_factor_options(
     category: str = Query(..., min_length=1),
     method: str = Query(..., min_length=1),
     facility_id: Optional[str] = Query(default=None),
+    reporting_period: Optional[str] = Query(default=None),
     current_user: dict = Depends(get_current_user),
 ):
     """Return canonical factor and unit choices for one OCR edit combination."""
@@ -1361,6 +1363,7 @@ async def get_ocr_factor_options(
         category,
         method,
         facility.get("sector", "") if facility else "",
+        reporting_period or "",
     )
     return {
         "scope": scope,
@@ -1565,6 +1568,7 @@ async def edit_line_item(
                 unit=candidate.get("unit") or "",
                 currency=candidate.get("currency") or "",
                 industry_sector=candidate_facility.get("sector", "") if candidate_facility else "",
+                reporting_period=candidate.get("reporting_period") or "",
                 dynamic_field_values=candidate.get("dynamic_field_values") or {},
             )
         except ValueError as exc:
@@ -1802,6 +1806,7 @@ async def save_line_item_to_ghg(
             unit=values.get("unit") or "",
             currency=values.get("currency") or "",
             industry_sector=facility.get("sector", ""),
+            reporting_period=values.get("reporting_period") or "",
             dynamic_field_values=values.get("dynamic_field_values") or {},
         )
         values["factor_id"] = selected_factor["id"]

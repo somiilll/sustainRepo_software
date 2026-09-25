@@ -102,10 +102,9 @@ export default function OCRInvoice() {
   const [deletingSourceFileIds, setDeletingSourceFileIds] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [editingRequiredFields, setEditingRequiredFields] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [acceptingId, setAcceptingId] = useState(null);
+  const [savingItemIds, setSavingItemIds] = useState({});
   const [rejectingItem, setRejectingItem] = useState(null);
-  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectingItemIds, setRejectingItemIds] = useState({});
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [fileQueue, setFileQueue] = useState([]);
   const [error, setError] = useState('');
@@ -564,10 +563,11 @@ export default function OCRInvoice() {
 
   const saveEdit = async (values) => {
     if (!editingItem) return;
-    setSaving(true);
+    const itemId = editingItem.id;
+    setSavingItemIds((current) => ({ ...current, [itemId]: true }));
     try {
-      const { data } = await updateOcrLineItem(editingItem.id, values, getAuthHeader());
-      setItems((current) => current.map((item) => item.id === editingItem.id ? data.line_item : item));
+      const { data } = await updateOcrLineItem(itemId, values, getAuthHeader());
+      setItems((current) => current.map((item) => item.id === itemId ? data.line_item : item));
       setSelectedItem(data.line_item);
       setEditingItem(null);
       setEditingRequiredFields([]);
@@ -575,7 +575,11 @@ export default function OCRInvoice() {
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'Changes could not be saved.'));
     } finally {
-      setSaving(false);
+      setSavingItemIds((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
     }
   };
 
@@ -589,7 +593,7 @@ export default function OCRInvoice() {
   }, [editingItem, getAuthHeader]);
 
   const acceptItem = async (item) => {
-    setAcceptingId(item.id);
+    setSavingItemIds((current) => ({ ...current, [item.id]: true }));
     try {
       if (item.current_values?.scope === 'water') {
         const { data } = await acceptOcrLineItem(item.id, getAuthHeader());
@@ -599,8 +603,10 @@ export default function OCRInvoice() {
       } else {
         const { data: savedData } = await saveOcrLineItemToGhg(item.id, getAuthHeader());
         const remainingItems = items.filter((row) => row.id !== item.id);
-        setItems(remainingItems);
-        setSelectedItem(remainingItems.find((row) => row.upload_id === item.upload_id && row.file_index === item.file_index) || remainingItems[0] || null);
+        setItems((current) => current.filter((row) => row.id !== item.id));
+        setSelectedItem((current) => current?.id === item.id
+          ? remainingItems.find((row) => row.upload_id === item.upload_id && row.file_index === item.file_index) || remainingItems[0] || null
+          : current);
         if (savedData.file_completed) {
           const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === item.upload_id && file.file_index === item.file_index));
           const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
@@ -634,25 +640,33 @@ export default function OCRInvoice() {
       }
       toast.error(errorDetail);
     } finally {
-      setAcceptingId(null);
+      setSavingItemIds((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
     }
   };
 
   const rejectItem = async () => {
     if (!rejectingItem) return;
-    setRejectingId(rejectingItem.id);
+    const item = rejectingItem;
+    setRejectingItem(null);
+    setRejectingItemIds((current) => ({ ...current, [item.id]: true }));
     try {
-      const { data } = await rejectOcrLineItem(rejectingItem.id, getAuthHeader());
-      const remainingItems = items.filter((item) => item.id !== rejectingItem.id);
-      setItems(remainingItems);
-      setSelectedItem(remainingItems.find((item) => item.upload_id === rejectingItem.upload_id && item.file_index === rejectingItem.file_index) || remainingItems[0] || null);
+      const { data } = await rejectOcrLineItem(item.id, getAuthHeader());
+      const remainingItems = items.filter((row) => row.id !== item.id);
+      setItems((current) => current.filter((row) => row.id !== item.id));
+      setSelectedItem((current) => current?.id === item.id
+        ? remainingItems.find((row) => row.upload_id === item.upload_id && row.file_index === item.file_index) || remainingItems[0] || null
+        : current);
       if (data.file_completed) {
-        const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === rejectingItem.upload_id && file.file_index === rejectingItem.file_index));
+        const remainingFiles = (upload?.files || []).filter((file) => !(file.upload_id === item.upload_id && file.file_index === item.file_index));
         const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
         setUpload(remainingFiles.length ? { upload_ids: remainingUploadIds, files: remainingFiles } : null);
         setSelectedFile(remainingFiles[0] || null);
         setFileQueue((current) => remainingFiles.length
-          ? current.filter((file) => !(file.uploadId === rejectingItem.upload_id && file.fileIndex === rejectingItem.file_index))
+          ? current.filter((file) => !(file.uploadId === item.upload_id && file.fileIndex === item.file_index))
           : []);
         if (remainingUploadIds.length) localStorage.setItem('ocr-active-upload-ids', JSON.stringify(remainingUploadIds));
         else {
@@ -663,12 +677,15 @@ export default function OCRInvoice() {
           setError('');
         }
       }
-      setRejectingItem(null);
       toast.success(data.upload_completed ? 'All extracted rows have been resolved' : 'Row rejected and removed');
     } catch (requestError) {
       toast.error(responseMessage(requestError, 'This row could not be rejected.'));
     } finally {
-      setRejectingId(null);
+      setRejectingItemIds((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
     }
   };
 
@@ -858,17 +875,17 @@ export default function OCRInvoice() {
 
           {fileQueue.some((file) => ['queued', 'processing', 'cancel_requested', 'failed'].includes(file.status)) && <OcrBatchQueue queue={fileQueue} onCancel={cancelProcessing} onCancelFile={cancelInvoiceProcessing} onResume={resumeQueuedExtraction} canCancelProcessing={Boolean(activeExtractionIds.length) && !facilityAssignmentOpen} cancelling={cancellingQueue} resuming={resumingQueue} cancellingFileIds={cancellingFileIds} />}
 
-      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} acceptingId={acceptingId} rejectingId={rejectingId} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(!selectedFile || !selectedFile.preview_supported)} />
+      <OcrReviewTable items={selectedFileItems} enabledScopes={configuration.enabled_scopes} selectedId={selectedItem?.id} onSelect={setSelectedItem} onEdit={(item) => { setEditingRequiredFields([]); setEditingItem(item); }} onAccept={acceptItem} onReject={setRejectingItem} onBulkSave={saveRowsToGhg} onBulkReject={requestBulkReject} savingItemIds={savingItemIds} rejectingItemIds={rejectingItemIds} bulkSaving={bulkSaving} bulkRejecting={bulkRejecting} hideInvoiceTabs={Boolean(!selectedFile || !selectedFile.preview_supported)} />
 
         </div>
       )}
 
-      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={saving} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
+      <OcrEditDialog item={editingItem} open={Boolean(editingItem)} onOpenChange={(open) => { if (!open) { setEditingItem(null); setEditingRequiredFields([]); } }} configuration={configuration} onSave={saveEdit} onAutoMatch={saveAutomaticFactorMatch} saving={Boolean(savingItemIds[editingItem?.id])} getAuthHeaders={getAuthHeader} requiredFields={editingRequiredFields} />
 
       <OcrFacilityAssignmentDialog files={facilityAssignmentFiles} facilities={configuration.facilities || []} open={facilityAssignmentOpen} saving={facilityAssignmentSaving} onSave={saveFacilityAssignments} onPreview={previewFacilityAssignmentFile} onHidePreview={hideFacilityAssignmentPreview} onCancelFile={cancelInvoiceProcessing} cancellingFileIds={cancellingFileIds} onManageFacilities={() => navigate('/facilities')} previewFile={facilityPreviewFile} previewUrl={facilityPreviewUrl} previewLoading={facilityPreviewLoading} />
       <OcrHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} history={history} loading={historyLoading} error={historyError} />
 
-      <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open && !rejectingId) setRejectingItem(null); }}>
+      <AlertDialog open={Boolean(rejectingItem)} onOpenChange={(open) => { if (!open) setRejectingItem(null); }}>
         <AlertDialogContent data-testid="ocr-reject-confirmation-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>Reject this extracted row?</AlertDialogTitle>
@@ -877,9 +894,9 @@ export default function OCRInvoice() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={Boolean(rejectingId)} data-testid="ocr-reject-cancel-button">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={rejectItem} disabled={Boolean(rejectingId)} className="bg-red-700 hover:bg-red-800" data-testid="ocr-reject-confirm-button">
-              {rejectingId ? 'Rejecting…' : 'Reject row'}
+            <AlertDialogCancel data-testid="ocr-reject-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={rejectItem} className="bg-red-700 hover:bg-red-800" data-testid="ocr-reject-confirm-button">
+              Reject row
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -27,9 +27,11 @@ export default function PremiumKpiCard({
   loading = false,
   actionSlot,
   invertedTrend = true,
+  decimals,
 }) {
   const displayValue = showIntensity && intensityValue != null ? intensityValue : value;
   const displayUnit = showIntensity && intensityUnit ? intensityUnit : unit;
+  const displayDecimals = decimals ?? (String(displayUnit || '').startsWith('tCO₂e') ? 2 : displayValue >= 100 ? 0 : 2);
 
   const trend = yoyChange == null ? 'flat' : Math.abs(yoyChange) < 0.5 ? 'flat' : yoyChange > 0 ? 'up' : 'down';
   const isPositiveTrend = invertedTrend ? trend === 'down' : trend === 'up';
@@ -77,7 +79,7 @@ export default function PremiumKpiCard({
           ) : (
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="text-3xl font-bold text-stone-900 tabular-nums tracking-tight">
-                <AnimatedNumber value={displayValue || 0} decimals={displayValue >= 100 ? 0 : 2} />
+                <AnimatedNumber value={displayValue || 0} decimals={displayDecimals} />
               </span>
               <span className="text-sm text-stone-500 font-medium">{displayUnit}</span>
             </div>

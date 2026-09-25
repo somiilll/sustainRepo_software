@@ -26,11 +26,15 @@ logger = logging.getLogger(__name__)
 
 @router.post("/sinks", response_model=SinkResponse)
 async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
-    facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0})
-    if not facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-
-    org_id = facility.get("organization_id")
+    facility = None
+    org_id = current_user.get("organization_id")
+    if sink_data.facility_id:
+        facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0})
+        if not facility:
+            raise HTTPException(status_code=404, detail="Facility not found")
+        org_id = facility.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="Organization context is required for an organization-level sink")
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
 
@@ -49,20 +53,21 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         if not can_access:
             raise HTTPException(
                 status_code=403,
-                detail="You don't have access to create carbon sinks for this facility. Check your KPI assignments."
+                detail="You don't have access to create carbon sinks for this reporting entity. Check your KPI assignments."
             )
 
     organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    if organization:
-        enabled_access = organization.get("enabled_access")
-        if enabled_access is None:
-            enabled_access = ["scope1_2"]
-        has_sink_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
-        if not has_sink_access:
-            raise HTTPException(
-                status_code=403,
-                detail="Your organization does not have access to add carbon sinks. Please contact your administrator.",
-            )
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    enabled_access = organization.get("enabled_access")
+    if enabled_access is None:
+        enabled_access = ["scope1_2"]
+    has_sink_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+    if not has_sink_access:
+        raise HTTPException(
+            status_code=403,
+            detail="Your organization does not have access to add carbon sinks. Please contact your administrator.",
+        )
 
     try:
         period_fields = canonical_sink_period_fields(
@@ -143,11 +148,12 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     # frequency_type is preserved from the original record — not editable.
     existing_frequency = existing.get("frequency_type", "monthly")
     organization = await db.organizations.find_one({"id": existing.get("organization_id")}, {"_id": 0})
-    target_facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0, "organization_id": 1})
-    if not target_facility:
-        raise HTTPException(status_code=404, detail="Facility not found")
-    if target_facility.get("organization_id") != existing.get("organization_id"):
-        raise HTTPException(status_code=403, detail="A sink can only be reassigned to a facility in the same organization")
+    if sink_data.facility_id:
+        target_facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0, "organization_id": 1})
+        if not target_facility:
+            raise HTTPException(status_code=404, detail="Facility not found")
+        if target_facility.get("organization_id") != existing.get("organization_id"):
+            raise HTTPException(status_code=403, detail="A sink can only be reassigned to a facility in the same organization")
     try:
         period_fields = canonical_sink_period_fields(
             sink_data.reporting_period,

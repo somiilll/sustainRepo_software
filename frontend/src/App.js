@@ -305,7 +305,14 @@ const AppRoutes = () => {
           <Route path="environment/water" element={<Environment preFilterCategory="Water" />} />
           <Route path="environment/waste" element={<Environment preFilterCategory="Waste" />} />
           <Route path="environment/biodiversity" element={<Environment preFilterCategory="Biodiversity" />} />
-          <Route path="environment/others" element={<Environment preFilterCategory="Others" />} />
+          <Route path="environment/others" element={
+            <EntitlementRoute
+              anyOf={['environment.climate_change', 'environment.material', 'environment.other_emissions']}
+              moduleName="environment others"
+            >
+              <Environment preFilterCategory="Others" />
+            </EntitlementRoute>
+          } />
           <Route path="environment/analysis" element={<EnvironmentAnalysis />} />
           <Route path="environment/energy/analysis" element={<EntitlementRoute entitlement="environment.energy"><EnergyAnalysis /></EntitlementRoute>} />
           <Route path="environment/water/analysis" element={<WaterAnalysis />} />

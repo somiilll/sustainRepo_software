@@ -1,0 +1,267 @@
+{
+  "created_at": "2026-09-25T04:57:26.611081+00:00",
+  "record_count": 12,
+  "records": [
+    {
+      "_id": {
+        "$oid": "69f87d847e26650dcad938f7"
+      },
+      "id": "7db68fb3-9f0d-408e-b2e8-538f69f2a7d5",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2025,
+      "purchase_parity": 20.078,
+      "inflation_factor": 1.1123,
+      "exchange_rate": 83.5,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "conversion factor for India 2025",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-04T11:05:40.843644+00:00",
+      "updated_at": "2026-08-26T08:52:45.089417+00:00",
+      "updated_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "updated_by_email": "superadmin@ecotrack.com",
+      "conversion_method": "ppp_inflation"
+    },
+    {
+      "_id": {
+        "$oid": "6a06f0a3cf10ad8eead7cb40"
+      },
+      "id": "4e616523-f9b3-4c0a-a709-4bc81163ec2c",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2026,
+      "purchase_parity": 20.343,
+      "inflation_factor": 1.1486,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T10:08:35.030926+00:00",
+      "updated_at": "2026-05-15T11:41:00.122445+00:00",
+      "updated_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "updated_by_email": "superadmin@ecotrack.com"
+    },
+    {
+      "_id": {
+        "$oid": "6a0706d8b70bb0fff6946fb6"
+      },
+      "id": "5a9b6061-dda5-4614-8cfc-30b93184dfb2",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2019,
+      "purchase_parity": 20.24,
+      "inflation_factor": 0.8842,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:43:20.512534+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a070700b70bb0fff6946fb7"
+      },
+      "id": "f81ce642-854a-4465-8480-2018c8499e93",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2020,
+      "purchase_parity": 20.319,
+      "inflation_factor": 0.8978,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:44:00.717423+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a070717b70bb0fff6946fb8"
+      },
+      "id": "2b28f484-6f09-4420-bc81-9b8da28b6f87",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2021,
+      "purchase_parity": 20.728,
+      "inflation_factor": 0.9213,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:44:23.858099+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a070734b70bb0fff6946fb9"
+      },
+      "id": "9716d7d1-b41a-4558-8037-2cc721d08845",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2023,
+      "purchase_parity": 20.401,
+      "inflation_factor": 1.0499,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:44:52.556121+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a07074cb70bb0fff6946fba"
+      },
+      "id": "056ea90b-8fd4-4a0d-8643-6c8695f3dc24",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2022,
+      "purchase_parity": 20.438,
+      "inflation_factor": 1.0,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:45:16.651246+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a070763b70bb0fff6946fbb"
+      },
+      "id": "8fcb74d2-2102-49ad-ab61-c9b305a0be8a",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2024,
+      "purchase_parity": 20.397,
+      "inflation_factor": 1.0864,
+      "exchange_rate": null,
+      "source": "IMF and US Bureau of Labor Statistics",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-05-15T11:45:39.407320+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6a8ea9f71ce21d87f8b1809d"
+      },
+      "id": "97d86d66-f08c-4f57-9a44-d418ebcdf135",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2026,
+      "month_applicable": 8,
+      "effective_from": "2026-08",
+      "conversion_method": "standard",
+      "purchase_parity": null,
+      "inflation_factor": null,
+      "exchange_rate": 95.0,
+      "source": "RBI",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-08-26T08:55:19.720171+00:00",
+      "updated_at": "2026-09-16T11:24:43.574308+00:00",
+      "applicability_type": "month",
+      "financial_year_end": null,
+      "financial_year_start": null,
+      "period_key": "2026-08",
+      "updated_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "updated_by_email": "superadmin@ecotrack.com"
+    },
+    {
+      "_id": {
+        "$oid": "6a8eb5b2b40f9916db50bdbf"
+      },
+      "id": "435cc3b8-3559-4060-a270-d25bb27d2287",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "year_applicable": 2025,
+      "month_applicable": null,
+      "effective_from": "2025",
+      "conversion_method": "standard",
+      "purchase_parity": null,
+      "inflation_factor": null,
+      "exchange_rate": 85.0,
+      "source": "RBI",
+      "notes": "",
+      "is_active": true,
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-08-26T09:45:22.106183+00:00",
+      "updated_at": null
+    },
+    {
+      "_id": {
+        "$oid": "6aa7819a1ef18b6fc25155ea"
+      },
+      "id": "d6873804-6d06-469d-ab82-065b80c0d55e",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "applicability_type": "financial_year",
+      "year_applicable": 2027,
+      "financial_year_start": 2026,
+      "financial_year_end": 2027,
+      "month_applicable": null,
+      "effective_from": "FY 2026-27",
+      "conversion_method": "ppp_inflation",
+      "purchase_parity": 29.0,
+      "inflation_factor": 1.02,
+      "exchange_rate": null,
+      "source": "RBI 2026-2027",
+      "notes": "",
+      "is_active": true,
+      "period_key": "FY 2026-27",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-09-14T05:09:46.735309+00:00",
+      "updated_at": "2026-09-14T05:14:00.727820+00:00",
+      "updated_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "updated_by_email": "superadmin@ecotrack.com"
+    },
+    {
+      "_id": {
+        "$oid": "6aa782a41ef18b6fc25155eb"
+      },
+      "id": "210c1337-ae9f-4cfe-b865-3abc4b60c12a",
+      "source_currency": "INR",
+      "target_currency": "USD",
+      "applicability_type": "financial_year",
+      "year_applicable": 2027,
+      "financial_year_start": 2026,
+      "financial_year_end": 2027,
+      "month_applicable": null,
+      "effective_from": "FY 2026-27",
+      "conversion_method": "standard",
+      "purchase_parity": null,
+      "inflation_factor": null,
+      "exchange_rate": 90.0,
+      "source": "RBI",
+      "notes": "",
+      "is_active": true,
+      "period_key": "FY 2026-27",
+      "created_by": "0f90c740-b807-41e1-8971-42005e1cfb3e",
+      "created_by_email": "superadmin@ecotrack.com",
+      "created_at": "2026-09-14T05:14:12.645799+00:00",
+      "updated_at": null
+    }
+  ]
+}
