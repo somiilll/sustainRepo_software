@@ -16,6 +16,7 @@ org layer is stored in the schema but skipped at runtime).
 from __future__ import annotations
 
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -32,6 +33,60 @@ def _parse_numeric(value: Any) -> Any:
         except ValueError:
             return value
     return value
+
+
+def _parse_applicable_year(value: Any) -> Optional[int]:
+    try:
+        year = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return year if year > 0 else None
+
+
+def _reporting_year_from_context(context: Dict[str, Any]) -> Optional[int]:
+    explicit_year = _parse_applicable_year(context.get("reporting_year"))
+    if explicit_year:
+        return explicit_year
+    match = re.search(r"\b(\d{4})\b", str(context.get("reporting_period") or ""))
+    return _parse_applicable_year(match.group(1)) if match else None
+
+
+async def _resolve_scope3_ef_record(
+    collection, query: Dict[str, Any], context: Dict[str, Any]
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    selected_factor_id = context.get("scope3_ef_id")
+    if isinstance(selected_factor_id, dict):
+        selected_factor_id = selected_factor_id.get("value")
+    if selected_factor_id:
+        selected = await collection.find_one({"id": selected_factor_id}, {"_id": 0})
+        if selected:
+            return selected, "selected_factor_id"
+
+    candidates = await collection.find(query, {"_id": 0}).to_list(10000)
+    if not candidates:
+        return None, None
+
+    target_year = _reporting_year_from_context(context)
+    if target_year is None:
+        return candidates[0], "unversioned_fallback"
+
+    dated_candidates = [
+        (candidate, _parse_applicable_year(candidate.get("year_applicable")))
+        for candidate in candidates
+    ]
+    dated_candidates = [(candidate, year) for candidate, year in dated_candidates if year is not None]
+    if not dated_candidates:
+        return candidates[0], "unversioned_fallback"
+
+    exact = next((candidate for candidate, year in dated_candidates if year == target_year), None)
+    if exact:
+        return exact, "exact_reporting_year"
+
+    closest, _ = min(
+        dated_candidates,
+        key=lambda item: (abs(item[1] - target_year), -item[1]),
+    )
+    return closest, "closest_reporting_year"
 
 
 # Properties auto-seeded to match system variables of type=property
@@ -283,10 +338,15 @@ async def _resolve_from_source_mapping(
     
     # Query the source table
     collection = db[source_table]
-    
-    if sort_by:
+    scope3_selection_strategy = None
+    sort_direction = 1 if sort_order == "asc" else -1
+
+    if source_table == "scope3_ef":
+        record, scope3_selection_strategy = await _resolve_scope3_ef_record(
+            collection, query, context
+        )
+    elif sort_by:
         # Use sorting for "get latest" or "get highest" scenarios
-        sort_direction = 1 if sort_order == "asc" else -1
         record = await collection.find_one(query, {"_id": 0}, sort=[(sort_by, sort_direction)])
     else:
         record = await collection.find_one(query, {"_id": 0})
@@ -305,7 +365,11 @@ async def _resolve_from_source_mapping(
                     {lookup_table_field: {"$regex": f"^{lookup_value}$", "$options": "i"}},
                 ]
         if base_query:
-            if sort_by:
+            if source_table == "scope3_ef":
+                record, scope3_selection_strategy = await _resolve_scope3_ef_record(
+                    collection, base_query, context
+                )
+            elif sort_by:
                 record = await collection.find_one(base_query, {"_id": 0}, sort=[(sort_by, sort_direction)])
             else:
                 record = await collection.find_one(base_query, {"_id": 0})
@@ -314,7 +378,11 @@ async def _resolve_from_source_mapping(
     if not record and filter_field:
         query_without_filter = {k: v for k, v in query.items() if k != filter_field}
         if query_without_filter:
-            if sort_by:
+            if source_table == "scope3_ef":
+                record, scope3_selection_strategy = await _resolve_scope3_ef_record(
+                    collection, query_without_filter, context
+                )
+            elif sort_by:
                 record = await collection.find_one(query_without_filter, {"_id": 0}, sort=[(sort_by, sort_direction)])
             else:
                 record = await collection.find_one(query_without_filter, {"_id": 0})
@@ -355,6 +423,9 @@ async def _resolve_from_source_mapping(
         "lookup_value": context.get(lookup_context_key) if lookup_context_key else None,
         "conditions_applied": len(conditions) if conditions else 0,
         "sort_by": sort_by,
+        "scope3_selection_strategy": scope3_selection_strategy,
+        "scope3_factor_id": record.get("id") if source_table == "scope3_ef" else None,
+        "year_applicable": record.get("year_applicable") if source_table == "scope3_ef" else None,
         "query_used": {k: str(v) for k, v in query.items() if k != "$or"},  # Simplified for logging
     }
 

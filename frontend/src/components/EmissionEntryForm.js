@@ -2031,6 +2031,7 @@ export default function EmissionEntryForm({
         category: category,
         facility_id: facilityId,
         reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
+        reporting_year: Number.parseInt(reportingYear, 10),
         reporting_year_type: reportingYearType,
         is_custom_fuel: useCustomFuel || false,
         ...(isScope3Like && {

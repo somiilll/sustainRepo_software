@@ -2415,6 +2415,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           scope: effectiveScope, // Use effective scope for context
           category: formData.category || selectedCategory,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          reporting_year: reportingYearFromPeriod,
           is_custom_fuel: editUseCustomFuel || false,
           // Scope 3 specific context
           ...scope3ContextPreview,
