@@ -64,6 +64,7 @@ import {
   isAnnualDayCountField,
 } from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
+import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -245,6 +246,11 @@ export default function EmissionEditForm(props) {
   }, [onDraftChange]);
 
   const formData = draft.values;
+  const reportingYearForFactorSelection = useMemo(() => {
+    const period = formData.reporting_period_start || editingEmission?.reporting_period || '';
+    const match = String(period).match(/(\d{4})/);
+    return match ? Number.parseInt(match[1], 10) : new Date().getFullYear();
+  }, [editingEmission?.reporting_period, formData.reporting_period_start]);
   const editFrequencyType = draft.frequencyType;
   const biogenicScopeSelection = draft.biogenicScopeSelection;
   const selectedCategory = draft.selectedCategory;
@@ -260,13 +266,13 @@ export default function EmissionEditForm(props) {
   const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
   const [wasteBaseActivity, setWasteBaseActivity] = useState('');
   const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
-    scope3EFData.filter((activity) => (
+    selectClosestScope3Factors(scope3EFData.filter((activity) => (
       usesWasteDisposalTaxonomy
       && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
       && activity.method === scope3Method
       && activity.sub_scope !== 'biogenic'
-    )),
-  ), [scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
+    )), reportingYearForFactorSelection),
+  ), [reportingYearForFactorSelection, scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
   const wasteActivityOptions = useMemo(() => (
     usesWasteDisposalTaxonomy
       ? Array.from(new Map(wasteCatalogActivities.map((activity) => [activity.activity_name, activity])).values())

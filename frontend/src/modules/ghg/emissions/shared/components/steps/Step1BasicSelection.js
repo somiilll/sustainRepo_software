@@ -35,6 +35,7 @@ import {
   getWasteDisposalCategoryKey,
   resolveWasteActivityFactors,
 } from '../../../../config/wasteActivityTaxonomy';
+import { selectClosestScope3Factors } from '../../utils/scope3FactorYear';
 
 const escapeOptionHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -116,6 +117,7 @@ export const Step1BasicSelection = ({
   // Activity props
   scope3ActivityId,
   scope3EFData = [],
+  reportingYear,
   filteredScope3Activities,
   useCustomActivity,
   setUseCustomActivity,
@@ -170,13 +172,13 @@ export const Step1BasicSelection = ({
   const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
   const [wasteBaseActivity, setWasteBaseActivity] = useState('');
   const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
-    scope3EFData.filter((activity) => (
+    selectClosestScope3Factors(scope3EFData.filter((activity) => (
       usesWasteDisposalTaxonomy
       && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
       && activity.method === scope3Method
       && activity.sub_scope !== 'biogenic'
-    )),
-  ), [scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
+    )), reportingYear),
+  ), [reportingYear, scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
   const wasteActivityOptions = useMemo(() => {
     if (!usesWasteDisposalTaxonomy) return [];
     const byName = new Map();
