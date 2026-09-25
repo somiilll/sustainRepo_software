@@ -216,3 +216,4 @@
 - **Supplier GHG evidence icon:** log entries now use the main GHG ledger’s blue document evidence icon and count tooltip. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL/API/BROWSER TESTING** per user instruction.
 - **RBI monthly INR→USD standard conversion:** added exact monthly standard rates from Jan 2025 through Sep 2026, with RBI provenance and monthly resolver keys. No further action required.
 - **Staging currency conversion sync:** fully replaced the staging table with all 31 local currency-conversion records after a rollback snapshot; staging content now exactly matches local.
+- **C1 DEFRA 2026 factors:** added 60 year-2026 copies of C1 DEFRA templates using the approved factor values; 2025 source records remain unchanged.
