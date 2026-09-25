@@ -512,7 +512,10 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ocr-reporting-period">{annualPeriod?.type === 'financial' ? 'Financial Year' : 'Reporting period'}</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="ocr-reporting-period">Reporting period</Label>
+                {annualPeriod && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800" data-testid="ocr-reporting-period-type-label">{annualPeriod.type === 'financial' ? 'Financial year' : 'Calendar year'}</span>}
+              </div>
               {annualPeriod ? (
                 <div className="relative"><CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Select value={values.reporting_period || ''} onValueChange={(reportingPeriod) => setValues((current) => ({ ...current, reporting_period: reportingPeriod, reporting_year_type: annualPeriod.type, frequency_type: 'yearly' }))}><SelectTrigger id="ocr-reporting-period" className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-annual-select"><SelectValue placeholder="Select reporting period" /></SelectTrigger><SelectContent>{annualPeriodOptions.map((period) => <SelectItem key={period.value} value={period.value} data-testid={`ocr-edit-reporting-period-option-${period.value.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>{period.label}</SelectItem>)}</SelectContent></Select></div>
               ) : <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>}
