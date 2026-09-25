@@ -219,3 +219,4 @@
 - **C1 DEFRA 2026 factors:** added 60 year-2026 copies of C1 DEFRA templates using the approved factor values; 2025 source records remain unchanged.
 - **C2 DEFRA 2026 factors:** added 60 year-2026 copies of C2 DEFRA templates using the approved factor values; 2025 source records remain unchanged.
 - **C3 DEFRA 2026 factors:** added 50 year-2026 C3 copies with approved factors, one Bioethanol record, and normalized Heat/Steam source `DEFRA`; 2025 source records remain unchanged.
+- **C4 DEFRA 2026 factors:** added 70 matched year-2026 C4 DEFRA copies using the approved factors; 20 unmatched HGV/freight input rows remain pending catalog metadata/template definition.
