@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { CalendarDays, CalendarRange, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -81,8 +81,32 @@ const unsupportedInputMessage = (factor, value, isSpend) => {
   const allowed = (factor?.allowed_units || []).join(', ') || 'none configured';
   return `Extracted ${label} '${value}' is not allowed for '${factor?.label || 'this factor'}'. Allowed ${allowedLabel} are: ${allowed}. Choose a matching factor or correct the source data.`;
 };
+const annualPeriodInfo = (value) => {
+  const raw = String(value || '').trim();
+  const financialMatch = raw.match(/^(?:fy|financial\s+year)\s*(\d{4})\s*[-/–—]\s*(\d{2}|\d{4})$/i);
+  if (financialMatch) {
+    const startYear = Number.parseInt(financialMatch[1], 10);
+    const endYear = Number.parseInt(financialMatch[2].length === 2 ? `${String(startYear).slice(0, 2)}${financialMatch[2]}` : financialMatch[2], 10);
+    if (endYear === startYear + 1) {
+      return {
+        type: 'financial',
+        startYear,
+        value: `FY ${startYear}-${String(endYear).slice(-2)}`,
+        label: `FY ${startYear}-${endYear}`,
+      };
+    }
+  }
+  const calendarMatch = raw.match(/^(?:cy\s*)?(\d{4})$/i);
+  if (calendarMatch) {
+    const year = Number.parseInt(calendarMatch[1], 10);
+    return { type: 'calendar', startYear: year, value: `CY${year}`, label: String(year) };
+  }
+  return null;
+};
 const reportingPeriodFromDate = (value) => {
   const raw = String(value || '').trim();
+  const annual = annualPeriodInfo(raw);
+  if (annual) return annual.value;
   const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
   const namedMatch = raw.match(/^([a-z]+)[,\s-]+(\d{4})$/i);
@@ -94,6 +118,8 @@ const reportingPeriodFromDate = (value) => {
   return month ? `${namedMatch[2]}-${month}` : '';
 };
 const reportingPeriodLabel = (value) => {
+  const annual = annualPeriodInfo(value);
+  if (annual) return annual.label;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value || '')) return 'Select month';
   return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' })
     .format(new Date(`${value}-01T12:00:00`));
@@ -130,20 +156,24 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       const matchingFacility = configuration.facilities?.find((facility) => (
         facility.id === current.facility_id || facility.name === current.location
       ));
+      const normalizedReportingPeriod = reportingPeriodFromDate(current.reporting_period)
+        || reportingPeriodFromDate(current.billing_period_start)
+        || reportingPeriodFromDate(current.billing_period_end)
+        || reportingPeriodFromDate(current.date)
+        || reportingPeriodFromDate(current.billing_period_text)
+        || reportingPeriodFromDate(item.original_values?.billing_period_start)
+        || reportingPeriodFromDate(item.original_values?.billing_period_end)
+        || reportingPeriodFromDate(item.original_values?.date);
+      const annualReportingPeriod = annualPeriodInfo(normalizedReportingPeriod);
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
         currency: generatedExcelRow && current.currency === 'USD' ? 'INR' : current.currency || 'INR',
         invoice_number: generatedExcelRow ? '' : current.invoice_number,
         facility_id: current.facility_id || matchingFacility?.id || '',
-        reporting_period: reportingPeriodFromDate(current.reporting_period)
-          || reportingPeriodFromDate(current.billing_period_start)
-          || reportingPeriodFromDate(current.billing_period_end)
-          || reportingPeriodFromDate(current.date)
-          || reportingPeriodFromDate(current.billing_period_text)
-          || reportingPeriodFromDate(item.original_values?.billing_period_start)
-          || reportingPeriodFromDate(item.original_values?.billing_period_end)
-          || reportingPeriodFromDate(item.original_values?.date),
+        reporting_period: normalizedReportingPeriod,
+        reporting_year_type: annualReportingPeriod?.type || current.reporting_year_type || '',
+        frequency_type: annualReportingPeriod ? 'yearly' : current.frequency_type || '',
       });
     }
   }, [item]);
@@ -162,6 +192,17 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     || configuration.facilities?.find((facility) => facility.name === values.location)?.id
     || ''
   ), [configuration.facilities, values.facility_id, values.location]);
+  const annualPeriod = useMemo(() => annualPeriodInfo(values.reporting_period), [values.reporting_period]);
+  const annualPeriodOptions = useMemo(() => {
+    if (!annualPeriod) return [];
+    const years = [...new Set([annualPeriod.startYear, ...Array.from({ length: 6 }, (_, index) => new Date().getFullYear() - index)])]
+      .sort((left, right) => right - left);
+    return years.map((startYear) => (
+      annualPeriod.type === 'financial'
+        ? { value: `FY ${startYear}-${String(startYear + 1).slice(-2)}`, label: `FY ${startYear}-${startYear + 1}` }
+        : { value: `CY${startYear}`, label: String(startYear) }
+    ));
+  }, [annualPeriod]);
 
   const categories = useMemo(
     () => configuration.categories.filter((option) => option.scope === values.scope),
@@ -471,8 +512,10 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ocr-reporting-period">Reporting period</Label>
-              <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>
+              <Label htmlFor="ocr-reporting-period">{annualPeriod?.type === 'financial' ? 'Financial Year' : 'Reporting period'}</Label>
+              {annualPeriod ? (
+                <div className="relative"><CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Select value={values.reporting_period || ''} onValueChange={(reportingPeriod) => setValues((current) => ({ ...current, reporting_period: reportingPeriod, reporting_year_type: annualPeriod.type, frequency_type: 'yearly' }))}><SelectTrigger id="ocr-reporting-period" className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-annual-select"><SelectValue placeholder="Select reporting period" /></SelectTrigger><SelectContent>{annualPeriodOptions.map((period) => <SelectItem key={period.value} value={period.value} data-testid={`ocr-edit-reporting-period-option-${period.value.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>{period.label}</SelectItem>)}</SelectContent></Select></div>
+              ) : <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>}
             </div>
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-method-scope-row">
