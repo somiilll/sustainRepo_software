@@ -218,3 +218,4 @@
 - **Staging currency conversion sync:** fully replaced the staging table with all 31 local currency-conversion records after a rollback snapshot; staging content now exactly matches local.
 - **C1 DEFRA 2026 factors:** added 60 year-2026 copies of C1 DEFRA templates using the approved factor values; 2025 source records remain unchanged.
 - **C2 DEFRA 2026 factors:** added 60 year-2026 copies of C2 DEFRA templates using the approved factor values; 2025 source records remain unchanged.
+- **C3 DEFRA 2026 factors:** added 50 year-2026 C3 copies with approved factors, one Bioethanol record, and normalized Heat/Steam source `DEFRA`; 2025 source records remain unchanged.
