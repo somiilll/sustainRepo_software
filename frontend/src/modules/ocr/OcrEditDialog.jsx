@@ -212,6 +212,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     () => categories.find((category) => category.value === values.category),
     [categories, values.category],
   );
+  const isStructuredScope3Activity = values.scope === 'scope3'
+    && values.ef_method === 'activity'
+    && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '');
 
   useEffect(() => {
     if (!open || values.scope !== 'scope3' || !categoryOption?.id) {
@@ -249,7 +252,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
           const extractedInput = isSpendMethod ? values.currency : values.unit;
           const matchedInput = matchingUnit(selected, extractedInput);
-          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+          const hasIncompatibleInput = !isStructuredScope3Activity && Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...values,
             facility_id: values.facility_id || factorFacilityId,
@@ -263,7 +266,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
             scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
-            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredScope3Activity ? values.unit || '' : matchedInput || '') }),
           };
           setValues(nextValues);
           if (hasIncompatibleInput) {
@@ -302,9 +305,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             };
           }
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
+          const isStructuredActivity = current.scope === 'scope3'
+            && current.ef_method === 'activity'
+            && /^(c4|c6|c9)\b/i.test(current.category_code || current.category_key || current.category || '');
           const extractedInput = isSpend ? (current.currency || original.currency) : (current.unit || original.unit);
           const matchedInput = matchingUnit(selected, extractedInput);
-          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+          const hasIncompatibleInput = !isStructuredActivity && Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...current,
             facility_id: current.facility_id || factorFacilityId,
@@ -318,7 +324,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
-            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredActivity ? current.unit || '' : matchedInput || '') }),
           };
           if (hasIncompatibleInput) {
             setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
@@ -342,7 +348,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, values.facility_id, values.reporting_period, resolvedFacilityId, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description, original.unit, original.currency]);
+  }, [open, values.scope, values.category, values.ef_method, values.facility_id, values.reporting_period, values.unit, values.currency, isStructuredScope3Activity, resolvedFacilityId, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
@@ -350,9 +356,6 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
   );
   const allowedUnits = selectedFactor?.allowed_units || [];
   const isSpend = values.scope === 'scope3' && values.ef_method === 'spend';
-  const isStructuredScope3Activity = values.scope === 'scope3'
-    && values.ef_method === 'activity'
-    && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '');
   const applicableRequiredFields = values.scope === 'scope3'
     ? requiredFields
     : requiredFields.filter((field) => !['ef_method', 'calculation_method'].includes(field));
