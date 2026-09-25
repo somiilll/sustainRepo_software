@@ -113,9 +113,57 @@ def _option(record: dict, *, value_field: str, source_fallback: str, collection:
         "method": normalize_method(record.get("method") or "activity"),
         "activity_type": infer_scope3_activity_type(record.get("category"), value) or record.get("activity_type") or "",
         "collection": collection,
+        "year_applicable": record.get("year_applicable"),
         "naics_code": naics_match.group(1) if naics_match else None,
         "naics_label": naics_match.group(2).strip() if naics_match else None,
     }
+
+
+def _reporting_year(reporting_period: str) -> int | None:
+    match = re.search(r"\b(\d{4})\b", str(reporting_period or ""))
+    return int(match.group(1)) if match else None
+
+
+def _scope3_factor_key(record: dict) -> tuple[str, ...]:
+    return (
+        normalize_option(record.get("activity")),
+        normalize_method(record.get("method")),
+        normalize_option(record.get("activity_type")),
+        normalize_option(record.get("subcategory")),
+        normalize_option(record.get("region")),
+    )
+
+
+def _select_reporting_year_factors(records: list[dict], reporting_period: str) -> list[dict]:
+    target_year = _reporting_year(reporting_period)
+    if not target_year:
+        return records
+
+    candidates_by_factor: dict[tuple[str, ...], list[dict]] = {}
+    factor_order: list[tuple[str, ...]] = []
+    for record in records:
+        key = _scope3_factor_key(record)
+        if key not in candidates_by_factor:
+            candidates_by_factor[key] = []
+            factor_order.append(key)
+        candidates_by_factor[key].append(record)
+
+    selected = []
+    for key in factor_order:
+        candidates = candidates_by_factor[key]
+        dated = []
+        for candidate in candidates:
+            try:
+                year = int(str(candidate.get("year_applicable") or "").strip())
+            except (TypeError, ValueError):
+                year = None
+            if year:
+                dated.append((candidate, year))
+        if not dated:
+            selected.append(candidates[0])
+            continue
+        selected.append(min(dated, key=lambda item: (abs(item[1] - target_year), -item[1]))[0])
+    return selected
 
 
 async def resolve_factor_options(
@@ -124,6 +172,7 @@ async def resolve_factor_options(
     category: str,
     method: str,
     industry_sector: str = "",
+    reporting_period: str = "",
 ) -> list[dict]:
     scope_key = normalize_option(scope)
     category_key = normalize_option(category)
@@ -155,13 +204,15 @@ async def resolve_factor_options(
         records = await db.scope3_ef.find(
             {"is_active": {"$ne": False}},
             {"_id": 0, "id": 1, "category": 1, "activity": 1, "method": 1, "activity_type": 1, "allowed_units": 1,
-             "default_unit": 1, "source": 1, "source_name": 1, "ef_database": 1},
+             "default_unit": 1, "source": 1, "source_name": 1, "ef_database": 1, "year_applicable": 1, "subcategory": 1, "region": 1},
         ).to_list(10000)
+        records = [
+            record for record in records
+            if (not category_key or normalize_option(record.get("category")) == category_key)
+            and (not method_key or normalize_method(record.get("method")) == method_key)
+        ]
+        records = _select_reporting_year_factors(records, reporting_period)
         for record in records:
-            if category_key and normalize_option(record.get("category")) != category_key:
-                continue
-            if method_key and normalize_method(record.get("method")) != method_key:
-                continue
             if record.get("activity"):
                 fallback = factor_database_fallback(scope, category, method, record.get("activity") or "")
                 options.append(_option(record, value_field="activity", source_fallback=fallback, collection="scope3_ef"))
@@ -234,9 +285,10 @@ async def validate_factor_selection(
     unit: str,
     currency: str,
     industry_sector: str = "",
+    reporting_period: str = "",
     dynamic_field_values: dict | None = None,
 ) -> dict:
-    options = await resolve_factor_options(db, scope, category, method, industry_sector)
+    options = await resolve_factor_options(db, scope, category, method, industry_sector, reporting_period)
     selected = next((option for option in options if option["id"] == factor_id), None)
     if selected is None and lookup_value:
         selected = next((option for option in options if normalize_option(option["value"]) == normalize_option(lookup_value)), None)

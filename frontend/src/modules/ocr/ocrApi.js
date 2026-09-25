@@ -5,10 +5,10 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export const getOcrConfiguration = (headers) =>
   axios.get(`${API}/api/ocr-invoice/configuration`, { headers });
 
-export const getOcrFactorOptions = (scope, category, method, facilityId, headers) =>
+export const getOcrFactorOptions = (scope, category, method, facilityId, reportingPeriod, headers) =>
   axios.get(`${API}/api/ocr-invoice/factor-options`, {
     headers,
-    params: { scope, category, method, facility_id: facilityId || undefined },
+    params: { scope, category, method, facility_id: facilityId || undefined, reporting_period: reportingPeriod || undefined },
   });
 
 export const getOcrFormConfig = (categoryId, scope, headers) =>
