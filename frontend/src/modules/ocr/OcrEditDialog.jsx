@@ -91,7 +91,7 @@ const annualPeriodInfo = (value) => {
       return {
         type: 'financial',
         startYear,
-        value: `FY ${startYear}-${String(endYear).slice(-2)}`,
+        value: `FY ${startYear}-${endYear}`,
         label: `FY ${startYear}-${endYear}`,
       };
     }
@@ -199,7 +199,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       .sort((left, right) => right - left);
     return years.map((startYear) => (
       annualPeriod.type === 'financial'
-        ? { value: `FY ${startYear}-${String(startYear + 1).slice(-2)}`, label: `FY ${startYear}-${startYear + 1}` }
+        ? { value: `FY ${startYear}-${startYear + 1}`, label: `FY ${startYear}-${startYear + 1}` }
         : { value: `CY${startYear}`, label: String(startYear) }
     ));
   }, [annualPeriod]);

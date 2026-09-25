@@ -192,7 +192,7 @@ def _reporting_period_from_ocr_values(values: dict, upload: dict | None = None) 
             end_text = financial_match.group(2)
             end_year = int(f"{str(start_year)[:2]}{end_text}" if len(end_text) == 2 else end_text)
             if end_year == start_year + 1:
-                return f"FY {start_year}-{str(end_year)[-2:]}"
+                return f"FY {start_year}-{end_year}"
         calendar_match = re.fullmatch(r"(?:cy\s*)?(\d{4})", raw_value, flags=re.IGNORECASE)
         if calendar_match:
             return f"CY{calendar_match.group(1)}"
@@ -1876,6 +1876,8 @@ async def save_line_item_to_ghg(
             "current_values.facility_id": values.get("facility_id"),
             "current_values.location": values.get("location"),
             "current_values.reporting_period": values.get("reporting_period"),
+            "current_values.reporting_year_type": values.get("reporting_year_type"),
+            "current_values.frequency_type": values.get("frequency_type"),
             "current_values.ef_method": values.get("ef_method"),
             "current_values.factor_id": values.get("factor_id"),
             "current_values.fuel_id": values.get("fuel_id"),
@@ -1900,11 +1902,12 @@ async def save_line_item_to_ghg(
         }},
     )
     ocr_metadata = _ocr_record_metadata(item, values)
+    frequency_type = "yearly" if re.fullmatch(r"(?:CY\d{4}|FY\s+\d{4}-\d{4})", str(values["reporting_period"]), flags=re.IGNORECASE) else "monthly"
     emission_payload = EmissionRecordCreate(
         facility_id=values["facility_id"],
         organization_id=org_id,
         reporting_period=values["reporting_period"],
-        frequency_type="monthly",
+        frequency_type=frequency_type,
         scope=values["scope"],
         category=category.get("name") or category.get("category") or values["category"],
         category_code=category.get("code") or values.get("category_code"),
