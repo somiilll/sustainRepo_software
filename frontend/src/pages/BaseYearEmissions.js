@@ -1481,16 +1481,20 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   // Phase 1 Enhancement: Add a manual category entry
   const handleAddManualCategory = () => {
-    if (!newCategoryEntry.scope || !newCategoryEntry.category) {
-      toast.error('Please select both Scope and Category');
+    const requiresCategory = dataEntryLevel !== 'scope';
+    const requiresSubcategory = dataEntryLevel === 'subcategory';
+    if (!newCategoryEntry.scope || (requiresCategory && !newCategoryEntry.category) || (requiresSubcategory && !newCategoryEntry.subcategory)) {
+      toast.error(dataEntryLevel === 'scope' ? 'Please select a Scope' : dataEntryLevel === 'category' ? 'Please select both Scope and Category' : 'Please select Scope, Category, and Subcategory');
       return;
     }
+    const category = requiresCategory ? newCategoryEntry.category : '';
+    const subcategory = requiresSubcategory ? newCategoryEntry.subcategory : '';
     
     // Check if this combination already exists in emissionsData
     const exists = emissionsData.some(entry => 
       entry.scope === newCategoryEntry.scope && 
-      entry.category === newCategoryEntry.category && 
-      (entry.subcategory || '') === (newCategoryEntry.subcategory || '')
+      entry.category === category && 
+      (entry.subcategory || '') === subcategory
     );
     
     if (exists) {
@@ -1501,9 +1505,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     // Add to emissions data
     const newEntry = {
       scope: newCategoryEntry.scope,
-      category: newCategoryEntry.category,
-      subcategory: newCategoryEntry.subcategory || '',
+      category,
+      subcategory,
       tco2e: parseFloat(newCategoryEntry.tco2e) || 0,
+      entry_level: dataEntryLevel,
       isManuallyAdded: true // Track that this was manually added
     };
     
@@ -1814,7 +1819,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
         
         {record ? (
-          <div className="space-y-2">
+                  <div className="mt-6 space-y-2">
             <div>
               <p className="text-xs text-text-muted">Base Year</p>
               <p className="font-semibold text-sm">{record.base_year}</p>
@@ -3048,7 +3053,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             )}
             
             {/* Justification field - always editable in edit mode */}
-            <div className="space-y-2">
+            <div className="mt-6 space-y-2">
               <Label className="flex items-center gap-2 font-medium">
                 <AlertCircle className="w-4 h-4" />
                 Justification for Selecting this Base Year *
