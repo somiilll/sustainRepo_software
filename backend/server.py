@@ -1103,6 +1103,7 @@ class BaseYearEmissionEntry(BaseModel):
     category: str
     subcategory: Optional[str] = None
     tco2e: float
+    entry_level: str = "subcategory"
 
 class BaseYearEmissionsCreate(BaseModel):
     """Create base year emissions record"""
@@ -1113,6 +1114,7 @@ class BaseYearEmissionsCreate(BaseModel):
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
+    data_entry_level: str = "subcategory"
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     justification: str  # MANDATORY: Justification for selecting this base year
     notes: Optional[str] = None  # Additional notes
@@ -1123,6 +1125,7 @@ class BaseYearEmissionsUpdate(BaseModel):
     base_year_type: Optional[str] = None
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+    data_entry_level: Optional[str] = None
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     justification: Optional[str] = None  # Updated justification
     notes: Optional[str] = None  # Additional notes
@@ -1160,6 +1163,7 @@ class BaseYearEmissionsResponse(BaseModel):
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
+    data_entry_level: str = "subcategory"
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     justification: Optional[str] = None  # Justification for base year selection
     notes: Optional[str] = None  # Additional notes
@@ -1174,6 +1178,22 @@ class BaseYearEmissionsResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_by_email: Optional[str] = None
     updated_by_name: Optional[str] = None
+
+
+def _validate_base_year_entry_levels(entries: List[BaseYearEmissionEntry], data_entry_level: str) -> None:
+    if data_entry_level not in {"scope", "category", "subcategory"}:
+        raise HTTPException(status_code=400, detail="Data entry level must be Scope, Category, or Subcategory")
+    for entry in entries:
+        if entry.scope.lower() == "sinks":
+            continue
+        if entry.entry_level != data_entry_level:
+            raise HTTPException(status_code=400, detail="Base year entries must use the selected data entry level")
+        if data_entry_level == "scope" and (entry.category or entry.subcategory):
+            raise HTTPException(status_code=400, detail="Scope-level entries cannot include category or subcategory values")
+        if data_entry_level == "category" and (not entry.category or entry.subcategory):
+            raise HTTPException(status_code=400, detail="Category-level entries require a category and cannot include a subcategory")
+        if data_entry_level == "subcategory" and (not entry.category or not entry.subcategory):
+            raise HTTPException(status_code=400, detail="Subcategory-level entries require both category and subcategory")
 
 
 async def _assert_base_year_scope_access(org_id: str, scope_group: Optional[str]) -> None:
@@ -2109,6 +2129,7 @@ async def create_base_year_emissions(
         raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
     
     # Validate no negative values (except for Sinks which represent carbon removal)
+    _validate_base_year_entry_levels(data.emissions_data, data.data_entry_level)
     for entry in data.emissions_data:
         if entry.tco2e < 0 and entry.scope.lower() != 'sinks':
             raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
@@ -2190,6 +2211,7 @@ async def create_base_year_emissions(
         "base_year": data.base_year,
         "base_year_type": data.base_year_type,
         "is_oldest_year": data.is_oldest_year,
+        "data_entry_level": data.data_entry_level,
         "emissions_data": [e.model_dump() for e in filtered_emissions],  # Use filtered data
         "sinks_data": data.sinks_data,
         "justification": data.justification.strip(),
@@ -2362,6 +2384,7 @@ async def update_base_year_emissions(
     
     # Validate no negative values (except for Sinks)
     if data.emissions_data is not None:
+        _validate_base_year_entry_levels(data.emissions_data, data.data_entry_level or record.get("data_entry_level", "subcategory"))
         for entry in data.emissions_data:
             if entry.tco2e < 0 and entry.scope != "Sinks":
                 raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
@@ -2496,6 +2519,8 @@ async def update_base_year_emissions(
         update_data["base_year_type"] = data.base_year_type
     if data.is_oldest_year is not None:
         update_data["is_oldest_year"] = data.is_oldest_year
+    if data.data_entry_level is not None:
+        update_data["data_entry_level"] = data.data_entry_level
     if data.emissions_data is not None:
         update_data["emissions_data"] = new_emissions_data
     if data.justification is not None:

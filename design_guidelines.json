@@ -1,102 +1,160 @@
 {
-  "project_name": "Supplier Portal Dashboard, ESG Modules & OCR Extraction Refactor",
-  "archetype": "ORGANIC & EARTHY WITH PRECISION SaaS DASHBOARD",
-  "theme": "Light mode primary with emerald/slate high-contrast accents",
-  "file_type_extension": ".js / .jsx",
+  "project_name": "Base Year Configuration - Hierarchical Structure & Flexible Data Entry Levels",
+  "theme": "light",
+  "persona": "E1 - Creative & Technical Designer",
+  "context_type": "DASHBOARD_ADMIN_TOOL",
   "typography": {
-    "font_family_heading": "Cabinet Grotesk, Outfit, sans-serif",
-    "font_family_body": "Inter, DM Sans, system-ui, sans-serif",
-    "font_family_mono": "JetBrains Mono, Fira Code, monospace",
+    "heading_font": "Cabinet Grotesk, Manrope, sans-serif",
+    "body_font": "IBM Plex Sans, DM Sans, sans-serif",
+    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
     "hierarchy": {
-      "h1": "text-3xl font-bold text-emerald-950 sm:text-4xl lg:text-5xl tracking-tight",
-      "h2": "text-2xl font-semibold text-slate-900 tracking-tight",
-      "h3": "text-xl font-medium text-slate-900",
-      "h4": "text-lg font-medium text-slate-800",
-      "body": "text-sm sm:text-base text-slate-700 leading-relaxed",
-      "small": "text-xs font-medium text-slate-500 uppercase tracking-wider"
+      "h1": "text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100",
+      "h2": "text-xl font-semibold text-slate-900 dark:text-slate-100",
+      "h3": "text-lg font-medium text-slate-800 dark:text-slate-200",
+      "level_scope": "text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200",
+      "level_category": "text-sm font-semibold text-slate-700 dark:text-slate-300",
+      "level_subcategory": "text-xs font-normal text-slate-600 dark:text-slate-400"
     }
   },
   "colors": {
-    "primary": {
-      "emerald_950": "#022c22",
-      "emerald_800": "#065f46",
-      "emerald_700": "#047857",
-      "emerald_600": "#059669",
-      "emerald_100": "#d1fae5",
-      "emerald_50": "#ecfdf5"
+    "archetype": "ARCHETYPE 1: ORGANIC & EARTHY / SUSTAINABILITY PRECISION",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "surface_subtle": "#F1F5F9",
+    "border_default": "#E2E8F0",
+    "border_subtle": "#F1F5F9",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "text_muted": "#64748B",
+    "scopes": {
+      "scope1": {
+        "badge_bg": "bg-blue-50 dark:bg-blue-950/40",
+        "badge_text": "text-blue-700 dark:text-blue-300",
+        "badge_border": "border-blue-200 dark:border-blue-800",
+        "icon_color": "text-blue-600"
+      },
+      "scope2": {
+        "badge_bg": "bg-emerald-50 dark:bg-emerald-950/40",
+        "badge_text": "text-emerald-700 dark:text-emerald-300",
+        "badge_border": "border-emerald-200 dark:border-emerald-800",
+        "icon_color": "text-emerald-600"
+      },
+      "scope3": {
+        "badge_bg": "bg-purple-50 dark:bg-purple-950/40",
+        "badge_text": "text-purple-700 dark:text-purple-300",
+        "badge_border": "border-purple-200 dark:border-purple-800",
+        "icon_color": "text-purple-600"
+      }
     },
-    "slate": {
-      "950": "#020617",
-      "900": "#0f172a",
-      "700": "#334155",
-      "600": "#475569",
-      "200": "#e2e8f0",
-      "100": "#f1f5f9",
-      "50": "#f8fafc"
+    "entry_levels": {
+      "scope": {
+        "bg": "bg-indigo-50 dark:bg-indigo-950/40",
+        "text": "text-indigo-700 dark:text-indigo-300",
+        "border": "border-indigo-200 dark:border-indigo-800"
+      },
+      "category": {
+        "bg": "bg-amber-50 dark:bg-amber-950/40",
+        "text": "text-amber-800 dark:text-amber-300",
+        "border": "border-amber-200 dark:border-amber-800"
+      },
+      "subcategory": {
+        "bg": "bg-teal-50 dark:bg-teal-950/40",
+        "text": "text-teal-800 dark:text-teal-300",
+        "border": "border-teal-200 dark:border-teal-800"
+      }
     },
-    "warning": {
-      "amber_50": "#fffbeb",
-      "amber_200": "#fde68a",
-      "amber_950": "#451a03"
-    },
-    "error": {
-      "red_50": "#fef2f2",
-      "red_700": "#b91c1c",
-      "red_800": "#991b1b"
+    "integrity_indicators": {
+      "direct_entry": {
+        "bg": "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/40 dark:text-sky-300",
+        "label": "Direct Entry"
+      },
+      "parent_level_locked": {
+        "bg": "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300",
+        "label": "Entered at Parent Level"
+      },
+      "child_level_locked": {
+        "bg": "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300",
+        "label": "Entered at Granular Level"
+      }
     }
   },
-  "layout_and_structure": {
-    "page_container": "mx-auto w-full max-w-[1700px] space-y-6 p-4 sm:p-6 lg:p-8",
-    "grid_system": "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-12",
-    "header_pattern": "ModulePageHeader with title, icon, and aside action controls",
-    "ocr_workspace_layout": "Full width stacked/responsive layout with compact header controls"
-  },
-  "ocr_refactor_requirements": {
-    "page_header": "Use ModulePageHeader with title 'OCR Extraction', icon FileText or Sparkles, and matching Bulk Upload style (data-testid='ocr-invoice-header').",
-    "remove_hero_copy": "COMPLETELY REMOVE the introductory banner block containing 'Secure organization workspace Activity extraction Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.'",
-    "extraction_mode_relocation": "Shift Fast/Think extraction mode selector into the header action area / right-aligned inline toolbar where the Download template button is located.",
-    "extraction_mode_compact_buttons": "Compact the Fast and Think mode buttons by removing the summary text ('Rapid extraction and classification' / 'Deeper reasoning for complex documents'). Display title, model badge, and icon in a clean pill/toggle group.",
-    "full_width_workspace": "Allow source document preview, upload dropzone, batch queue, and line items review table to acquire full width across the grid without unnecessary multi-column sidebars when hero is cleared."
-  },
-  "manual_ghg_create_form_fix": {
-    "state_synchronization_bug": "Fix payload unit mismatch where 'kg' was randomly sent instead of the selected unit (e.g., 'kl' or 'L').",
-    "resolution_rule": "Ensure form state synchronization listens directly to the unit dropdown change handler and updates both internal state and dispatch payload atomically. Validate unit payload prior to POST/PUT API dispatch."
-  },
-  "image_urls": [
-    {
-      "category": "dashboard_analytics",
-      "description": "Analytics dashboard monitor",
-      "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHszfHxzdXN0YWluYWJpbGl0eSUyMGRhdGElMjBjbGVhbiUyMHJlcG9ydHxlbnwwfHx8fDE3ODk1NDEzOTF8MA&ixlib=rb-4.1.0&q=85"
-    },
-    {
-      "category": "sustainability_report",
-      "description": "Chart and report trends",
-      "url": "https://images.pexels.com/photos/7947744/pexels-photo-7947744.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+  "layout_and_spacing": {
+    "padding_container": "p-6 md:p-8 space-y-6",
+    "card_padding": "p-5 md:p-6",
+    "tree_indentation": {
+      "level_1_scope": "pl-2 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50",
+      "level_2_category": "pl-8 py-2.5 border-b border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-950",
+      "level_3_subcategory": "pl-16 py-2 border-b border-slate-50 dark:border-slate-900 bg-slate-50/30 dark:bg-slate-900/20"
     }
-  ],
-  "motion": {
-    "hover_transitions": "transition-colors duration-150 ease-in-out",
-    "button_press": "active:scale-[0.98] transition-transform",
-    "panel_fade": "animate-in fade-in duration-200"
   },
-  "testing": {
-    "data_testid_convention": "kebab-case data-testid on every interactive and key informational element (e.g. data-testid='ocr-mode-fast-button', data-testid='ocr-download-template-button', data-testid='ocr-review-table')",
-    "required": true
+  "component_architecture": {
+    "main_page": "BaseYearEmissions.js",
+    "wrapper_page": "BaseYearAndTargets.js",
+    "new_or_enhanced_subcomponents": [
+      {
+        "name": "BaseYearDataEntryLevelSelector",
+        "description": "Explicit Admin Control selector allowing choice between Scope, Category, and Subcategory level entry with helper descriptions and impact indicators."
+      },
+      {
+        "name": "BaseYearHierarchyTree",
+        "description": "Collapsible tree renderer displaying Scope -> Category -> Subcategory hierarchy with level-aware input fields, expand/collapse toggles, and data integrity warnings."
+      },
+      {
+        "name": "BaseYearIntegrityBanner",
+        "description": "Visual indicator banner explaining current entry level rules and preventing accidental double-counting or level conflict."
+      }
+    ]
+  },
+  "data_integrity_and_validation": {
+    "level_rules": {
+      "scope_level": "Admin inputs total tCO2e directly at Scope 1, Scope 2, or Scope 3. Subcategories & categories are disabled/hidden for data entry to prevent double counting.",
+      "category_level": "Admin inputs tCO2e at Scope 1 -> Stationary Combustion, Scope 1 -> Mobile Combustion, etc. Subcategories are disabled for data entry.",
+      "subcategory_level": "Admin inputs tCO2e at Scope 1 -> Stationary Combustion -> Diesel, Petrol, etc. Full granular entry."
+    },
+    "no_auto_aggregation_rule": "Do not automatically sum or derive parent-level values from child-level values unless explicitly configured. Distinguish entered values vs lower-level entries clearly.",
+    "double_counting_prevention": "System validates that entries exist exclusively at the selected configuration level. Any attempt to enter data at conflicting levels for the same base year is blocked with user-friendly validation messages."
+  },
+  "motion_and_interactions": {
+    "collapsible_animation": "Smooth max-height / opacity transition using Framer Motion or Shadcn Collapsible component",
+    "hover_states": "hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors duration-150",
+    "focus_states": "focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 focus:outline-none"
+  },
+  "accessibility": {
+    "contrast_ratio": "Minimum 4.5:1 for body text, 3:1 for large headers and badges",
+    "keyboard_navigation": "Tree nodes are focusable and expandable via Enter/Space bar keys",
+    "aria_labels": "All tree nodes, inputs, and toggles include descriptive aria-expanded, aria-level, aria-label, and data-testid attributes"
+  },
+  "testing_and_data_ids": {
+    "required_test_ids": [
+      "base-year-entry-level-selector",
+      "entry-level-option-scope",
+      "entry-level-option-category",
+      "entry-level-option-subcategory",
+      "base-year-hierarchy-tree",
+      "tree-node-scope-1",
+      "tree-node-scope-2",
+      "tree-node-scope-3",
+      "tree-node-expand-toggle",
+      "tree-node-input",
+      "tree-integrity-warning-badge",
+      "base-year-save-button",
+      "base-year-justification-input"
+    ]
   },
   "instructions_to_main_agent": [
-    "Refactor frontend/src/pages/OCRInvoice.js and frontend/src/modules/ocr/ExtractionModeSelector.jsx to fulfill all user explicitly requested UI changes.",
-    "Integrate ModulePageHeader in OCRInvoice.js using icon={FileText} or icon={Sparkles} and title='OCR Extraction'.",
-    "Remove legacy hero copy banner from OCRInvoice.js.",
-    "Move Fast/Think mode selector into the ModulePageHeader header action area (aside slot) or header toolbar.",
-    "Reduce Fast/Think selector button sizes by removing the text 'Rapid extraction and classification' and 'Deeper reasoning for complex documents'.",
-    "Expand UploadWorkspace, DocumentPreview, and OcrReviewTable to take full width.",
-    "Verify and fix unit state synchronization in GHG Create form (e.g., DynamicFieldRenderer.js or EmissionEntryForm.js / useEmissionFormState.js) so unit changes like 'kl' or 'L' are accurately reflected in submission payload instead of falling back to 'kg'."
+    "Replace the current single-line presentation (Scope + Category + Subcategory) with a rich hierarchical tree component.",
+    "Implement the Data Entry Level Selector (Scope, Category, Subcategory) giving Admin explicit control over entry granularity.",
+    "Ensure input fields render at the chosen level while preserving existing subcategory functionality when selected.",
+    "Enforce data integrity: prevent double-counting between parent and child levels for the same base year.",
+    "Maintain backward compatibility with backend endpoints (`/api/base-year-emissions`), ensuring `emissions_data` payload and DB schemas remain fully functional.",
+    "Adhere to clean, modern UI styling with clear level badges, indentation, and responsive design.",
+    "Include all required `data-testid` attributes across all interactive and informational UI components."
   ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Never use generic centered layouts or unstyled default HTML select/input elements.",
-    "Maintain high APCA contrast across all interactive states; hover states must explicitly declare text color.",
-    "Ensure glassmorphism and header containers always have background opacities (never pure transparent background).",
-    "Attach data-testid attributes to all buttons, inputs, tables, headers, and modal actions.",
-    "Use sonner for toast notifications."
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Do not use dark colors as full-screen gradients. Keep clean high-contrast surfaces.",
+    "Avoid generic centered layouts. Use structured grids and hierarchy.",
+    "Add transition for hover/active/focus states on buttons and interactive elements.",
+    "Never use AI assistant emoji characters like 🤖🧠💭 for icons. Use Lucide icons (e.g. ChevronRight, ChevronDown, Layers, ShieldCheck, Info).",
+    "Container with borders MUST have internal padding (p-4 to p-8) to prevent text collision."
   ]
 }
