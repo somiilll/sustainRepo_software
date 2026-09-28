@@ -28,7 +28,7 @@ export const ExtractionModeSelector = ({ modes, value, onChange, disabled, compa
             disabled={disabled}
             onClick={() => onChange(mode.key)}
             className={compact
-              ? `flex flex-1 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'bg-teal-800 text-white shadow-sm' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-800'}`
+              ? `flex flex-1 items-center justify-center gap-1 rounded-full px-1.5 py-1.5 text-xs font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-slate-600 hover:bg-primary/10 hover:text-primary'}`
               : `flex min-h-20 items-center gap-3 border p-4 text-left transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${active ? 'border-emerald-600 bg-emerald-50/70 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-400'}`
             }
             data-testid={`ocr-mode-${mode.key}-button`}
