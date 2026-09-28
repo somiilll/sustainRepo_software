@@ -433,7 +433,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
             </>}
             <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
-            <Button type="button" size="sm" variant="outline" className="border-orange-300 bg-orange-50 text-orange-800 hover:border-orange-600 hover:bg-orange-600 hover:text-white active:bg-orange-700" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
+            <Button type="button" size="sm" variant="outline" className="border-orange-200 bg-white text-orange-700 hover:border-orange-600 hover:bg-orange-600 hover:text-white active:bg-orange-700" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
           </div>
           <div className="relative min-w-[14rem] shrink-0 sm:w-60">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
