@@ -110,7 +110,7 @@ const sidebarConfig = [
     label: 'Uploads',
     icon: 'Upload',
     children: [
-      { key: 'uploads.bulk', label: 'Bulk Uploads', icon: 'Upload', path: '/uploads/bulk' },
+      { key: 'uploads.bulk_upload', label: 'Bulk Uploads', icon: 'Upload', path: '/uploads/bulk' },
       { key: 'uploads.ocr', label: 'OCR Detection', icon: 'ScanText', path: '/uploads/ocr' },
     ],
   },
