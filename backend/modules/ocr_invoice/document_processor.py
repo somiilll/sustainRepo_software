@@ -266,11 +266,11 @@ def read_spreadsheet(path: str) -> list[dict]:
         origin = value("origin")
         destination = value("destination")
         distance = value("distance_km")
-        extracted.append({
+        vendor_name = str(value("vendor_name") or "").strip()
+        extracted_item = {
             "invoice_number": str(value("invoice_number") or "").strip() or None,
             "date": value("date"),
             "billing_period_text": reporting_period,
-            "vendor_name": str(value("vendor_name") or "Corporate Expenditure"),
             "vendor_type": "Supplier/Vendor",
             "service_address": facility,
             "currency": value("currency"),
@@ -310,7 +310,10 @@ def read_spreadsheet(path: str) -> list[dict]:
             }],
             "_spreadsheet_facility_present": bool(facility),
             "_spreadsheet_reporting_period_present": bool(reporting_period),
-        })
+        }
+        if vendor_name:
+            extracted_item["vendor_name"] = vendor_name
+        extracted.append(extracted_item)
     return extracted
 
 

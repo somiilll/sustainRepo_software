@@ -5,6 +5,9 @@
 ### Supplier Questionnaire Section Applicability Scoring
 - Fix the new per-question ESG scorer so an absent section is not emitted as `0`. When a questionnaire has no Governance questions and Governance has no configured weight, return Governance as not applicable/blank in score breakdowns, supplier snapshots, rankings, and charts. Do not penalize the ESG total; normalize only scored, weighted sections. Preserve the existing legacy scorer behavior and audit the recalculation impact for affected submitted questionnaires.
 
+### GHG Add/Edit Scope 3 Selection Layout Parity
+- Refactor the legacy `EmissionEditForm` Scope 3 source-selection layout to use the same responsive grid behavior as the Add GHG form. Keep Category, Calculation Method, Activity Type/Subcategory where applicable, and Activity in one adaptive selection row whenever viewport space permits; preserve the existing conditional controls, custom-activity flow, form state, and calculations. The Edit form must no longer force Activity into a separate row merely because it uses a different component structure.
+
 ### Supplier Reporting Policy
 - Make supplier facility allowance an intentional configurable policy instead of a fallback.
 - Add a deliberate parent-controlled migration/reassignment flow for existing suppliers when a new immutable assessment-program revision changes supplier GHG permissions (Custom Fuels, Process Emissions, or Flaring). Existing and newly added suppliers must be able to be aligned explicitly without silently changing issued assessments.

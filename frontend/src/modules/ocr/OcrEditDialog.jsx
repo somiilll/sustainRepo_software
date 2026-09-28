@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { CalendarDays, CalendarRange, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -81,8 +81,32 @@ const unsupportedInputMessage = (factor, value, isSpend) => {
   const allowed = (factor?.allowed_units || []).join(', ') || 'none configured';
   return `Extracted ${label} '${value}' is not allowed for '${factor?.label || 'this factor'}'. Allowed ${allowedLabel} are: ${allowed}. Choose a matching factor or correct the source data.`;
 };
+const annualPeriodInfo = (value) => {
+  const raw = String(value || '').trim();
+  const financialMatch = raw.match(/^(?:fy|financial\s+year)\s*(\d{4})\s*[-/–—]\s*(\d{2}|\d{4})$/i);
+  if (financialMatch) {
+    const startYear = Number.parseInt(financialMatch[1], 10);
+    const endYear = Number.parseInt(financialMatch[2].length === 2 ? `${String(startYear).slice(0, 2)}${financialMatch[2]}` : financialMatch[2], 10);
+    if (endYear === startYear + 1) {
+      return {
+        type: 'financial',
+        startYear,
+        value: `FY ${startYear}-${endYear}`,
+        label: `FY ${startYear}-${endYear}`,
+      };
+    }
+  }
+  const calendarMatch = raw.match(/^(?:cy\s*)?(\d{4})$/i);
+  if (calendarMatch) {
+    const year = Number.parseInt(calendarMatch[1], 10);
+    return { type: 'calendar', startYear: year, value: `CY${year}`, label: String(year) };
+  }
+  return null;
+};
 const reportingPeriodFromDate = (value) => {
   const raw = String(value || '').trim();
+  const annual = annualPeriodInfo(raw);
+  if (annual) return annual.value;
   const isoMatch = raw.match(/^(\d{4})[-/](0[1-9]|1[0-2])/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
   const namedMatch = raw.match(/^([a-z]+)[,\s-]+(\d{4})$/i);
@@ -94,6 +118,8 @@ const reportingPeriodFromDate = (value) => {
   return month ? `${namedMatch[2]}-${month}` : '';
 };
 const reportingPeriodLabel = (value) => {
+  const annual = annualPeriodInfo(value);
+  if (annual) return annual.label;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value || '')) return 'Select month';
   return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' })
     .format(new Date(`${value}-01T12:00:00`));
@@ -130,20 +156,24 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       const matchingFacility = configuration.facilities?.find((facility) => (
         facility.id === current.facility_id || facility.name === current.location
       ));
+      const normalizedReportingPeriod = reportingPeriodFromDate(current.reporting_period)
+        || reportingPeriodFromDate(current.billing_period_start)
+        || reportingPeriodFromDate(current.billing_period_end)
+        || reportingPeriodFromDate(current.date)
+        || reportingPeriodFromDate(current.billing_period_text)
+        || reportingPeriodFromDate(item.original_values?.billing_period_start)
+        || reportingPeriodFromDate(item.original_values?.billing_period_end)
+        || reportingPeriodFromDate(item.original_values?.date);
+      const annualReportingPeriod = annualPeriodInfo(normalizedReportingPeriod);
       if (current.scope === 'water') current.ef_method = 'activity';
       setValues({
         ...current,
         currency: generatedExcelRow && current.currency === 'USD' ? 'INR' : current.currency || 'INR',
         invoice_number: generatedExcelRow ? '' : current.invoice_number,
         facility_id: current.facility_id || matchingFacility?.id || '',
-        reporting_period: reportingPeriodFromDate(current.reporting_period)
-          || reportingPeriodFromDate(current.billing_period_start)
-          || reportingPeriodFromDate(current.billing_period_end)
-          || reportingPeriodFromDate(current.date)
-          || reportingPeriodFromDate(current.billing_period_text)
-          || reportingPeriodFromDate(item.original_values?.billing_period_start)
-          || reportingPeriodFromDate(item.original_values?.billing_period_end)
-          || reportingPeriodFromDate(item.original_values?.date),
+        reporting_period: normalizedReportingPeriod,
+        reporting_year_type: annualReportingPeriod?.type || current.reporting_year_type || '',
+        frequency_type: annualReportingPeriod ? 'yearly' : current.frequency_type || '',
       });
     }
   }, [item]);
@@ -162,6 +192,17 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     || configuration.facilities?.find((facility) => facility.name === values.location)?.id
     || ''
   ), [configuration.facilities, values.facility_id, values.location]);
+  const annualPeriod = useMemo(() => annualPeriodInfo(values.reporting_period), [values.reporting_period]);
+  const annualPeriodOptions = useMemo(() => {
+    if (!annualPeriod) return [];
+    const years = [...new Set([annualPeriod.startYear, ...Array.from({ length: 6 }, (_, index) => new Date().getFullYear() - index)])]
+      .sort((left, right) => right - left);
+    return years.map((startYear) => (
+      annualPeriod.type === 'financial'
+        ? { value: `FY ${startYear}-${startYear + 1}`, label: `FY ${startYear}-${startYear + 1}` }
+        : { value: `CY${startYear}`, label: String(startYear) }
+    ));
+  }, [annualPeriod]);
 
   const categories = useMemo(
     () => configuration.categories.filter((option) => option.scope === values.scope),
@@ -171,6 +212,9 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     () => categories.find((category) => category.value === values.category),
     [categories, values.category],
   );
+  const isStructuredScope3Activity = values.scope === 'scope3'
+    && values.ef_method === 'activity'
+    && /^(c4|c6|c9)\b/i.test(values.category_code || values.category_key || values.category || '');
 
   useEffect(() => {
     if (!open || values.scope !== 'scope3' || !categoryOption?.id) {
@@ -208,7 +252,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
           const isSpendMethod = values.scope === 'scope3' && factorMethod === 'spend';
           const extractedInput = isSpendMethod ? values.currency : values.unit;
           const matchedInput = matchingUnit(selected, extractedInput);
-          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+          const hasIncompatibleInput = !isStructuredScope3Activity && Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...values,
             facility_id: values.facility_id || factorFacilityId,
@@ -222,7 +266,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? values.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? values.naics_label : ''),
             scope3_activity_type: selected.activity_type || values.scope3_activity_type || '',
-            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+            ...(isSpendMethod ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredScope3Activity ? values.unit || '' : matchedInput || '') }),
           };
           setValues(nextValues);
           if (hasIncompatibleInput) {
@@ -261,9 +305,12 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             };
           }
           const isSpend = current.scope === 'scope3' && current.ef_method === 'spend';
+          const isStructuredActivity = current.scope === 'scope3'
+            && current.ef_method === 'activity'
+            && /^(c4|c6|c9)\b/i.test(current.category_code || current.category_key || current.category || '');
           const extractedInput = isSpend ? (current.currency || original.currency) : (current.unit || original.unit);
           const matchedInput = matchingUnit(selected, extractedInput);
-          const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+          const hasIncompatibleInput = !isStructuredActivity && Boolean(extractedInput && !matchedInput);
           const nextValues = {
             ...current,
             facility_id: current.facility_id || factorFacilityId,
@@ -277,7 +324,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
             naics_code: selected.naics_code || (selected.method === 'spend' ? current.naics_code : ''),
             naics_label: selected.naics_label || (selected.method === 'spend' ? current.naics_label : ''),
             scope3_activity_type: selected.activity_type || current.scope3_activity_type || '',
-            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+            ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredActivity ? current.unit || '' : matchedInput || '') }),
           };
           if (hasIncompatibleInput) {
             setFactorError(unsupportedInputMessage(selected, extractedInput, isSpend));
@@ -301,7 +348,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       })
       .finally(() => { if (active) setFactorLoading(false); });
     return () => { active = false; };
-  }, [open, values.scope, values.category, values.ef_method, values.facility_id, values.reporting_period, resolvedFacilityId, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description, original.unit, original.currency]);
+  }, [open, values.scope, values.category, values.ef_method, values.facility_id, values.reporting_period, values.unit, values.currency, isStructuredScope3Activity, resolvedFacilityId, getAuthHeaders, onAutoMatch, original.ef_lookup_key, original.subcategory, original.fuel_name, original.item_description, original.unit, original.currency]);
 
   const selectedFactor = useMemo(
     () => factors.find((factor) => factor.id === values.factor_id),
@@ -341,7 +388,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     setFactorError('');
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    const hasIncompatibleInput = !isStructuredScope3Activity && Boolean(extractedInput && !matchedInput);
     if (hasIncompatibleInput) setFactorError(unsupportedInputMessage(factor, extractedInput, isSpend));
     setValues((current) => ({
       ...current,
@@ -355,7 +402,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       naics_code: factor.naics_code || '',
       naics_label: factor.naics_label || '',
       scope3_activity_type: factor.activity_type || current.scope3_activity_type || '',
-      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || current.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredScope3Activity ? current.unit || '' : matchedInput || '') }),
     }));
   };
 
@@ -366,7 +413,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     if (values.scope === 'scope1' && !factorFacilityId) return;
     const extractedInput = isSpend ? values.currency : values.unit;
     const matchedInput = matchingUnit(factor, extractedInput);
-    const hasIncompatibleInput = Boolean(extractedInput && !matchedInput);
+    const hasIncompatibleInput = !isStructuredScope3Activity && Boolean(extractedInput && !matchedInput);
     const nextValues = {
       ...values,
       facility_id: values.facility_id || factorFacilityId,
@@ -378,7 +425,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
       ef_lookup_key: factor.value,
       ef_database: factor.database,
       scope3_activity_type: factor.activity_type || values.scope3_activity_type || '',
-      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : matchedInput || '' }),
+      ...(isSpend ? { currency: hasIncompatibleInput ? '' : matchedInput || values.currency || 'INR' } : { unit: hasIncompatibleInput ? '' : (isStructuredScope3Activity ? values.unit || '' : matchedInput || '') }),
     };
     if (hasIncompatibleInput) {
       setValues(nextValues);
@@ -391,7 +438,7 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
     onAutoMatch?.(nextValues).catch(() => {
       setFactorError('The matched factor could not be saved. Select it and save changes manually.');
     });
-  }, [open, values, factors, isSpend, resolvedFacilityId, item?.id, onAutoMatch]);
+  }, [open, values, factors, isSpend, isStructuredScope3Activity, resolvedFacilityId, item?.id, onAutoMatch]);
 
   const dynamicFields = useMemo(() => {
     if (values.scope !== 'scope3' || !formConfig) return [];
@@ -471,8 +518,13 @@ export const OcrEditDialog = ({ item, open, onOpenChange, configuration, onSave,
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ocr-reporting-period">Reporting period</Label>
-              <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="ocr-reporting-period">Reporting period</Label>
+                {annualPeriod && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800" data-testid="ocr-reporting-period-type-label">{annualPeriod.type === 'financial' ? 'Financial year' : 'Calendar year'}</span>}
+              </div>
+              {annualPeriod ? (
+                <div className="relative"><CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Select value={values.reporting_period || ''} onValueChange={(reportingPeriod) => setValues((current) => ({ ...current, reporting_period: reportingPeriod, reporting_year_type: annualPeriod.type, frequency_type: 'yearly' }))}><SelectTrigger id="ocr-reporting-period" className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-annual-select"><SelectValue placeholder="Select reporting period" /></SelectTrigger><SelectContent>{annualPeriodOptions.map((period) => <SelectItem key={period.value} value={period.value} data-testid={`ocr-edit-reporting-period-option-${period.value.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>{period.label}</SelectItem>)}</SelectContent></Select></div>
+              ) : <div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-700" aria-hidden="true" /><Input id="ocr-reporting-period" type="month" value={values.reporting_period || ''} onChange={(event) => set('reporting_period', event.target.value)} className={`pl-10 ${requiredClassName('reporting_period')}`} aria-label={`Reporting period: ${reportingPeriodLabel(values.reporting_period)}`} data-testid="ocr-edit-reporting-period-input" /></div>}
             </div>
           </div>
           <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2" data-testid="ocr-edit-method-scope-row">

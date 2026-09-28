@@ -73,8 +73,8 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
             data-testid={`emission-category-filter-${filter.id}`}
             className={`rounded-md border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
               activeScope === filter.id
-                ? 'border-teal-700 bg-teal-700 text-white'
-                : 'border-stone-200 bg-white text-stone-600 hover:border-teal-300 hover:text-teal-800'
+                ? 'border-primary bg-primary text-white'
+                : 'border-stone-200 bg-white text-stone-600 hover:border-primary/30 hover:text-primary'
             }`}
           >
             {filter.label}

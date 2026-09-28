@@ -136,8 +136,6 @@ def _scope3_factor_key(record: dict) -> tuple[str, ...]:
 
 def _select_reporting_year_factors(records: list[dict], reporting_period: str) -> list[dict]:
     target_year = _reporting_year(reporting_period)
-    if not target_year:
-        return records
 
     candidates_by_factor: dict[tuple[str, ...], list[dict]] = {}
     factor_order: list[tuple[str, ...]] = []
@@ -161,6 +159,9 @@ def _select_reporting_year_factors(records: list[dict], reporting_period: str) -
                 dated.append((candidate, year))
         if not dated:
             selected.append(candidates[0])
+            continue
+        if target_year is None:
+            selected.append(max(dated, key=lambda item: item[1])[0])
             continue
         selected.append(min(dated, key=lambda item: (abs(item[1] - target_year), -item[1]))[0])
     return selected

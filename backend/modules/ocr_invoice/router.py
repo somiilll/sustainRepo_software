@@ -185,7 +185,18 @@ def _reporting_period_from_ocr_values(values: dict, upload: dict | None = None) 
         values.get("billing_period_text"),
         (upload or {}).get("created_at"),
     ):
-        match = re.search(r"(\d{4})[-/](0[1-9]|1[0-2])", str(value or ""))
+        raw_value = str(value or "").strip()
+        financial_match = re.fullmatch(r"(?:fy|financial\s+year)\s*(\d{4})\s*[-/–—]\s*(\d{2}|\d{4})", raw_value, flags=re.IGNORECASE)
+        if financial_match:
+            start_year = int(financial_match.group(1))
+            end_text = financial_match.group(2)
+            end_year = int(f"{str(start_year)[:2]}{end_text}" if len(end_text) == 2 else end_text)
+            if end_year == start_year + 1:
+                return f"FY {start_year}-{end_year}"
+        calendar_match = re.fullmatch(r"(?:cy\s*)?(\d{4})", raw_value, flags=re.IGNORECASE)
+        if calendar_match:
+            return f"CY{calendar_match.group(1)}"
+        match = re.search(r"(\d{4})[-/](0[1-9]|1[0-2])", raw_value)
         if match:
             return f"{match.group(1)}-{match.group(2)}"
     return ""
@@ -334,14 +345,23 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
     values["facility_id"] = facility["id"]
     values["location"] = facility.get("name", values.get("location", ""))
 
+    upload = None
     if not values.get("reporting_period"):
         upload = await db[OCR_UPLOADS_COLLECTION].find_one(
             {"id": item.get("upload_id"), "organization_id": org_id},
             {"_id": 0, "created_at": 1},
         )
-        values["reporting_period"] = _reporting_period_from_ocr_values(values, upload)
+    normalized_reporting_period = _reporting_period_from_ocr_values(values, upload)
+    if normalized_reporting_period:
+        values["reporting_period"] = normalized_reporting_period
     if not values.get("reporting_period"):
         raise ValueError("A reporting period could not be resolved from the OCR date, billing period, or upload month")
+    if str(values["reporting_period"]).startswith("FY "):
+        values["reporting_year_type"] = "financial"
+        values["frequency_type"] = "yearly"
+    elif re.fullmatch(r"CY\d{4}", str(values["reporting_period"])):
+        values["reporting_year_type"] = "calendar"
+        values["frequency_type"] = "yearly"
 
     scope = values.get("scope") or ""
     if scope in {"scope1", "scope2"} and not values.get("ef_method"):
@@ -1856,6 +1876,8 @@ async def save_line_item_to_ghg(
             "current_values.facility_id": values.get("facility_id"),
             "current_values.location": values.get("location"),
             "current_values.reporting_period": values.get("reporting_period"),
+            "current_values.reporting_year_type": values.get("reporting_year_type"),
+            "current_values.frequency_type": values.get("frequency_type"),
             "current_values.ef_method": values.get("ef_method"),
             "current_values.factor_id": values.get("factor_id"),
             "current_values.fuel_id": values.get("fuel_id"),
@@ -1880,11 +1902,12 @@ async def save_line_item_to_ghg(
         }},
     )
     ocr_metadata = _ocr_record_metadata(item, values)
+    frequency_type = "yearly" if re.fullmatch(r"(?:CY\d{4}|FY\s+\d{4}-\d{4})", str(values["reporting_period"]), flags=re.IGNORECASE) else "monthly"
     emission_payload = EmissionRecordCreate(
         facility_id=values["facility_id"],
         organization_id=org_id,
         reporting_period=values["reporting_period"],
-        frequency_type="monthly",
+        frequency_type=frequency_type,
         scope=values["scope"],
         category=category.get("name") or category.get("category") or values["category"],
         category_code=category.get("code") or values.get("category_code"),

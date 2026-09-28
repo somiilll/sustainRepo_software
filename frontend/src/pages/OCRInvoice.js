@@ -216,7 +216,7 @@ export default function OCRInvoice() {
             return Array.from(itemsById.values());
           });
           setSelectedFile((current) => current);
-          setSelectedItem((current) => current || completedItems[0] || null);
+          setSelectedItem((current) => current);
           toast.success(`Extraction ready: ${completedItems.length} activity row${completedItems.length === 1 ? '' : 's'}`);
         }
         const newlyFailedIds = terminalRecords
@@ -558,7 +558,7 @@ export default function OCRInvoice() {
 
   const chooseFile = (file) => {
     setSelectedFile(file);
-    setSelectedItem(items.find((item) => item.upload_id === file.upload_id && item.file_index === file.file_index) || null);
+    setSelectedItem(null);
   };
 
   const saveEdit = async (values) => {
