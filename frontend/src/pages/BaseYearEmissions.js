@@ -2347,7 +2347,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Setup Dialog */}
       <Dialog open={showSetupDialog} onOpenChange={(open) => { if (!open) { setShowSetupDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className={`${setupStep === 'enter_emissions' ? 'max-w-5xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
@@ -2453,14 +2453,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   className="text-xs"
                 >
                   <PlusCircle className="w-4 h-4 mr-1" />
-                  Add Category
+                  {dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}
                 </Button>
               </div>
               
               {/* Phase 1 Enhancement: Add Category Form */}
               {showAddCategoryForm && (
                 <div className="p-4 border border-dashed border-primary/50 rounded-lg bg-primary/5 space-y-3">
-                  <h4 className="text-sm font-medium text-primary">Add New Category</h4>
+                  <h4 className="text-sm font-medium text-primary">{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Scope *</Label>
@@ -2487,7 +2487,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    {dataEntryLevel !== 'scope' && <div>
                       <Label className="text-xs">
                         {newCategoryEntry.scope === 'Biogenic (Direct)' ? 'Fuel Name *' : 'Category *'}
                       </Label>
@@ -2518,8 +2518,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           )}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div>
+                    </div>}
+                    {dataEntryLevel === 'subcategory' && <div>
                       <Label className="text-xs">
                         {newCategoryEntry.scope === 'scope3' ? 'Activity' : 
                          newCategoryEntry.scope === 'Biogenic (Indirect)' ? 'Activity *' :
@@ -2590,7 +2590,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
                         />
                       )}
-                    </div>
+                    </div>}
                     <div>
                       <Label className="text-xs">tCO₂e *</Label>
                       <Input
