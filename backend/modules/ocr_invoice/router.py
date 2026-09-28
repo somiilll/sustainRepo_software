@@ -128,7 +128,7 @@ def _history_line_item(item: dict, outcome: str) -> dict:
         "scope": values.get("scope") or "",
         "category": values.get("category") or "",
         "subcategory": values.get("subcategory") or "",
-        "reporting_period": values.get("reporting_period") or values.get("billing_period_start") or values.get("billing_period_end") or "",
+        "reporting_period": values.get("reporting_period") or values.get("billing_period_start") or values.get("billing_period_end") or values.get("billing_period_text") or "",
         "status": row_status,
     }
 
