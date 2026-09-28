@@ -97,6 +97,7 @@ const matchesOriginalEditSelection = ({
   scope3ActivityId,
 }) => {
   if (!emission || emission.scope !== scope || emission.category !== category) return false;
+  if (scope !== 'scope3') return true;
   const savedValues = emission.dynamic_field_values || {};
   const savedMethod = emission.calculation_method_scope3
     || readPersistedSelectionValue(savedValues.calculation_method_scope3);

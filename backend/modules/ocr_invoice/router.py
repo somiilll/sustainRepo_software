@@ -128,7 +128,7 @@ def _history_line_item(item: dict, outcome: str) -> dict:
         "scope": values.get("scope") or "",
         "category": values.get("category") or "",
         "subcategory": values.get("subcategory") or "",
-        "reporting_period": values.get("reporting_period") or values.get("billing_period_start") or values.get("billing_period_end") or "",
+        "reporting_period": values.get("reporting_period") or values.get("billing_period_start") or values.get("billing_period_end") or values.get("billing_period_text") or "",
         "status": row_status,
     }
 
@@ -364,6 +364,13 @@ async def _resolve_direct_ocr_values(item: dict, values: dict, org_id: str) -> t
         values["frequency_type"] = "yearly"
 
     scope = values.get("scope") or ""
+    if scope != "scope3":
+        for field in ("scope3_ef_id", "scope3_activity", "scope3_activity_type", "scope3_subcategory", "calculation_method_scope3"):
+            values.pop(field, None)
+        dynamic_values = values.get("dynamic_field_values") or {}
+        for field in ("scope3_ef_id", "scope3_activity", "scope3_activity_type", "scope3_subcategory", "calculation_method_scope3"):
+            dynamic_values.pop(field, None)
+        values["dynamic_field_values"] = dynamic_values
     if scope in {"scope1", "scope2"} and not values.get("ef_method"):
         values["ef_method"] = "activity"
     factor_id = values.get("factor_id") or values.get("fuel_id") or values.get("scope3_ef_id")
@@ -1836,7 +1843,7 @@ async def save_line_item_to_ghg(
         values["fuel_name"] = selected_factor["value"]
         values["ef_lookup_key"] = selected_factor["value"]
         values["ef_database"] = selected_factor["database"]
-        if selected_factor.get("activity_type"):
+        if values.get("scope") == "scope3" and selected_factor.get("activity_type"):
             values["scope3_activity_type"] = selected_factor["activity_type"]
         values["naics_code"] = selected_factor.get("naics_code") or (values.get("naics_code") if selected_factor.get("method") == "spend" else "")
         values["naics_label"] = selected_factor.get("naics_label") or (values.get("naics_label") if selected_factor.get("method") == "spend" else "")
@@ -1918,7 +1925,7 @@ async def save_line_item_to_ghg(
         calculation_method_scope3=resolved_scope3_method,
         spend_currency_conversion_method=calculation["decision_inputs"].get("spend_currency_conversion_method"),
         scope3_ef_id=values.get("scope3_ef_id"),
-        scope3_activity=values.get("ef_lookup_key") or values.get("subcategory"),
+        scope3_activity=(values.get("ef_lookup_key") or values.get("subcategory")) if values.get("scope") == "scope3" else None,
         scope3_activity_type=values.get("scope3_activity_type"),
         scope3_subcategory=values.get("scope3_subcategory"),
         supplier_name=ocr_metadata["vendor_name"] if values.get("scope") == "scope3" else None,

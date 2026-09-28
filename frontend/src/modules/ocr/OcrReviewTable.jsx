@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, Edit3, GripVertical, MoreHorizontal, RotateCcw, Search, XCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronRight, Edit3, GripVertical, MoreHorizontal, RotateCcw, Search, XCircle } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -120,6 +120,18 @@ const ResizableColumnHeader = ({ columnKey, width, onResize, children, testId })
   );
 };
 
+const SortableColumnHeader = ({ label, sortKey, sort, onSort, ...props }) => {
+  const active = sort.key === sortKey;
+  const Icon = active ? (sort.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <ResizableColumnHeader {...props}>
+      <button type="button" onClick={() => onSort(sortKey)} className={`flex w-full items-center justify-center gap-1.5 pr-3 text-center transition-colors hover:text-primary ${active ? 'text-primary' : 'text-slate-600'}`} aria-label={`Sort by ${label}`} data-testid={`ocr-sort-${sortKey}-button`}>
+        <span>{label}</span><Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </ResizableColumnHeader>
+  );
+};
+
 const MobileField = ({ label, value, itemId, field, wide = false, children }) => (
   <div className={wide ? 'col-span-2' : ''}>
     <dt className="text-xs font-medium text-slate-500">{label}</dt>
@@ -135,6 +147,32 @@ const formatSubtotal = (items) => Object.entries(items.reduce((totals, item) => 
   totals[currency] = (totals[currency] || 0) + (Number(values.cost) || 0);
   return totals;
 }, {})).filter(([, total]) => total > 0).map(([currency, total]) => `${currency} ${total.toLocaleString()}`).join(' · ') || 'No spend total';
+
+const ledgerSortValue = (item, key) => {
+  const values = item.current_values || {};
+  switch (key) {
+    case 'facility': return values.location || '';
+    case 'extractedItem': return values.item_description || values.fuel_name || '';
+    case 'reportingPeriod': return reportingPeriodDateValue(values) || '';
+    case 'scope': return values.scope || '';
+    case 'category': return values.category || '';
+    case 'subcategory': return values.subcategory || values.sector || values.naics_label || '';
+    case 'efMethod': return values.ef_method || '';
+    case 'quantity': return Number(values.quantity) || 0;
+    case 'goodsTravelled': return Number(dynamicInput(values, 'qty_travelled')?.value ?? values.quantity_goods ?? values.quantity) || 0;
+    case 'distanceTravelled': return Number(dynamicInput(values, 'km_travelled')?.value ?? values.distance_km) || 0;
+    case 'passengers': return Number(dynamicInput(values, 'qty_passenger')?.value ?? values.passengers) || 0;
+    case 'daysTravelled': return Number(dynamicInput(values, 'qty_days_travelled')?.value ?? values.days_travelled) || 0;
+    case 'rooms': return Number(dynamicInput(values, 'qty_room')?.value ?? values.rooms) || 0;
+    case 'nights': return Number(dynamicInput(values, 'qty_nights')?.value ?? values.nights) || 0;
+    case 'fromLocation': return values.origin || '';
+    case 'toLocation': return values.destination || '';
+    case 'cost': return Number(values.cost) || 0;
+    case 'confidence': return normalizedConfidence(item.confidence_score ?? values.confidence_score) ?? -1;
+    case 'status': return values.missing_values ? 0 : item.needs_review ? 1 : 2;
+    default: return '';
+  }
+};
 
 const RowStatus = ({ item, testIdPrefix = 'ocr-row-status' }) => {
   const values = item.current_values || {};
@@ -197,6 +235,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [invoiceFilter, setInvoiceFilter] = useState('all');
+  const [sort, setSort] = useState({ key: null, direction: 'asc' });
   const [detailsItem, setDetailsItem] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const ledgerScrollRef = useRef(null);
@@ -342,7 +381,22 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       && searchable.includes(query.toLowerCase())
       && (scopeFilter === 'all' || values.scope === scopeFilter);
   }), [items, invoiceFilter, query, scopeFilter]);
-  const selectableRows = filtered.filter((item) => item.status !== 'imported');
+  const sortedFiltered = useMemo(() => {
+    if (!sort.key) return filtered;
+    return [...filtered].sort((left, right) => {
+      const leftValue = ledgerSortValue(left, sort.key);
+      const rightValue = ledgerSortValue(right, sort.key);
+      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: 'base' });
+      return sort.direction === 'asc' ? comparison : -comparison;
+    });
+  }, [filtered, sort]);
+  const handleSort = (key) => setSort((current) => ({
+    key,
+    direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+  }));
+  const selectableRows = sortedFiltered.filter((item) => item.status !== 'imported');
   const selectedRows = items.filter((item) => selectedIds.includes(item.id) && item.status !== 'imported');
   const selectedSavableRows = selectedRows.filter((item) => item.current_values?.scope !== 'water');
   const savableRows = items.filter((item) => item.status !== 'imported' && item.current_values?.scope !== 'water');
@@ -369,7 +423,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
             {hasCustomizedColumnWidths && <Button type="button" size="sm" variant="ghost" onClick={resetColumnWidths} className="h-8 gap-1.5 text-xs text-slate-600 hover:bg-teal-50 hover:text-teal-800" data-testid="ocr-reset-column-widths-button"><RotateCcw className="h-3.5 w-3.5" />Reset widths</Button>}
           </div>
           <p className="mt-1 text-sm text-slate-600" data-testid="ocr-review-summary">
-            {filtered.length} of {items.length} rows · {items.filter((item) => item.needs_review).length} need attention
+            {sortedFiltered.length} of {items.length} rows · {items.filter((item) => item.needs_review).length} need attention
           </p>
         </div>
         <div className="flex max-w-full items-center justify-end gap-2 overflow-x-auto lg:flex-nowrap">
@@ -379,11 +433,11 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
               <Button type="button" size="sm" variant="outline" className="text-red-700 hover:bg-red-50 hover:text-red-800" onClick={() => onBulkReject(selectedRows)} disabled={isBulkActionRunning} data-testid="ocr-reject-selected-button"><XCircle className="mr-2 h-4 w-4" />Reject selected</Button>
             </>}
             <Button type="button" size="sm" onClick={() => onBulkSave(savableRows)} disabled={!savableRows.length || isBulkActionRunning} data-testid="ocr-save-all-button"><Check className="mr-2 h-4 w-4" />Save all</Button>
-            <Button type="button" size="sm" variant="destructive" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
+            <Button type="button" size="sm" variant="outline" className="border-orange-200 bg-white text-orange-700 hover:border-orange-600 hover:bg-orange-600 hover:text-white active:bg-orange-700" onClick={() => onBulkReject(items.filter((item) => item.status !== 'imported'))} disabled={!selectableRows.length || isBulkActionRunning} data-testid="ocr-reject-all-button"><XCircle className="mr-2 h-4 w-4" />Reject all</Button>
           </div>
           <div className="relative min-w-[14rem] shrink-0 sm:w-60">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search rows" className="pl-9" data-testid="ocr-review-search-input" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search rows" className="rounded-full border-slate-200 bg-white pl-9 pr-4 shadow-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/15 focus-visible:ring-offset-0" data-testid="ocr-review-search-input" />
           </div>
           <Select value={scopeFilter} onValueChange={setScopeFilter}>
             <SelectTrigger className="w-36 shrink-0" data-testid="ocr-scope-filter"><SelectValue placeholder="All scopes" /></SelectTrigger>
@@ -414,30 +468,30 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
           <TableHeader className="bg-slate-50 [&_th]:text-center">
             <TableRow>
               <ResizableColumnHeader columnKey="select" width={effectiveColumnWidths.select} onResize={resizeColumn} testId="ocr-ledger-header-select"><Checkbox checked={allFilteredSelected} onCheckedChange={toggleAllFiltered} disabled={!selectableRows.length || isBulkActionRunning} aria-label="Select all visible rows" data-testid="ocr-desktop-select-all-checkbox" /></ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="facility" width={effectiveColumnWidths.facility} onResize={resizeColumn} testId="ocr-ledger-header-facility">Facility</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="extractedItem" width={effectiveColumnWidths.extractedItem} onResize={resizeColumn} testId="ocr-ledger-header-extracted-item">Extracted item</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="reportingPeriod" width={effectiveColumnWidths.reportingPeriod} onResize={resizeColumn} testId="ocr-ledger-header-reporting-period-date">Reporting period</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="scope" width={effectiveColumnWidths.scope} onResize={resizeColumn} testId="ocr-ledger-header-scope">Scope</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="category" width={effectiveColumnWidths.category} onResize={resizeColumn} testId="ocr-ledger-header-category">Category</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="subcategory" width={effectiveColumnWidths.subcategory} onResize={resizeColumn} testId="ocr-ledger-header-subcategory">Subcategory</ResizableColumnHeader>
-              {showEfMethod && <ResizableColumnHeader columnKey="efMethod" width={effectiveColumnWidths.efMethod} onResize={resizeColumn} testId="ocr-ledger-header-ef-method">EF method</ResizableColumnHeader>}
-              {showQuantity && <ResizableColumnHeader columnKey="quantity" width={effectiveColumnWidths.quantity} onResize={resizeColumn} testId="ocr-ledger-header-quantity">Quantity</ResizableColumnHeader>}
-              {showGoodsTravelled && <ResizableColumnHeader columnKey="goodsTravelled" width={effectiveColumnWidths.goodsTravelled} onResize={resizeColumn} testId="ocr-ledger-header-goods-travelled">Goods travelled</ResizableColumnHeader>}
-              {showDistanceTravelled && <ResizableColumnHeader columnKey="distanceTravelled" width={effectiveColumnWidths.distanceTravelled} onResize={resizeColumn} testId="ocr-ledger-header-distance-travelled">Distance travelled</ResizableColumnHeader>}
-              {showPassengers && <ResizableColumnHeader columnKey="passengers" width={effectiveColumnWidths.passengers} onResize={resizeColumn} testId="ocr-ledger-header-passengers">Passengers</ResizableColumnHeader>}
-              {showDaysTravelled && <ResizableColumnHeader columnKey="daysTravelled" width={effectiveColumnWidths.daysTravelled} onResize={resizeColumn} testId="ocr-ledger-header-days-travelled">Days travelled</ResizableColumnHeader>}
-              {showRooms && <ResizableColumnHeader columnKey="rooms" width={effectiveColumnWidths.rooms} onResize={resizeColumn} testId="ocr-ledger-header-rooms">Number of rooms</ResizableColumnHeader>}
-              {showNights && <ResizableColumnHeader columnKey="nights" width={effectiveColumnWidths.nights} onResize={resizeColumn} testId="ocr-ledger-header-nights">Number of nights</ResizableColumnHeader>}
-              {showFromLocation && <ResizableColumnHeader columnKey="fromLocation" width={effectiveColumnWidths.fromLocation} onResize={resizeColumn} testId="ocr-ledger-header-from-location">From location</ResizableColumnHeader>}
-              {showToLocation && <ResizableColumnHeader columnKey="toLocation" width={effectiveColumnWidths.toLocation} onResize={resizeColumn} testId="ocr-ledger-header-to-location">To location</ResizableColumnHeader>}
-              {showCost && <ResizableColumnHeader columnKey="cost" width={effectiveColumnWidths.cost} onResize={resizeColumn} testId="ocr-ledger-header-cost">Cost</ResizableColumnHeader>}
-              <ResizableColumnHeader columnKey="confidence" width={effectiveColumnWidths.confidence} onResize={resizeColumn} testId="ocr-ledger-header-confidence">Confidence score</ResizableColumnHeader>
-              <ResizableColumnHeader columnKey="status" width={effectiveColumnWidths.status} onResize={resizeColumn} testId="ocr-ledger-header-status">Review status</ResizableColumnHeader>
+              <SortableColumnHeader label="Facility" sortKey="facility" sort={sort} onSort={handleSort} columnKey="facility" width={effectiveColumnWidths.facility} onResize={resizeColumn} testId="ocr-ledger-header-facility" />
+              <SortableColumnHeader label="Extracted item" sortKey="extractedItem" sort={sort} onSort={handleSort} columnKey="extractedItem" width={effectiveColumnWidths.extractedItem} onResize={resizeColumn} testId="ocr-ledger-header-extracted-item" />
+              <SortableColumnHeader label="Reporting period" sortKey="reportingPeriod" sort={sort} onSort={handleSort} columnKey="reportingPeriod" width={effectiveColumnWidths.reportingPeriod} onResize={resizeColumn} testId="ocr-ledger-header-reporting-period-date" />
+              <SortableColumnHeader label="Scope" sortKey="scope" sort={sort} onSort={handleSort} columnKey="scope" width={effectiveColumnWidths.scope} onResize={resizeColumn} testId="ocr-ledger-header-scope" />
+              <SortableColumnHeader label="Category" sortKey="category" sort={sort} onSort={handleSort} columnKey="category" width={effectiveColumnWidths.category} onResize={resizeColumn} testId="ocr-ledger-header-category" />
+              <SortableColumnHeader label="Subcategory" sortKey="subcategory" sort={sort} onSort={handleSort} columnKey="subcategory" width={effectiveColumnWidths.subcategory} onResize={resizeColumn} testId="ocr-ledger-header-subcategory" />
+              {showEfMethod && <SortableColumnHeader label="EF method" sortKey="efMethod" sort={sort} onSort={handleSort} columnKey="efMethod" width={effectiveColumnWidths.efMethod} onResize={resizeColumn} testId="ocr-ledger-header-ef-method" />}
+              {showQuantity && <SortableColumnHeader label="Quantity" sortKey="quantity" sort={sort} onSort={handleSort} columnKey="quantity" width={effectiveColumnWidths.quantity} onResize={resizeColumn} testId="ocr-ledger-header-quantity" />}
+              {showGoodsTravelled && <SortableColumnHeader label="Goods travelled" sortKey="goodsTravelled" sort={sort} onSort={handleSort} columnKey="goodsTravelled" width={effectiveColumnWidths.goodsTravelled} onResize={resizeColumn} testId="ocr-ledger-header-goods-travelled" />}
+              {showDistanceTravelled && <SortableColumnHeader label="Distance travelled" sortKey="distanceTravelled" sort={sort} onSort={handleSort} columnKey="distanceTravelled" width={effectiveColumnWidths.distanceTravelled} onResize={resizeColumn} testId="ocr-ledger-header-distance-travelled" />}
+              {showPassengers && <SortableColumnHeader label="Passengers" sortKey="passengers" sort={sort} onSort={handleSort} columnKey="passengers" width={effectiveColumnWidths.passengers} onResize={resizeColumn} testId="ocr-ledger-header-passengers" />}
+              {showDaysTravelled && <SortableColumnHeader label="Days travelled" sortKey="daysTravelled" sort={sort} onSort={handleSort} columnKey="daysTravelled" width={effectiveColumnWidths.daysTravelled} onResize={resizeColumn} testId="ocr-ledger-header-days-travelled" />}
+              {showRooms && <SortableColumnHeader label="Number of rooms" sortKey="rooms" sort={sort} onSort={handleSort} columnKey="rooms" width={effectiveColumnWidths.rooms} onResize={resizeColumn} testId="ocr-ledger-header-rooms" />}
+              {showNights && <SortableColumnHeader label="Number of nights" sortKey="nights" sort={sort} onSort={handleSort} columnKey="nights" width={effectiveColumnWidths.nights} onResize={resizeColumn} testId="ocr-ledger-header-nights" />}
+              {showFromLocation && <SortableColumnHeader label="From location" sortKey="fromLocation" sort={sort} onSort={handleSort} columnKey="fromLocation" width={effectiveColumnWidths.fromLocation} onResize={resizeColumn} testId="ocr-ledger-header-from-location" />}
+              {showToLocation && <SortableColumnHeader label="To location" sortKey="toLocation" sort={sort} onSort={handleSort} columnKey="toLocation" width={effectiveColumnWidths.toLocation} onResize={resizeColumn} testId="ocr-ledger-header-to-location" />}
+              {showCost && <SortableColumnHeader label="Cost" sortKey="cost" sort={sort} onSort={handleSort} columnKey="cost" width={effectiveColumnWidths.cost} onResize={resizeColumn} testId="ocr-ledger-header-cost" />}
+              <SortableColumnHeader label="Confidence score" sortKey="confidence" sort={sort} onSort={handleSort} columnKey="confidence" width={effectiveColumnWidths.confidence} onResize={resizeColumn} testId="ocr-ledger-header-confidence" />
+              <SortableColumnHeader label="Review status" sortKey="status" sort={sort} onSort={handleSort} columnKey="status" width={effectiveColumnWidths.status} onResize={resizeColumn} testId="ocr-ledger-header-status" />
               <ResizableColumnHeader columnKey="actions" width={effectiveColumnWidths.actions} onResize={resizeColumn} testId="ocr-ledger-header-actions">Actions</ResizableColumnHeader>
             </TableRow>
           </TableHeader>
           <TableBody className="[&_td]:text-center">
-            {filtered.map((item) => {
+            {sortedFiltered.map((item) => {
               const values = item.current_values || {};
               const isSaving = Boolean(savingItemIds[item.id]);
               const isRejecting = Boolean(rejectingItemIds[item.id]);
@@ -489,7 +543,7 @@ export const OcrReviewTable = ({ items, enabledScopes, selectedId, onSelect, onE
       </div>
 
       <div className="grid gap-2 lg:hidden" data-testid="ocr-review-mobile-list">
-        {filtered.map((item) => {
+        {sortedFiltered.map((item) => {
           const values = item.current_values || {};
           const isSaving = Boolean(savingItemIds[item.id]);
           const isRejecting = Boolean(rejectingItemIds[item.id]);
