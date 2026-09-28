@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, LockKeyhole } from 'lucide-react';
+import { ChevronDown, ChevronRight, LockKeyhole, Trash2 } from 'lucide-react';
 import { Input } from '../../components/ui/input';
 
 const keyFor = (scope, category = '', subcategory = '', level = 'subcategory') => `${level}|${scope}|${category}|${subcategory}`;
 const inferLevel = (entry) => entry.entry_level || (!entry.category ? 'scope' : !entry.subcategory ? 'category' : 'subcategory');
 
-export const BaseYearHierarchyEditor = ({ sourceEntries = [], entries = [], entryLevel, onValueChange }) => {
+export const BaseYearHierarchyEditor = ({ sourceEntries = [], entries = [], entryLevel, onValueChange, onDeleteEntry }) => {
   const [expanded, setExpanded] = useState({});
   const tree = useMemo(() => {
     const scopes = new Map();
@@ -25,7 +25,7 @@ export const BaseYearHierarchyEditor = ({ sourceEntries = [], entries = [], entr
     const conflict = entries.find((entry) => entry.scope === scope && inferLevel(entry) !== level && (level === 'scope' || entry.category === category));
     if (entryLevel !== level) return <span className="text-xs text-slate-400">—</span>;
     if (conflict) return <span className="inline-flex items-center gap-1 text-xs text-amber-700"><LockKeyhole className="h-3 w-3" />Entered at another level</span>;
-    return <Input type="number" step="any" min="0" value={own?.tco2e ?? ''} onChange={(event) => onValueChange({ scope, category, subcategory, entry_level: level }, event.target.value)} className="h-8 w-32 text-right" data-testid={`tree-node-input-${level}-${scope}-${category || 'root'}-${subcategory || 'root'}`} />;
+    return <div className="flex items-center gap-1"><Input type="number" step="any" min="0" value={own?.tco2e ?? ''} onChange={(event) => onValueChange({ scope, category, subcategory, entry_level: level }, event.target.value)} className="h-8 w-32 text-right" data-testid={`tree-node-input-${level}-${scope}-${category || 'root'}-${subcategory || 'root'}`} />{own && <button type="button" onClick={() => onDeleteEntry?.(own)} className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${scope} ${category} ${subcategory}`.trim()} data-testid={`tree-node-delete-${level}-${scope}-${category || 'root'}-${subcategory || 'root'}`}><Trash2 className="h-3.5 w-3.5" /></button>}</div>;
   };
   return <div className="overflow-hidden rounded-lg border border-slate-200" data-testid="base-year-hierarchy-tree">
     {tree.map(({ scope, categories }) => {
