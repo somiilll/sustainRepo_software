@@ -17,6 +17,7 @@ import { Card } from '../components/ui/card';
 import { History, Loader2 } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleAccess } from '../hooks/useModuleAccess';
 
 // Module system — importing the barrel boots all scope modules into the registry.
 import bulkUploadRegistry, { MODULE_STATUS } from '../modules/bulkUpload';
@@ -37,6 +38,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BulkUpload() {
   const { getAuthHeader } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
   const [organization, setOrganization] = useState(null);
   const [organizationError, setOrganizationError] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
@@ -79,7 +81,7 @@ export default function BulkUpload() {
 
   const bu = useBulkUpload(activeModule);
 
-  if (loadingOrg) {
+  if (loadingOrg || moduleAccessLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -95,6 +97,8 @@ export default function BulkUpload() {
       </div>
     );
   }
+
+  if (!hasAccess('uploads.bulk_upload')) return <AccessDenied featureDisabled />;
 
   // No scope module is available for this org.
   const anyAvailable = allModules.some((m) => m.status === MODULE_STATUS.AVAILABLE);

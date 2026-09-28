@@ -5,7 +5,7 @@ import React from 'react';
 import { Card } from '../../../components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 
-export default function AccessDenied() {
+export default function AccessDenied({ featureDisabled = false }) {
   return (
     <div className="space-y-6" data-testid="bulk-upload-access-denied">
       <div>
@@ -20,7 +20,9 @@ export default function AccessDenied() {
           <div>
             <h3 className="text-lg font-semibold text-text-primary">No Bulk Upload Access</h3>
             <p className="text-text-muted mt-2 max-w-md">
-              Your organization does not have any bulk-upload-enabled scopes. Please contact your administrator to enable Scope 3 (or upcoming Scope 1 / Scope 2) access.
+              {featureDisabled
+                ? 'Bulk Upload is disabled for your organization. Please contact your administrator to enable access.'
+                : 'Your organization does not have any bulk-upload-enabled scopes. Please contact your administrator to enable Scope 3 (or upcoming Scope 1 / Scope 2) access.'}
             </p>
           </div>
         </div>
