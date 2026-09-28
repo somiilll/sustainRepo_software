@@ -2347,7 +2347,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Setup Dialog */}
       <Dialog open={showSetupDialog} onOpenChange={(open) => { if (!open) { setShowSetupDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
@@ -2730,8 +2730,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               
               {/* MANDATORY Justification field for base year selection */}
               {emissionsData.length > 0 && (
-                <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 font-medium">
                     <AlertCircle className="w-4 h-4" />
                     Justification for Selecting this Base Year *
                   </Label>
@@ -2739,16 +2739,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     placeholder="Explain why you selected this year as your base year (e.g., first year of complete GHG inventory, strategic planning cycle start, regulatory requirement, etc.)"
                     value={baseYearJustification}
                     onChange={(e) => setBaseYearJustification(e.target.value)}
-                    className={`min-h-[100px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                    className="min-h-[100px]"
                   />
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-amber-700">
-                      This justification is required for audit compliance (minimum 10 characters).
-                    </p>
-                    <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-                      {baseYearJustification.trim().length}/10 min
-                    </span>
-                  </div>
                 </div>
               )}
               
@@ -3056,8 +3048,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             )}
             
             {/* Justification field - always editable in edit mode */}
-            <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <Label className="flex items-center gap-2 text-amber-800 font-medium">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 font-medium">
                 <AlertCircle className="w-4 h-4" />
                 Justification for Selecting this Base Year *
               </Label>
@@ -3065,16 +3057,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 placeholder="Explain why you selected this year as your base year..."
                 value={baseYearJustification}
                 onChange={(e) => setBaseYearJustification(e.target.value)}
-                className={`min-h-[80px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                className="min-h-[80px]"
               />
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-amber-700">
-                  This justification is required for audit compliance (minimum 10 characters).
-                </p>
-                <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-                  {baseYearJustification.trim().length}/10 min
-                </span>
-              </div>
             </div>
             
             {/* Notes field - always editable in edit mode */}

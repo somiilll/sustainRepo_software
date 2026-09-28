@@ -32,9 +32,9 @@ export const BaseYearHierarchyEditor = ({ sourceEntries = [], entries = [], entr
       const scopeOpen = expanded[`scope-${scope}`] !== false;
       return <div key={scope} data-testid={`tree-node-${scope}`}>
         <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3"><button type="button" onClick={() => setExpanded((state) => ({ ...state, [`scope-${scope}`]: !scopeOpen }))} aria-expanded={scopeOpen} data-testid={`tree-node-expand-toggle-${scope}`}><>{scopeOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</></button><span className="flex-1 text-sm font-bold uppercase text-slate-800">{scope}</span>{input(scope, '', '', 'scope')}<span className="text-xs text-slate-500">tCO₂e</span></div>
-        {scopeOpen && categories.map(({ category, subcategories }) => <div key={category}>
+        {scopeOpen && entryLevel !== 'scope' && categories.map(({ category, subcategories }) => <div key={category}>
           <div className="flex items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 pl-10"><span className="flex-1 text-sm font-semibold text-slate-700">{category}</span>{input(scope, category, '', 'category')}<span className="text-xs text-slate-500">tCO₂e</span></div>
-          {subcategories.map((subcategory) => <div key={subcategory} className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/40 px-3 py-2 pl-16"><span className="flex-1 text-xs text-slate-600">{subcategory}</span>{input(scope, category, subcategory, 'subcategory')}<span className="text-xs text-slate-500">tCO₂e</span></div>)}
+          {entryLevel === 'subcategory' && subcategories.map((subcategory) => <div key={subcategory} className="flex items-center gap-2 border-b border-slate-50 bg-slate-50/40 px-3 py-2 pl-16"><span className="flex-1 text-xs text-slate-600">{subcategory}</span>{input(scope, category, subcategory, 'subcategory')}<span className="text-xs text-slate-500">tCO₂e</span></div>)}
         </div>)}
       </div>;
     })}
