@@ -9,7 +9,7 @@ export const BaseYearHierarchyEditor = ({ sourceEntries = [], entries = [], entr
   const [expanded, setExpanded] = useState({});
   const tree = useMemo(() => {
     const scopes = new Map();
-    [...sourceEntries, ...entries].filter((entry) => /^scope\s*[123]$/i.test(String(entry.scope || '')) || String(entry.scope || '').toLowerCase() === 'sinks').forEach((entry) => {
+    [...sourceEntries, ...entries].filter((entry) => entry.scope && String(entry.scope || '').toLowerCase() !== 'biogenic (direct)').forEach((entry) => {
       if (!scopes.has(entry.scope)) scopes.set(entry.scope, new Map());
       if (entry.category) {
         const categories = scopes.get(entry.scope);

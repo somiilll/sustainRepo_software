@@ -601,6 +601,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   // Handle edit button click (opens editable dialog for records where base year < oldest year)
   const handleEditEmissions = async (record) => {
+    const savedEntry = (record.emissions_data || []).find((entry) => String(entry.scope || '').toLowerCase() !== 'sinks');
+    setDataEntryLevel(record.data_entry_level || savedEntry?.entry_level || (!savedEntry?.category ? 'scope' : !savedEntry?.subcategory ? 'category' : 'subcategory'));
     const entityType = record.facility_id ? 'facility' : 'organization';
     const entityId = record.facility_id || record.organization_id;
     const entityName = record.facility_id 
