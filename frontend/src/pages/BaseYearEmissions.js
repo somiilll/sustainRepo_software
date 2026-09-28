@@ -2454,7 +2454,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               )}
               
               {/* Phase 1 Enhancement: Add Category Button */}
-              <div className="flex justify-end">
+              <div className="hidden">
                 <Button
                   variant="outline"
                   size="sm"
@@ -2634,7 +2634,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
               )}
               
-              <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}</div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
+              <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}<Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}><PlusCircle className="mr-1 h-4 w-4" />{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</Button></div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
               {false && emissionsData.length === 0 && !showAddCategoryForm ? (
                 <div className="py-4 text-center text-text-muted">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
@@ -2739,7 +2739,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               
               {/* MANDATORY Justification field for base year selection */}
               {emissionsData.length > 0 && (
-                <div className="space-y-2">
+                <div className="mt-12 border-t border-slate-200 pt-8 space-y-2">
                   <Label className="flex items-center gap-2 font-medium">
                     <AlertCircle className="w-4 h-4" />
                     Justification for Selecting this Base Year *
@@ -2820,10 +2820,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             {selectedScopeGroup === 'scope3' && (
               <Scope3EmissionsSummary emissions={emissionsData} testId="base-year-edit-scope3-emissions-summary" />
             )}
-            <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}</div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
+            <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}<Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}><PlusCircle className="mr-1 h-4 w-4" />{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</Button></div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
             
             {/* Phase 1 Enhancement: Add Category Button */}
-            <div className="flex justify-end">
+            <div className="hidden">
               <Button
                 variant="outline"
                 size="sm"
@@ -3057,7 +3057,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             )}
             
             {/* Justification field - always editable in edit mode */}
-            <div className="mt-10 space-y-2">
+            <div className="mt-12 border-t border-slate-200 pt-8 space-y-2">
               <Label className="flex items-center gap-2 font-medium">
                 <AlertCircle className="w-4 h-4" />
                 Justification for Selecting this Base Year *
