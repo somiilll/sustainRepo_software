@@ -6,6 +6,10 @@ const SupplierAssessmentPeriodContext = createContext(null);
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const storageKey = 'supplier-assessment-reporting-period';
 const fallbackPeriod = `CY ${new Date().getFullYear()}`;
+const canonicalSupplierAssessmentPeriod = (period) => {
+  const match = String(period || '').trim().match(/^FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})$/i);
+  return match ? `FY ${match[1]}-${Number(match[1]) + 1}` : period;
+};
 
 export const SupplierAssessmentPeriodProvider = ({ children }) => {
   const { getAuthHeader } = useAuth();
@@ -17,9 +21,9 @@ export const SupplierAssessmentPeriodProvider = ({ children }) => {
       .then((response) => {
         const data = response.data || {};
         const configuredType = data.reporting_year_type === 'calendar_year' ? 'CY' : 'FY';
-        const savedPeriod = localStorage.getItem(storageKey);
-        const selectedPeriod = savedPeriod?.startsWith(configuredType) ? savedPeriod : data.default_period;
-        const availablePeriods = [...new Set([...(data.periods || []), selectedPeriod].filter(Boolean))];
+        const savedPeriod = canonicalSupplierAssessmentPeriod(localStorage.getItem(storageKey));
+        const selectedPeriod = savedPeriod?.startsWith(configuredType) ? savedPeriod : canonicalSupplierAssessmentPeriod(data.default_period);
+        const availablePeriods = [...new Set([...(data.periods || []).map(canonicalSupplierAssessmentPeriod), selectedPeriod].filter(Boolean))];
         setPeriods(availablePeriods);
         if (selectedPeriod) {
           setReportingPeriodState(selectedPeriod);
@@ -30,9 +34,10 @@ export const SupplierAssessmentPeriodProvider = ({ children }) => {
   }, [getAuthHeader]);
 
   const setReportingPeriod = useCallback((period) => {
-    setReportingPeriodState(period);
-    localStorage.setItem(storageKey, period);
-    setPeriods((current) => [...new Set([...current, period])].sort().reverse());
+    const canonicalPeriod = canonicalSupplierAssessmentPeriod(period);
+    setReportingPeriodState(canonicalPeriod);
+    localStorage.setItem(storageKey, canonicalPeriod);
+    setPeriods((current) => [...new Set([...current.map(canonicalSupplierAssessmentPeriod), canonicalPeriod])].sort().reverse());
   }, []);
 
   const value = useMemo(() => ({ reportingPeriod, periods, setReportingPeriod }), [reportingPeriod, periods, setReportingPeriod]);

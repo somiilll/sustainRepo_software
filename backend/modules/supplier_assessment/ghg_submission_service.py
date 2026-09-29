@@ -93,7 +93,7 @@ def describe_reporting_period(parent_period: str | None, financial_year_start_mo
     if financial_match:
         start_year = int(financial_match.group(1))
         end_year = start_year + 1
-        canonical_period = f"FY {start_year}-{str(end_year)[-2:]}"
+        canonical_period = f"FY {start_year}-{end_year}"
         start_month = max(1, min(12, int(financial_year_start_month or 4)))
         allowed_months = [
             f"{year}-{month:02d}"
