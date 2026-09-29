@@ -114,13 +114,21 @@ const scoringRules = [
     color: 'text-amber-600',
     fields: ['choices'],
   },
+  {
+    value: 'manual',
+    label: 'Manual Evidence Review',
+    description: 'Parent assigns a score after reviewing submitted evidence',
+    icon: ClipboardCheck,
+    color: 'text-stone-600',
+    fields: [],
+  },
 ];
 
 const scoringRulesByResponseType = {
-  yes_no: ['boolean'],
-  numeric: ['higher_is_better', 'lower_is_better'],
-  percentage: ['higher_is_better', 'lower_is_better'],
-  dropdown: ['choice_mapping'],
+  yes_no: ['boolean', 'manual'],
+  numeric: ['higher_is_better', 'lower_is_better', 'manual'],
+  percentage: ['higher_is_better', 'lower_is_better', 'manual'],
+  dropdown: ['choice_mapping', 'manual'],
 };
 
 const compatibleScoringRules = (responseType) => scoringRules.filter(
@@ -454,6 +462,7 @@ export default function QuestionnaireBuilder() {
     const invalidDropdown = draftQuestions.find((question) => question.response_type === 'dropdown' && question.options_text.split(',').map((value) => value.trim()).filter(Boolean).length < 2);
     if (invalidDropdown) { toast.error('Dropdown questions need at least two comma-separated options.'); return false; }
     const invalidScore = draftQuestions.find((question) => {
+      if (question.scoring_rule === 'manual') return false;
       if (question.response_type === 'yes_no') return !isScore(question.yes_score) || !isScore(question.no_score);
       if (question.response_type === 'dropdown') return question.options_text.split(',').map((value) => value.trim()).filter(Boolean).some((value) => !isScore(question.option_scores?.[value]));
       return false;
@@ -466,7 +475,9 @@ export default function QuestionnaireBuilder() {
         const { draft_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
         const values = question.response_type === 'dropdown' ? options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
-        const scoring = scoring_rule === 'lower_is_better'
+        const scoring = scoring_rule === 'manual'
+          ? { rule: 'manual', requires_manual_review: true }
+          : scoring_rule === 'lower_is_better'
           ? { rule: 'lower_is_better', min: 0, max_acceptable: 100, max_score: 100 }
           : { ...getDefaultScoringConfig(question.response_type), rule: scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
@@ -1251,9 +1262,9 @@ export default function QuestionnaireBuilder() {
               </div>
               <div className="space-y-2">
                 <Label>Evidence</Label>
-                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement })}>
+                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement, ...(evidence_requirement === 'evidence_scored' ? { scoring: { rule: 'manual', requires_manual_review: true } } : {}) })}>
                   <SelectTrigger data-testid="question-evidence-requirement-select"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="not_required">Not required</SelectItem><SelectItem value="optional">Optional</SelectItem><SelectItem value="required">Required for submission</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="not_required">Not required</SelectItem><SelectItem value="optional">Optional</SelectItem><SelectItem value="required">Required for submission</SelectItem><SelectItem value="evidence_scored">Scoring based on evidence</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>

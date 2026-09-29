@@ -803,6 +803,14 @@ async def submit_supplier_answers(
     submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
     if not is_draft and not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
+    if not is_draft:
+        evidence_scored_questions = await db.supplier_questions.find(
+            {"questionnaire_id": questionnaire_id, "is_active": True, "evidence_requirement": "evidence_scored"},
+            {"_id": 0, "id": 1, "question_text": 1},
+        ).to_list(500)
+        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if not question_evidence.get(question["id"])]
+        if missing_evidence:
+            raise ValueError(f"Evidence is required for scoring: {', '.join(missing_evidence[:3])}")
     # Calculate score if submitting
     calculated_score = None
     if not is_draft:

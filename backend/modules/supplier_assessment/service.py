@@ -147,7 +147,7 @@ class SupplierAssessmentService:
 
     @staticmethod
     def _question_evidence_requirement(value: Optional[str]) -> str:
-        return value if value in {"not_required", "optional", "required"} else "not_required"
+        return value if value in {"not_required", "optional", "required", "evidence_scored"} else "not_required"
     
 
 

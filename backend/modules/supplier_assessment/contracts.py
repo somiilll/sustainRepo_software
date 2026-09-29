@@ -270,7 +270,7 @@ class QuestionCreate(BaseModel):
     response_type: str  # yes_no, numeric, text, dropdown, percentage, currency
     options: Optional[List[QuestionOption]] = None  # For dropdown
     required: bool = True
-    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
+    evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     # `weight` is retained for older API clients. New clients use importance or
     # an exact override; the service persists the effective value in `weight`.
     weight: Optional[float] = None
@@ -304,7 +304,7 @@ class QuestionUpdate(BaseModel):
     response_type: Optional[str] = None
     options: Optional[List[QuestionOption]] = None
     required: Optional[bool] = None
-    evidence_requirement: Optional[Literal["not_required", "optional", "required"]] = None
+    evidence_requirement: Optional[Literal["not_required", "optional", "required", "evidence_scored"]] = None
     weight: Optional[float] = None
     importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
@@ -342,7 +342,7 @@ class QuestionResponse(BaseModel):
     response_type: str
     options: Optional[List[Dict[str, Any]]] = None
     required: bool = True
-    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
+    evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     weight: float = 1.0
     importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
