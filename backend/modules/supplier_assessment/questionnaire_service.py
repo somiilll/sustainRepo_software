@@ -165,7 +165,7 @@ async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str
         questions.append({
             "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id, "question_text": source["assessment_question"],
             "description": source.get("configuration"), "response_type": "yes_no", "options": None, "required": True,
-            "evidence_requirement": "not_required" if assessment_type == "type_a" else ("required" if assessment_type == "type_b" else "optional"),
+            "evidence_requirement": "required" if assessment_type == "type_a" else ("not_required" if assessment_type == "type_b" else "evidence_scored"),
             "assessment_type": assessment_type, "max_points": max_points, "weight": max_points, "importance": "medium", "exact_numerical_weight": max_points,
             "category": section, "question_category": category_code, "order": order, "parent_question_id": None,
             "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True, "system_question_bank": "advanced", "created_at": now,
@@ -857,10 +857,10 @@ async def submit_supplier_answers(
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     if not is_draft:
         evidence_scored_questions = await db.supplier_questions.find(
-            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored", "assessment_type": {"$ne": "type_c"}}, {"assessment_type": "type_b"}]},
+            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored", "assessment_type": {"$ne": "type_c"}}, {"assessment_type": "type_a"}]},
             {"_id": 0, "id": 1, "question_text": 1},
         ).to_list(500)
-        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if (question.get("assessment_type") != "type_b" or str(answers_dict.get(question["id"], "")).lower() in {"yes", "true", "1"}) and not question_evidence.get(question["id"])]
+        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if (question.get("assessment_type") != "type_a" or str(answers_dict.get(question["id"], "")).lower() in {"yes", "true", "1"}) and not question_evidence.get(question["id"])]
         if missing_evidence:
             raise ValueError(f"Evidence is required for scoring: {', '.join(missing_evidence[:3])}")
     # Calculate score if submitting
