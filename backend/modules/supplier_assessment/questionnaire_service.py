@@ -857,7 +857,7 @@ async def submit_supplier_answers(
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     if not is_draft:
         evidence_scored_questions = await db.supplier_questions.find(
-            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored"}, {"assessment_type": "type_b"}]},
+            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored", "assessment_type": {"$ne": "type_c"}}, {"assessment_type": "type_b"}]},
             {"_id": 0, "id": 1, "question_text": 1},
         ).to_list(500)
         missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if (question.get("assessment_type") != "type_b" or str(answers_dict.get(question["id"], "")).lower() in {"yes", "true", "1"}) and not question_evidence.get(question["id"])]

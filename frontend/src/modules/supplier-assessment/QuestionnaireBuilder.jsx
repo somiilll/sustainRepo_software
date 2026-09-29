@@ -1262,9 +1262,9 @@ export default function QuestionnaireBuilder() {
               </div>
               <div className="space-y-2">
                 <Label>Evidence</Label>
-                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement, ...(evidence_requirement === 'evidence_scored' ? { scoring: { rule: 'manual', requires_manual_review: true } } : {}) })}>
+                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement, ...(evidence_requirement === 'evidence_scored' ? { assessment_type: 'type_c', scoring: { rule: 'boolean', true_score: 100, false_score: 0 } } : {}) })}>
                   <SelectTrigger data-testid="question-evidence-requirement-select"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="not_required">Not required</SelectItem><SelectItem value="optional">Optional</SelectItem><SelectItem value="required">Required for submission</SelectItem><SelectItem value="evidence_scored">Scoring based on evidence</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="required">Required</SelectItem><SelectItem value="not_required">Not Required</SelectItem><SelectItem value="evidence_scored">Scoring based on evidence</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>
