@@ -417,16 +417,23 @@ class ScoreCalculator:
                 if assessment_type in {"type_a", "type_b", "type_c"}:
                     answer_is_yes = str(raw_value).strip().lower() in {"yes", "true", "1"} or raw_value is True
                     has_evidence = bool(evidence_by_question.get(question_id))
-                    automatic_score = 0.0 if not answer_is_yes else (
-                        100.0 if assessment_type == "type_b" else (
-                            100.0 if has_evidence else (50.0 if assessment_type == "type_c" else 0.0)
+                    max_points = float(q.get("max_points") or weight)
+                    configured = q.get("point_scores") or {}
+                    earned_points = 0.0 if not answer_is_yes else (
+                        float(configured.get("yes_score", max_points)) if assessment_type == "type_b" else (
+                            float(configured.get("yes_with_evidence_score", max_points)) if has_evidence else (
+                                float(configured.get("yes_without_evidence_score", max_points / 2)) if assessment_type == "type_c" else 0.0
+                            )
                         )
                     )
+                    automatic_score = earned_points / max_points * 100 if max_points else 0.0
                     q_score.raw_score = automatic_score
+                    q_score.max_points = max_points
+                    q_score.points_earned = earned_points
                     q_score.weighted_score = automatic_score * weight
                     q_score.calculation_details = {
                         "rule_type": assessment_type,
-                        "max_points": q.get("max_points"),
+                        "max_points": max_points, "points_earned": earned_points,
                         "has_evidence": has_evidence,
                         "automatic_score_percent": automatic_score,
                     }

@@ -123,6 +123,8 @@ class QuestionScore(BaseModel):
     # Scoring details
     scoring_rule: str
     raw_score: float  # 0-100 normalized score
+    max_points: Optional[float] = None
+    points_earned: Optional[float] = None
     weight: float
     weighted_score: float  # raw_score * weight
     importance: Optional[str] = None
