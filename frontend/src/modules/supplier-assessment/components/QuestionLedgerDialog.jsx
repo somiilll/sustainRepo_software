@@ -9,13 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { DEFAULT_SUPPLIER_ESG_TAXONOMY, ESG_SECTIONS, cloneSupplierEsgTaxonomy } from '../esgTaxonomy';
 
 const groups = ESG_SECTIONS;
-const responseLabels = { yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Dropdown' };
+const responseLabels = { yes_no: 'Yes / No', dropdown: 'Dropdown' };
 const defaultRule = (responseType) => responseType === 'yes_no' ? 'boolean' : responseType === 'dropdown' ? 'choice_mapping' : 'higher_is_better';
 const scoringOptions = {
-  yes_no: [{ value: 'boolean', label: 'Boolean (Yes/No)' }, { value: 'manual', label: 'Manual evidence review' }],
-  numeric: [{ value: 'higher_is_better', label: 'Higher is better' }, { value: 'lower_is_better', label: 'Lower is better' }, { value: 'manual', label: 'Manual evidence review' }],
-  percentage: [{ value: 'higher_is_better', label: 'Higher is better' }, { value: 'lower_is_better', label: 'Lower is better' }, { value: 'manual', label: 'Manual evidence review' }],
-  dropdown: [{ value: 'choice_mapping', label: 'Choice mapping' }, { value: 'manual', label: 'Manual evidence review' }],
+  yes_no: [{ value: 'boolean', label: 'Boolean (Yes/No)' }],
+  dropdown: [{ value: 'choice_mapping', label: 'Choice mapping' }],
 };
 
 let draftQuestionSequence = 0;
@@ -41,7 +39,7 @@ const QuestionAuthoringRow = ({ draft, index, onChange, onRemove, canRemove }) =
   return <div className="border border-stone-200 bg-white p-4" data-testid={`question-ledger-draft-row-${index}`}>
     <div className="grid gap-3 xl:grid-cols-[minmax(13rem,1.3fr)_8rem_9rem_7rem_9rem_8rem_7rem] xl:items-end">
       <div className="space-y-1.5"><Label htmlFor={`question-ledger-draft-question-${index}`} className="text-xs font-medium text-stone-600 xl:sr-only">Question</Label><Input id={`question-ledger-draft-question-${index}`} value={draft.question_text} onChange={(event) => setField({ question_text: event.target.value })} placeholder="Enter question" data-testid={`question-ledger-draft-question-${index}`} /></div>
-      <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600 xl:sr-only">Response type</Label><Select value={draft.response_type} onValueChange={(response_type) => setField({ response_type, scoring_rule: defaultRule(response_type), options_text: '', option_scores: {} })}><SelectTrigger data-testid={`question-ledger-draft-response-type-${index}`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes_no">Yes / No</SelectItem><SelectItem value="numeric">Numeric</SelectItem><SelectItem value="percentage">Percentage</SelectItem><SelectItem value="dropdown">Dropdown</SelectItem></SelectContent></Select></div>
+      <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600 xl:sr-only">Response type</Label><Select value={draft.response_type} onValueChange={(response_type) => setField({ response_type, scoring_rule: defaultRule(response_type), options_text: '', option_scores: {} })}><SelectTrigger data-testid={`question-ledger-draft-response-type-${index}`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes_no">Yes / No</SelectItem><SelectItem value="dropdown">Dropdown</SelectItem></SelectContent></Select></div>
       <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600 xl:sr-only">Scoring type</Label><Select value={draft.scoring_rule} onValueChange={(scoring_rule) => setField({ scoring_rule })}><SelectTrigger data-testid={`question-ledger-draft-scoring-type-${index}`}><SelectValue /></SelectTrigger><SelectContent>{(scoringOptions[draft.response_type] || scoringOptions.yes_no).map((option) => <SelectItem key={option.value} value={option.value} data-testid={`question-ledger-draft-scoring-option-${index}-${option.value}`}>{option.label}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600 xl:sr-only">Question Mandatory</Label><Select value={draft.required ? 'yes' : 'no'} onValueChange={(value) => setField({ required: value === 'yes' })}><SelectTrigger data-testid={`question-ledger-draft-question-mandatory-${index}`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent></Select></div>
       <div className="space-y-1.5"><Label className="text-xs font-medium text-stone-600 xl:sr-only">Evidence</Label><Select value={draft.evidence_requirement} onValueChange={(evidence_requirement) => setField({ evidence_requirement, ...(evidence_requirement === 'evidence_scored' ? { assessment_type: 'type_c', scoring_rule: 'boolean' } : {}) })}><SelectTrigger data-testid={`question-ledger-draft-evidence-${index}`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="required">Required</SelectItem><SelectItem value="not_required">Not Required</SelectItem><SelectItem value="evidence_scored">Scoring based on evidence</SelectItem></SelectContent></Select></div>

@@ -392,7 +392,6 @@ async def add_question(
     required: bool,
     evidence_requirement: str,
     weight: Optional[float],
-    importance: Optional[str],
     exact_numerical_weight: Optional[float],
     category: str,
     order: int,
@@ -425,9 +424,7 @@ async def add_question(
         if parent_question.get("parent_question_id"):
             raise ValueError("Subquestions cannot contain nested subquestions")
     question_id = str(uuid.uuid4())
-    importance, exact_numerical_weight, effective_weight = self._resolve_question_weight(
-        importance, exact_numerical_weight, weight
-    )
+    effective_weight = exact_numerical_weight or weight or max_points or 1.0
     scoring = self._synchronize_choice_mapping(scoring, options)
     question = {
         "id": question_id,
@@ -441,7 +438,6 @@ async def add_question(
         "assessment_type": assessment_type,
         "max_points": max_points,
         "weight": effective_weight,
-        "importance": importance,
         "exact_numerical_weight": exact_numerical_weight,
         "category": parent_question.get("category") if parent_question else category,
         "question_category": parent_question.get("question_category") if parent_question else _validate_question_category(taxonomy, category, question_category),

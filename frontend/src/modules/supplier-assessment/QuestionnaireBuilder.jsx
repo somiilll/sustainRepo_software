@@ -65,8 +65,6 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const responseTypes = [
   { value: 'yes_no', label: 'Yes / No' },
-  { value: 'numeric', label: 'Numeric' },
-  { value: 'percentage', label: 'Percentage' },
   { value: 'dropdown', label: 'Dropdown' },
 ];
 
@@ -114,21 +112,13 @@ const scoringRules = [
     color: 'text-amber-600',
     fields: ['choices'],
   },
-  {
-    value: 'manual',
-    label: 'Manual Evidence Review',
-    description: 'Parent assigns a score after reviewing submitted evidence',
-    icon: ClipboardCheck,
-    color: 'text-stone-600',
-    fields: [],
-  },
 ];
 
 const scoringRulesByResponseType = {
-  yes_no: ['boolean', 'manual'],
-  numeric: ['higher_is_better', 'lower_is_better', 'manual'],
-  percentage: ['higher_is_better', 'lower_is_better', 'manual'],
-  dropdown: ['choice_mapping', 'manual'],
+  yes_no: ['boolean'],
+  numeric: ['higher_is_better', 'lower_is_better'],
+  percentage: ['higher_is_better', 'lower_is_better'],
+  dropdown: ['choice_mapping'],
 };
 
 const compatibleScoringRules = (responseType) => scoringRules.filter(
@@ -168,11 +158,6 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
 const questionTypeLabel = (value) => responseTypes.find((type) => type.value === value)?.label || value;
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
 const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
-const importanceClasses = {
-  low: 'border-stone-200 bg-stone-50 text-stone-600',
-  medium: 'border-stone-200 bg-stone-50 text-stone-600',
-  high: 'border-stone-200 bg-stone-50 text-stone-600',
-};
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
@@ -222,7 +207,6 @@ export default function QuestionnaireBuilder() {
     options: [],
     required: true,
     evidence_requirement: 'not_required',
-    importance: 'medium',
     exact_numerical_weight: null,
     category: 'environment',
     question_category: DEFAULT_SUPPLIER_ESG_TAXONOMY.environment[0].code,
@@ -482,7 +466,7 @@ export default function QuestionnaireBuilder() {
           : { ...getDefaultScoringConfig(question.response_type), rule: scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
         if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
-        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', importance: 'medium', exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
+        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
         return response.data;
       };
       for (const [index, question] of draftQuestions.entries()) await createLedgerQuestion(question, rootOrder + index);
@@ -571,7 +555,6 @@ export default function QuestionnaireBuilder() {
       options: [],
       required: true,
       evidence_requirement: 'not_required',
-        importance: 'medium',
         exact_numerical_weight: null,
       category: 'environment',
       question_category: defaultQuestionCategory('environment'),
@@ -625,7 +608,6 @@ export default function QuestionnaireBuilder() {
       options: hydrateDropdownOptionScores(question.options, scoring),
       required: question.required,
       evidence_requirement: question.evidence_requirement || 'not_required',
-      importance: question.importance || 'medium',
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
       question_category: question.question_category || defaultQuestionCategory(question.category),
@@ -837,7 +819,7 @@ export default function QuestionnaireBuilder() {
                             const CategoryIcon = categoryStyle.icon;
                             return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`overflow-hidden border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
                             <AccordionTrigger className={`-mx-4 border-b border-stone-200 bg-stone-50 px-4 py-4 text-lg font-semibold hover:bg-stone-100 hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span className="flex items-center gap-3"><CategoryIcon className={`h-5 w-5 ${categoryStyle.iconClass}`} aria-hidden="true" /><span>{category.groupLabel}</span></span><Badge variant="outline" className={`ml-auto mr-3 min-w-8 justify-center rounded-full ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
-                            <AccordionContent className="pb-4 pt-5">{category.questions.length === 0 ? <p className="pb-3 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div className="overflow-hidden border border-stone-200" data-testid={`question-table-${section.value}-${category.value}`}><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-[11px] font-medium uppercase tracking-wide text-stone-600 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Max points</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <div key={question.id} className="px-4"><QuestionnaireQuestionRow question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} importanceClass={importanceClasses[question.importance] || importanceClasses.medium} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} /></div>)}</div>}</AccordionContent>
+                            <AccordionContent className="pb-4 pt-5">{category.questions.length === 0 ? <p className="pb-3 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div className="overflow-hidden border border-stone-200" data-testid={`question-table-${section.value}-${category.value}`}><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-[11px] font-medium uppercase tracking-wide text-stone-600 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Max points</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <div key={question.id} className="px-4"><QuestionnaireQuestionRow question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} /></div>)}</div>}</AccordionContent>
                           </AccordionItem>;
                           })}
                         </Accordion>
@@ -1231,20 +1213,6 @@ export default function QuestionnaireBuilder() {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">Question Importance<Tooltip><TooltipTrigger asChild><button type="button" className="inline-flex text-sky-700 transition-colors hover:text-sky-900" aria-label="View question importance score share" data-testid="question-importance-share-info"><Info className="h-4 w-4" aria-hidden="true" /></button></TooltipTrigger><TooltipContent className="max-w-xs" data-testid="question-importance-share-tooltip"><p>Score share is calculated within each ESG section. Low = 1, Medium = 2, High = 3. With one of each, shares are 16.67%, 33.33%, and 50% respectively. Shares adjust based on all answered questions.</p></TooltipContent></Tooltip></Label>
-                <Select
-                  value={questionForm.importance}
-                  onValueChange={(importance) => setQuestionForm({ ...questionForm, importance })}
-                >
-                  <SelectTrigger data-testid="question-importance-select"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label>Required</Label>
                 <Select

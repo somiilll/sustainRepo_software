@@ -273,10 +273,7 @@ class QuestionCreate(BaseModel):
     evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     assessment_type: Literal["standard", "type_a", "type_b", "type_c"] = "standard"
     max_points: Optional[float] = Field(default=None, gt=0)
-    # `weight` is retained for older API clients. New clients use importance or
-    # an exact override; the service persists the effective value in `weight`.
     weight: Optional[float] = None
-    importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # ESG section: environment, social, governance
     question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
@@ -310,7 +307,6 @@ class QuestionUpdate(BaseModel):
     assessment_type: Optional[Literal["standard", "type_a", "type_b", "type_c"]] = None
     max_points: Optional[float] = Field(default=None, gt=0)
     weight: Optional[float] = None
-    importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
     question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
@@ -350,7 +346,6 @@ class QuestionResponse(BaseModel):
     assessment_type: str = "standard"
     max_points: Optional[float] = None
     weight: float = 1.0
-    importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
     category: str
     question_category: str = "policy"

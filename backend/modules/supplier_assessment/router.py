@@ -1043,7 +1043,6 @@ async def add_question(
         assessment_type=data.assessment_type,
         max_points=data.max_points,
         weight=data.weight,
-        importance=data.importance,
         exact_numerical_weight=data.exact_numerical_weight,
         category=data.category,
         order=data.order,

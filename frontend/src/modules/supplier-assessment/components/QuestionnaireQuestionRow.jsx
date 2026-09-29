@@ -4,7 +4,7 @@ import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 
-export const QuestionnaireQuestionRow = ({ question, index, sectionLabel, questionCategoryLabel, typeLabel, scoringLabel, importanceClass, onEdit, onDelete, onDrop }) => {
+export const QuestionnaireQuestionRow = ({ question, index, sectionLabel, questionCategoryLabel, typeLabel, scoringLabel, onEdit, onDelete, onDrop }) => {
   const beginDrag = (event) => {
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', question.id);
@@ -14,7 +14,7 @@ export const QuestionnaireQuestionRow = ({ question, index, sectionLabel, questi
     <div className="min-w-0"><p className="text-sm font-semibold text-stone-950">{question.question_text}{question.required && <span className="ml-1 text-rose-500">*</span>}</p>{question.description && <p className="mt-1 truncate text-xs text-stone-500">{question.description}</p>}</div>
     <Badge variant="outline" className="w-fit border-stone-200 bg-stone-100 text-xs font-normal text-stone-700" data-testid={`question-section-${question.id}`}>{sectionLabel}</Badge>
     <Badge variant="outline" className="w-fit border-stone-200 bg-stone-100 text-xs font-normal capitalize text-stone-700" data-testid={`question-category-${question.id}`}>{questionCategoryLabel}</Badge>
-    <div className="truncate text-xs text-stone-500" title={typeLabel}>{typeLabel}</div><div className="truncate text-xs text-stone-500" title={scoringLabel}>{scoringLabel}</div>{question.max_points ? <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-800" data-testid={`question-max-points-${question.id}`}>{question.max_points} pts</Badge> : <Badge variant="outline" className={`w-fit text-xs font-medium capitalize ${importanceClass}`}>{question.importance || 'medium'}</Badge>}
+    <div className="truncate text-xs text-stone-500" title={typeLabel}>{typeLabel}</div><div className="truncate text-xs text-stone-500" title={scoringLabel}>{scoringLabel}</div><span className="text-xs font-medium text-stone-500" data-testid={`question-max-points-${question.id}`}>{question.max_points ? `${question.max_points} pts` : '—'}</span>
     <div className="flex min-w-0 items-center justify-end gap-1"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" aria-label={`Edit question ${index + 1}`} onClick={onEdit} data-testid={`edit-question-${question.id}`}><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit question</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700" aria-label={`Delete question ${index + 1}`} onClick={onDelete} data-testid={`delete-question-${question.id}`}><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete question</TooltipContent></Tooltip></div>
   </div>;
 };
