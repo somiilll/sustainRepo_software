@@ -302,7 +302,7 @@ export default function SupplierQuestionnaire() {
   return (
     <div className="mx-auto max-w-7xl space-y-8" data-testid="supplier-questionnaire">
       <SupplierPageHeader
-        title={questionnaire.name}
+        title={questionnaire.display_name || questionnaire.name}
         description={questionnaire.description}
         icon={ClipboardCheck}
         iconClassName="border-violet-200 bg-violet-50 text-violet-700"

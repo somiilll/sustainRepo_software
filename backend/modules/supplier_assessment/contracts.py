@@ -432,6 +432,8 @@ class QuestionnaireResponse(BaseModel):
     id: str
     organization_id: str
     name: str
+    display_name: Optional[str] = None
+    reporting_period: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[str] = None
     scoring_method: str = "question"

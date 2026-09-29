@@ -16,6 +16,7 @@ from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
+from modules.supplier_assessment.questionnaire_service import resolve_questionnaire_display_name
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
     SupplierCreate,
@@ -145,7 +146,9 @@ async def _notify_new_supplier_update_assignments(
         ).to_list(1000)
         for questionnaire in questionnaires:
             await notify_supplier_assignment(
-                current, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                current, "esg", questionnaire["id"], resolve_questionnaire_display_name(
+                    questionnaire.get("name") or "ESG questionnaire", current.get("reporting_period")
+                ),
                 due_date=questionnaire.get("due_date"),
             )
 
@@ -857,7 +860,7 @@ async def create_questionnaire(
         ).to_list(1000)
         for relationship in relationships:
             await notify_supplier_assignment(
-                relationship, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                relationship, "esg", questionnaire["id"], questionnaire.get("display_name") or questionnaire.get("name") or "ESG questionnaire",
                 due_date=questionnaire.get("due_date"),
             )
         _log_supplier_event("supplier_assessment.questionnaire.create.completed", action="supplier_assessment.questionnaire.create", outcome="succeeded", context={"questionnaire_id": questionnaire.get("id"), "assigned_supplier_count": len(relationships)})
@@ -913,22 +916,24 @@ async def get_questionnaire_submissions(
 
 
 @router.get("/questionnaires/{questionnaire_id}/assignments")
-async def get_questionnaire_assignments(questionnaire_id: str, current_user: dict = Depends(get_customer_admin)):
-    result = await supplier_service.list_questionnaire_assignments(current_user["organization_id"], questionnaire_id)
+async def get_questionnaire_assignments(questionnaire_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
+    result = await supplier_service.list_questionnaire_assignments(current_user["organization_id"], questionnaire_id, reporting_period)
     if not result:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     return result
 
 
 @router.post("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
-async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
-        await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "esg", questionnaire_id, questionnaire.get("name") or "ESG questionnaire",
+            supplier_id, "esg", questionnaire_id, resolve_questionnaire_display_name(
+                questionnaire.get("name") or "ESG questionnaire", reporting_period
+            ),
             due_date=questionnaire.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)

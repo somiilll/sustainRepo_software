@@ -183,7 +183,7 @@ export default function SupplierList() {
     Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/questionnaires`, { params: { reporting_period: reportingPeriod }, headers: getAuthHeader() }),
     ]).then(([documentResult, trainingResult, questionnaireResult]) => {
       const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
       const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
@@ -207,7 +207,7 @@ export default function SupplierList() {
     Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/questionnaires`, { params: { reporting_period: selectedSupplier.reporting_period || reportingPeriod }, headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
     ]).then(([documentResult, trainingResult, questionnaireResult, statusResult]) => {
       const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
@@ -714,7 +714,7 @@ export default function SupplierList() {
                               onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                               data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
                             />
-                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
+                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.display_name || questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
                           </label>
                         ))}
                       </div>
@@ -888,7 +888,7 @@ export default function SupplierList() {
                           onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                           data-testid={`edit-supplier-questionnaire-${questionnaire.id}`}
                         />
-                        <span>{questionnaire.name}</span>
+                        <span data-testid={`edit-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.display_name || questionnaire.name}</span>
                         {isSubmitted && <Badge variant="outline" className="ml-auto text-xs" data-testid={`submitted-questionnaire-lock-${questionnaire.id}`}>Submitted</Badge>}
                       </label>
                     );

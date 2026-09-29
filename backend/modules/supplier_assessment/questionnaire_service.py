@@ -2,6 +2,7 @@
 import uuid
 import logging
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -36,6 +37,37 @@ SYSTEM_QUESTIONNAIRE_BANKS = {
         "config_key": "advanced_question_bank_enabled",
     },
 }
+
+QUESTIONNAIRE_YEAR_PLACEHOLDER = "[Reporting Year]"
+QUESTIONNAIRE_YEAR_TOKEN_PATTERN = re.compile(r"\[(?:\s*reporting\s+year\s*)?\]", re.IGNORECASE)
+QUESTIONNAIRE_YEAR_VALUE_PATTERN = re.compile(r"\[\s*(?:FY\s*\d{4}\s*-\s*\d{2,4}|CY\s*\d{4})\s*\]", re.IGNORECASE)
+
+
+def normalize_questionnaire_template_name(name: str) -> str:
+    """Keep a questionnaire title reusable when an explicit bracketed year is supplied."""
+    normalized = str(name or "").strip()
+    if not normalized:
+        raise ValueError("Questionnaire name is required")
+    normalized = QUESTIONNAIRE_YEAR_TOKEN_PATTERN.sub(QUESTIONNAIRE_YEAR_PLACEHOLDER, normalized)
+    return QUESTIONNAIRE_YEAR_VALUE_PATTERN.sub(QUESTIONNAIRE_YEAR_PLACEHOLDER, normalized)
+
+
+def resolve_questionnaire_display_name(name: str, reporting_period: Optional[str]) -> str:
+    """Render the selected reporting year without changing the reusable template title."""
+    template_name = normalize_questionnaire_template_name(name)
+    if not reporting_period:
+        return template_name
+    rendered_year = f"[{reporting_period}]"
+    if QUESTIONNAIRE_YEAR_TOKEN_PATTERN.search(template_name):
+        return QUESTIONNAIRE_YEAR_TOKEN_PATTERN.sub(rendered_year, template_name)
+    return f"{template_name} {rendered_year}"
+
+
+def with_questionnaire_reporting_period(questionnaire: Dict[str, Any], reporting_period: Optional[str]) -> Dict[str, Any]:
+    resolved_period = reporting_period or questionnaire.get("assignment_reporting_period")
+    questionnaire["display_name"] = resolve_questionnaire_display_name(questionnaire.get("name", "Questionnaire"), resolved_period)
+    questionnaire["reporting_period"] = resolved_period
+    return questionnaire
 
 
 def _enabled_taxonomy_by_section(taxonomy: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -120,7 +152,7 @@ async def create_questionnaire(
     questionnaire = {
         "id": questionnaire_id,
         "organization_id": organization_id,
-        "name": name,
+        "name": normalize_questionnaire_template_name(name),
         "description": description,
         "due_date": due_date,
         "scoring_method": scoring_method or "question",
@@ -130,7 +162,7 @@ async def create_questionnaire(
         "esg_subcategories": esg_subcategories,
         "assignment_mode": assignment_mode,
         "assigned_supplier_ids": assigned_supplier_ids,
-        "assignment_reporting_period": assignment_reporting_period,
+        "assignment_reporting_period": None,
         "is_active": True,
         "is_deleted": False,
         "question_count": 0,
@@ -138,6 +170,7 @@ async def create_questionnaire(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.supplier_questionnaires.insert_one(questionnaire)
+    questionnaire.pop("_id", None)
     # Freeze historic implicit assignments before applying the new questionnaire's targeting.
     legacy_relationships = await db.supplier_relationships.find(
         {"customer_org_id": organization_id, "is_active": True, "questionnaire_ids": {"$exists": False}},
@@ -153,7 +186,7 @@ async def create_questionnaire(
             {"id": {"$in": assigned_supplier_ids}},
             {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
         )
-    return questionnaire
+    return with_questionnaire_reporting_period(questionnaire, assignment_reporting_period)
 
 
 async def seed_bundled_questionnaire_banks() -> None:
@@ -267,14 +300,13 @@ async def get_questionnaires(
     else:
         query["is_active"] = True
         query["is_deleted"] = {"$ne": True}
-    if reporting_period:
-        query["assignment_reporting_period"] = reporting_period
     questionnaires = await db.supplier_questionnaires.find(
         query,
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     for questionnaire in questionnaires:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
+        with_questionnaire_reporting_period(questionnaire, reporting_period)
     return questionnaires
 
 async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, Any]]:
@@ -285,6 +317,7 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
     )
     if questionnaire:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
+        with_questionnaire_reporting_period(questionnaire, questionnaire.get("assignment_reporting_period"))
         questions = await db.supplier_questions.find(
             {"questionnaire_id": questionnaire_id, "is_active": True},
             {"_id": 0}
@@ -303,6 +336,8 @@ async def update_questionnaire(
         return None
     if "due_date" in updates:
         validate_due_date(updates["due_date"])
+    if "name" in updates:
+        updates["name"] = normalize_questionnaire_template_name(updates["name"])
     if "esg_section_weights" in updates or "section_weights" in updates:
         updates["esg_section_weights"] = self._validated_weight_config(
             updates.get("esg_section_weights") or updates.get("section_weights"),
@@ -326,13 +361,14 @@ async def update_questionnaire(
     return await self.get_questionnaire(questionnaire_id)
 
 
-async def list_questionnaire_assignments(self, customer_org_id: str, questionnaire_id: str) -> Optional[Dict[str, Any]]:
+async def list_questionnaire_assignments(self, customer_org_id: str, questionnaire_id: str, reporting_period: Optional[str] = None) -> Optional[Dict[str, Any]]:
     questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0})
     if not questionnaire:
         return None
     supplier_query = {"customer_org_id": customer_org_id, "is_active": True}
-    if questionnaire.get("assignment_reporting_period"):
-        supplier_query["reporting_period"] = questionnaire["assignment_reporting_period"]
+    effective_period = reporting_period or questionnaire.get("assignment_reporting_period")
+    if effective_period:
+        supplier_query["reporting_period"] = effective_period
     suppliers = await db.supplier_relationships.find(supplier_query, {"_id": 0, "id": 1, "company_name": 1, "questionnaire_ids": 1, "reporting_period": 1}).to_list(1000)
     assigned_ids = set(questionnaire.get("assigned_supplier_ids") or [])
     responses = await db.supplier_questionnaire_responses.find(
@@ -344,12 +380,15 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
         is_assigned = supplier["id"] in assigned_ids or ("questionnaire_ids" in supplier and questionnaire_id in (supplier.get("questionnaire_ids") or []))
         status = response_statuses.get(supplier["id"], "not_started")
         rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted", "can_unlock": is_assigned and status == "submitted"})
-    return {"questionnaire_id": questionnaire_id, "assignments": rows}
+    return {"questionnaire_id": questionnaire_id, "reporting_period": effective_period, "assignments": rows}
 
 
-async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str) -> None:
+async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str, reporting_period: Optional[str] = None) -> None:
     questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0, "assigned_supplier_ids": 1})
-    relationship = await db.supplier_relationships.find_one({"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1})
+    relationship_query = {"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}
+    if reporting_period:
+        relationship_query["reporting_period"] = reporting_period
+    relationship = await db.supplier_relationships.find_one(relationship_query, {"_id": 0, "id": 1})
     if not questionnaire or not relationship:
         raise ValueError("Questionnaire or supplier is unavailable")
     now = datetime.now(timezone.utc).isoformat()
@@ -721,7 +760,7 @@ async def get_supplier_questionnaire_status(
         
         statuses.append({
             "questionnaire_id": q["id"],
-            "questionnaire_name": q["name"],
+            "questionnaire_name": resolve_questionnaire_display_name(q["name"], relationship.get("reporting_period")),
             "supplier_relationship_id": relationship["id"],
             "status": status,
             "completion_percent": round(completion_percent, 1),
@@ -764,6 +803,7 @@ async def get_questionnaire_for_supplier(
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
     questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
     questionnaire["reopened_at"] = response_doc.get("reopened_at") if response_doc else None
+    with_questionnaire_reporting_period(questionnaire, relationship.get("reporting_period"))
     
     return questionnaire
 
@@ -1270,7 +1310,7 @@ async def get_questionnaire_submissions_for_admin(
         for response in responses
         if response["supplier_relationship_id"] in supplier_names
     ]
-    return {"questionnaire_id": questionnaire["id"], "questionnaire_name": questionnaire["name"], "submissions": submissions}
+    return {"questionnaire_id": questionnaire["id"], "questionnaire_name": resolve_questionnaire_display_name(questionnaire["name"], reporting_period), "submissions": submissions}
 
 async def set_manual_questionnaire_score(self, supplier_relationship_id: str, questionnaire_id: str, score: float, note: Optional[str], scored_by: str) -> Optional[Dict[str, Any]]:
     relationship = await self.get_supplier(supplier_relationship_id)
