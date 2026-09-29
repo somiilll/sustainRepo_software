@@ -4140,6 +4140,8 @@ async def startup_event():
     await ensure_supplier_document_indexes()
     from modules.supplier_assessment.training_service import ensure_indexes as ensure_supplier_training_indexes
     await ensure_supplier_training_indexes()
+    from modules.supplier_assessment.questionnaire_service import sync_questionnaire_banks_for_all_organizations
+    await sync_questionnaire_banks_for_all_organizations()
     from bulk_upload_scope3.router import ensure_bulk_upload_indexes
     await ensure_bulk_upload_indexes(db)
     # Seed airport reference data from CSV

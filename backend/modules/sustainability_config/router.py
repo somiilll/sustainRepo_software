@@ -83,8 +83,8 @@ async def update_org_config(
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
     if data.supplier_assessment is not None:
-        from modules.supplier_assessment.questionnaire_service import sync_advanced_questionnaire_bank
-        await sync_advanced_questionnaire_bank(org_id, current_user["id"], data.supplier_assessment.advanced_question_bank_enabled)
+        from modules.supplier_assessment.questionnaire_service import sync_questionnaire_banks_for_organization
+        await sync_questionnaire_banks_for_organization(org_id, current_user["id"], data.supplier_assessment.model_dump())
     return result
 
 
@@ -95,6 +95,9 @@ async def delete_org_config(
 ):
     """Delete org config (revert to global defaults). SuperAdmin only."""
     deleted = await service.delete_org_config(org_id)
+    if deleted:
+        from modules.supplier_assessment.questionnaire_service import sync_questionnaire_banks_for_organization
+        await sync_questionnaire_banks_for_organization(org_id, current_user["id"])
     return {"status": "deleted" if deleted else "not_found"}
 
 

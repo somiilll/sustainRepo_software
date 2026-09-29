@@ -63,6 +63,9 @@ async def create_organization(org_data: OrganizationCreate, current_user: dict =
     org_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.organizations.insert_one(org_dict)
+    from modules.supplier_assessment.questionnaire_service import seed_bundled_questionnaire_banks, sync_questionnaire_banks_for_organization
+    await seed_bundled_questionnaire_banks()
+    await sync_questionnaire_banks_for_organization(org_dict["id"], current_user["id"])
     return OrganizationResponse(**org_dict)
 
 @router.get("/super-admin/organizations", response_model=List[OrganizationResponse])

@@ -1,3 +1,9 @@
+# September 29, 2026 — ESG Annual (Basic) Questionnaire Bank
+- Added **ESG Annual (Basic)** from the workbook’s `Tier 1 - Basic (MSME)` sheet: 25 exact Tier 1 questions worth 350 points, distributed across Environment (9), Social (10), and Governance (6).
+- Seeded the Basic bank idempotently for existing organizations and included it in the existing future-organization and startup synchronization paths. It is enabled by default and maintains independent Basic / Standard / Advanced activation states.
+- Added the Super Admin **ESG Annual (Basic)** Supplier Assessment configuration toggle, using the same save behavior and test-ID coverage as the Standard and Advanced controls.
+- Focused JSON/regression checks passed before the user requested no further testing. **NO FURTHER FUNCTIONAL OR BROWSER TESTING** per user instruction.
+
 # September 24, 2026 — Supplier Evidence Point Scoring Controls
 - Extended point-based controls to **Required** and **Not Required** Yes/No questions, replacing their visible legacy 100 / 0 fields with Max points / 0 defaults and persisted point awards.
 - Replaced Type C questionnaire authoring’s legacy Yes/No percentage fields with **Yes with evidence score**, **Yes without evidence score**, and **No score** point inputs in both Add Questions and Edit Question.

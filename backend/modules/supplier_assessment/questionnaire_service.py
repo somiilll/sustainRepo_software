@@ -1,7 +1,9 @@
 """Questionnaire authoring, response, evidence, and manual-review operations."""
 import uuid
 import logging
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
@@ -14,6 +16,26 @@ from app.logging import get_logger, log_event
 logger = get_logger(__name__)
 
 ESG_SECTIONS = ("environment", "social", "governance")
+SYSTEM_QUESTIONNAIRE_BANKS = {
+    "basic": {
+        "bank_id": "esg_annual_basic",
+        "name": "ESG Annual (Basic)",
+        "description": "Tier 1 – Basic MSME supplier ESG assessment.",
+        "config_key": "basic_question_bank_enabled",
+    },
+    "standard": {
+        "bank_id": "esg_annual_standard",
+        "name": "ESG Annual (Standard)",
+        "description": "Tier 2 – Standard supplier ESG assessment.",
+        "config_key": "standard_question_bank_enabled",
+    },
+    "advanced": {
+        "bank_id": "esg_annual_advanced",
+        "name": "ESG Annual (Advanced)",
+        "description": "Tier 3 – Strategic supplier ESG assessment.",
+        "config_key": "advanced_question_bank_enabled",
+    },
+}
 
 
 def _enabled_taxonomy_by_section(taxonomy: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
@@ -134,18 +156,33 @@ async def create_questionnaire(
     return questionnaire
 
 
-async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str, enabled: bool) -> None:
-    """Activate or deactivate the system-owned ESG Annual (Advanced) template for an organization."""
+async def seed_bundled_questionnaire_banks() -> None:
+    """Upsert versioned system question banks bundled with the application."""
+    now = datetime.now(timezone.utc).isoformat()
+    for filename in ("esg_annual_basic.json", "esg_annual_standard.json"):
+        source_path = Path(__file__).parent / "data" / filename
+        bank = json.loads(source_path.read_text(encoding="utf-8"))
+        await db.supplier_question_banks.update_one(
+            {"id": bank["id"]},
+            {"$set": {**bank, "updated_at": now}, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+
+
+async def sync_system_questionnaire_bank(organization_id: str, created_by: str, bank_key: str, enabled: bool) -> None:
+    """Activate, deactivate, or create one system-owned questionnaire bank for an organization."""
+    definition = SYSTEM_QUESTIONNAIRE_BANKS[bank_key]
     existing = await db.supplier_questionnaires.find_one(
-        {"organization_id": organization_id, "system_question_bank": "advanced"}, {"_id": 0, "id": 1}
+        {"organization_id": organization_id, "system_question_bank": bank_key}, {"_id": 0, "id": 1}
     )
     if existing:
         await db.supplier_questionnaires.update_one({"id": existing["id"]}, {"$set": {"is_active": enabled, "updated_at": datetime.now(timezone.utc).isoformat()}})
         return
     if not enabled:
         return
-    bank = await db.supplier_question_banks.find_one({"id": "esg_annual_advanced", "is_active": True}, {"_id": 0})
+    bank = await db.supplier_question_banks.find_one({"id": definition["bank_id"], "is_active": True}, {"_id": 0})
     if not bank:
+        logger.warning("System questionnaire bank %s is unavailable", definition["bank_id"])
         return
     taxonomy = (await resolve_supplier_assessment_config(organization_id)).get("esg_subcategories") or {}
     codes_by_name = {
@@ -169,18 +206,50 @@ async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str
             "assessment_type": assessment_type, "max_points": max_points, "weight": max_points, "importance": "medium", "exact_numerical_weight": max_points,
             "point_scores": {"yes_score": max_points, "yes_with_evidence_score": max_points, "yes_without_evidence_score": max_points / 2, "no_score": 0},
             "category": section, "question_category": category_code, "order": order, "parent_question_id": None,
-            "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True, "system_question_bank": "advanced", "created_at": now,
+            "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True,
+            "system_question_bank": bank_key, "source_question_id": source.get("source_question_id"), "created_at": now,
         })
     if not questions:
         return
     await db.supplier_questionnaires.insert_one({
-        "id": questionnaire_id, "organization_id": organization_id, "name": "ESG Annual (Advanced)", "description": "Tier 3 – Strategic supplier ESG assessment.",
+        "id": questionnaire_id, "organization_id": organization_id, "name": definition["name"], "description": definition["description"],
         "scoring_method": "question", "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
         "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34}, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
         "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "is_active": True, "is_deleted": False,
-        "question_count": len(questions), "system_question_bank": "advanced", "created_by": created_by, "created_at": now,
+        "question_count": len(questions), "system_question_bank": bank_key, "created_by": created_by, "created_at": now,
     })
     await db.supplier_questions.insert_many(questions)
+
+
+async def sync_questionnaire_banks_for_organization(
+    organization_id: str,
+    created_by: str,
+    supplier_config: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Synchronize all centrally managed questionnaire banks for one organization."""
+    config = supplier_config or await resolve_supplier_assessment_config(organization_id)
+    for bank_key, definition in SYSTEM_QUESTIONNAIRE_BANKS.items():
+        await sync_system_questionnaire_bank(
+            organization_id,
+            created_by,
+            bank_key,
+            bool(config.get(definition["config_key"], True)),
+        )
+
+
+async def sync_questionnaire_banks_for_all_organizations() -> None:
+    """Seed bundled banks and roll them out idempotently to every active organization."""
+    await seed_bundled_questionnaire_banks()
+    organizations = await db.organizations.find(
+        {"is_active": {"$ne": False}, "is_deleted": {"$ne": True}}, {"_id": 0, "id": 1}
+    ).to_list(None)
+    for organization in organizations:
+        await sync_questionnaire_banks_for_organization(organization["id"], "system_questionnaire_bank_sync")
+
+
+async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str, enabled: bool) -> None:
+    """Backward-compatible wrapper for the Advanced bank synchronizer."""
+    await sync_system_questionnaire_bank(organization_id, created_by, "advanced", enabled)
 
 async def get_questionnaires(
     self,

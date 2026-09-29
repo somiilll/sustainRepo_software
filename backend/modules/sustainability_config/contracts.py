@@ -223,6 +223,8 @@ class SupplierAssessmentConfig(BaseModel):
 
     modules: SupplierAssessmentModulesConfig = Field(default_factory=SupplierAssessmentModulesConfig)
     esg_subcategories: SupplierAssessmentEsgSubcategoriesConfig = Field(default_factory=SupplierAssessmentEsgSubcategoriesConfig)
+    basic_question_bank_enabled: bool = True
+    standard_question_bank_enabled: bool = True
     advanced_question_bank_enabled: bool = True
 
 
