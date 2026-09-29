@@ -82,6 +82,9 @@ async def update_org_config(
         payload["organization_settings"] = data.organization_settings.model_dump()
 
     result = await service.upsert_org_config(org_id, payload, current_user["id"])
+    if data.supplier_assessment is not None:
+        from modules.supplier_assessment.questionnaire_service import sync_advanced_questionnaire_bank
+        await sync_advanced_questionnaire_bank(org_id, current_user["id"], data.supplier_assessment.advanced_question_bank_enabled)
     return result
 
 

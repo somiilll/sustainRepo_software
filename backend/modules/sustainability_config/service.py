@@ -61,6 +61,7 @@ DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
         "training": {"enabled": False, "display_name": "Training"},
     },
     "esg_subcategories": supplier_esg_subcategory_defaults(),
+    "advanced_question_bank_enabled": True,
 }
 
 DEFAULT_ORGANIZATION_SETTINGS = {
@@ -116,6 +117,7 @@ def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[st
             for code, module_config in DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["modules"].items()
         },
         "esg_subcategories": supplier_esg_subcategory_defaults(),
+        "advanced_question_bank_enabled": True,
     }
     configured_supplier_assessment = (org_cfg or {}).get("supplier_assessment") or {}
     configured_modules = configured_supplier_assessment.get("modules") or {}
@@ -125,6 +127,7 @@ def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[st
     resolved["esg_subcategories"] = normalize_supplier_esg_subcategories(
         configured_supplier_assessment.get("esg_subcategories")
     )
+    resolved["advanced_question_bank_enabled"] = bool(configured_supplier_assessment.get("advanced_question_bank_enabled", True))
     return resolved
 
 

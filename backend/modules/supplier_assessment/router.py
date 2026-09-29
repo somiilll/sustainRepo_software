@@ -1040,6 +1040,8 @@ async def add_question(
         options=[o.model_dump() for o in data.options] if data.options else None,
         required=data.required,
         evidence_requirement=data.evidence_requirement,
+        assessment_type=data.assessment_type,
+        max_points=data.max_points,
         weight=data.weight,
         importance=data.importance,
         exact_numerical_weight=data.exact_numerical_weight,

@@ -482,7 +482,7 @@ export default function QuestionnaireBuilder() {
           : { ...getDefaultScoringConfig(question.response_type), rule: scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
         if (question.response_type === 'yes_no') { scoring.true_score = Number(question.yes_score); scoring.false_score = Number(question.no_score); }
-        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', importance: question.importance, exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
+        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, description: '', importance: 'medium', exact_numerical_weight: null, options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
         return response.data;
       };
       for (const [index, question] of draftQuestions.entries()) await createLedgerQuestion(question, rootOrder + index);

@@ -133,6 +133,54 @@ async def create_questionnaire(
         )
     return questionnaire
 
+
+async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str, enabled: bool) -> None:
+    """Activate or deactivate the system-owned ESG Annual (Advanced) template for an organization."""
+    existing = await db.supplier_questionnaires.find_one(
+        {"organization_id": organization_id, "system_question_bank": "advanced"}, {"_id": 0, "id": 1}
+    )
+    if existing:
+        await db.supplier_questionnaires.update_one({"id": existing["id"]}, {"$set": {"is_active": enabled, "updated_at": datetime.now(timezone.utc).isoformat()}})
+        return
+    if not enabled:
+        return
+    bank = await db.supplier_question_banks.find_one({"id": "esg_annual_advanced", "is_active": True}, {"_id": 0})
+    if not bank:
+        return
+    taxonomy = (await resolve_supplier_assessment_config(organization_id)).get("esg_subcategories") or {}
+    codes_by_name = {
+        section: {"".join(char for char in item.get("name", "").lower() if char.isalnum()): item.get("code") for item in taxonomy.get(section, []) if item.get("enabled")}
+        for section in ESG_SECTIONS
+    }
+    now = datetime.now(timezone.utc).isoformat()
+    questionnaire_id = str(uuid.uuid4())
+    questions = []
+    for order, source in enumerate(bank.get("questions") or []):
+        section = str(source.get("pillar", "")).lower()
+        category_code = codes_by_name.get(section, {}).get("".join(char for char in source.get("subcategory", "").lower() if char.isalnum()))
+        if not category_code:
+            continue
+        assessment_type = source.get("assessment_type", "type_a")
+        max_points = float(source.get("max_points") or 1)
+        questions.append({
+            "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id, "question_text": source["assessment_question"],
+            "description": source.get("configuration"), "response_type": "yes_no", "options": None, "required": True,
+            "evidence_requirement": "not_required" if assessment_type == "type_a" else ("required" if assessment_type == "type_b" else "optional"),
+            "assessment_type": assessment_type, "max_points": max_points, "weight": max_points, "importance": "medium", "exact_numerical_weight": max_points,
+            "category": section, "question_category": category_code, "order": order, "parent_question_id": None,
+            "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True, "system_question_bank": "advanced", "created_at": now,
+        })
+    if not questions:
+        return
+    await db.supplier_questionnaires.insert_one({
+        "id": questionnaire_id, "organization_id": organization_id, "name": "ESG Annual (Advanced)", "description": "Tier 3 – Strategic supplier ESG assessment.",
+        "scoring_method": "question", "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
+        "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34}, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
+        "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "is_active": True, "is_deleted": False,
+        "question_count": len(questions), "system_question_bank": "advanced", "created_by": created_by, "created_at": now,
+    })
+    await db.supplier_questions.insert_many(questions)
+
 async def get_questionnaires(
     self,
     organization_id: str,
@@ -351,6 +399,8 @@ async def add_question(
     scoring: Optional[Dict[str, Any]] = None,
     parent_question_id: Optional[str] = None,
     question_category: Optional[str] = None,
+    assessment_type: str = "standard",
+    max_points: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
     questionnaire = await db.supplier_questionnaires.find_one(
@@ -388,6 +438,8 @@ async def add_question(
         "options": options,
         "required": required,
         "evidence_requirement": self._question_evidence_requirement(evidence_requirement),
+        "assessment_type": assessment_type,
+        "max_points": max_points,
         "weight": effective_weight,
         "importance": importance,
         "exact_numerical_weight": exact_numerical_weight,
@@ -805,10 +857,10 @@ async def submit_supplier_answers(
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     if not is_draft:
         evidence_scored_questions = await db.supplier_questions.find(
-            {"questionnaire_id": questionnaire_id, "is_active": True, "evidence_requirement": "evidence_scored"},
+            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored"}, {"assessment_type": "type_b"}]},
             {"_id": 0, "id": 1, "question_text": 1},
         ).to_list(500)
-        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if not question_evidence.get(question["id"])]
+        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if (question.get("assessment_type") != "type_b" or str(answers_dict.get(question["id"], "")).lower() in {"yes", "true", "1"}) and not question_evidence.get(question["id"])]
         if missing_evidence:
             raise ValueError(f"Evidence is required for scoring: {', '.join(missing_evidence[:3])}")
     # Calculate score if submitting

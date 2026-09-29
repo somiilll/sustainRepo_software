@@ -319,6 +319,7 @@ class ScoreCalculator:
         ghg_score: Optional[float] = None,
         revenue_percentage: Optional[float] = None,
         manual_scores: Optional[Dict[str, Any]] = None,
+        evidence_by_question: Optional[Dict[str, List[str]]] = None,
     ) -> ScoreBreakdown:
         """
         Calculate complete supplier score with full breakdown.
@@ -349,6 +350,7 @@ class ScoreCalculator:
         question_scores: List[QuestionScore] = []
         notes: List[str] = []
         manual_scores = manual_scores or {}
+        evidence_by_question = evidence_by_question or {}
         
         # Calculate score for each question
         for q in questions:
@@ -411,6 +413,19 @@ class ScoreCalculator:
                     weight_source=weight_source,
                     scoring_config=scoring_config,
                 )
+                assessment_type = q.get("assessment_type", "standard")
+                if assessment_type in {"type_a", "type_b", "type_c"}:
+                    answer_is_yes = str(raw_value).strip().lower() in {"yes", "true", "1"} or raw_value is True
+                    has_evidence = bool(evidence_by_question.get(question_id))
+                    automatic_score = 0.0 if not answer_is_yes else (100.0 if assessment_type == "type_a" or has_evidence else (50.0 if assessment_type == "type_c" else 0.0))
+                    q_score.raw_score = automatic_score
+                    q_score.weighted_score = automatic_score * weight
+                    q_score.calculation_details = {
+                        "rule_type": assessment_type,
+                        "max_points": q.get("max_points"),
+                        "has_evidence": has_evidence,
+                        "automatic_score_percent": automatic_score,
+                    }
                 if has_manual_score:
                     q_score.raw_response = raw_value
                     q_score.calculation_details.update({
