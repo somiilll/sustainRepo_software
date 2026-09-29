@@ -22,4 +22,3 @@ export const cloneSupplierEsgTaxonomy = (taxonomy) => {
     ESG_SECTIONS.map(({ value }) => [value, (source[value] || DEFAULT_SUPPLIER_ESG_TAXONOMY[value]).map((item) => ({ ...item }))]),
   );
 };
-);
