@@ -151,7 +151,7 @@ const isFiniteNumber = (value) => value !== '' && value !== null && value !== un
 const isScore = (value) => isFiniteNumber(value) && Number(value) >= 0 && Number(value) <= 100;
 const evidencePointDefaults = (maxPoints) => {
   const maximum = Number(maxPoints) > 0 ? Number(maxPoints) : 1;
-  return { yes_with_evidence_score: maximum, yes_without_evidence_score: maximum / 2, no_score: 0 };
+  return { yes_score: maximum, yes_with_evidence_score: maximum, yes_without_evidence_score: maximum / 2, no_score: 0 };
 };
 const isPointScore = (value, maxPoints) => isFiniteNumber(value) && Number(value) >= 0 && Number(value) <= Number(maxPoints);
 
@@ -456,8 +456,12 @@ export default function QuestionnaireBuilder() {
     const invalidScore = draftQuestions.find((question) => {
       if (question.scoring_rule === 'manual') return false;
       if (!isFiniteNumber(question.max_points) || Number(question.max_points) <= 0) return true;
-      if (question.evidence_requirement === 'evidence_scored') return ['yes_with_evidence_score', 'yes_without_evidence_score', 'no_score'].some((field) => !isPointScore(question.point_scores?.[field], question.max_points));
-      if (question.response_type === 'yes_no') return !isScore(question.yes_score) || !isScore(question.no_score);
+      if (question.response_type === 'yes_no') {
+        const pointFields = question.evidence_requirement === 'evidence_scored'
+          ? ['yes_with_evidence_score', 'yes_without_evidence_score', 'no_score']
+          : [question.evidence_requirement === 'required' ? 'yes_with_evidence_score' : 'yes_score', 'no_score'];
+        return pointFields.some((field) => !isPointScore(question.point_scores?.[field], question.max_points));
+      }
       if (question.response_type === 'dropdown') return question.options_text.split(',').map((value) => value.trim()).filter(Boolean).some((value) => !isScore(question.option_scores?.[value]));
       return false;
     });
@@ -466,7 +470,7 @@ export default function QuestionnaireBuilder() {
     try {
       const rootOrder = questions.filter((question) => !question.parent_question_id).length;
       const createLedgerQuestion = async (question, order, parentQuestionId = null) => {
-        const { draft_id, options_text, option_scores, scoring_rule, yes_score, no_score, ...questionPayload } = question;
+        const { draft_id, options_text, option_scores, scoring_rule, ...questionPayload } = question;
         const values = question.response_type === 'dropdown' ? options_text.split(',').map((value) => value.trim()).filter(Boolean) : [];
         const options = values.map((value) => ({ value, label: value, score: Number(question.option_scores?.[value]) }));
         const scoring = scoring_rule === 'manual'
@@ -475,9 +479,9 @@ export default function QuestionnaireBuilder() {
           ? { rule: 'lower_is_better', min: 0, max_acceptable: 100, max_score: 100 }
           : { ...getDefaultScoringConfig(question.response_type), rule: scoring_rule };
         if (question.response_type === 'dropdown') scoring.choices = Object.fromEntries(options.map((option) => [option.value, option.score]));
-        if (question.response_type === 'yes_no' && question.evidence_requirement !== 'evidence_scored') { scoring.true_score = Number(yes_score); scoring.false_score = Number(no_score); }
         const maxPoints = Number(question.max_points);
-        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, max_points: maxPoints, point_scores: question.evidence_requirement === 'evidence_scored' ? Object.fromEntries(Object.entries(question.point_scores).map(([key, value]) => [key, Number(value)])) : null, weight: maxPoints, exact_numerical_weight: maxPoints, description: '', options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
+        const pointScores = question.response_type === 'yes_no' ? Object.fromEntries(Object.entries(question.point_scores).map(([key, value]) => [key, Number(value)])) : null;
+        const response = await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, { ...questionPayload, max_points: maxPoints, point_scores: pointScores, weight: maxPoints, exact_numerical_weight: maxPoints, description: '', options, scoring, order, parent_question_id: parentQuestionId }, { headers: getAuthHeader() });
         return response.data;
       };
       for (const [index, question] of draftQuestions.entries()) await createLedgerQuestion(question, rootOrder + index);
@@ -694,7 +698,8 @@ export default function QuestionnaireBuilder() {
       scoring.choices = Object.fromEntries(options.map((option) => [option.value, Number(option.score)]));
     }
     const maxPoints = Number(questionForm.max_points);
-    return { ...questionForm, max_points: maxPoints, point_scores: questionForm.evidence_requirement === 'evidence_scored' ? Object.fromEntries(Object.entries(questionForm.point_scores || {}).map(([key, value]) => [key, Number(value)])) : null, weight: maxPoints, exact_numerical_weight: maxPoints, options, scoring, order };
+    const pointScores = questionForm.response_type === 'yes_no' ? Object.fromEntries(Object.entries(questionForm.point_scores || {}).map(([key, value]) => [key, Number(value)])) : null;
+    return { ...questionForm, max_points: maxPoints, point_scores: pointScores, weight: maxPoints, exact_numerical_weight: maxPoints, options, scoring, order };
   };
 
   const validateQuestionScoring = () => {
@@ -704,8 +709,10 @@ export default function QuestionnaireBuilder() {
       toast.error('Max points must be greater than 0.');
       return false;
     }
-    if (questionForm.evidence_requirement === 'evidence_scored') {
-      const labels = { yes_with_evidence_score: 'Yes with evidence score', yes_without_evidence_score: 'Yes without evidence score', no_score: 'No score' };
+    if (questionForm.response_type === 'yes_no') {
+      const labels = questionForm.evidence_requirement === 'evidence_scored'
+        ? { yes_with_evidence_score: 'Yes with evidence score', yes_without_evidence_score: 'Yes without evidence score', no_score: 'No score' }
+        : { [questionForm.evidence_requirement === 'required' ? 'yes_with_evidence_score' : 'yes_score']: questionForm.evidence_requirement === 'required' ? 'Yes with evidence score' : 'Yes score', no_score: 'No score' };
       for (const [field, label] of Object.entries(labels)) {
         if (!isPointScore(questionForm.point_scores?.[field], questionForm.max_points)) {
           toast.error(`${label} must be between 0 and ${questionForm.max_points}.`);
@@ -745,7 +752,7 @@ export default function QuestionnaireBuilder() {
         return false;
       }
     }
-    if (rule === 'boolean' && questionForm.evidence_requirement !== 'evidence_scored' && (!requireScore(scoring.true_score, 'Yes score') || !requireScore(scoring.false_score, 'No score'))) return false;
+    if (rule === 'boolean' && questionForm.response_type !== 'yes_no' && (!requireScore(scoring.true_score, 'Yes score') || !requireScore(scoring.false_score, 'No score'))) return false;
     if (rule === 'choice_mapping') {
       if (questionForm.response_type !== 'dropdown') {
         toast.error('Choice Mapping is only available for dropdown questions.');
@@ -1276,7 +1283,7 @@ export default function QuestionnaireBuilder() {
               </div>
               <div className="space-y-2">
                 <Label>Evidence</Label>
-                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement, assessment_type: evidence_requirement === 'required' ? 'type_a' : evidence_requirement === 'evidence_scored' ? 'type_c' : 'type_b', ...(evidence_requirement === 'evidence_scored' ? { response_type: 'yes_no', scoring: { rule: 'boolean', true_score: 100, false_score: 0 }, point_scores: evidencePointDefaults(questionForm.max_points) } : {}) })}>
+                <Select value={questionForm.evidence_requirement} onValueChange={(evidence_requirement) => setQuestionForm({ ...questionForm, evidence_requirement, assessment_type: evidence_requirement === 'required' ? 'type_a' : evidence_requirement === 'evidence_scored' ? 'type_c' : 'type_b', response_type: 'yes_no', scoring: { rule: 'boolean', true_score: 100, false_score: 0 }, point_scores: evidencePointDefaults(questionForm.max_points) })}>
                   <SelectTrigger data-testid="question-evidence-requirement-select"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="required" data-testid="question-evidence-option-required">Required</SelectItem><SelectItem value="not_required" data-testid="question-evidence-option-not-required">Not Required</SelectItem><SelectItem value="evidence_scored" data-testid="question-evidence-option-scored">Scoring based on evidence</SelectItem></SelectContent>
                 </Select>
@@ -1341,13 +1348,21 @@ export default function QuestionnaireBuilder() {
             )}
             
             {/* Scoring Configuration */}
-            {questionForm.evidence_requirement === 'evidence_scored' ? (
+            {questionForm.response_type === 'yes_no' ? questionForm.evidence_requirement === 'evidence_scored' ? (
               <div className="space-y-4 rounded-lg border border-stone-200 bg-stone-50/50 p-4" data-testid="evidence-point-scoring-panel">
                 <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-stone-600" /><Label className="text-base font-medium">Evidence point scoring</Label></div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1"><Label className="text-xs">Yes with evidence score</Label><Input type="number" min="0" max={questionForm.max_points} step="0.01" value={questionForm.point_scores?.yes_with_evidence_score ?? ''} onChange={(event) => updateEvidencePointScore('yes_with_evidence_score', event.target.value)} data-testid="yes-with-evidence-score-input" /></div>
                   <div className="space-y-1"><Label className="text-xs">Yes without evidence score</Label><Input type="number" min="0" max={questionForm.max_points} step="0.01" value={questionForm.point_scores?.yes_without_evidence_score ?? ''} onChange={(event) => updateEvidencePointScore('yes_without_evidence_score', event.target.value)} data-testid="yes-without-evidence-score-input" /></div>
                   <div className="space-y-1"><Label className="text-xs">No score</Label><Input type="number" min="0" max={questionForm.max_points} step="0.01" value={questionForm.point_scores?.no_score ?? ''} onChange={(event) => updateEvidencePointScore('no_score', event.target.value)} data-testid="evidence-no-score-input" /></div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 rounded-lg border border-stone-200 bg-stone-50/50 p-4" data-testid="yes-no-point-scoring-panel">
+                <div className="flex items-center gap-2"><Settings2 className="h-4 w-4 text-stone-600" /><Label className="text-base font-medium">Point scoring</Label></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><Label className="text-xs">{questionForm.evidence_requirement === 'required' ? 'Yes with evidence score' : 'Yes score'}</Label><Input type="number" min="0" max={questionForm.max_points} step="0.01" value={questionForm.evidence_requirement === 'required' ? questionForm.point_scores?.yes_with_evidence_score ?? '' : questionForm.point_scores?.yes_score ?? ''} onChange={(event) => updateEvidencePointScore(questionForm.evidence_requirement === 'required' ? 'yes_with_evidence_score' : 'yes_score', event.target.value)} data-testid="yes-point-score-input" /></div>
+                  <div className="space-y-1"><Label className="text-xs">No score</Label><Input type="number" min="0" max={questionForm.max_points} step="0.01" value={questionForm.point_scores?.no_score ?? ''} onChange={(event) => updateEvidencePointScore('no_score', event.target.value)} data-testid="no-point-score-input" /></div>
                 </div>
               </div>
             ) : <div className="border rounded-lg p-4 bg-stone-50/50 space-y-4">

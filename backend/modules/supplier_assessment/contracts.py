@@ -195,7 +195,8 @@ class QuestionOption(BaseModel):
 
 
 class EvidencePointScores(BaseModel):
-    """Point awards for Type C evidence-based Yes/No questions."""
+    """Point awards for point-based Yes/No assessment questions."""
+    yes_score: Optional[float] = Field(default=None, ge=0)
     yes_with_evidence_score: float = Field(ge=0)
     yes_without_evidence_score: float = Field(ge=0)
     no_score: float = Field(default=0, ge=0)
@@ -297,7 +298,8 @@ class QuestionCreate(BaseModel):
                 raise ValueError("evidence_scored questions must use assessment_type type_c")
             if self.max_points is None or self.point_scores is None:
                 raise ValueError("evidence_scored questions require max_points and point_scores")
-            point_values = self.point_scores.model_dump().values()
+        if self.max_points is not None and self.point_scores is not None:
+            point_values = (value for value in self.point_scores.model_dump().values() if value is not None)
             if any(value > self.max_points for value in point_values):
                 raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
@@ -338,7 +340,7 @@ class QuestionUpdate(BaseModel):
         if self.evidence_requirement == "evidence_scored" and self.assessment_type not in {None, "type_c"}:
             raise ValueError("evidence_scored questions must use assessment_type type_c")
         if self.max_points is not None and self.point_scores is not None:
-            if any(value > self.max_points for value in self.point_scores.model_dump().values()):
+            if any(value > self.max_points for value in self.point_scores.model_dump().values() if value is not None):
                 raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
             return self

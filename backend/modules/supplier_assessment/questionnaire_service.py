@@ -167,6 +167,7 @@ async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str
             "description": source.get("configuration"), "response_type": "yes_no", "options": None, "required": True,
             "evidence_requirement": "required" if assessment_type == "type_a" else ("not_required" if assessment_type == "type_b" else "evidence_scored"),
             "assessment_type": assessment_type, "max_points": max_points, "weight": max_points, "importance": "medium", "exact_numerical_weight": max_points,
+            "point_scores": {"yes_score": max_points, "yes_with_evidence_score": max_points, "yes_without_evidence_score": max_points / 2, "no_score": 0},
             "category": section, "question_category": category_code, "order": order, "parent_question_id": None,
             "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True, "system_question_bank": "advanced", "created_at": now,
         })

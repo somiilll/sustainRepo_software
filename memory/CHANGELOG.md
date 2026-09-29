@@ -1,4 +1,5 @@
 # September 24, 2026 — Supplier Evidence Point Scoring Controls
+- Extended point-based controls to **Required** and **Not Required** Yes/No questions, replacing their visible legacy 100 / 0 fields with Max points / 0 defaults and persisted point awards.
 - Replaced Type C questionnaire authoring’s legacy Yes/No percentage fields with **Yes with evidence score**, **Yes without evidence score**, and **No score** point inputs in both Add Questions and Edit Question.
 - Added Max points-aware defaults (full / half / zero), range validation, responsive authoring layout, and persisted `point_scores` API contracts.
 - Updated Type C calculation to honor all three configured point awards, including a non-zero No score. Production build and focused point-calculation checks passed before the user requested no further testing; no browser/API workflow test followed.
