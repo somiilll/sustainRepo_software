@@ -358,9 +358,13 @@ async def add_question(
     )
     if not questionnaire:
         raise ValueError("Questionnaire not found")
-    taxonomy = questionnaire.get("esg_subcategories")
-    if not taxonomy:
-        taxonomy = (await resolve_supplier_assessment_config(questionnaire["organization_id"])).get("esg_subcategories") or {}
+    # Authoring follows the organization's current configuration so a newly enabled
+    # custom category is immediately available on existing questionnaires as well.
+    taxonomy = (await resolve_supplier_assessment_config(questionnaire["organization_id"])).get("esg_subcategories") or {}
+    if taxonomy != questionnaire.get("esg_subcategories"):
+        await db.supplier_questionnaires.update_one(
+            {"id": questionnaire_id}, {"$set": {"esg_subcategories": taxonomy, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
     parent_question = None
     if parent_question_id:
         parent_question = await db.supplier_questions.find_one(

@@ -172,6 +172,7 @@ export default function QuestionnaireBuilder() {
   const [questionnaires, setQuestionnaires] = useState([]);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
+  const [organizationTaxonomy, setOrganizationTaxonomy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [questionnaireSearch, setQuestionnaireSearch] = useState('');
   
@@ -254,7 +255,7 @@ export default function QuestionnaireBuilder() {
     }
   }, [getAuthHeader]);
 
-  const questionnaireTaxonomy = useMemo(() => cloneSupplierEsgTaxonomy(selectedQuestionnaire?.esg_subcategories), [selectedQuestionnaire]);
+  const questionnaireTaxonomy = useMemo(() => cloneSupplierEsgTaxonomy(organizationTaxonomy || selectedQuestionnaire?.esg_subcategories), [organizationTaxonomy, selectedQuestionnaire]);
   const questionCategoriesFor = useCallback((section, includeLegacy = false) => {
     const categories = (questionnaireTaxonomy[section] || []).filter((category) => category.enabled);
     if (!includeLegacy) return categories;
@@ -330,6 +331,13 @@ export default function QuestionnaireBuilder() {
       fetchQuestions(selectedQuestionnaire.id);
     }
   }, [selectedQuestionnaire, fetchQuestions]);
+
+  useEffect(() => {
+    if (!showQuestionDialog || questionDialogMode !== 'create') return;
+    axios.get(`${API}/sustainability-config/resolved`, { headers: getAuthHeader() })
+      .then((response) => setOrganizationTaxonomy(response.data?.supplier_assessment?.esg_subcategories || null))
+      .catch(() => setOrganizationTaxonomy(null));
+  }, [getAuthHeader, questionDialogMode, showQuestionDialog]);
 
   const handleCreateQuestionnaire = async () => {
     if (!questionnaireForm.name) {
