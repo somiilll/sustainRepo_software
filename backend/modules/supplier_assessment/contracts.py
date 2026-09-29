@@ -194,6 +194,13 @@ class QuestionOption(BaseModel):
     score: Optional[float] = None  # Score for this option (question-level scoring)
 
 
+class EvidencePointScores(BaseModel):
+    """Point awards for Type C evidence-based Yes/No questions."""
+    yes_with_evidence_score: float = Field(ge=0)
+    yes_without_evidence_score: float = Field(ge=0)
+    no_score: float = Field(default=0, ge=0)
+
+
 class QuestionScoringConfig(BaseModel):
     """
     Scoring configuration for a question.
@@ -273,6 +280,7 @@ class QuestionCreate(BaseModel):
     evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     assessment_type: Literal["standard", "type_a", "type_b", "type_c"] = "standard"
     max_points: Optional[float] = Field(default=None, gt=0)
+    point_scores: Optional[EvidencePointScores] = None
     weight: Optional[float] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # ESG section: environment, social, governance
@@ -284,6 +292,14 @@ class QuestionCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_choice_mapping_options(self):
+        if self.evidence_requirement == "evidence_scored":
+            if self.assessment_type != "type_c":
+                raise ValueError("evidence_scored questions must use assessment_type type_c")
+            if self.max_points is None or self.point_scores is None:
+                raise ValueError("evidence_scored questions require max_points and point_scores")
+            point_values = self.point_scores.model_dump().values()
+            if any(value > self.max_points for value in point_values):
+                raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
             return self
         if self.response_type != "dropdown":
@@ -306,6 +322,7 @@ class QuestionUpdate(BaseModel):
     evidence_requirement: Optional[Literal["not_required", "optional", "required", "evidence_scored"]] = None
     assessment_type: Optional[Literal["standard", "type_a", "type_b", "type_c"]] = None
     max_points: Optional[float] = Field(default=None, gt=0)
+    point_scores: Optional[EvidencePointScores] = None
     weight: Optional[float] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
@@ -318,6 +335,11 @@ class QuestionUpdate(BaseModel):
 
     @model_validator(mode="after")
     def validate_choice_mapping_options(self):
+        if self.evidence_requirement == "evidence_scored" and self.assessment_type not in {None, "type_c"}:
+            raise ValueError("evidence_scored questions must use assessment_type type_c")
+        if self.max_points is not None and self.point_scores is not None:
+            if any(value > self.max_points for value in self.point_scores.model_dump().values()):
+                raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
             return self
         if self.response_type is not None and self.response_type != "dropdown":
@@ -345,6 +367,7 @@ class QuestionResponse(BaseModel):
     evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     assessment_type: str = "standard"
     max_points: Optional[float] = None
+    point_scores: Optional[Dict[str, float]] = None
     weight: float = 1.0
     exact_numerical_weight: Optional[float] = None
     category: str

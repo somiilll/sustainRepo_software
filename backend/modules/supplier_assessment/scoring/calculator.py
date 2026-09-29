@@ -419,7 +419,7 @@ class ScoreCalculator:
                     has_evidence = bool(evidence_by_question.get(question_id))
                     max_points = float(q.get("max_points") or weight)
                     configured = q.get("point_scores") or {}
-                    earned_points = 0.0 if not answer_is_yes else (
+                    earned_points = float(configured.get("no_score", 0.0)) if not answer_is_yes else (
                         float(configured.get("yes_score", max_points)) if assessment_type == "type_b" else (
                             float(configured.get("yes_with_evidence_score", max_points)) if has_evidence else (
                                 float(configured.get("yes_without_evidence_score", max_points / 2)) if assessment_type == "type_c" else 0.0

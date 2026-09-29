@@ -1042,6 +1042,7 @@ async def add_question(
         evidence_requirement=data.evidence_requirement,
         assessment_type=data.assessment_type,
         max_points=data.max_points,
+        point_scores=data.point_scores.model_dump() if data.point_scores else None,
         weight=data.weight,
         exact_numerical_weight=data.exact_numerical_weight,
         category=data.category,

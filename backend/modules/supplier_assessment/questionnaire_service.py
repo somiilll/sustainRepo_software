@@ -400,6 +400,7 @@ async def add_question(
     question_category: Optional[str] = None,
     assessment_type: str = "standard",
     max_points: Optional[float] = None,
+    point_scores: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
     questionnaire = await db.supplier_questionnaires.find_one(
@@ -437,6 +438,7 @@ async def add_question(
         "evidence_requirement": self._question_evidence_requirement(evidence_requirement),
         "assessment_type": assessment_type,
         "max_points": max_points,
+        "point_scores": point_scores,
         "weight": effective_weight,
         "exact_numerical_weight": exact_numerical_weight,
         "category": parent_question.get("category") if parent_question else category,
@@ -510,7 +512,7 @@ async def update_question(
         {"$set": updates}
     )
     updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
-    if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight", "parent_question_id"}.intersection(updates)):
+    if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight", "max_points", "point_scores", "assessment_type", "evidence_requirement", "parent_question_id"}.intersection(updates)):
         from modules.supplier_assessment.scoring import ScoringEngine
         await ScoringEngine(db).recalculate_all_suppliers(updated_question["questionnaire_id"])
     return updated_question

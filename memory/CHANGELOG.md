@@ -1,3 +1,8 @@
+# September 24, 2026 — Supplier Evidence Point Scoring Controls
+- Replaced Type C questionnaire authoring’s legacy Yes/No percentage fields with **Yes with evidence score**, **Yes without evidence score**, and **No score** point inputs in both Add Questions and Edit Question.
+- Added Max points-aware defaults (full / half / zero), range validation, responsive authoring layout, and persisted `point_scores` API contracts.
+- Updated Type C calculation to honor all three configured point awards, including a non-zero No score. Production build and focused point-calculation checks passed before the user requested no further testing; no browser/API workflow test followed.
+
 # September 23, 2026 — Draft-Only Evidence Workflow Completed
 - Added a shared browser-side draft evidence utility for local object previews, persisted/draft separation, post-save uploads, cleanup, and deferred deletion.
 - Converted Organization Details (including logo replacement), Facilities, ESG Records, ESG operational data entry, and monthly/yearly Sinks to stage files locally and upload only after the associated record save succeeds.

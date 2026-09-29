@@ -77,6 +77,7 @@
 - Broader RBAC changes until the user resumes that program.
 
 ## Completed Recently
+- Supplier Questionnaire Type C authoring now uses Max points-based **Yes with evidence**, **Yes without evidence**, and **No** point controls in both Add and Edit; the API persists all three awards and the scoring engine consumes them. Production build and focused calculation checks passed before browser/API testing was stopped by user request.
 - Isolated OCR Unit/Currency mismatch highlighting from the shared missing-field list, so incompatible-unit errors no longer highlight Facility, Reporting period, Subcategory, Quantity, or Cost. Standard missing-field responses retain their existing multi-field highlighting. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR mismatch highlighting so a valid factor stays unhighlighted and only the incompatible Unit/Currency input receives the required/error treatment. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
 - Corrected OCR mismatch UX: matching factors remain selected while only the incompatible Unit/Currency value is cleared; allowed values are shown and Save stays blocked pending an explicit compatible selection. **SOURCE-REVIEWED ONLY; NO FUNCTIONAL TESTING** per the user’s instruction.
