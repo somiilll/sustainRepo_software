@@ -8,9 +8,36 @@ from r2_storage import get_r2_storage
 from shared.database.mongo import db
 from modules.supplier_assessment.due_dates import validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
+from modules.sustainability_config.service import resolve_supplier_assessment_config
 from app.logging import get_logger, log_event
 
 logger = get_logger(__name__)
+
+ESG_SECTIONS = ("environment", "social", "governance")
+
+
+def _enabled_taxonomy_by_section(taxonomy: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    return {
+        section: [dict(item) for item in (taxonomy.get(section) or []) if item.get("enabled")]
+        for section in ESG_SECTIONS
+    }
+
+
+def _default_question_category(taxonomy: Dict[str, Any], section: str) -> Optional[str]:
+    enabled = _enabled_taxonomy_by_section(taxonomy).get(section) or []
+    return enabled[0].get("code") if enabled else None
+
+
+def _validate_question_category(taxonomy: Dict[str, Any], section: str, category: Optional[str]) -> str:
+    if section not in ESG_SECTIONS:
+        raise ValueError("Question section must be Environment, Social, or Governance")
+    resolved = category or _default_question_category(taxonomy, section)
+    if resolved in {"policy", "reporting", "certification"}:
+        resolved = _default_question_category(taxonomy, section)
+    enabled_codes = {item.get("code") for item in _enabled_taxonomy_by_section(taxonomy).get(section, [])}
+    if not resolved or resolved not in enabled_codes:
+        raise ValueError("Choose an enabled Supplier Assessment subcategory for this question")
+    return resolved
 
 # ========================================================================
 # Questionnaire Management (Customer Admin)
@@ -34,6 +61,8 @@ async def create_questionnaire(
     """Create a new questionnaire template."""
     validate_due_date(due_date)
     questionnaire_id = str(uuid.uuid4())
+    supplier_config = await resolve_supplier_assessment_config(organization_id)
+    esg_subcategories = supplier_config.get("esg_subcategories") or {}
     esg_weights = self._validated_weight_config(
         esg_section_weights or section_weights,
         {"environment": 33.33, "social": 33.33, "governance": 33.34},
@@ -76,6 +105,7 @@ async def create_questionnaire(
         "section_weights": esg_weights,
         "esg_section_weights": esg_weights,
         "overall_supplier_weights": supplier_weights,
+        "esg_subcategories": esg_subcategories,
         "assignment_mode": assignment_mode,
         "assigned_supplier_ids": assigned_supplier_ids,
         "assignment_reporting_period": assignment_reporting_period,
@@ -323,6 +353,14 @@ async def add_question(
     question_category: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
+    questionnaire = await db.supplier_questionnaires.find_one(
+        {"id": questionnaire_id}, {"_id": 0, "organization_id": 1, "esg_subcategories": 1}
+    )
+    if not questionnaire:
+        raise ValueError("Questionnaire not found")
+    taxonomy = questionnaire.get("esg_subcategories")
+    if not taxonomy:
+        taxonomy = (await resolve_supplier_assessment_config(questionnaire["organization_id"])).get("esg_subcategories") or {}
     parent_question = None
     if parent_question_id:
         parent_question = await db.supplier_questions.find_one(
@@ -350,7 +388,7 @@ async def add_question(
         "importance": importance,
         "exact_numerical_weight": exact_numerical_weight,
         "category": parent_question.get("category") if parent_question else category,
-        "question_category": question_category or "policy",
+        "question_category": parent_question.get("question_category") if parent_question else _validate_question_category(taxonomy, category, question_category),
         "order": order,
         "parent_question_id": parent_question_id,
         "scoring": scoring,  # New: Scoring configuration
@@ -376,6 +414,17 @@ async def update_question(
     existing = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if not existing:
         return None
+    if "question_category" in updates or "category" in updates:
+        questionnaire = await db.supplier_questionnaires.find_one(
+            {"id": existing["questionnaire_id"]}, {"_id": 0, "organization_id": 1, "esg_subcategories": 1}
+        ) or {}
+        taxonomy = questionnaire.get("esg_subcategories") or (
+            await resolve_supplier_assessment_config(questionnaire.get("organization_id"))
+        ).get("esg_subcategories") or {}
+        requested_category = updates.get("question_category", existing.get("question_category"))
+        requested_section = updates.get("category", existing.get("category"))
+        if requested_category not in {"policy", "reporting", "certification"}:
+            updates["question_category"] = _validate_question_category(taxonomy, requested_section, requested_category)
     if "parent_question_id" in updates and updates["parent_question_id"] != existing.get("parent_question_id"):
         parent_question_id = updates["parent_question_id"]
         parent_question = await db.supplier_questions.find_one(

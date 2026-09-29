@@ -6,17 +6,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
+import { DEFAULT_SUPPLIER_ESG_TAXONOMY, ESG_SECTIONS, cloneSupplierEsgTaxonomy } from '../esgTaxonomy';
 
-const groups = [
-  { value: 'environment', label: 'Environment' },
-  { value: 'social', label: 'Social' },
-  { value: 'governance', label: 'Governance' },
-];
-const categories = [
-  { value: 'policy', label: 'Policy' },
-  { value: 'reporting', label: 'Reporting' },
-  { value: 'certification', label: 'Certification' },
-];
+const groups = ESG_SECTIONS;
 const responseLabels = { yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Dropdown' };
 const defaultRule = (responseType) => responseType === 'yes_no' ? 'boolean' : responseType === 'dropdown' ? 'choice_mapping' : 'higher_is_better';
 const scoringOptions = {
@@ -62,13 +54,16 @@ const QuestionAuthoringRow = ({ draft, index, onChange, onRemove, canRemove }) =
   </div>;
 };
 
-export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, saving, questions = [] }) => {
+export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, saving, questions = [], taxonomy = DEFAULT_SUPPLIER_ESG_TAXONOMY }) => {
+  const configuredTaxonomy = useMemo(() => cloneSupplierEsgTaxonomy(taxonomy), [taxonomy]);
+  const categoriesFor = (section) => (configuredTaxonomy[section] || []).filter((category) => category.enabled);
+  const firstCategory = (section) => categoriesFor(section)[0]?.code || '';
   const [activeSection, setActiveSection] = useState('environment');
-  const [activeCategory, setActiveCategory] = useState('policy');
-  const [drafts, setDrafts] = useState([createDraft('environment', 'policy')]);
+  const [activeCategory, setActiveCategory] = useState(() => firstCategory('environment'));
+  const [drafts, setDrafts] = useState([createDraft('environment', DEFAULT_SUPPLIER_ESG_TAXONOMY.environment[0].code)]);
   const resetDrafts = (section, category) => setDrafts([createDraft(section, category)]);
   const selectGroup = (section, category) => { setActiveSection(section); setActiveCategory(category); resetDrafts(section, category); };
-  useEffect(() => { if (open) selectGroup('environment', 'policy'); }, [open]);
+  useEffect(() => { if (open) selectGroup('environment', firstCategory('environment')); }, [open, taxonomy]);
   const configuredQuestions = useMemo(() => questions.filter((question) => question.category === activeSection
     && (question.question_category || 'policy') === activeCategory), [activeCategory, activeSection, questions]);
   const updateDraft = (index, draft) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? draft : item));
@@ -79,14 +74,14 @@ export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, saving, quest
     <DialogContent className="flex h-[min(820px,calc(100dvh-2rem))] w-[96vw] max-w-7xl flex-col gap-0 overflow-hidden bg-white p-0" data-testid="question-ledger-dialog">
       <DialogHeader className="border-b border-stone-200 bg-white px-6 py-5"><DialogTitle>Add questions</DialogTitle><DialogDescription>Select a Section and Category, then add one or more questions before saving.</DialogDescription></DialogHeader>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <nav className="w-full shrink-0 border-b border-stone-200 bg-stone-50 p-3 md:w-40 md:border-b-0 md:border-r" aria-label="Question section navigation" data-testid="question-ledger-navigation"><div className="space-y-4">{groups.map((section) => <div key={section.value} data-testid={`question-ledger-section-${section.value}`}><p className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-stone-950">{section.label}</p><div className="space-y-1">{categories.map((category) => { const active = activeSection === section.value && activeCategory === category.value; return <Button key={category.value} variant="ghost" className={`w-full justify-start px-2 ${active ? 'bg-stone-200 text-stone-950 hover:bg-stone-200 hover:text-stone-950' : 'text-stone-600 hover:bg-white hover:text-stone-950'}`} onClick={() => selectGroup(section.value, category.value)} data-testid={`question-ledger-nav-${section.value}-${category.value}`}>{category.label}</Button>; })}</div></div>)}</div></nav>
+        <nav className="w-full shrink-0 border-b border-stone-200 bg-stone-50 p-3 md:w-56 md:border-b-0 md:border-r" aria-label="Question section navigation" data-testid="question-ledger-navigation"><div className="space-y-4">{groups.map((section) => <div key={section.value} data-testid={`question-ledger-section-${section.value}`}><p className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-stone-950">{section.label}</p><div className="space-y-1">{categoriesFor(section.value).map((category) => { const active = activeSection === section.value && activeCategory === category.code; return <Button key={category.code} variant="ghost" className={`h-auto w-full justify-start whitespace-normal px-2 py-2 text-left text-xs ${active ? 'bg-stone-200 text-stone-950 hover:bg-stone-200 hover:text-stone-950' : 'text-stone-600 hover:bg-white hover:text-stone-950'}`} onClick={() => selectGroup(section.value, category.code)} data-testid={`question-ledger-nav-${section.value}-${category.code}`}>{category.name}</Button>; })}{categoriesFor(section.value).length === 0 && <p className="px-2 py-1 text-xs text-stone-400" data-testid={`question-ledger-section-${section.value}-empty`}>No enabled subcategories</p>}</div></div>)}</div></nav>
         <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6" data-testid="question-ledger-question-area">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4"><div><h2 className="text-lg font-semibold text-stone-950" data-testid="question-ledger-active-group">{groups.find((section) => section.value === activeSection)?.label} · {categories.find((category) => category.value === activeCategory)?.label}</h2><p className="mt-1 text-sm text-stone-500" data-testid="question-ledger-existing-count">{configuredQuestions.length} configured question{configuredQuestions.length === 1 ? '' : 's'}</p></div><Badge variant="outline" className="border-stone-200 bg-stone-100 text-stone-700" data-testid="question-ledger-active-category">{categories.find((category) => category.value === activeCategory)?.label}</Badge></div>
-          <div className="mt-5" data-testid="question-ledger-new-question-row"><div className="mb-3 flex justify-end"><Button variant="outline" className="border-stone-300 bg-white text-stone-800 hover:bg-stone-50 hover:text-stone-950" onClick={() => setDrafts((current) => [...current, createDraft(activeSection, activeCategory)])} data-testid="question-ledger-add-draft"><Plus className="mr-1 h-4 w-4" />Add question</Button></div><div className="hidden grid-cols-[minmax(13rem,1.3fr)_8rem_9rem_7rem_9rem_8rem_7rem] items-center gap-3 bg-stone-100 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-stone-600 xl:grid" data-testid="question-ledger-table-header"><span>Question</span><span>Response type</span><span>Scoring type</span><span>Importance</span><span>Question Mandatory</span><span>Evidence</span><span>Actions</span></div><div className="space-y-3">{drafts.map((draft, index) => <QuestionAuthoringRow key={draft.draft_id} draft={draft} index={index} onChange={(nextDraft) => updateDraft(index, nextDraft)} onRemove={() => removeDraft(index)} canRemove={drafts.length > 1} />)}</div></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-4"><div><h2 className="text-lg font-semibold text-stone-950" data-testid="question-ledger-active-group">{groups.find((section) => section.value === activeSection)?.label} · {categoriesFor(activeSection).find((category) => category.code === activeCategory)?.name || 'No enabled subcategory'}</h2><p className="mt-1 text-sm text-stone-500" data-testid="question-ledger-existing-count">{configuredQuestions.length} configured question{configuredQuestions.length === 1 ? '' : 's'}</p></div><Badge variant="outline" className="border-stone-200 bg-stone-100 text-stone-700" data-testid="question-ledger-active-category">{categoriesFor(activeSection).find((category) => category.code === activeCategory)?.name || 'Unavailable'}</Badge></div>
+          <div className="mt-5" data-testid="question-ledger-new-question-row"><div className="mb-3 flex justify-end"><Button variant="outline" className="border-stone-300 bg-white text-stone-800 hover:bg-stone-50 hover:text-stone-950" onClick={() => setDrafts((current) => [...current, createDraft(activeSection, activeCategory)])} disabled={!activeCategory} data-testid="question-ledger-add-draft"><Plus className="mr-1 h-4 w-4" />Add question</Button></div><div className="hidden grid-cols-[minmax(13rem,1.3fr)_8rem_9rem_7rem_9rem_8rem_7rem] items-center gap-3 bg-stone-100 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-stone-600 xl:grid" data-testid="question-ledger-table-header"><span>Question</span><span>Response type</span><span>Scoring type</span><span>Importance</span><span>Question Mandatory</span><span>Evidence</span><span>Actions</span></div><div className="space-y-3">{drafts.map((draft, index) => <QuestionAuthoringRow key={draft.draft_id} draft={draft} index={index} onChange={(nextDraft) => updateDraft(index, nextDraft)} onRemove={() => removeDraft(index)} canRemove={drafts.length > 1} />)}</div></div>
           <div className="mt-6" data-testid="question-ledger-existing-questions"><h3 className="text-sm font-semibold text-stone-700">Configured questions</h3>{configuredQuestions.length === 0 ? <div className="py-12 text-center text-stone-400" data-testid="question-ledger-existing-empty"><FileText className="mx-auto mb-2 h-8 w-8 text-stone-300" /><p className="text-sm">No questions in this group yet.</p></div> : <div className="mt-3 divide-y divide-stone-100 border-y border-stone-100">{configuredQuestions.map((question) => <div key={question.id} className="py-3" data-testid={`question-ledger-existing-question-${question.id}`}><p className="text-sm font-medium text-stone-900">{question.question_text}</p><p className="mt-1 text-xs text-stone-500">{responseLabels[question.response_type] || question.response_type} · {question.importance} importance{question.required ? ' · Required' : ''}</p></div>)}</div>}</div>
         </div>
       </div>
-      <DialogFooter className="border-t border-stone-200 px-6 py-4"><Button variant="outline" onClick={() => onOpenChange(false)} data-testid="cancel-question-ledger">Close</Button><Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={saveAll} disabled={saving} data-testid="save-question-ledger">{saving ? 'Saving…' : `Save ${drafts.length} question${drafts.length === 1 ? '' : 's'}`}</Button></DialogFooter>
+      <DialogFooter className="border-t border-stone-200 px-6 py-4"><Button variant="outline" onClick={() => onOpenChange(false)} data-testid="cancel-question-ledger">Close</Button><Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={saveAll} disabled={saving || !activeCategory} data-testid="save-question-ledger">{saving ? 'Saving…' : `Save ${drafts.length} question${drafts.length === 1 ? '' : 's'}`}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 };

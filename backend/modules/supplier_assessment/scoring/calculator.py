@@ -61,6 +61,7 @@ class ScoreCalculator:
         question_id: str,
         question_text: str,
         section: str,
+        question_category: Optional[str],
         response_type: str,
         raw_value: Any,
         weight: float,
@@ -97,6 +98,7 @@ class ScoreCalculator:
             question_id=question_id,
             question_text=question_text,
             section=section,
+            question_category=question_category,
             raw_response=raw_value,
             response_type=response_type,
             scoring_rule=scoring_config.rule.value if isinstance(scoring_config.rule, ScoringRuleType) else scoring_config.rule,
@@ -113,6 +115,7 @@ class ScoreCalculator:
         section: str,
         question_scores: List[QuestionScore],
         esg_weight: float,
+        subcategory_weights: Optional[Dict[str, float]] = None,
     ) -> SectionScore:
         """
         Aggregate question scores into a section score.
@@ -137,16 +140,30 @@ class ScoreCalculator:
                 score=0,
                 esg_weight=esg_weight,
                 weighted_esg_contribution=0,
+                is_applicable=False,
             )
         
         total_weight = sum(q.weight for q in question_scores)
         weighted_sum = sum(q.weighted_score for q in question_scores)
         
-        # Section score = weighted average of question scores
-        if total_weight > 0:
-            score = weighted_sum / total_weight
+        category_questions: Dict[str, List[QuestionScore]] = {}
+        for question in question_scores:
+            category_questions.setdefault(question.question_category or "legacy", []).append(question)
+        category_scores = {
+            category: sum(item.weighted_score for item in items) / sum(item.weight for item in items)
+            for category, items in category_questions.items()
+            if sum(item.weight for item in items) > 0
+        }
+        configured_weights = subcategory_weights or {}
+        active_weights = {category: float(configured_weights.get(category, 0)) for category in category_scores}
+        if not any(active_weights.values()):
+            # Existing questionnaires without a category snapshot retain their historic question-weight behavior.
+            score = weighted_sum / total_weight if total_weight > 0 else 0
+            active_weights = {category: 1.0 for category in category_scores}
         else:
-            score = 0
+            active_weights = {category: weight for category, weight in active_weights.items() if weight > 0}
+            configured_total = sum(active_weights.values())
+            score = sum(category_scores[category] * weight / configured_total for category, weight in active_weights.items()) if configured_total else 0
         
         # This section's contribution to overall ESG score
         weighted_esg_contribution = score * (esg_weight / 100)
@@ -159,12 +176,16 @@ class ScoreCalculator:
             score=round(score, 2),
             esg_weight=esg_weight,
             weighted_esg_contribution=round(weighted_esg_contribution, 2),
+            is_applicable=True,
+            category_scores={category: round(value, 2) for category, value in category_scores.items()},
+            category_weights={category: round(weight, 4) for category, weight in active_weights.items()},
         )
     
     def calculate_esg_score(
         self,
         question_scores: List[QuestionScore],
         section_weights: ESGSectionWeights,
+        subcategory_weights: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> ESGScore:
         """
         Calculate overall ESG score from question scores.
@@ -195,19 +216,26 @@ class ScoreCalculator:
             if section in section_questions:
                 section_questions[section].append(qs)
         
-        # Calculate section scores
-        section_scores = {}
+        configured_subcategory_weights = subcategory_weights or {}
+        raw_section_scores = {}
         for section, questions in section_questions.items():
-            section_scores[section] = self.calculate_section_score(
+            raw_section_scores[section] = self.calculate_section_score(
                 section=section,
                 question_scores=questions,
                 esg_weight=weights_dict.get(section, 33.33),
+                subcategory_weights=configured_subcategory_weights.get(section),
             )
-        
-        # Calculate overall ESG score (weighted average)
-        overall_score = sum(
-            ss.weighted_esg_contribution for ss in section_scores.values()
-        )
+        active_sections = [section for section, score in raw_section_scores.items() if score.is_applicable and weights_dict.get(section, 0) > 0]
+        active_weight_total = sum(weights_dict[section] for section in active_sections)
+        section_scores = {}
+        for section, raw_score in raw_section_scores.items():
+            effective_weight = weights_dict[section] * 100 / active_weight_total if section in active_sections and active_weight_total else 0
+            section_scores[section] = raw_score.model_copy(update={
+                "esg_weight": round(effective_weight, 4),
+                "weighted_esg_contribution": round(raw_score.score * effective_weight / 100, 2),
+                "is_applicable": section in active_sections,
+            })
+        overall_score = sum(score.weighted_esg_contribution for score in section_scores.values())
         
         return ESGScore(
             environment=section_scores.get("environment"),
@@ -287,6 +315,7 @@ class ScoreCalculator:
         answers: Dict[str, Any],
         esg_weights: ESGSectionWeights,
         overall_weights: OverallSupplierWeights,
+        subcategory_weights: Optional[Dict[str, Dict[str, float]]] = None,
         ghg_score: Optional[float] = None,
         revenue_percentage: Optional[float] = None,
         manual_scores: Optional[Dict[str, Any]] = None,
@@ -374,6 +403,7 @@ class ScoreCalculator:
                     question_id=question_id,
                     question_text=q.get("question_text", ""),
                     section=q.get("category", q.get("section", "environment")),
+                    question_category=q.get("question_category"),
                     response_type=q.get("response_type", "text"),
                     raw_value=manual_score if has_manual_score else raw_value,
                     weight=weight,
@@ -392,7 +422,7 @@ class ScoreCalculator:
                 notes.append(f"Error calculating score for '{question_id}': {e}")
         
         # Calculate ESG score
-        esg_score = self.calculate_esg_score(question_scores, esg_weights)
+        esg_score = self.calculate_esg_score(question_scores, esg_weights, subcategory_weights)
         
         # Calculate supplier score
         supplier_score = self.calculate_supplier_score(
@@ -421,6 +451,7 @@ class ScoreCalculator:
             esg_score=esg_score,
             supplier_score=supplier_score,
             esg_section_weights=esg_weights.to_dict(),
+            esg_subcategory_weights=subcategory_weights or {},
             overall_weights=overall_weights.to_dict(),
             calculated_at=datetime.now(timezone.utc).isoformat(),
             notes=notes,

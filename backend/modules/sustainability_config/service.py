@@ -13,6 +13,7 @@ import re
 
 from shared.database.mongo import db
 from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements, sync_legacy_entitlement_mirror
+from modules.sustainability_config.supplier_taxonomy import normalize_supplier_esg_subcategories, supplier_esg_subcategory_defaults
 
 
 def _now() -> str:
@@ -58,7 +59,8 @@ DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
         },
         "documents": {"enabled": False, "display_name": "Documents"},
         "training": {"enabled": False, "display_name": "Training"},
-    }
+    },
+    "esg_subcategories": supplier_esg_subcategory_defaults(),
 }
 
 DEFAULT_ORGANIZATION_SETTINGS = {
@@ -112,12 +114,17 @@ def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[st
         "modules": {
             code: dict(module_config)
             for code, module_config in DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["modules"].items()
-        }
+        },
+        "esg_subcategories": supplier_esg_subcategory_defaults(),
     }
-    configured_modules = ((org_cfg or {}).get("supplier_assessment") or {}).get("modules") or {}
+    configured_supplier_assessment = (org_cfg or {}).get("supplier_assessment") or {}
+    configured_modules = configured_supplier_assessment.get("modules") or {}
     for code, module_config in configured_modules.items():
         if code in resolved["modules"] and isinstance(module_config, dict):
             resolved["modules"][code].update(module_config)
+    resolved["esg_subcategories"] = normalize_supplier_esg_subcategories(
+        configured_supplier_assessment.get("esg_subcategories")
+    )
     return resolved
 
 

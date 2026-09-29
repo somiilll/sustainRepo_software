@@ -114,6 +114,7 @@ class QuestionScore(BaseModel):
     question_id: str
     question_text: str
     section: str
+    question_category: Optional[str] = None
     
     # Response data
     raw_response: Any
@@ -149,6 +150,9 @@ class SectionScore(BaseModel):
     # Section weight in overall ESG
     esg_weight: float
     weighted_esg_contribution: float
+    is_applicable: bool = True
+    category_scores: Dict[str, float] = Field(default_factory=dict)
+    category_weights: Dict[str, float] = Field(default_factory=dict)
 
 
 class ESGScore(BaseModel):
@@ -204,6 +208,7 @@ class ScoreBreakdown(BaseModel):
     
     # Configuration snapshot
     esg_section_weights: Dict[str, float]
+    esg_subcategory_weights: Dict[str, Dict[str, float]] = Field(default_factory=dict)
     overall_weights: Dict[str, float]
     
     # Metadata

@@ -8,6 +8,7 @@ Single-collection override layer:
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from modules.entitlements.service import normalize_entitlement_config
+from modules.sustainability_config.supplier_taxonomy import supplier_esg_subcategory_defaults
 
 
 # =============================================================================
@@ -178,11 +179,50 @@ class SupplierAssessmentModulesConfig(BaseModel):
     training: SupplierAssessmentModuleConfig = Field(default_factory=lambda: SupplierAssessmentModuleConfig(enabled=False))
 
 
+class SupplierAssessmentEsgSubcategory(BaseModel):
+    """One configurable supplier-questionnaire category within an ESG section."""
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=2, max_length=100, pattern=r"^[a-z0-9_]+$")
+    name: str = Field(min_length=2, max_length=160)
+    enabled: bool = True
+    weight: float = Field(default=0, ge=0, le=100)
+    is_custom: bool = False
+
+
+class SupplierAssessmentEsgSubcategoriesConfig(BaseModel):
+    """Per-section supplier ESG categories. Enabled category weights total 100% per populated section."""
+    model_config = ConfigDict(extra="forbid")
+
+    environment: List[SupplierAssessmentEsgSubcategory] = Field(
+        default_factory=lambda: [SupplierAssessmentEsgSubcategory(**item) for item in supplier_esg_subcategory_defaults()["environment"]]
+    )
+    social: List[SupplierAssessmentEsgSubcategory] = Field(
+        default_factory=lambda: [SupplierAssessmentEsgSubcategory(**item) for item in supplier_esg_subcategory_defaults()["social"]]
+    )
+    governance: List[SupplierAssessmentEsgSubcategory] = Field(
+        default_factory=lambda: [SupplierAssessmentEsgSubcategory(**item) for item in supplier_esg_subcategory_defaults()["governance"]]
+    )
+
+    @model_validator(mode="after")
+    def validate_enabled_weights(self):
+        for section in ("environment", "social", "governance"):
+            categories = getattr(self, section)
+            codes = [category.code for category in categories]
+            if len(codes) != len(set(codes)):
+                raise ValueError(f"Supplier Assessment {section.title()} subcategory codes must be unique")
+            enabled_total = sum(category.weight for category in categories if category.enabled)
+            if categories and any(category.enabled for category in categories) and abs(enabled_total - 100) > 0.01:
+                raise ValueError(f"Enabled Supplier Assessment {section.title()} subcategory weights must total 100%")
+        return self
+
+
 class SupplierAssessmentConfig(BaseModel):
     """Organization-level supplier assessment configuration stored in organization_config."""
     model_config = ConfigDict(extra="forbid")
 
     modules: SupplierAssessmentModulesConfig = Field(default_factory=SupplierAssessmentModulesConfig)
+    esg_subcategories: SupplierAssessmentEsgSubcategoriesConfig = Field(default_factory=SupplierAssessmentEsgSubcategoriesConfig)
 
 
 class MonthlyEntryEntitlement(BaseModel):

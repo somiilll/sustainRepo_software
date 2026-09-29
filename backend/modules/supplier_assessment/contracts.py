@@ -277,7 +277,7 @@ class QuestionCreate(BaseModel):
     importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # ESG section: environment, social, governance
-    question_category: Literal["policy", "reporting", "certification"] = "policy"
+    question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
     order: int = 0
     parent_question_id: Optional[str] = None
     # New: Scoring configuration
@@ -309,7 +309,7 @@ class QuestionUpdate(BaseModel):
     importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
-    question_category: Optional[Literal["policy", "reporting", "certification"]] = None
+    question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
     order: Optional[int] = None
     parent_question_id: Optional[str] = None
     is_active: Optional[bool] = None
@@ -347,7 +347,7 @@ class QuestionResponse(BaseModel):
     importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
     category: str
-    question_category: Literal["policy", "reporting", "certification"] = "policy"
+    question_category: str = "policy"
     order: int = 0
     parent_question_id: Optional[str] = None
     is_active: bool = True
@@ -412,6 +412,7 @@ class QuestionnaireResponse(BaseModel):
     section_weights: Optional[Dict[str, float]] = None
     esg_section_weights: Optional[Dict[str, float]] = None
     overall_supplier_weights: Optional[Dict[str, float]] = None
+    esg_subcategories: Optional[Dict[str, List[Dict[str, Any]]]] = None
     assignment_mode: Optional[str] = None
     assigned_supplier_ids: List[str] = []
     assignment_reporting_period: Optional[str] = None

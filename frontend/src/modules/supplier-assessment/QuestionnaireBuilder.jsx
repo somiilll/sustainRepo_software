@@ -59,6 +59,7 @@ import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestio
 import { QuestionnaireQuestionRow } from './components/QuestionnaireQuestionRow';
 import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
+import { DEFAULT_SUPPLIER_ESG_TAXONOMY, ESG_SECTIONS, cloneSupplierEsgTaxonomy } from './esgTaxonomy';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -69,17 +70,7 @@ const responseTypes = [
   { value: 'dropdown', label: 'Dropdown' },
 ];
 
-const sections = [
-  { value: 'environment', label: 'Environment' },
-  { value: 'social', label: 'Social' },
-  { value: 'governance', label: 'Governance' },
-];
-
-const questionCategories = [
-  { value: 'policy', label: 'Policy', groupLabel: 'Policy' },
-  { value: 'reporting', label: 'Reporting', groupLabel: 'Reporting' },
-  { value: 'certification', label: 'Certification', groupLabel: 'Certifications' },
-];
+const sections = ESG_SECTIONS;
 
 const sectionStyles = {
   environment: { icon: Leaf, iconClass: 'text-emerald-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
@@ -87,11 +78,7 @@ const sectionStyles = {
   governance: { icon: Landmark, iconClass: 'text-amber-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
 };
 
-const categoryStyles = {
-  policy: { icon: ShieldCheck, iconClass: 'text-indigo-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-  reporting: { icon: ClipboardList, iconClass: 'text-rose-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-  certification: { icon: Award, iconClass: 'text-teal-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-};
+const categoryStyle = { icon: ShieldCheck, iconClass: 'text-emerald-700', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' };
 
 // Scoring rules with descriptions
 const scoringRules = [
@@ -229,7 +216,7 @@ export default function QuestionnaireBuilder() {
     importance: 'medium',
     exact_numerical_weight: null,
     category: 'environment',
-    question_category: 'policy',
+    question_category: DEFAULT_SUPPLIER_ESG_TAXONOMY.environment[0].code,
     order: 0,
     parent_question_id: null,
     scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
@@ -267,14 +254,25 @@ export default function QuestionnaireBuilder() {
     }
   }, [getAuthHeader]);
 
+  const questionnaireTaxonomy = useMemo(() => cloneSupplierEsgTaxonomy(selectedQuestionnaire?.esg_subcategories), [selectedQuestionnaire]);
+  const questionCategoriesFor = useCallback((section, includeLegacy = false) => {
+    const categories = (questionnaireTaxonomy[section] || []).filter((category) => category.enabled);
+    if (!includeLegacy) return categories;
+    const knownCodes = new Set(categories.map((category) => category.code));
+    const legacyCategories = questions.filter((question) => question.category === section && !knownCodes.has(question.question_category)).map((question) => question.question_category || 'legacy');
+    return [...categories, ...[...new Set(legacyCategories)].map((code) => ({ code, name: `Legacy: ${code}`, enabled: true, weight: 0, is_legacy: true }))];
+  }, [questionnaireTaxonomy, questions]);
+  const defaultQuestionCategory = useCallback((section) => questionCategoriesFor(section)[0]?.code || '', [questionCategoriesFor]);
   const groupedQuestions = useMemo(() => sections.map((section) => ({
     ...section,
-    categories: questionCategories.map((questionCategory) => ({
+    categories: questionCategoriesFor(section.value, true).map((questionCategory) => ({
       ...questionCategory,
-      questions: questions.filter((question) => question.category === section.value
-        && (question.question_category || 'policy') === questionCategory.value),
+      value: questionCategory.code,
+      label: questionCategory.name,
+      groupLabel: questionCategory.name,
+      questions: questions.filter((question) => question.category === section.value && (question.question_category || 'legacy') === questionCategory.code),
     })),
-  })), [questions]);
+  })), [questionCategoriesFor, questions]);
 
   const filteredQuestionnaires = useMemo(() => {
     const query = questionnaireSearch.trim().toLowerCase();
@@ -557,7 +555,7 @@ export default function QuestionnaireBuilder() {
         importance: 'medium',
         exact_numerical_weight: null,
       category: 'environment',
-      question_category: 'policy',
+      question_category: defaultQuestionCategory('environment'),
       order: 0,
       parent_question_id: null,
       scoring: { rule: 'boolean', true_score: 100, false_score: 0 },
@@ -611,7 +609,7 @@ export default function QuestionnaireBuilder() {
       importance: question.importance || 'medium',
       exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
       category: question.category,
-      question_category: question.question_category || 'policy',
+      question_category: question.question_category || defaultQuestionCategory(question.category),
       order: question.order,
       parent_question_id: question.parent_question_id || null,
       scoring,
@@ -817,7 +815,6 @@ export default function QuestionnaireBuilder() {
                       <AccordionContent className="pb-4 pt-1">
                         <Accordion type="multiple" defaultValue={section.categories.map((category) => `category-${section.value}-${category.value}`)} className="space-y-2" data-testid={`question-category-groups-${section.value}`}>
                           {section.categories.map((category) => {
-                            const categoryStyle = categoryStyles[category.value];
                             const CategoryIcon = categoryStyle.icon;
                             return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`overflow-hidden border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
                             <AccordionTrigger className={`-mx-4 border-b border-stone-200 bg-stone-50 px-4 py-4 text-lg font-semibold hover:bg-stone-100 hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span className="flex items-center gap-3"><CategoryIcon className={`h-5 w-5 ${categoryStyle.iconClass}`} aria-hidden="true" /><span>{category.groupLabel}</span></span><Badge variant="outline" className={`ml-auto mr-3 min-w-8 justify-center rounded-full ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
@@ -1191,7 +1188,7 @@ export default function QuestionnaireBuilder() {
                 <Label>Section</Label>
                 <Select
                   value={questionForm.category}
-                  onValueChange={(v) => setQuestionForm({ ...questionForm, category: v })}
+                  onValueChange={(v) => setQuestionForm({ ...questionForm, category: v, question_category: defaultQuestionCategory(v) })}
                 >
                   <SelectTrigger data-testid="question-section-select">
                     <SelectValue />
@@ -1208,7 +1205,7 @@ export default function QuestionnaireBuilder() {
                 <Select value={questionForm.question_category} onValueChange={(question_category) => setQuestionForm({ ...questionForm, question_category })}>
                   <SelectTrigger data-testid="question-category-select"><SelectValue /></SelectTrigger>
                   <SelectContent data-testid="question-category-options">
-                    {questionCategories.map((category) => <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>)}
+                    {questionCategoriesFor(questionForm.category, true).map((category) => <SelectItem key={category.code} value={category.code}>{category.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1496,7 +1493,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} questions={questions} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
     </div></TooltipProvider>
   );

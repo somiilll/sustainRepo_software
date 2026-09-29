@@ -122,6 +122,7 @@ class ScoringEngine:
         # Get weight configurations
         esg_weights = self._get_esg_weights(questionnaire)
         overall_weights = self._get_overall_weights(questionnaire)
+        subcategory_weights = self._get_subcategory_weights(questionnaire)
         
         # Run calculation
         breakdown = self.calculator.calculate_full_score(
@@ -132,6 +133,7 @@ class ScoringEngine:
             questions=questions,
             answers=answers,
             esg_weights=esg_weights,
+            subcategory_weights=subcategory_weights,
             overall_weights=overall_weights,
             ghg_score=ghg_component.get("score"),
             revenue_percentage=revenue.get("revenue_percentage"),
@@ -215,6 +217,17 @@ class ScoringEngine:
             ghg=overall_weights.get("ghg", 40),
             revenue=overall_weights.get("revenue", 20),
         )
+
+    def _get_subcategory_weights(self, questionnaire: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+        taxonomy = questionnaire.get("esg_subcategories") or {}
+        return {
+            section: {
+                item.get("code"): float(item.get("weight") or 0)
+                for item in taxonomy.get(section, [])
+                if item.get("enabled") and item.get("code")
+            }
+            for section in ("environment", "social", "governance")
+        }
     
     async def _save_score_results(
         self,
