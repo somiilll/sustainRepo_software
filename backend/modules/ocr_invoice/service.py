@@ -115,12 +115,20 @@ async def build_org_context(organization_id: str) -> tuple[dict, set[str], set[s
     return context, enabled_scopes, capabilities.disabled_scope3_sheets
 
 
+async def ocr_storage_folder(organization_id: str, upload_id: str) -> str:
+    organization = await db.organizations.find_one({"id": organization_id}, {"_id": 0, "name": 1, "organization_name": 1}) or {}
+    organization_name = str(organization.get("name") or organization.get("organization_name") or organization_id).strip()
+    safe_name = "".join(char if char.isalnum() or char in "-_" else "_" for char in organization_name).strip("_") or organization_id
+    return f"ocr/{safe_name}/{upload_id}"
+
+
 async def process_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
     gateway = OcrLlmGateway(mode)
     org_context, enabled_scopes, disabled_scope3_sheets = await build_org_context(organization_id)
     upload_id = str(uuid.uuid4())
     log_event(logger, logging.INFO, "ocr.upload.processing.started", action="ocr.upload.process", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "file_count": len(files), "mode": mode.key})
     storage = get_r2_storage()
+    storage_folder = await ocr_storage_folder(organization_id, upload_id)
     upload_record = {
         "id": upload_id,
         "organization_id": organization_id,
@@ -166,8 +174,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                 filename=filename,
                 bucket_type="ocr_temp",
                 content_type=upload_file.content_type or "application/octet-stream",
-                folder=f"ocr/{organization_id}/{upload_id}",
-                org_name=organization_id,
+                folder=storage_folder,
             )
         except Exception:
             logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "ocr_filename": filename})
@@ -295,6 +302,7 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
 async def queue_upload_batch(files, organization_id: str, user: dict, mode: ExtractionMode) -> dict:
     """Stage sources and create a durable OCR job without waiting for AI extraction."""
     upload_id = str(uuid.uuid4())
+    storage_folder = await ocr_storage_folder(organization_id, upload_id)
     log_event(logger, logging.INFO, "ocr.upload.queue.started", action="ocr.upload.queue", outcome="started", context={"organization_id": organization_id, "upload_id": upload_id, "requested_file_count": len(files), "mode": mode.key})
     storage = get_r2_storage()
     upload_record = {
@@ -332,8 +340,7 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
                 filename=filename,
                 bucket_type="ocr_temp",
                 content_type=upload_file.content_type or "application/octet-stream",
-                folder=f"ocr/{organization_id}/{upload_id}",
-                org_name=organization_id,
+                folder=storage_folder,
             )
         except Exception:
             logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "ocr_filename": filename})

@@ -608,6 +608,9 @@ async def _legacy_upload_invoices(
     """
     org_id = _get_org(current_user)
     user_id = current_user.get("id")
+    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1}) or {}
+    organization_name = str(organization.get("name") or organization.get("organization_name") or org_id).strip()
+    safe_organization_name = "".join(char if char.isalnum() or char in "-_" else "_" for char in organization_name).strip("_") or org_id
     
     # Validate files
     allowed_extensions = ('.pdf', '.png', '.jpg', '.jpeg', '.avif')
@@ -674,8 +677,7 @@ async def _legacy_upload_invoices(
                 filename=file.filename,
                 bucket_type='ocr_temp',
                 content_type=file.content_type or 'application/octet-stream',
-                folder=f"ocr/{org_id}/{upload_id}",
-                org_name=org_id
+                folder=f"ocr/{safe_organization_name}/{upload_id}",
             )
             
             if "error" in upload_result:
