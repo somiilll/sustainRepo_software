@@ -217,12 +217,25 @@ class SupplierAssessmentEsgSubcategoriesConfig(BaseModel):
         return self
 
 
+class SupplierAssessmentEsgSectionWeights(BaseModel):
+    environment: float = Field(default=33.33, ge=0, le=100)
+    social: float = Field(default=33.33, ge=0, le=100)
+    governance: float = Field(default=33.34, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_total(self):
+        if abs(self.environment + self.social + self.governance - 100) > 0.01:
+            raise ValueError("ESG section weights must total 100%")
+        return self
+
+
 class SupplierAssessmentConfig(BaseModel):
     """Organization-level supplier assessment configuration stored in organization_config."""
     model_config = ConfigDict(extra="forbid")
 
     modules: SupplierAssessmentModulesConfig = Field(default_factory=SupplierAssessmentModulesConfig)
     esg_subcategories: SupplierAssessmentEsgSubcategoriesConfig = Field(default_factory=SupplierAssessmentEsgSubcategoriesConfig)
+    esg_section_weights: SupplierAssessmentEsgSectionWeights = Field(default_factory=SupplierAssessmentEsgSectionWeights)
     basic_question_bank_enabled: bool = True
     standard_question_bank_enabled: bool = True
     advanced_question_bank_enabled: bool = True

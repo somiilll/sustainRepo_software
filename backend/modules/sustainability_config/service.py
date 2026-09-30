@@ -64,6 +64,7 @@ DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
     "basic_question_bank_enabled": True,
     "standard_question_bank_enabled": True,
     "advanced_question_bank_enabled": True,
+    "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
 }
 
 DEFAULT_ORGANIZATION_SETTINGS = {
@@ -134,6 +135,10 @@ def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[st
     resolved["basic_question_bank_enabled"] = bool(configured_supplier_assessment.get("basic_question_bank_enabled", True))
     resolved["standard_question_bank_enabled"] = bool(configured_supplier_assessment.get("standard_question_bank_enabled", True))
     resolved["advanced_question_bank_enabled"] = bool(configured_supplier_assessment.get("advanced_question_bank_enabled", True))
+    weights = configured_supplier_assessment.get("esg_section_weights") or DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["esg_section_weights"]
+    if abs(sum(float(weights.get(section, 0)) for section in ("environment", "social", "governance")) - 100) > 0.01:
+        weights = DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["esg_section_weights"]
+    resolved["esg_section_weights"] = {section: float(weights.get(section, 0)) for section in ("environment", "social", "governance")}
     return resolved
 
 

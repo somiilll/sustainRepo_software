@@ -345,6 +345,7 @@ async def _reset_and_hide_system_questionnaire(questionnaire: Dict[str, Any]) ->
 async def sync_system_questionnaire_bank(organization_id: str, created_by: str, bank_key: str, enabled: bool) -> None:
     """Activate, deactivate, or create one system-owned questionnaire bank for an organization."""
     definition = SYSTEM_QUESTIONNAIRE_BANKS[bank_key]
+    configured_weights = (await resolve_supplier_assessment_config(organization_id)).get("esg_section_weights") or {"environment": 33.33, "social": 33.33, "governance": 33.34}
     existing = await db.supplier_questionnaires.find_one(
         {"organization_id": organization_id, "system_question_bank": bank_key}, {"_id": 0, "id": 1, "is_deleted": 1, "system_hidden_by_org": 1, "system_bank_last_enabled": 1}
     )
@@ -354,15 +355,15 @@ async def sync_system_questionnaire_bank(organization_id: str, created_by: str, 
         is_org_hidden = bool(existing.get("system_hidden_by_org") or existing.get("is_deleted"))
         if not enabled:
             await db.supplier_questionnaires.update_one(
-                {"id": existing["id"]}, {"$set": {"is_active": False, "is_deleted": True, "system_bank_last_enabled": False, "updated_at": now}}
+                {"id": existing["id"]}, {"$set": {"is_active": False, "is_deleted": True, "system_bank_last_enabled": False, "esg_section_weights": configured_weights, "section_weights": configured_weights, "updated_at": now}}
             )
         elif is_org_hidden and was_enabled is not False:
             await db.supplier_questionnaires.update_one(
-                {"id": existing["id"]}, {"$set": {"system_hidden_by_org": True, "system_bank_last_enabled": True, "updated_at": now}}
+                {"id": existing["id"]}, {"$set": {"system_hidden_by_org": True, "system_bank_last_enabled": True, "esg_section_weights": configured_weights, "section_weights": configured_weights, "updated_at": now}}
             )
         else:
             await db.supplier_questionnaires.update_one(
-                {"id": existing["id"]}, {"$set": {"is_active": True, "is_deleted": False, "system_hidden_by_org": False, "system_bank_last_enabled": True, "updated_at": now}}
+                {"id": existing["id"]}, {"$set": {"is_active": True, "is_deleted": False, "system_hidden_by_org": False, "system_bank_last_enabled": True, "esg_section_weights": configured_weights, "section_weights": configured_weights, "updated_at": now}}
             )
         return
     if not enabled:
@@ -410,8 +411,8 @@ async def sync_system_questionnaire_bank(organization_id: str, created_by: str, 
         return
     await db.supplier_questionnaires.insert_one({
         "id": questionnaire_id, "organization_id": organization_id, "name": definition["name"], "description": definition["description"],
-        "scoring_method": "question", "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
-        "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34}, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
+        "scoring_method": "question", "section_weights": configured_weights,
+        "esg_section_weights": configured_weights, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
         "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "reporting_periods": [normalize_questionnaire_reporting_period(initial_reporting_period)], "is_active": True, "is_deleted": False,
         "question_count": len(questions), "system_question_bank": bank_key, "system_hidden_by_org": False, "system_bank_last_enabled": True, "created_by": created_by, "created_at": now,
     })
