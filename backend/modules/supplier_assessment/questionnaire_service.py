@@ -495,8 +495,20 @@ async def get_questionnaires(
         query,
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    questionnaire_ids = [questionnaire["id"] for questionnaire in questionnaires]
+    locked_ids = set(await db.supplier_questionnaire_responses.distinct(
+        "questionnaire_id", {"questionnaire_id": {"$in": questionnaire_ids}, "status": "submitted", "$or": [{"is_current": True}, {"is_current": {"$exists": False}}]}
+    )) if questionnaire_ids else set()
+    history_ids = set(await db.supplier_questionnaire_responses.distinct(
+        "questionnaire_id", {
+            "questionnaire_id": {"$in": questionnaire_ids},
+            "$or": [{"status": "submitted"}, {"submitted_at": {"$exists": True, "$nin": [None, ""]}}],
+        }
+    )) if questionnaire_ids else set()
     for questionnaire in questionnaires:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
+        questionnaire["has_locked_submissions"] = questionnaire["id"] in locked_ids
+        questionnaire["has_submission_history"] = questionnaire["id"] in history_ids
         with_questionnaire_reporting_period(questionnaire, reporting_period)
     return questionnaires
 
@@ -508,6 +520,7 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
     )
     if questionnaire:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
+        questionnaire.update(await _questionnaire_submission_state(questionnaire_id))
         with_questionnaire_reporting_period(questionnaire, None)
         questions = await db.supplier_questions.find(
             {"questionnaire_id": questionnaire_id, "is_active": True},
@@ -515,6 +528,21 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
         ).sort("order", 1).to_list(500)
         questionnaire["questions"] = ordered_question_hierarchy(questions)
     return questionnaire
+
+
+async def _questionnaire_submission_state(questionnaire_id: str) -> Dict[str, bool]:
+    """Separate current locks from permanent submission history for safe questionnaire administration."""
+    locked_submission = await db.supplier_questionnaire_responses.find_one(
+        {"questionnaire_id": questionnaire_id, "status": "submitted", "$or": [{"is_current": True}, {"is_current": {"$exists": False}}]}, {"_id": 0, "id": 1}
+    )
+    submitted_history = await db.supplier_questionnaire_responses.find_one(
+        {
+            "questionnaire_id": questionnaire_id,
+            "$or": [{"status": "submitted"}, {"submitted_at": {"$exists": True, "$nin": [None, ""]}}],
+        },
+        {"_id": 0, "id": 1},
+    )
+    return {"has_locked_submissions": bool(locked_submission), "has_submission_history": bool(submitted_history)}
 
 async def update_questionnaire(
     self,
@@ -525,6 +553,10 @@ async def update_questionnaire(
     existing = await self.get_questionnaire(questionnaire_id)
     if not existing:
         return None
+    if set(updates) - {"is_active"}:
+        submission_state = await _questionnaire_submission_state(questionnaire_id)
+        if submission_state["has_locked_submissions"]:
+            raise ValueError("Unlock all submitted supplier responses before editing this questionnaire")
     if "due_date" in updates:
         validate_due_date(updates["due_date"])
     if "name" in updates:
@@ -553,8 +585,13 @@ async def update_questionnaire(
         )
     if "is_active" in updates:
         if existing.get("system_question_bank"):
-            raise ValueError("Super Admin controls availability for this system questionnaire bank")
-        updates["is_deleted"] = False
+            if updates["is_active"]:
+                raise ValueError("Super Admin must re-enable this system questionnaire bank")
+            updates["is_deleted"] = False
+            updates["system_hidden_by_org"] = True
+            updates["system_bank_last_enabled"] = True
+        else:
+            updates["is_deleted"] = False
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.supplier_questionnaires.update_one(
         {"id": questionnaire_id},
@@ -629,6 +666,8 @@ async def delete_questionnaire(self, questionnaire_id: str) -> bool:
     )
     if not questionnaire:
         return False
+    if (await _questionnaire_submission_state(questionnaire_id))["has_submission_history"]:
+        raise ValueError("This questionnaire has submitted supplier responses and cannot be deleted. Mark it inactive to stop new submissions.")
     if questionnaire.get("system_question_bank"):
         await _reset_and_hide_system_questionnaire(questionnaire)
         return True
@@ -733,6 +772,8 @@ async def add_question(
     )
     if not questionnaire:
         raise ValueError("Questionnaire not found")
+    if (await _questionnaire_submission_state(questionnaire_id))["has_locked_submissions"]:
+        raise ValueError("Unlock all submitted supplier responses before editing questionnaire questions")
     # Authoring follows the organization's current configuration so a newly enabled
     # custom category is immediately available on existing questionnaires as well.
     taxonomy = (await resolve_supplier_assessment_config(questionnaire["organization_id"])).get("esg_subcategories") or {}
@@ -793,6 +834,8 @@ async def update_question(
     existing = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if not existing:
         return None
+    if (await _questionnaire_submission_state(existing["questionnaire_id"]))["has_locked_submissions"]:
+        raise ValueError("Unlock all submitted supplier responses before editing questionnaire questions")
     if "question_category" in updates or "category" in updates:
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": existing["questionnaire_id"]}, {"_id": 0, "organization_id": 1, "esg_subcategories": 1}
@@ -847,6 +890,8 @@ async def delete_question(self, question_id: str) -> bool:
     question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if not question:
         return False
+    if (await _questionnaire_submission_state(question["questionnaire_id"]))["has_locked_submissions"]:
+        raise ValueError("Unlock all submitted supplier responses before deleting questionnaire questions")
     
     now = datetime.now(timezone.utc).isoformat()
     affected_ids = [question_id]
@@ -892,6 +937,8 @@ async def reorder_questions(
     question_orders: List[Dict[str, Any]],  # [{"id": "...", "order": 1}, ...]
 ) -> bool:
     """Reorder questions in a questionnaire."""
+    if (await _questionnaire_submission_state(questionnaire_id))["has_locked_submissions"]:
+        raise ValueError("Unlock all submitted supplier responses before reordering questionnaire questions")
     for item in question_orders:
         await db.supplier_questions.update_one(
             {"id": item["id"], "questionnaire_id": questionnaire_id},

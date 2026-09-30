@@ -438,6 +438,7 @@ class QuestionnaireResponse(BaseModel):
     reporting_period: Optional[str] = None
     reporting_periods: List[str] = []
     description: Optional[str] = None
+    system_question_bank: Optional[str] = None
     due_date: Optional[str] = None
     scoring_method: str = "question"
     section_weights: Optional[Dict[str, float]] = None
@@ -448,6 +449,8 @@ class QuestionnaireResponse(BaseModel):
     assigned_supplier_ids: List[str] = []
     assignment_reporting_period: Optional[str] = None
     is_active: bool = True
+    has_locked_submissions: bool = False
+    has_submission_history: bool = False
     question_count: int = 0
     created_by: str
     created_at: str

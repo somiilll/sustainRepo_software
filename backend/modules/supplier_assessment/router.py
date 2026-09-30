@@ -993,7 +993,10 @@ async def delete_questionnaire(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.delete_questionnaire(questionnaire_id)
+    try:
+        await supplier_service.delete_questionnaire(questionnaire_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.questionnaire.deleted", action="supplier_assessment.questionnaire.delete", outcome="succeeded", context={"questionnaire_id": questionnaire_id})
     return {"message": "Questionnaire deleted"}
 
@@ -1037,25 +1040,28 @@ async def add_question(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    result = await supplier_service.add_question(
-        questionnaire_id=questionnaire_id,
-        question_text=data.question_text,
-        description=data.description,
-        response_type=data.response_type,
-        options=[o.model_dump() for o in data.options] if data.options else None,
-        required=data.required,
-        evidence_requirement=data.evidence_requirement,
-        assessment_type=data.assessment_type,
-        max_points=data.max_points,
-        point_scores=data.point_scores.model_dump() if data.point_scores else None,
-        weight=data.weight,
-        exact_numerical_weight=data.exact_numerical_weight,
-        category=data.category,
-        order=data.order,
-        scoring=data.scoring.model_dump() if data.scoring else None,
-        parent_question_id=data.parent_question_id,
-        question_category=data.question_category,
-    )
+    try:
+        result = await supplier_service.add_question(
+            questionnaire_id=questionnaire_id,
+            question_text=data.question_text,
+            description=data.description,
+            response_type=data.response_type,
+            options=[o.model_dump() for o in data.options] if data.options else None,
+            required=data.required,
+            evidence_requirement=data.evidence_requirement,
+            assessment_type=data.assessment_type,
+            max_points=data.max_points,
+            point_scores=data.point_scores.model_dump() if data.point_scores else None,
+            weight=data.weight,
+            exact_numerical_weight=data.exact_numerical_weight,
+            category=data.category,
+            order=data.order,
+            scoring=data.scoring.model_dump() if data.scoring else None,
+            parent_question_id=data.parent_question_id,
+            question_category=data.question_category,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.created", action="supplier_assessment.question.create", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": result.get("id"), "parent_question_id": result.get("parent_question_id")})
     return result
 
@@ -1082,7 +1088,10 @@ async def update_question(
     if "scoring" in updates and updates["scoring"]:
         updates["scoring"] = updates["scoring"] if isinstance(updates["scoring"], dict) else updates["scoring"].model_dump()
     
-    result = await supplier_service.update_question(question_id, updates)
+    try:
+        result = await supplier_service.update_question(question_id, updates)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.updated", action="supplier_assessment.question.update", outcome="succeeded", context={"questionnaire_id": question["questionnaire_id"], "question_id": question_id, "updated_field_count": len(updates)})
     return result
 
@@ -1101,7 +1110,10 @@ async def delete_question(
     if not questionnaire or questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.delete_question(question_id)
+    try:
+        await supplier_service.delete_question(question_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.deleted", action="supplier_assessment.question.delete", outcome="succeeded", context={"questionnaire_id": question["questionnaire_id"], "question_id": question_id})
     return {"message": "Question deleted"}
 
@@ -1120,7 +1132,10 @@ async def reorder_questions(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.reorder_questions(questionnaire_id, orders)
+    try:
+        await supplier_service.reorder_questions(questionnaire_id, orders)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.reordered", action="supplier_assessment.question.reorder", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_count": len(orders)})
     return {"message": "Questions reordered"}
 
