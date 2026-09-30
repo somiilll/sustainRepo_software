@@ -155,6 +155,7 @@ class SectionScore(BaseModel):
     is_applicable: bool = True
     category_scores: Dict[str, float] = Field(default_factory=dict)
     category_weights: Dict[str, float] = Field(default_factory=dict)
+    category_details: Dict[str, Dict[str, float]] = Field(default_factory=dict)
 
 
 class ESGScore(BaseModel):

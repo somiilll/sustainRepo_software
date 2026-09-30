@@ -303,7 +303,7 @@ class ScoringEngine:
             List of results with supplier_id and new_score
         """
         responses = await self.db.supplier_questionnaire_responses.find(
-            {"questionnaire_id": questionnaire_id, "status": "submitted"},
+            {"questionnaire_id": questionnaire_id, "status": {"$ne": "submitted"}},
             {"_id": 0, "supplier_relationship_id": 1}
         ).to_list(1000)
         

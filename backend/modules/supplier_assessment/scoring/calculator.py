@@ -143,27 +143,34 @@ class ScoreCalculator:
                 is_applicable=False,
             )
         
-        total_weight = sum(q.weight for q in question_scores)
-        weighted_sum = sum(q.weighted_score for q in question_scores)
-        
         category_questions: Dict[str, List[QuestionScore]] = {}
         for question in question_scores:
             category_questions.setdefault(question.question_category or "legacy", []).append(question)
-        category_scores = {
-            category: sum(item.weighted_score for item in items) / sum(item.weight for item in items)
-            for category, items in category_questions.items()
-            if sum(item.weight for item in items) > 0
-        }
+        category_details = {}
+        for category, items in category_questions.items():
+            maximum_points = sum(float(item.max_points if item.max_points is not None else 100) for item in items)
+            if maximum_points <= 0:
+                raise ValueError(f"Category '{category}' has no scorable maximum points")
+            obtained_points = sum(
+                float(item.points_earned) if item.points_earned is not None
+                else float(item.raw_score) / 100 * float(item.max_points if item.max_points is not None else 100)
+                for item in items
+            )
+            category_details[category] = {
+                "obtained_points": obtained_points,
+                "maximum_points": maximum_points,
+                "normalized_percentage": obtained_points / maximum_points * 100,
+            }
+        category_scores = {category: details["normalized_percentage"] for category, details in category_details.items()}
         configured_weights = subcategory_weights or {}
         active_weights = {category: float(configured_weights.get(category, 0)) for category in category_scores}
-        if not any(active_weights.values()):
-            # Existing questionnaires without a category snapshot retain their historic question-weight behavior.
-            score = weighted_sum / total_weight if total_weight > 0 else 0
-            active_weights = {category: 1.0 for category in category_scores}
-        else:
-            active_weights = {category: weight for category, weight in active_weights.items() if weight > 0}
-            configured_total = sum(active_weights.values())
-            score = sum(category_scores[category] * weight / configured_total for category, weight in active_weights.items()) if configured_total else 0
+        configured_total = sum(active_weights.values())
+        if abs(configured_total - 100) > 0.01:
+            raise ValueError(f"Configured category weights for {section} must total 100%")
+        for category, details in category_details.items():
+            details["configured_weightage"] = active_weights[category]
+            details["weighted_contribution"] = details["normalized_percentage"] * active_weights[category] / 100
+        score = sum(details["weighted_contribution"] for details in category_details.values())
         
         # This section's contribution to overall ESG score
         weighted_esg_contribution = score * (esg_weight / 100)
@@ -171,14 +178,15 @@ class ScoreCalculator:
         return SectionScore(
             section=section,
             questions=question_scores,
-            total_weight=total_weight,
-            weighted_sum=weighted_sum,
+            total_weight=sum(details["maximum_points"] for details in category_details.values()),
+            weighted_sum=sum(details["obtained_points"] for details in category_details.values()),
             score=round(score, 2),
             esg_weight=esg_weight,
             weighted_esg_contribution=round(weighted_esg_contribution, 2),
             is_applicable=True,
             category_scores={category: round(value, 2) for category, value in category_scores.items()},
             category_weights={category: round(weight, 4) for category, weight in active_weights.items()},
+            category_details={category: {key: round(value, 6) for key, value in details.items()} for category, details in category_details.items()},
         )
     
     def calculate_esg_score(
@@ -203,6 +211,8 @@ class ScoreCalculator:
             ESGScore with section breakdown and overall score
         """
         weights_dict = section_weights.to_dict()
+        if abs(sum(weights_dict.values()) - 100) > 0.01:
+            raise ValueError("ESG pillar weights must total 100%")
         
         # Group by section
         section_questions: Dict[str, List[QuestionScore]] = {
@@ -225,15 +235,13 @@ class ScoreCalculator:
                 esg_weight=weights_dict.get(section, 33.33),
                 subcategory_weights=configured_subcategory_weights.get(section),
             )
-        active_sections = [section for section, score in raw_section_scores.items() if score.is_applicable and weights_dict.get(section, 0) > 0]
-        active_weight_total = sum(weights_dict[section] for section in active_sections)
         section_scores = {}
         for section, raw_score in raw_section_scores.items():
-            effective_weight = weights_dict[section] * 100 / active_weight_total if section in active_sections and active_weight_total else 0
+            effective_weight = weights_dict.get(section, 0)
             section_scores[section] = raw_score.model_copy(update={
                 "esg_weight": round(effective_weight, 4),
                 "weighted_esg_contribution": round(raw_score.score * effective_weight / 100, 2),
-                "is_applicable": section in active_sections,
+                "is_applicable": raw_score.is_applicable,
             })
         overall_score = sum(score.weighted_esg_contribution for score in section_scores.values())
         
