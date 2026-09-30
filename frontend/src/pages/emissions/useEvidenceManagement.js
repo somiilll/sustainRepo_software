@@ -113,9 +113,9 @@ export function useEvidenceManagement({
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
       });
     }));
-    const deletionResults = await Promise.allSettled([...pendingDeletionIds.current].map((fileId) => (
-      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
-    )));
+    // The emission save already removes deleted URLs and performs reference-aware R2 cleanup.
+    // Calling the generic file-delete endpoint here would bypass that shared-evidence safeguard.
+    const deletionResults = [];
     pendingDeletionIds.current.clear();
     const failures = [...uploadResults, ...deletionResults].filter((result) => result.status === 'rejected').length;
     if (failures) {

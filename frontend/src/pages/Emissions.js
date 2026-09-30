@@ -1167,9 +1167,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
       });
     }));
-    const deletions = await Promise.allSettled((editDraft.c7EvidenceIdsToDelete || []).map((fileId) => (
-      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
-    )));
+    // C7 record persistence owns evidence cleanup; do not bypass shared-file checks via /files.
+    const deletions = [];
     const failures = [...uploads, ...deletions].filter((result) => result.status === 'rejected').length;
     if (failures) toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
   }, [editDraft.c7EvidenceIdsToDelete, getAuthHeader]);
