@@ -45,11 +45,13 @@ const ScoreRing = ({ value, label, prominent = false, testId, status }) => {
   </div>;
 };
 
-const QuestionScore = ({ value, testId }) => {
-  const score = Number(value);
+const QuestionScore = ({ scoreData, testId }) => {
+  const score = Number(scoreData?.raw_score);
+  const pointsEarned = scoreData?.points_earned;
+  const maxPoints = scoreData?.max_points;
   const colorClass = !Number.isFinite(score) ? 'border-stone-200 bg-stone-100 text-stone-500' : score >= 60 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : score >= 40 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-rose-200 bg-rose-50 text-rose-700';
   return <div className={`min-w-[4.5rem] border px-2 py-1 text-center ${colorClass}`} data-testid={testId}>
-    <p className="text-sm font-semibold">{formatScore(value)}<span className="ml-0.5 text-[10px] font-normal opacity-70">/100</span></p>
+    <p className="text-sm font-semibold">{formatScore(pointsEarned ?? scoreData?.raw_score)}<span className="ml-0.5 text-[10px] font-normal opacity-70">/{formatScore(maxPoints ?? 100)}</span></p>
   </div>;
 };
 
@@ -57,7 +59,7 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
   const [scores, setScores] = useState({});
   const [savingQuestionId, setSavingQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
-  const calculatedScores = useMemo(() => Object.fromEntries((response?.score_breakdown?.question_scores || []).map((item) => [item.question_id, item.raw_score])), [response]);
+  const calculatedScores = useMemo(() => Object.fromEntries((response?.score_breakdown?.question_scores || []).map((item) => [item.question_id, item])), [response]);
   const esgScore = response?.score_breakdown?.esg_score || {};
   const overallScore = response?.calculated_score ?? esgScore.overall_score;
   const status = scoreStatus(overallScore);
@@ -131,7 +133,7 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
             {isManual ? <div className="flex flex-wrap items-end justify-end gap-2 sm:min-w-64" data-testid={`manual-question-score-controls-${question.id}`}>
               <div className="w-28 space-y-1"><Label htmlFor={`manual-question-score-${question.id}`} className="text-xs">Manual score</Label><Input id={`manual-question-score-${question.id}`} type="number" min="0" max="100" value={scores[question.id] ?? ''} onChange={(event) => setScores((current) => ({ ...current, [question.id]: event.target.value }))} data-testid={`manual-question-score-input-${question.id}`} /></div>
               <Button size="sm" onClick={() => saveQuestionScore(question)} disabled={savingQuestionId === question.id} data-testid={`save-manual-question-score-${question.id}`}><PencilLine className="mr-1 h-4 w-4" />{savingQuestionId === question.id ? 'Saving…' : 'Save'}</Button>
-            </div> : <div className="flex items-center gap-2" data-testid={`calculated-question-score-${question.id}`}><CheckCircle2 className="h-4 w-4 text-emerald-600" /><QuestionScore value={calculatedScore} testId={`supplier-response-question-score-${question.id}`} /></div>}
+            </div> : <div className="flex items-center gap-2" data-testid={`calculated-question-score-${question.id}`}><CheckCircle2 className="h-4 w-4 text-emerald-600" /><QuestionScore scoreData={calculatedScore} testId={`supplier-response-question-score-${question.id}`} /></div>}
           </section>;
         })}
       </div>
