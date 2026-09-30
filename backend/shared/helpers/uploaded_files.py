@@ -48,3 +48,20 @@ async def delete_uploaded_files(database, file_ids: Iterable[str]) -> int:
         return 0
     result = await database.uploaded_files.delete_many({"id": {"$in": [record["id"] for record in records]}})
     return result.deleted_count
+
+
+async def delete_unreferenced_emission_files(database, file_ids: Iterable[str], excluding_record_id: str | None = None) -> int:
+    """Delete evidence only when no other emission record still references its file URL."""
+    unreferenced_ids = []
+    for file_id in dict.fromkeys(file_id for file_id in file_ids if file_id):
+        query = {"evidence_url": {"$regex": re.escape(f"/api/files/{file_id}")}}
+        if excluding_record_id:
+            query["id"] = {"$ne": excluding_record_id}
+        referenced = False
+        for collection_name in ("emission_records", "approved_emission_records"):
+            if await database[collection_name].find_one(query, {"_id": 0, "id": 1}):
+                referenced = True
+                break
+        if not referenced:
+            unreferenced_ids.append(file_id)
+    return await delete_uploaded_files(database, unreferenced_ids)

@@ -51,7 +51,7 @@ from modules.emissions.contracts import (
 )
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
-from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.helpers.uploaded_files import delete_unreferenced_emission_files, delete_uploaded_files, extract_uploaded_file_ids
 from shared.utils.density_units import normalize_density_dynamic_values
 from shared.utils.emission_records import without_legacy_quantity_fields
 
@@ -1650,7 +1650,7 @@ async def update_emission_record(
 
     # ─── Direct-apply path (admin, super_admin, or workflow disabled) ────
     try:
-        await delete_uploaded_files(db, removed_file_ids)
+        await delete_unreferenced_emission_files(db, removed_file_ids, record_id)
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The emission was not updated.") from error
 
@@ -2085,7 +2085,7 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
 
     target_collection = (delete_payload or {}).get("target_collection", source_collection)
     try:
-        await delete_uploaded_files(db, extract_uploaded_file_ids(existing))
+        await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), record_id)
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove emission evidence from storage. The emission was not deleted.") from error
     result = await db[target_collection].delete_one({"id": record_id})
