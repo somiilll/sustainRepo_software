@@ -135,7 +135,7 @@ export default function SupplierQuestionnaire() {
       if (question.response_type === 'yes_no' && answers[question.id] === true) await persistDraftAnswers();
       const hash = await sha256(file);
       const { data } = await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence/duplicates`, { sha256_hash: hash, filename: file.name }, { headers: getAuthHeader() });
-      const candidate = data.exact_match || data.filename_match;
+      const candidate = data.exact_match;
       if (candidate) {
         setPendingEvidenceReuse({ question, file, hash, remainingFiles, candidate, exact: Boolean(data.exact_match) });
         return;
