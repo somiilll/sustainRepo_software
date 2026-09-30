@@ -91,8 +91,6 @@ class SupplierAssessmentService:
     get_question_evidence_file = _delegate_to(questionnaire_operations, questionnaire_operations.get_question_evidence_file)
     submit_supplier_answers = _delegate_to(questionnaire_operations, questionnaire_operations.submit_supplier_answers)
     _calculate_questionnaire_score = _delegate_to(questionnaire_operations, questionnaire_operations._calculate_questionnaire_score)
-    _calculate_legacy_score = _delegate_to(questionnaire_operations, questionnaire_operations._calculate_legacy_score)
-    _get_legacy_answer_score = questionnaire_operations._get_legacy_answer_score
     get_supplier_responses_for_admin = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_responses_for_admin)
     get_questionnaire_submissions_for_admin = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire_submissions_for_admin)
     list_questionnaire_assignments = _delegate_to(questionnaire_operations, questionnaire_operations.list_questionnaire_assignments)
