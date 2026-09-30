@@ -258,7 +258,7 @@ export default function QuestionnaireBuilder() {
         params: { reporting_period: reportingPeriod },
         headers: getAuthHeader(),
       });
-      const periodQuestionnaires = (res.data || []).map((questionnaire) => ({ ...questionnaire, has_locked_submissions: false }));
+      const periodQuestionnaires = (res.data || []).map((questionnaire) => ({ ...questionnaire, requires_unlock_on_save: Boolean(questionnaire.has_locked_submissions), has_locked_submissions: false }));
       setQuestionnaires(periodQuestionnaires);
       setSelectedQuestionnaire((current) => {
         if (!current) return null;
@@ -520,6 +520,10 @@ export default function QuestionnaireBuilder() {
       return false;
     });
     if (invalidScore) { toast.error('Enter valid scores that do not exceed the question’s Max points.'); return false; }
+    if (!retryingAfterUnlock && selectedQuestionnaire.requires_unlock_on_save) {
+      setPendingUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
+      return false;
+    }
     setSubmitting(true);
     try {
       const rootOrder = questions.filter((question) => !question.parent_question_id).length;
@@ -555,6 +559,10 @@ export default function QuestionnaireBuilder() {
   const handleUpdateQuestion = async (retryingAfterUnlock = false) => {
     if (!editingQuestion) return;
     if (!validateQuestionScoring()) return;
+    if (!retryingAfterUnlock && selectedQuestionnaire?.requires_unlock_on_save) {
+      setPendingUnlockAndSave({ type: 'edit' });
+      return;
+    }
     
     setSubmitting(true);
     try {
