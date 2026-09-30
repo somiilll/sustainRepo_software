@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { ArrowRight, Calendar, CheckCircle, Circle, ClipboardList } from 'lucide-react';
+import { ArrowRight, Calendar, CheckCircle, Circle, ClipboardList, Download, Eye, Paperclip } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -28,6 +28,7 @@ export default function SupplierEsgOverview() {
   const navigate = useNavigate();
   const [questionnaires, setQuestionnaires] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -42,6 +43,18 @@ export default function SupplierEsgOverview() {
   }, [getAuthHeader]);
 
   useEffect(() => { load(); }, [load]);
+  const openEvidence = async (questionnaireId, questionId, file, download = false) => {
+    const key = `${questionId}-${file.id}-${download ? 'download' : 'view'}`;
+    setOpeningEvidenceKey(key);
+    try {
+      const response = await axios.get(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${questionId}/evidence/${file.id}`, { headers: getAuthHeader(), responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      if (download) { const link = document.createElement('a'); link.href = url; link.download = file.original_filename || 'evidence'; link.click(); }
+      else window.open(url, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch { toast.error('Could not open evidence file'); }
+    finally { setOpeningEvidenceKey(''); }
+  };
   if (loading) return <p className="py-16 text-center text-sm text-slate-500" data-testid="supplier-esg-overview-loading">Loading ESG questionnaires…</p>;
 
   return <div className="mx-auto max-w-7xl space-y-8 pb-10" data-testid="supplier-esg-overview">
@@ -50,7 +63,7 @@ export default function SupplierEsgOverview() {
       {questionnaires.map((questionnaire) => <SupplierModulePanel key={questionnaire.questionnaire_id} title={questionnaire.questionnaire_name} description={questionnaire.due_date ? `Due ${new Date(questionnaire.due_date).toLocaleDateString()}` : 'Assigned ESG questionnaire'} progress={questionnaire.completion_percent} status={questionnaireStatus(questionnaire)} icon={ClipboardList} iconClassName="bg-indigo-50 text-indigo-700" shadowClassName="shadow-[0_10px_28px_rgba(99,102,241,0.18)] hover:shadow-[0_14px_34px_rgba(99,102,241,0.24)]" testId={`supplier-esg-questionnaire-${questionnaire.questionnaire_id}`}>
         <div className="space-y-5">
           <div><div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><span data-testid={`supplier-esg-progress-${questionnaire.questionnaire_id}`}>{Math.round(questionnaire.completion_percent || 0)}% complete</span>{questionnaire.due_date && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</span>}</div><Progress value={questionnaire.completion_percent || 0} className="mt-2 h-2" data-testid={`supplier-esg-progress-bar-${questionnaire.questionnaire_id}`} /></div>
-          <div className="divide-y divide-slate-100 border-y border-slate-100" data-testid={`supplier-esg-questions-${questionnaire.questionnaire_id}`}>{(questionnaire.questions || []).map((question, index) => { const answered = question.answer !== undefined && question.answer !== null && question.answer !== ''; return <div className={`flex gap-3 py-3 ${question.parent_question_id ? 'ml-4 border-l-2 border-l-emerald-200 pl-3' : ''}`} key={question.id} data-testid={`supplier-esg-question-${questionnaire.questionnaire_id}-${question.id}`}>{answered ? <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />}<div className="min-w-0"><p className="text-sm text-slate-800" data-testid={`supplier-esg-question-text-${questionnaire.questionnaire_id}-${index + 1}`}>{question.parent_question_id && <span className="mr-2 text-xs font-medium text-emerald-700" data-testid={`supplier-esg-subquestion-label-${questionnaire.questionnaire_id}-${question.id}`}>Follow-up</span>}{question.question_text}</p>{answered ? <p className="mt-1 break-words text-sm text-slate-600" data-testid={`supplier-esg-answer-${questionnaire.questionnaire_id}-${index + 1}`}>{formatAnswer(question.answer)}</p> : <span className="mt-1 block text-sm text-slate-400" data-testid={`supplier-esg-answer-pending-${questionnaire.questionnaire_id}-${index + 1}`}>Pending response</span>}</div></div>; })}</div>
+          <div className="divide-y divide-slate-100 border-y border-slate-100" data-testid={`supplier-esg-questions-${questionnaire.questionnaire_id}`}>{(questionnaire.questions || []).map((question, index) => { const answered = question.answer !== undefined && question.answer !== null && question.answer !== ''; const files = question.evidence_files || []; return <div className={`flex gap-3 py-3 ${question.parent_question_id ? 'ml-4 border-l-2 border-l-emerald-200 pl-3' : ''}`} key={question.id} data-testid={`supplier-esg-question-${questionnaire.questionnaire_id}-${question.id}`}>{answered ? <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />}<div className="min-w-0 flex-1"><p className="text-sm text-slate-800" data-testid={`supplier-esg-question-text-${questionnaire.questionnaire_id}-${index + 1}`}>{question.parent_question_id && <span className="mr-2 text-xs font-medium text-emerald-700" data-testid={`supplier-esg-subquestion-label-${questionnaire.questionnaire_id}-${question.id}`}>Follow-up</span>}{question.question_text}</p>{answered ? <p className="mt-1 break-words text-sm text-slate-600" data-testid={`supplier-esg-answer-${questionnaire.questionnaire_id}-${index + 1}`}>{formatAnswer(question.answer)}</p> : <span className="mt-1 block text-sm text-slate-400" data-testid={`supplier-esg-answer-pending-${questionnaire.questionnaire_id}-${index + 1}`}>Pending response</span>}{files.length > 0 && <div className="mt-2 space-y-1" data-testid={`supplier-esg-evidence-list-${questionnaire.questionnaire_id}-${question.id}`}>{files.map((file) => <div key={file.id} className="flex flex-wrap items-center gap-1 text-xs text-slate-700"><Paperclip className="h-3.5 w-3.5 text-slate-500" /><span className="max-w-[18rem] truncate" data-testid={`supplier-esg-evidence-name-${questionnaire.questionnaire_id}-${question.id}-${file.id}`}>{file.original_filename}</span><Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(questionnaire.questionnaire_id, question.id, file)} data-testid={`view-supplier-esg-evidence-${questionnaire.questionnaire_id}-${question.id}-${file.id}`}><Eye className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(questionnaire.questionnaire_id, question.id, file, true)} data-testid={`download-supplier-esg-evidence-${questionnaire.questionnaire_id}-${question.id}-${file.id}`}><Download className="h-3.5 w-3.5" /></Button></div>)}</div>}</div></div>; })}</div>
           <Button variant="outline" onClick={() => navigate(`/supplier-assessment/questionnaire/${questionnaire.questionnaire_id}`)} data-testid={`supplier-esg-open-${questionnaire.questionnaire_id}`}>{questionnaire.status === 'submitted' ? 'View response' : 'Continue questionnaire'}<ArrowRight className="ml-2 h-4 w-4" /></Button>
         </div>
       </SupplierModulePanel>)}
