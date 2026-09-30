@@ -608,10 +608,6 @@ async def _legacy_upload_invoices(
     """
     org_id = _get_org(current_user)
     user_id = current_user.get("id")
-    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1}) or {}
-    organization_name = str(organization.get("name") or organization.get("organization_name") or org_id).strip()
-    safe_organization_name = "".join(char if char.isalnum() or char in "-_" else "_" for char in organization_name).strip("_") or org_id
-    
     # Validate files
     allowed_extensions = ('.pdf', '.png', '.jpg', '.jpeg', '.avif')
     valid_files = []
@@ -677,7 +673,9 @@ async def _legacy_upload_invoices(
                 filename=file.filename,
                 bucket_type='ocr_temp',
                 content_type=file.content_type or 'application/octet-stream',
-                folder=f"ocr/{safe_organization_name}/{upload_id}",
+                folder="ocr",
+                organization_id=org_id,
+                subfolder=upload_id,
             )
             
             if "error" in upload_result:
@@ -2014,13 +2012,12 @@ async def finalize_water_import(
     if not evidence_url:
         try:
             file_content, source_content_type = await r2_storage.get_file("ocr_temp", item.get("temp_file_key"))
-            org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1}) or {}
             evidence_result = await r2_storage.upload_file(
                 file_content=file_content,
                 filename=filename,
                 bucket_type="esg_records_evidence",
                 content_type=source_content_type or "application/octet-stream",
-                org_name=org_doc.get("name") or org_id,
+                organization_id=org_id,
             )
             if not evidence_result or not evidence_result.get("key"):
                 raise RuntimeError("Evidence upload did not return a storage key")
@@ -2173,17 +2170,12 @@ async def finalize_import(
                 }
                 content_type = source_content_type or content_types.get(ext, 'application/octet-stream')
                 
-                # Get org name for path (use org name instead of org_id)
-                org_doc = await db.organizations.find_one({"id": org_id}, {"name": 1, "_id": 0})
-                org_name = org_doc.get("name", org_id) if org_doc else org_id
-                
-                # Upload to evidence bucket with path: {org_name}/{date}/{file}
                 evidence_result = await r2_storage.upload_file(
                     file_content=temp_file_content,
                     filename=filename,
                     bucket_type='emission_evidence',
                     content_type=content_type,
-                    org_name=org_name  # No folder param - uses org_name/date/file structure
+                    organization_id=org_id,
                 )
                 
                 if evidence_result and evidence_result.get("key"):

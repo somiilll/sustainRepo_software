@@ -676,8 +676,14 @@ async def initiate_training_upload(payload: TrainingUploadInitiate, current_user
     await assert_evidence_storage_limit(current_user["organization_id"], payload.file_size)
     training_service.validate_due_date(payload.due_date)
     storage = get_r2_storage()
-    organization = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0, "name": 1, "organization_name": 1})
-    upload = await asyncio.to_thread(storage.initiate_multipart_upload, payload.filename, training_service.TRAINING_BUCKET, payload.content_type, training_service.TRAINING_FOLDER, (organization or {}).get("organization_name") or (organization or {}).get("name"))
+    upload = await asyncio.to_thread(
+        storage.initiate_multipart_upload,
+        filename=payload.filename,
+        bucket_type=training_service.TRAINING_BUCKET,
+        content_type=payload.content_type,
+        folder=training_service.TRAINING_FOLDER,
+        organization_id=current_user["organization_id"],
+    )
     part_size = 16 * 1024 * 1024
     session_id = str(uuid.uuid4())
     session = {"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"], "status": "initiated", "bucket_type": training_service.TRAINING_BUCKET, "r2_key": upload["key"], "upload_id": upload["upload_id"], "part_size": part_size, "part_count": math.ceil(payload.file_size / part_size), "file_size": payload.file_size, "filename": payload.filename, "content_type": payload.content_type, "title": payload.title, "description": payload.description, "due_date": payload.due_date, "supplier_relationship_ids": payload.supplier_relationship_ids, "created_at": datetime.now(timezone.utc).isoformat()}

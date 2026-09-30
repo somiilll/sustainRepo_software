@@ -120,7 +120,6 @@ async def publish_agreement(
     if relationship_ids and len(relationships) != len(set(relationship_ids)):
         raise ValueError("One or more selected suppliers are not available to this organization")
 
-    organization = await db.organizations.find_one({"id": customer_org_id}, {"_id": 0, "name": 1})
     upload = await get_r2_storage().upload_file(
         file_content=content,
         filename=filename,
@@ -128,7 +127,7 @@ async def publish_agreement(
         content_type=content_type,
         folder=DOCUMENT_FOLDER,
         metadata={"uploaded_by": created_by, "document_type": "supplier_agreement"},
-        org_name=(organization or {}).get("name"),
+        organization_id=customer_org_id,
     )
     if upload.get("error"):
         raise ValueError(upload["error"])
@@ -137,6 +136,7 @@ async def publish_agreement(
     document_key = _document_key(title, filename)
     version = {
         "id": str(uuid.uuid4()),
+        "organization_id": customer_org_id,
         "customer_org_id": customer_org_id,
         "document_key": document_key,
         "version_number": await _next_document_version_number(customer_org_id, document_key),

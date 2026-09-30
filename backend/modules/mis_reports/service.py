@@ -634,12 +634,6 @@ def safe_report_filename(name: str, extension: str) -> str:
     return f"{base}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.{extension}"
 
 
-def archive_org_name(organization_name: str) -> str:
-    """Keep organization names readable in archive paths without allowing path traversal."""
-    value = re.sub(r"[\\/\x00-\x1f]+", "-", (organization_name or "Organization")).strip()
-    return value.strip(".") or "Organization"
-
-
 def build_report_configuration_snapshot(schedule: Dict[str, Any], resolved_filters: Dict[str, Any], facility_names: List[str]) -> Dict[str, Any]:
     content = dict(schedule.get("content") or {})
     return {
@@ -673,19 +667,19 @@ async def facility_names_for_filters(filters: Dict[str, Any], current_user: dict
     return [facility.get("name", "Facility") for facility in facilities]
 
 
-async def store_delivery_artifact(content: bytes, filename: str, content_type: str, organization_name: str, archive_date: str, delivery_id: str) -> Dict[str, Any]:
+async def store_delivery_artifact(content: bytes, filename: str, content_type: str, organization_id: str, archive_date: str, delivery_id: str) -> Dict[str, Any]:
     """Persist a generated artifact once so historical downloads never regenerate a report."""
     from r2_storage import get_r2_storage
 
     extension = filename.rsplit(".", 1)[-1].lower()
     checksum = hashlib.sha256(content).hexdigest()
-    object_key = f"{archive_org_name(organization_name)}/{archive_date}/{delivery_id}/report.{extension}"
+    object_key = f"mis-reports/{organization_id}/{archive_date}/{delivery_id}/report.{extension}"
     result = await get_r2_storage().upload_file(
         content,
         filename,
         "mis_reports",
         content_type,
-        metadata={"delivery_run_id": delivery_id, "organization_name": organization_name, "sha256": checksum},
+        metadata={"delivery_run_id": delivery_id, "organization_id": organization_id, "sha256": checksum},
         object_key=object_key,
     )
     if not result.get("success"):
@@ -755,8 +749,8 @@ async def send_schedule(schedule: Dict[str, Any], current_user: dict) -> Dict[st
         pdf_content = build_executive_pdf(executive, organization_name, current_user.get("email"))
         xlsx_content = build_executive_excel(executive)
         artifacts = []
-        artifacts.append(await store_delivery_artifact(pdf_content, pdf_name, "application/pdf", organization_name, archive_date, delivery_id))
-        artifacts.append(await store_delivery_artifact(xlsx_content, xlsx_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", organization_name, archive_date, delivery_id))
+        artifacts.append(await store_delivery_artifact(pdf_content, pdf_name, "application/pdf", schedule["organization_id"], archive_date, delivery_id))
+        artifacts.append(await store_delivery_artifact(xlsx_content, xlsx_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", schedule["organization_id"], archive_date, delivery_id))
     except Exception as error:
         from r2_storage import get_r2_storage
         for artifact in locals().get("artifacts", []):

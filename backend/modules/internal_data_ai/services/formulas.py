@@ -101,7 +101,7 @@ async def get_calculation_audits(org_id: str, emission_record_ids: list[str]) ->
     if not emission_record_ids:
         return []
     return await db.ce_calculation_audit_logs.find(
-        {"org_id": org_id, "emission_record_id": {"$in": emission_record_ids}},
+        {"organization_id": org_id, "emission_record_id": {"$in": emission_record_ids}},
         {"_id": 0},
     ).sort("created_at", -1).to_list(500)
 
@@ -170,7 +170,7 @@ async def explain(org_id: str, **kwargs) -> dict:
             ).to_list(100)
 
         audit = await db.ce_calculation_audit_logs.find_one(
-            {"org_id": org_id, "emission_record_id": record.get("id"), "formula_id": formula_id},
+            {"organization_id": org_id, "emission_record_id": record.get("id"), "formula_id": formula_id},
             {"_id": 0},
             sort=[("created_at", -1)],
         )

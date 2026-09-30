@@ -3050,19 +3050,24 @@ async def upload_evidence_file(
         raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB")
     
     try:
-        # Get organization name for path prefix
-        org_name = None
-        # Use provided organization_id (for super admin) or fall back to user's org
         org_id = organization_id or current_user.get("organization_id")
-        if org_id:
-            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
-            if org:
-                org_name = org.get("name")
+        if (
+            organization_id
+            and current_user.get("role") != "super_admin"
+            and organization_id != current_user.get("organization_id")
+        ):
+            raise HTTPException(status_code=403, detail="Not authorized to upload for this organization")
 
         if org_id:
             await assert_evidence_storage_limit(org_id, len(file_content))
         
-        logger.info(f"[EVIDENCE_UPLOAD] Starting upload: file={file.filename}, bucket={bucket_type}, org={org_name}, user={current_user.get('email')}")
+        logger.info(
+            "[EVIDENCE_UPLOAD] Starting upload: file=%s, bucket=%s, organization_id=%s, user_id=%s",
+            file.filename,
+            bucket_type,
+            org_id,
+            current_user.get("id"),
+        )
         
         # Upload to R2
         r2 = get_r2_storage()
@@ -3076,7 +3081,7 @@ async def upload_evidence_file(
                 'uploaded_by': current_user["id"],
                 'original_filename': file.filename
             },
-            org_name=org_name
+            organization_id=org_id,
         )
         
         logger.info(f"[EVIDENCE_UPLOAD] R2 upload success: key={result.get('key')}, size={len(file_content)}")

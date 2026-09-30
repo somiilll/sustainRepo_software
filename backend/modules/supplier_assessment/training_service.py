@@ -102,10 +102,9 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0}
     ).to_list(1000)
     if len(relationships) != len(set(relationship_ids)): raise ValueError("One or more suppliers are not available to this organization")
-    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1})
     viewer_seed = await _prepare_viewer(content, file_name, content_type)
     storage = get_r2_storage()
-    upload = await storage.upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, org_name=(organization or {}).get("organization_name") or (organization or {}).get("name"))
+    upload = await storage.upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, organization_id=org_id)
     if upload.get("error"): raise ValueError(upload["error"])
     viewer_manifest = {"viewer_type": viewer_seed["viewer_type"]}
     uploaded_render_keys = []
@@ -130,7 +129,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         raise
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "viewer_manifest": viewer_manifest, "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "organization_id": org_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "viewer_manifest": viewer_manifest, "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": threshold, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments=[]
@@ -168,7 +167,7 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
         raise ValueError("One or more suppliers are not available to this organization")
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "organization_id": org_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "upload_session_id": upload_session_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": 100.0, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments = []

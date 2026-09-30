@@ -1224,20 +1224,18 @@ async def upload_supplier_question_evidence(
         raise ValueError("Questionnaire already submitted and locked")
     if question.get("response_type") == "yes_no" and (response_doc or {}).get("answers", {}).get(question_id) is not True:
         raise ValueError("Select Yes before uploading evidence for this question")
-    organization = await db.organizations.find_one(
-        {"id": relationship["customer_org_id"]}, {"_id": 0, "name": 1, "organization_name": 1}
-    ) or {}
     upload = await get_r2_storage().upload_file(
         content, filename, self.QUESTION_EVIDENCE_BUCKET, content_type,
         folder=self.QUESTION_EVIDENCE_FOLDER,
         metadata={"uploaded_by": uploaded_by, "kind": "supplier_question_evidence", "question_id": question_id},
-        org_name=organization.get("organization_name") or organization.get("name"),
+        organization_id=relationship["customer_org_id"],
     )
     if upload.get("error"):
         raise ValueError(upload["error"])
     now = datetime.now(timezone.utc).isoformat()
     evidence = {
-        "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"],
+        "id": str(uuid.uuid4()), "organization_id": relationship["customer_org_id"],
+        "supplier_relationship_id": relationship["id"],
         "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"],
         "questionnaire_id": questionnaire_id, "question_id": question_id, "reporting_period": reporting_period,
         "original_filename": filename, "normalized_filename": _normalize_evidence_filename(filename), "sha256_hash": calculated_hash,

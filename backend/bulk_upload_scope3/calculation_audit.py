@@ -22,7 +22,7 @@ def prepare_bulk_calculation_audits(records: Iterable[Dict]) -> List[Dict]:
         audit_documents.append({
             "id": str(uuid.uuid4()),
             "emission_record_id": record.get("id"),
-            "org_id": record.get("organization_id"),
+            "organization_id": record.get("organization_id"),
             "formula_id": record.get("formula_id"),
             "formula_version_id": record.get("formula_version_id"),
             "decision_tree_version_id": record.get("decision_tree_version_id"),

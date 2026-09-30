@@ -154,7 +154,7 @@ async def test_store_delivery_artifact_builds_mis_reports_key_and_sha(monkeypatc
         delivery_run_id,
     )
 
-    expected_key = f"{mis_service.archive_org_name(organization_name)}/{archive_date}/{delivery_run_id}/report.{expected_ext}"
+    expected_key = f"mis-reports/{organization_name}/{archive_date}/{delivery_run_id}/report.{expected_ext}"
     expected_sha = hashlib.sha256(content_bytes).hexdigest()
 
     assert captured["bucket_type"] == "mis_reports"
