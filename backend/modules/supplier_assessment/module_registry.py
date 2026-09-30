@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,11 @@ class EsgAssessmentModule(SupplierAssessmentModule):
     supplier_description = "Complete the questionnaires assigned by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
-        questionnaire_query = {"organization_id": relationship["customer_org_id"], "is_active": True}
+        questionnaire_query = {
+            "organization_id": relationship["customer_org_id"],
+            "is_active": True,
+            "reporting_periods": normalize_questionnaire_reporting_period(relationship.get("reporting_period")),
+        }
         if "questionnaire_ids" in relationship:
             questionnaire_query["id"] = {"$in": relationship.get("questionnaire_ids") or []}
         questionnaires = await database.supplier_questionnaires.find(

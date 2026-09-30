@@ -8,8 +8,9 @@ export const SupplierQuestionnairePreviewDialog = ({ open, onOpenChange, questio
     <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto bg-white" data-testid="supplier-questionnaire-preview-dialog">
       <DialogHeader>
         <DialogTitle data-testid="supplier-questionnaire-preview-title">
-          Supplier preview — {questionnaire?.display_name || questionnaire?.name || 'Questionnaire'}
+          Supplier preview — {questionnaire?.name || 'Questionnaire'}
         </DialogTitle>
+        {questionnaire?.reporting_period && <p className="text-sm text-stone-500" data-testid="supplier-questionnaire-preview-reporting-period">Reporting period: {questionnaire.reporting_period}</p>}
       </DialogHeader>
       <div className="space-y-5">
         {questions.length === 0 ? (

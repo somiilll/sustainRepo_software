@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
 from modules.supplier_assessment.ghg_submission_service import has_overdue_supplier_ghg_submission_window
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
 
 # ========================================================================
 # Supplier Rankings
@@ -23,8 +24,11 @@ async def get_supplier_rankings(
         {"_id": 0}
     ).to_list(1000)
     
+    questionnaire_query: Dict[str, Any] = {"organization_id": customer_org_id, "is_active": True}
+    if reporting_period:
+        questionnaire_query["reporting_periods"] = normalize_questionnaire_reporting_period(reporting_period)
     active_questionnaires = await db.supplier_questionnaires.find(
-        {"organization_id": customer_org_id, "is_active": True},
+        questionnaire_query,
         {"_id": 0, "id": 1, "question_count": 1, "due_date": 1},
     ).to_list(500)
     questionnaire_by_id = {questionnaire["id"]: questionnaire for questionnaire in active_questionnaires}

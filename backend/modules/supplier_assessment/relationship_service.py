@@ -14,6 +14,7 @@ from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
 
 logger = get_logger(__name__)
 
@@ -163,10 +164,11 @@ async def create_supplier(
     ]
     ghg_scopes_enabled = (program_modules.get("ghg") or {}).get("scopes", ["scope1", "scope2"])
 
+    effective_reporting_period = reporting_period or await self._organization_default_reporting_period(customer_org_id)
     assigned_questionnaire_ids: List[str] = []
     if "esg" in modules_enabled:
         active_questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
+            {"organization_id": customer_org_id, "is_active": True, "reporting_periods": normalize_questionnaire_reporting_period(effective_reporting_period)}, {"_id": 0, "id": 1}
         ).to_list(100)
         active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
         if not questionnaire_ids:
@@ -206,7 +208,7 @@ async def create_supplier(
         "revenue_required": revenue_required,
         "invitation_status": "pending",
         "access_revoke_date": access_revoke_date,
-        "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
+        "reporting_period": effective_reporting_period,
         "financial_year_start_month": int(customer_reporting_config.get("financial_year_start_month") or 4),
         "last_reminder_sent": None,
         "reminder_count": 0,
@@ -390,7 +392,12 @@ async def update_supplier(
 
     if "questionnaire_ids" in updates:
         active_questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1}
+            {
+                "organization_id": relationship["customer_org_id"],
+                "is_active": True,
+                "reporting_periods": normalize_questionnaire_reporting_period(relationship.get("reporting_period")),
+            },
+            {"_id": 0, "id": 1},
         ).to_list(100)
         active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
         updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
@@ -406,6 +413,7 @@ async def update_supplier(
                 {
                     "supplier_relationship_id": relationship_id,
                     "questionnaire_id": {"$in": list(removed_questionnaire_ids)},
+                    "reporting_period": relationship.get("reporting_period"),
                     "status": "submitted",
                 },
                 {"_id": 0, "questionnaire_id": 1},

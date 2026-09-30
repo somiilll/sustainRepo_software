@@ -16,7 +16,7 @@ from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
-from modules.supplier_assessment.questionnaire_service import resolve_questionnaire_display_name
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_template_name
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
     SupplierCreate,
@@ -138,7 +138,7 @@ async def _notify_new_supplier_update_assignments(
         previous_questionnaires = previous.get("questionnaire_ids")
         if previous_questionnaires is None:
             previous_questionnaires = [row["id"] for row in await db.supplier_questionnaires.find(
-                {"organization_id": previous["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1},
+                {"organization_id": previous["customer_org_id"], "is_active": True, "reporting_periods": previous.get("reporting_period")}, {"_id": 0, "id": 1},
             ).to_list(1000)]
         new_questionnaire_ids = questionnaire_ids - set(previous_questionnaires)
         questionnaires = await db.supplier_questionnaires.find(
@@ -146,8 +146,8 @@ async def _notify_new_supplier_update_assignments(
         ).to_list(1000)
         for questionnaire in questionnaires:
             await notify_supplier_assignment(
-                current, "esg", questionnaire["id"], resolve_questionnaire_display_name(
-                    questionnaire.get("name") or "ESG questionnaire", current.get("reporting_period")
+                current, "esg", questionnaire["id"], normalize_questionnaire_template_name(
+                    questionnaire.get("name") or "ESG questionnaire"
                 ),
                 due_date=questionnaire.get("due_date"),
             )
@@ -854,13 +854,14 @@ async def create_questionnaire(
             assignment_mode=data.assignment_mode,
             supplier_relationship_ids=data.supplier_relationship_ids,
             assignment_reporting_period=data.assignment_reporting_period,
+            reporting_periods=data.reporting_periods,
         )
         relationships = await db.supplier_relationships.find(
             {"id": {"$in": questionnaire.get("assigned_supplier_ids") or []}, "is_active": True}, {"_id": 0},
         ).to_list(1000)
         for relationship in relationships:
             await notify_supplier_assignment(
-                relationship, "esg", questionnaire["id"], questionnaire.get("display_name") or questionnaire.get("name") or "ESG questionnaire",
+                relationship, "esg", questionnaire.get("name") or "ESG questionnaire",
                 due_date=questionnaire.get("due_date"),
             )
         _log_supplier_event("supplier_assessment.questionnaire.create.completed", action="supplier_assessment.questionnaire.create", outcome="succeeded", context={"questionnaire_id": questionnaire.get("id"), "assigned_supplier_count": len(relationships)})
@@ -931,10 +932,9 @@ async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str,
             {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "esg", questionnaire_id, resolve_questionnaire_display_name(
-                questionnaire.get("name") or "ESG questionnaire", reporting_period
-            ),
-            due_date=questionnaire.get("due_date"),
+            supplier_id, "esg", questionnaire_id, normalize_questionnaire_template_name(
+                questionnaire.get("name") or "ESG questionnaire"
+            ), due_date=questionnaire.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
@@ -945,9 +945,9 @@ async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str,
 
 
 @router.delete("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
-async def unassign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+async def unassign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
-        await supplier_service.unassign_questionnaire_from_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        await supplier_service.unassign_questionnaire_from_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         _log_supplier_event("supplier_assessment.questionnaire.assignment.rejected", action="supplier_assessment.questionnaire.assignment.unassign", outcome="rejected", level=logging.WARNING, error_code="QUESTIONNAIRE_UNASSIGNMENT_REJECTED", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_id})

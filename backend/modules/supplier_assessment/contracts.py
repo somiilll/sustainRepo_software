@@ -410,6 +410,7 @@ class QuestionnaireCreate(BaseModel):
     assignment_mode: Literal["all", "selected"] = "all"
     supplier_relationship_ids: List[str] = Field(default_factory=list)
     assignment_reporting_period: Optional[str] = None
+    reporting_periods: List[str] = Field(default_factory=list)
 
 
 class QuestionnaireUpdate(BaseModel):
@@ -423,6 +424,7 @@ class QuestionnaireUpdate(BaseModel):
     # New: Explicit weight configurations
     esg_section_weights: Optional[ESGSectionWeightsConfig] = None
     overall_supplier_weights: Optional[OverallSupplierWeightsConfig] = None
+    reporting_periods: Optional[List[str]] = None
 
 
 class QuestionnaireResponse(BaseModel):
@@ -434,6 +436,7 @@ class QuestionnaireResponse(BaseModel):
     name: str
     display_name: Optional[str] = None
     reporting_period: Optional[str] = None
+    reporting_periods: List[str] = []
     description: Optional[str] = None
     due_date: Optional[str] = None
     scoring_method: str = "question"
@@ -495,6 +498,7 @@ class SupplierQuestionnaireStatusResponse(BaseModel):
     questionnaire_id: str
     questionnaire_name: str
     supplier_relationship_id: str
+    reporting_period: Optional[str] = None
     status: str  # not_started, in_progress, submitted
     completion_percent: float = 0.0
     answered_count: int = 0

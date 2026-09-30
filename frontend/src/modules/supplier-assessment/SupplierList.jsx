@@ -714,7 +714,7 @@ export default function SupplierList() {
                               onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                               data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
                             />
-                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.display_name || questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
+                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
                           </label>
                         ))}
                       </div>
@@ -888,7 +888,7 @@ export default function SupplierList() {
                           onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                           data-testid={`edit-supplier-questionnaire-${questionnaire.id}`}
                         />
-                        <span data-testid={`edit-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.display_name || questionnaire.name}</span>
+                        <span data-testid={`edit-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span>
                         {isSubmitted && <Badge variant="outline" className="ml-auto text-xs" data-testid={`submitted-questionnaire-lock-${questionnaire.id}`}>Submitted</Badge>}
                       </label>
                     );

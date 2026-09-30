@@ -202,6 +202,7 @@ export default function QuestionnaireBuilder() {
     assignment_mode: 'all',
     supplier_relationship_ids: [],
     assignment_reporting_period: reportingPeriod,
+    reporting_periods: [reportingPeriod],
   });
   const [assignmentSuppliers, setAssignmentSuppliers] = useState([]);
   
@@ -278,7 +279,7 @@ export default function QuestionnaireBuilder() {
   const filteredQuestionnaires = useMemo(() => {
     const query = questionnaireSearch.trim().toLowerCase();
     if (!query) return questionnaires;
-    return questionnaires.filter((questionnaire) => [questionnaire.display_name, questionnaire.name, questionnaire.description]
+    return questionnaires.filter((questionnaire) => [questionnaire.name, questionnaire.description]
       .some((value) => String(value || '').toLowerCase().includes(query)));
   }, [questionnaireSearch, questionnaires]);
 
@@ -294,7 +295,7 @@ export default function QuestionnaireBuilder() {
     setUpdatingAssignmentId(row.supplier_relationship_id);
     try {
       if (assigned) await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/assignments/${row.supplier_relationship_id}`, {}, { params: { reporting_period: reportingPeriod }, headers: getAuthHeader() });
-      else await axios.delete(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/assignments/${row.supplier_relationship_id}`, { headers: getAuthHeader() });
+      else await axios.delete(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/assignments/${row.supplier_relationship_id}`, { params: { reporting_period: reportingPeriod }, headers: getAuthHeader() });
       setQuestionnaireAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, can_unlock: false, status: assigned ? 'not_started' : 'not_assigned' } : item));
       toast.success(assigned ? 'Questionnaire assigned' : 'Questionnaire unassigned'); await fetchQuestionnaires();
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not update questionnaire assignment'); }
@@ -317,7 +318,7 @@ export default function QuestionnaireBuilder() {
 
   useEffect(() => {
     if (!showCreateDialog) return;
-    setQuestionnaireForm((current) => ({ ...current, assignment_reporting_period: reportingPeriod }));
+    setQuestionnaireForm((current) => ({ ...current, assignment_reporting_period: reportingPeriod, reporting_periods: [reportingPeriod] }));
     axios.get(`${API}/supplier-assessment/suppliers`, {
       params: { page: 1, page_size: 100, reporting_period: reportingPeriod },
       headers: getAuthHeader(),
@@ -369,6 +370,7 @@ export default function QuestionnaireBuilder() {
         assignment_mode: 'all',
         supplier_relationship_ids: [],
         assignment_reporting_period: reportingPeriod,
+        reporting_periods: [reportingPeriod],
       });
       fetchQuestionnaires();
       setSelectedQuestionnaire(res.data);
@@ -610,6 +612,20 @@ export default function QuestionnaireBuilder() {
     }));
   };
 
+  const toggleQuestionnaireReportingPeriod = (period) => {
+    setQuestionnaireForm((current) => {
+      const associatedPeriods = current.reporting_periods || [];
+      const nextPeriods = associatedPeriods.includes(period)
+        ? associatedPeriods.filter((item) => item !== period)
+        : [...associatedPeriods, period];
+      if (nextPeriods.length === 0) {
+        toast.error('Associate the questionnaire with at least one reporting period.');
+        return current;
+      }
+      return { ...current, reporting_periods: nextPeriods };
+    });
+  };
+
   const openEditQuestion = (question) => {
     const responseType = isSupportedResponseType(question.response_type)
       ? question.response_type
@@ -648,6 +664,7 @@ export default function QuestionnaireBuilder() {
       due_date: q.due_date || '',
       esg_section_weights: q.esg_section_weights || q.section_weights || { environment: 33.33, social: 33.33, governance: 33.34 },
       overall_supplier_weights: q.overall_supplier_weights || { esg: 40, ghg: 40, revenue: 20 },
+      reporting_periods: q.reporting_periods?.length ? q.reporting_periods : [reportingPeriod],
     });
     setShowEditDialog(true);
   };
@@ -850,7 +867,7 @@ export default function QuestionnaireBuilder() {
           {selectedQuestionnaire ? (
             <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
-                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950" data-testid="selected-questionnaire-name">{selectedQuestionnaire.display_name || selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500">{selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
+                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950" data-testid="selected-questionnaire-name">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500" data-testid="selected-questionnaire-period-context">Reporting period: {reportingPeriod} · {selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
                 <div className="flex flex-wrap items-center justify-end gap-2"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Edit ${selectedQuestionnaire.name}`} onClick={() => openEditQuestionnaire(selectedQuestionnaire)} data-testid="edit-selected-questionnaire"><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Duplicate ${selectedQuestionnaire.name}`} onClick={() => handleDuplicateQuestionnaire(selectedQuestionnaire.id, selectedQuestionnaire.name)} data-testid="duplicate-selected-questionnaire"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`${selectedQuestionnaire.is_active ? 'Deactivate' : 'Activate'} ${selectedQuestionnaire.name}`} onClick={() => handleQuestionnaireActivation(selectedQuestionnaire)} data-testid="toggle-selected-questionnaire-active"><ToggleLeft className={`h-4 w-4 ${selectedQuestionnaire.is_active ? 'text-emerald-700' : 'text-stone-500'}`} /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" aria-label={`Delete ${selectedQuestionnaire.name}`} onClick={() => handleDeleteQuestionnaire(selectedQuestionnaire.id)} data-testid="delete-selected-questionnaire"><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
@@ -891,7 +908,7 @@ export default function QuestionnaireBuilder() {
         <DialogContent className="max-w-2xl" data-testid="questionnaire-submissions-dialog"><DialogHeader><DialogTitle data-testid="questionnaire-submissions-title">Submitted responses — {selectedQuestionnaire?.name}</DialogTitle></DialogHeader><div className="max-h-96 space-y-2 overflow-y-auto" data-testid="questionnaire-submissions-list">{loadingSubmissions ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-loading">Loading submitted responses…</p> : submissions.length === 0 ? <p className="text-sm text-stone-500" data-testid="questionnaire-submissions-empty">No suppliers have submitted this questionnaire for the selected reporting period.</p> : submissions.map((submission) => <div key={submission.supplier_id} className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 py-3" data-testid={`questionnaire-submission-${submission.supplier_id}`}><div><p className="font-medium text-stone-900" data-testid={`questionnaire-submission-supplier-${submission.supplier_id}`}>{submission.supplier_name}</p><p className="text-xs text-stone-500" data-testid={`questionnaire-submission-score-${submission.supplier_id}`}>Questionnaire score: {submission.calculated_score ?? 'Pending'} · Manual questions scored: {submission.manual_question_count}</p></div><Button variant="outline" size="sm" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => openSubmissionReview(submission)} data-testid={`review-questionnaire-submission-${submission.supplier_id}`}>Review response</Button></div>)}</div><DialogFooter><Button variant="outline" onClick={() => setShowSubmissionsDialog(false)} data-testid="close-questionnaire-submissions-button">Close</Button></DialogFooter></DialogContent>
       </Dialog>
       <SupplierResponseReviewDialog open={Boolean(reviewResponse)} onOpenChange={(open) => !open && setReviewResponse(null)} response={reviewResponse} supplierId={reviewSupplier?.supplier_id} getAuthHeader={getAuthHeader} onScoreSaved={() => { if (reviewSupplier) openSubmissionReview(reviewSupplier); }} />
-      <SupplierAssignmentManagerDialog open={showAssignmentDialog} onOpenChange={setShowAssignmentDialog} title={selectedQuestionnaire?.display_name || selectedQuestionnaire?.name || ''} rows={questionnaireAssignmentRows} loading={loadingAssignments} updatingId={updatingAssignmentId} unlockingId={unlockingAssignmentId} onToggle={toggleQuestionnaireAssignment} onUnlock={unlockQuestionnaireAssignment} testIdPrefix="questionnaire" />
+      <SupplierAssignmentManagerDialog open={showAssignmentDialog} onOpenChange={setShowAssignmentDialog} title={selectedQuestionnaire?.name || ''} rows={questionnaireAssignmentRows} loading={loadingAssignments} updatingId={updatingAssignmentId} unlockingId={unlockingAssignmentId} onToggle={toggleQuestionnaireAssignment} onUnlock={unlockQuestionnaireAssignment} testIdPrefix="questionnaire" />
 
       {/* Create Questionnaire Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -911,7 +928,7 @@ export default function QuestionnaireBuilder() {
                 placeholder="Enter questionnaire name"
                 data-testid="questionnaire-name"
               />
-              <p className="text-xs text-stone-500" data-testid="questionnaire-name-reporting-year-preview">Displayed as {questionnaireForm.name || 'Questionnaire'} [{reportingPeriod}]</p>
+              <p className="text-xs text-stone-500" data-testid="questionnaire-name-reporting-year-preview">This questionnaire will initially be available for {reportingPeriod}.</p>
             </div>
             <div className="space-y-2">
               <Label>Due Date</Label>
@@ -922,6 +939,12 @@ export default function QuestionnaireBuilder() {
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
                 data-testid="new-questionnaire-due-date-input"
               />
+            </div>
+            <div className="space-y-2 border-t border-stone-100 pt-4" data-testid="create-questionnaire-reporting-period-associations">
+              <Label className="text-sm font-medium">Reporting periods</Label>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`create-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(period)} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`create-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
+              </div>
             </div>
 
             <div className="space-y-3 border-t pt-4" data-testid="questionnaire-assignment-controls">
@@ -1069,6 +1092,12 @@ export default function QuestionnaireBuilder() {
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
                 data-testid="edit-questionnaire-due-date-input"
               />
+            </div>
+            <div className="space-y-2 border-t border-stone-100 pt-4" data-testid="edit-questionnaire-reporting-period-associations">
+              <Label className="text-sm font-medium">Reporting periods</Label>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`edit-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(period)} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`edit-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
+              </div>
             </div>
             
             <Accordion type="single" collapsible className="w-full">

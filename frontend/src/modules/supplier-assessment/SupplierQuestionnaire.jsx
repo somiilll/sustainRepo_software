@@ -302,7 +302,7 @@ export default function SupplierQuestionnaire() {
   return (
     <div className="mx-auto max-w-7xl space-y-8" data-testid="supplier-questionnaire">
       <SupplierPageHeader
-        title={questionnaire.display_name || questionnaire.name}
+        title={questionnaire.name}
         description={questionnaire.description}
         icon={ClipboardCheck}
         iconClassName="border-violet-200 bg-violet-50 text-violet-700"
@@ -312,6 +312,7 @@ export default function SupplierQuestionnaire() {
             Back
           </Button>}
         aside={<>
+        {questionnaire.reporting_period && <Badge variant="outline" className="border-stone-200 bg-stone-50 text-stone-700" data-testid="supplier-questionnaire-reporting-period">Reporting period: {questionnaire.reporting_period}</Badge>}
         {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}{!isReadOnly && questionnaire.due_date && new Date(`${questionnaire.due_date.slice(0, 10)}T23:59:59`) < new Date() && <Badge className="bg-rose-100 text-rose-800" data-testid="supplier-questionnaire-overdue-badge">Overdue</Badge>}
         {isReadOnly && (
           <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
