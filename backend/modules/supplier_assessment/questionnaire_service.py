@@ -230,14 +230,133 @@ async def seed_bundled_questionnaire_banks() -> None:
         )
 
 
+async def _system_questionnaire_reset_data(organization_id: str, questionnaire_id: str, bank_key: str) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Build the original Super Admin bank configuration for one organization-owned template."""
+    definition = SYSTEM_QUESTIONNAIRE_BANKS[bank_key]
+    bank = await db.supplier_question_banks.find_one({"id": definition["bank_id"], "is_active": True}, {"_id": 0})
+    if not bank:
+        raise ValueError("The original Super Admin questionnaire bank is unavailable")
+    taxonomy = (await resolve_supplier_assessment_config(organization_id)).get("esg_subcategories") or {}
+    organization = await db.organizations.find_one(
+        {"id": organization_id}, {"_id": 0, "reporting_year_type": 1, "financial_year_start_month": 1}
+    ) or {}
+    now_date = datetime.now(timezone.utc)
+    if organization.get("reporting_year_type") == "calendar_year":
+        initial_reporting_period = f"CY {now_date.year}"
+    else:
+        start_month = int(organization.get("financial_year_start_month") or 4)
+        start_year = now_date.year if now_date.month >= start_month else now_date.year - 1
+        initial_reporting_period = f"FY {start_year}-{str(start_year + 1)[-2:]}"
+    codes_by_name = {
+        section: {"".join(char for char in item.get("name", "").lower() if char.isalnum()): item.get("code") for item in taxonomy.get(section, []) if item.get("enabled")}
+        for section in ESG_SECTIONS
+    }
+    now = datetime.now(timezone.utc).isoformat()
+    questions = []
+    for order, source in enumerate(bank.get("questions") or []):
+        section = str(source.get("pillar", "")).lower()
+        category_code = codes_by_name.get(section, {}).get("".join(char for char in source.get("subcategory", "").lower() if char.isalnum()))
+        if not category_code:
+            continue
+        assessment_type = source.get("assessment_type", "type_a")
+        max_points = float(source.get("max_points") or 1)
+        questions.append({
+            "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id, "question_text": source["assessment_question"],
+            "description": source.get("configuration"), "response_type": "yes_no", "options": None, "required": True,
+            "evidence_requirement": "required" if assessment_type == "type_a" else ("not_required" if assessment_type == "type_b" else "evidence_scored"),
+            "assessment_type": assessment_type, "max_points": max_points, "weight": max_points, "importance": "medium", "exact_numerical_weight": max_points,
+            "point_scores": {"yes_score": max_points, "yes_with_evidence_score": max_points, "yes_without_evidence_score": max_points / 2, "no_score": 0},
+            "category": section, "question_category": category_code, "order": order, "parent_question_id": None,
+            "scoring": {"rule": "boolean", "true_score": 100, "false_score": 0}, "is_active": True,
+            "system_question_bank": bank_key, "source_question_id": source.get("source_question_id"), "created_at": now,
+        })
+    if not questions:
+        raise ValueError("The original Super Admin questionnaire bank has no applicable questions")
+    questionnaire_data = {
+        "name": definition["name"], "description": definition["description"], "scoring_method": "question",
+        "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
+        "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
+        "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20}, "esg_subcategories": taxonomy,
+        "assignment_mode": "all", "assigned_supplier_ids": [], "reporting_periods": [normalize_questionnaire_reporting_period(initial_reporting_period)],
+        "question_count": len(questions), "system_question_bank": bank_key,
+    }
+    return questionnaire_data, questions
+
+
+async def _reset_and_hide_system_questionnaire(questionnaire: Dict[str, Any]) -> None:
+    """Restore a deleted system template to its Super Admin baseline while retaining response documents."""
+    questionnaire_id = questionnaire["id"]
+    organization_id = questionnaire["organization_id"]
+    reset_data, baseline_questions = await _system_questionnaire_reset_data(
+        organization_id, questionnaire_id, questionnaire["system_question_bank"]
+    )
+    response_periods = await db.supplier_questionnaire_responses.distinct(
+        "reporting_period", {"questionnaire_id": questionnaire_id, "reporting_period": {"$nin": [None, ""]}}
+    )
+    reset_data["reporting_periods"] = list(dict.fromkeys([
+        *reset_data["reporting_periods"],
+        *(normalize_questionnaire_reporting_period(period) for period in response_periods if normalize_questionnaire_reporting_period(period)),
+    ]))
+    existing_questions = await db.supplier_questions.find(
+        {"questionnaire_id": questionnaire_id}, {"_id": 0}
+    ).to_list(1000)
+    existing_by_source = {
+        question.get("source_question_id"): question
+        for question in existing_questions if question.get("source_question_id")
+    }
+    baseline_source_ids = {question.get("source_question_id") for question in baseline_questions if question.get("source_question_id")}
+    now = datetime.now(timezone.utc).isoformat()
+    for baseline_question in baseline_questions:
+        existing = existing_by_source.get(baseline_question.get("source_question_id"))
+        if existing:
+            baseline_question["id"] = existing["id"]
+            baseline_question["created_at"] = existing.get("created_at") or baseline_question["created_at"]
+            baseline_question["updated_at"] = now
+            await db.supplier_questions.update_one({"id": existing["id"]}, {"$set": baseline_question})
+        else:
+            await db.supplier_questions.insert_one(baseline_question)
+    stale_question_ids = [
+        question["id"] for question in existing_questions
+        if question.get("source_question_id") not in baseline_source_ids
+    ]
+    if stale_question_ids:
+        await db.supplier_questions.update_many(
+            {"id": {"$in": stale_question_ids}},
+            {"$set": {"is_active": False, "system_reset_at": now, "updated_at": now}},
+        )
+    reset_data.update({
+        "is_active": False, "is_deleted": True, "system_hidden_by_org": True,
+        "system_bank_last_enabled": True, "system_reset_at": now, "updated_at": now,
+    })
+    await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$set": reset_data, "$unset": {"due_date": "", "assignment_reporting_period": ""}})
+    await db.supplier_relationships.update_many(
+        {"customer_org_id": organization_id, "questionnaire_ids": questionnaire_id},
+        {"$pull": {"questionnaire_ids": questionnaire_id}, "$set": {"updated_at": now}},
+    )
+
+
 async def sync_system_questionnaire_bank(organization_id: str, created_by: str, bank_key: str, enabled: bool) -> None:
     """Activate, deactivate, or create one system-owned questionnaire bank for an organization."""
     definition = SYSTEM_QUESTIONNAIRE_BANKS[bank_key]
     existing = await db.supplier_questionnaires.find_one(
-        {"organization_id": organization_id, "system_question_bank": bank_key}, {"_id": 0, "id": 1}
+        {"organization_id": organization_id, "system_question_bank": bank_key}, {"_id": 0, "id": 1, "is_deleted": 1, "system_hidden_by_org": 1, "system_bank_last_enabled": 1}
     )
     if existing:
-        await db.supplier_questionnaires.update_one({"id": existing["id"]}, {"$set": {"is_active": enabled, "updated_at": datetime.now(timezone.utc).isoformat()}})
+        now = datetime.now(timezone.utc).isoformat()
+        was_enabled = existing.get("system_bank_last_enabled")
+        is_org_hidden = bool(existing.get("system_hidden_by_org") or existing.get("is_deleted"))
+        if not enabled:
+            await db.supplier_questionnaires.update_one(
+                {"id": existing["id"]}, {"$set": {"is_active": False, "is_deleted": True, "system_bank_last_enabled": False, "updated_at": now}}
+            )
+        elif is_org_hidden and was_enabled is not False:
+            await db.supplier_questionnaires.update_one(
+                {"id": existing["id"]}, {"$set": {"system_hidden_by_org": True, "system_bank_last_enabled": True, "updated_at": now}}
+            )
+        else:
+            await db.supplier_questionnaires.update_one(
+                {"id": existing["id"]}, {"$set": {"is_active": True, "is_deleted": False, "system_hidden_by_org": False, "system_bank_last_enabled": True, "updated_at": now}}
+            )
         return
     if not enabled:
         return
@@ -287,7 +406,7 @@ async def sync_system_questionnaire_bank(organization_id: str, created_by: str, 
         "scoring_method": "question", "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
         "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34}, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
         "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "reporting_periods": [normalize_questionnaire_reporting_period(initial_reporting_period)], "is_active": True, "is_deleted": False,
-        "question_count": len(questions), "system_question_bank": bank_key, "created_by": created_by, "created_at": now,
+        "question_count": len(questions), "system_question_bank": bank_key, "system_hidden_by_org": False, "system_bank_last_enabled": True, "created_by": created_by, "created_at": now,
     })
     await db.supplier_questions.insert_many(questions)
 
@@ -433,6 +552,8 @@ async def update_questionnaire(
             "Overall component weights",
         )
     if "is_active" in updates:
+        if existing.get("system_question_bank"):
+            raise ValueError("Super Admin controls availability for this system questionnaire bank")
         updates["is_deleted"] = False
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.supplier_questionnaires.update_one(
@@ -503,6 +624,14 @@ async def unassign_questionnaire_from_supplier(self, customer_org_id: str, quest
 
 async def delete_questionnaire(self, questionnaire_id: str) -> bool:
     """Soft delete questionnaire."""
+    questionnaire = await db.supplier_questionnaires.find_one(
+        {"id": questionnaire_id}, {"_id": 0, "id": 1, "organization_id": 1, "system_question_bank": 1}
+    )
+    if not questionnaire:
+        return False
+    if questionnaire.get("system_question_bank"):
+        await _reset_and_hide_system_questionnaire(questionnaire)
+        return True
     result = await db.supplier_questionnaires.update_one(
         {"id": questionnaire_id},
         {"$set": {"is_active": False, "is_deleted": True, "updated_at": datetime.now(timezone.utc).isoformat()}}

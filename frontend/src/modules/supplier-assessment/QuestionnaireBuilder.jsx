@@ -26,6 +26,16 @@ import {
   DialogDescription,
 } from '../../components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../components/ui/alert-dialog';
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -197,6 +207,7 @@ export default function QuestionnaireBuilder() {
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [updatingAssignmentId, setUpdatingAssignmentId] = useState('');
   const [unlockingAssignmentId, setUnlockingAssignmentId] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -409,8 +420,6 @@ export default function QuestionnaireBuilder() {
   };
 
   const handleDeleteQuestionnaire = async (id) => {
-    if (!window.confirm('Delete this questionnaire?')) return;
-    
     try {
       await axios.delete(`${API}/supplier-assessment/questionnaires/${id}`, {
         headers: getAuthHeader(),
@@ -530,8 +539,6 @@ export default function QuestionnaireBuilder() {
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm('Delete this question?')) return;
-    
     try {
       await axios.delete(`${API}/supplier-assessment/questions/${questionId}`, {
         headers: getAuthHeader(),
@@ -541,6 +548,22 @@ export default function QuestionnaireBuilder() {
     } catch (err) {
       toast.error('Failed to delete question');
     }
+  };
+
+  const requestQuestionnaireDelete = (questionnaire) => {
+    setPendingDelete({ type: 'questionnaire', id: questionnaire.id, name: questionnaire.name, isSystemBank: Boolean(questionnaire.system_question_bank) });
+  };
+
+  const requestQuestionDelete = (question) => {
+    setPendingDelete({ type: 'question', id: question.id, name: question.question_text });
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const target = pendingDelete;
+    setPendingDelete(null);
+    if (target.type === 'questionnaire') await handleDeleteQuestionnaire(target.id);
+    else await handleDeleteQuestion(target.id);
   };
 
   const openSubmissions = async () => {
@@ -875,7 +898,7 @@ export default function QuestionnaireBuilder() {
             <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
               <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
                 <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950" data-testid="selected-questionnaire-name">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500" data-testid="selected-questionnaire-period-context">Reporting period: {reportingPeriod} · {selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
-                <div className="flex flex-wrap items-center justify-end gap-2"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Edit ${selectedQuestionnaire.name}`} onClick={() => openEditQuestionnaire(selectedQuestionnaire)} data-testid="edit-selected-questionnaire"><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Duplicate ${selectedQuestionnaire.name}`} onClick={() => handleDuplicateQuestionnaire(selectedQuestionnaire.id, selectedQuestionnaire.name)} data-testid="duplicate-selected-questionnaire"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`${selectedQuestionnaire.is_active ? 'Deactivate' : 'Activate'} ${selectedQuestionnaire.name}`} onClick={() => handleQuestionnaireActivation(selectedQuestionnaire)} data-testid="toggle-selected-questionnaire-active"><ToggleLeft className={`h-4 w-4 ${selectedQuestionnaire.is_active ? 'text-emerald-700' : 'text-stone-500'}`} /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" aria-label={`Delete ${selectedQuestionnaire.name}`} onClick={() => handleDeleteQuestionnaire(selectedQuestionnaire.id)} data-testid="delete-selected-questionnaire"><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
+                <div className="flex flex-wrap items-center justify-end gap-2"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Edit ${selectedQuestionnaire.name}`} onClick={() => openEditQuestionnaire(selectedQuestionnaire)} data-testid="edit-selected-questionnaire"><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Edit questionnaire</TooltipContent></Tooltip>{!selectedQuestionnaire.system_question_bank && <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`${selectedQuestionnaire.is_active ? 'Deactivate' : 'Activate'} ${selectedQuestionnaire.name}`} onClick={() => handleQuestionnaireActivation(selectedQuestionnaire)} data-testid="toggle-selected-questionnaire-active"><ToggleLeft className={`h-4 w-4 ${selectedQuestionnaire.is_active ? 'text-emerald-700' : 'text-stone-500'}`} /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.is_active ? 'Deactivate questionnaire' : 'Activate questionnaire'}</TooltipContent></Tooltip>}<Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Duplicate ${selectedQuestionnaire.name}`} onClick={() => handleDuplicateQuestionnaire(selectedQuestionnaire.id, selectedQuestionnaire.name)} data-testid="duplicate-selected-questionnaire"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" aria-label={`Delete ${selectedQuestionnaire.name}`} onClick={() => requestQuestionnaireDelete(selectedQuestionnaire)} data-testid="delete-selected-questionnaire"><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Delete questionnaire</TooltipContent></Tooltip><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
                   resetQuestionForm();
                   setEditingQuestion(null);
                   setQuestionDialogMode('create');
@@ -896,7 +919,7 @@ export default function QuestionnaireBuilder() {
                             const CategoryIcon = categoryStyle.icon;
                             return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`overflow-hidden border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
                             <AccordionTrigger className={`-mx-4 border-b border-stone-200 bg-stone-50 px-4 py-4 text-lg font-semibold hover:bg-stone-100 hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span className="flex items-center gap-3"><CategoryIcon className={`h-5 w-5 ${categoryStyle.iconClass}`} aria-hidden="true" /><span>{category.groupLabel}</span></span><Badge variant="outline" className={`ml-auto mr-3 min-w-8 justify-center rounded-full ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
-                            <AccordionContent className="pb-4 pt-5">{category.questions.length === 0 ? <p className="pb-3 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div className="overflow-hidden border border-stone-200" data-testid={`question-table-${section.value}-${category.value}`}><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-[11px] font-medium uppercase tracking-wide text-stone-600 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Max points</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <div key={question.id} className="px-4"><QuestionnaireQuestionRow question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} onEdit={() => openEditQuestion(question)} onDelete={() => handleDeleteQuestion(question.id)} onDrop={handleQuestionDrop} /></div>)}</div>}</AccordionContent>
+                            <AccordionContent className="pb-4 pt-5">{category.questions.length === 0 ? <p className="pb-3 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div className="overflow-hidden border border-stone-200" data-testid={`question-table-${section.value}-${category.value}`}><div className="hidden grid-cols-[2rem_minmax(11rem,1fr)_6rem_6rem_6rem_7.5rem_6.5rem_7.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-[11px] font-medium uppercase tracking-wide text-stone-600 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Section</span><span>Category</span><span>Type</span><span>Field type</span><span>Max points</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <div key={question.id} className="px-4"><QuestionnaireQuestionRow question={question} index={questions.indexOf(question)} sectionLabel={section.label} questionCategoryLabel={category.label} typeLabel={questionTypeLabel(question.response_type)} scoringLabel={scoringLabel(question.scoring?.rule)} onEdit={() => openEditQuestion(question)} onDelete={() => requestQuestionDelete(question)} onDrop={handleQuestionDrop} /></div>)}</div>}</AccordionContent>
                           </AccordionItem>;
                           })}
                         </Accordion>
@@ -1593,6 +1616,24 @@ export default function QuestionnaireBuilder() {
       </Dialog>
       <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent data-testid="supplier-assessment-delete-confirmation-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="supplier-assessment-delete-confirmation-title">Delete {pendingDelete?.type === 'questionnaire' ? 'questionnaire' : 'question'}?</AlertDialogTitle>
+            <AlertDialogDescription data-testid="supplier-assessment-delete-confirmation-description">
+              {pendingDelete?.isSystemBank
+                ? 'This restores the questionnaire to its Super Admin baseline and hides it for this organization. Existing response records are retained. It will return only after Super Admin disables and re-enables its bank setting.'
+                : pendingDelete?.type === 'questionnaire'
+                ? 'This hides the questionnaire from new supplier assignments. Existing response records are retained.'
+                : 'This removes the question from the active questionnaire. Existing responses are retained for audit history.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-supplier-assessment-delete-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-700 text-white hover:bg-red-800" data-testid="confirm-supplier-assessment-delete-button">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div></TooltipProvider>
   );
 }
