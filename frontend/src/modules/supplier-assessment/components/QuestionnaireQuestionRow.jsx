@@ -10,7 +10,7 @@ export const QuestionnaireQuestionRow = ({ question, index, typeLabel, evidenceL
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', question.id);
   };
-  return <div onDragOver={(event) => !readOnly && event.preventDefault()} onDrop={(event) => !readOnly && onDrop(event.dataTransfer.getData('text/plain'), question.id)} className="grid gap-3 border-b border-stone-100/80 py-4 last:border-0 md:grid-cols-[2rem_minmax(10rem,1fr)_minmax(10rem,1fr)_6rem_7.5rem_minmax(7rem,1fr)_6.5rem_7.5rem] md:items-center" data-testid={`question-${question.id}`}>
+  return <div onDragOver={(event) => !readOnly && event.preventDefault()} onDrop={(event) => !readOnly && onDrop(event.dataTransfer.getData('text/plain'), question.id)} className="grid gap-3 border-b border-stone-100/80 py-4 last:border-0 md:grid-cols-[2rem_minmax(10rem,1fr)_minmax(10rem,1fr)_6rem_7.5rem_minmax(15rem,1.2fr)_6.5rem_7.5rem] md:items-center" data-testid={`question-${question.id}`}>
     <span draggable={!readOnly} onDragStart={beginDrag} className={`flex h-7 w-7 items-center justify-center text-sm font-medium text-stone-500 ${readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-grab active:cursor-grabbing'}`} data-testid={`question-reorder-handle-${question.id}`}>{index + 1}<span className="sr-only">Drag question {index + 1}</span></span>
     <div className="min-w-0"><p className="text-sm font-semibold text-stone-950">{question.question_text}{question.required && <span className="ml-1 text-rose-500">*</span>}</p></div>
     <div className="min-w-0 truncate text-xs text-stone-500" title={question.description || '—'} data-testid={`question-description-${question.id}`}>{question.description || '—'}</div>
