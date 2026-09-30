@@ -1128,16 +1128,15 @@ async def get_questionnaire_for_supplier(
 async def _question_evidence_metadata(
     self, supplier_relationship_id: str, questionnaire_id: str, question_id: str, evidence_ids: List[str], reused_evidence_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
-    if not evidence_ids:
-        return []
     records = await db.supplier_question_evidence.find(
-        {"id": {"$in": evidence_ids}, "supplier_relationship_id": supplier_relationship_id,
-         "questionnaire_id": questionnaire_id, "is_deleted": {"$ne": True}},
+        {"supplier_relationship_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "is_deleted": {"$ne": True},
+         "$or": [{"id": {"$in": evidence_ids or []}}, {"question_id": question_id}]},
         {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1, "uploaded_at": 1},
     ).to_list(100)
     by_id = {record["id"]: record for record in records}
     reused_ids = set(reused_evidence_ids or [])
-    return [{**by_id[evidence_id], "reused": evidence_id in reused_ids} for evidence_id in evidence_ids if evidence_id in by_id]
+    ordered_ids = list(dict.fromkeys([*(evidence_ids or []), *(record["id"] for record in records if record["id"] not in (evidence_ids or []))]))
+    return [{**by_id[evidence_id], "reused": evidence_id in reused_ids} for evidence_id in ordered_ids if evidence_id in by_id]
 
 
 async def find_supplier_question_evidence_duplicates(
@@ -1306,12 +1305,11 @@ async def get_question_evidence_file(
             {"_id": 0}, sort=[("revision", -1)],
         )
     evidence_ids = ((response or {}).get("question_evidence") or {}).get(question_id, [])
+    query = {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
+             "reporting_period": relationship.get("reporting_period"), "is_deleted": {"$ne": True}}
     if evidence_id not in evidence_ids:
-        return None
-    return await db.supplier_question_evidence.find_one(
-        {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
-         "reporting_period": relationship.get("reporting_period"), "is_deleted": {"$ne": True}}, {"_id": 0}
-    )
+        query["question_id"] = question_id
+    return await db.supplier_question_evidence.find_one(query, {"_id": 0})
 
 async def _delete_unreferenced_question_evidence(evidence_ids: List[str], supplier_relationship_id: str, questionnaire_id: str, reporting_period: str) -> None:
     if not evidence_ids:
