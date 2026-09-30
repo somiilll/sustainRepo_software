@@ -483,6 +483,16 @@ export default function QuestionnaireBuilder() {
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock supplier responses'); }
   };
 
+  const requestUnlockAndSave = (pending) => {
+    setShowQuestionDialog(false);
+    setPendingUnlockAndSave(pending);
+  };
+
+  const cancelUnlockAndSave = () => {
+    if (pendingUnlockAndSave?.type === 'edit') setShowQuestionDialog(true);
+    setPendingUnlockAndSave(null);
+  };
+
   const discardLockedQuestionChanges = () => {
     setShowQuestionDialog(false); setQuestionDialogMode(null); setEditingQuestion(null); resetQuestionForm(); setPendingUnlockAndSave(null);
   };
@@ -521,7 +531,7 @@ export default function QuestionnaireBuilder() {
     });
     if (invalidScore) { toast.error('Enter valid scores that do not exceed the question’s Max points.'); return false; }
     if (!retryingAfterUnlock && selectedQuestionnaire.requires_unlock_on_save) {
-      setPendingUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
+      requestUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
       return false;
     }
     setSubmitting(true);
@@ -548,7 +558,7 @@ export default function QuestionnaireBuilder() {
       await fetchQuestions(selectedQuestionnaire.id);
       return true;
     } catch (err) {
-      if (!retryingAfterUnlock && (err.response?.data?.detail || '').includes('Unlock all submitted')) setPendingUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
+      if (!retryingAfterUnlock && String(err.response?.data?.detail || err.message || '').toLowerCase().includes('submitted supplier responses')) requestUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
       else toast.error(err.response?.data?.detail || 'Failed to add question');
       return false;
     } finally {
@@ -560,7 +570,7 @@ export default function QuestionnaireBuilder() {
     if (!editingQuestion) return;
     if (!validateQuestionScoring()) return;
     if (!retryingAfterUnlock && selectedQuestionnaire?.requires_unlock_on_save) {
-      setPendingUnlockAndSave({ type: 'edit' });
+      requestUnlockAndSave({ type: 'edit' });
       return;
     }
     
@@ -578,7 +588,7 @@ export default function QuestionnaireBuilder() {
       resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
-      if (!retryingAfterUnlock && (err.response?.data?.detail || '').includes('Unlock all submitted')) setPendingUnlockAndSave({ type: 'edit' });
+      if (!retryingAfterUnlock && String(err.response?.data?.detail || err.message || '').toLowerCase().includes('submitted supplier responses')) requestUnlockAndSave({ type: 'edit' });
       else toast.error(err.response?.data?.detail || 'Failed to update question');
     } finally {
       setSubmitting(false);
@@ -1584,8 +1594,8 @@ export default function QuestionnaireBuilder() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <AlertDialog open={Boolean(pendingUnlockAndSave)} onOpenChange={(open) => !open && setPendingUnlockAndSave(null)}>
-        <AlertDialogContent data-testid="unlock-and-save-question-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock suppliers and save changes?</AlertDialogTitle><AlertDialogDescription>Submitted supplier responses must be unlocked before this question change can be saved. Suppliers will be notified that their questionnaire is reopened.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-and-save-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={discardLockedQuestionChanges} data-testid="discard-locked-question-changes-button">Discard changes</Button><AlertDialogAction onClick={unlockAllAndSaveChanges} data-testid="unlock-all-and-save-question-button">Unlock all and save</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      <AlertDialog open={Boolean(pendingUnlockAndSave)} onOpenChange={(open) => !open && cancelUnlockAndSave()}>
+        <AlertDialogContent data-testid="unlock-and-save-question-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock suppliers and save changes?</AlertDialogTitle><AlertDialogDescription>Submitted supplier responses must be unlocked before this question change can be saved. Suppliers will be notified that their questionnaire is reopened.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel onClick={cancelUnlockAndSave} data-testid="cancel-unlock-and-save-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={discardLockedQuestionChanges} data-testid="discard-locked-question-changes-button">Discard changes</Button><AlertDialogAction onClick={unlockAllAndSaveChanges} data-testid="unlock-all-and-save-question-button">Unlock all and save</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div></TooltipProvider>
   );
