@@ -15,6 +15,8 @@ from modules.supplier_assessment.programs import resolve_program_context
 from modules.sustainability_config.service import resolve_supplier_assessment_config
 from app.logging import get_logger, log_event
 from shared.utils.emission_records import normalize_reporting_period
+from shared.helpers.email import send_email
+from modules.supplier_assessment.unlock_notification_service import notify_supplier_module_unlocked
 
 logger = get_logger(__name__)
 
@@ -549,6 +551,38 @@ async def _questionnaire_submission_state(questionnaire_id: str) -> Dict[str, bo
     )
     return {"has_locked_submissions": bool(locked_submission), "has_submission_history": bool(submitted_history)}
 
+
+async def unlock_all_questionnaire_responses(self, customer_org_id: str, questionnaire_id: str, unlocked_by: str) -> int:
+    responses = await db.supplier_questionnaire_responses.find(
+        {"questionnaire_id": questionnaire_id, "is_current": True, "status": "submitted"}, {"_id": 0, "id": 1, "supplier_relationship_id": 1}
+    ).to_list(1000)
+    if not responses:
+        return 0
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_questionnaire_responses.update_many(
+        {"id": {"$in": [response["id"] for response in responses]}},
+        {"$set": {"status": "reopened", "reopened_at": now, "reopened_by": unlocked_by, "updated_at": now}},
+    )
+    relationships = await db.supplier_relationships.find(
+        {"id": {"$in": list({response["supplier_relationship_id"] for response in responses})}, "customer_org_id": customer_org_id}, {"_id": 0}
+    ).to_list(1000)
+    for relationship in relationships:
+        await notify_supplier_module_unlocked(relationship, "esg", f"{questionnaire_id}:{now}:{relationship['id']}")
+    return len(responses)
+
+
+async def _notify_questionnaire_change(questionnaire_id: str, message: str) -> None:
+    relationships = await db.supplier_relationships.find(
+        {"questionnaire_ids": questionnaire_id, "is_active": True}, {"_id": 0, "contact_email": 1, "company_name": 1}
+    ).to_list(1000)
+    for relationship in relationships:
+        email = str(relationship.get("contact_email") or "").strip()
+        if email:
+            try:
+                await send_email(email, "ESG questionnaire updated", f"<p>Your customer has updated an ESG questionnaire assigned to you.</p><p>{message}</p>")
+            except Exception:
+                logger.exception("supplier_assessment.questionnaire_change_email_failed")
+
 async def update_questionnaire(
     self,
     questionnaire_id: str,
@@ -827,6 +861,7 @@ async def add_question(
         {"id": questionnaire_id},
         {"$inc": {"question_count": 1}}
     )
+    await _notify_questionnaire_change(questionnaire_id, f"A new question has been added: {question_text}")
     
     return question
 
@@ -884,6 +919,16 @@ async def update_question(
         {"id": question_id},
         {"$set": updates}
     )
+    messages = []
+    if "question_text" in updates and updates["question_text"] != existing.get("question_text"):
+        messages.append(f"Question changed from ‘{existing.get('question_text', '')}’ to ‘{updates['question_text']}’")
+    if any(field in updates for field in {"scoring", "options", "max_points", "point_scores", "weight", "exact_numerical_weight", "assessment_type"}):
+        scoring_fields = ("scoring", "options", "max_points", "point_scores", "weight", "exact_numerical_weight", "assessment_type")
+        before = {field: existing.get(field) for field in scoring_fields if field in updates}
+        after = {field: updates.get(field, existing.get(field)) for field in scoring_fields if field in updates}
+        messages.append(f"Scoring changed for ‘{updates.get('question_text') or existing.get('question_text', '')}’ from {json.dumps(before, default=str)} to {json.dumps(after, default=str)}")
+    if messages:
+        await _notify_questionnaire_change(existing["questionnaire_id"], "<br>".join(messages))
     updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight", "max_points", "point_scores", "assessment_type", "evidence_requirement", "parent_question_id"}.intersection(updates)):
         from modules.supplier_assessment.scoring import ScoringEngine

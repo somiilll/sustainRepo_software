@@ -1003,6 +1003,15 @@ async def delete_questionnaire(
     return {"message": "Questionnaire deleted"}
 
 
+@router.post("/questionnaires/{questionnaire_id}/unlock-all")
+async def unlock_all_questionnaire_responses(questionnaire_id: str, current_user: dict = Depends(get_customer_admin)):
+    questionnaire = await supplier_service.get_questionnaire(questionnaire_id)
+    if not questionnaire or questionnaire["organization_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    unlocked = await supplier_service.unlock_all_questionnaire_responses(current_user["organization_id"], questionnaire_id, current_user["id"])
+    return {"unlocked_count": unlocked}
+
+
 @router.post("/questionnaires/{questionnaire_id}/duplicate")
 async def duplicate_questionnaire(
     questionnaire_id: str,

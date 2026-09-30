@@ -71,6 +71,7 @@ class SupplierAssessmentService:
     get_supplier_rankings = _delegate_to(ranking_operations, ranking_operations.get_supplier_rankings)
     create_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.create_questionnaire)
     get_questionnaires = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaires)
+    unlock_all_questionnaire_responses = _delegate_to(questionnaire_operations, questionnaire_operations.unlock_all_questionnaire_responses)
     get_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire)
     update_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.update_questionnaire)
     delete_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.delete_questionnaire)
