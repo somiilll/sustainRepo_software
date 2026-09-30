@@ -177,7 +177,11 @@ const pointScoreLabel = (question) => {
   const scores = question.point_scores || {};
   const yesWithEvidence = scores.yes_with_evidence_score ?? scores.yes_score;
   const yesWithoutEvidence = scores.yes_without_evidence_score ?? scores.yes_score;
-  return `Yes with evidence ${yesWithEvidence ?? '—'} · Yes without evidence ${yesWithoutEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
+  if (question.evidence_requirement === 'evidence_scored' || question.assessment_type === 'type_c') {
+    return `Yes with evidence ${yesWithEvidence ?? '—'} · Yes without evidence ${yesWithoutEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
+  }
+  if (question.evidence_requirement === 'required') return `Yes with evidence ${yesWithEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
+  return `Yes ${scores.yes_score ?? yesWithEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
 };
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
 const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
