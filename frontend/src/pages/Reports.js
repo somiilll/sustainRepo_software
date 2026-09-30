@@ -538,7 +538,7 @@ export default function Reports({ showMISFoundation = false }) {
                   <DialogTrigger asChild>
                     <Button 
                       onClick={() => openGhgReportDialog('docx')}
-                      className="bg-teal-700 hover:bg-teal-800 text-white"
+                      className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                       data-testid="generate-ghg-inventory-btn"
                     >
                       <FileText className="w-4 h-4 mr-2" />
