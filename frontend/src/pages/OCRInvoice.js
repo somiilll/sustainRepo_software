@@ -693,9 +693,11 @@ export default function OCRInvoice() {
   const removeResolvedRows = (resolvedRows) => {
     if (!resolvedRows.length) return;
     const resolvedIds = new Set(resolvedRows.map(({ item }) => item.id));
-    const completedFileKeys = new Set(resolvedRows
-      .filter(({ data }) => data.file_completed)
-      .map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const remainingItems = items.filter((item) => !resolvedIds.has(item.id));
+    const resolvedFileKeys = new Set(resolvedRows.map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const completedFileKeys = new Set([...resolvedFileKeys].filter((fileKey) => (
+      !remainingItems.some((item) => `${item.upload_id}-${item.file_index}` === fileKey)
+    )));
     const remainingFiles = (upload?.files || []).filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
     const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
     setItems((current) => current.filter((item) => !resolvedIds.has(item.id)));
