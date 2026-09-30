@@ -164,9 +164,11 @@ class ScoreCalculator:
         category_scores = {category: details["normalized_percentage"] for category, details in category_details.items()}
         configured_weights = subcategory_weights or {}
         active_weights = {category: float(configured_weights.get(category, 0)) for category in category_scores}
-        configured_total = sum(active_weights.values())
-        if abs(configured_total - 100) > 0.01:
+        configured_total = sum(float(weight) for weight in configured_weights.values())
+        if configured_weights and abs(configured_total - 100) > 0.01:
             raise ValueError(f"Configured category weights for {section} must total 100%")
+        if not configured_weights:
+            raise ValueError(f"No configured category weights are available for {section}")
         for category, details in category_details.items():
             details["configured_weightage"] = active_weights[category]
             details["weighted_contribution"] = details["normalized_percentage"] * active_weights[category] / 100

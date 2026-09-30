@@ -1510,149 +1510,16 @@ async def _calculate_questionnaire_score(
         {"_id": 0}
     ).to_list(500)
     
-    # Check if any question has the new scoring config
-    has_new_scoring = any(q.get("scoring") for q in questions)
-    
-    if has_new_scoring:
-        # Use new scoring engine
-        engine = ScoringEngine(db)
-        log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.started", action="supplier_assessment.questionnaire.scoring", outcome="started", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "question_count": len(questions)})
-        
-        # Get supplier info for full calculation
-        revenue_percentage = None
-        supplier_name = None
-        if supplier_relationship_id:
-            relationship = await db.supplier_relationships.find_one(
-                {"id": supplier_relationship_id},
-                {"_id": 0, "revenue_percentage": 1, "company_name": 1}
-            )
-            if relationship:
-                revenue_percentage = relationship.get("revenue_percentage")
-                supplier_name = relationship.get("company_name")
-        
-        try:
-            breakdown = await engine.calculate_supplier_assessment(
-                supplier_relationship_id=supplier_relationship_id or "unknown",
-                questionnaire_id=questionnaire_id,
-                save_to_db=False,
-                answers_override=answers,
-                manual_scores_override={},
-                reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
-            )
-            log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": breakdown.esg_score.overall_score})
-            return breakdown.esg_score.overall_score, breakdown.model_dump()
-        except Exception as error:
-            log_event(
-                logger,
-                logging.WARNING,
-                "supplier_assessment.questionnaire.scoring.fallback",
-                action="supplier_assessment.questionnaire.scoring",
-                outcome="degraded",
-                error_code="QUESTIONNAIRE_SCORING_FALLBACK",
-                context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "error": str(error)},
-            )
-            raise ValueError(f"Hierarchical ESG scoring could not be calculated: {error}") from error
-    
-    # Legacy scoring for backward compatibility
-    legacy_score = await self._calculate_legacy_score(questionnaire, questions, answers)
-    log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.legacy_completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": legacy_score})
-    return legacy_score, None
-
-async def _calculate_legacy_score(
-    self,
-    questionnaire: Dict[str, Any],
-    questions: List[Dict[str, Any]],
-    answers: Dict[str, Any],
-) -> float:
-    """
-    Legacy scoring method for backward compatibility.
-    Used when questions don't have the new scoring config.
-    """
-    scoring_method = questionnaire.get("scoring_method", "question")
-    section_weights = questionnaire.get("section_weights", {})
-    
-    if scoring_method == "section":
-        # Section-based scoring
-        section_scores = {"environment": [], "social": [], "governance": []}
-        
-        for q in questions:
-            answer = answers.get(q["id"])
-            if answer is None:
-                continue
-            
-            score = self._get_legacy_answer_score(q, answer)
-            category = q.get("category", "environment")
-            if category in section_scores:
-                section_scores[category].append(score)
-        
-        # Calculate weighted average
-        total_score = 0.0
-        total_weight = 0.0
-        
-        for section, scores in section_scores.items():
-            if scores:
-                section_avg = sum(scores) / len(scores)
-                weight = section_weights.get(section, 33.33)
-                total_score += section_avg * weight
-                total_weight += weight
-        
-        return round(total_score / total_weight, 2) if total_weight > 0 else 0.0
-    
-    else:
-        # Question-level scoring
-        total_score = 0.0
-        total_weight = 0.0
-        
-        for q in questions:
-            answer = answers.get(q["id"])
-            if answer is None:
-                continue
-            
-            weight = q.get("weight", 1.0)
-            score = self._get_legacy_answer_score(q, answer)
-            total_score += score * weight
-            total_weight += weight
-        
-        return round(total_score / total_weight, 2) if total_weight > 0 else 0.0
-
-def _get_legacy_answer_score(self, question: Dict[str, Any], answer: Any) -> float:
-    """
-    Legacy scoring for backward compatibility.
-    Get score for an answer based on question type.
-    """
-    response_type = question.get("response_type", "text")
-    
-    if response_type == "yes_no":
-        # Yes = 100, No = 0
-        if isinstance(answer, bool):
-            return 100.0 if answer else 0.0
-        if isinstance(answer, str):
-            return 100.0 if answer.lower() in ["yes", "true", "1"] else 0.0
-        return 0.0
-    
-    elif response_type == "dropdown":
-        # Look for score in options
-        options = question.get("options", [])
-        for opt in options:
-            if opt.get("value") == answer and opt.get("score") is not None:
-                return float(opt["score"])
-        # Default: first option = 100, last = 0
-        if options:
-            for i, opt in enumerate(options):
-                if opt.get("value") == answer:
-                    return 100.0 - (i * (100.0 / max(len(options) - 1, 1)))
-        return 0.0
-    
-    elif response_type == "numeric":
-        # Numeric scores can be 0-100 directly or need normalization
-        try:
-            return min(100.0, max(0.0, float(answer)))
-        except (ValueError, TypeError):
-            return 0.0
-    
-    else:  # text
-        # Text answers get full score if answered
-        return 100.0 if answer else 0.0
+    engine = ScoringEngine(db)
+    try:
+        breakdown = await engine.calculate_supplier_assessment(
+            supplier_relationship_id=supplier_relationship_id or "unknown", questionnaire_id=questionnaire_id,
+            save_to_db=False, answers_override=answers, manual_scores_override={},
+            reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
+        )
+        return breakdown.esg_score.overall_score, breakdown.model_dump()
+    except Exception as error:
+        raise ValueError(f"Hierarchical ESG scoring could not be calculated: {error}") from error
 
 # ========================================================================
 # Customer Admin: View Supplier Responses
