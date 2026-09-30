@@ -31,6 +31,8 @@ from modules.supplier_assessment.contracts import (
     QuestionUpdate,
     QuestionResponse,
     SupplierResponsesSubmit,
+    SupplierEvidenceDuplicateCheck,
+    SupplierEvidenceReuseRequest,
     SupplierDataVerificationSubmit,
     SupplierGhgSubmissionPeriodSubmit,
     SupplierGhgUnlockRequest,
@@ -1678,7 +1680,7 @@ async def get_my_questionnaire(
 
 @router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence")
 async def upload_my_question_evidence(
-    questionnaire_id: str, question_id: str, file: UploadFile = File(...),
+    questionnaire_id: str, question_id: str, file: UploadFile = File(...), sha256_hash: Optional[str] = Form(None),
     current_user: dict = Depends(get_supplier_user),
 ):
     relationship = await supplier_service.get_supplier_relationship_for_user(
@@ -1691,13 +1693,41 @@ async def upload_my_question_evidence(
         await assert_evidence_storage_limit(relationship["customer_org_id"], len(content))
         evidence = await supplier_service.upload_supplier_question_evidence(
             relationship, questionnaire_id, question_id, file.filename or "evidence", file.content_type or "", content,
-            current_user["id"],
+            current_user["id"], sha256_hash,
         )
     except ValueError as error:
         _log_supplier_event("supplier_assessment.question.evidence.upload.rejected", action="supplier_assessment.question.evidence.upload", outcome="rejected", level=logging.WARNING, error_code="QUESTION_EVIDENCE_UPLOAD_REJECTED", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": relationship["id"]})
         raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.evidence.uploaded", action="supplier_assessment.question.evidence.upload", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": relationship["id"], "evidence_id": evidence.get("id"), "bytes_uploaded": len(content)})
     return evidence
+
+
+@router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/duplicates")
+async def check_my_question_evidence_duplicates(
+    questionnaire_id: str, question_id: str, data: SupplierEvidenceDuplicateCheck,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await supplier_service.find_supplier_question_evidence_duplicates(relationship, questionnaire_id, data.sha256_hash, data.filename)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/reuse")
+async def reuse_my_question_evidence(
+    questionnaire_id: str, question_id: str, data: SupplierEvidenceReuseRequest,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await supplier_service.reuse_supplier_question_evidence(relationship, questionnaire_id, question_id, data.evidence_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.delete("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")

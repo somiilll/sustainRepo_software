@@ -83,6 +83,8 @@ class SupplierAssessmentService:
     get_supplier_questionnaire_status = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_questionnaire_status)
     get_questionnaire_for_supplier = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire_for_supplier)
     _question_evidence_metadata = _delegate_to(questionnaire_operations, questionnaire_operations._question_evidence_metadata)
+    find_supplier_question_evidence_duplicates = _delegate_to(questionnaire_operations, questionnaire_operations.find_supplier_question_evidence_duplicates)
+    reuse_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.reuse_supplier_question_evidence)
     upload_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.upload_supplier_question_evidence)
     delete_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.delete_supplier_question_evidence)
     get_question_evidence_file = _delegate_to(questionnaire_operations, questionnaire_operations.get_question_evidence_file)

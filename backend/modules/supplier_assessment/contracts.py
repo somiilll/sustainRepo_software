@@ -480,6 +480,15 @@ class SupplierResponsesSubmit(BaseModel):
         return self
 
 
+class SupplierEvidenceDuplicateCheck(BaseModel):
+    sha256_hash: str = Field(min_length=64, max_length=64)
+    filename: str = Field(min_length=1, max_length=255)
+
+
+class SupplierEvidenceReuseRequest(BaseModel):
+    evidence_id: str = Field(min_length=1, max_length=100)
+
+
 class SupplierDataVerificationSubmit(BaseModel):
     """Required acknowledgement for a final supplier submission."""
     data_verified: Literal[True]

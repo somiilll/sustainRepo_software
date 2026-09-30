@@ -110,6 +110,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
         "sbti_targets": [
             ([("organization_id", 1), ("term_type", 1)], {}),
         ],
+        "supplier_question_evidence": [
+            ([("customer_org_id", 1), ("supplier_relationship_id", 1), ("questionnaire_id", 1), ("reporting_period", 1), ("sha256_hash", 1)], {}),
+            ([("customer_org_id", 1), ("supplier_relationship_id", 1), ("questionnaire_id", 1), ("reporting_period", 1), ("normalized_filename", 1)], {}),
+        ],
     }
 
     total = 0

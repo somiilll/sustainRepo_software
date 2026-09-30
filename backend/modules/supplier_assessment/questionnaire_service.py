@@ -3,6 +3,7 @@ import uuid
 import logging
 import json
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -52,6 +53,10 @@ def normalize_questionnaire_template_name(name: str) -> str:
     normalized = QUESTIONNAIRE_YEAR_TOKEN_PATTERN.sub("", normalized)
     normalized = QUESTIONNAIRE_YEAR_VALUE_PATTERN.sub("", normalized)
     return re.sub(r"\s{2,}", " ", normalized).strip()
+
+
+def _normalize_evidence_filename(filename: str) -> str:
+    return re.sub(r"\s+", " ", str(filename or "").strip().lower())
 
 
 def resolve_questionnaire_display_name(name: str, reporting_period: Optional[str]) -> str:
@@ -1069,7 +1074,8 @@ async def get_questionnaire_for_supplier(
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
         q["evidence_files"] = await self._question_evidence_metadata(
-            supplier_relationship_id, questionnaire_id, q["id"], evidence_by_question.get(q["id"], [])
+            supplier_relationship_id, questionnaire_id, q["id"], evidence_by_question.get(q["id"], []),
+            (response_doc.get("reused_evidence_by_question") or {}).get(q["id"], []) if response_doc else [],
         )
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
@@ -1080,21 +1086,78 @@ async def get_questionnaire_for_supplier(
     return questionnaire
 
 async def _question_evidence_metadata(
-    self, supplier_relationship_id: str, questionnaire_id: str, question_id: str, evidence_ids: List[str]
+    self, supplier_relationship_id: str, questionnaire_id: str, question_id: str, evidence_ids: List[str], reused_evidence_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     if not evidence_ids:
         return []
     records = await db.supplier_question_evidence.find(
         {"id": {"$in": evidence_ids}, "supplier_relationship_id": supplier_relationship_id,
-         "questionnaire_id": questionnaire_id, "question_id": question_id, "is_deleted": {"$ne": True}},
+         "questionnaire_id": questionnaire_id, "is_deleted": {"$ne": True}},
         {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1, "uploaded_at": 1},
     ).to_list(100)
     by_id = {record["id"]: record for record in records}
-    return [by_id[evidence_id] for evidence_id in evidence_ids if evidence_id in by_id]
+    reused_ids = set(reused_evidence_ids or [])
+    return [{**by_id[evidence_id], "reused": evidence_id in reused_ids} for evidence_id in evidence_ids if evidence_id in by_id]
+
+
+async def find_supplier_question_evidence_duplicates(
+    self, relationship: Dict[str, Any], questionnaire_id: str, sha256_hash: str, filename: str,
+) -> Dict[str, Optional[Dict[str, Any]]]:
+    """Find reusable evidence only inside the supplier/questionnaire/reporting-period boundary."""
+    questionnaire = await db.supplier_questionnaires.find_one(
+        {"id": questionnaire_id, "organization_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1}
+    )
+    if not questionnaire or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", [])):
+        raise ValueError("Questionnaire is not assigned to this supplier")
+    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+    if "questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", []):
+        raise ValueError("Questionnaire is not assigned to this supplier")
+    scope = {
+        "customer_org_id": relationship["customer_org_id"], "supplier_relationship_id": relationship["id"],
+        "questionnaire_id": questionnaire_id, "reporting_period": reporting_period, "is_deleted": {"$ne": True},
+    }
+    projection = {"_id": 0, "id": 1, "original_filename": 1, "content_type": 1, "file_size": 1, "uploaded_at": 1}
+    exact = await db.supplier_question_evidence.find_one({**scope, "sha256_hash": sha256_hash.lower()}, projection)
+    filename_match = None if exact else await db.supplier_question_evidence.find_one(
+        {**scope, "$or": [
+            {"normalized_filename": _normalize_evidence_filename(filename)},
+            {"original_filename": {"$regex": f"^{re.escape(str(filename).strip())}$", "$options": "i"}},
+        ]}, projection
+    )
+    return {"exact_match": exact, "filename_match": filename_match}
+
+
+async def reuse_supplier_question_evidence(
+    self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str, evidence_id: str,
+) -> Dict[str, Any]:
+    """Attach an existing evidence asset to one more question without creating an R2 object."""
+    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+    response = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
+    if not response or response.get("status") == "submitted":
+        raise ValueError("Save a Yes response before reusing evidence")
+    question = await db.supplier_questions.find_one(
+        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0, "response_type": 1}
+    )
+    if not question or (question.get("response_type") == "yes_no" and response.get("answers", {}).get(question_id) is not True):
+        raise ValueError("Select Yes before attaching evidence for this question")
+    evidence = await db.supplier_question_evidence.find_one(
+        {"id": evidence_id, "customer_org_id": relationship["customer_org_id"], "supplier_relationship_id": relationship["id"],
+         "questionnaire_id": questionnaire_id, "reporting_period": reporting_period, "is_deleted": {"$ne": True}}, {"_id": 0}
+    )
+    if not evidence:
+        raise ValueError("Reusable evidence file is unavailable for this reporting period")
+    question_evidence = dict(response.get("question_evidence") or {})
+    question_evidence[question_id] = list(dict.fromkeys([*(question_evidence.get(question_id) or []), evidence_id]))
+    reused = dict(response.get("reused_evidence_by_question") or {})
+    reused[question_id] = list(dict.fromkeys([*(reused.get(question_id) or []), evidence_id]))
+    await db.supplier_questionnaire_responses.update_one(
+        {"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "reused_evidence_by_question": reused, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {key: evidence[key] for key in ("id", "original_filename", "content_type", "file_size", "uploaded_at") if key in evidence} | {"reused": True}
 
 async def upload_supplier_question_evidence(
     self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str,
-    filename: str, content_type: str, content: bytes, uploaded_by: str,
+    filename: str, content_type: str, content: bytes, uploaded_by: str, sha256_hash: Optional[str] = None,
 ) -> Dict[str, Any]:
     questionnaire = await self.get_questionnaire(questionnaire_id)
     if not questionnaire or questionnaire.get("organization_id") != relationship["customer_org_id"]:
@@ -1113,6 +1176,9 @@ async def upload_supplier_question_evidence(
         raise ValueError("Evidence files must be no larger than 5MB")
     if content_type not in self.QUESTION_EVIDENCE_CONTENT_TYPES:
         raise ValueError("Unsupported evidence file type")
+    calculated_hash = hashlib.sha256(content).hexdigest()
+    if sha256_hash and sha256_hash.lower() != calculated_hash:
+        raise ValueError("The selected file hash could not be verified")
     reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
     response_doc = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
     if response_doc and response_doc.get("status") == "submitted":
@@ -1135,7 +1201,8 @@ async def upload_supplier_question_evidence(
         "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"],
         "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"],
         "questionnaire_id": questionnaire_id, "question_id": question_id, "reporting_period": reporting_period,
-        "original_filename": filename, "content_type": content_type, "file_size": len(content),
+        "original_filename": filename, "normalized_filename": _normalize_evidence_filename(filename), "sha256_hash": calculated_hash,
+        "content_type": content_type, "file_size": len(content),
         "bucket_type": self.QUESTION_EVIDENCE_BUCKET, "r2_key": upload["key"], "uploaded_by": uploaded_by,
         "uploaded_at": now, "is_deleted": False,
     }
@@ -1150,8 +1217,10 @@ async def upload_supplier_question_evidence(
         await db.supplier_questionnaire_responses.insert_one(response_doc)
     question_evidence = dict(response_doc.get("question_evidence") or {})
     question_evidence[question_id] = [*question_evidence.get(question_id, []), evidence["id"]]
+    reused = dict(response_doc.get("reused_evidence_by_question") or {})
+    reused[question_id] = [item for item in reused.get(question_id, []) if item != evidence["id"]]
     await db.supplier_questionnaire_responses.update_one(
-        {"id": response_doc["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}}
+        {"id": response_doc["id"]}, {"$set": {"question_evidence": question_evidence, "reused_evidence_by_question": reused, "updated_at": now}}
     )
     return {key: value for key, value in evidence.items() if key in {"id", "original_filename", "content_type", "file_size", "uploaded_at"}}
 
@@ -1160,7 +1229,7 @@ async def delete_supplier_question_evidence(
 ) -> Optional[Dict[str, Any]]:
     evidence = await db.supplier_question_evidence.find_one(
         {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
-         "question_id": question_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+         "is_deleted": {"$ne": True}}, {"_id": 0}
     )
     if not evidence:
         return None
@@ -1172,18 +1241,16 @@ async def delete_supplier_question_evidence(
     )
     if not response:
         raise ValueError("Evidence is part of a locked submission and cannot be removed")
-    try:
-        deleted = await get_r2_storage().delete_file(evidence["bucket_type"], evidence["r2_key"])
-        if not deleted:
-            raise ValueError("R2 did not confirm evidence deletion")
-    except Exception as error:
-        raise ValueError("Could not delete the evidence file from storage") from error
     now = datetime.now(timezone.utc).isoformat()
-    await db.supplier_question_evidence.update_one({"id": evidence_id}, {"$set": {"is_deleted": True, "deleted_at": now, "r2_delete_status": "deleted", "r2_deleted_at": now}})
     question_evidence = dict(response.get("question_evidence") or {})
     question_evidence[question_id] = [item for item in question_evidence.get(question_id, []) if item != evidence_id]
-    await db.supplier_questionnaire_responses.update_one({"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "updated_at": now}})
-    return {"id": evidence_id, "deleted_at": now}
+    reused = dict(response.get("reused_evidence_by_question") or {})
+    reused[question_id] = [item for item in reused.get(question_id, []) if item != evidence_id]
+    await db.supplier_questionnaire_responses.update_one(
+        {"id": response["id"]}, {"$set": {"question_evidence": question_evidence, "reused_evidence_by_question": reused, "updated_at": now}}
+    )
+    await db.supplier_question_evidence.update_one({"id": evidence_id}, {"$set": {"last_unlinked_at": now}})
+    return {"id": evidence_id, "unlinked_at": now, "physical_file_retained": True}
 
 async def get_question_evidence_file(
     self, relationship: Dict[str, Any], questionnaire_id: str, question_id: str, evidence_id: str,
@@ -1203,7 +1270,7 @@ async def get_question_evidence_file(
         return None
     return await db.supplier_question_evidence.find_one(
         {"id": evidence_id, "supplier_relationship_id": relationship["id"], "questionnaire_id": questionnaire_id,
-         "question_id": question_id, "is_deleted": {"$ne": True}}, {"_id": 0}
+         "reporting_period": relationship.get("reporting_period"), "is_deleted": {"$ne": True}}, {"_id": 0}
     )
 
 async def submit_supplier_answers(
@@ -1546,7 +1613,8 @@ async def get_supplier_responses_for_admin(
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
         q["evidence_files"] = await self._question_evidence_metadata(
-            supplier_relationship_id, questionnaire_id, q["id"], (response_doc.get("question_evidence") or {}).get(q["id"], [])
+            supplier_relationship_id, questionnaire_id, q["id"], (response_doc.get("question_evidence") or {}).get(q["id"], []),
+            (response_doc.get("reused_evidence_by_question") or {}).get(q["id"], []),
         )
         manual_entry = manual_question_scores.get(q["id"])
         q["manual_score"] = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry

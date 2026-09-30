@@ -63,6 +63,7 @@ export default function SupplierQuestionnaire() {
   const [uploadingQuestionId, setUploadingQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [highlightedQuestionId, setHighlightedQuestionId] = useState('');
+  const [pendingEvidenceReuse, setPendingEvidenceReuse] = useState(null);
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -98,18 +99,59 @@ export default function SupplierQuestionnaire() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  const uploadEvidence = async (question, selectedFiles) => {
+  const sha256 = async (file) => {
+    const digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  };
+
+  const uploadEvidence = async (question, selectedFiles, hash = '') => {
     const filesToUpload = Array.from(selectedFiles || []).filter(Boolean);
     if (!filesToUpload.length) return;
     setUploadingQuestionId(question.id);
     try {
-      const uploaded = await Promise.all(filesToUpload.map(async (file) => { const payload = new FormData(); payload.append('file', file); return (await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence`, payload, { headers: getAuthHeader() })).data; }));
+      const uploaded = await Promise.all(filesToUpload.map(async (file) => { const payload = new FormData(); payload.append('file', file); if (hash) payload.append('sha256_hash', hash); return (await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence`, payload, { headers: getAuthHeader() })).data; }));
       setQuestions((current) => current.map((item) => item.id === question.id ? { ...item, evidence_files: [...(item.evidence_files || []), ...uploaded] } : item));
       toast.success(`${uploaded.length} evidence file${uploaded.length === 1 ? '' : 's'} attached`);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Could not upload evidence');
     } finally {
       setUploadingQuestionId('');
+    }
+  };
+
+  const processEvidenceFiles = async (question, files) => {
+    const [file, ...remainingFiles] = files;
+    if (!file) return;
+    try {
+      const hash = await sha256(file);
+      const { data } = await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence/duplicates`, { sha256_hash: hash, filename: file.name }, { headers: getAuthHeader() });
+      const candidate = data.exact_match || data.filename_match;
+      if (candidate) {
+        setPendingEvidenceReuse({ question, file, hash, remainingFiles, candidate, exact: Boolean(data.exact_match) });
+        return;
+      }
+      await uploadEvidence(question, [file], hash);
+      await processEvidenceFiles(question, remainingFiles);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not prepare evidence upload');
+    }
+  };
+
+  const resolveEvidenceReuse = async (reuse) => {
+    const pending = pendingEvidenceReuse;
+    if (!pending) return;
+    setPendingEvidenceReuse(null);
+    try {
+      if (reuse) {
+        const { data } = await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${pending.question.id}/evidence/reuse`, { evidence_id: pending.candidate.id }, { headers: getAuthHeader() });
+        setQuestions((current) => current.map((item) => item.id === pending.question.id ? { ...item, evidence_files: (item.evidence_files || []).some((evidence) => evidence.id === data.id) ? item.evidence_files : [...(item.evidence_files || []), data] } : item));
+        toast.success('Existing evidence reused');
+      } else {
+        await uploadEvidence(pending.question, [pending.file], pending.hash);
+      }
+      await processEvidenceFiles(pending.question, pending.remainingFiles);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not attach evidence');
     }
   };
 
@@ -304,9 +346,9 @@ export default function SupplierQuestionnaire() {
     const showUpload = evidenceEnabled && answerAllowsUpload;
     if (!showUpload && files.length === 0) return null;
     return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'optional — used for scoring' : 'optional'}</span></p><p className="mt-1 text-xs text-stone-500">{evidenceScored ? 'Upload evidence to receive full points for a Yes response.' : evidenceRequired ? 'Attach evidence before submitting a Yes response.' : 'Attach supporting documents if available.'}</p></div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { uploadEvidence(question, event.target.files); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'optional — used for scoring' : 'optional'}</span></p><p className="mt-1 text-xs text-stone-500">{evidenceScored ? 'Upload evidence to receive full points for a Yes response.' : evidenceRequired ? 'Attach evidence before submitting a Yes response.' : 'Attach supporting documents if available.'}</p></div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
       {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
-      {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="flex min-w-0 items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!isReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
+      {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="min-w-0"><span className="flex items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span>{file.reused && <span className="mt-1 block text-xs font-medium text-emerald-700" data-testid={`supplier-question-evidence-reused-${question.id}-${file.id}`}>Existing evidence reused</span>}</span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!isReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
     </div>;
   };
 
@@ -418,6 +460,19 @@ export default function SupplierQuestionnaire() {
             <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
             <Button variant="outline" onClick={async () => { await handleSave(false); setShowSubmitConfirm(false); }} disabled={saving} data-testid="save-supplier-questionnaire-draft-button">{saving ? 'Saving...' : 'Save as Draft'}</Button>
             <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting || !verificationAccepted} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(pendingEvidenceReuse)} onOpenChange={(open) => !open && setPendingEvidenceReuse(null)}>
+        <AlertDialogContent data-testid="supplier-evidence-reuse-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="supplier-evidence-reuse-title">{pendingEvidenceReuse?.exact ? 'This file has already been uploaded.' : 'A file with this name has already been uploaded.'}</AlertDialogTitle>
+            <AlertDialogDescription data-testid="supplier-evidence-reuse-description">{pendingEvidenceReuse?.candidate?.original_filename}{pendingEvidenceReuse && !pendingEvidenceReuse.exact ? ' — the selected file appears different from the existing upload.' : ''}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="cancel-supplier-evidence-reuse-button">Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => resolveEvidenceReuse(true)} data-testid="use-existing-supplier-evidence-button">Use Existing File</Button>
+            <AlertDialogAction onClick={() => resolveEvidenceReuse(false)} data-testid="upload-new-supplier-evidence-button">{pendingEvidenceReuse?.exact ? 'Upload Anyway' : 'Upload New File'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
