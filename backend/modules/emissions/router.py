@@ -1029,9 +1029,10 @@ async def rollback_emission_submission_batch(
         return {"rolled_back_count": 0}
 
     try:
-        await delete_uploaded_files(
+        await delete_unreferenced_emission_files(
             db,
             set().union(*(extract_uploaded_file_ids(record) for record in records)),
+            excluding_record_ids=record_ids,
         )
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove submission evidence from storage. The batch was not rolled back.") from error
