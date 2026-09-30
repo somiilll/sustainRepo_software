@@ -1170,7 +1170,17 @@ export default function QuestionnaireBuilder() {
               </div>
             </div>
             
-            <p className="border-t border-stone-100 pt-4 text-sm text-stone-500" data-testid="questionnaire-section-weight-managed-message">ESG section weights are managed by Super Admin in Supplier Assessment configuration for this organization.</p>
+            <Accordion type="single" collapsible className="w-full" data-testid="edit-questionnaire-section-weights">
+              <AccordionItem value="esg-weights">
+                <AccordionTrigger className="text-sm font-medium">ESG Section Weight</AccordionTrigger>
+                <AccordionContent>
+                  <p className="pt-2 text-xs text-stone-500" data-testid="questionnaire-section-weight-default-note">Organization defaults are prefilled; you can adjust this questionnaire’s ESG section weights.</p>
+                  <div className="grid grid-cols-3 gap-2 pt-3">
+                    {['environment', 'social', 'governance'].map((section) => <div key={section}><Label className="text-xs capitalize">{section}</Label><Input type="number" min="0" max="100" step="0.01" value={questionnaireForm.esg_section_weights?.[section] ?? 0} onChange={(event) => setQuestionnaireForm({ ...questionnaireForm, esg_section_weights: { ...questionnaireForm.esg_section_weights, [section]: parseFloat(event.target.value) || 0 } })} data-testid={`edit-questionnaire-section-weight-${section}`} /></div>)}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
