@@ -736,7 +736,7 @@ export default function Reports({ showMISFoundation = false }) {
               <Button
                 type="button"
                 onClick={() => openGhgReportDialog('xlsx')}
-                className="bg-teal-700 hover:bg-teal-800 text-white"
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                 data-testid="open-ghg-excel-summary-button"
               >
                 <FileSpreadsheet className="w-4 h-4 mr-2" />
@@ -794,7 +794,7 @@ export default function Reports({ showMISFoundation = false }) {
                 <DialogTrigger asChild>
                   <Button 
                     onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
-                    className="bg-teal-700 hover:bg-teal-800 text-white"
+                    className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                     data-testid="generate-ai-report-btn"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
