@@ -126,6 +126,7 @@ export default function OCRInvoice() {
   const [bulkRejecting, setBulkRejecting] = useState(false);
   const [bulkRejectRows, setBulkRejectRows] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [clearWorkspaceConfirmOpen, setClearWorkspaceConfirmOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
@@ -818,7 +819,7 @@ export default function OCRInvoice() {
           <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
           <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
           {upload && <>
-            <Button type="button" variant="outline" onClick={clearUpload} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+            <Button type="button" variant="outline" onClick={() => setClearWorkspaceConfirmOpen(true)} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
           </>}
         </div>}
       />
@@ -911,6 +912,12 @@ export default function OCRInvoice() {
             <AlertDialogCancel disabled={bulkRejecting} data-testid="ocr-bulk-reject-cancel-button">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={rejectRows} disabled={bulkRejecting} className="bg-red-700 hover:bg-red-800" data-testid="ocr-bulk-reject-confirm-button">{bulkRejecting ? 'Rejecting…' : 'Reject rows'}</AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={clearWorkspaceConfirmOpen} onOpenChange={setClearWorkspaceConfirmOpen}>
+        <AlertDialogContent data-testid="ocr-clear-workspace-confirmation-dialog">
+          <AlertDialogHeader><AlertDialogTitle>Clear OCR workspace?</AlertDialogTitle><AlertDialogDescription>This removes the current extraction workspace from this session. Saved OCR history remains available.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel data-testid="ocr-cancel-clear-workspace-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { setClearWorkspaceConfirmOpen(false); clearUpload(); }} className="bg-rose-700 text-white hover:bg-rose-800" data-testid="ocr-confirm-clear-workspace-button">Clear workspace</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </main>
