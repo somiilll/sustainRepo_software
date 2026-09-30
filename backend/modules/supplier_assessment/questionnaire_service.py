@@ -1318,6 +1318,19 @@ async def get_question_evidence_file(
          "reporting_period": relationship.get("reporting_period"), "is_deleted": {"$ne": True}}, {"_id": 0}
     )
 
+async def _delete_unreferenced_question_evidence(evidence_ids: List[str], supplier_relationship_id: str, questionnaire_id: str, reporting_period: str) -> None:
+    if not evidence_ids:
+        return
+    responses = await db.supplier_questionnaire_responses.find({"supplier_relationship_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "reporting_period": reporting_period}, {"_id": 0, "question_evidence": 1}).to_list(1000)
+    mapped = {item for response in responses for ids in (response.get("question_evidence") or {}).values() for item in ids}
+    for evidence_id in set(evidence_ids) - mapped:
+        evidence = await db.supplier_question_evidence.find_one({"id": evidence_id, "supplier_relationship_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "reporting_period": reporting_period}, {"_id": 0})
+        if evidence:
+            if not await get_r2_storage().delete_file(evidence["bucket_type"], evidence["r2_key"]):
+                raise ValueError("R2 did not confirm evidence deletion")
+            await db.supplier_question_evidence.delete_one({"id": evidence_id})
+
+
 async def submit_supplier_answers(
     self,
     questionnaire_id: str,
@@ -1355,6 +1368,13 @@ async def submit_supplier_answers(
     
     for answer in answers:
         answers_dict[answer["question_id"]] = answer["answer"]
+    reused_evidence = dict((response_doc or {}).get("reused_evidence_by_question") or {})
+    yes_no_questions = await db.supplier_questions.find({"questionnaire_id": questionnaire_id, "is_active": True, "response_type": "yes_no"}, {"_id": 0, "id": 1}).to_list(500)
+    no_answer_ids = {question["id"] for question in yes_no_questions if answers_dict.get(question["id"]) in {False, "false", "False", "no", "No", "NO", 0}}
+    evidence_to_remove = []
+    for question_id in no_answer_ids:
+        evidence_to_remove.extend(question_evidence.pop(question_id, []) or [])
+        reused_evidence.pop(question_id, None)
     
     status = "in_progress" if is_draft else "submitted"
     submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
@@ -1390,6 +1410,7 @@ async def submit_supplier_answers(
         update_data = {
             "answers": answers_dict,
             "question_evidence": question_evidence,
+            "reused_evidence_by_question": reused_evidence,
             "status": status,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -1413,6 +1434,7 @@ async def submit_supplier_answers(
             {"id": response_doc["id"]},
             {"$set": update_data}
         )
+        await _delete_unreferenced_question_evidence(evidence_to_remove, supplier_relationship_id, questionnaire_id, reporting_period)
     else:
         # Create new
         response_id = str(uuid.uuid4())
@@ -1423,6 +1445,7 @@ async def submit_supplier_answers(
             "supplier_org_id": supplier_org_id,
             "answers": answers_dict,
             "question_evidence": question_evidence,
+            "reused_evidence_by_question": reused_evidence,
             "status": status,
             "calculated_score": calculated_score,
             "score_breakdown": score_breakdown,
@@ -1438,6 +1461,7 @@ async def submit_supplier_answers(
         }
         await db.supplier_questionnaire_responses.insert_one(new_doc)
         response_id = new_doc["id"]
+        await _delete_unreferenced_question_evidence(evidence_to_remove, supplier_relationship_id, questionnaire_id, reporting_period)
     
     # Update completion status
     canonical_score = None

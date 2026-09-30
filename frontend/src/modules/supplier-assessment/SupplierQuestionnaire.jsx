@@ -209,6 +209,7 @@ export default function SupplierQuestionnaire() {
         navigate('/supplier-assessment/supplier');
       } else {
         toast.success('Progress saved');
+        await fetchQuestionnaire();
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to save');
