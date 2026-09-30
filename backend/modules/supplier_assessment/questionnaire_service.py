@@ -1541,7 +1541,7 @@ async def _calculate_questionnaire_score(
             )
             log_event(logger, logging.INFO, "supplier_assessment.questionnaire.scoring.completed", action="supplier_assessment.questionnaire.scoring", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "overall_score": breakdown.esg_score.overall_score})
             return breakdown.esg_score.overall_score, breakdown.model_dump()
-        except Exception:
+        except Exception as error:
             log_event(
                 logger,
                 logging.WARNING,
@@ -1549,8 +1549,9 @@ async def _calculate_questionnaire_score(
                 action="supplier_assessment.questionnaire.scoring",
                 outcome="degraded",
                 error_code="QUESTIONNAIRE_SCORING_FALLBACK",
-                context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id},
+                context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_relationship_id, "error": str(error)},
             )
+            raise ValueError(f"Hierarchical ESG scoring could not be calculated: {error}") from error
     
     # Legacy scoring for backward compatibility
     legacy_score = await self._calculate_legacy_score(questionnaire, questions, answers)
