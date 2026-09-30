@@ -125,10 +125,6 @@ class QuestionScore(BaseModel):
     raw_score: float  # 0-100 normalized score
     max_points: Optional[float] = None
     points_earned: Optional[float] = None
-    weight: float
-    weighted_score: float  # raw_score * weight
-    importance: Optional[str] = None
-    weight_source: str = "importance"
     
     # Audit trail
     calculation_details: Dict[str, Any] = Field(default_factory=dict)
@@ -145,8 +141,8 @@ class SectionScore(BaseModel):
     questions: List[QuestionScore]
     
     # Calculated values
-    total_weight: float
-    weighted_sum: float
+    total_maximum_points: float
+    obtained_points: float
     score: float  # 0-100
     
     # Section weight in overall ESG

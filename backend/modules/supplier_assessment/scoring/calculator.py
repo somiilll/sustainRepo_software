@@ -64,9 +64,6 @@ class ScoreCalculator:
         question_category: Optional[str],
         response_type: str,
         raw_value: Any,
-        weight: float,
-        importance: Optional[str],
-        weight_source: str,
         scoring_config: ScoringConfig,
     ) -> QuestionScore:
         """
@@ -78,11 +75,10 @@ class ScoreCalculator:
             section: ESG section (environment/social/governance)
             response_type: Type of response (yes_no/number/dropdown/etc)
             raw_value: The supplier's raw response
-            weight: Question weight (multiplier)
             scoring_config: Configuration for how to score this question
             
         Returns:
-            QuestionScore with raw_score, weighted_score, and calculation details
+            QuestionScore with raw score and audit details
         """
         # Get the appropriate rule
         rule = get_rule(scoring_config.rule)
@@ -90,9 +86,6 @@ class ScoreCalculator:
         # Calculate raw score using the rule
         result = rule.calculate(raw_value, scoring_config)
         raw_score = result["score"]
-        
-        # Calculate weighted score
-        weighted_score = raw_score * weight
         
         return QuestionScore(
             question_id=question_id,
@@ -103,10 +96,6 @@ class ScoreCalculator:
             response_type=response_type,
             scoring_rule=scoring_config.rule.value if isinstance(scoring_config.rule, ScoringRuleType) else scoring_config.rule,
             raw_score=raw_score,
-            weight=weight,
-            weighted_score=weighted_score,
-            importance=importance,
-            weight_source=weight_source,
             calculation_details=result["calculation_details"],
         )
     
@@ -135,8 +124,8 @@ class ScoreCalculator:
             return SectionScore(
                 section=section,
                 questions=[],
-                total_weight=0,
-                weighted_sum=0,
+                total_maximum_points=0,
+                obtained_points=0,
                 score=0,
                 esg_weight=esg_weight,
                 weighted_esg_contribution=0,
@@ -184,15 +173,15 @@ class ScoreCalculator:
         return SectionScore(
             section=section,
             questions=question_scores,
-            total_weight=sum(details["maximum_points"] for details in category_details.values()),
-            weighted_sum=sum(details["obtained_points"] for details in category_details.values()),
-            score=round(score, 2),
+            total_maximum_points=sum(details["maximum_points"] for details in category_details.values()),
+            obtained_points=sum(details["obtained_points"] for details in category_details.values()),
+            score=score,
             esg_weight=esg_weight,
-            weighted_esg_contribution=round(weighted_esg_contribution, 2),
+            weighted_esg_contribution=weighted_esg_contribution,
             is_applicable=True,
-            category_scores={category: round(value, 2) for category, value in category_scores.items()},
-            category_weights={category: round(category_details[category]["configured_weightage"], 4) for category in active_weights},
-            category_details={category: {key: round(value, 6) for key, value in details.items()} for category, details in category_details.items()},
+            category_scores=category_scores,
+            category_weights={category: category_details[category]["configured_weightage"] for category in active_weights},
+            category_details=category_details,
         )
     
     def calculate_esg_score(
@@ -245,8 +234,8 @@ class ScoreCalculator:
         for section, raw_score in raw_section_scores.items():
             effective_weight = weights_dict.get(section, 0)
             section_scores[section] = raw_score.model_copy(update={
-                "esg_weight": round(effective_weight, 4),
-                "weighted_esg_contribution": round(raw_score.score * effective_weight / 100, 2),
+                "esg_weight": effective_weight,
+                "weighted_esg_contribution": raw_score.score * effective_weight / 100,
                 "is_applicable": raw_score.is_applicable,
             })
         overall_score = sum(score.weighted_esg_contribution for score in section_scores.values())
@@ -255,7 +244,7 @@ class ScoreCalculator:
             environment=section_scores.get("environment"),
             social=section_scores.get("social"),
             governance=section_scores.get("governance"),
-            overall_score=round(overall_score, 2),
+            overall_score=overall_score,
             section_weights=weights_dict,
         )
     
@@ -393,23 +382,6 @@ class ScoreCalculator:
                 notes.append(f"Invalid scoring config for '{question_id}': {e}")
                 continue
             
-            exact_weight = q.get("exact_numerical_weight")
-            importance = (q.get("importance") or "medium").lower()
-            importance_weights = {"low": 1.0, "medium": 2.0, "high": 3.0}
-            if importance == "critical":
-                importance = "high"
-            if importance not in importance_weights:
-                importance = "medium"
-            if exact_weight is not None:
-                weight = float(exact_weight)
-                weight_source = "exact"
-            elif q.get("importance") is not None:
-                weight = importance_weights[importance]
-                weight_source = "importance"
-            else:
-                weight = float(q.get("weight", 1.0))
-                weight_source = "legacy"
-
             # Calculate question score
             try:
                 manual_entry = manual_scores.get(question_id)
@@ -418,20 +390,17 @@ class ScoreCalculator:
                 q_score = self.calculate_question_score(
                     question_id=question_id,
                     question_text=q.get("question_text", ""),
-                    section=q.get("category", q.get("section", "environment")),
+                    section=q.get("section") or q.get("category", "environment"),
                     question_category=q.get("question_category"),
                     response_type=q.get("response_type", "text"),
                     raw_value=manual_score if has_manual_score else raw_value,
-                    weight=weight,
-                    importance=importance,
-                    weight_source=weight_source,
                     scoring_config=scoring_config,
                 )
                 assessment_type = q.get("assessment_type", "standard")
                 if assessment_type in {"type_a", "type_b", "type_c"}:
                     answer_is_yes = str(raw_value).strip().lower() in {"yes", "true", "1"} or raw_value is True
                     has_evidence = bool(evidence_by_question.get(question_id))
-                    max_points = float(q.get("max_points") or weight)
+                    max_points = float(q.get("max_points") or 100)
                     configured = q.get("point_scores") or {}
                     earned_points = float(configured.get("no_score", 0.0)) if not answer_is_yes else (
                         float(configured.get("yes_score", max_points)) if assessment_type == "type_b" else (
@@ -444,13 +413,15 @@ class ScoreCalculator:
                     q_score.raw_score = automatic_score
                     q_score.max_points = max_points
                     q_score.points_earned = earned_points
-                    q_score.weighted_score = automatic_score * weight
                     q_score.calculation_details = {
                         "rule_type": assessment_type,
                         "max_points": max_points, "points_earned": earned_points,
                         "has_evidence": has_evidence,
                         "automatic_score_percent": automatic_score,
                     }
+                elif q.get("max_points") is not None:
+                    q_score.max_points = float(q["max_points"])
+                    q_score.points_earned = q_score.raw_score / 100 * q_score.max_points
                 if has_manual_score:
                     q_score.raw_response = raw_value
                     q_score.calculation_details.update({
