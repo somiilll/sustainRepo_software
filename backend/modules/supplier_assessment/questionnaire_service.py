@@ -39,7 +39,7 @@ SYSTEM_QUESTIONNAIRE_BANKS = {
     },
 }
 
-INITIAL_QUESTIONNAIRE_REPORTING_PERIOD = "FY 2026-27"
+INITIAL_QUESTIONNAIRE_REPORTING_PERIOD = "FY 2026-2027"
 QUESTIONNAIRE_YEAR_TOKEN_PATTERN = re.compile(r"\[(?:\s*reporting\s+year\s*)?\]", re.IGNORECASE)
 QUESTIONNAIRE_YEAR_VALUE_PATTERN = re.compile(r"\[\s*(?:FY\s*\d{4}\s*-\s*\d{2,4}|CY\s*\d{4})\s*\]", re.IGNORECASE)
 
@@ -60,12 +60,8 @@ def resolve_questionnaire_display_name(name: str, reporting_period: Optional[str
 
 
 def normalize_questionnaire_reporting_period(value: Optional[str]) -> Optional[str]:
-    """Use the Supplier Assessment FY/CY picker representation for period associations."""
-    normalized = normalize_reporting_period(value)
-    if normalized and normalized.startswith("FY "):
-        start_year, end_year = normalized[3:].split("-", maxsplit=1)
-        return f"FY {start_year}-{end_year[-2:]}"
-    return normalized or (str(value).strip() if value else None)
+    """Use the full-year GHG storage representation for questionnaire associations."""
+    return normalize_reporting_period(value) or (str(value).strip() if value else None)
 
 
 def questionnaire_reporting_periods(questionnaire: Dict[str, Any]) -> List[str]:
@@ -290,7 +286,7 @@ async def sync_system_questionnaire_bank(organization_id: str, created_by: str, 
         "id": questionnaire_id, "organization_id": organization_id, "name": definition["name"], "description": definition["description"],
         "scoring_method": "question", "section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
         "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34}, "overall_supplier_weights": {"esg": 40, "ghg": 40, "revenue": 20},
-        "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "reporting_periods": [initial_reporting_period], "is_active": True, "is_deleted": False,
+        "esg_subcategories": taxonomy, "assignment_mode": "all", "assigned_supplier_ids": [], "reporting_periods": [normalize_questionnaire_reporting_period(initial_reporting_period)], "is_active": True, "is_deleted": False,
         "question_count": len(questions), "system_question_bank": bank_key, "created_by": created_by, "created_at": now,
     })
     await db.supplier_questions.insert_many(questions)
@@ -332,11 +328,14 @@ async def migrate_legacy_questionnaire_reporting_periods() -> Dict[str, int]:
     for questionnaire in questionnaires:
         normalized_name = normalize_questionnaire_template_name(questionnaire.get("name", "Questionnaire"))
         reporting_periods = questionnaire_reporting_periods(questionnaire)
+        assignment_reporting_period = normalize_questionnaire_reporting_period(questionnaire.get("assignment_reporting_period"))
         changes: Dict[str, Any] = {}
         if questionnaire.get("name") != normalized_name:
             changes["name"] = normalized_name
         if questionnaire.get("reporting_periods") != reporting_periods:
             changes["reporting_periods"] = reporting_periods
+        if questionnaire.get("assignment_reporting_period") and questionnaire.get("assignment_reporting_period") != assignment_reporting_period:
+            changes["assignment_reporting_period"] = assignment_reporting_period
         if changes:
             changes["updated_at"] = datetime.now(timezone.utc).isoformat()
             await db.supplier_questionnaires.update_one({"id": questionnaire["id"]}, {"$set": changes})

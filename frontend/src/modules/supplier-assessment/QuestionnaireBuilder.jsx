@@ -163,6 +163,12 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
 const questionTypeLabel = (value) => responseTypes.find((type) => type.value === value)?.label || value;
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
 const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
+const normalizeQuestionnaireReportingPeriod = (period) => {
+  const match = String(period || '').trim().match(/^FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})$/i);
+  if (!match) return period;
+  const endYear = match[2].length === 2 ? `${match[1].slice(0, 2)}${match[2]}` : match[2];
+  return `FY ${match[1]}-${endYear}`;
+};
 
 export default function QuestionnaireBuilder() {
   const { getAuthHeader } = useAuth();
@@ -202,7 +208,7 @@ export default function QuestionnaireBuilder() {
     assignment_mode: 'all',
     supplier_relationship_ids: [],
     assignment_reporting_period: reportingPeriod,
-    reporting_periods: [reportingPeriod],
+    reporting_periods: [normalizeQuestionnaireReportingPeriod(reportingPeriod)],
   });
   const [assignmentSuppliers, setAssignmentSuppliers] = useState([]);
   
@@ -318,7 +324,7 @@ export default function QuestionnaireBuilder() {
 
   useEffect(() => {
     if (!showCreateDialog) return;
-    setQuestionnaireForm((current) => ({ ...current, assignment_reporting_period: reportingPeriod, reporting_periods: [reportingPeriod] }));
+    setQuestionnaireForm((current) => ({ ...current, assignment_reporting_period: reportingPeriod, reporting_periods: [normalizeQuestionnaireReportingPeriod(reportingPeriod)] }));
     axios.get(`${API}/supplier-assessment/suppliers`, {
       params: { page: 1, page_size: 100, reporting_period: reportingPeriod },
       headers: getAuthHeader(),
@@ -370,7 +376,7 @@ export default function QuestionnaireBuilder() {
         assignment_mode: 'all',
         supplier_relationship_ids: [],
         assignment_reporting_period: reportingPeriod,
-        reporting_periods: [reportingPeriod],
+        reporting_periods: [normalizeQuestionnaireReportingPeriod(reportingPeriod)],
       });
       fetchQuestionnaires();
       setSelectedQuestionnaire(res.data);
@@ -614,10 +620,11 @@ export default function QuestionnaireBuilder() {
 
   const toggleQuestionnaireReportingPeriod = (period) => {
     setQuestionnaireForm((current) => {
+      const normalizedPeriod = normalizeQuestionnaireReportingPeriod(period);
       const associatedPeriods = current.reporting_periods || [];
-      const nextPeriods = associatedPeriods.includes(period)
-        ? associatedPeriods.filter((item) => item !== period)
-        : [...associatedPeriods, period];
+      const nextPeriods = associatedPeriods.includes(normalizedPeriod)
+        ? associatedPeriods.filter((item) => item !== normalizedPeriod)
+        : [...associatedPeriods, normalizedPeriod];
       if (nextPeriods.length === 0) {
         toast.error('Associate the questionnaire with at least one reporting period.');
         return current;
@@ -664,7 +671,7 @@ export default function QuestionnaireBuilder() {
       due_date: q.due_date || '',
       esg_section_weights: q.esg_section_weights || q.section_weights || { environment: 33.33, social: 33.33, governance: 33.34 },
       overall_supplier_weights: q.overall_supplier_weights || { esg: 40, ghg: 40, revenue: 20 },
-      reporting_periods: q.reporting_periods?.length ? q.reporting_periods : [reportingPeriod],
+      reporting_periods: q.reporting_periods?.length ? q.reporting_periods : [normalizeQuestionnaireReportingPeriod(reportingPeriod)],
     });
     setShowEditDialog(true);
   };
@@ -943,7 +950,7 @@ export default function QuestionnaireBuilder() {
             <div className="space-y-2 border-t border-stone-100 pt-4" data-testid="create-questionnaire-reporting-period-associations">
               <Label className="text-sm font-medium">Reporting periods</Label>
               <div className="flex flex-wrap gap-x-5 gap-y-2">
-                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`create-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(period)} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`create-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
+                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`create-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(normalizeQuestionnaireReportingPeriod(period))} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`create-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
               </div>
             </div>
 
@@ -1096,7 +1103,7 @@ export default function QuestionnaireBuilder() {
             <div className="space-y-2 border-t border-stone-100 pt-4" data-testid="edit-questionnaire-reporting-period-associations">
               <Label className="text-sm font-medium">Reporting periods</Label>
               <div className="flex flex-wrap gap-x-5 gap-y-2">
-                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`edit-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(period)} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`edit-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
+                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`edit-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(normalizeQuestionnaireReportingPeriod(period))} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`edit-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
               </div>
             </div>
             

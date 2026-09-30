@@ -16,7 +16,7 @@ from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
-from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_template_name
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period, normalize_questionnaire_template_name
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
     SupplierCreate,
@@ -138,7 +138,7 @@ async def _notify_new_supplier_update_assignments(
         previous_questionnaires = previous.get("questionnaire_ids")
         if previous_questionnaires is None:
             previous_questionnaires = [row["id"] for row in await db.supplier_questionnaires.find(
-                {"organization_id": previous["customer_org_id"], "is_active": True, "reporting_periods": previous.get("reporting_period")}, {"_id": 0, "id": 1},
+                {"organization_id": previous["customer_org_id"], "is_active": True, "reporting_periods": normalize_questionnaire_reporting_period(previous.get("reporting_period"))}, {"_id": 0, "id": 1},
             ).to_list(1000)]
         new_questionnaire_ids = questionnaire_ids - set(previous_questionnaires)
         questionnaires = await db.supplier_questionnaires.find(
