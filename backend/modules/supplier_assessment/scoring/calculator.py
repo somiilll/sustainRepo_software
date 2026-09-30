@@ -169,9 +169,13 @@ class ScoreCalculator:
             raise ValueError(f"Configured category weights for {section} must total 100%")
         if not configured_weights:
             raise ValueError(f"No configured category weights are available for {section}")
+        applicable_weight_total = sum(active_weights.values())
+        if applicable_weight_total <= 0:
+            raise ValueError(f"No applicable category weights are available for {section}")
         for category, details in category_details.items():
-            details["configured_weightage"] = active_weights[category]
-            details["weighted_contribution"] = details["normalized_percentage"] * active_weights[category] / 100
+            details["base_configured_weightage"] = active_weights[category]
+            details["configured_weightage"] = active_weights[category] / applicable_weight_total * 100
+            details["weighted_contribution"] = details["normalized_percentage"] * details["configured_weightage"] / 100
         score = sum(details["weighted_contribution"] for details in category_details.values())
         
         # This section's contribution to overall ESG score
@@ -187,7 +191,7 @@ class ScoreCalculator:
             weighted_esg_contribution=round(weighted_esg_contribution, 2),
             is_applicable=True,
             category_scores={category: round(value, 2) for category, value in category_scores.items()},
-            category_weights={category: round(weight, 4) for category, weight in active_weights.items()},
+            category_weights={category: round(category_details[category]["configured_weightage"], 4) for category in active_weights},
             category_details={category: {key: round(value, 6) for key, value in details.items()} for category, details in category_details.items()},
         )
     
