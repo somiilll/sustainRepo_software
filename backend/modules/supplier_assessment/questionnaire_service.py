@@ -1058,7 +1058,7 @@ async def upload_supplier_question_evidence(
     ):
         raise ValueError("Questionnaire is not assigned to this supplier")
     question = await db.supplier_questions.find_one(
-        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0, "id": 1}
+        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0, "id": 1, "response_type": 1}
     )
     if not question:
         raise ValueError("Question not found")
@@ -1070,6 +1070,8 @@ async def upload_supplier_question_evidence(
     response_doc = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
     if response_doc and response_doc.get("status") == "submitted":
         raise ValueError("Questionnaire already submitted and locked")
+    if question.get("response_type") == "yes_no" and (response_doc or {}).get("answers", {}).get(question_id) is not True:
+        raise ValueError("Select Yes before uploading evidence for this question")
     organization = await db.organizations.find_one(
         {"id": relationship["customer_org_id"]}, {"_id": 0, "name": 1, "organization_name": 1}
     ) or {}
@@ -1200,13 +1202,20 @@ async def submit_supplier_answers(
     if not is_draft and not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     if not is_draft:
-        evidence_scored_questions = await db.supplier_questions.find(
-            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "evidence_scored", "assessment_type": {"$ne": "type_c"}}, {"assessment_type": "type_a"}]},
-            {"_id": 0, "id": 1, "question_text": 1},
+        required_evidence_questions = await db.supplier_questions.find(
+            {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "required"}, {"assessment_type": "type_a"}]},
+            {"_id": 0, "id": 1, "question_text": 1, "response_type": 1},
         ).to_list(500)
-        missing_evidence = [question.get("question_text") or "Question" for question in evidence_scored_questions if (question.get("assessment_type") != "type_a" or str(answers_dict.get(question["id"], "")).lower() in {"yes", "true", "1"}) and not question_evidence.get(question["id"])]
+        missing_evidence = [
+            question.get("question_text") or "Question"
+            for question in required_evidence_questions
+            if (
+                question.get("response_type") != "yes_no"
+                or answers_dict.get(question["id"]) is True
+            ) and not question_evidence.get(question["id"])
+        ]
         if missing_evidence:
-            raise ValueError(f"Evidence is required for scoring: {', '.join(missing_evidence[:3])}")
+            raise ValueError(f"Evidence is required for a Yes response: {', '.join(missing_evidence[:3])}")
     # Calculate score if submitting
     calculated_score = None
     if not is_draft:
