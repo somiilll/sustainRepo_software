@@ -208,6 +208,7 @@ export default function QuestionnaireBuilder() {
   const [updatingAssignmentId, setUpdatingAssignmentId] = useState('');
   const [unlockingAssignmentId, setUnlockingAssignmentId] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingUnlockAndSave, setPendingUnlockAndSave] = useState(null);
   
   // Form states
   const [questionnaireForm, setQuestionnaireForm] = useState({
@@ -249,7 +250,7 @@ export default function QuestionnaireBuilder() {
         params: { reporting_period: reportingPeriod },
         headers: getAuthHeader(),
       });
-      const periodQuestionnaires = res.data || [];
+      const periodQuestionnaires = (res.data || []).map((questionnaire) => ({ ...questionnaire, has_locked_submissions: false }));
       setQuestionnaires(periodQuestionnaires);
       setSelectedQuestionnaire((current) => {
         if (!current) return null;
@@ -462,6 +463,22 @@ export default function QuestionnaireBuilder() {
     }
   };
 
+  const unlockAllAndSaveChanges = async () => {
+    const pending = pendingUnlockAndSave;
+    if (!selectedQuestionnaire || !pending) return;
+    try {
+      await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/unlock-all`, {}, { headers: getAuthHeader() });
+      setPendingUnlockAndSave(null);
+      await fetchQuestionnaires();
+      if (pending.type === 'edit') await handleUpdateQuestion(true);
+      else await handleAddLedgerQuestions(pending.draftQuestions, { keepOpen: pending.keepOpen, retryingAfterUnlock: true });
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock supplier responses'); }
+  };
+
+  const discardLockedQuestionChanges = () => {
+    setShowQuestionDialog(false); setQuestionDialogMode(null); setEditingQuestion(null); resetQuestionForm(); setPendingUnlockAndSave(null);
+  };
+
   const handleDuplicateQuestionnaire = async (id, name) => {
     try {
       await axios.post(
@@ -476,7 +493,7 @@ export default function QuestionnaireBuilder() {
     }
   };
 
-  const handleAddLedgerQuestions = async (draftQuestions, { keepOpen = false } = {}) => {
+  const handleAddLedgerQuestions = async (draftQuestions, { keepOpen = false, retryingAfterUnlock = false } = {}) => {
     if (!selectedQuestionnaire) return false;
     const missingQuestion = draftQuestions.find((question) => !question.question_text.trim());
     if (missingQuestion) { toast.error('Each ledger row needs question text before it can be added.'); return false; }
@@ -519,14 +536,15 @@ export default function QuestionnaireBuilder() {
       await fetchQuestions(selectedQuestionnaire.id);
       return true;
     } catch (err) {
-      toast.error('Failed to add question');
+      if (!retryingAfterUnlock && (err.response?.data?.detail || '').includes('Unlock all submitted')) setPendingUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
+      else toast.error(err.response?.data?.detail || 'Failed to add question');
       return false;
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleUpdateQuestion = async () => {
+  const handleUpdateQuestion = async (retryingAfterUnlock = false) => {
     if (!editingQuestion) return;
     if (!validateQuestionScoring()) return;
     
@@ -544,7 +562,8 @@ export default function QuestionnaireBuilder() {
       resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
-      toast.error('Failed to update question');
+      if (!retryingAfterUnlock && (err.response?.data?.detail || '').includes('Unlock all submitted')) setPendingUnlockAndSave({ type: 'edit' });
+      else toast.error(err.response?.data?.detail || 'Failed to update question');
     } finally {
       setSubmitting(false);
     }
@@ -1646,6 +1665,9 @@ export default function QuestionnaireBuilder() {
             <AlertDialogAction onClick={confirmDelete} className="bg-red-700 text-white hover:bg-red-800" data-testid="confirm-supplier-assessment-delete-button">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={Boolean(pendingUnlockAndSave)} onOpenChange={(open) => !open && setPendingUnlockAndSave(null)}>
+        <AlertDialogContent data-testid="unlock-and-save-question-dialog"><AlertDialogHeader><AlertDialogTitle>Unlock suppliers and save changes?</AlertDialogTitle><AlertDialogDescription>Submitted supplier responses must be unlocked before this question change can be saved. Suppliers will be notified that their questionnaire is reopened.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-unlock-and-save-button">Cancel</AlertDialogCancel><Button variant="outline" onClick={discardLockedQuestionChanges} data-testid="discard-locked-question-changes-button">Discard changes</Button><AlertDialogAction onClick={unlockAllAndSaveChanges} data-testid="unlock-all-and-save-question-button">Unlock all and save</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div></TooltipProvider>
   );
