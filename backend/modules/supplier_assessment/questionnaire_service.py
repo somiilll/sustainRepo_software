@@ -17,6 +17,8 @@ from app.logging import get_logger, log_event
 from shared.utils.emission_records import normalize_reporting_period
 from shared.helpers.email import send_email
 from modules.supplier_assessment.unlock_notification_service import notify_supplier_module_unlocked
+from modules.supplier_assessment.email_templates import questionnaire_change_email
+from app.config.env import FRONTEND_URL
 
 logger = get_logger(__name__)
 
@@ -572,7 +574,7 @@ async def unlock_all_questionnaire_responses(self, customer_org_id: str, questio
     return len(responses)
 
 
-async def _notify_questionnaire_change(questionnaire_id: str, message: str) -> None:
+async def _notify_questionnaire_change(questionnaire_id: str, question_text: str) -> None:
     relationships = await db.supplier_relationships.find(
         {"questionnaire_ids": questionnaire_id, "is_active": True}, {"_id": 0, "contact_email": 1, "company_name": 1}
     ).to_list(1000)
@@ -580,7 +582,7 @@ async def _notify_questionnaire_change(questionnaire_id: str, message: str) -> N
         email = str(relationship.get("contact_email") or "").strip()
         if email:
             try:
-                await send_email(email, "ESG questionnaire updated", f"<p>Your customer has updated an ESG questionnaire assigned to you.</p><p>{message}</p>")
+                await send_email(email, "ESG questionnaire updated", questionnaire_change_email(question_text, f"{FRONTEND_URL.rstrip('/')}/login"))
             except Exception:
                 logger.exception("supplier_assessment.questionnaire_change_email_failed")
 
@@ -862,7 +864,7 @@ async def add_question(
         {"id": questionnaire_id},
         {"$inc": {"question_count": 1}}
     )
-    await _notify_questionnaire_change(questionnaire_id, f"A new question has been added: {question_text}")
+    await _notify_questionnaire_change(questionnaire_id, question_text)
     
     return question
 
@@ -920,16 +922,8 @@ async def update_question(
         {"id": question_id},
         {"$set": updates}
     )
-    messages = []
-    if "question_text" in updates and updates["question_text"] != existing.get("question_text"):
-        messages.append(f"Question changed from ‘{existing.get('question_text', '')}’ to ‘{updates['question_text']}’")
-    if any(field in updates for field in {"scoring", "options", "max_points", "point_scores", "weight", "exact_numerical_weight", "assessment_type"}):
-        scoring_fields = ("scoring", "options", "max_points", "point_scores", "weight", "exact_numerical_weight", "assessment_type")
-        before = {field: existing.get(field) for field in scoring_fields if field in updates}
-        after = {field: updates.get(field, existing.get(field)) for field in scoring_fields if field in updates}
-        messages.append(f"Scoring changed for ‘{updates.get('question_text') or existing.get('question_text', '')}’ from {json.dumps(before, default=str)} to {json.dumps(after, default=str)}")
-    if messages:
-        await _notify_questionnaire_change(existing["questionnaire_id"], "<br>".join(messages))
+    if "question_text" in updates or any(field in updates for field in {"scoring", "options", "max_points", "point_scores", "weight", "exact_numerical_weight", "assessment_type"}):
+        await _notify_questionnaire_change(existing["questionnaire_id"], updates.get("question_text") or existing.get("question_text", ""))
     updated_question = await db.supplier_questions.find_one({"id": question_id}, {"_id": 0})
     if updated_question and ("scoring" in updates or "options" in updates or {"importance", "exact_numerical_weight", "weight", "max_points", "point_scores", "assessment_type", "evidence_requirement", "parent_question_id"}.intersection(updates)):
         from modules.supplier_assessment.scoring import ScoringEngine
