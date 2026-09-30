@@ -99,6 +99,15 @@ export default function SupplierQuestionnaire() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
+  const persistDraftAnswers = async () => {
+    const answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+    await axios.post(
+      `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
+      { answers: answersList, is_draft: true, data_verified: false },
+      { headers: getAuthHeader() },
+    );
+  };
+
   const sha256 = async (file) => {
     const digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
     return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -123,6 +132,7 @@ export default function SupplierQuestionnaire() {
     const [file, ...remainingFiles] = files;
     if (!file) return;
     try {
+      if (question.response_type === 'yes_no' && answers[question.id] === true) await persistDraftAnswers();
       const hash = await sha256(file);
       const { data } = await axios.post(`${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/questions/${question.id}/evidence/duplicates`, { sha256_hash: hash, filename: file.name }, { headers: getAuthHeader() });
       const candidate = data.exact_match || data.filename_match;
@@ -182,16 +192,16 @@ export default function SupplierQuestionnaire() {
     saveFn(true);
     
     try {
-      const answersList = Object.entries(answers).map(([question_id, answer]) => ({
-        question_id,
-        answer,
-      }));
-      
-      await axios.post(
-        `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
-        { answers: answersList, is_draft: !isFinal, data_verified: isFinal && verificationAccepted },
-        { headers: getAuthHeader() }
-      );
+      if (isFinal) {
+        const answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+        await axios.post(
+          `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
+          { answers: answersList, is_draft: false, data_verified: verificationAccepted },
+          { headers: getAuthHeader() }
+        );
+      } else {
+        await persistDraftAnswers();
+      }
       
       if (isFinal) {
         toast.success('Questionnaire submitted successfully');
