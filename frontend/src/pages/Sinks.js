@@ -16,7 +16,7 @@ import { validateFileSize } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
 import { LoadErrorState } from '../components/LoadErrorState';
 import { getUserFriendlyError } from '../lib/userFriendlyError';
-import { downloadSecureFile, getUploadedFileId, openSecureFile } from '../lib/secureFileAccess';
+import { downloadSecureFile, getUploadedFileId, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   createDraftEvidence,
   deleteEvidenceFiles,
@@ -965,13 +965,14 @@ export default function Sinks() {
                         <Label className="text-xs text-stone-500">Evidence Files</Label>
                         {yearlyData.evidence.map((file, fileIdx) => {
                           const fileId = getUploadedFileId(file.url);
+                          const canPreview = isPreviewableFile(file);
                           return (
                           <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`yearly-evidence-file-${fileIdx}`}>
                             <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-                            <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
+                            {canPreview && <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
                               <Eye className="w-3.5 h-3.5" />
-                            </a>
+                            </a>}
                             <button 
                               type="button"
                               onClick={async () => {
@@ -1385,13 +1386,14 @@ function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, on
           <Label className="text-xs text-stone-500">Evidence Files</Label>
           {evidence.map((file, fileIdx) => {
             const fileId = getUploadedFileId(file.url);
+            const canPreview = isPreviewableFile(file);
             return (
             <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`evidence-file-${monthIndex}-${fileIdx}`}>
               <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
               <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-              <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
+              {canPreview && <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
                 <Eye className="w-3.5 h-3.5" />
-              </a>
+              </a>}
               <button 
                 type="button"
                 onClick={async () => {

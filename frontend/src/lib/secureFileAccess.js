@@ -28,6 +28,15 @@ export const getSecureFileUrl = async (fileId, mode = 'view') => {
 
 const isInlineViewable = (contentType) => contentType?.startsWith('image/') || contentType === 'application/pdf';
 
+export const isPreviewableFile = (file) => {
+  const value = typeof file === 'string' ? { name: file } : (file || {});
+  if (value.content_type || value.type) {
+    return isInlineViewable(value.content_type || value.type);
+  }
+  const filename = value.original_filename || value.filename || value.name || '';
+  return /\.(pdf|png|jpe?g|gif|webp|heic|heif)$/i.test(filename);
+};
+
 export const downloadSecureFile = async (fileId) => {
   const url = await getSecureFileUrl(fileId, 'download');
   const anchor = document.createElement('a');

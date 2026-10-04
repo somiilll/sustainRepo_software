@@ -31,7 +31,7 @@ import {
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
-import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
+import { downloadSecureFile, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   Trash2,
   Calendar as CalendarIcon,
@@ -1686,6 +1686,7 @@ export default function EmissionEditForm(props) {
                         const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                         const fileId = fileIdMatch ? fileIdMatch[1] : null;
                         const viewUrl = fileId ? '#' : evidence.url;
+                        const canPreview = isPreviewableFile(evidence);
                         
                         return (
                           <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
@@ -1694,7 +1695,7 @@ export default function EmissionEditForm(props) {
                               {evidence.filename || `Evidence ${idx + 1}`}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <a
+                              {canPreview && <a
                                 href={viewUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -1705,7 +1706,7 @@ export default function EmissionEditForm(props) {
                               >
                                 <Eye className="w-3 h-3" />
                                 View
-                              </a>
+                              </a>}
                               {fileId && (
                                 <button
                                   type="button"
