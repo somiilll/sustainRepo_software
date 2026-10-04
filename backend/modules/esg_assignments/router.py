@@ -428,19 +428,6 @@ async def get_assignment_history(
     return {"history": history}
 
 
-@router.get("/response-versions/{question_key}")
-async def get_response_versions(
-    question_key: str,
-    reporting_period: str,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    DEPRECATED: Use /api/esg-questionnaire/history/{question_key} instead.
-    This endpoint is kept for backwards compatibility but returns empty.
-    """
-    return {"versions": [], "deprecated": True, "use": "/api/esg-questionnaire/history/{question_key}"}
-
-
 # ============================================
 # REMINDER ENDPOINTS (Admin only)
 # ============================================

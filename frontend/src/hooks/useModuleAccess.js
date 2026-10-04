@@ -10,10 +10,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
  *
  * Access flags are resolved from the organization configuration entitlement catalog.
  *
- * hasAccess("environment.ghg") checks:
- *   1. If module access is empty/null → all modules visible (backwards compatible)
- *   2. If key exists → use its boolean value
- *   3. If key doesn't exist → check parent key (e.g. "environment") → default true
+ * hasAccess("environment.ghg") checks the canonical permission map.
  */
 export function useModuleAccess() {
   const { user, getAuthHeader } = useAuth();
@@ -33,7 +30,7 @@ export function useModuleAccess() {
       try {
         const { data } = await axios.get(`${API}/organization/module-config`, { headers: getAuthHeader() });
         if (!cancelled) {
-          setModuleAccess(data?.permissions || data?.entitlements || data?.module_access || null);
+          setModuleAccess(data?.permissions || data?.entitlements || {});
           setLoadError(false);
         }
       } catch {
@@ -52,14 +49,8 @@ export function useModuleAccess() {
   const hasAccess = useCallback((key) => {
     // Super admins see everything
     if (user?.role === 'super_admin') return true;
-    // New organizations receive a migrated configuration from the API.
-    // Only pre-configuration states retain the compatibility fallback.
     if (loadError) return false;
-    if (!moduleAccess || Object.keys(moduleAccess).length === 0) return true;
-    // MIS Reports succeeds the legacy Reports sidebar module key.
-    if (key === 'mis_reports' && 'reports' in moduleAccess && !('mis_reports' in moduleAccess)) {
-      return moduleAccess.reports;
-    }
+    if (!moduleAccess || Object.keys(moduleAccess).length === 0) return false;
     // Exact key match
     if (key in moduleAccess) return moduleAccess[key];
     // Check parent key: "environment.ghg" → "environment"
@@ -68,8 +59,7 @@ export function useModuleAccess() {
       const parent = parts.slice(0, i).join('.');
       if (parent in moduleAccess) return moduleAccess[parent];
     }
-    // Default: visible
-    return true;
+    return false;
   }, [user, moduleAccess, loadError]);
 
   return { hasAccess, moduleAccess, loading, loadError };

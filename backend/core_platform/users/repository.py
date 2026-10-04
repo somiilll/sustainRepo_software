@@ -119,6 +119,3 @@ def create_user_repository(collection_name: str = "users", database=None) -> Abs
     return AbstractUserRepository(collection_name=collection_name, database=database)
 
 
-# Pre-configured repository instances
-legacy_users_repository = AbstractUserRepository(collection_name="users")
-esg_users_repository = AbstractUserRepository(collection_name="users")

@@ -72,13 +72,6 @@ class OrganizationCreate(BaseModel):
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: List[str] = Field(default_factory=list)
     
-    # Module enablement flags
-    has_ghg: Optional[bool] = True  # Enable GHG module
-    has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
-    sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
-    repo_pilot_enabled: Optional[bool] = False  # Enable Repo Pilot module
-    module_access: Optional[Dict[str, bool]] = None  # Per-module access flags
-
     @field_validator('pincode')
     @classmethod
     def validate_pincode(cls, v):
@@ -176,10 +169,6 @@ class OrganizationResponse(BaseModel):
     # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
     esg_frameworks_enabled: Optional[List[str]] = None
     
-    # Module enablement flags
-    has_ghg: Optional[bool] = True  # Enable GHG module
-    has_esg: Optional[bool] = True  # Enable ESG module (Environment, Social, Governance records)
-    sbti_targets_enabled: Optional[bool] = False  # Enable SBTi Targets module
-    repo_pilot_enabled: Optional[bool] = False  # Enable Repo Pilot module
-    module_access: Optional[Dict[str, bool]] = None  # Per-module access flags
+    entitlements: Dict[str, bool] = Field(default_factory=dict)
+    permissions: Dict[str, bool] = Field(default_factory=dict)
 

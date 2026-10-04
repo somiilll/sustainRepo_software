@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import re
 
 from shared.database.mongo import db
-from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements, sync_legacy_entitlement_mirror
+from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements
 from modules.sustainability_config.supplier_taxonomy import normalize_supplier_esg_subcategories, supplier_esg_subcategory_defaults
 
 
@@ -172,8 +172,6 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             return_document=True,
             projection={"_id": 0},
         )
-        if "entitlements" in updates:
-            await sync_legacy_entitlement_mirror(org_id, updates["entitlements"])
         if "organization_settings" in updates:
             await sync_legacy_organization_settings_mirror(org_id, updates["organization_settings"])
         return result
@@ -199,7 +197,6 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
         }
         await _coll().insert_one(doc)
         doc.pop("_id", None)
-        await sync_legacy_entitlement_mirror(org_id, doc["entitlements"])
         await sync_legacy_organization_settings_mirror(org_id, doc["organization_settings"])
         return doc
 

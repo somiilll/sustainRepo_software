@@ -83,8 +83,6 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
             sink_data.reporting_period,
             sink_data.frequency_type,
             organization or {},
-            sink_data.reporting_year,
-            sink_data.reporting_month,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -169,8 +167,6 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
             sink_data.reporting_period,
             existing_frequency,
             organization or {},
-            sink_data.reporting_year,
-            sink_data.reporting_month,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

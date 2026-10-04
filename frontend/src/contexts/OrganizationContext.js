@@ -13,7 +13,7 @@ const API = `${BACKEND_URL}/api`;
  * 
  * This context provides:
  * - timezone: IANA timezone string (e.g., 'Asia/Kolkata')
- * - moduleConfig: has_ghg, has_esg, enabled_access, etc.
+ * - moduleConfig: canonical entitlements, enabled access, and workflow settings.
  * - organization: Full organization details
  * - refreshOrganization: Function to reload organization data
  */
@@ -21,8 +21,8 @@ export const OrganizationProvider = ({ children }) => {
   const { token, user } = useAuth();
   const [organization, setOrganization] = useState(null);
   const [moduleConfig, setModuleConfig] = useState({
-    has_ghg: true,
-    has_esg: true,
+    entitlements: {},
+    permissions: {},
     enabled_access: null,
     esg_frameworks_enabled: null,
     approval_workflow_enabled: false,

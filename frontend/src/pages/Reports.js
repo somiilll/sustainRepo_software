@@ -93,7 +93,7 @@ export default function Reports({ showMISFoundation = false }) {
   const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
   
   // Check if organization has GHG module enabled (hides GHG reports if disabled)
-  const hasGhgEnabled = organization?.has_ghg !== false;
+  const hasGhgEnabled = organization?.entitlements?.environment !== false;
 
   const fetchFacilities = async () => {
     try {

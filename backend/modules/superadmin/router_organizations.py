@@ -25,6 +25,7 @@ from modules.auth.email_templates import user_invite_email
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
 from modules.emissions.contracts import EmissionRecordCreate
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
+from modules.entitlements.service import resolve_entitlements
 from modules.superadmin.contracts import (
     CalculationFormulaCreate, CalculationFormulaResponse,
     CurrencyConversionCreate, CurrencyConversionUpdate,
@@ -795,8 +796,7 @@ async def get_org_feature_flags(
         "feature_flags": {
             "approval_workflow_enabled": (await resolve_organization_settings(org_id, migrate=True))["approval_workflow_enabled"],
             "multi_level_approval_enabled": (await resolve_organization_settings(org_id, migrate=True))["multi_level_approval_enabled"],
-            "has_ghg": org.get("has_ghg", True),
-            "has_esg": org.get("has_esg", True),
+            "entitlements": await resolve_entitlements(org_id, migrate=True),
         }
     }
 
