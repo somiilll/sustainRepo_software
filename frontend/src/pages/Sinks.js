@@ -264,7 +264,7 @@ export default function Sinks() {
   }, [user?.role, canAccessSinks]);
   const canManageOrganizationSinks = user?.role === 'admin'
     || user?.role === 'super_admin'
-    || (canAccessSinks && (hasFullKPIAccess || accessInfo?.facility_restrictions?.sinks == null));
+    || (canAccessSinks && (hasFullKPIAccess || kpiAccessInfo?.facility_restrictions?.sinks == null));
   
   // Filter facilities based on KPI assignment for sinks
   const kpiFilteredFacilities = useMemo(() => {
