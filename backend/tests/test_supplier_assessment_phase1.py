@@ -231,6 +231,9 @@ async def test_document_acceptance_is_versioned_and_contributes_to_completion(mo
         "id": "document-version-1", "original_filename": "nda.pdf", "content_type": "application/pdf",
         "file_size": 12, "version_number": 1,
     }])
+    database.supplier_document_views = _Collection([{
+        "id": "view-1", "supplier_relationship_id": "relationship-1", "document_requirement_id": "requirement-1",
+    }])
     database.supplier_document_acceptances = _Collection([])
     monkeypatch.setattr(documents_service, "db", database)
     monkeypatch.setattr(programs, "db", database)

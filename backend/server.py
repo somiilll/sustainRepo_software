@@ -3828,6 +3828,7 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
                 history_entries.append({
                     "id": str(uuid.uuid4()),
                     "emission_id": record["id"],
+                    "organization_id": record.get("organization_id"),
                     "scope": record.get("scope", "scope3"),
                     "category": record.get("category", ""),
                     "reporting_month": record.get("reporting_period"),

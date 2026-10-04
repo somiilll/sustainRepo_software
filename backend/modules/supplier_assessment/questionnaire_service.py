@@ -1247,7 +1247,7 @@ async def upload_supplier_question_evidence(
     if not response_doc:
         response_doc = {
             "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id, "supplier_relationship_id": relationship["id"],
-            "supplier_org_id": relationship["supplier_org_id"], "answers": {}, "question_evidence": {},
+            "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": relationship["customer_org_id"], "answers": {}, "question_evidence": {},
             "status": "in_progress", "reporting_period": reporting_period, "revision": 1, "is_current": True,
             "parent_visible": False, "data_verified": False, "created_at": now, "updated_at": now,
         }
@@ -1402,6 +1402,7 @@ async def submit_supplier_answers(
             "answers": answers_dict,
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
+            "customer_org_id": relationship["customer_org_id"],
             "status": status,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -1434,6 +1435,7 @@ async def submit_supplier_answers(
             "questionnaire_id": questionnaire_id,
             "supplier_relationship_id": supplier_relationship_id,
             "supplier_org_id": supplier_org_id,
+            "customer_org_id": relationship["customer_org_id"],
             "answers": answers_dict,
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
@@ -1703,6 +1705,7 @@ async def reopen_questionnaire(
         "id": str(uuid.uuid4()), "questionnaire_id": questionnaire_id,
         "supplier_relationship_id": supplier_relationship_id,
         "supplier_org_id": visible_response.get("supplier_org_id"),
+        "customer_org_id": (relationship or {}).get("customer_org_id") or visible_response.get("customer_org_id"),
         "answers": visible_response.get("answers", {}), "question_evidence": visible_response.get("question_evidence", {}), "status": "in_progress",
         "calculated_score": None, "submitted_at": None, "reporting_period": reporting_period, "revision": revision,
         "is_current": True, "parent_visible": False, "reopened_at": now,

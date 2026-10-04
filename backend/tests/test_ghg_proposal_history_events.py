@@ -1,4 +1,4 @@
-from modules.approval_workflow.proposal_service import build_emission_proposal_history_event, build_rejected_emission_preview
+from modules.approval_workflow.proposal_service import build_emission_proposal_history_event, build_esg_proposal_version_event, build_rejected_emission_preview
 from modules.approval_workflow import proposal_service
 import pytest
 
@@ -31,6 +31,7 @@ def test_approved_proposal_history_event_is_linked_and_contains_actual_changes()
 
     assert event["id"] != "record-1"
     assert event["emission_id"] == "record-1"
+    assert event["organization_id"] == "org-1"
     assert event["changes_summary"] == "Update Approved"
     assert event["changes"]["old_values"]["dynamic_field_values"]["qty"]["value"] == 200
     assert event["changes"]["new_values"]["dynamic_field_values"]["qty"]["value"] == 205
@@ -62,6 +63,22 @@ def test_rejected_proposal_history_event_keeps_the_record_unchanged_and_records_
     assert event["approved_by_name"] is None
     assert event["field_changes"][0]["old_value"]["value"] == 200
     assert event["field_changes"][0]["new_value"]["value"] == 300
+
+
+def test_esg_proposal_version_event_persists_the_record_organization_id():
+    event = build_esg_proposal_version_event(
+        {"id": "esg-record-1", "org_id": "org-1", "version": 1, "field_values": {"metric": 10}},
+        {"id": "esg-record-1", "org_id": "org-1", "version": 2, "field_values": {"metric": 12}},
+        {"id": "proposal-3", "request_type": "update"},
+        section="environment",
+        action="approved",
+        actor_id="approver-1",
+        actor_email="approver@example.com",
+        actor_name="Approver",
+        timestamp="2026-10-04T10:00:00Z",
+    )
+
+    assert event["organization_id"] == "org-1"
 
 
 class _EmissionRecords:

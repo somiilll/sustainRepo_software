@@ -2176,6 +2176,7 @@ class ESGRecordsService:
         version_doc = {
             "id": str(uuid.uuid4()),
             "record_id": record_id,
+            "organization_id": snapshot.get("organization_id") or snapshot.get("org_id"),
             "version": version,
             "section": section,
             "snapshot": snapshot,
