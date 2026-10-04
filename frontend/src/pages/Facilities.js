@@ -11,6 +11,7 @@ import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Downl
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { validateFileSize } from '../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import FacilityProductionSection from '../components/FacilityProductionSection';
@@ -821,15 +822,15 @@ export default function Facilities() {
                         // For uploaded files, construct proper view/download URLs
                         let viewUrl = att.is_draft ? att.preview_url : att.url;
                         let downloadUrl = att.url;
+                        let uploadedFileId = null;
                         
                         if (isUploadedFile && !att.is_draft) {
                           // Extract file ID from URL patterns like:
                           // /api/files/{id}/view or /api/files/{id} or full URL with same pattern
                           const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                           if (fileIdMatch) {
-                            const fileId = fileIdMatch[1];
-                            viewUrl = `${BACKEND_URL}/api/files/${fileId}/view`;
-                            downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
+                            uploadedFileId = fileIdMatch[1];
+                            viewUrl = '#';
                           }
                         }
                         
@@ -845,6 +846,7 @@ export default function Facilities() {
                               href={isUploadedFile ? viewUrl : ensureProtocol(att.url)} 
                               target="_blank" 
                               rel="noopener noreferrer" 
+                              onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined}
                               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                               title="View file"
                               data-testid={`facility-attachment-view-${idx}`}
@@ -856,9 +858,13 @@ export default function Facilities() {
                             {isUploadedFile && !att.is_draft && (
                               <button 
                                 type="button"
-                                onClick={(e) => { 
+                                onClick={async (e) => { 
                                   e.preventDefault(); 
-                                  downloadFile(downloadUrl, att.name); 
+                                  if (uploadedFileId) {
+                                    await downloadSecureFile(uploadedFileId);
+                                  } else {
+                                    downloadFile(downloadUrl, att.name);
+                                  }
                                 }}
                                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                 title="Download file"

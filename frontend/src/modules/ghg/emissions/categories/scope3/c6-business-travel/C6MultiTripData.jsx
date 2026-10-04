@@ -6,8 +6,7 @@ import { Label } from '../../../../../../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
 import { DynamicFieldRenderer } from '../../../shared/components/DynamicFieldRenderer';
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { openSecureFile } from '../../../../../../lib/secureFileAccess';
 
 const getCompoundSuffix = (field, trip) => {
   if (!field?.compoundWithVariable) return '';
@@ -57,11 +56,11 @@ const TripEvidence = ({ periodKey, trip, onUpload, onRemove }) => {
                 {evidences.map((evidence, index) => {
                   const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                   const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                  const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                  const viewUrl = fileId ? '#' : evidence.url;
                   return (
                     <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
                       <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`c6-trip-${trip.id}-evidence-view-${index}`}>{evidence.filename}</a>
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(console.error); } : undefined} className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`c6-trip-${trip.id}-evidence-view-${index}`}>{evidence.filename}</a>
                       <button type="button" onClick={(event) => { event.stopPropagation(); onRemove(periodKey, trip.id, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`c6-trip-${trip.id}-evidence-remove-${index}`}><X className="h-3 w-3" /></button>
                     </div>
                   );

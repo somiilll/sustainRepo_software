@@ -4,11 +4,8 @@
  * UI state (dialog/loading/audit state) remains at the page boundary. All
  * editable record values move together through the shared EmissionDraft.
  */
-import axios from 'axios';
 import { emissionRecordToDraft } from '../../../modules/ghg/emissions/shared/domain';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { getSecureFileInfo } from '../../../lib/secureFileAccess';
 
 export async function editEmissionDispatch(emission, ctx) {
   const {
@@ -46,10 +43,10 @@ export async function editEmissionDispatch(emission, ctx) {
         if (!fileIdMatch) return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
 
         try {
-          const response = await axios.get(`${API}/files/${fileIdMatch[1]}/info`);
+          const fileInfo = await getSecureFileInfo(fileIdMatch[1]);
           return {
             url: trimmedUrl,
-            filename: response.data.filename || `Evidence ${idx + 1}`,
+            filename: fileInfo.filename || `Evidence ${idx + 1}`,
             file_id: fileIdMatch[1],
           };
         } catch (error) {

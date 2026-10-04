@@ -6,6 +6,7 @@ import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Plus, Trash2, User, Calculator, Users, Upload, FileText, Download, X } from 'lucide-react';
+import { openSecureFile } from '../lib/secureFileAccess';
 import {
   getAnnualReportingPeriodDayLimit,
   getMonthlyReportingPeriodDayLimit,
@@ -106,7 +107,7 @@ const EmployeeEvidenceCell = ({
       </label>
       {evidences.map((evidence, evidenceIndex) => {
         const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-        const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence?.url;
+        const viewUrl = fileId ? '#' : evidence?.url;
         return (
           <React.Fragment key={`${evidence?.file_id || evidence?.url || evidenceIndex}`}>
             {viewUrl && (
@@ -115,7 +116,13 @@ const EmployeeEvidenceCell = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 title={evidence.filename || `Evidence ${evidenceIndex + 1}`}
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (fileId) {
+                    event.preventDefault();
+                    void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file'));
+                  }
+                }}
                 className="inline-flex h-7 w-7 items-center justify-center text-emerald-700 transition-colors hover:text-emerald-900"
                 data-testid={`${testIdPrefix}-view-${evidenceIndex}`}
               >

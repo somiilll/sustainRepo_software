@@ -20,6 +20,7 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 
 import { validateFileSize } from '../../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../../lib/secureFileAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -138,7 +139,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
+      void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file'));
       return;
     }
 
@@ -163,8 +164,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
+      await downloadSecureFile(fileId);
       return;
     }
 

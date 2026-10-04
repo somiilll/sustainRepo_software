@@ -15,6 +15,7 @@ import { Button } from '../../../../../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
 import { Info, Upload, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { openSecureFile } from '../../../../../../lib/secureFileAccess';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
 import CustomFuelMonthFields from '../CustomFuelMonthFields';
@@ -229,11 +230,11 @@ const EvidenceIconCell = ({
                 {evidences.map((evidence, index) => {
                   const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                   const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                  const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence.url;
+                  const viewUrl = fileId ? '#' : evidence.url;
                   return (
                     <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
                       <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
+                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
                         {evidence.filename}
                       </a>
                       <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>

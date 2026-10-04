@@ -3187,13 +3187,22 @@ async def attach_emission_evidence(
 
     return {**uploaded, "evidence": evidence}
 
+def _file_query_for_current_user(file_id: str, current_user: dict) -> dict:
+    if current_user.get("role") == "super_admin":
+        return {"id": file_id}
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="Organization context is required")
+    return {"id": file_id, "organization_id": organization_id}
+
+
 # File download endpoint - returns presigned URL for R2 files
 @api_router.get("/files/{file_id}")
 async def download_file(
     file_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    file_record = await db.uploaded_files.find_one(_file_query_for_current_user(file_id, current_user), {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -3223,15 +3232,14 @@ async def download_file(
         logging.error(f"R2 download error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
 
-# Public file view endpoint (for logos, images and PDFs - no authentication required)
 @api_router.get("/files/{file_id}/view")
-async def view_file_public(file_id: str):
-    """Public endpoint to view files (used for logo previews in img tags and PDF viewing)"""
-    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+async def view_file(file_id: str, resolve: bool = Query(False), current_user: dict = Depends(get_current_user)):
+    """Resolve a tenant-authorized file for inline viewing."""
+    file_record = await db.uploaded_files.find_one(_file_query_for_current_user(file_id, current_user), {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Allow image files and PDFs to be viewed publicly
+    # Inline viewing is limited to image files and PDFs.
     content_type = file_record.get("content_type", "")
     allowed_view_types = ["image/", "application/pdf"]
     is_allowed = any(content_type.startswith(t) if t.endswith("/") else content_type == t for t in allowed_view_types)
@@ -3260,6 +3268,9 @@ async def view_file_public(file_id: str):
             response_content_disposition=disposition
         )
         
+        if resolve:
+            return {"url": presigned_url}
+
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=presigned_url, status_code=307)
         
@@ -3267,11 +3278,10 @@ async def view_file_public(file_id: str):
         logging.error(f"R2 view error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate view URL: {str(e)}")
 
-# Download endpoint - forces file download for any file type
 @api_router.get("/files/{file_id}/download")
-async def download_file_public(file_id: str):
-    """Public endpoint to download any file as attachment - redirects to R2 presigned URL"""
-    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+async def download_file_attachment(file_id: str, resolve: bool = Query(False), current_user: dict = Depends(get_current_user)):
+    """Resolve a tenant-authorized file for download."""
+    file_record = await db.uploaded_files.find_one(_file_query_for_current_user(file_id, current_user), {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -3294,6 +3304,9 @@ async def download_file_public(file_id: str):
             response_content_disposition=f"attachment; filename*=UTF-8''{safe_filename}"
         )
         
+        if resolve:
+            return {"url": presigned_url}
+
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=presigned_url, status_code=302)
         
@@ -3307,6 +3320,7 @@ async def list_files(current_user: dict = Depends(get_current_user)):
     query = {}
     if current_user["role"] == "user":
         query["uploaded_by"] = current_user["id"]
+        query["organization_id"] = current_user.get("organization_id")
     elif current_user["role"] == "admin":
         # Get all users in the same organization
         org_id = current_user.get("organization_id")
@@ -3318,6 +3332,7 @@ async def list_files(current_user: dict = Depends(get_current_user)):
         ).to_list(1000)
         user_ids = [u["id"] for u in org_users]
         query["uploaded_by"] = {"$in": user_ids}
+        query["organization_id"] = org_id
     # Super admin can see all files (no query filter)
     
     files = await db.uploaded_files.find(query, {"_id": 0}).to_list(1000)
@@ -3338,7 +3353,7 @@ async def delete_file(
     file_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    file_record = await db.uploaded_files.find_one(_file_query_for_current_user(file_id, current_user), {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
@@ -3359,11 +3374,10 @@ async def delete_file(
     
     return {"message": "File deleted successfully"}
 
-# Get file info - returns metadata without requiring download
 @api_router.get("/files/{file_id}/info")
-async def get_file_info(file_id: str):
-    """Public endpoint to get file metadata (filename, size, type)"""
-    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+async def get_file_info(file_id: str, current_user: dict = Depends(get_current_user)):
+    """Get tenant-authorized file metadata."""
+    file_record = await db.uploaded_files.find_one(_file_query_for_current_user(file_id, current_user), {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     

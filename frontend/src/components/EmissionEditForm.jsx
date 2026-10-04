@@ -31,6 +31,7 @@ import {
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
+import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   Trash2,
   Calendar as CalendarIcon,
@@ -1684,7 +1685,7 @@ export default function EmissionEditForm(props) {
                       {existingEvidences.map((evidence, idx) => {
                         const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                         const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                        const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                        const viewUrl = fileId ? '#' : evidence.url;
                         
                         return (
                           <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
@@ -1697,8 +1698,10 @@ export default function EmissionEditForm(props) {
                                 href={viewUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(console.error); } : undefined}
                                 className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
                                 title="View file"
+                                data-testid={`emission-evidence-view-${idx}`}
                               >
                                 <Eye className="w-3 h-3" />
                                 View
@@ -1708,11 +1711,11 @@ export default function EmissionEditForm(props) {
                                   type="button"
                                   onClick={async (e) => {
                                     e.preventDefault();
-                                    // Use fetch + blob for proper download
-                                    await downloadFileHelper(`${BACKEND_URL}/api/files/${fileId}/download`, evidence.filename || `Evidence-${idx + 1}`);
+                                    await downloadSecureFile(fileId);
                                   }}
                                   className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
                                   title="Download file"
+                                data-testid={`emission-evidence-download-${idx}`}
                                 >
                                   <Download className="w-3 h-3" />
                                   Download

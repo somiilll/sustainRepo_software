@@ -11,6 +11,7 @@ import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload,
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
@@ -1245,23 +1246,24 @@ export default function OrganizationDetails() {
                     const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
                     let viewUrl = att.is_draft ? att.preview_url : (isUploadedFile ? att.url : ensureProtocol(att.url));
                     let downloadUrl = att.url;
+                    let uploadedFileId = null;
                     if (isUploadedFile && !att.is_draft) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
-                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+                        uploadedFileId = fileIdMatch[1];
+                        viewUrl = '#';
                       }
                     }
                     return (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm truncate">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
                         {/* Only show Download for uploaded files, not external links */}
                         {isUploadedFile && !att.is_draft && (
                           <button 
                             type="button"
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
                             className="text-xs text-green-600 hover:underline flex items-center gap-1"
                             data-testid={`organization-attachment-download-${idx}`}
                           >
@@ -1650,11 +1652,12 @@ export default function OrganizationDetails() {
                   const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
                   let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                   let downloadUrl = att.url;
+                  let uploadedFileId = null;
                   if (isUploadedFile) {
                     const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                     if (fileIdMatch) {
-                      viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-                      downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+                      uploadedFileId = fileIdMatch[1];
+                      viewUrl = '#';
                     }
                   }
                   return (
@@ -1664,11 +1667,12 @@ export default function OrganizationDetails() {
                       </div>
                       <span className="flex-1 text-sm font-medium text-text-primary truncate">{att.name}</span>
                       <div className="flex gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-primary hover:underline" data-testid={`organization-profile-attachment-view-${idx}`}>View</a>
                         {isUploadedFile && (
                           <button 
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
                             className="text-xs text-emerald-600 hover:underline"
+                            data-testid={`organization-profile-attachment-download-${idx}`}
                           >
                             Download
                           </button>

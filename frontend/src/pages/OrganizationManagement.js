@@ -12,6 +12,7 @@ import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, 
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
+import { downloadSecureFile, getUploadedFileId, openSecureFile } from '../lib/secureFileAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -231,17 +232,12 @@ export default function OrganizationManagement() {
 
   // Download file with authentication
   const handleDownloadFile = async (fileUrl, filename) => {
-    // If URL doesn't already have /download suffix, add it
-    let downloadUrl = fileUrl;
-    if (!downloadUrl.endsWith('/download')) {
-      // Extract file ID from URL like /api/files/{file_id}
-      const fileIdMatch = fileUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
-        downloadUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
-      }
+    const fileId = getUploadedFileId(fileUrl);
+    if (fileId) {
+      await downloadSecureFile(fileId);
+      return;
     }
-    // Use fetch + blob for proper download
-    await downloadFileHelper(downloadUrl, filename || 'file');
+    await downloadFileHelper(fileUrl, filename || 'file');
   };
   
   // Delete file from R2 storage
@@ -1043,7 +1039,9 @@ export default function OrganizationManagement() {
                           />
                           {formData.invoice_history?.length > 0 && (
                             <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                              {formData.invoice_history.map((invoice, idx) => (
+                              {formData.invoice_history.map((invoice, idx) => {
+                                const invoiceFileId = getUploadedFileId(invoice.url);
+                                return (
                                 <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-stone-200">
                                   <div className="flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-purple-600" />
@@ -1052,16 +1050,19 @@ export default function OrganizationManagement() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <a
-                                      href={`${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}/view`}
+                                      href={invoiceFileId ? '#' : `${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={invoiceFileId ? (event) => { event.preventDefault(); void openSecureFile(invoiceFileId).catch(() => toast.error('Unable to open invoice')); } : undefined}
                                       className="text-xs text-purple-600 hover:underline"
+                                      data-testid={`organization-invoice-view-${idx}`}
                                     >
                                       View
                                     </a>
                                     <button
-                                      onClick={() => handleDownloadFile(`${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}`, invoice.filename)}
+                                      onClick={() => handleDownloadFile(invoice.url, invoice.filename)}
                                       className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                                      data-testid={`organization-invoice-download-${idx}`}
                                     >
                                       <Download className="w-3 h-3" />
                                       Download
@@ -1084,7 +1085,8 @@ export default function OrganizationManagement() {
                                     </Button>
                                   </div>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>

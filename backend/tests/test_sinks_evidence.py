@@ -263,8 +263,8 @@ class TestEvidenceUpload:
         
         print(f"✓ Uploaded image evidence: {result['filename']}")
     
-    def test_view_file_public(self, auth_headers):
-        """Test GET /api/files/{id}/view - public view endpoint for images/pdfs"""
+    def test_view_file_requires_tenant_authorization(self, auth_headers):
+        """Test GET /api/files/{id}/view rejects anonymous requests and accepts its owner."""
         # First upload a file
         test_content = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
         files = {
@@ -279,15 +279,17 @@ class TestEvidenceUpload:
         assert upload_response.status_code == 200
         file_id = upload_response.json()["file_id"]
         
-        # Test view endpoint (public - no auth)
-        view_response = requests.get(f"{BASE_URL}/api/files/{file_id}/view")
+        anonymous_response = requests.get(f"{BASE_URL}/api/files/{file_id}/view")
+        assert anonymous_response.status_code == 403
+
+        view_response = requests.get(f"{BASE_URL}/api/files/{file_id}/view", headers=auth_headers)
         assert view_response.status_code == 200, f"View file failed: {view_response.text}"
         assert "pdf" in view_response.headers.get("content-type", "").lower()
         
-        print(f"✓ GET /api/files/{{id}}/view - PDF file viewable publicly")
+        print(f"✓ GET /api/files/{{id}}/view - tenant-authorized PDF view")
     
-    def test_download_file_public(self, auth_headers):
-        """Test GET /api/files/{id}/download - public download endpoint"""
+    def test_download_file_requires_tenant_authorization(self, auth_headers):
+        """Test GET /api/files/{id}/download rejects anonymous requests and accepts its owner."""
         # First upload a file
         test_content = b"Test CSV content,column1,column2\nvalue1,value2,value3"
         files = {
@@ -302,12 +304,14 @@ class TestEvidenceUpload:
         assert upload_response.status_code == 200
         file_id = upload_response.json()["file_id"]
         
-        # Test download endpoint (public)
-        download_response = requests.get(f"{BASE_URL}/api/files/{file_id}/download")
+        anonymous_response = requests.get(f"{BASE_URL}/api/files/{file_id}/download")
+        assert anonymous_response.status_code == 403
+
+        download_response = requests.get(f"{BASE_URL}/api/files/{file_id}/download", headers=auth_headers)
         assert download_response.status_code == 200, f"Download file failed: {download_response.text}"
         assert "attachment" in download_response.headers.get("content-disposition", "").lower()
         
-        print(f"✓ GET /api/files/{{id}}/download - File downloadable")
+        print(f"✓ GET /api/files/{{id}}/download - tenant-authorized download")
 
 
 class TestSinkWithEvidence:
