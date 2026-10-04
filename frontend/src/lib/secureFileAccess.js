@@ -26,19 +26,38 @@ export const getSecureFileUrl = async (fileId, mode = 'view') => {
   return response.data.url;
 };
 
+const isInlineViewable = (contentType) => contentType?.startsWith('image/') || contentType === 'application/pdf';
+
+export const downloadSecureFile = async (fileId) => {
+  const url = await getSecureFileUrl(fileId, 'download');
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
 export const openSecureFile = async (fileId, mode = 'view') => {
-  const popup = window.open('', '_blank', 'noopener');
+  const popup = window.open('about:blank', '_blank');
   try {
+    if (mode === 'view') {
+      const fileInfo = await getSecureFileInfo(fileId);
+      if (!isInlineViewable(fileInfo.content_type)) {
+        popup?.close();
+        await downloadSecureFile(fileId);
+        return;
+      }
+    }
     const url = await getSecureFileUrl(fileId, mode);
     if (popup) {
-      popup.location.href = url;
+      popup.opener = null;
+      popup.location.replace(url);
     } else {
-      window.open(url, '_blank', 'noopener');
+      window.location.assign(url);
     }
   } catch (error) {
     popup?.close();
     throw error;
   }
 };
-
-export const downloadSecureFile = (fileId) => openSecureFile(fileId, 'download');

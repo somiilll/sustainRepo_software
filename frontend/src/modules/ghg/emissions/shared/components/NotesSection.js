@@ -8,6 +8,7 @@ import { Input } from '../../../../../components/ui/input';
 import { Label } from '../../../../../components/ui/label';
 import { Button } from '../../../../../components/ui/button';
 import { Upload, X, Eye, FileText, Loader2 } from 'lucide-react';
+import { getUploadedFileId, openSecureFile } from '../../../../../lib/secureFileAccess';
 
 /**
  * Notes section with optional responsible person and evidence
@@ -138,8 +139,16 @@ export const NotesSection = ({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open(evidenceUrl, '_blank')}
+                onClick={() => {
+                  const fileId = getUploadedFileId(evidenceUrl);
+                  if (fileId) {
+                    void openSecureFile(fileId).catch(console.error);
+                  } else {
+                    window.open(evidenceUrl, '_blank');
+                  }
+                }}
                 className="text-emerald-600 hover:text-emerald-700"
+                data-testid="notes-evidence-view-button"
               >
                 <Eye className="h-4 w-4 mr-1" />
                 View
