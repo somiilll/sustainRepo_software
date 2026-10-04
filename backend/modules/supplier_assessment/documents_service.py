@@ -422,7 +422,7 @@ async def get_supplier_document(relationship: Dict[str, Any], requirement_id: st
 
 async def mark_supplier_document_viewed(relationship: Dict[str, Any], requirement_id: str, document_version_id: str, user_id: str) -> None:
     now = _now()
-    await db.supplier_document_views.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"$set": {"document_version_id": document_version_id, "viewed_by": user_id, "viewed_at": now, "updated_at": now}, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}}, upsert=True)
+    await db.supplier_document_views.update_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"$set": {"supplier_org_id": relationship["supplier_org_id"], "document_version_id": document_version_id, "viewed_by": user_id, "viewed_at": now, "updated_at": now}, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}}, upsert=True)
 
 
 async def _require_supplier_document_view(relationship: Dict[str, Any], requirement_id: str) -> None:

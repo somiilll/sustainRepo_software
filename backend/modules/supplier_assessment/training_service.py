@@ -217,7 +217,7 @@ async def update_progress(relationship: Dict[str, Any], assignment_id: str, perc
     requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"]},{"_id":0})
     status="completed" if percent >= requirement["completion_threshold"] else ("in_progress" if percent else "not_started")
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
-    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
+    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"supplier_org_id":relationship["supplier_org_id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
     persisted_highest_page = max(int((existing or {}).get("highest_page_index") or 0), int(highest_page_index or 0))
     if persisted_highest_page:
         progress["highest_page_index"] = persisted_highest_page
@@ -312,7 +312,7 @@ async def record_consumption_event(relationship: Dict[str, Any], assignment_id: 
         duration = manifest["duration_seconds"]
         percent = max(current_percent, round(min(max(event["position_seconds"], 0), duration) / duration * 100, 2))
     now = _now()
-    await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
+    await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
     return await update_progress(relationship, assignment_id, percent, user_id, highest_page_index)
 
 async def training_status(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:

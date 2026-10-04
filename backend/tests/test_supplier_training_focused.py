@@ -1,6 +1,7 @@
 """Focused unit tests for supplier training validation and progress/version behavior."""
 
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,6 +72,7 @@ class _Collection:
             self.docs.append(deepcopy(update.get("$set", {})))
 
     async def update_many(self, query, update):
+        modified_count = 0
         for index, doc in enumerate(self.docs):
             matches = True
             for key, value in query.items():
@@ -86,6 +88,8 @@ class _Collection:
                 next_doc = deepcopy(doc)
                 next_doc.update(update.get("$set", {}))
                 self.docs[index] = next_doc
+                modified_count += 1
+        return SimpleNamespace(modified_count=modified_count)
 
     async def insert_one(self, doc):
         self.docs.append(deepcopy(doc))
@@ -180,13 +184,15 @@ async def test_page_consumption_events_control_progress(monkeypatch):
         supplier_training_progress=[], supplier_training_consumption_events=[],
     )
     monkeypatch.setattr(training_service, "db", fake_db)
-    relationship = {"id": "rel-1"}
+    relationship = {"id": "rel-1", "supplier_org_id": "supplier-org-1"}
 
     progress = await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 1}, "supplier-user")
 
     assert progress["progress_percent"] == 50.0
     assert progress["status"] == "in_progress"
+    assert progress["supplier_org_id"] == "supplier-org-1"
     assert fake_db.supplier_training_consumption_events.docs[0]["event_type"] == "page_view"
+    assert fake_db.supplier_training_consumption_events.docs[0]["supplier_org_id"] == "supplier-org-1"
     with pytest.raises(ValueError, match="Invalid training page event"):
         await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 3}, "supplier-user")
 
@@ -233,11 +239,12 @@ async def test_update_progress_status_lifecycle_and_version_id_immutable(monkeyp
     )
     monkeypatch.setattr(training_service, "db", fake_db)
 
-    relationship = {"id": "relationship-1"}
+    relationship = {"id": "relationship-1", "supplier_org_id": "supplier-org-1"}
 
     status_zero = await training_service.update_progress(relationship, "assignment-1", 0, "supplier-user")
     assert status_zero["status"] == "not_started"
     assert status_zero["training_version_id"] == "training-version-immutable"
+    assert status_zero["supplier_org_id"] == "supplier-org-1"
 
     status_mid = await training_service.update_progress(relationship, "assignment-1", 50, "supplier-user")
     assert status_mid["status"] == "in_progress"
