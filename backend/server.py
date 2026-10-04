@@ -2360,7 +2360,14 @@ async def get_base_year_emissions_by_id(
     current_user: dict = Depends(get_current_user)
 ):
     """Get specific base year emissions record"""
-    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    query = {"id": record_id}
+    if current_user.get("role") != "super_admin":
+        organization_id = current_user.get("organization_id")
+        if not organization_id:
+            raise HTTPException(status_code=403, detail="Organization context is required")
+        query["organization_id"] = organization_id
+
+    record = await db.base_year_emissions.find_one(query, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     return record
