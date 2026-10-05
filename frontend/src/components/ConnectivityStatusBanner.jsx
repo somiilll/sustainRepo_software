@@ -1,5 +1,5 @@
 import React from 'react';
-import { CloudOff, Wifi, WifiOff } from 'lucide-react';
+import { Wifi, WifiOff } from 'lucide-react';
 import { useConnectivity } from '../contexts/ConnectivityContext';
 
 const STATUS_CONTENT = {
@@ -7,11 +7,6 @@ const STATUS_CONTENT = {
     title: 'No internet connection',
     icon: WifiOff,
     className: 'border-red-200 bg-red-50 text-red-950',
-  },
-  unavailable: {
-    title: 'SustainRepo is temporarily unavailable',
-    icon: CloudOff,
-    className: 'border-amber-200 bg-amber-50 text-amber-950',
   },
   recovered: {
     title: 'Back online',
@@ -21,8 +16,8 @@ const STATUS_CONTENT = {
 };
 
 export const ConnectivityStatusBanner = () => {
-  const { browserOnline, apiReachability, showRecovery } = useConnectivity();
-  const state = !browserOnline ? 'offline' : apiReachability === 'unreachable' ? 'unavailable' : showRecovery ? 'recovered' : null;
+  const { browserOnline, showRecovery } = useConnectivity();
+  const state = !browserOnline ? 'offline' : showRecovery ? 'recovered' : null;
   if (!state) return null;
 
   const { title, icon: Icon, className } = STATUS_CONTENT[state];

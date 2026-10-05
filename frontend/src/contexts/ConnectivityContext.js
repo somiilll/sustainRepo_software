@@ -58,9 +58,8 @@ export const ConnectivityProvider = ({ children }) => {
         return;
       }
       apiUnavailableRef.current = false;
-      recoveryPendingRef.current = false;
       setApiReachability('reachable');
-      showRecoveryNotice();
+      console.info('[Connectivity] SustainRepo readiness recovered after repeated unavailable signals.');
       return;
     }
 
@@ -81,11 +80,14 @@ export const ConnectivityProvider = ({ children }) => {
     }
 
     apiUnavailableRef.current = true;
-    recoveryPendingRef.current = true;
     clearReadinessRetry();
     clearRecoveryNotice();
     setShowRecovery(false);
     setApiReachability('unreachable');
+    console.warn('[Connectivity] SustainRepo readiness could not be confirmed after repeated failed signals.', {
+      consecutiveFailures: consecutiveFailuresRef.current,
+      browserOnline: navigator.onLine,
+    });
   }, [clearReadinessRetry, clearRecoveryNotice, scheduleReadinessRetry]);
 
   const checkApiReachability = useCallback(async () => {
