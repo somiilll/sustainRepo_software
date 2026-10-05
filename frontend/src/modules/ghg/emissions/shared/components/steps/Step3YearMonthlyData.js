@@ -68,6 +68,21 @@ const isPureUnitlessCountField = (field = {}) => (
   && !field.variable?.includes('composition')
 );
 
+const formatEvidenceSize = (bytes) => {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return null;
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getEvidenceMetadata = (evidence) => {
+  const size = formatEvidenceSize(evidence?.size || evidence?.file?.size);
+  const timestamp = evidence?.file?.lastModified || evidence?.uploaded_at || evidence?.created_at;
+  const date = timestamp ? new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+  return [size, date].filter(Boolean).join(' · ') || (evidence?.is_draft ? 'Ready to upload' : 'Attached evidence');
+};
+
 const getFieldDefaultValue = (field, selectedFuel) => {
   if (hasFieldValue(field.defaultValue)) return field.defaultValue;
   const fuelKey = FUEL_DEFAULT_VALUE_KEYS[field.variable];
@@ -221,36 +236,34 @@ const EvidenceIconCell = ({
               )}
             </label>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
+          <TooltipContent side="bottom" align="end" className="w-80 rounded-lg border border-stone-200 bg-white p-0 text-stone-900 shadow-xl" data-testid={`month-${monthKey}-evidence-preview`}>
             {count === 0 ? (
-              <span className="text-xs">Upload evidence (PDF, Excel, Word)</span>
+              <div className="px-3 py-2.5 text-xs text-stone-600">Upload evidence (PDF, Excel, Word)</div>
             ) : (
-              <div className="space-y-1.5 text-xs">
-                <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
-                {evidences.map((evidence, index) => {
+              <div>
+                <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2.5">
+                  <span className="text-sm font-semibold text-stone-900">Evidence</span>
+                  <span className="text-xs text-stone-500" data-testid={`month-${monthKey}-evidence-count`}>{count} file{count > 1 ? 's' : ''} attached</span>
+                </div>
+                <div className="max-h-52 overflow-y-auto p-1.5">
+                  {evidences.map((evidence, index) => {
                   const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                   const fileId = fileIdMatch ? fileIdMatch[1] : null;
                   const viewUrl = fileId ? '#' : evidence.url;
                   const canPreview = isPreviewableFile(evidence);
                   return (
-                    <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
-                      <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      {canPreview ? (
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
-                          {evidence.filename}
-                        </a>
-                      ) : (
-                        <button type="button" onClick={() => { if (fileId) void downloadSecureFile(fileId).catch(() => toast.error('Unable to download evidence file')); }} className="min-w-0 flex-1 truncate text-left text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={`Download ${evidence.filename}`} data-testid={`month-${monthKey}-evidence-download-${index}`}>
-                          {evidence.filename}
-                        </button>
-                      )}
-                      <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>
-                        <X className="h-3 w-3" />
-                      </button>
+                    <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-stone-50" data-testid={`month-${monthKey}-evidence-preview-item-${index}`}>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-700"><FileText className="h-4 w-4" aria-hidden="true" /></div>
+                      <div className="min-w-0 flex-1">
+                        {canPreview ? <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="block truncate text-sm font-medium text-stone-900 hover:text-emerald-800" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>{evidence.filename}</a> : <button type="button" onClick={() => { if (fileId) void downloadSecureFile(fileId).catch(() => toast.error('Unable to download evidence file')); }} className="block w-full truncate text-left text-sm font-medium text-stone-900 hover:text-emerald-800" title={`Download ${evidence.filename}`} data-testid={`month-${monthKey}-evidence-download-${index}`}>{evidence.filename}</button>}
+                        <p className="mt-0.5 text-xs text-stone-500" data-testid={`month-${monthKey}-evidence-metadata-${index}`}>{getEvidenceMetadata(evidence)}</p>
+                      </div>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); removeEvidence(monthKey, index); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-stone-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Remove" aria-label={`Remove ${evidence.filename || 'evidence'}`} data-testid={`month-${monthKey}-evidence-remove-${index}`}><X className="h-4 w-4" /></button>
                     </div>
                   );
-                })}
-                <span className="text-stone-500">Click icon to add more</span>
+                  })}
+                </div>
+                <div className="border-t border-stone-100 px-3 py-2 text-xs text-stone-500">Click the evidence icon to add more files.</div>
               </div>
             )}
           </TooltipContent>
