@@ -3982,27 +3982,29 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         </div>
 
         <TabsContent value={activeScope} className="mt-6">
-          {/* Enterprise Data Grid Layout */}
-          <EmissionDataGrid
-            ref={emissionDataGridRef}
-            activeScope={activeScope}
-            onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
-            filteredEmissions={filteredEmissions}
-            facilities={facilities}
-            filteredScope3Activities={filteredScope3Activities}
-            getMethodLabel={getMethodLabel}
-            isRegularUser={isRegularUser}
-            hideHistoryActions={isSupplierUser}
-            handleEdit={handleEdit}
-            fetchHistory={fetchHistory}
-            openDeleteConfirm={openDeleteConfirm}
-            onBulkDelete={openBulkDeleteConfirm}
-            showFilters={showFilters}
-            filterFacility={filterFacility}
-            filterDateRange={filterDateRange}
-            filterCategory={filterCategory}
-            filterFrequency={filterFrequency}
-          />
+          <div key={activeScope} className="animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none" data-testid={`emissions-scope-content-${activeScope}`}>
+            {/* Enterprise Data Grid Layout */}
+            <EmissionDataGrid
+              ref={emissionDataGridRef}
+              activeScope={activeScope}
+              onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
+              filteredEmissions={filteredEmissions}
+              facilities={facilities}
+              filteredScope3Activities={filteredScope3Activities}
+              getMethodLabel={getMethodLabel}
+              isRegularUser={isRegularUser}
+              hideHistoryActions={isSupplierUser}
+              handleEdit={handleEdit}
+              fetchHistory={fetchHistory}
+              openDeleteConfirm={openDeleteConfirm}
+              onBulkDelete={openBulkDeleteConfirm}
+              showFilters={showFilters}
+              filterFacility={filterFacility}
+              filterDateRange={filterDateRange}
+              filterCategory={filterCategory}
+              filterFrequency={filterFrequency}
+            />
+          </div>
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

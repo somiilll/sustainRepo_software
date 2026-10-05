@@ -475,7 +475,7 @@ const EmissionDataGrid = forwardRef(({
         </div>
       )}
       
-      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
+      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(72vh,48rem)] overflow-x-hidden overflow-y-auto lg:h-[min(78vh,58rem)]" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
       <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
