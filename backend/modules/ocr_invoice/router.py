@@ -857,9 +857,14 @@ async def _legacy_upload_invoices(
     # Return response (exclude _id fields)
     return {
         "upload_id": upload_id,
+        "pipeline": "legacy_fuel_taxonomy",
         "file_count": len(upload_record["files"]),
         "total_line_items": len(all_line_items),
         "needs_review_count": upload_record["needs_review_count"],
+        "files": [
+            {key: value for key, value in file_info.items() if key not in {"temp_key", "temp_url"}}
+            for file_info in upload_record["files"]
+        ],
         "line_items": [
             {k: v for k, v in item.items() if k != "_id"}
             for item in all_line_items
@@ -978,16 +983,18 @@ async def list_upload_history(
             is_final = file.get("resolution_status") == "resolved" or (line_item_count > 0 and total_resolved >= line_item_count)
             if raw_status == "failed" or upload.get("status") == "failed":
                 file_status = "Error"
-            elif raw_status in {"cancelled", "cancel_requested"} or upload.get("status") == "cleared":
-                file_status = "Event Cancelled"
             elif saved_count and rejected_count:
                 file_status = "Partially Saved"
             elif is_final and saved_count:
                 file_status = "Saved"
-            elif is_final and rejected_count:
+            elif rejected_count:
                 file_status = "Rejected All"
             elif saved_count or rejected_count:
                 file_status = "Partially Saved"
+            elif raw_status in {"cancelled", "cancel_requested"}:
+                file_status = "Event Cancelled"
+            elif upload.get("status") == "cleared":
+                file_status = "Rejected All"
             elif raw_status in {"queued", "processing", "awaiting_facility_assignment"}:
                 file_status = "Processing"
             else:
@@ -1000,7 +1007,7 @@ async def list_upload_history(
                 "status": file_status,
                 "mode": upload.get("mode"),
                 "rows": [
-                    *[row for row in file.get("history_rows", []) if isinstance(row, dict) and row.get("scope") in enabled_scopes],
+                    *[row for row in file.get("history_rows", []) if isinstance(row, dict)],
                     *active_rows_by_file.get(f"{upload.get('id')}-{file.get('file_index', 0)}", []),
                 ],
             })
@@ -1362,8 +1369,11 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
         *({"scope": "water", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in WATER_CATEGORY_NAMES.items()),
     ]
     categories = [category for category in categories if category["scope"] in scopes]
+    legacy_pipeline = "scope3" not in scopes
     return {
         "enabled_scopes": scopes,
+        "pipeline": "legacy_fuel_taxonomy" if legacy_pipeline else "queued_multiscope",
+        "supports_extraction_modes": not legacy_pipeline,
         "modes": [
             {
                 "key": mode.key,
@@ -1372,6 +1382,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
                 "reasoning_model": mode.reasoning_model,
             }
             for mode in MODES.values()
+            if not legacy_pipeline
         ],
         "categories": categories,
         "facilities": facilities,
@@ -2378,9 +2389,10 @@ async def delete_upload(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     
-    # Get all line items to clean up temp files
+    # Resolve every remaining workspace row as rejected before cleanup so saved
+    # and rejected audit outcomes remain visible after source deletion.
     line_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id}
+        {"upload_id": upload_id, "organization_id": org_id}
     ).to_list(1000)
     
     # Delete temp files from R2
@@ -2406,14 +2418,35 @@ async def delete_upload(
     if cleanup_failed:
         raise HTTPException(status_code=502, detail="Could not remove all temporary files from storage. The upload remains available for retry.")
     
-    # Delete line items
-    await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id})
+    files_by_index = {file.get("file_index"): dict(file) for file in upload.get("files", [])}
+    for item in line_items:
+        file_info = files_by_index.get(item.get("file_index"))
+        if not file_info:
+            continue
+        file_info["resolved_count"] = int(file_info.get("resolved_count") or 0) + 1
+        file_info["rejected_count"] = int(file_info.get("rejected_count") or 0) + 1
+        file_info.setdefault("history_rows", []).append(_history_line_item(item, "rejected"))
+        if int(file_info.get("resolved_count") or 0) >= int(file_info.get("line_item_count") or 0):
+            file_info["resolution_status"] = "resolved"
+
+    # Keep the file-level audit trail, but remove temporary storage pointers
+    # before replacing the complete embedded file list. MongoDB rejects an
+    # update that sets `files` and unsets `files.$[]` in the same operation.
+    cleared_files = []
+    for file_info in files_by_index.values():
+        cleared_file = dict(file_info)
+        cleared_file.pop("temp_key", None)
+        cleared_file.pop("temp_url", None)
+        cleared_files.append(cleared_file)
+
+    # Delete only the temporary review rows after their terminal outcomes are recorded.
+    await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id, "organization_id": org_id})
     
     # Retain safe file-audit metadata for OCR History after workspace cleanup.
     now = datetime.now(timezone.utc).isoformat()
     await db[OCR_UPLOADS_COLLECTION].update_one(
         {"id": upload_id, "organization_id": org_id},
-        {"$set": {"status": "cleared", "cleared_at": now, "updated_at": now}, "$unset": {"files.$[].temp_key": "", "files.$[].temp_url": ""}},
+        {"$set": {"status": "cleared", "files": cleared_files, "cleared_at": now, "updated_at": now}},
     )
     
     return {

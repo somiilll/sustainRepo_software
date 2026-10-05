@@ -130,6 +130,7 @@ export default function OCRInvoice() {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const legacyOcr = configuration.pipeline === 'legacy_fuel_taxonomy';
 
   useEffect(() => {
     let mounted = true;
@@ -269,6 +270,25 @@ export default function OCRInvoice() {
     let staged = false;
     try {
       const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
+      if (data.pipeline === 'legacy_fuel_taxonomy') {
+        const legacyFiles = (data.files || []).map((file) => ({ ...file, upload_id: data.upload_id }));
+        setUpload({ upload_ids: [data.upload_id], files: legacyFiles });
+        setItems(data.line_items || []);
+        setFileQueue(legacyFiles.map((file) => ({
+          id: `${data.upload_id}-${file.file_index}`,
+          uploadId: data.upload_id,
+          fileIndex: file.file_index,
+          filename: file.filename,
+          status: file.status || 'completed',
+          uploadStatus: 'completed',
+        })));
+        setSelectedFile(null);
+        setSelectedItem(null);
+        localStorage.setItem('ocr-active-upload-ids', JSON.stringify([data.upload_id]));
+        toast.success(`${data.file_count} Scope 1/2 source document${data.file_count === 1 ? '' : 's'} extracted.`);
+        staged = true;
+        return;
+      }
       if (!data.files?.length) {
         const message = data.errors?.[0]?.error || 'No invoice could be staged securely.';
         setStagedFileErrors(fileErrorMap(files, data.errors, message));
@@ -822,7 +842,7 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
           <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
-          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
+          {!legacyOcr && <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />}
           {upload && <>
             <Button type="button" variant="outline" onClick={() => setClearWorkspaceConfirmOpen(true)} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
           </>}
@@ -842,7 +862,7 @@ export default function OCRInvoice() {
 
       {!upload ? (
         <div className="w-full">
-          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
+          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} legacyMode={legacyOcr} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -921,7 +941,7 @@ export default function OCRInvoice() {
       </AlertDialog>
       <AlertDialog open={clearWorkspaceConfirmOpen} onOpenChange={setClearWorkspaceConfirmOpen}>
         <AlertDialogContent data-testid="ocr-clear-workspace-confirmation-dialog">
-          <AlertDialogHeader><AlertDialogTitle>Clear OCR workspace?</AlertDialogTitle><AlertDialogDescription>This removes the current extraction workspace from this session. Saved OCR history remains available.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Clear OCR workspace?</AlertDialogTitle><AlertDialogDescription>Saved rows remain saved. Any unresolved rows are recorded as rejected before the temporary workspace is removed.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel data-testid="ocr-cancel-clear-workspace-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { setClearWorkspaceConfirmOpen(false); clearUpload(); }} className="bg-rose-700 text-white hover:bg-rose-800" data-testid="ocr-confirm-clear-workspace-button">Clear workspace</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

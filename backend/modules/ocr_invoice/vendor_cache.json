@@ -43,5 +43,10 @@
         "category": "Mobile Combustion",
         "scope": "Scope 1",
         "mapped_fuel": "Motor Gasoline"
+    },
+    "Ultra Corpotech Pvt. Ltd.::diesel": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Gas/Diesel Oil"
     }
 }
