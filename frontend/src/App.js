@@ -93,6 +93,8 @@ import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
 import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentPeriodContext';
+import { ConnectivityProvider } from './contexts/ConnectivityContext';
+import { ConnectivityStatusBanner } from './components/ConnectivityStatusBanner';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -418,16 +420,19 @@ function App() {
   return (
     <AppErrorBoundary>
     <AuthProvider>
-      <OrganizationProvider>
-        <OCRProvider>
-          <BrowserRouter>
-            <div className="App">
-              <OrganizationErrorGate />
-              <Toaster position="top-right" />
-            </div>
-          </BrowserRouter>
-        </OCRProvider>
-      </OrganizationProvider>
+      <ConnectivityProvider>
+        <OrganizationProvider>
+          <OCRProvider>
+            <BrowserRouter>
+              <div className="App">
+                <ConnectivityStatusBanner />
+                <OrganizationErrorGate />
+                <Toaster position="top-right" />
+              </div>
+            </BrowserRouter>
+          </OCRProvider>
+        </OrganizationProvider>
+      </ConnectivityProvider>
     </AuthProvider>
     </AppErrorBoundary>
   );
