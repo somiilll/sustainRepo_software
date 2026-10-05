@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -3963,12 +3964,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 key={s.code}
                 value={s.code}
                 disabled={isDisabled}
-                className={`rounded-full px-4 transition-[background-color,color,box-shadow] duration-200 ${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:bg-emerald-50 hover:text-emerald-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-900'}`}
+                className={`relative overflow-hidden rounded-full px-4 transition-colors duration-200 ${isDisabled ? 'cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none'}`}
                 data-testid={`scope-tab-${s.code}`}
               >
-                {s.name}
+                {activeScope === s.code && !isDisabled && <motion.span layoutId="ghg-scope-active-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10">{s.name}</span>
                 {isDisabled && disabledReason && (
-                  <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                  <span className="absolute -top-2 -right-2 z-20 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                     {disabledReason}
                   </span>
                 )}
