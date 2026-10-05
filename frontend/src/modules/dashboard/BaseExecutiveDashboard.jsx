@@ -210,6 +210,8 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         esgSection={data.esgSection}
         setEsgSection={data.setEsgSection}
         showDashboardToggle={data.showDashboardToggle}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         showExport
         exportButton={
           <DashboardExportButton
