@@ -10,6 +10,7 @@ from modules.organizations.contracts import OrganizationCreate, OrganizationResp
 from shared.database.mongo import db
 from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
 from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config, resolve_entitlements
+from modules.organizations.presentation import enrich_organization_response
 from modules.sustainability_config.service import resolve_organization_settings
 
 router = APIRouter()
@@ -144,15 +145,7 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
         org["org_type"] = "customer"
     if "timezone" not in org or not org.get("timezone"):
         org["timezone"] = "Asia/Kolkata"  # IST
-    detailed_entitlements = await resolve_entitlement_config(current_user["organization_id"], migrate=True)
-    entitlements = await resolve_entitlements(current_user["organization_id"], migrate=True)
-    permissions = entitlement_access_map(detailed_entitlements)
-    org["enabled_access"] = [
-        *(["scope1_2"] if permissions.get("environment.ghg.scope_1_2") else []),
-        *(["scope3", "scope1_2_3"] if permissions.get("environment.ghg.scope_3") else []),
-    ]
-    org["entitlements"] = entitlements
-    org["permissions"] = permissions
+    org = await enrich_organization_response(org)
     
     return OrganizationResponse(**org)
 
@@ -198,7 +191,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
         new_values=update_dict,
     )
 
-    return OrganizationResponse(**updated)
+    return OrganizationResponse(**(await enrich_organization_response(updated)))
 
 
 def _normalize_org_year(reporting_year: str) -> tuple:

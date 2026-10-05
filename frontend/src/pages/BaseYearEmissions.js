@@ -90,6 +90,23 @@ const getScope12LedgerTotals = (emissions = []) => {
   return { gross, net: gross + sinks, hasSinks: sinks !== 0 };
 };
 
+const parseCanonicalSinkDate = (sink, fiscalStartMonth = 4) => {
+  const period = sink?.reporting_period || '';
+  const monthly = period.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (monthly) return { year: Number(monthly[1]), month: Number(monthly[2]) - 1 };
+
+  const storedStart = String(sink?.start_date || '').match(/^(\d{4})-(0[1-9]|1[0-2])/);
+  if (storedStart) return { year: Number(storedStart[1]), month: Number(storedStart[2]) - 1 };
+
+  const calendar = period.match(/^CY(\d{4})$/);
+  if (calendar) return { year: Number(calendar[1]), month: 0 };
+
+  const financial = period.match(/^FY\s+(\d{4})-(\d{4})$/);
+  if (financial) return { year: Number(financial[1]), month: Math.max(0, Number(fiscalStartMonth || 4) - 1) };
+
+  return null;
+};
+
 function Scope12LedgerTotal({ emissions, testId }) {
   const { gross, net, hasSinks } = getScope12LedgerTotals(emissions);
   return <p className={`text-xs font-semibold ${hasSinks ? 'text-emerald-800' : 'text-blue-900'}`} aria-label={hasSinks ? 'Net emissions' : 'Gross emissions'} data-testid={testId}>{formatLedgerTco2e(hasSinks ? net : gross)}</p>;
@@ -556,17 +573,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         setSinksExistInOldestYear(true);
         
         // Helper to parse sink date
-        const parseSinkDate = (sink) => {
-          if (sink.reporting_period) {
-            const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-            if (match) return `${match[1]}`;
-          }
-          if (sink.start_date) {
-            const match = sink.start_date.match(/(\d{4})/);
-            if (match) return match[1];
-          }
-          return sink.reporting_year || 'Unknown';
-        };
+        const parseSinkDate = (sink) => String(parseCanonicalSinkDate(sink, organization?.financial_year_start_month)?.year || 'Unknown');
         
         // Group sinks by description/type and show unique ones for input
         const uniqueSinkTypes = [];
@@ -720,17 +727,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           setSinksExistInOldestYear(true);
           
           // Helper to parse sink date
-          const parseSinkDate = (sink) => {
-            if (sink.reporting_period) {
-              const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-              if (match) return `${match[1]}`;
-            }
-            if (sink.start_date) {
-              const match = sink.start_date.match(/(\d{4})/);
-              if (match) return match[1];
-            }
-            return sink.reporting_year || 'Unknown';
-          };
+          const parseSinkDate = (sink) => String(parseCanonicalSinkDate(sink, organization?.financial_year_start_month)?.year || 'Unknown');
           
           // Load existing sinks data or create inputs
           const existingSinks = record.sinks_data || [];
@@ -1610,27 +1607,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     console.log('[getSinksForBaseYear] targetYear:', targetYear);
     
     // Helper to parse sink date and get month/year
-    const parseSinkDate = (sink) => {
-      // Try reporting_period first (format: "2025-01")
-      if (sink.reporting_period) {
-        const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-        if (match) {
-          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 }; // 0-indexed month
-        }
-      }
-      // Try start_date (format: "2025-01-01")
-      if (sink.start_date) {
-        const match = sink.start_date.match(/(\d{4})-(\d{2})/);
-        if (match) {
-          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 };
-        }
-      }
-      // Fallback to reporting_year/reporting_month if available
-      if (sink.reporting_year) {
-        return { year: parseInt(sink.reporting_year), month: sink.reporting_month ?? 0 };
-      }
-      return null;
-    };
+    const parseSinkDate = (sink) => parseCanonicalSinkDate(sink, organization?.financial_year_start_month);
     
     // Helper to check if a sink is within the year range (same logic as emissions)
     const isInYearRange = (sink) => {
