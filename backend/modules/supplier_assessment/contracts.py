@@ -498,6 +498,19 @@ class SupplierGhgSubmissionPeriodSubmit(SupplierDataVerificationSubmit):
     """Required acknowledgement for one supplier GHG reporting period."""
 
 
+class SupplierGhgBulkSubmissionPeriodsSubmit(SupplierDataVerificationSubmit):
+    """Required acknowledgement for a selected set of supplier GHG reporting periods."""
+    period_keys: List[str] = Field(min_length=1, max_length=24)
+
+    @model_validator(mode="after")
+    def require_unique_periods(self):
+        normalized = [period_key.strip() for period_key in self.period_keys if period_key.strip()]
+        if not normalized or len(normalized) != len(set(normalized)):
+            raise ValueError("Choose one or more unique reporting periods")
+        self.period_keys = normalized
+        return self
+
+
 class SupplierGhgUnlockRequest(BaseModel):
     reason: Optional[str] = Field(default=None, max_length=2000)
     supplier_instructions: Optional[str] = Field(default=None, max_length=4000)

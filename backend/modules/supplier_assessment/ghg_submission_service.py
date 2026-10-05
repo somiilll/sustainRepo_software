@@ -489,6 +489,39 @@ async def submit_supplier_ghg_period(
     return {key: value for key, value in document.items() if key != "history"}
 
 
+async def submit_supplier_ghg_periods(
+    relationship: Dict[str, Any], period_keys: List[str], submitted_by: str, data_verified: bool,
+) -> List[Dict[str, Any]]:
+    """Validate a supplier's chosen reporting periods before locking each one."""
+    if not data_verified:
+        raise ValueError("Confirm that the submitted data has been reviewed and verified")
+    await ensure_ghg_submission_indexes()
+    await _hydrate_reporting_year_start(relationship)
+    definitions = {period["period_key"]: period for period in _submission_period_definitions(relationship)}
+    selected_periods = []
+    for period_key in period_keys:
+        period = definitions.get(period_key)
+        if not period:
+            raise ValueError("GHG submission period is not part of this supplier assignment")
+        existing = await db.supplier_ghg_submissions.find_one(
+            {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0, "status": 1},
+        )
+        if existing and existing.get("status") == "submitted":
+            raise ValueError(f"{period['label']} is already locked")
+        entries = await db.emission_records.find(
+            {**_period_entries_query(relationship, period), "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}]},
+            {"_id": 0, "id": 1},
+        ).to_list(1)
+        if not entries:
+            raise ValueError(f"Add at least one GHG entry in {period['label']} before submitting")
+        selected_periods.append(period_key)
+
+    return [
+        await submit_supplier_ghg_period(relationship, period_key, submitted_by, data_verified=True)
+        for period_key in selected_periods
+    ]
+
+
 async def unlock_supplier_ghg_period(
     relationship: Dict[str, Any], period_key: str, unlocked_by: str, reason: Optional[str] = None, supplier_instructions: Optional[str] = None,
 ) -> Dict[str, Any]:
