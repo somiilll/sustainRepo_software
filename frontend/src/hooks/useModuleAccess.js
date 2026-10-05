@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { isCoreNavigationKey } from '../config/moduleNavigationAccess';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -49,6 +50,9 @@ export function useModuleAccess() {
   const hasAccess = useCallback((key) => {
     // Super admins see everything
     if (user?.role === 'super_admin') return true;
+    // Core navigation is role-controlled by the sidebar and route/API guards,
+    // not sold or toggled as an organization entitlement.
+    if (isCoreNavigationKey(key)) return true;
     if (loadError) return false;
     if (!moduleAccess || Object.keys(moduleAccess).length === 0) return false;
     // Exact key match

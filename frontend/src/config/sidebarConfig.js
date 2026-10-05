@@ -8,18 +8,21 @@
 const sidebarConfig = [
   {
     key: 'dashboard',
+    accessScope: 'core',
     label: 'Dashboard',
     icon: 'LayoutDashboard',
     path: '/dashboard',
   },
   {
     key: 'organization',
+    accessScope: 'core',
     label: 'Organization',
     icon: 'Building2',
     path: '/organization',
   },
   {
     key: 'facilities',
+    accessScope: 'core',
     label: 'Facilities',
     icon: 'Factory',
     path: '/facilities',
@@ -171,6 +174,7 @@ const sidebarConfig = [
   },
   {
     key: 'users',
+    accessScope: 'core',
     label: 'Users',
     icon: 'Users',
     path: '/users',
@@ -185,6 +189,7 @@ const sidebarConfig = [
   },
   {
     key: 'profile',
+    accessScope: 'core',
     label: 'Profile',
     icon: 'User',
     path: '/profile',
