@@ -119,7 +119,7 @@ export const AnalyticsChartCard = ({
     <ResponsiveContainer width="100%" height="100%">
       <Chart
         data={data}
-        margin={{ top: 10, right: usesDualAxis ? 16 : 10, left: usesDualAxis ? 12 : yAxisLabel ? 0 : -10, bottom: usesDualAxis ? 12 : 0 }}
+        margin={{ top: 10, right: 16, left: 12, bottom: usesDualAxis ? 12 : 0 }}
         onClick={(state) =>
           onDrilldown?.(state?.activePayload?.[0]?.payload, title)
         }
@@ -161,7 +161,7 @@ export const AnalyticsChartCard = ({
           }}
         />
 
-        <Legend iconType="circle" verticalAlign="bottom" align="center" wrapperStyle={usesDualAxis ? { paddingTop: 8, paddingLeft: 12, paddingRight: 12 } : undefined} />
+        <Legend iconType="circle" verticalAlign="bottom" align="center" wrapperStyle={{ paddingLeft: 12, paddingRight: 12 }} />
 
         {renderSeries(chartType, series, stacked)}
       </Chart>
