@@ -569,7 +569,7 @@ const EmissionDataGrid = forwardRef(({
       </div>
 
       {/* Data Rows */}
-      <div className="divide-y divide-stone-100">
+      <div>
         {sortedEmissions.map((emission) => {
           const facility = facilities.find(f => f.id === emission.facility_id);
           const dfv = emission.dynamic_field_values || {};
@@ -628,7 +628,7 @@ const EmissionDataGrid = forwardRef(({
           return (
             <div
               key={emission.id}
-              className={`min-w-max px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              className={`min-w-max border-b border-stone-200 px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
               onClick={() => handleRowSelection(emission.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
