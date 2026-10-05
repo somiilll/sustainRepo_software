@@ -3,6 +3,9 @@ const safelySerialize = (value) => JSON.stringify(value).replace(/</g, '\\u003c'
 export const buildPcfWorkspaceDocument = (source, context) => {
   const bridge = `<script>
 window.__SUSTAINREPO_PCF_CONTEXT__ = ${safelySerialize(context)};
+const pcfHostStyle = document.createElement('style');
+pcfHostStyle.textContent = 'body > header > div > div:first-child { display: none !important; } body > header > div { justify-content: flex-end !important; }';
+document.head.appendChild(pcfHostStyle);
 (() => {
   const originalFetch = window.fetch.bind(window);
   let context = window.__SUSTAINREPO_PCF_CONTEXT__;
@@ -17,7 +20,9 @@ window.__SUSTAINREPO_PCF_CONTEXT__ = ${safelySerialize(context)};
   const applyContext = () => {
     const country = context?.facility?.country || context?.organization?.country;
     const countryField = document.getElementById('prodCountry');
+    const periodField = document.getElementById('prodPeriod');
     if (country && countryField) countryField.value = country;
+    if (context?.reportingPeriod && periodField) periodField.value = context.reportingPeriod.replace(/^FY\s*/, '');
   };
   document.addEventListener('DOMContentLoaded', applyContext, { once: true });
   window.addEventListener('message', (event) => {
