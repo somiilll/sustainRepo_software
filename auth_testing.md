@@ -38,7 +38,7 @@
 
 1. Submit an invalid email/password pair to `POST /api/auth/login`.
    - Expect HTTP 401 with `error_code: INVALID_CREDENTIALS` and the generic message `Invalid email or password.`
-   - Confirm the browser does not send a refresh retry for the failed login request.
+   - Confirm the browser does not send a refresh retry for the failed login request and the login toast preserves `Invalid email or password.` rather than substituting a session-expired message.
 2. Sign in using the current active account listed in `/app/memory/test_credentials.md`.
    - Expect HTTP 200, an access token, and a refresh cookie.
 3. Request `POST /api/auth/refresh` with no refresh cookie.

@@ -33,6 +33,9 @@ export const getSafeUserMessage = (message, fallbackMessage = '') => safeText(me
 export const getUserFriendlyError = (error, fallbackMessage = '', { preferFallback = false } = {}) => {
   if (!error?.response) return 'Unable to connect. Please check your connection and try again.';
   const { status, data } = error.response;
+  if (data?.error_code === 'INVALID_CREDENTIALS') {
+    return safeText(data?.message) || 'Invalid email or password.';
+  }
   if ([401, 403, 422, 429].includes(status)) return STATUS_MESSAGES[status];
   if (preferFallback && fallbackMessage) return fallbackMessage;
   const serverMessage = safeText(data?.message) || detailMessage(data?.detail);
