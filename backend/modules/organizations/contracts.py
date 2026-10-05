@@ -25,7 +25,7 @@ class OrganizationCreate(BaseModel):
     reporting_frequency: Optional[str] = "yearly"
     reporting_year_type: Optional[str] = None
     financial_year_start_month: Optional[int] = None
-    org_boundaries_approach: Optional[str] = None
+    org_boundaries_approach: Optional[str] = "control"
     org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
     equity_share_reported_data_type: Optional[str] = None

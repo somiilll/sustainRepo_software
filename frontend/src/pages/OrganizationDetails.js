@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -116,7 +117,7 @@ export default function OrganizationDetails() {
     mission: '',
     vision: '',
     process_description: '',
-    org_boundaries_approach: '',
+    org_boundaries_approach: 'control',
     org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
     equity_share_reported_data_type: '',  // "org_share" or "total_facility"
@@ -153,14 +154,8 @@ export default function OrganizationDetails() {
     if (!data.country || data.country.trim() === '') return false;
     if (!data.pincode || data.pincode.trim() === '') return false;
     if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
-    if (!data.org_boundaries_approach || data.org_boundaries_approach.trim() === '') return false;
     if (!data.person_responsible || data.person_responsible.trim() === '') return false;
     if (!data.reporting_year_type) return false;
-    
-    // If control approach selected, must specify at least one control type
-    if (data.org_boundaries_approach === 'control' && (!data.control_types || data.control_types.length === 0)) {
-      return false;
-    }
     
     return true;
   }, []);
@@ -293,7 +288,7 @@ export default function OrganizationDetails() {
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
-        org_boundaries_approach: response.data.org_boundaries_approach || '',
+        org_boundaries_approach: response.data.org_boundaries_approach || 'control',
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
         equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
@@ -472,21 +467,9 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: Organizational Boundary is mandatory
-    if (!formData.org_boundaries_approach || formData.org_boundaries_approach.trim() === '') {
-      toast.error('Organizational Boundary Approach is mandatory');
-      return;
-    }
-    
     // Validation: Person Responsible is mandatory
     if (!formData.person_responsible || formData.person_responsible.trim() === '') {
       toast.error('Person Responsible is mandatory');
-      return;
-    }
-    
-    // Validation: If control approach selected, must specify at least one control type
-    if (formData.org_boundaries_approach === 'control' && (!formData.control_types || formData.control_types.length === 0)) {
-      toast.error('Please select at least one control type (Operational or Financial)');
       return;
     }
     
@@ -658,38 +641,42 @@ export default function OrganizationDetails() {
 
       {/* Framework Tabs - with increased top spacing */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto max-w-full justify-start overflow-x-auto bg-stone-100 p-1 rounded-lg">
+        <TabsList className="relative flex h-auto w-full max-w-full justify-start overflow-hidden rounded-full bg-stone-100 p-1 sm:w-auto sm:overflow-x-auto">
           <TabsTrigger 
             value="basic" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
             data-testid="organization-tab-basic"
           >
-            Basic Details
+            {activeTab === 'basic' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+            <span className="relative z-10 whitespace-nowrap">Basic Details</span>
           </TabsTrigger>
           {showGhgDetails && (
             <TabsTrigger
               value="ghg"
-              className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+              className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
               data-testid="organization-tab-ghg"
             >
-              GHG Details
+              {activeTab === 'ghg' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+              <span className="relative z-10 whitespace-nowrap">GHG Details</span>
             </TabsTrigger>
           )}
           {showOperationalData && (
             <>
               <TabsTrigger
                 value="production"
-                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
                 data-testid="organization-tab-production"
               >
-                Production Data
+                {activeTab === 'production' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Production Data</span>
               </TabsTrigger>
               <TabsTrigger
                 value="revenue"
-                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
                 data-testid="organization-tab-revenue"
               >
-                Revenue Data
+                {activeTab === 'revenue' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Revenue Data</span>
               </TabsTrigger>
             </>
           )}
@@ -897,7 +884,7 @@ export default function OrganizationDetails() {
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-text-muted text-sm font-normal">(Optional)</span></Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -932,7 +919,7 @@ export default function OrganizationDetails() {
                 {/* Sub-options for Control Approach - Now allows multiple selection */}
                 {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both') && (
                   <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
-                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-red-500">*</span></Label>
+                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-text-muted font-normal">(Optional)</span></Label>
                     <p className="text-xs text-text-muted mb-2">You can select one or both options</p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -984,9 +971,6 @@ export default function OrganizationDetails() {
                         </label>
                       </div>
                     </div>
-                    {(formData.control_types?.length === 0 || !formData.control_types) && formData.org_boundaries_approach?.startsWith('control') && (
-                      <p className="text-xs text-amber-600 mt-2">Please select at least one control type</p>
-                    )}
                   </div>
                 )}
                 
