@@ -16,6 +16,7 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
+import { SecureFileImage } from '../components/SecureFileImage';
 import {
   createDraftEvidence,
   deleteEvidenceFiles,
@@ -51,7 +52,6 @@ export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
@@ -101,13 +101,6 @@ export default function OrganizationDetails() {
     setFormData({ ...formData, pincode: cleaned });
     if (cleaned) validatePincode(cleaned);
     else setPincodeError('');
-  };
-
-  // Helper to get full logo URL
-  const getFullLogoUrl = (logoPath) => {
-    if (!logoPath) return null;
-    if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
-    return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
   };
 
   const [formData, setFormData] = useState({
@@ -284,7 +277,7 @@ export default function OrganizationDetails() {
         }
       }
       
-      // Keep logo URL as stored in DB (relative path) - use getFullLogoUrl() for display only
+      // Keep the protected file route; SecureFileImage resolves it through an authenticated request.
       const logoUrl = response.data.logo || '';
       
       setFormData({
@@ -376,7 +369,6 @@ export default function OrganizationDetails() {
     try {
       revokeDraftEvidence(pendingLogo);
       setPendingLogo(createDraftEvidence(file, { type: 'logo' }));
-      setLogoError(false);
       toast.success('Logo uploaded');
     } catch (error) {
       toast.error(getUploadErrorMessage(error, file));
@@ -627,7 +619,6 @@ export default function OrganizationDetails() {
                 toast.error('Your subscription has expired. Please contact your administrator to renew.');
                 return;
               }
-              setLogoError(false); // Reset logo error when entering edit mode
               setActiveTab('basic');
               setEditing(true);
             }} 
@@ -647,18 +638,9 @@ export default function OrganizationDetails() {
           <div className="p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-              {organization?.logo && !logoError ? (
-                <img
-                  src={getFullLogoUrl(organization.logo)}
-                  alt={organization.name}
-                  className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm"
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50">
+              <SecureFileImage source={organization?.logo} alt={`${organization?.name || 'Organization'} logo`} className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm" testId="organization-summary-logo" fallback={<div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50" data-testid="organization-summary-logo-fallback">
                   <Building className="h-10 w-10 text-primary" />
-                </div>
-              )}
+                </div>} />
               <div className="min-w-0 flex-1 self-center">
                 <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
                   {organization?.name}
@@ -726,19 +708,9 @@ export default function OrganizationDetails() {
               <div className="space-y-2">
                 <Label>Logo (Upload)</Label>
                 <div className="flex items-center gap-4">
-                  {(pendingLogo?.preview_url || formData.logo) && !logoError ? (
-                    <img 
-                      src={pendingLogo?.preview_url || getFullLogoUrl(formData.logo)} 
-                      alt="Logo preview" 
-                      className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
-                      onError={() => setLogoError(true)}
-                      onLoad={() => setLogoError(false)}
-                    />
-                  ) : (
-                    <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                  <SecureFileImage source={pendingLogo?.preview_url || formData.logo} alt="Logo preview" className="w-16 h-16 object-contain border border-stone-200 rounded-lg" testId="organization-logo-preview" fallback={<div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100" data-testid="organization-logo-preview-fallback">
                       <ImageOff className="w-6 h-6 text-stone-400" />
-                    </div>
-                  )}
+                    </div>} />
                   <div className="flex-1">
                     <input
                       id="logo-upload"
