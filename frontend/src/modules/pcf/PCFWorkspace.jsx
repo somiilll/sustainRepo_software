@@ -59,10 +59,10 @@ export const PCFWorkspace = () => {
   if (error) return <main className="mx-auto max-w-2xl px-4 py-12" data-testid="pcf-workspace-error"><p className="text-sm text-red-700" role="alert" data-testid="pcf-workspace-error-message">{error}</p><Button className="mt-4" onClick={loadWorkspace} data-testid="pcf-workspace-retry-button">Retry</Button></main>;
 
   return (
-    <main className="min-w-0 bg-stone-50 px-4 py-5 sm:px-6" data-testid="pcf-workspace-page">
-      <section className="mx-auto max-w-[1600px]" data-testid="pcf-workspace-shell">
+    <main className="space-y-7" data-testid="pcf-workspace-page">
+      <section className="space-y-7" data-testid="pcf-workspace-shell">
         <PCFWorkspaceHeader facilities={context.facilities} facilityId={facilityId} onFacilityChange={setFacilityId} reportingPeriod={reportingPeriod} onReportingPeriodChange={setReportingPeriod} />
-        <div className="overflow-hidden border border-stone-200 bg-white shadow-sm" data-testid="pcf-workspace-frame-container"><iframe ref={frameRef} title="Product Carbon Footprint Studio" srcDoc={workspaceDocument} className="h-[calc(100vh-10rem)] min-h-[720px] w-full border-0" data-testid="pcf-workspace-frame" /></div>
+        <div data-testid="pcf-workspace-frame-container"><iframe ref={frameRef} title="Product Carbon Footprint Studio" srcDoc={workspaceDocument} className="h-[calc(100vh-10rem)] min-h-[720px] w-full border-0" data-testid="pcf-workspace-frame" /></div>
       </section>
     </main>
   );
