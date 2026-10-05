@@ -82,6 +82,7 @@ export const AnalyticsChartCard = ({
   stacked = false,
   accent = "#1A4D2E",
   unit = "",
+  yAxisLabel = "",
   testId,
   onDrilldown,
   loading = false,
@@ -118,7 +119,7 @@ export const AnalyticsChartCard = ({
     <ResponsiveContainer width="100%" height="100%">
       <Chart
         data={data}
-        margin={{ top: 10, right: usesDualAxis ? 16 : 10, left: usesDualAxis ? 12 : -10, bottom: usesDualAxis ? 12 : 0 }}
+        margin={{ top: 10, right: usesDualAxis ? 16 : 10, left: usesDualAxis ? 12 : yAxisLabel ? 0 : -10, bottom: usesDualAxis ? 12 : 0 }}
         onClick={(state) =>
           onDrilldown?.(state?.activePayload?.[0]?.payload, title)
         }
@@ -149,7 +150,7 @@ export const AnalyticsChartCard = ({
         {usesDualAxis ? <>
           <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fill: leftAxisSeries?.color || "#78716C", fontSize: 11 }} width={58} label={leftAxisSeries?.axisLabel ? { value: leftAxisSeries.axisLabel, angle: -90, position: "insideLeft", offset: 2, style: { textAnchor: "middle", fill: leftAxisSeries.color, fontSize: 10, fontWeight: 600 } } : undefined} />
           <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fill: rightAxisSeries?.color || "#78716C", fontSize: 11 }} width={58} label={rightAxisSeries?.axisLabel ? { value: rightAxisSeries.axisLabel, angle: 90, position: "insideRight", offset: 2, style: { textAnchor: "middle", fill: rightAxisSeries.color, fontSize: 10, fontWeight: 600 } } : undefined} />
-        </> : <YAxis tickLine={false} axisLine={false} tick={{ fill: "#78716C", fontSize: 11 }} width={45} />}
+        </> : <YAxis tickLine={false} axisLine={false} tick={{ fill: "#78716C", fontSize: 11 }} width={yAxisLabel ? 58 : 45} label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", offset: 2, style: { textAnchor: "middle", fill: "#78716C", fontSize: 10, fontWeight: 600 } } : undefined} />}
 
         <Tooltip
           formatter={formatChartValue}

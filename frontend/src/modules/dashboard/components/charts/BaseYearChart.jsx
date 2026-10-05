@@ -407,7 +407,7 @@ export default function BaseYearChart({
             tickLine={false}
             label={{
               value: 'tCO₂e',
-              position: 'insideBottomRight',
+              position: 'insideBottom',
               offset: -5,
               style: {
                 fill: '#78716C',
