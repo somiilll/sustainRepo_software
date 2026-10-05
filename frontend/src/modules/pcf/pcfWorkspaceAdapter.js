@@ -4,7 +4,7 @@ export const buildPcfWorkspaceDocument = (source, context) => {
   const bridge = `<script>
 window.__SUSTAINREPO_PCF_CONTEXT__ = ${safelySerialize(context)};
 const pcfHostStyle = document.createElement('style');
-pcfHostStyle.textContent = 'body > header > div > div:first-child { display: none !important; } body > header > div { justify-content: flex-end !important; }';
+pcfHostStyle.textContent = 'body > header > div > div:first-child { display: none !important; } body > header > div { justify-content: flex-start !important; }';
 document.head.appendChild(pcfHostStyle);
 (() => {
   const originalFetch = window.fetch.bind(window);
