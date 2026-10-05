@@ -122,6 +122,19 @@ def _without_scope3_selection_fields(record: dict) -> dict:
     return sanitized
 
 
+def _sync_evidence_files_with_urls(existing_record: dict, update_data: dict) -> dict:
+    """Retain structured GHG evidence metadata only for URLs that remain attached."""
+    if "evidence_url" not in update_data:
+        return update_data
+    retained_urls = {url.strip() for url in str(update_data.get("evidence_url") or "").split(",") if url.strip()}
+    synchronized = dict(update_data)
+    synchronized["evidence_files"] = [
+        evidence for evidence in (existing_record.get("evidence_files") or [])
+        if evidence.get("url") in retained_urls
+    ]
+    return synchronized
+
+
 def _canonicalize_c7_update(payload: dict, record_data: EmissionRecordCreate) -> dict:
     """Apply the same identity metadata used by dedicated C7 create routes."""
     normalized = dict(payload)
@@ -1400,6 +1413,10 @@ async def update_emission_record(
         )
     except CalculationVersionError as error:
         raise HTTPException(status_code=409, detail=str(error))
+
+    versioned_update_data = _sync_evidence_files_with_urls(existing, versioned_update_data)
+    if "evidence_url" in versioned_update_data:
+        versioned_record_data["evidence_files"] = versioned_update_data["evidence_files"]
 
     is_c7_employee_commuting = _is_c7_employee_commuting(record_data)
     if is_c7_employee_commuting:

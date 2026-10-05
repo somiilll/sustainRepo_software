@@ -1164,6 +1164,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     const uploads = await Promise.allSettled(drafts.map(({ evidence, employeeId, periodKey }) => {
       const uploadData = new FormData();
       uploadData.append('file', evidence.file);
+      if (evidence.sha256_hash) uploadData.append('sha256_hash', evidence.sha256_hash);
       const query = new URLSearchParams({ employee_id: employeeId, period_key: periodKey });
       return axios.post(`${API}/emissions/${emissionId}/evidence?${query.toString()}`, uploadData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },

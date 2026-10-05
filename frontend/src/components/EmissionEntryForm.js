@@ -2813,6 +2813,7 @@ export default function EmissionEntryForm({
     const results = await Promise.allSettled(uploads.map(({ id, evidence, employeeId, periodKey }) => {
       const uploadData = new FormData();
       uploadData.append('file', evidence.file);
+      if (evidence.sha256_hash) uploadData.append('sha256_hash', evidence.sha256_hash);
       const query = new URLSearchParams();
       if (employeeId) query.set('employee_id', employeeId);
       if (periodKey) query.set('period_key', periodKey);

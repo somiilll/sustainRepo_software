@@ -424,14 +424,20 @@ export function hydrateEmissionForm(emission, config = {}) {
   // Parse existing evidences
   // =====================
   const parseExistingEvidences = () => {
-    if (!emission.evidence_url) return [];
-    return emission.evidence_url.split(',')
+    const persistedEvidences = Array.isArray(emission.evidence_files) ? emission.evidence_files : [];
+    const persistedByUrl = new Map(persistedEvidences.filter((evidence) => evidence?.url).map((evidence) => [evidence.url, evidence]));
+    const legacyUrls = (emission.evidence_url || '').split(',')
       .filter(url => url.trim())
-      .map((url, idx) => ({
-        url: url.trim(),
-        filename: `Evidence ${idx + 1}`, // Filename will be fetched async in caller
+      .map((url) => url.trim());
+    const merged = [
+      ...persistedEvidences,
+      ...legacyUrls.filter((url) => !persistedByUrl.has(url)).map((url, idx) => ({
+        url,
+        filename: `Evidence ${persistedEvidences.length + idx + 1}`,
         needsFilenameResolve: true,
-      }));
+      })),
+    ];
+    return merged;
   };
 
   // =====================

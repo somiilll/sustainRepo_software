@@ -1,9 +1,10 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Form, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 import os
 import logging
 import json
+import hashlib
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, field_validator
 from typing import List, Optional, Dict, Any
@@ -2806,6 +2807,7 @@ from shared.helpers.uploaded_files import delete_uploaded_files
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
     file: UploadFile = File(...),
+    expected_sha256: Optional[str] = Form(default=None),
     bucket_type: str = Query(default="emission_evidence", description="Bucket type: emission_evidence, sinks_evidence, org_facility, superadmin, esg_records_evidence"),
     organization_id: Optional[str] = Query(default=None, description="Organization ID for file path (used by super admin)"),
     folder: Optional[str] = Query(default=None, description="Folder path prefix (e.g., environment, social, governance)"),
@@ -2854,6 +2856,9 @@ async def upload_evidence_file(
     file_content = await file.read()
     if len(file_content) > max_size:
         raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB")
+    sha256_hash = hashlib.sha256(file_content).hexdigest()
+    if expected_sha256 and expected_sha256.lower() != sha256_hash:
+        raise HTTPException(status_code=422, detail="The selected file hash could not be verified")
     
     try:
         org_id = organization_id or current_user.get("organization_id")
@@ -2901,6 +2906,7 @@ async def upload_evidence_file(
             "bucket_type": bucket_type,
             "r2_key": result['key'],
             "file_size": len(file_content),
+            "sha256_hash": sha256_hash,
             "organization_id": org_id,
             "content_type": file.content_type,
             "uploaded_by": current_user["id"],
@@ -2914,7 +2920,8 @@ async def upload_evidence_file(
             "filename": file.filename,
             "size": len(file_content),
             "bucket_type": bucket_type,
-            "url": f"/api/files/{file_record['id']}"
+            "url": f"/api/files/{file_record['id']}",
+            "sha256_hash": sha256_hash,
         }
         
     except Exception as e:
@@ -2926,6 +2933,7 @@ async def upload_evidence_file(
 async def attach_emission_evidence(
     emission_id: str,
     file: UploadFile = File(...),
+    sha256_hash: Optional[str] = Form(default=None),
     employee_id: Optional[str] = Query(default=None),
     period_key: Optional[str] = Query(default=None),
     current_user: dict = Depends(get_current_user),
@@ -2944,12 +2952,14 @@ async def attach_emission_evidence(
         bucket_type="emission_evidence",
         organization_id=organization_id,
         folder=None,
+        expected_sha256=sha256_hash,
         current_user=current_user,
     )
     evidence = {
         "url": uploaded["url"],
         "filename": uploaded["filename"],
         "file_id": uploaded["file_id"],
+        "sha256_hash": uploaded["sha256_hash"],
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -2977,10 +2987,12 @@ async def attach_emission_evidence(
             )
         else:
             existing_urls = [url for url in (emission.get("evidence_url") or "").split(",") if url]
+            existing_evidence_files = list(emission.get("evidence_files") or [])
             await db.emission_records.update_one(
                 {"id": emission_id},
                 {"$set": {
                     "evidence_url": ",".join([*existing_urls, uploaded["url"]]),
+                    "evidence_files": [*existing_evidence_files, evidence],
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )

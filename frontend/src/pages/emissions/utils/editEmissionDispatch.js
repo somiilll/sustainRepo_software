@@ -34,24 +34,31 @@ export async function editEmissionDispatch(emission, ctx) {
   setEditingEmission(emission);
   setEditDraft(draft);
 
-  if (emission.evidence_url) {
-    const existingUrls = emission.evidence_url.split(',').filter((url) => url.trim());
+  if (emission.evidence_url || emission.evidence_files?.length) {
+    const persistedEvidences = Array.isArray(emission.evidence_files) ? emission.evidence_files : [];
+    const persistedByUrl = new Map(persistedEvidences.filter((evidence) => evidence?.url).map((evidence) => [evidence.url, evidence]));
+    const existingUrls = (emission.evidence_url || '').split(',').filter((url) => url.trim());
+    const allEvidences = [
+      ...persistedEvidences,
+      ...existingUrls.filter((url) => !persistedByUrl.has(url)).map((url) => ({ url })),
+    ];
     const evidencesWithFilenames = await Promise.all(
-      existingUrls.map(async (url, idx) => {
-        const trimmedUrl = url.trim();
+      allEvidences.map(async (evidence, idx) => {
+        const trimmedUrl = evidence.url.trim();
         const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-        if (!fileIdMatch) return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
+        if (!fileIdMatch) return { ...evidence, url: trimmedUrl, filename: evidence.filename || `Evidence ${idx + 1}` };
 
         try {
           const fileInfo = await getSecureFileInfo(fileIdMatch[1]);
           return {
+            ...evidence,
             url: trimmedUrl,
-            filename: fileInfo.filename || `Evidence ${idx + 1}`,
+            filename: evidence.filename || fileInfo.filename || `Evidence ${idx + 1}`,
             file_id: fileIdMatch[1],
           };
         } catch (error) {
           console.error('Failed to fetch file info:', error);
-          return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
+          return { ...evidence, url: trimmedUrl, filename: evidence.filename || `Evidence ${idx + 1}` };
         }
       }),
     );

@@ -111,6 +111,7 @@ export function useEvidenceManagement({
     const uploadResults = await Promise.allSettled(drafts.map((evidence) => {
       const formDataUpload = new FormData();
       formDataUpload.append('file', evidence.file);
+      if (evidence.sha256_hash) formDataUpload.append('sha256_hash', evidence.sha256_hash);
       return axios.post(`${API}/emissions/${emissionId}/evidence`, formDataUpload, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
       });
