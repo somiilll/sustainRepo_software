@@ -249,9 +249,12 @@ export default function OCRInvoice() {
     if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
   }, [facilityPreviewUrl]);
 
+  const visibleItems = useMemo(() => (
+    items.filter((item) => configuration.enabled_scopes.includes(item.current_values?.scope))
+  ), [items, configuration.enabled_scopes]);
   const selectedFileItems = useMemo(() => (
-    selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
-  ), [items, selectedFile]);
+    selectedFile ? visibleItems.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : visibleItems
+  ), [visibleItems, selectedFile]);
   const sourceFiles = useMemo(() => upload?.files || [], [upload]);
 
   const processFiles = async () => {

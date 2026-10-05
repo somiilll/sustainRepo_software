@@ -104,6 +104,21 @@ def _get_org(user: dict) -> str:
     return org_id
 
 
+async def _enabled_ocr_scopes(org_id: str) -> set[str]:
+    """Return the currently enabled OCR scopes for an organization."""
+    _, enabled_scopes, _ = await build_org_context(org_id)
+    return enabled_scopes
+
+
+async def _require_enabled_ocr_item_scope(item: dict, org_id: str) -> set[str]:
+    """Block direct actions on historical OCR rows from disabled scopes."""
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    scope = (item.get("current_values") or {}).get("scope")
+    if scope not in enabled_scopes:
+        raise HTTPException(status_code=409, detail="This OCR row belongs to a scope that is no longer enabled for your organization")
+    return enabled_scopes
+
+
 def _preview_path(upload_id: str, file_index: int) -> str:
     return f"/api/ocr-invoice/uploads/{upload_id}/files/{file_index}/preview"
 
@@ -943,8 +958,9 @@ async def list_upload_history(
         for user in users if user.get("id")
     }
     upload_ids = [upload.get("id") for upload in uploads if upload.get("id")]
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     active_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"organization_id": org_id, "upload_id": {"$in": upload_ids}},
+        {"organization_id": org_id, "upload_id": {"$in": upload_ids}, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0, "id": 1, "upload_id": 1, "file_index": 1, "filename": 1, "current_values": 1},
     ).sort("created_at", 1).to_list(5000) if upload_ids else []
     active_rows_by_file = {}
@@ -984,7 +1000,7 @@ async def list_upload_history(
                 "status": file_status,
                 "mode": upload.get("mode"),
                 "rows": [
-                    *[row for row in file.get("history_rows", []) if isinstance(row, dict)],
+                    *[row for row in file.get("history_rows", []) if isinstance(row, dict) and row.get("scope") in enabled_scopes],
                     *active_rows_by_file.get(f"{upload.get('id')}-{file.get('file_index', 0)}", []),
                 ],
             })
@@ -1008,8 +1024,9 @@ async def get_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     
     # Get line items
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     line_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id},
+        {"upload_id": upload_id, "organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0}
     ).to_list(1000)
     
@@ -1279,8 +1296,9 @@ async def export_upload_csv(
     )
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id, "organization_id": org_id},
+        {"upload_id": upload_id, "organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0, "current_values": 1, "confidence_score": 1, "needs_review": 1, "status": 1, "filename": 1},
     ).to_list(5000)
     fieldnames = [
@@ -1343,6 +1361,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
         ),
         *({"scope": "water", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in WATER_CATEGORY_NAMES.items()),
     ]
+    categories = [category for category in categories if category["scope"] in scopes]
     return {
         "enabled_scopes": scopes,
         "modes": [
@@ -1371,6 +1390,9 @@ async def get_ocr_factor_options(
 ):
     """Return canonical factor and unit choices for one OCR edit combination."""
     org_id = _get_org(current_user)
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    if scope not in enabled_scopes:
+        raise HTTPException(status_code=403, detail="This scope is not enabled for your organization")
     facility = None
     if facility_id:
         facility = await db.facilities.find_one(
@@ -1501,7 +1523,8 @@ async def list_line_items(
     """List OCR line items for the organization with optional filters."""
     org_id = _get_org(current_user)
     
-    query = {"organization_id": org_id}
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    query = {"organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}}
     if upload_id:
         query["upload_id"] = upload_id
     if status:
@@ -1534,6 +1557,7 @@ async def edit_line_item(
     
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    enabled_scopes = await _require_enabled_ocr_item_scope(item, org_id)
     
     if item.get("status") == "imported":
         raise HTTPException(status_code=400, detail="Cannot edit imported line items")
@@ -1544,6 +1568,8 @@ async def edit_line_item(
     
     submitted = edit_data.model_dump(exclude_unset=True)
     submitted = canonicalize_calculation_units(submitted)
+    if submitted.get("scope") and submitted["scope"] not in enabled_scopes:
+        raise HTTPException(status_code=422, detail="Choose a scope enabled for your organization")
     remember_override = submitted.pop("remember_override", False)
     if submitted.get("facility_id"):
         facility = await db.facilities.find_one(
@@ -1678,6 +1704,7 @@ async def accept_line_item(
     
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    await _require_enabled_ocr_item_scope(item, org_id)
     
     if item.get("status") == "imported":
         raise HTTPException(status_code=400, detail="Line item already imported")
@@ -1810,6 +1837,7 @@ async def save_line_item_to_ghg(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    await _require_enabled_ocr_item_scope(item, org_id)
     if item.get("status") == "imported":
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
     values = _without_generated_spreadsheet_row_identifier(
