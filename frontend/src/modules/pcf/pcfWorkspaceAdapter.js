@@ -24,7 +24,10 @@ document.head.appendChild(pcfHostStyle);
     if (country && countryField) countryField.value = country;
     if (context?.reportingPeriod && periodField) periodField.value = context.reportingPeriod.replace(/^FY\s*/, '');
   };
-  document.addEventListener('DOMContentLoaded', applyContext, { once: true });
+  document.addEventListener('DOMContentLoaded', () => {
+    applyContext();
+    document.getElementById('btnCardExportPdf')?.parentElement?.remove();
+  }, { once: true });
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || event.data?.type !== 'sustainrepo-pcf-context') return;
     context = event.data.context;
