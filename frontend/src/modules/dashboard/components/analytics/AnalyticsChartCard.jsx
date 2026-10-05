@@ -33,6 +33,7 @@ const renderSeries = (chartType, series, stacked) =>
       stroke: item.color,
       strokeWidth: 2.5,
       stackId: stacked ? "stack" : undefined,
+      yAxisId: item.yAxisId,
     };
 
     if (chartType === "bar") {
@@ -99,6 +100,17 @@ export const AnalyticsChartCard = ({
       : chartType === "area"
       ? AreaChart
       : LineChart;
+  const usesDualAxis = series.some((item) => item.yAxisId === "right");
+  const leftAxisSeries = series.find((item) => item.yAxisId !== "right") || series[0];
+  const rightAxisSeries = series.find((item) => item.yAxisId === "right");
+  const formatChartValue = (value, name) => {
+    const matchingSeries = series.find((item) => item.label === name);
+    const valueUnit = matchingSeries?.unit ?? unit;
+    return [
+      `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}${valueUnit ? ` ${valueUnit}` : ""}`,
+      name,
+    ];
+  };
 
   const chartContent = loading ? (
     <div className="h-full w-full animate-pulse rounded-md bg-stone-100" />
@@ -106,7 +118,7 @@ export const AnalyticsChartCard = ({
     <ResponsiveContainer width="100%" height="100%">
       <Chart
         data={data}
-        margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+        margin={{ top: 10, right: usesDualAxis ? 8 : 10, left: usesDualAxis ? 0 : -10, bottom: 0 }}
         onClick={(state) =>
           onDrilldown?.(state?.activePayload?.[0]?.payload, title)
         }
@@ -134,20 +146,13 @@ export const AnalyticsChartCard = ({
           tick={{ fill: "#78716C", fontSize: 11 }}
         />
 
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tick={{ fill: "#78716C", fontSize: 11 }}
-          width={45}
-        />
+        {usesDualAxis ? <>
+          <YAxis yAxisId="left" tickLine={false} axisLine={false} tick={{ fill: leftAxisSeries?.color || "#78716C", fontSize: 11 }} width={52} label={leftAxisSeries?.axisLabel ? { value: leftAxisSeries.axisLabel, angle: -90, position: "insideLeft", offset: 2, style: { textAnchor: "middle", fill: leftAxisSeries.color, fontSize: 10, fontWeight: 600 } } : undefined} />
+          <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} tick={{ fill: rightAxisSeries?.color || "#78716C", fontSize: 11 }} width={52} label={rightAxisSeries?.axisLabel ? { value: rightAxisSeries.axisLabel, angle: 90, position: "insideRight", offset: 2, style: { textAnchor: "middle", fill: rightAxisSeries.color, fontSize: 10, fontWeight: 600 } } : undefined} />
+        </> : <YAxis tickLine={false} axisLine={false} tick={{ fill: "#78716C", fontSize: 11 }} width={45} />}
 
         <Tooltip
-          formatter={(value, name) => [
-            `${Number(value).toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}${unit ? ` ${unit}` : ""}`,
-            name,
-          ]}
+          formatter={formatChartValue}
           contentStyle={{
             borderRadius: 10,
             border: "1px solid #E7E5E4",

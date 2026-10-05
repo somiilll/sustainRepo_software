@@ -311,7 +311,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
       {/* ── Row 3: Energy ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
         <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} />
-        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share (left axis) and energy intensity (right axis)" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D', yAxisId: 'left', unit: '%', axisLabel: 'Renewable %' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316', yAxisId: 'right', unit: `MWh/${productionUnit || 'unit'}`, axisLabel: `MWh/${productionUnit || 'unit'}` }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}

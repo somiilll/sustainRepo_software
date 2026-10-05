@@ -884,7 +884,7 @@ export default function OrganizationDetails() {
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-text-muted text-sm font-normal">(Optional)</span></Label>
+                <Label className="text-base font-semibold">Organizational Boundaries</Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
