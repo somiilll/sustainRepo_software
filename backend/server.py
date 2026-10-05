@@ -271,6 +271,10 @@ api_router.include_router(materiality_router, tags=["Materiality Assessment"], d
 from modules.supplier_assessment.router import router as supplier_assessment_router
 api_router.include_router(supplier_assessment_router, tags=["Supplier Assessment"], dependencies=[Depends(require_entitlement("supplier_assessment"))])
 
+# Product Carbon Footprint Studio (preserved engine through authenticated adapters)
+from modules.pcf.router import router as pcf_router
+api_router.include_router(pcf_router, tags=["PCF Studio"], dependencies=[Depends(require_entitlement("pcf_studio"))])
+
 # Sustainability Module Configuration (Organization-scoped modules/KPIs/questions)
 from modules.sustainability_config.router import router as sustainability_config_router
 api_router.include_router(sustainability_config_router, tags=["Sustainability Config"])

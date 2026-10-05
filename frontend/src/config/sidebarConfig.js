@@ -154,6 +154,12 @@ const sidebarConfig = [
     path: '/peer-benchmarking',
   },
   {
+    key: 'pcf_studio',
+    label: 'PCF',
+    icon: 'PackageSearch',
+    path: '/pcf-studio',
+  },
+  {
     key: 'supplier_assessment',
     label: 'Supplier Assessment',
     icon: 'Truck',

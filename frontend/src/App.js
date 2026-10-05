@@ -74,6 +74,7 @@ import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
+import PCFStudio from './pages/PCFStudio';
 import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
 import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
@@ -359,6 +360,7 @@ const AppRoutes = () => {
           <Route path="reports" element={<Reports />} />
           <Route path="mis-reports" element={<MISReports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
+          <Route path="pcf-studio" element={<EntitlementRoute entitlement="pcf_studio" moduleName="PCF Studio"><PCFStudio /></EntitlementRoute>} />
           
           {/* Supplier Assessment Routes (Customer Admin) */}
           <Route path="supplier-assessment" element={<AdminRoute><SupplierAssessmentPeriodProvider><SupplierAssessmentAdminLayout /></SupplierAssessmentPeriodProvider></AdminRoute>}>
