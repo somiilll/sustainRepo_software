@@ -276,6 +276,8 @@ export default function DashboardSocial({ data }) {
     <div className="space-y-5" data-testid="dashboard-social">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Social` : 'Social Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={`Reporting: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}

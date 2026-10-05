@@ -35,7 +35,7 @@ export default function StickyFilterBar({
     >
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 shrink-0 overflow-hidden rounded-lg flex items-center justify-center border border-emerald-100 bg-white text-white shadow-md" data-testid="dashboard-header-brand-mark">
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg flex items-center justify-center border border-emerald-100 bg-white text-white shadow-md" data-testid="dashboard-header-brand-mark">
             <SecureFileImage source={organizationLogo} alt={`${organizationName || 'Organization'} logo`} className="h-full w-full object-contain" testId="dashboard-header-organization-logo" fallback={<span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600"><Sparkles className="w-4 h-4" aria-hidden="true" data-testid="dashboard-header-fallback-icon" /></span>} />
           </div>
           <div className="min-w-0">

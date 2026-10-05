@@ -210,11 +210,13 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   console.log("wasteRows", wasteRows)
 
   return (
-    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-hidden pb-10" data-testid="executive-esg-dashboard">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-visible pb-10" data-testid="executive-esg-dashboard">
 
       {/* ── Header / Filter Bar ── */}
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Executive ESG Dashboard` : 'Executive ESG Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={dateRange.from && dateRange.to ? `Reporting window: ${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}` : 'Reporting window'}
         liveBadge={isLive ? <span className="text-[10px] font-semibold text-emerald-700">LIVE</span> : null}
         showFilters={showFilters}
