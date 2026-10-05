@@ -1077,7 +1077,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     getAuthHeader,
   });
 
-  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file, sha256Hash = null) => {
     const sizeError = validateFileSize(file);
     if (sizeError) throw new Error(sizeError);
 
@@ -1085,6 +1085,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       filename: file.name,
       file,
       is_draft: true,
+      sha256_hash: sha256Hash,
     };
       setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
         if (employee.id !== employeeId) return employee;

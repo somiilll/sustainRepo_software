@@ -51,7 +51,7 @@ export function useEvidenceManagement({
 }) {
   const pendingDeletionIds = useRef(new Set());
 
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = async (file, sha256Hash = null) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       throw new Error(sizeErr);
@@ -62,6 +62,7 @@ export function useEvidenceManagement({
       size: file.size,
       content_type: file.type,
       is_draft: true,
+      sha256_hash: sha256Hash,
     }]);
     toast.success('File uploaded');
   };

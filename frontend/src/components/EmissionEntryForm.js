@@ -5,6 +5,7 @@ import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { calculateFileSha256 } from '../lib/evidenceHash';
 
 // Import Step components for modular form rendering
 import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
@@ -37,11 +38,6 @@ const API = `${BACKEND_URL}/api`;
 
 const createC6TripId = () => `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-const calculateEvidenceSha256 = async (file) => {
-  if (!globalThis.crypto?.subtle || !file?.arrayBuffer) return null;
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
-};
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
@@ -2660,7 +2656,7 @@ export default function EmissionEntryForm({
         : `${MONTHS.find((month) => month.key === periodKey)?.name || 'this month'} data`;
     let sha256Hash = null;
     try {
-      sha256Hash = await calculateEvidenceSha256(file);
+      sha256Hash = await calculateFileSha256(file);
     } catch (error) {
       console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
     }
@@ -2710,7 +2706,7 @@ export default function EmissionEntryForm({
       : `${MONTHS.find((month) => month.key === periodKey)?.name || 'this month'} employee commuting data`;
     let sha256Hash = null;
     try {
-      sha256Hash = await calculateEvidenceSha256(file);
+      sha256Hash = await calculateFileSha256(file);
     } catch (error) {
       console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
     }

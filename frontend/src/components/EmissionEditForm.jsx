@@ -67,6 +67,8 @@ import {
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { calculateFileSha256 } from '../lib/evidenceHash';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -311,6 +313,38 @@ export default function EmissionEditForm(props) {
   const editEmployeeYearlyTotal = draft.employeeYearlyTotal;
   const dynamicFieldValues = draft.dynamicFieldValues;
   const existingEvidences = draft.existingEvidences;
+  const [duplicateEvidencePrompt, setDuplicateEvidencePrompt] = useState(null);
+  const confirmDuplicateEvidence = useCallback(async (file, evidences, context) => {
+    let sha256Hash = null;
+    try {
+      sha256Hash = await calculateFileSha256(file);
+    } catch (error) {
+      console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
+    }
+    const duplicate = sha256Hash && evidences.some((evidence) => evidence?.filename === file.name && evidence?.sha256_hash === sha256Hash);
+    if (!duplicate) return { shouldUpload: true, sha256Hash };
+    setDuplicateEvidencePrompt({ file, sha256Hash, ...context });
+    return { shouldUpload: false, sha256Hash };
+  }, []);
+  const handleEditEvidenceUpload = useCallback(async (file) => {
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, existingEvidences, { type: 'standard' });
+    if (shouldUpload) await handleFileUpload(file, sha256Hash);
+  }, [confirmDuplicateEvidence, existingEvidences, handleFileUpload]);
+  const handleEditC7EvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+    const employee = editEmployees.find((entry) => entry.id === employeeId);
+    const evidences = periodKey === 'yearly' ? employee?.yearly_data?.evidences || [] : employee?.monthly_data?.[periodKey]?.evidences || [];
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, evidences, { type: 'c7', employeeId, periodKey });
+    if (shouldUpload) await handleC7EvidenceUpload(employeeId, periodKey, file, sha256Hash);
+  }, [confirmDuplicateEvidence, editEmployees, handleC7EvidenceUpload]);
+  const resolveDuplicateEvidence = useCallback((shouldUpload) => {
+    const prompt = duplicateEvidencePrompt;
+    setDuplicateEvidencePrompt(null);
+    if (!shouldUpload || !prompt) return;
+    const upload = prompt.type === 'c7'
+      ? handleC7EvidenceUpload(prompt.employeeId, prompt.periodKey, prompt.file, prompt.sha256Hash)
+      : handleFileUpload(prompt.file, prompt.sha256Hash);
+    void upload.catch((error) => toast.error(error?.message || 'Unable to stage evidence file'));
+  }, [duplicateEvidencePrompt, handleC7EvidenceUpload, handleFileUpload]);
   const overrideCalorificValue = draft.overrideCalorificValue;
   const overrideDensity = draft.overrideDensity;
   const overrideEmissionFactorHeat = draft.overrideEmissionFactorHeat;
@@ -424,6 +458,18 @@ export default function EmissionEditForm(props) {
 
   return (
                 <form onSubmit={readOnly ? (event) => event.preventDefault() : handleSubmit} className="space-y-5" data-testid="emission-form">
+                  <AlertDialog open={Boolean(duplicateEvidencePrompt)} onOpenChange={(open) => { if (!open) resolveDuplicateEvidence(false); }}>
+                    <AlertDialogContent data-testid="edit-duplicate-evidence-dialog">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle data-testid="edit-duplicate-evidence-dialog-title">Duplicate evidence detected</AlertDialogTitle>
+                        <AlertDialogDescription data-testid="edit-duplicate-evidence-dialog-description">“{duplicateEvidencePrompt?.file?.name}” has the same filename and SHA-256 content hash as evidence already staged for this emission period. Do you want to upload it again?</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => resolveDuplicateEvidence(false)} data-testid="edit-duplicate-evidence-cancel-button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => resolveDuplicateEvidence(true)} className="bg-emerald-700 hover:bg-emerald-800" data-testid="edit-duplicate-evidence-confirm-button">Upload anyway</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 {readOnly && <p className="sr-only" data-testid="emission-form-read-only-status">This emission record is read-only.</p>}
                 <fieldset disabled={readOnly} className="min-w-0 space-y-5 disabled:opacity-100" data-testid={readOnly ? "emission-form-read-only-fields" : undefined}>
                 <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
@@ -956,7 +1002,7 @@ export default function EmissionEditForm(props) {
                       disabled={false}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
-                      onEvidenceUpload={handleC7EvidenceUpload}
+                      onEvidenceUpload={handleEditC7EvidenceUpload}
                       onEvidenceRemove={handleC7EvidenceRemove}
                       onEvidenceDownload={handleC7EvidenceDownload}
                       evidenceBackendUrl={BACKEND_URL}
@@ -1742,7 +1788,7 @@ export default function EmissionEditForm(props) {
                   {/* Upload New Evidence */}
                   <FileUpload
                     label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
-                    onUpload={handleFileUpload}
+                    onUpload={handleEditEvidenceUpload}
                     onRemove={handleRemoveEvidence}
                     multiple={true}
                   />
