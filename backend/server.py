@@ -3221,6 +3221,16 @@ async def health_check():
     
     return health_status
 
+
+@api_router.get("/readiness")
+async def readiness_check():
+    """Public, minimal readiness signal for the SustainRepo web application."""
+    try:
+        await db.command("ping")
+    except Exception:
+        raise HTTPException(status_code=503, detail="SustainRepo is temporarily unavailable")
+    return {"status": "ready"}
+
 # ----- Audit Trail Endpoints (Admin only) -----
 
 class AuditLogQuery(BaseModel):

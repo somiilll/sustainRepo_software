@@ -18,6 +18,10 @@ export const AUTH_ENDPOINTS = {
   RESET_PASSWORD: `${API}/auth/reset-password`,
 };
 
+export const SYSTEM_ENDPOINTS = {
+  READINESS: `${API}/readiness`,
+};
+
 // Emissions endpoints
 export const EMISSIONS_ENDPOINTS = {
   BASE: `${API}/emissions`,
@@ -91,6 +95,7 @@ export default {
   API_BASE_URL,
   API,
   AUTH_ENDPOINTS,
+  SYSTEM_ENDPOINTS,
   EMISSIONS_ENDPOINTS,
   CALC_ENGINE_ENDPOINTS,
   SCOPE3_ENDPOINTS,
