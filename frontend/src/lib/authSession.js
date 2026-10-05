@@ -9,6 +9,7 @@ let interceptorIds = null;
 let sessionHandlers = { onToken: null, onSessionExpired: null };
 
 const isApiRequest = (url = '') => String(url).startsWith(API);
+const isAuthRequest = (url = '') => String(url).startsWith(`${API}/auth/`);
 
 export const getStoredAccessToken = () => localStorage.getItem(TOKEN_KEY);
 
@@ -55,7 +56,7 @@ export const installAuthSessionInterceptors = (handlers) => {
     async (error) => {
       const request = error.config || {};
       const isRefreshRequest = String(request.url || '').endsWith('/auth/refresh');
-      if (error.response?.status !== 401 || request.skipAuthRefresh || request._retry || isRefreshRequest || !isApiRequest(request.url)) {
+      if (error.response?.status !== 401 || request.skipAuthRefresh || request._retry || isRefreshRequest || isAuthRequest(request.url) || !isApiRequest(request.url)) {
         return Promise.reject(error);
       }
 

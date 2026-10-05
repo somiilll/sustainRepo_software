@@ -38,7 +38,9 @@ def _request_id(request: Request) -> str:
     return get_request_id() or request.headers.get("X-Request-ID") or str(uuid.uuid4())
 
 
-def _safe_message(detail: Any, status_code: int) -> Tuple[str, str]:
+def _safe_message(detail: Any, status_code: int, path: str = "") -> Tuple[str, str]:
+    if status_code == 401 and path == "/api/auth/login":
+        return "INVALID_CREDENTIALS", "Invalid email or password."
     default_code, default_message = STATUS_MESSAGES.get(
         status_code, ("REQUEST_FAILED", "Unable to complete this request. Please try again."),
     )
@@ -67,7 +69,7 @@ def _response(status_code: int, error_code: str, message: str, request_id: str) 
 
 async def app_error_handler(request: Request, error: AppError) -> JSONResponse:
     request_id = _request_id(request)
-    error_code, message = _safe_message(error.message, error.http_status)
+    error_code, message = _safe_message(error.message, error.http_status, request.url.path)
     error_code = str(error.code or error_code).upper()
     log_event(logger, 40, "api.error.app", action="api.error", outcome="failed", error_code=error_code,
               context={"path": request.url.path, "status_code": error.http_status})
@@ -76,7 +78,7 @@ async def app_error_handler(request: Request, error: AppError) -> JSONResponse:
 
 async def http_error_handler(request: Request, error: HTTPException) -> JSONResponse:
     request_id = _request_id(request)
-    error_code, message = _safe_message(error.detail, error.status_code)
+    error_code, message = _safe_message(error.detail, error.status_code, request.url.path)
     log_event(logger, 40 if error.status_code >= 500 else 30, "api.error.http", action="api.error", outcome="failed",
               error_code=error_code, context={"path": request.url.path, "status_code": error.status_code})
     return _response(error.status_code, error_code, message, request_id)
