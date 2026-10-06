@@ -1,116 +1,118 @@
 {
-  "project_name": "SustainRepo PCF (Product Carbon Footprint) Module Integration",
-  "app_type": "hybrid_fullstack",
-  "context_type": "DASHBOARDS_AND_ENTERPRISE_APPS",
-  "theme_strategy": {
-    "default_mode": "system",
-    "toggle_enabled": true,
-    "dark_theme_background": "#0F172A",
-    "light_theme_background": "#F8FAFC"
-  },
-  "color_system": {
-    "archetype": "ORGANIC_PERFORMANCE_CLIMATE_TECH",
-    "primary_brand": "#059669",
-    "primary_brand_hover": "#047857",
-    "accent_mint": "#10B981",
-    "accent_glow": "#34D399",
-    "bg_dark": "#0F172A",
-    "bg_dark_card": "#1E293B",
-    "bg_dark_card_hover": "#334155",
-    "bg_light": "#F8FAFC",
-    "bg_light_card": "#FFFFFF",
-    "bg_light_card_hover": "#F1F5F9",
-    "border_dark": "rgba(255, 255, 255, 0.08)",
-    "border_light": "rgba(0, 0, 0, 0.08)",
-    "text_dark_primary": "#F8FAFC",
-    "text_dark_secondary": "#94A3B8",
-    "text_light_primary": "#0F172A",
-    "text_light_secondary": "#64748B",
-    "forbidden_colors": [
-      "#7351B7",
-      "#1B93A4"
-    ]
-  },
+  "project_name": "SustainRepo ESG Questionnaire Module Blueprint",
+  "archetype": "ARCHETYPE 1: ORGANIC & EARTHY & SWISS HIGH-CONTRAST (SustainRepo Standard)",
+  "context": "Dashboards & Admin Panels - Parent Organization ESG Questionnaire UI/UX Refinement",
+  "theme": "Light",
   "typography": {
-    "heading_font": "Outfit, Plus Jakarta Sans, sans-serif",
-    "body_font": "IBM Plex Sans, Inter, sans-serif",
-    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
-    "heading_scale": {
-      "h1": "text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight",
-      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight",
-      "h3": "text-xl sm:text-2xl font-semibold",
-      "h4": "text-lg font-medium",
-      "label": "text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
-    },
-    "forbidden_fonts": [
-      "Space Grotesk"
-    ]
-  },
-  "layout_and_navigation": {
-    "sidebar_pcf_placement": {
-      "position": "DIRECTLY_ABOVE_SUPPLIER_ASSESSMENT",
-      "label": "PCF Studio",
-      "route": "/pcf-studio",
-      "icon": "BoxIcon or PackageIcon from lucide-react",
-      "badge": "Module",
-      "entitlement_key": "pcf_studio"
-    },
-    "workspace_wrapper": {
-      "type": "CONTAINED_PRESERVED_WORKSPACE_HOST",
-      "header": {
-        "title": "Product Carbon Footprint (PCF) Studio",
-        "subtitle": "ISO 14067 & GHG Protocol Product Life Cycle Accounting",
-        "quick_actions": ["Sync Org Context", "Export PDF/Excel", "Facility Factor Match"]
-      },
-      "iframe_adapter": {
-        "preserve_uploaded_code": true,
-        "isolation_protocol": "PostMessage / API proxy with org_id and facility_id context",
-        "container_style": "w-full h-[calc(100vh-8rem)] rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden bg-white dark:bg-slate-900"
-      }
+    "font_family_heading": "Cabinet Grotesk, sans-serif",
+    "font_family_body": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "text_sizes": {
+      "h1": "text-2xl font-bold tracking-tight text-slate-900",
+      "h2": "text-xl font-semibold tracking-tight text-slate-900",
+      "h3": "text-lg font-medium text-slate-800",
+      "body": "text-sm text-slate-600 leading-normal",
+      "table_text": "text-sm text-slate-800",
+      "label": "text-xs font-semibold uppercase tracking-wider text-slate-500"
     }
   },
-  "component_guidelines": {
-    "shadcn_primitives": [
-      "button",
-      "card",
-      "dialog",
-      "dropdown-menu",
-      "badge",
-      "tabs",
-      "tooltip",
-      "select",
-      "sheet",
-      "sonner"
-    ],
-    "pcf_entitlement_control": {
-      "route_guard": "EntitlementRoute",
-      "fallback_component": "LockedModuleOverlay or ContactSalesDialog",
-      "admin_toggle": "Configurable under SustainabilityConfig -> EntitlementsTab (pcf_studio)"
+  "colors": {
+    "primary": "#0F766E",
+    "primary_hover": "#0D9488",
+    "primary_light": "#CCFBF1",
+    "background_page": "#F8FAFC",
+    "background_card": "#FFFFFF",
+    "border_color": "#E2E8F0",
+    "border_highlight": "#14B8A6",
+    "text_primary": "#0F172A",
+    "text_muted": "#64748B",
+    "accent_badge_active": "#DCFCE7",
+    "accent_badge_active_text": "#166534",
+    "accent_badge_inactive": "#F1F5F9",
+    "accent_badge_inactive_text": "#475569",
+    "taxonomy_environment": "#059669",
+    "taxonomy_social": "#2563EB",
+    "taxonomy_governance": "#D97706"
+  },
+  "visual_enhancers": {
+    "card_style": "bg-white border border-slate-200 rounded-xl shadow-xs p-6",
+    "header_bar": "bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40 backdrop-blur-md bg-white/90",
+    "sidebar_tree": "bg-white border border-slate-200 rounded-xl p-4 shadow-2xs min-w-[280px] md:w-[320px]",
+    "table_style": "w-full text-left text-sm border-collapse rounded-lg overflow-hidden border border-slate-200",
+    "active_category_highlight": "bg-teal-50 text-teal-800 border-l-4 border-teal-600 font-semibold pl-3 pr-2 py-2 rounded-r-md transition-all"
+  },
+  "layouts": {
+    "page_container": "min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900",
+    "header_layout": "flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-b border-slate-200 px-6 py-4 shadow-xs",
+    "header_reporting_period": "flex items-center gap-3 bg-slate-100/80 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700",
+    "main_content_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1600px] mx-auto w-full",
+    "left_taxonomy_pane": "lg:col-span-4 xl:col-span-3 flex flex-col gap-4",
+    "right_question_pane": "lg:col-span-8 xl:col-span-9 flex flex-col gap-6"
+  },
+  "user_choices_implementation": {
+    "reporting_period_in_header": "Reporting period drop-down/badge is placed directly inside the main ModulePageHeader, perfectly aligned with Training and ESG Modules.",
+    "hide_search_and_add_questionnaire": "The Search input box and '+ Add Questionnaire' primary button have been hidden in accordance with user requirements.",
+    "match_reference_screenshot": "Two-pane ESG Taxonomy layout with Environment, Social, Governance tabs/accordions on the left, top questionnaire action toolbar (Edit questionnaire, Active/Inactive, Review responses, + Add question, Manage supplier), breadcrumb header, and full 7-column Question Table (#, Question Description, Type, Evidence, Point score, Max points, Actions)."
+  },
+  "key_components": [
+    {
+      "name": "ESGQuestionnaireHeader",
+      "description": "Page header displaying Title, Questionnaire selector ('ESG Annual (Basic)'), and Reporting Period dropdown matching Training module",
+      "data_testids": ["esg-header-title", "esg-questionnaire-select", "esg-reporting-period-select"]
+    },
+    {
+      "name": "QuestionnaireActionBar",
+      "description": "Action bar containing Edit questionnaire, Active/Inactive toggle, Review responses, + Add question, and Manage supplier buttons (Search and Add questionnaire hidden)",
+      "data_testids": [
+        "btn-edit-questionnaire",
+        "toggle-active-status",
+        "btn-review-responses",
+        "btn-add-question",
+        "btn-manage-supplier"
+      ]
+    },
+    {
+      "name": "ESGTaxonomySidebar",
+      "description": "Two-pane left side navigation for Environment, Social, and Governance pillars with collapsible/expandable categories",
+      "data_testids": [
+        "taxonomy-pillar-environment",
+        "taxonomy-pillar-social",
+        "taxonomy-pillar-governance",
+        "category-item-ghg-emissions"
+      ]
+    },
+    {
+      "name": "QuestionDataGrid",
+      "description": "Main data table showing questions with columns: #, Question Description, Type, Evidence, Point score, Max points, Actions",
+      "data_testids": [
+        "question-data-grid",
+        "question-row-1",
+        "btn-edit-question-1",
+        "btn-delete-question-1"
+      ]
     }
+  ],
+  "motion": {
+    "micro_interactions": "Smooth subtle hover scale on buttons (hover:bg-slate-100, transition-colors duration-150)",
+    "category_transition": "Smooth layout animation when changing ESG taxonomy categories (transition-all duration-200 ease-in-out)"
   },
-  "media_assets": {
-    "image_urls": [
-      {
-        "category": "hero_workspace_banner",
-        "url": "https://images.unsplash.com/photo-1786913508324-13b77bf4e299?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHw0fHxzb2xhciUyMGVuZXJneSUyMGZhY3Rvcnl8ZW58MHx8fHwxNzkxMTg0MTc4fDA&ixlib=rb-4.1.0&q=85",
-        "description": "Industrial warehouse with solar energy panels"
-      },
-      {
-        "category": "manufacturing_footprint",
-        "url": "https://images.unsplash.com/photo-1651525670114-2b8117390b28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxzdXN0YWluYWJpbGl0eSUyMGNhcmJvbiUyMGZvb3RwcmludCUyMGluZHVzdHJpYWwlMjBwcm9kdWN0JTIwc3VwcGx5JTIwY2hhaW4lMjBtYW51ZmFjdHVyaW5nfGVufDB8fHx8MTc5MTE4NDE2OHww&ixlib=rb-4.1.0&q=85",
-        "description": "Factory production line with workers"
-      }
-    ]
-  },
-  "testing_and_accessibility": {
-    "data_testid_requirement": "ALL interactive elements (sidebar links, buttons, tab triggers, context selectors) MUST contain data-testid attributes in kebab-case, e.g., data-testid='sidebar-pcf-studio-link'",
-    "wcag_compliance": "Ensure minimum 4.5:1 contrast ratio for all text on dark slate and light backgrounds"
+  "accessibility": {
+    "contrast_ratio": "APCA & WCAG AA compliant. All body text minimum 4.5:1 against slate-50/white backgrounds.",
+    "focus_states": "focus:ring-2 focus:ring-teal-600 focus:ring-offset-1 outline-none",
+    "keyboard_navigation": "Full arrow key and tab support across sidebar taxonomy tree and question table actions",
+    "data_testids_required": true
   },
   "instructions_to_main_agent": [
-    "Place PCF Studio sidebar item directly above Supplier Assessment in frontend/src/config/sidebarConfig.js",
-    "Do NOT alter or rewrite any uploaded PCF engine code; embed via a seamless React wrapper component with context bridging",
-    "Configure entitlement key 'pcf_studio' in entitlement lists and route guards",
-    "Reuse SustainRepo organization and facility contexts seamlessly",
-    "All new UI React components must use .js or .jsx extensions"
+    "Ensure the Reporting Period dropdown is situated in the header bar identical to the Training module placement.",
+    "Hide the search input bar and the 'Add questionnaire' CTA button on the parent org ESG Questionnaire view.",
+    "Render the two-pane ESG taxonomy layout matching the reference screenshot: Left sidebar with Environment, Social, Governance categories; Right panel with Category Title breadcrumb, Action buttons, and Question Table.",
+    "Maintain all existing dialogs, edit/delete workflows, review responses panel, and supplier assignment modal logic without breaking functionality.",
+    "Add testid attributes (`data-testid`) to all interactive elements, table rows, dropdown selectors, and action buttons."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Never use generic centered layouts or unstyled default HTML inputs.",
+    "All interactive and key informational elements MUST include a data-testid attribute.",
+    "Do not use complete transparent background in header or dropdown overlays.",
+    "Use 2-3x generous padding inside bordered containers to avoid text clipping."
   ]
 }

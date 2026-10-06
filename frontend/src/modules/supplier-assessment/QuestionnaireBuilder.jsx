@@ -9,7 +9,6 @@ import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Label } from '../../components/ui/label';
-import { CardTitle } from '../../components/ui/card';
 import {
   Select,
   SelectContent,
@@ -43,9 +42,7 @@ import {
 } from '../../components/ui/accordion';
 import { 
   Plus, 
-  Edit2, 
   Trash2, 
-  Copy,
   FileText,
   Settings2,
   ArrowUpRight,
@@ -53,23 +50,17 @@ import {
   ToggleLeft,
   List,
   Info,
-  ClipboardCheck,
-  CalendarDays,
-  Search,
-  Leaf,
-  UsersRound,
-  Landmark,
-  ShieldCheck,
-  ClipboardList,
-  Award,
 } from 'lucide-react';
 import { SupplierResponseReviewDialog } from './components/SupplierResponseReviewDialog';
 import { QuestionLedgerDialog } from './components/QuestionLedgerDialog';
 import { SupplierQuestionnairePreviewDialog } from './components/SupplierQuestionnairePreviewDialog';
-import { QuestionnaireQuestionRow } from './components/QuestionnaireQuestionRow';
 import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { DEFAULT_SUPPLIER_ESG_TAXONOMY, ESG_SECTIONS, cloneSupplierEsgTaxonomy } from './esgTaxonomy';
+import { QuestionnaireBuilderHeader } from './components/QuestionnaireBuilderHeader';
+import { QuestionnaireTaxonomySidebar } from './components/QuestionnaireTaxonomySidebar';
+import { QuestionnaireActionBar } from './components/QuestionnaireActionBar';
+import { QuestionnaireQuestionTable } from './components/QuestionnaireQuestionTable';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -79,14 +70,6 @@ const responseTypes = [
 ];
 
 const sections = ESG_SECTIONS;
-
-const sectionStyles = {
-  environment: { icon: Leaf, iconClass: 'text-emerald-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-  social: { icon: UsersRound, iconClass: 'text-sky-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-  governance: { icon: Landmark, iconClass: 'text-amber-700', container: 'border-stone-200 bg-white', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' },
-};
-
-const categoryStyle = { icon: ShieldCheck, iconClass: 'text-emerald-700', heading: 'text-stone-900', badge: 'border-stone-200 bg-stone-100 text-stone-700' };
 
 // Scoring rules with descriptions
 const scoringRules = [
@@ -170,7 +153,7 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
   score: option.score ?? scoring?.choices?.[option.value] ?? null,
 }));
 
-const questionTypeLabel = (value) => responseTypes.find((type) => type.value === value)?.label || value;
+const questionTypeLabel = (value) => ({ yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Dropdown' }[value] || value);
 const evidenceRequirementLabel = (value) => ({ required: 'Required', not_required: 'Not required', optional: 'Optional', evidence_scored: 'Scoring based' }[value] || 'Not required');
 const pointScoreLabel = (question) => {
   if (question.response_type !== 'yes_no') return question.max_points ? 'Configured' : '—';
@@ -184,7 +167,6 @@ const pointScoreLabel = (question) => {
   return `Yes ${scores.yes_score ?? yesWithEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
 };
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
-const questionnaireDeadlinePassed = (questionnaire) => Boolean(questionnaire?.due_date) && new Date(`${questionnaire.due_date}T23:59:59`).getTime() < Date.now();
 const normalizeQuestionnaireReportingPeriod = (period) => {
   const match = String(period || '').trim().match(/^FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})$/i);
   if (!match) return period;
@@ -200,7 +182,7 @@ export default function QuestionnaireBuilder() {
   const [questions, setQuestions] = useState([]);
   const [organizationTaxonomy, setOrganizationTaxonomy] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [questionnaireSearch, setQuestionnaireSearch] = useState('');
+  const [activeCategoryKey, setActiveCategoryKey] = useState('');
   
   // Dialog states
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -264,10 +246,7 @@ export default function QuestionnaireBuilder() {
       });
       const periodQuestionnaires = (res.data || []).map((questionnaire) => ({ ...questionnaire, requires_unlock_on_save: Boolean(questionnaire.has_locked_submissions), has_locked_submissions: false }));
       setQuestionnaires(periodQuestionnaires);
-      setSelectedQuestionnaire((current) => {
-        if (!current) return null;
-        return periodQuestionnaires.find((questionnaire) => questionnaire.id === current.id) || null;
-      });
+      setSelectedQuestionnaire((current) => periodQuestionnaires.find((questionnaire) => questionnaire.id === current?.id) || periodQuestionnaires[0] || null);
     } catch (err) {
       toast.error('Failed to load questionnaires');
     } finally {
@@ -306,12 +285,21 @@ export default function QuestionnaireBuilder() {
     })),
   })), [questionCategoriesFor, questions]);
 
-  const filteredQuestionnaires = useMemo(() => {
-    const query = questionnaireSearch.trim().toLowerCase();
-    if (!query) return questionnaires;
-    return questionnaires.filter((questionnaire) => [questionnaire.name, questionnaire.description]
-      .some((value) => String(value || '').toLowerCase().includes(query)));
-  }, [questionnaireSearch, questionnaires]);
+  const selectedCategory = useMemo(() => groupedQuestions.reduce((match, section) => {
+    if (match) return match;
+    const category = section.categories.find((candidate) => `${section.value}:${candidate.value}` === activeCategoryKey);
+    return category ? { section, category } : null;
+  }, null), [activeCategoryKey, groupedQuestions]);
+
+  useEffect(() => {
+    const availableKeys = groupedQuestions.flatMap((section) => section.categories.map((category) => `${section.value}:${category.value}`));
+    if (!availableKeys.includes(activeCategoryKey)) setActiveCategoryKey(availableKeys[0] || '');
+  }, [activeCategoryKey, groupedQuestions]);
+
+  const selectQuestionnaire = (questionnaireId) => {
+    setSelectedQuestionnaire(questionnaires.find((questionnaire) => questionnaire.id === questionnaireId) || null);
+    setActiveCategoryKey('');
+  };
 
   const openQuestionnaireAssignments = async () => {
     if (!selectedQuestionnaire) return;
@@ -359,7 +347,10 @@ export default function QuestionnaireBuilder() {
 
   useEffect(() => {
     if (selectedQuestionnaire) {
+      setQuestions([]);
       fetchQuestions(selectedQuestionnaire.id);
+    } else {
+      setQuestions([]);
     }
   }, [selectedQuestionnaire, fetchQuestions]);
 
@@ -931,71 +922,23 @@ export default function QuestionnaireBuilder() {
 
   return (
     <TooltipProvider><div className="space-y-7" data-testid="questionnaire-builder">
-      {/* Header */}
-      <div className="border-b border-stone-200 pb-5" data-testid="questionnaire-builder-header">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-purple-200 bg-purple-50 text-purple-700 shadow-sm" data-testid="questionnaire-builder-heading-icon">
-            <ClipboardCheck className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <h1 className="text-3xl font-bold text-emerald-950" data-testid="questionnaire-builder-heading">ESG Questionnaires</h1>
-        </div>
-      </div>
+      <QuestionnaireBuilderHeader reportingPeriod={reportingPeriod} periods={periods} onReportingPeriodChange={setReportingPeriod} />
 
-      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-[0_4px_18px_rgba(28,55,43,0.06)] xl:flex-row xl:items-center" data-testid="questionnaire-builder-controls">
-        <div className="relative w-full xl:w-64 xl:shrink-0" data-testid="questionnaire-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={questionnaireSearch} onChange={(event) => setQuestionnaireSearch(event.target.value)} placeholder="Search questionnaires..." className="h-10 border-stone-200 bg-white pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search questionnaires" data-testid="questionnaire-search-input" /></div>
-        <Button className="h-10 shrink-0 bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowCreateDialog(true)} data-testid="create-questionnaire-btn"><Plus className="h-4 w-4" />Add Questionnaire</Button>
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-selection-control">
-          <Label htmlFor="questionnaire-builder-selector" className="shrink-0 text-sm font-medium text-stone-600" data-testid="questionnaire-selector-label">Questionnaire</Label>
-          <Select value={selectedQuestionnaire?.id || ''} onValueChange={(questionnaireId) => setSelectedQuestionnaire(questionnaires.find((questionnaire) => questionnaire.id === questionnaireId) || null)} disabled={loading || questionnaires.length === 0}>
-            <SelectTrigger id="questionnaire-builder-selector" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:max-w-md" data-testid="questionnaire-selector"><SelectValue placeholder={loading ? 'Loading questionnaires…' : 'Select questionnaire'} /></SelectTrigger>
-            <SelectContent data-testid="questionnaire-selector-menu">{filteredQuestionnaires.length === 0 ? <div className="px-2 py-4 text-sm text-stone-500" data-testid="questionnaire-selector-empty">No questionnaires match this search.</div> : filteredQuestionnaires.map((questionnaire) => <SelectItem key={questionnaire.id} value={questionnaire.id} data-testid={`questionnaire-selector-option-${questionnaire.id}`}>{questionnaire.name}{!questionnaire.is_active ? ' · Inactive' : ''}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" data-testid="questionnaire-builder-period-control">
-          <Label htmlFor="questionnaire-builder-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="questionnaire-builder-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label>
-          <Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="questionnaire-builder-reporting-period" className="h-10 w-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="questionnaire-builder-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="questionnaire-builder-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`questionnaire-builder-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select>
-        </div>
-      </div>
-
-      <main>
-          {selectedQuestionnaire ? (
-            <section className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)]" data-testid="selected-questionnaire-panel">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-100 px-5 py-5">
-                <div><div className="flex flex-wrap items-center gap-2"><CardTitle className="text-2xl font-bold text-stone-950" data-testid="selected-questionnaire-name">{selectedQuestionnaire.name}</CardTitle><Badge variant="outline" className={!selectedQuestionnaire.is_active ? 'border-stone-200 bg-stone-50 text-xs font-medium text-stone-600' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'border-amber-200 bg-amber-50 text-xs font-medium text-amber-800' : 'border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700'} data-testid="selected-questionnaire-active-status">{!selectedQuestionnaire.is_active ? 'Inactive' : questionnaireDeadlinePassed(selectedQuestionnaire) ? 'Deadline passed' : 'Active'}</Badge></div><p className="mt-2 text-sm text-stone-500" data-testid="selected-questionnaire-period-context">Reporting period: {reportingPeriod} · {selectedQuestionnaire.question_count || questions.length} questions{selectedQuestionnaire.due_date ? ` · Due ${new Date(selectedQuestionnaire.due_date).toLocaleDateString()}` : ''}</p></div>
-                <div className="flex flex-wrap items-center justify-end gap-2"><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Edit ${selectedQuestionnaire.name}`} onClick={() => openEditQuestionnaire(selectedQuestionnaire)} disabled={selectedQuestionnaire.has_locked_submissions} data-testid="edit-selected-questionnaire"><Edit2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.has_locked_submissions ? 'Unlock submitted responses before editing' : 'Edit questionnaire'}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`${selectedQuestionnaire.is_active ? 'Deactivate' : 'Activate'} ${selectedQuestionnaire.name}`} onClick={() => handleQuestionnaireActivation(selectedQuestionnaire)} data-testid="toggle-selected-questionnaire-active"><ToggleLeft className={`h-4 w-4 ${selectedQuestionnaire.is_active ? 'text-emerald-700' : 'text-stone-500'}`} /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.is_active ? 'Mark inactive for new supplier submissions' : 'Activate questionnaire and reopen it for unfinished responses'}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" aria-label={`Duplicate ${selectedQuestionnaire.name}`} onClick={() => handleDuplicateQuestionnaire(selectedQuestionnaire.id, selectedQuestionnaire.name)} data-testid="duplicate-selected-questionnaire"><Copy className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>Duplicate questionnaire</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="text-red-600 hover:text-red-700" aria-label={`Delete ${selectedQuestionnaire.name}`} onClick={() => requestQuestionnaireDelete(selectedQuestionnaire)} disabled={selectedQuestionnaire.has_submission_history} data-testid="delete-selected-questionnaire"><Trash2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>{selectedQuestionnaire.has_submission_history ? 'Submitted responses prevent deletion. Mark inactive instead.' : 'Delete questionnaire'}</TooltipContent></Tooltip><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openSubmissions} data-testid="review-questionnaire-submissions-button"><ClipboardCheck className="h-4 w-4 text-stone-600" />Review responses</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={openQuestionnaireAssignments} data-testid="manage-questionnaire-assignments-button">Manage suppliers</Button><Button variant="outline" className="border-stone-200 bg-white text-stone-700 hover:!bg-stone-50 hover:!text-stone-900" onClick={() => setShowQuestionPreview(true)} data-testid="preview-questionnaire-button">Preview</Button><Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => {
-                  resetQuestionForm();
-                  setEditingQuestion(null);
-                  setQuestionDialogMode('create');
-                  setShowQuestionDialog(true);
-                }} disabled={selectedQuestionnaire.has_locked_submissions} data-testid="add-question-btn"><Plus className="mr-2 h-4 w-4" />Add Questions</Button></div>
-              </div>
-              <div className="px-5 py-4" data-testid="question-table">
-                <Accordion type="multiple" defaultValue={sections.map((section) => `section-${section.value}`)} className="w-full space-y-3" data-testid="question-section-groups">
-                  {groupedQuestions.map((section) => {
-                    const sectionCount = section.categories.reduce((total, category) => total + category.questions.length, 0);
-                    const sectionStyle = sectionStyles[section.value];
-                    const SectionIcon = sectionStyle.icon;
-                    return <AccordionItem key={section.value} value={`section-${section.value}`} className={`border px-4 ${sectionStyle.container}`} data-testid={`question-section-group-${section.value}`}>
-                      <AccordionTrigger className={`py-4 text-base font-semibold hover:no-underline ${sectionStyle.heading}`} data-testid={`question-section-toggle-${section.value}`}><span className="flex items-center gap-3"><SectionIcon className={`h-5 w-5 ${sectionStyle.iconClass}`} aria-hidden="true" /><span>{section.label}</span></span><Badge variant="outline" className={`ml-auto mr-3 min-w-8 justify-center rounded-full ${sectionStyle.badge}`} data-testid={`question-section-count-${section.value}`}>{sectionCount}</Badge></AccordionTrigger>
-                      <AccordionContent className="pb-4 pt-1">
-                        <Accordion type="multiple" defaultValue={section.categories.map((category) => `category-${section.value}-${category.value}`)} className="space-y-2" data-testid={`question-category-groups-${section.value}`}>
-                          {section.categories.map((category) => {
-                            const CategoryIcon = categoryStyle.icon;
-                            return <AccordionItem key={category.value} value={`category-${section.value}-${category.value}`} className={`overflow-hidden border px-4 ${categoryStyle.container}`} data-testid={`question-category-group-${section.value}-${category.value}`}>
-                            <AccordionTrigger className={`-mx-4 border-b border-stone-200 bg-stone-50 px-4 py-4 text-lg font-semibold hover:bg-stone-100 hover:no-underline ${categoryStyle.heading}`} data-testid={`question-category-toggle-${section.value}-${category.value}`}><span className="flex items-center gap-3"><CategoryIcon className={`h-5 w-5 ${categoryStyle.iconClass}`} aria-hidden="true" /><span>{category.groupLabel}</span></span><Badge variant="outline" className={`ml-auto mr-3 min-w-8 justify-center rounded-full ${categoryStyle.badge}`} data-testid={`question-category-count-${section.value}-${category.value}`}>{category.questions.length}</Badge></AccordionTrigger>
-                            <AccordionContent className="pb-4 pt-5">{category.questions.length === 0 ? <p className="pb-3 text-sm text-stone-400" data-testid={`question-category-empty-${section.value}-${category.value}`}>No {category.label.toLowerCase()} questions.</p> : <div className="overflow-hidden border border-stone-200" data-testid={`question-table-${section.value}-${category.value}`}><div className="hidden grid-cols-[2rem_minmax(10rem,1fr)_minmax(10rem,1fr)_6rem_7.5rem_minmax(15rem,1.2fr)_6.5rem_7.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-[11px] font-medium uppercase tracking-wide text-stone-600 md:grid" data-testid={`question-table-header-${section.value}-${category.value}`}><span>#</span><span>Question</span><span>Description</span><span>Type</span><span>Evidence</span><span>Point score</span><span>Max points</span><span className="text-right">Actions</span></div>{category.questions.map((question) => <div key={question.id} className="px-4"><QuestionnaireQuestionRow question={question} index={questions.indexOf(question)} typeLabel={questionTypeLabel(question.response_type)} evidenceLabel={evidenceRequirementLabel(question.evidence_requirement)} pointScoreLabel={pointScoreLabel(question)} onEdit={() => openEditQuestion(question)} onDelete={() => requestQuestionDelete(question)} onDrop={handleQuestionDrop} readOnly={selectedQuestionnaire.has_locked_submissions} /></div>)}</div>}</AccordionContent>
-                          </AccordionItem>;
-                          })}
-                        </Accordion>
-                      </AccordionContent>
-                    </AccordionItem>;
-                  })}
-                </Accordion>
-              </div>
-            </section>
-          ) : (
-            <div className="border border-dashed border-stone-300 bg-stone-50 px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">{loading ? 'Loading questionnaires…' : questionnaires.length === 0 ? 'No questionnaires yet. Create a questionnaire to begin.' : 'Select a questionnaire to view and edit its questions.'}</p></div>
-          )}
+      <main className="grid min-w-0 overflow-hidden rounded-lg border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)] xl:grid-cols-[17rem_minmax(0,1fr)]" data-testid="questionnaire-builder-workspace">
+        <QuestionnaireTaxonomySidebar questionnaires={questionnaires} selectedQuestionnaire={selectedQuestionnaire} onQuestionnaireChange={selectQuestionnaire} loading={loading} groupedQuestions={groupedQuestions} activeCategoryKey={activeCategoryKey} onCategoryChange={setActiveCategoryKey} />
+        {selectedQuestionnaire ? (
+          <section className="min-w-0 bg-white" data-testid="selected-questionnaire-panel">
+            <QuestionnaireActionBar questionnaire={selectedQuestionnaire} onEdit={() => openEditQuestionnaire(selectedQuestionnaire)} onToggleActive={() => handleQuestionnaireActivation(selectedQuestionnaire)} onReviewResponses={openSubmissions} onManageSuppliers={openQuestionnaireAssignments} onAddQuestion={() => {
+              resetQuestionForm();
+              setEditingQuestion(null);
+              setQuestionDialogMode('create');
+              setShowQuestionDialog(true);
+            }} />
+            <QuestionnaireQuestionTable selectedCategory={selectedCategory} allQuestions={questions} typeLabel={questionTypeLabel} evidenceLabel={evidenceRequirementLabel} pointScoreLabel={pointScoreLabel} onEdit={openEditQuestion} onDelete={requestQuestionDelete} onDrop={handleQuestionDrop} readOnly={selectedQuestionnaire.has_locked_submissions} />
+          </section>
+        ) : (
+          <div className="flex min-h-96 items-center justify-center border-stone-200 bg-white px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><div><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">{loading ? 'Loading questionnaires…' : 'No questionnaires are available for this reporting period.'}</p></div></div>
+        )}
       </main>
 
       <Dialog open={showSubmissionsDialog} onOpenChange={setShowSubmissionsDialog}>
