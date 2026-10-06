@@ -406,12 +406,14 @@ export default function QuestionnaireBuilder() {
   const handleUpdateQuestionnaire = async () => {
     if (!selectedQuestionnaire) return;
     if (!validateQuestionnaireWeights()) return;
+    const questionnaireUpdates = { ...questionnaireForm };
+    delete questionnaireUpdates.reporting_periods;
     
     setSubmitting(true);
     try {
       await axios.put(
         `${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}`,
-        questionnaireForm,
+        questionnaireUpdates,
         { headers: getAuthHeader() }
       );
       toast.success('Questionnaire updated');
@@ -1168,13 +1170,6 @@ export default function QuestionnaireBuilder() {
                 data-testid="edit-questionnaire-due-date-input"
               />
             </div>
-            <div className="space-y-2 border-t border-stone-100 pt-4" data-testid="edit-questionnaire-reporting-period-associations">
-              <Label className="text-sm font-medium">Reporting periods</Label>
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                {periods.map((period) => <label key={period} className="flex items-center gap-2 text-sm" data-testid={`edit-questionnaire-reporting-period-option-${period}`}><Checkbox checked={(questionnaireForm.reporting_periods || []).includes(normalizeQuestionnaireReportingPeriod(period))} onCheckedChange={() => toggleQuestionnaireReportingPeriod(period)} data-testid={`edit-questionnaire-reporting-period-checkbox-${period}`} />{period}</label>)}
-              </div>
-            </div>
-            
             <Accordion type="single" collapsible className="w-full" data-testid="edit-questionnaire-section-weights">
               <AccordionItem value="esg-weights">
                 <AccordionTrigger className="text-sm font-medium">ESG Section Weight</AccordionTrigger>
