@@ -501,6 +501,45 @@ async def migrate_legacy_questionnaire_reporting_periods() -> Dict[str, int]:
     return {"updated": updated, "total": len(questionnaires)}
 
 
+async def migrate_system_questionnaire_point_scores() -> Dict[str, int]:
+    """Persist explicit Yes/No point scores for the three system questionnaire banks."""
+    questionnaire_ids = [
+        questionnaire["id"]
+        for questionnaire in await db.supplier_questionnaires.find(
+            {"system_question_bank": {"$in": list(SYSTEM_QUESTIONNAIRE_BANKS)}},
+            {"_id": 0, "id": 1},
+        ).to_list(None)
+    ]
+    if not questionnaire_ids:
+        return {"questionnaires": 0, "questions_checked": 0, "questions_updated": 0}
+
+    questions = await db.supplier_questions.find(
+        {
+            "questionnaire_id": {"$in": questionnaire_ids},
+            "response_type": "yes_no",
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0},
+    ).to_list(None)
+    updated = 0
+    for question in questions:
+        existing_scores = question.get("point_scores")
+        normalized_question = _with_compatible_point_scores(dict(question))
+        normalized_scores = normalized_question["point_scores"]
+        if existing_scores == normalized_scores:
+            continue
+        await db.supplier_questions.update_one(
+            {"id": question["id"], "questionnaire_id": question["questionnaire_id"]},
+            {"$set": {"point_scores": normalized_scores, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        updated += 1
+    return {
+        "questionnaires": len(questionnaire_ids),
+        "questions_checked": len(questions),
+        "questions_updated": updated,
+    }
+
+
 async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str, enabled: bool) -> None:
     """Backward-compatible wrapper for the Advanced bank synchronizer."""
     await sync_system_questionnaire_bank(organization_id, created_by, "advanced", enabled)
