@@ -431,21 +431,6 @@ export default function QuestionnaireBuilder() {
     }
   };
 
-  const handleQuestionnaireActivation = async (questionnaire) => {
-    try {
-      const response = await axios.put(
-        `${API}/supplier-assessment/questionnaires/${questionnaire.id}`,
-        { is_active: !questionnaire.is_active },
-        { headers: getAuthHeader() },
-      );
-      if (selectedQuestionnaire?.id === questionnaire.id) setSelectedQuestionnaire(response.data);
-      toast.success(`Questionnaire ${questionnaire.is_active ? 'deactivated' : 'activated'}`);
-      fetchQuestionnaires();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Could not update questionnaire availability');
-    }
-  };
-
   const unlockAllQuestionnaireSuppliers = async () => {
     if (!selectedQuestionnaire) return;
     try {
@@ -958,7 +943,7 @@ export default function QuestionnaireBuilder() {
         <QuestionnaireTaxonomySidebar questionnaires={questionnaires} selectedQuestionnaire={selectedQuestionnaire} onQuestionnaireChange={selectQuestionnaire} loading={loading} groupedQuestions={groupedQuestions} activeCategoryKey={activeCategoryKey} onCategoryChange={setActiveCategoryKey} />
         {selectedQuestionnaire ? (
           <section className="min-w-0 bg-white" data-testid="selected-questionnaire-panel">
-            <QuestionnaireActionBar questionnaire={selectedQuestionnaire} onEdit={() => openEditQuestionnaire(selectedQuestionnaire)} onToggleActive={() => handleQuestionnaireActivation(selectedQuestionnaire)} onReviewResponses={openSubmissions} onManageSuppliers={openQuestionnaireAssignments} onAddQuestion={() => {
+            <QuestionnaireActionBar questionnaire={selectedQuestionnaire} onEdit={() => openEditQuestionnaire(selectedQuestionnaire)} onReviewResponses={openSubmissions} onManageSuppliers={openQuestionnaireAssignments} onAddQuestion={() => {
               resetQuestionForm();
               setEditingQuestion(null);
               setQuestionDialogMode('create');

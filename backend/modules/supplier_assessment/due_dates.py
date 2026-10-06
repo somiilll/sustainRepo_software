@@ -13,3 +13,14 @@ def validate_due_date(due_date: Optional[str]) -> None:
         raise ValueError("Due date must be a valid ISO date") from error
     if selected_date < datetime.now(timezone.utc).date():
         raise ValueError("Due date cannot be in the past")
+
+
+def has_due_date_passed(due_date: Optional[str]) -> bool:
+    """Treat a questionnaire deadline as open through its configured calendar date."""
+    if due_date in (None, ""):
+        return False
+    try:
+        selected_date = date.fromisoformat(str(due_date)[:10])
+    except (TypeError, ValueError):
+        return False
+    return selected_date < datetime.now(timezone.utc).date()

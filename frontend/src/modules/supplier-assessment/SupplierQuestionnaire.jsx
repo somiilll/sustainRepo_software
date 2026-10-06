@@ -57,6 +57,7 @@ export default function SupplierQuestionnaire() {
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [highlightedQuestionId, setHighlightedQuestionId] = useState('');
   const [pendingEvidenceReuse, setPendingEvidenceReuse] = useState(null);
+  const submissionDeadlinePassed = Boolean(questionnaire?.submission_deadline_passed);
 
   const fetchQuestionnaire = useCallback(async () => {
     try {
@@ -222,6 +223,10 @@ export default function SupplierQuestionnaire() {
   };
 
   const handleSubmit = () => {
+    if (submissionDeadlinePassed) {
+      toast.error('Submission deadline has passed. Ask your parent organization to extend the due date.');
+      return;
+    }
     // Check required questions
     const requiredUnanswered = questions.filter(
       (q) => q.required && (answers[q.id] === undefined || answers[q.id] === '')
@@ -362,7 +367,7 @@ export default function SupplierQuestionnaire() {
           </Button>}
         aside={<>
         {questionnaire.reporting_period && <Badge variant="outline" className="border-stone-200 bg-stone-50 text-stone-700" data-testid="supplier-questionnaire-reporting-period">Reporting period: {questionnaire.reporting_period}</Badge>}
-        {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}{!isReadOnly && questionnaire.due_date && new Date(`${questionnaire.due_date.slice(0, 10)}T23:59:59`) < new Date() && <Badge className="bg-rose-100 text-rose-800" data-testid="supplier-questionnaire-overdue-badge">Overdue</Badge>}
+        {questionnaire.due_date && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900" data-testid="supplier-questionnaire-due-date"><Calendar className="mr-1 h-3 w-3" />Due {new Date(questionnaire.due_date).toLocaleDateString()}</Badge>}{!isReadOnly && submissionDeadlinePassed && <Badge className="bg-rose-100 text-rose-800" data-testid="supplier-questionnaire-overdue-badge">Submission overdue</Badge>}
         {isReadOnly && (
           <Badge className="bg-green-100 text-green-800" data-testid="supplier-questionnaire-locked-badge">
             <CheckCircle className="h-3 w-3 mr-1" />
@@ -433,9 +438,9 @@ export default function SupplierQuestionnaire() {
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving...' : 'Save Draft'}
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting} data-testid="submit-supplier-questionnaire-button">
+              <Button onClick={handleSubmit} disabled={submitting || submissionDeadlinePassed} title={submissionDeadlinePassed ? 'Ask your parent organization to extend the due date before submitting.' : undefined} data-testid="submit-supplier-questionnaire-button">
                 <Send className="h-4 w-4 mr-1" />
-                {submitting ? 'Submitting...' : 'Submit'}
+                {submitting ? 'Submitting...' : submissionDeadlinePassed ? 'Submission overdue' : 'Submit'}
               </Button>
             </>
           )}
@@ -454,7 +459,7 @@ export default function SupplierQuestionnaire() {
           />
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="cancel-supplier-questionnaire-submit-button">Keep editing</AlertDialogCancel>
-            <Button variant="outline" onClick={async () => { await handleSave(false); setShowSubmitConfirm(false); }} disabled={saving} data-testid="save-supplier-questionnaire-draft-button">{saving ? 'Saving...' : 'Save as Draft'}</Button>
+            <Button variant="outline" onClick={async () => { await handleSave(false); setShowSubmitConfirm(false); }} disabled={saving} data-testid="save-supplier-questionnaire-draft-from-submit-dialog-button">{saving ? 'Saving...' : 'Save as Draft'}</Button>
             <AlertDialogAction onClick={() => handleSave(true)} disabled={submitting || !verificationAccepted} data-testid="confirm-supplier-questionnaire-submit-button">{submitting ? 'Submitting...' : 'Submit and lock'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

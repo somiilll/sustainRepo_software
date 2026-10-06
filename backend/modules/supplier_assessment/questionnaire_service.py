@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
-from modules.supplier_assessment.due_dates import validate_due_date
+from modules.supplier_assessment.due_dates import has_due_date_passed, validate_due_date
 from modules.supplier_assessment.programs import resolve_program_context
 from modules.sustainability_config.service import resolve_supplier_assessment_config
 from app.logging import get_logger, log_event
@@ -1183,6 +1183,9 @@ async def get_questionnaire_for_supplier(
     ):
         return None
     response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, (relationship or {}).get("reporting_period"))
+    questionnaire["submission_deadline_passed"] = has_due_date_passed(
+        questionnaire.get("due_date") or relationship.get("due_date")
+    )
     
     answers = response_doc.get("answers", {}) if response_doc else {}
     evidence_by_question = response_doc.get("question_evidence", {}) if response_doc else {}
@@ -1419,7 +1422,7 @@ async def submit_supplier_answers(
     # Check if response doc exists
     relationship = await self.get_supplier(supplier_relationship_id)
     questionnaire = await db.supplier_questionnaires.find_one(
-        {"id": questionnaire_id, "is_active": True}, {"_id": 0, "reporting_periods": 1, "assignment_reporting_period": 1}
+        {"id": questionnaire_id, "is_active": True}, {"_id": 0, "reporting_periods": 1, "assignment_reporting_period": 1, "due_date": 1}
     )
     if (
         not relationship
@@ -1454,6 +1457,8 @@ async def submit_supplier_answers(
     submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
     if not is_draft and not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
+    if not is_draft and has_due_date_passed(questionnaire.get("due_date") or relationship.get("due_date")):
+        raise ValueError("Submission deadline has passed. Your parent organization must extend the questionnaire due date before you can submit.")
     if not is_draft:
         required_evidence_questions = await db.supplier_questions.find(
             {"questionnaire_id": questionnaire_id, "is_active": True, "$or": [{"evidence_requirement": "required"}, {"assessment_type": "type_a"}]},
