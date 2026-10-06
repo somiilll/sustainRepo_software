@@ -61,12 +61,13 @@ import { QuestionnaireBuilderHeader } from './components/QuestionnaireBuilderHea
 import { QuestionnaireTaxonomySidebar } from './components/QuestionnaireTaxonomySidebar';
 import { QuestionnaireActionBar } from './components/QuestionnaireActionBar';
 import { QuestionnaireQuestionTable } from './components/QuestionnaireQuestionTable';
+import { questionDraftToPayload, validateQuestionDraft } from './questionDraftModel';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const responseTypes = [
   { value: 'yes_no', label: 'Yes / No' },
-  { value: 'dropdown', label: 'Dropdown' },
+  { value: 'dropdown', label: 'Multiple choice' },
 ];
 
 const sections = ESG_SECTIONS;
@@ -153,7 +154,7 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
   score: option.score ?? scoring?.choices?.[option.value] ?? null,
 }));
 
-const questionTypeLabel = (value) => ({ yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Dropdown' }[value] || value);
+const questionTypeLabel = (value) => ({ yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Multiple choice' }[value] || value);
 const evidenceRequirementLabel = (value) => ({ required: 'Required', not_required: 'Not required', optional: 'Optional', evidence_scored: 'Scoring based' }[value] || 'Not required');
 const pointScoreLabel = (question) => {
   if (question.response_type !== 'yes_no') return question.max_points ? 'Configured' : '—';
@@ -474,6 +475,7 @@ export default function QuestionnaireBuilder() {
       setPendingUnlockAndSave(null);
       await fetchQuestionnaires();
       if (pending.type === 'edit') await handleUpdateQuestion(true);
+      else if (pending.type === 'ledger') await handleSaveLedgerQuestions(pending.changes, { retryingAfterUnlock: true });
       else await handleAddLedgerQuestions(pending.draftQuestions, { keepOpen: pending.keepOpen, retryingAfterUnlock: true });
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not unlock supplier responses'); }
   };
@@ -555,6 +557,43 @@ export default function QuestionnaireBuilder() {
     } catch (err) {
       if (!retryingAfterUnlock && String(err.response?.data?.detail || err.message || '').toLowerCase().includes('submitted supplier responses')) requestUnlockAndSave({ type: 'add', draftQuestions, keepOpen });
       else toast.error(err.response?.data?.detail || 'Failed to add question');
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveLedgerQuestions = async (changes, { retryingAfterUnlock = false } = {}) => {
+    if (!selectedQuestionnaire) return false;
+    const newQuestions = changes.newQuestions || [];
+    const changedQuestions = changes.changedQuestions || [];
+    const validationError = [...newQuestions, ...changedQuestions.map((item) => item.draft)]
+      .map(validateQuestionDraft)
+      .find(Boolean);
+    if (validationError) { toast.error(validationError); return false; }
+    if (!retryingAfterUnlock && selectedQuestionnaire.requires_unlock_on_save) {
+      requestUnlockAndSave({ type: 'ledger', changes });
+      return false;
+    }
+    setSubmitting(true);
+    try {
+      const rootOrder = questions.filter((question) => !question.parent_question_id).length;
+      for (const [index, draft] of newQuestions.entries()) {
+        await axios.post(`${API}/supplier-assessment/questionnaires/${selectedQuestionnaire.id}/questions`, questionDraftToPayload(draft, rootOrder + index), { headers: getAuthHeader() });
+      }
+      for (const item of changedQuestions) {
+        await axios.put(`${API}/supplier-assessment/questions/${item.id}`, questionDraftToPayload(item.draft, item.draft.order), { headers: getAuthHeader() });
+      }
+      const changeCount = newQuestions.length + changedQuestions.length;
+      toast.success(`${changeCount} question${changeCount === 1 ? '' : 's'} saved`);
+      await fetchQuestions(selectedQuestionnaire.id);
+      return true;
+    } catch (error) {
+      if (!retryingAfterUnlock && String(error.response?.data?.detail || error.message || '').toLowerCase().includes('submitted supplier responses')) {
+        requestUnlockAndSave({ type: 'ledger', changes });
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to save question changes');
+      }
       return false;
     } finally {
       setSubmitting(false);
@@ -1523,7 +1562,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleAddLedgerQuestions} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleSaveLedgerQuestions} onDeleteSaved={requestQuestionDelete} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} scoringLocked={Boolean(selectedQuestionnaire?.requires_unlock_on_save)} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent data-testid="supplier-assessment-delete-confirmation-dialog">

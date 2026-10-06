@@ -1,118 +1,97 @@
 {
-  "project_name": "SustainRepo ESG Questionnaire Module Blueprint",
-  "archetype": "ARCHETYPE 1: ORGANIC & EARTHY & SWISS HIGH-CONTRAST (SustainRepo Standard)",
-  "context": "Dashboards & Admin Panels - Parent Organization ESG Questionnaire UI/UX Refinement",
-  "theme": "Light",
+  "theme": {
+    "mode": "light",
+    "primary_color": "#1A4D2E",
+    "secondary_color": "#4F6F52",
+    "accent_color": "#E85C0D",
+    "background_color": "#F5F7F5",
+    "surface_color": "#FFFFFF",
+    "border_color": "#E5E7EB",
+    "text_primary": "#1A1A1A",
+    "text_secondary": "#4A4A4A",
+    "text_muted": "#71717A"
+  },
   "typography": {
-    "font_family_heading": "Cabinet Grotesk, sans-serif",
-    "font_family_body": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
-    "font_family_mono": "JetBrains Mono, monospace",
-    "text_sizes": {
-      "h1": "text-2xl font-bold tracking-tight text-slate-900",
-      "h2": "text-xl font-semibold tracking-tight text-slate-900",
-      "h3": "text-lg font-medium text-slate-800",
-      "body": "text-sm text-slate-600 leading-normal",
-      "table_text": "text-sm text-slate-800",
-      "label": "text-xs font-semibold uppercase tracking-wider text-slate-500"
+    "heading_font": "Manrope, sans-serif",
+    "body_font": "Inter, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "hierarchy": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2": "text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight",
+      "h3": "text-lg sm:text-xl font-semibold",
+      "h4": "text-base sm:text-lg font-medium",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "small_labels": "text-xs font-medium uppercase tracking-wider text-stone-500"
     }
   },
-  "colors": {
-    "primary": "#0F766E",
-    "primary_hover": "#0D9488",
-    "primary_light": "#CCFBF1",
-    "background_page": "#F8FAFC",
-    "background_card": "#FFFFFF",
-    "border_color": "#E2E8F0",
-    "border_highlight": "#14B8A6",
-    "text_primary": "#0F172A",
-    "text_muted": "#64748B",
-    "accent_badge_active": "#DCFCE7",
-    "accent_badge_active_text": "#166534",
-    "accent_badge_inactive": "#F1F5F9",
-    "accent_badge_inactive_text": "#475569",
-    "taxonomy_environment": "#059669",
-    "taxonomy_social": "#2563EB",
-    "taxonomy_governance": "#D97706"
+  "layout_and_dialog_structure": {
+    "dialog_layout": "Preserve left Section > Category navigation panel, main header, and Close/Save footer.",
+    "question_types": [
+      "Yes / No",
+      "Multiple choice"
+    ],
+    "responsive_fixes": "Ensure table container has overflow-x-auto or responsive flex-col/grid stack so Actions column and Add Option / Add Question buttons are never clipped on right edge."
   },
-  "visual_enhancers": {
-    "card_style": "bg-white border border-slate-200 rounded-xl shadow-xs p-6",
-    "header_bar": "bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40 backdrop-blur-md bg-white/90",
-    "sidebar_tree": "bg-white border border-slate-200 rounded-xl p-4 shadow-2xs min-w-[280px] md:w-[320px]",
-    "table_style": "w-full text-left text-sm border-collapse rounded-lg overflow-hidden border border-slate-200",
-    "active_category_highlight": "bg-teal-50 text-teal-800 border-l-4 border-teal-600 font-semibold pl-3 pr-2 py-2 rounded-r-md transition-all"
-  },
-  "layouts": {
-    "page_container": "min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900",
-    "header_layout": "flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border-b border-slate-200 px-6 py-4 shadow-xs",
-    "header_reporting_period": "flex items-center gap-3 bg-slate-100/80 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700",
-    "main_content_grid": "grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1600px] mx-auto w-full",
-    "left_taxonomy_pane": "lg:col-span-4 xl:col-span-3 flex flex-col gap-4",
-    "right_question_pane": "lg:col-span-8 xl:col-span-9 flex flex-col gap-6"
-  },
-  "user_choices_implementation": {
-    "reporting_period_in_header": "Reporting period drop-down/badge is placed directly inside the main ModulePageHeader, perfectly aligned with Training and ESG Modules.",
-    "hide_search_and_add_questionnaire": "The Search input box and '+ Add Questionnaire' primary button have been hidden in accordance with user requirements.",
-    "match_reference_screenshot": "Two-pane ESG Taxonomy layout with Environment, Social, Governance tabs/accordions on the left, top questionnaire action toolbar (Edit questionnaire, Active/Inactive, Review responses, + Add question, Manage supplier), breadcrumb header, and full 7-column Question Table (#, Question Description, Type, Evidence, Point score, Max points, Actions)."
-  },
-  "key_components": [
-    {
-      "name": "ESGQuestionnaireHeader",
-      "description": "Page header displaying Title, Questionnaire selector ('ESG Annual (Basic)'), and Reporting Period dropdown matching Training module",
-      "data_testids": ["esg-header-title", "esg-questionnaire-select", "esg-reporting-period-select"]
+  "component_design_specs": {
+    "draft_card": {
+      "title": "New question",
+      "badge": "Draft, not saved (amber-100 / amber-800 badge)",
+      "input_field": "Multi-line auto-growing Textarea for question text with auto-height or min-rows=2",
+      "add_to_list_button": "Pill or sharp primary button ('Add to list') to commit draft into configured questions list"
     },
-    {
-      "name": "QuestionnaireActionBar",
-      "description": "Action bar containing Edit questionnaire, Active/Inactive toggle, Review responses, + Add question, and Manage supplier buttons (Search and Add questionnaire hidden)",
-      "data_testids": [
-        "btn-edit-questionnaire",
-        "toggle-active-status",
-        "btn-review-responses",
-        "btn-add-question",
-        "btn-manage-supplier"
-      ]
+    "yes_no_scoring": {
+      "preferred_answer": "Toggle Switch (Yes / No)",
+      "points_input": "Numeric input for points when preferred answer is chosen",
+      "non_preferred_score": "Fixed at 0",
+      "max_points_display": "Auto-calculated, read-only field or badge equal to preferred answer points"
     },
-    {
-      "name": "ESGTaxonomySidebar",
-      "description": "Two-pane left side navigation for Environment, Social, and Governance pillars with collapsible/expandable categories",
-      "data_testids": [
-        "taxonomy-pillar-environment",
-        "taxonomy-pillar-social",
-        "taxonomy-pillar-governance",
-        "category-item-ghg-emissions"
-      ]
+    "multiple_choice_scoring": {
+      "option_type": "Single-select radio buttons for supplier view",
+      "table_columns": [
+        "Reorder handle",
+        "Option text",
+        "Score (numeric)",
+        "Delete action"
+      ],
+      "add_option_button": "Secondary / Outline button with Plus icon ('Add option')",
+      "max_points_display": "Auto-calculated, read-only max score among all options",
+      "validation_rules": "At least 2 options required, no duplicate/empty text, numeric scores >= 0, at least one score > 0"
     },
-    {
-      "name": "QuestionDataGrid",
-      "description": "Main data table showing questions with columns: #, Question Description, Type, Evidence, Point score, Max points, Actions",
-      "data_testids": [
-        "question-data-grid",
-        "question-row-1",
-        "btn-edit-question-1",
-        "btn-delete-question-1"
-      ]
+    "evidence_section": {
+      "mandatory_toggle": "Toggle Switch: Not mandatory / Mandatory",
+      "score_dependency_toggle": "If Mandatory: Toggle Switch for 'Does the score depend on evidence?' (Yes / No)",
+      "penalty_percentage": "If Score Dependent: Input field 'If evidence isn't submitted, award [ % ] of points earned' (range 0-100, default 50%)"
+    },
+    "configured_questions_list": {
+      "display": "Row cards with question text, response type badge, mandatory/evidence tags, points tag",
+      "actions": "Edit, Reorder, Delete with confirmation dialog",
+      "locking": "Locked response type and option scores if supplier responses exist, with warning tooltip/dialog"
+    },
+    "footer_actions": {
+      "save_button": "Save N new/changed questions (dynamic counter)",
+      "close_button": "Close button with dirty check prompt: 'You have unsaved question changes. Are you sure you want to close?'"
     }
-  ],
-  "motion": {
-    "micro_interactions": "Smooth subtle hover scale on buttons (hover:bg-slate-100, transition-colors duration-150)",
-    "category_transition": "Smooth layout animation when changing ESG taxonomy categories (transition-all duration-200 ease-in-out)"
   },
-  "accessibility": {
-    "contrast_ratio": "APCA & WCAG AA compliant. All body text minimum 4.5:1 against slate-50/white backgrounds.",
-    "focus_states": "focus:ring-2 focus:ring-teal-600 focus:ring-offset-1 outline-none",
-    "keyboard_navigation": "Full arrow key and tab support across sidebar taxonomy tree and question table actions",
-    "data_testids_required": true
+  "testing_and_accessibility": {
+    "data_testid_convention": "kebab-case role-based test IDs on all interactive elements (e.g., data-testid='question-type-select', data-testid='preferred-answer-toggle', data-testid='add-option-button', data-testid='add-to-list-button', data-testid='save-questions-footer-button')",
+    "contrast": "Ensure WCAG AA contrast ratio (min 4.5:1 for normal text, 3:1 for large text and buttons)",
+    "focus_states": "Visible focus ring (ring-2 ring-primary ring-offset-2)"
   },
   "instructions_to_main_agent": [
-    "Ensure the Reporting Period dropdown is situated in the header bar identical to the Training module placement.",
-    "Hide the search input bar and the 'Add questionnaire' CTA button on the parent org ESG Questionnaire view.",
-    "Render the two-pane ESG taxonomy layout matching the reference screenshot: Left sidebar with Environment, Social, Governance categories; Right panel with Category Title breadcrumb, Action buttons, and Question Table.",
-    "Maintain all existing dialogs, edit/delete workflows, review responses panel, and supplier assignment modal logic without breaking functionality.",
-    "Add testid attributes (`data-testid`) to all interactive elements, table rows, dropdown selectors, and action buttons."
+    "Update the 'Add questions' dialog component in ESG supplier assessment without altering backend data contracts or breaking existing questionnaire structure.",
+    "Restrict response type selection strictly to 'Yes / No' and 'Multiple choice'.",
+    "In Yes/No scoring, implement the Preferred Answer toggle + Points if preferred answer chosen. Set non-preferred score to 0 and auto-calc max points.",
+    "In Multiple Choice, implement the options table with drag-to-reorder, option text, score, add option button, and auto-calc max points as highest option score. Validate >= 2 options, no empty/duplicates, numeric scores >= 0, at least one > 0.",
+    "In Evidence, replace dropdown with 'Mandatory / Not mandatory' toggle switch, score dependency toggle switch, and customizable percentage penalty field (0-100, default 50).",
+    "Implement the 'Draft, not saved' card with 'Add to list' button, moving items to the Configured questions list.",
+    "Render Supplier-facing multiple choice questions as single-select radio button groups.",
+    "Add explicit confirmation prompt before deleting saved questions and prompt on Close if there are unsaved pending changes.",
+    "Ensure table right edge is responsive and non-clipped on all screen sizes."
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Never use generic centered layouts or unstyled default HTML inputs.",
-    "All interactive and key informational elements MUST include a data-testid attribute.",
-    "Do not use complete transparent background in header or dropdown overlays.",
-    "Use 2-3x generous padding inside bordered containers to avoid text clipping."
-  ]
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "spacing": "Use generous padding (p-4 to p-8) to avoid cramped UI inside dialogs and tables.",
+    "animations": "Micro-interactions for hover, toggle switches, and table reordering.",
+    "contrast_and_hover": "Explicit hover text colors when hover background changes.",
+    "testing_attributes": "All interactive elements MUST include explicit data-testid attributes."
+  }
 }

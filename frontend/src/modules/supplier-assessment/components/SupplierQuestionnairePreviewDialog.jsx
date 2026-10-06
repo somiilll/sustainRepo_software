@@ -2,6 +2,8 @@ import React from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { RadioGroup, RadioGroupItem } from '../../../components/ui/radio-group';
 
 export const SupplierQuestionnairePreviewDialog = ({ open, onOpenChange, questionnaire, questions }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,10 +33,7 @@ export const SupplierQuestionnairePreviewDialog = ({ open, onOpenChange, questio
                     <Button variant="outline" size="sm" data-testid={`supplier-question-preview-no-${questionId}`}>No</Button>
                   </div>
                 ) : question.response_type === 'dropdown' ? (
-                  <select className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" data-testid={`supplier-question-preview-select-${questionId}`}>
-                    <option>Select an option</option>
-                    {(question.options || []).map((option) => <option key={option.value} value={option.value}>{option.label || option.value}</option>)}
-                  </select>
+                  <RadioGroup data-testid={`supplier-question-preview-options-${questionId}`}>{(question.options || []).map((option, optionIndex) => <div key={option.value} className="flex items-center gap-2"><RadioGroupItem value={option.value} id={`preview-${questionId}-${optionIndex}`} data-testid={`supplier-question-preview-option-${questionId}-${optionIndex}`} /><Label htmlFor={`preview-${questionId}-${optionIndex}`}>{option.label || option.value}</Label></div>)}</RadioGroup>
                 ) : question.response_type === 'text' ? (
                   <textarea className="min-h-20 w-full rounded-md border border-stone-300 p-3 text-sm" placeholder="Supplier response" data-testid={`supplier-question-preview-textarea-${questionId}`} />
                 ) : (
