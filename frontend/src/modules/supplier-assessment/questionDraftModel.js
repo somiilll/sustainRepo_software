@@ -8,19 +8,19 @@ export const createQuestionOption = (text = '', score = '') => ({
   score,
 });
 
-const preferredPointScore = (question) => {
+const yesNoPointScores = (question) => {
   const scores = question.point_scores || {};
-  const yes = Math.max(Number(scores.yes_score || 0), Number(scores.yes_with_evidence_score || 0));
-  const no = Number(scores.no_score || 0);
-  return { preferredAnswer: no > yes ? 'no' : 'yes', points: Math.max(yes, no, Number(question.max_points || 0), 1) };
+  const yes = Number(scores.yes_score ?? scores.yes_with_evidence_score ?? question.max_points ?? 1);
+  const no = Number(scores.no_score ?? 0);
+  return { yes, no };
 };
 
 export const draftFingerprint = (draft) => JSON.stringify({
   question_text: draft.question_text.trim(),
   response_type: draft.response_type,
   required: draft.required,
-  preferred_answer: draft.preferred_answer,
-  preferred_points: Number(draft.preferred_points),
+  yes_score: Number(draft.yes_score),
+  no_score: Number(draft.no_score),
   options: draft.options.map((option) => ({ value: option.value, text: option.text.trim(), score: Number(option.score) })),
   evidence_mandatory: draft.evidence_mandatory,
   evidence_affects_score: draft.evidence_affects_score,
@@ -37,8 +37,8 @@ export const createQuestionDraft = (section, category) => {
   question_category: category,
   response_type: 'yes_no',
   required: true,
-  preferred_answer: 'yes',
-  preferred_points: 1,
+  yes_score: 1,
+  no_score: 0,
   options: [createQuestionOption(), createQuestionOption()],
   evidence_mandatory: false,
   evidence_affects_score: false,
@@ -49,10 +49,10 @@ export const createQuestionDraft = (section, category) => {
 };
 
 export const hydrateQuestionDraft = (question) => {
-  const { preferredAnswer, points } = preferredPointScore(question);
+  const { yes, no } = yesNoPointScores(question);
   const evidenceMandatory = ['required', 'evidence_scored'].includes(question.evidence_requirement);
   const evidenceAffectsScore = question.evidence_requirement === 'evidence_scored';
-  const withoutEvidence = Number(question.point_scores?.yes_without_evidence_score ?? points / 2);
+  const withoutEvidence = Number(question.point_scores?.yes_without_evidence_score ?? yes / 2);
   const draft = {
     ...createQuestionDraft(question.category, question.question_category || 'policy'),
     source_id: question.id,
@@ -60,8 +60,8 @@ export const hydrateQuestionDraft = (question) => {
     description: question.description || '',
     response_type: question.response_type,
     required: question.required !== false,
-    preferred_answer: preferredAnswer,
-    preferred_points: points,
+    yes_score: yes,
+    no_score: no,
     options: (question.options || []).map((option) => ({
       id: `question-option-${++optionSequence}`,
       value: String(option.value || ''),
@@ -70,7 +70,7 @@ export const hydrateQuestionDraft = (question) => {
     })),
     evidence_mandatory: evidenceMandatory,
     evidence_affects_score: evidenceAffectsScore,
-    missing_evidence_percent: points > 0 ? Math.round((withoutEvidence / points) * 10000) / 100 : 50,
+    missing_evidence_percent: yes > 0 ? Math.round((withoutEvidence / yes) * 10000) / 100 : 50,
     order: question.order || 0,
   };
   return { ...draft, original_fingerprint: draftFingerprint(draft) };
@@ -80,15 +80,17 @@ export const questionDraftMaxPoints = (draft) => {
   if (draft.response_type === 'dropdown') {
     return Math.max(0, ...draft.options.map((option) => Number(option.score)).filter(Number.isFinite));
   }
-  return Number(draft.preferred_points) || 0;
+  return Math.max(Number(draft.yes_score) || 0, Number(draft.no_score) || 0);
 };
 
 export const validateQuestionDraft = (draft) => {
   if (!draft.question_text.trim()) return 'Enter the question text.';
   if (!['yes_no', 'dropdown'].includes(draft.response_type)) return 'Only Yes / No and Multiple choice questions can be configured here.';
   if (draft.response_type === 'yes_no') {
-    const points = Number(draft.preferred_points);
-    if (!Number.isFinite(points) || points <= 0) return 'Points for the preferred answer must be a number above 0.';
+    const yesScore = Number(draft.yes_score);
+    const noScore = Number(draft.no_score);
+    if (![yesScore, noScore].every((score) => Number.isFinite(score) && score >= 0)) return 'Yes score and No score must be numbers of 0 or more.';
+    if (yesScore <= 0 && noScore <= 0) return 'At least one Yes/No score must be above 0.';
   }
   if (draft.response_type === 'dropdown') {
     if (draft.options.length < 2) return 'Add at least two multiple-choice options.';
@@ -108,8 +110,9 @@ export const validateQuestionDraft = (draft) => {
 
 export const questionDraftToPayload = (draft, order = draft.order || 0) => {
   const maxPoints = questionDraftMaxPoints(draft);
-  const preferredYes = draft.preferred_answer === 'yes';
-  const missingEvidencePoints = maxPoints * Number(draft.missing_evidence_percent || 0) / 100;
+  const yesScore = Number(draft.yes_score) || 0;
+  const noScore = Number(draft.no_score) || 0;
+  const missingEvidencePoints = yesScore * Number(draft.missing_evidence_percent || 0) / 100;
   const evidenceRequirement = !draft.evidence_mandatory
     ? 'not_required'
     : draft.evidence_affects_score ? 'evidence_scored' : 'required';
@@ -122,14 +125,14 @@ export const questionDraftToPayload = (draft, order = draft.order || 0) => {
     score: Number(option.score),
   })) : [];
   const pointScores = {
-    yes_score: preferredYes ? maxPoints : 0,
-    yes_with_evidence_score: preferredYes ? maxPoints : 0,
-    yes_without_evidence_score: preferredYes && evidenceRequirement === 'evidence_scored' ? missingEvidencePoints : preferredYes ? maxPoints : 0,
-    no_score: preferredYes ? 0 : maxPoints,
+    yes_score: yesScore,
+    yes_with_evidence_score: yesScore,
+    yes_without_evidence_score: evidenceRequirement === 'evidence_scored' ? missingEvidencePoints : yesScore,
+    no_score: noScore,
   };
   const scoring = draft.response_type === 'dropdown'
     ? { rule: 'choice_mapping', choices: Object.fromEntries(options.map((option) => [option.value, option.score])) }
-    : { rule: 'boolean', true_score: preferredYes ? 100 : 0, false_score: preferredYes ? 0 : 100 };
+    : { rule: 'boolean', true_score: maxPoints ? yesScore / maxPoints * 100 : 0, false_score: maxPoints ? noScore / maxPoints * 100 : 0 };
   return {
     question_text: draft.question_text.trim(),
     description: draft.description || '',

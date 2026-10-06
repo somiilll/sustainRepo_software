@@ -7,20 +7,20 @@ import {
 } from './questionDraftModel';
 
 describe('question draft model', () => {
-  it('awards points to No when No is the preferred answer', () => {
+  it('stores independent Yes and No scores', () => {
     const draft = {
       ...createQuestionDraft('environment', 'policy'),
-      question_text: 'Is the preferred answer No?',
-      preferred_answer: 'no',
-      preferred_points: 12,
+      question_text: 'Score both answers independently',
+      yes_score: 3,
+      no_score: 12,
     };
 
     const payload = questionDraftToPayload(draft);
 
     expect(payload.max_points).toBe(12);
-    expect(payload.point_scores.yes_score).toBe(0);
+    expect(payload.point_scores.yes_score).toBe(3);
     expect(payload.point_scores.no_score).toBe(12);
-    expect(payload.scoring).toMatchObject({ rule: 'boolean', true_score: 0, false_score: 100 });
+    expect(payload.scoring).toMatchObject({ rule: 'boolean', true_score: 25, false_score: 100 });
   });
 
   it('calculates multiple-choice max points from the highest option score', () => {
@@ -71,7 +71,8 @@ describe('question draft model', () => {
     const draft = {
       ...createQuestionDraft('social', 'labour'),
       question_text: 'Provide evidence',
-      preferred_points: 20,
+      yes_score: 20,
+      no_score: 0,
       evidence_mandatory: true,
       evidence_affects_score: true,
       missing_evidence_percent: 35,
