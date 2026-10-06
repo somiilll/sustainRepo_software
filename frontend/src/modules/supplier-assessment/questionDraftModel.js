@@ -44,6 +44,7 @@ export const createQuestionDraft = (section, category) => {
   evidence_affects_score: false,
   missing_evidence_percent: 50,
   order: 0,
+  parent_question_id: null,
   };
   return { ...draft, original_fingerprint: draftFingerprint(draft) };
 };
@@ -72,6 +73,7 @@ export const hydrateQuestionDraft = (question) => {
     evidence_affects_score: evidenceAffectsScore,
     missing_evidence_percent: yes > 0 ? Math.round((withoutEvidence / yes) * 10000) / 100 : 50,
     order: question.order || 0,
+    parent_question_id: question.parent_question_id || null,
   };
   return { ...draft, original_fingerprint: draftFingerprint(draft) };
 };
@@ -148,7 +150,7 @@ export const questionDraftToPayload = (draft, order = draft.order || 0) => {
     category: draft.category,
     question_category: draft.question_category,
     order,
-    parent_question_id: null,
+    parent_question_id: draft.parent_question_id || null,
     scoring,
   };
 };

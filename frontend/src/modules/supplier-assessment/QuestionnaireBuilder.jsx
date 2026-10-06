@@ -61,7 +61,8 @@ import { QuestionnaireBuilderHeader } from './components/QuestionnaireBuilderHea
 import { QuestionnaireTaxonomySidebar } from './components/QuestionnaireTaxonomySidebar';
 import { QuestionnaireActionBar } from './components/QuestionnaireActionBar';
 import { QuestionnaireQuestionTable } from './components/QuestionnaireQuestionTable';
-import { questionDraftToPayload, validateQuestionDraft } from './questionDraftModel';
+import { EditQuestionDialog } from './components/EditQuestionDialog';
+import { hydrateQuestionDraft, questionDraftToPayload, validateQuestionDraft } from './questionDraftModel';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -180,6 +181,7 @@ export default function QuestionnaireBuilder() {
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [questionDialogMode, setQuestionDialogMode] = useState(null);
   const [editingQuestion, setEditingQuestion] = useState(null);
+  const [editQuestionDraft, setEditQuestionDraft] = useState(null);
   const [showSubmissionsDialog, setShowSubmissionsDialog] = useState(false);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
@@ -577,8 +579,9 @@ export default function QuestionnaireBuilder() {
   };
 
   const handleUpdateQuestion = async (retryingAfterUnlock = false) => {
-    if (!editingQuestion) return;
-    if (!validateQuestionScoring()) return;
+    if (!editingQuestion || !editQuestionDraft) return;
+    const validationError = validateQuestionDraft(editQuestionDraft);
+    if (validationError) { toast.error(validationError); return; }
     if (!retryingAfterUnlock && selectedQuestionnaire?.requires_unlock_on_save) {
       requestUnlockAndSave({ type: 'edit' });
       return;
@@ -588,13 +591,14 @@ export default function QuestionnaireBuilder() {
     try {
       await axios.put(
         `${API}/supplier-assessment/questions/${editingQuestion.id}`,
-        buildQuestionPayload(questionForm.order),
+        questionDraftToPayload(editQuestionDraft, editQuestionDraft.order),
         { headers: getAuthHeader() }
       );
       toast.success('Question updated');
       setShowQuestionDialog(false);
       setQuestionDialogMode(null);
       setEditingQuestion(null);
+      setEditQuestionDraft(null);
       resetQuestionForm();
       fetchQuestions(selectedQuestionnaire.id);
     } catch (err) {
@@ -688,6 +692,7 @@ export default function QuestionnaireBuilder() {
     if (!open) {
       setQuestionDialogMode(null);
       setEditingQuestion(null);
+      setEditQuestionDraft(null);
       resetQuestionForm();
     }
   };
@@ -727,32 +732,8 @@ export default function QuestionnaireBuilder() {
   };
 
   const openEditQuestion = (question) => {
-    const responseType = isSupportedResponseType(question.response_type)
-      ? question.response_type
-      : 'yes_no';
-    const existingScoring = question.scoring || getDefaultScoringConfig(responseType);
-    const scoring = compatibleScoringRules(responseType).some((rule) => rule.value === existingScoring.rule)
-      ? existingScoring
-      : getDefaultScoringConfig(responseType);
-    const maxPoints = Number(question.max_points || question.exact_numerical_weight || question.weight || 1);
     setEditingQuestion(question);
-    setQuestionForm({
-      question_text: question.question_text,
-      description: question.description || '',
-      response_type: responseType,
-      options: hydrateDropdownOptionScores(question.options, scoring),
-      required: question.required,
-      evidence_requirement: question.evidence_requirement || 'not_required',
-      assessment_type: question.assessment_type || (question.evidence_requirement === 'required' ? 'type_a' : question.evidence_requirement === 'evidence_scored' ? 'type_c' : 'type_b'),
-      max_points: maxPoints,
-      point_scores: { ...evidencePointDefaults(maxPoints), ...(question.point_scores || {}) },
-      exact_numerical_weight: question.exact_numerical_weight ?? (question.importance ? null : question.weight ?? null),
-      category: question.category,
-      question_category: question.question_category || defaultQuestionCategory(question.category),
-      order: question.order,
-      parent_question_id: question.parent_question_id || null,
-      scoring,
-    });
+    setEditQuestionDraft(hydrateQuestionDraft(question));
     setQuestionDialogMode('edit');
     setShowQuestionDialog(true);
   };
@@ -1168,7 +1149,8 @@ export default function QuestionnaireBuilder() {
       </Dialog>
 
       {/* Question Dialog */}
-      <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
+      <EditQuestionDialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange} draft={editQuestionDraft} onDraftChange={setEditQuestionDraft} onSave={handleUpdateQuestion} saving={submitting} scoringLocked={Boolean(selectedQuestionnaire?.requires_unlock_on_save)} sections={sections} categoriesForSection={(section) => questionCategoriesFor(section, true)} />
+      {false && <Dialog open={showQuestionDialog && questionDialogMode === 'edit'} onOpenChange={handleQuestionDialogOpenChange}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
@@ -1530,7 +1512,7 @@ export default function QuestionnaireBuilder() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
       <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleSaveLedgerQuestions} onDeleteSaved={requestQuestionDelete} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} scoringLocked={Boolean(selectedQuestionnaire?.requires_unlock_on_save)} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
