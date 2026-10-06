@@ -234,10 +234,11 @@ export default function SupplierQuestionnaire() {
     }
     const missingRequiredEvidence = questions.filter((question) => (
       (question.evidence_requirement === 'required' || question.assessment_type === 'type_a')
+      && (question.response_type !== 'yes_no' || answers[question.id] === true)
       && !(question.evidence_files || []).length
     ));
     if (missingRequiredEvidence.length > 0) {
-      toast.error(`Question ${questions.findIndex((q) => q.id === missingRequiredEvidence[0].id) + 1} needs evidence`);
+      toast.error(`Question ${questions.findIndex((q) => q.id === missingRequiredEvidence[0].id) + 1} needs evidence for its Yes response`);
       focusQuestion(missingRequiredEvidence[0].id);
       return;
     }
@@ -338,10 +339,11 @@ export default function SupplierQuestionnaire() {
     const evidenceScored = question.evidence_requirement === 'evidence_scored';
     const evidenceRequired = question.evidence_requirement === 'required' || question.assessment_type === 'type_a';
     const evidenceEnabled = ['required', 'optional', 'not_required', 'evidence_scored'].includes(question.evidence_requirement);
-    const showUpload = evidenceEnabled;
+    const answerAllowsUpload = question.response_type !== 'yes_no' || answers[question.id] === true;
+    const showUpload = evidenceEnabled && answerAllowsUpload;
     if (!showUpload && files.length === 0) return null;
     return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'mandatory' : evidenceScored ? 'affects scoring' : 'optional'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for this question.</p>}</div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'affects scoring for a Yes response' : 'optional for a Yes response'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for a Yes response.</p>}</div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
       {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
       {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="min-w-0"><span className="flex items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span>{file.reused && <span className="mt-1 block text-xs font-medium text-emerald-700" data-testid={`supplier-question-evidence-reused-${question.id}-${file.id}`}>Existing evidence reused</span>}</span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!isReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
     </div>;
