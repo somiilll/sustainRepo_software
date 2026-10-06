@@ -59,6 +59,7 @@ async def create_supplier(
     document_requirement_ids: Optional[List[str]] = None,
     training_requirement_ids: Optional[List[str]] = None,
     vendor_code: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new supplier:
@@ -204,6 +205,7 @@ async def create_supplier(
         "contact_person": contact_person,
         "contact_email": email,
         "contact_number": contact_number,
+        "tier": tier,
         "revenue_percentage": None,
         "revenue_required": revenue_required,
         "invitation_status": "pending",

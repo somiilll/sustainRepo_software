@@ -77,6 +77,7 @@ const createSupplierForm = (reportingPeriod) => ({
   contact_person: '',
   email: '',
   contact_number: '',
+  tier: '',
   access_revoke_date: '',
   reporting_period: reportingPeriod,
   modules_enabled: ['esg', 'ghg'],
@@ -241,6 +242,7 @@ export default function SupplierList() {
     try {
       await axios.post(`${API}/supplier-assessment/suppliers`, {
         ...formData,
+        tier: formData.tier || null,
         reporting_period: reportingPeriod,
       }, {
         headers: getAuthHeader(),
@@ -261,8 +263,9 @@ export default function SupplierList() {
     
     setSubmitting(true);
     try {
-      const { questionnaire_ids, ...supplierDetails } = formData;
-      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, questionnaireAssignmentsLoaded ? formData : supplierDetails, {
+      const normalizedFormData = { ...formData, tier: formData.tier || null };
+      const { questionnaire_ids, ...supplierDetails } = normalizedFormData;
+      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, questionnaireAssignmentsLoaded ? normalizedFormData : supplierDetails, {
         headers: getAuthHeader(),
       });
       toast.success('Supplier updated');
@@ -311,6 +314,7 @@ export default function SupplierList() {
       contact_person: supplier.contact_person,
       email: supplier.contact_email,
       contact_number: supplier.contact_number || '',
+      tier: supplier.tier || '',
       access_revoke_date: supplier.access_revoke_date || '',
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
@@ -660,6 +664,13 @@ export default function SupplierList() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Tier</Label>
+                <Select value={formData.tier || undefined} onValueChange={(tier) => setFormData({ ...formData, tier })}>
+                  <SelectTrigger data-testid="supplier-tier-select"><SelectValue placeholder="Select supplier tier" /></SelectTrigger>
+                  <SelectContent><SelectItem value="tier_1">Tier 1</SelectItem><SelectItem value="tier_2">Tier 2</SelectItem><SelectItem value="tier_3">Tier 3</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Label>Access Revoke Date</Label>
                   <FieldInfo label="After this date, the supplier's assessment access will be revoked." testId="supplier-access-revoke-date-info" />
@@ -825,6 +836,13 @@ export default function SupplierList() {
                 value={formData.contact_number}
                 onChange={(e) => setFormData({ ...formData, contact_number: e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Tier</Label>
+              <Select value={formData.tier || undefined} onValueChange={(tier) => setFormData({ ...formData, tier })}>
+                <SelectTrigger data-testid="edit-supplier-tier-select"><SelectValue placeholder="Select supplier tier" /></SelectTrigger>
+                <SelectContent><SelectItem value="tier_1">Tier 1</SelectItem><SelectItem value="tier_2">Tier 2</SelectItem><SelectItem value="tier_3">Tier 3</SelectItem></SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Access Revoke Date</Label>

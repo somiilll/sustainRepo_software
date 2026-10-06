@@ -341,6 +341,7 @@ async def create_supplier(
             contact_person=data.contact_person,
             email=data.email,
             contact_number=data.contact_number,
+            tier=data.tier,
             access_revoke_date=data.access_revoke_date,
             created_by=current_user["id"],
             created_by_email=current_user["email"],

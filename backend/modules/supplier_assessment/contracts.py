@@ -19,6 +19,7 @@ class SupplierCreate(BaseModel):
     contact_person: str
     email: EmailStr
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
     revenue_required: bool = False
@@ -37,6 +38,7 @@ class SupplierUpdate(BaseModel):
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
     is_active: Optional[bool] = None
@@ -62,6 +64,7 @@ class SupplierResponse(BaseModel):
     contact_person: str
     contact_email: str
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
