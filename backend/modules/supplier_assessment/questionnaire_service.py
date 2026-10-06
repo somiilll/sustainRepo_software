@@ -628,10 +628,15 @@ async def update_questionnaire(
     if "is_active" in updates:
         if existing.get("system_question_bank"):
             if updates["is_active"]:
-                raise ValueError("Super Admin must re-enable this system questionnaire bank")
-            updates["is_deleted"] = False
-            updates["system_hidden_by_org"] = True
-            updates["system_bank_last_enabled"] = True
+                if existing.get("system_bank_last_enabled") is False:
+                    raise ValueError("Super Admin must re-enable this system questionnaire bank")
+                updates["is_deleted"] = False
+                updates["system_hidden_by_org"] = False
+                updates["system_bank_last_enabled"] = True
+            else:
+                updates["is_deleted"] = False
+                updates["system_hidden_by_org"] = True
+                updates["system_bank_last_enabled"] = True
         else:
             updates["is_deleted"] = False
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -1100,6 +1105,9 @@ async def get_questionnaire_for_supplier(
     relationship = await self.get_supplier(supplier_relationship_id)
     if (
         not relationship
+        or questionnaire.get("organization_id") != relationship.get("customer_org_id")
+        or questionnaire.get("is_active") is not True
+        or questionnaire.get("is_deleted") is True
         or not questionnaire_is_available_for_period(questionnaire, relationship.get("reporting_period"))
         or ("questionnaire_ids" in relationship and questionnaire_id not in relationship.get("questionnaire_ids", []))
     ):
@@ -1199,7 +1207,12 @@ async def upload_supplier_question_evidence(
     filename: str, content_type: str, content: bytes, uploaded_by: str, sha256_hash: Optional[str] = None,
 ) -> Dict[str, Any]:
     questionnaire = await self.get_questionnaire(questionnaire_id)
-    if not questionnaire or questionnaire.get("organization_id") != relationship["customer_org_id"]:
+    if (
+        not questionnaire
+        or questionnaire.get("organization_id") != relationship["customer_org_id"]
+        or questionnaire.get("is_active") is not True
+        or questionnaire.get("is_deleted") is True
+    ):
         raise ValueError("Questionnaire not found")
     if (
         not questionnaire_is_available_for_period(questionnaire, relationship.get("reporting_period"))
