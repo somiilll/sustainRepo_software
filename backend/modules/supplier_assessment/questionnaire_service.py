@@ -1126,10 +1126,12 @@ async def get_supplier_questionnaire_status(
         # Get response status
         response_doc = await self._current_questionnaire_response(q["id"], relationship["id"], relationship.get("reporting_period"))
         
-        # Count questions
-        total_questions = await db.supplier_questions.count_documents(
-            {"questionnaire_id": q["id"], "is_active": True}
-        )
+        active_questions = await db.supplier_questions.find(
+            {"questionnaire_id": q["id"], "is_active": True},
+            {"_id": 0, "id": 1},
+        ).to_list(None)
+        active_question_ids = {question["id"] for question in active_questions}
+        total_questions = len(active_question_ids)
         
         answered_count = 0
         status = "not_started"
@@ -1139,13 +1141,16 @@ async def get_supplier_questionnaire_status(
         
         if response_doc:
             answers = response_doc.get("answers", {})
-            answered_count = len([a for a in answers.values() if a is not None])
+            answered_count = sum(
+                answer is not None and question_id in active_question_ids
+                for question_id, answer in answers.items()
+            )
             status = response_doc.get("status", "in_progress")
             submitted_at = response_doc.get("submitted_at")
             calculated_score = response_doc.get("calculated_score")
             
             if total_questions > 0:
-                completion_percent = (answered_count / total_questions) * 100
+                completion_percent = min(100.0, (answered_count / total_questions) * 100)
         
         statuses.append({
             "questionnaire_id": q["id"],
