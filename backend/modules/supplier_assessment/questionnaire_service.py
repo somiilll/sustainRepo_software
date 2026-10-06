@@ -882,6 +882,7 @@ async def add_question(
     assessment_type: str = "standard",
     max_points: Optional[float] = None,
     point_scores: Optional[Dict[str, float]] = None,
+    missing_evidence_percent: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Add a question to a questionnaire."""
     questionnaire = await db.supplier_questionnaires.find_one(
@@ -922,6 +923,7 @@ async def add_question(
         "assessment_type": assessment_type,
         "max_points": max_points,
         "point_scores": point_scores,
+        "missing_evidence_percent": missing_evidence_percent,
         "weight": effective_weight,
         "exact_numerical_weight": exact_numerical_weight,
         "category": parent_question.get("category") if parent_question else category,
@@ -1478,7 +1480,7 @@ async def submit_supplier_answers(
     calculated_score = None
     if not is_draft:
         calculated_score, score_breakdown = await self._calculate_questionnaire_score(
-            questionnaire_id, answers_dict, supplier_relationship_id
+            questionnaire_id, answers_dict, supplier_relationship_id, question_evidence
         )
     else:
         score_breakdown = None
@@ -1563,6 +1565,7 @@ async def _calculate_questionnaire_score(
     questionnaire_id: str,
     answers: Dict[str, Any],
     supplier_relationship_id: Optional[str] = None,
+    evidence_by_question: Optional[Dict[str, List[str]]] = None,
 ) -> tuple[float, Optional[Dict[str, Any]]]:
     """
     Calculate questionnaire score using the new unified scoring engine.
@@ -1595,6 +1598,7 @@ async def _calculate_questionnaire_score(
         breakdown = await engine.calculate_supplier_assessment(
             supplier_relationship_id=supplier_relationship_id or "unknown", questionnaire_id=questionnaire_id,
             save_to_db=False, answers_override=answers, manual_scores_override={},
+            evidence_by_question_override=evidence_by_question,
             reporting_period=(await self.get_supplier(supplier_relationship_id) if supplier_relationship_id else {}).get("reporting_period") if supplier_relationship_id else None,
         )
         return breakdown.esg_score.overall_score, breakdown.model_dump()

@@ -19,9 +19,11 @@ const formatAnswer = (answer) => {
   return String(answer);
 };
 
-const questionnaireStatus = (questionnaire) => questionnaire.status === 'submitted'
-  ? <Badge className="bg-emerald-100 text-emerald-800" data-testid={`supplier-esg-status-${questionnaire.questionnaire_id}`}><CheckCircle className="mr-1 h-3 w-3" />Submitted</Badge>
-  : <Badge className={questionnaire.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'} data-testid={`supplier-esg-status-${questionnaire.questionnaire_id}`}>{questionnaire.status === 'in_progress' ? 'In progress' : 'Not started'}</Badge>;
+const questionnaireStatus = (questionnaire) => {
+  if (questionnaire.status === 'submitted') return <Badge className="bg-emerald-100 text-emerald-800" data-testid={`supplier-esg-status-${questionnaire.questionnaire_id}`}><CheckCircle className="mr-1 h-3 w-3" />Submitted</Badge>;
+  const inProgress = ['in_progress', 'reopened'].includes(questionnaire.status) || Number(questionnaire.completion_percent) > 0;
+  return <Badge className={inProgress ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'} data-testid={`supplier-esg-status-${questionnaire.questionnaire_id}`}>{inProgress ? 'In progress' : 'Not started'}</Badge>;
+};
 
 export default function SupplierEsgOverview() {
   const { getAuthHeader } = useAuth();

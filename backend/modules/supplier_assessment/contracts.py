@@ -282,6 +282,7 @@ class QuestionCreate(BaseModel):
     assessment_type: Literal["standard", "type_a", "type_b", "type_c"] = "standard"
     max_points: Optional[float] = Field(default=None, gt=0)
     point_scores: Optional[EvidencePointScores] = None
+    missing_evidence_percent: Optional[float] = Field(default=None, ge=0, le=100)
     weight: Optional[float] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # ESG section: environment, social, governance
@@ -325,6 +326,7 @@ class QuestionUpdate(BaseModel):
     assessment_type: Optional[Literal["standard", "type_a", "type_b", "type_c"]] = None
     max_points: Optional[float] = Field(default=None, gt=0)
     point_scores: Optional[EvidencePointScores] = None
+    missing_evidence_percent: Optional[float] = Field(default=None, ge=0, le=100)
     weight: Optional[float] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
@@ -368,6 +370,7 @@ class QuestionResponse(BaseModel):
     required: bool = True
     evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
     assessment_type: str = "standard"
+    missing_evidence_percent: Optional[float] = None
     max_points: Optional[float] = None
     point_scores: Optional[Dict[str, float]] = None
     weight: float = 1.0

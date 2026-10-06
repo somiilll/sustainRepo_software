@@ -55,6 +55,7 @@ class ScoringEngine:
         save_to_db: bool = True,
         answers_override: Optional[Dict[str, Any]] = None,
         manual_scores_override: Optional[Dict[str, Any]] = None,
+        evidence_by_question_override: Optional[Dict[str, List[str]]] = None,
         reporting_period: Optional[str] = None,
     ) -> ScoreBreakdown:
         """
@@ -138,7 +139,7 @@ class ScoringEngine:
             ghg_score=ghg_component.get("score"),
             revenue_percentage=revenue.get("revenue_percentage"),
             manual_scores=manual_scores,
-            evidence_by_question=(response_doc or {}).get("question_evidence", {}),
+            evidence_by_question=evidence_by_question_override if evidence_by_question_override is not None else (response_doc or {}).get("question_evidence", {}),
         )
         breakdown.supplier_score.ghg_intensity_tco2e_per_million_revenue = ghg_component.get("intensity")
         breakdown.supplier_score.ghg_total_emissions = ghg_component.get("total_emissions")

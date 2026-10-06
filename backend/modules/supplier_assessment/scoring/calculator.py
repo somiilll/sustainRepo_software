@@ -98,6 +98,18 @@ class ScoreCalculator:
             raw_score=raw_score,
             calculation_details=result["calculation_details"],
         )
+
+    @staticmethod
+    def _missing_evidence_multiplier(question: Dict[str, Any]) -> float:
+        configured_percent = question.get("missing_evidence_percent")
+        if configured_percent is not None:
+            return min(1.0, max(0.0, float(configured_percent) / 100))
+        scores = question.get("point_scores") or {}
+        full_score = float(scores.get("yes_with_evidence_score", scores.get("yes_score", 0)) or 0)
+        reduced_score = float(scores.get("yes_without_evidence_score", 0) or 0)
+        if full_score > 0:
+            return min(1.0, max(0.0, reduced_score / full_score))
+        return 0.5
     
     def calculate_section_score(
         self,
@@ -397,7 +409,7 @@ class ScoreCalculator:
                     scoring_config=scoring_config,
                 )
                 assessment_type = q.get("assessment_type", "standard")
-                if assessment_type in {"type_a", "type_b", "type_c"}:
+                if assessment_type in {"type_a", "type_b", "type_c"} and q.get("response_type") == "yes_no":
                     answer_is_yes = str(raw_value).strip().lower() in {"yes", "true", "1"} or raw_value is True
                     has_evidence = bool(evidence_by_question.get(question_id))
                     max_points = float(q.get("max_points") or 100)
@@ -416,6 +428,25 @@ class ScoreCalculator:
                     q_score.calculation_details = {
                         "rule_type": assessment_type,
                         "max_points": max_points, "points_earned": earned_points,
+                        "has_evidence": has_evidence,
+                        "automatic_score_percent": automatic_score,
+                    }
+                elif assessment_type == "type_c" and q.get("response_type") == "dropdown":
+                    has_evidence = bool(evidence_by_question.get(question_id))
+                    max_points = float(q.get("max_points") or 100)
+                    selected_option_points = min(max_points, max(0.0, float(q_score.raw_score)))
+                    evidence_multiplier = 1.0 if has_evidence else self._missing_evidence_multiplier(q)
+                    earned_points = selected_option_points * evidence_multiplier
+                    automatic_score = earned_points / max_points * 100 if max_points else 0.0
+                    q_score.raw_score = automatic_score
+                    q_score.max_points = max_points
+                    q_score.points_earned = earned_points
+                    q_score.calculation_details = {
+                        "rule_type": assessment_type,
+                        "selected_option_points": selected_option_points,
+                        "missing_evidence_multiplier": evidence_multiplier,
+                        "max_points": max_points,
+                        "points_earned": earned_points,
                         "has_evidence": has_evidence,
                         "automatic_score_percent": automatic_score,
                     }

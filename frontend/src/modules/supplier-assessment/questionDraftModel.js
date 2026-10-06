@@ -145,6 +145,7 @@ export const questionDraftToPayload = (draft, order = draft.order || 0) => {
     assessment_type: assessmentType,
     max_points: maxPoints,
     point_scores: pointScores,
+    missing_evidence_percent: evidenceRequirement === 'evidence_scored' ? Number(draft.missing_evidence_percent) : null,
     weight: maxPoints,
     exact_numerical_weight: maxPoints,
     category: draft.category,
