@@ -128,6 +128,35 @@ def _validate_question_category(taxonomy: Dict[str, Any], section: str, category
         raise ValueError("Choose an enabled Supplier Assessment subcategory for this question")
     return resolved
 
+
+def _with_compatible_point_scores(question: Dict[str, Any]) -> Dict[str, Any]:
+    """Expose complete point-score fields for legacy Yes/No questions without rewriting them."""
+    if question.get("response_type") != "yes_no":
+        return question
+
+    maximum = float(question.get("max_points") or question.get("exact_numerical_weight") or question.get("weight") or 1)
+    configured_scores = dict(question.get("point_scores") or {})
+    scoring = question.get("scoring") or {}
+    yes_score = configured_scores.get("yes_score")
+    if yes_score is None:
+        yes_score = configured_scores.get("yes_with_evidence_score")
+    if yes_score is None:
+        yes_score = maximum * float(scoring.get("true_score", 100)) / 100
+    no_score = configured_scores.get("no_score")
+    if no_score is None:
+        no_score = maximum * float(scoring.get("false_score", 0)) / 100
+    without_evidence = configured_scores.get("yes_without_evidence_score")
+    if without_evidence is None:
+        without_evidence = yes_score / 2 if question.get("evidence_requirement") == "evidence_scored" or question.get("assessment_type") == "type_c" else yes_score
+
+    question["point_scores"] = {
+        "yes_score": yes_score,
+        "yes_with_evidence_score": configured_scores.get("yes_with_evidence_score", yes_score),
+        "yes_without_evidence_score": without_evidence,
+        "no_score": no_score,
+    }
+    return question
+
 # ========================================================================
 # Questionnaire Management (Customer Admin)
 # ========================================================================
@@ -536,7 +565,9 @@ async def get_questionnaire(self, questionnaire_id: str) -> Optional[Dict[str, A
             {"questionnaire_id": questionnaire_id, "is_active": True},
             {"_id": 0}
         ).sort("order", 1).to_list(500)
-        questionnaire["questions"] = ordered_question_hierarchy(questions)
+        questionnaire["questions"] = ordered_question_hierarchy([
+            _with_compatible_point_scores(question) for question in questions
+        ])
     return questionnaire
 
 

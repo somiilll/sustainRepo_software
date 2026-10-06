@@ -156,17 +156,6 @@ const hydrateDropdownOptionScores = (options, scoring) => (options || []).map((o
 
 const questionTypeLabel = (value) => ({ yes_no: 'Yes / No', numeric: 'Numeric', percentage: 'Percentage', dropdown: 'Multiple choice' }[value] || value);
 const evidenceRequirementLabel = (value) => ({ required: 'Required', not_required: 'Not required', optional: 'Optional', evidence_scored: 'Scoring based' }[value] || 'Not required');
-const pointScoreLabel = (question) => {
-  if (question.response_type !== 'yes_no') return question.max_points ? 'Configured' : '—';
-  const scores = question.point_scores || {};
-  const yesWithEvidence = scores.yes_with_evidence_score ?? scores.yes_score;
-  const yesWithoutEvidence = scores.yes_without_evidence_score ?? scores.yes_score;
-  if (question.evidence_requirement === 'evidence_scored' || question.assessment_type === 'type_c') {
-    return `Yes with evidence ${yesWithEvidence ?? '—'} · Yes without evidence ${yesWithoutEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
-  }
-  if (question.evidence_requirement === 'required') return `Yes with evidence ${yesWithEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
-  return `Yes ${scores.yes_score ?? yesWithEvidence ?? '—'} · No ${scores.no_score ?? '—'}`;
-};
 const scoringLabel = (value) => scoringRules.find((rule) => rule.value === value)?.label || 'Not configured';
 const normalizeQuestionnaireReportingPeriod = (period) => {
   const match = String(period || '').trim().match(/^FY\s*(\d{4})\s*-\s*(\d{2}|\d{4})$/i);
@@ -975,7 +964,7 @@ export default function QuestionnaireBuilder() {
               setQuestionDialogMode('create');
               setShowQuestionDialog(true);
             }} />
-            <QuestionnaireQuestionTable selectedCategory={selectedCategory} allQuestions={questions} typeLabel={questionTypeLabel} evidenceLabel={evidenceRequirementLabel} pointScoreLabel={pointScoreLabel} onEdit={openEditQuestion} onDelete={requestQuestionDelete} onDrop={handleQuestionDrop} readOnly={selectedQuestionnaire.has_locked_submissions} />
+            <QuestionnaireQuestionTable selectedCategory={selectedCategory} allQuestions={questions} typeLabel={questionTypeLabel} evidenceLabel={evidenceRequirementLabel} onEdit={openEditQuestion} onDelete={requestQuestionDelete} onDrop={handleQuestionDrop} readOnly={selectedQuestionnaire.has_locked_submissions} />
           </section>
         ) : (
           <div className="flex min-h-96 items-center justify-center border-stone-200 bg-white px-6 py-20 text-center text-stone-500" data-testid="questionnaire-empty-selection"><div><FileText className="mx-auto mb-3 h-10 w-10 text-stone-300" /><p className="text-sm">{loading ? 'Loading questionnaires…' : 'No questionnaires are available for this reporting period.'}</p></div></div>
