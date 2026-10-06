@@ -310,6 +310,7 @@ export default function SupplierList() {
     setSelectedSupplier(supplier);
     setQuestionnaireAssignmentsLoaded(false);
     setFormData({
+      vendor_code: supplier.vendor_code || '',
       company_name: supplier.company_name,
       contact_person: supplier.contact_person,
       email: supplier.contact_email,
@@ -813,6 +814,10 @@ export default function SupplierList() {
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white px-7 py-5" data-testid="edit-supplier-form-scroll-area">
             <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
+              <Label>Vendor Code</Label>
+              <Input value={formData.vendor_code} onChange={(e) => setFormData({ ...formData, vendor_code: e.target.value })} placeholder="Enter vendor code" data-testid="edit-supplier-vendor-code" />
+            </div>
+            <div className="space-y-2">
               <Label>Company Name</Label>
               <Input
                 value={formData.company_name}
@@ -854,7 +859,7 @@ export default function SupplierList() {
                 data-testid="edit-supplier-access-revoke-date"
               />
             </div>
-            <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
+            <div className="space-y-2">
               <Label>Is Annual Revenue required?</Label>
               <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-4" data-testid="edit-annual-revenue-required-control"><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="optional" data-testid="edit-annual-revenue-optional-radio" />Optional</label><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="required" data-testid="edit-annual-revenue-required-radio" />Required</label></RadioGroup>
             </div>
