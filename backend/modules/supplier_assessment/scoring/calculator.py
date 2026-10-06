@@ -110,6 +110,16 @@ class ScoreCalculator:
         if full_score > 0:
             return min(1.0, max(0.0, reduced_score / full_score))
         return 0.5
+
+    @staticmethod
+    def _choice_mapping_uses_points(question: Dict[str, Any]) -> bool:
+        max_points = question.get("max_points")
+        choices = (question.get("scoring") or {}).get("choices") or {}
+        try:
+            highest_choice = max(float(value) for value in choices.values())
+            return max_points is not None and abs(highest_choice - float(max_points)) < 0.0001
+        except (TypeError, ValueError):
+            return False
     
     def calculate_section_score(
         self,
@@ -434,7 +444,10 @@ class ScoreCalculator:
                 elif assessment_type == "type_c" and q.get("response_type") == "dropdown":
                     has_evidence = bool(evidence_by_question.get(question_id))
                     max_points = float(q.get("max_points") or 100)
-                    selected_option_points = min(max_points, max(0.0, float(q_score.raw_score)))
+                    selected_option_points = float(q_score.raw_score)
+                    if not self._choice_mapping_uses_points(q):
+                        selected_option_points = selected_option_points / 100 * max_points
+                    selected_option_points = min(max_points, max(0.0, selected_option_points))
                     evidence_multiplier = 1.0 if has_evidence else self._missing_evidence_multiplier(q)
                     earned_points = selected_option_points * evidence_multiplier
                     automatic_score = earned_points / max_points * 100 if max_points else 0.0
@@ -450,6 +463,30 @@ class ScoreCalculator:
                         "has_evidence": has_evidence,
                         "automatic_score_percent": automatic_score,
                     }
+                elif q.get("response_type") == "dropdown" and q_score.scoring_rule == "choice_mapping":
+                    max_points = float(q.get("max_points") or 100)
+                    selected_option_points = min(max_points, max(0.0, float(q_score.raw_score)))
+                    automatic_score = selected_option_points / max_points * 100 if max_points else 0.0
+                    q_score.raw_score = automatic_score
+                    q_score.max_points = max_points
+                    q_score.points_earned = selected_option_points
+                    q_score.calculation_details.update({
+                        "selected_option_points": selected_option_points,
+                        "max_points": max_points,
+                        "points_earned": selected_option_points,
+                        "automatic_score_percent": automatic_score,
+                    })
+                elif q.get("response_type") == "dropdown" and self._choice_mapping_uses_points(q):
+                    max_points = float(q["max_points"])
+                    earned_points = min(max_points, max(0.0, float(q_score.raw_score)))
+                    q_score.raw_score = earned_points / max_points * 100 if max_points else 0.0
+                    q_score.max_points = max_points
+                    q_score.points_earned = earned_points
+                    q_score.calculation_details.update({
+                        "score_unit": "points",
+                        "max_points": max_points,
+                        "points_earned": earned_points,
+                    })
                 elif q.get("max_points") is not None:
                     q_score.max_points = float(q["max_points"])
                     q_score.points_earned = q_score.raw_score / 100 * q_score.max_points

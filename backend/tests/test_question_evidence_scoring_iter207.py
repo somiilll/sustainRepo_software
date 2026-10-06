@@ -45,3 +45,23 @@ def test_multiple_choice_evidence_scoring_uses_selected_option_points():
     assert with_evidence.raw_score == 100
     assert without_evidence.points_earned == 4
     assert without_evidence.raw_score == 20
+
+
+def test_multiple_choice_standard_scoring_uses_configured_option_points():
+    question = {
+        "question_text": "Choose one", "response_type": "dropdown", "assessment_type": "standard",
+        "max_points": 15, "scoring": {"rule": "choice_mapping", "choices": {"op23": 15, "op12": 2}},
+    }
+    score = _breakdown(question, "op12", evidence=False).question_scores[0]
+    assert score.points_earned == 2
+    assert round(score.raw_score, 2) == 13.33
+
+
+def test_standard_multiple_choice_treats_option_scores_as_points():
+    question = {
+        "question_text": "Choose one", "response_type": "dropdown", "assessment_type": "standard",
+        "max_points": 15, "scoring": {"rule": "choice_mapping", "choices": {"option-1": 15, "option-2": 2}},
+    }
+    score = _breakdown(question, "option-2", evidence=False).question_scores[0]
+    assert score.points_earned == 2
+    assert round(score.raw_score, 2) == 13.33
