@@ -148,6 +148,11 @@ class QuestionReviewDecision(BaseModel):
         return self
 
 
+class QuestionReviewMark(BaseModel):
+    """Parent reviewer flag for a question that needs follow-up before finalizing review."""
+    marked: bool
+
+
 class ManualScoreUpdate(BaseModel):
     score: float = Field(ge=0, le=100)
     note: Optional[str] = Field(default=None, max_length=2000)

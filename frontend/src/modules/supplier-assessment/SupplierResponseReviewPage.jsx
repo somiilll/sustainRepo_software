@@ -38,6 +38,7 @@ export default function SupplierResponseReviewPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [reviewingQuestionId, setReviewingQuestionId] = useState('');
+  const [markingQuestionId, setMarkingQuestionId] = useState('');
 
   const fetchResponseData = useCallback(async () => {
     const result = await axios.get(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/responses`, { headers: getAuthHeader() });
@@ -102,6 +103,17 @@ export default function SupplierResponseReviewPage() {
     if (Number.isNaN(score) || score < 0 || score > (selectedQuestion?.max_points ?? selectedQuestion?.weight ?? 100)) return toast.error('Enter an approved score within the question maximum');
     return submitReview({ status: 'rejected', needs_resubmission: false, reviewer_score: score, reviewer_note: reviewerNote.trim() });
   };
+  const toggleMarkForReview = async () => {
+    if (!selectedQuestion) return;
+    const marked = !selectedQuestion.marked_for_review;
+    setMarkingQuestionId(selectedQuestion.id);
+    try {
+      await axios.put(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/questions/${selectedQuestion.id}/mark-for-review`, { marked }, { headers: getAuthHeader() });
+      toast.success(marked ? 'Question marked for review' : 'Question removed from review list');
+      await fetchResponseData();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not update the review mark'); }
+    finally { setMarkingQuestionId(''); }
+  };
   const openEvidence = async (file, download = false) => {
     if (!selectedQuestion) return false;
     const key = `${selectedQuestion.id}-${file.id}-${download ? 'download' : 'view'}`; setOpeningEvidenceKey(key);
@@ -131,6 +143,6 @@ export default function SupplierResponseReviewPage() {
       </div>
     </header>
     <div className="rounded-lg border border-slate-200 bg-white px-2" data-testid="response-review-tabs"><div className="flex flex-wrap gap-1">{[{ id: 'all', label: 'All Questions', count: questions.length }, ...PILLARS.map(({ id, label }) => ({ id, label, count: sidebarGroups[id].questionCount }))].map((tab) => { const activeClasses = tab.id === 'environment' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : tab.id === 'social' ? 'border-sky-600 bg-sky-50 text-sky-800' : tab.id === 'governance' ? 'border-violet-600 bg-violet-50 text-violet-800' : 'border-slate-900 bg-slate-100 text-slate-900'; return <button key={tab.id} type="button" onClick={() => { setActivePillar(tab.id); setActiveCategoryKey(''); }} className={`flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-semibold transition-[background-color,border-color,color] sm:px-4 ${activePillar === tab.id ? activeClasses : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`} data-testid={`response-review-tab-${tab.id}`}><span>{tab.label}</span><span className={`rounded-full px-2 py-0.5 text-xs tabular-nums ${activePillar === tab.id ? 'bg-white/80' : 'bg-slate-100'}`}>{tab.count}</span></button>; })}</div></div>
-    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_18rem] 2xl:grid-cols-[15rem_minmax(0,1fr)_21rem]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} /><ResponseAnswerHistory history={selectedQuestion.history || []} questionId={selectedQuestion.id} /></main>
+    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_18rem] 2xl:grid-cols-[15rem_minmax(0,1fr)_21rem]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onMarkForReview={toggleMarkForReview} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} marking={markingQuestionId === selectedQuestion.id} /><ResponseAnswerHistory history={selectedQuestion.history || []} questionId={selectedQuestion.id} /></main>
   </div>;
 }

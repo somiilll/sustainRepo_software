@@ -1763,6 +1763,7 @@ async def get_supplier_responses_for_admin(
     manual_question_scores = response_doc.get("manual_question_scores", {})
     question_timestamps = response_doc.get("question_timestamps", {})
     question_reviews = response_doc.get("question_reviews", {})
+    review_marks = response_doc.get("review_marks", {})
     clarification_replies = response_doc.get("clarification_replies", {})
     review_history = list(response_doc.get("review_history") or [])
     reviewer_ids = list({entry.get("reviewed_by") for entry in review_history if entry.get("reviewed_by")})
@@ -1780,6 +1781,7 @@ async def get_supplier_responses_for_admin(
         q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
+        q["marked_for_review"] = bool((review_marks.get(q["id"]) or {}).get("marked"))
         q["is_unlocked_for_supplier"] = q["id"] in set(response_doc.get("unlocked_question_ids") or [])
         q["clarification_reply"] = clarification_replies.get(q["id"])
         question_history = [entry for entry in review_history if entry.get("question_id") == q["id"]]
@@ -2053,6 +2055,55 @@ async def review_supplier_question_response(
         "score_breakdown": breakdown.model_dump(),
         "email_delivered": email_delivered,
     }
+
+
+async def set_supplier_question_review_mark(
+    self,
+    supplier_relationship_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    marked: bool,
+    reviewer_id: str,
+) -> Dict[str, Any]:
+    """Persist a parent-review follow-up flag without changing the supplier response or score."""
+    relationship = await self.get_supplier(supplier_relationship_id)
+    if not relationship:
+        raise ValueError("Supplier not found")
+    question = await db.supplier_questions.find_one(
+        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True},
+        {"_id": 0, "id": 1},
+    )
+    if not question:
+        raise ValueError("Question not found")
+    response = await db.supplier_questionnaire_responses.find_one(
+        {
+            "supplier_relationship_id": supplier_relationship_id,
+            "questionnaire_id": questionnaire_id,
+            "reporting_period": relationship.get("reporting_period") or self._default_reporting_period(),
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
+        },
+        {"_id": 0, "id": 1, "review_marks": 1},
+        sort=[("revision", -1)],
+    )
+    if not response:
+        raise ValueError("This supplier response is not available for review")
+
+    review_marks = dict(response.get("review_marks") or {})
+    if marked:
+        review_marks[question_id] = {
+            "marked": True,
+            "marked_by": reviewer_id,
+            "marked_at": datetime.now(timezone.utc).isoformat(),
+        }
+    else:
+        review_marks.pop(question_id, None)
+    await db.supplier_questionnaire_responses.update_one(
+        {"id": response["id"]},
+        {"$set": {"review_marks": review_marks, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"question_id": question_id, "marked_for_review": marked}
 
 
 async def _send_question_clarification_notification(

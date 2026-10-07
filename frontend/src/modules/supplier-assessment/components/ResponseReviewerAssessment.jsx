@@ -1,7 +1,6 @@
 import React from 'react';
-import { CheckCircle2, RotateCcw, Save, Star, XCircle } from 'lucide-react';
+import { CheckCircle2, RotateCcw, Star, XCircle } from 'lucide-react';
 import { Badge } from '../../../components/ui/badge';
-import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { Textarea } from '../../../components/ui/textarea';
@@ -25,7 +24,7 @@ const StatusChoice = ({ choice, selected, onSelect, questionId }) => {
   return <button type="button" role="radio" aria-checked={selected} onClick={() => onSelect(id)} className={`flex min-h-12 items-center gap-3 rounded-md border px-4 py-3 text-left text-sm font-bold transition-[background-color,border-color,color,box-shadow,transform] hover:-translate-y-0.5 ${selected ? active : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`} data-testid={`response-review-status-${id}-${questionId}`}><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${selected ? `${dot} text-white` : 'bg-slate-100 text-slate-500'}`}><Icon className="h-3.5 w-3.5" /></span>{label}</button>;
 };
 
-export const ResponseReviewerAssessment = ({ questionId, decision, onDecisionChange, reviewerNote, onReviewerNoteChange, reviewerScore, onReviewerScoreChange, maxPoints, currentPoints, review, saving, saveDisabled, onSave }) => {
+export const ResponseReviewerAssessment = ({ questionId, decision, onDecisionChange, reviewerNote, onReviewerNoteChange, reviewerScore, onReviewerScoreChange, maxPoints, currentPoints, review }) => {
   const isAccepted = review.status === 'accepted';
   const isClarification = review.status === 'rejected' && review.needs_resubmission;
   const isRejected = review.status === 'rejected' && !review.needs_resubmission;
@@ -37,6 +36,5 @@ export const ResponseReviewerAssessment = ({ questionId, decision, onDecisionCha
       {(decision === 'clarification' || decision === 'rejected') && <div><div className="flex items-center justify-between gap-3"><Label htmlFor={`response-review-note-${questionId}`} className="text-sm font-bold text-slate-800">{decision === 'clarification' ? 'Reviewer Comment' : 'Rejection Rationale'} <span className="text-rose-600">*</span></Label><span className="text-xs tabular-nums text-slate-500" data-testid={`response-review-comment-count-${questionId}`}>{reviewerNote.length}/500</span></div><Textarea id={`response-review-note-${questionId}`} value={reviewerNote} maxLength={500} onChange={(event) => onReviewerNoteChange(event.target.value)} className="mt-2 min-h-24 resize-y bg-white" rows={4} placeholder={decision === 'clarification' ? 'Describe what the supplier should clarify, correct, or evidence.' : 'Explain why this response receives the approved score.'} data-testid={decision === 'clarification' ? `response-review-clarification-note-${questionId}` : `response-review-reject-note-${questionId}`} /></div>}
       {decision === 'accepted' && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900" data-testid={`response-review-accept-summary-${questionId}`}><span className="font-bold">Accept submitted response.</span> The current earned score of {displayScore(currentPoints)} / {displayScore(maxPoints)} will be retained.</div>}
     </div>
-    <div className="flex justify-center border-t border-slate-200 bg-white px-5 py-4"><Button variant="outline" className="border-sky-500 text-sky-700 hover:bg-sky-50 hover:text-sky-800" onClick={onSave} disabled={saveDisabled} data-testid={`response-review-save-decision-${questionId}`}><Save className="h-4 w-4" />{saving ? 'Saving…' : 'Save Review'}</Button></div>
   </section>;
 };

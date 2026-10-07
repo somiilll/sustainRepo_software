@@ -41,6 +41,7 @@ from modules.supplier_assessment.contracts import (
     SupplierRankingResponse,
     ReminderSend,
     QuestionReviewDecision,
+    QuestionReviewMark,
     ManualScoreUpdate,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
@@ -1312,6 +1313,32 @@ async def review_supplier_question(
             "status": data.status,
             "needs_resubmission": data.needs_resubmission,
         },
+    )
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/mark-for-review")
+async def set_supplier_question_review_mark(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: QuestionReviewMark,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.set_supplier_question_review_mark(
+            supplier_id, questionnaire_id, question_id, data.marked, current_user["id"]
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    _log_supplier_event(
+        "supplier_assessment.question_review.mark.updated",
+        action="supplier_assessment.question_review.mark",
+        outcome="succeeded",
+        context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": supplier_id, "marked": data.marked},
     )
     return result
 

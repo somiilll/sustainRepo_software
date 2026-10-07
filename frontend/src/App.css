@@ -26,3 +26,15 @@
   visibility: hidden !important;
   opacity: 0 !important;
 }
+
+@media (max-width: 640px) {
+  .toaster.group {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    width: auto !important;
+  }
+
+  .toaster.group [data-sonner-toast] {
+    width: 100% !important;
+  }
+}
