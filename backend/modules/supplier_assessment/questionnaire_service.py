@@ -1686,6 +1686,8 @@ async def get_supplier_responses_for_admin(
     )
     if not response_doc:
         return None
+    if response_doc.get("has_unlocked_questions") or response_doc.get("unlocked_question_ids"):
+        raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
     
     answers = response_doc.get("answers", {}) if response_doc else {}
     
@@ -1732,6 +1734,7 @@ async def get_questionnaire_submissions_for_admin(
         "questionnaire_id": questionnaire_id,
         "status": "submitted",
         "parent_visible": {"$ne": False},
+        "has_unlocked_questions": {"$ne": True},
     }
     if reporting_period:
         query["reporting_period"] = reporting_period
@@ -1865,6 +1868,8 @@ async def review_supplier_question_response(
     )
     if not response:
         raise ValueError("Submitted questionnaire response not found")
+    if response.get("has_unlocked_questions") or response.get("unlocked_question_ids"):
+        raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
     answers = response.get("answers") or {}
     if question_id not in answers or answers.get(question_id) is None or answers.get(question_id) == "":
         raise ValueError("A supplier response is required before this question can be reviewed")

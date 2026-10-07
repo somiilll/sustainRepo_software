@@ -1176,7 +1176,10 @@ async def get_supplier_responses(
     if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    result = await supplier_service.get_supplier_responses_for_admin(supplier_id, questionnaire_id)
+    try:
+        result = await supplier_service.get_supplier_responses_for_admin(supplier_id, questionnaire_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     if not result:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     
