@@ -1,97 +1,132 @@
 {
-  "theme": {
-    "mode": "light",
-    "primary_color": "#1A4D2E",
-    "secondary_color": "#4F6F52",
-    "accent_color": "#E85C0D",
-    "background_color": "#F5F7F5",
-    "surface_color": "#FFFFFF",
-    "border_color": "#E5E7EB",
-    "text_primary": "#1A1A1A",
-    "text_secondary": "#4A4A4A",
-    "text_muted": "#71717A"
-  },
+  "project_title": "SustainRepo Review Response Workspace Redesign",
+  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST ESG ANALYTICS",
   "typography": {
-    "heading_font": "Manrope, sans-serif",
-    "body_font": "Inter, sans-serif",
-    "mono_font": "JetBrains Mono, monospace",
-    "hierarchy": {
-      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
-      "h2": "text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight",
-      "h3": "text-lg sm:text-xl font-semibold",
-      "h4": "text-base sm:text-lg font-medium",
-      "body": "text-sm sm:text-base leading-relaxed",
-      "small_labels": "text-xs font-medium uppercase tracking-wider text-stone-500"
+    "heading_font": "Cabinet Grotesk, Outfit, sans-serif",
+    "body_font": "IBM Plex Sans, Inter, sans-serif",
+    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
+    "scales": {
+      "h1_page_title": "text-2xl font-bold tracking-tight text-slate-900 md:text-3xl",
+      "h2_question_title": "text-lg font-bold tracking-tight text-slate-950 md:text-xl leading-snug",
+      "h3_section_header": "text-sm font-semibold uppercase tracking-wider text-slate-700",
+      "body_main": "text-sm text-slate-800 leading-relaxed",
+      "body_secondary": "text-xs text-slate-500",
+      "badge_text": "text-xs font-semibold tracking-wide uppercase"
     }
   },
-  "layout_and_dialog_structure": {
-    "dialog_layout": "Preserve left Section > Category navigation panel, main header, and Close/Save footer.",
-    "question_types": [
-      "Yes / No",
-      "Multiple choice"
-    ],
-    "responsive_fixes": "Ensure table container has overflow-x-auto or responsive flex-col/grid stack so Actions column and Add Option / Add Question buttons are never clipped on right edge."
-  },
-  "component_design_specs": {
-    "draft_card": {
-      "title": "New question",
-      "badge": "Draft, not saved (amber-100 / amber-800 badge)",
-      "input_field": "Multi-line auto-growing Textarea for question text with auto-height or min-rows=2",
-      "add_to_list_button": "Pill or sharp primary button ('Add to list') to commit draft into configured questions list"
+  "colors": {
+    "pillars": {
+      "environment": {
+        "bg": "bg-emerald-50/80",
+        "border": "border-emerald-200",
+        "text": "text-emerald-900",
+        "accent": "bg-emerald-600",
+        "badge": "bg-emerald-100 text-emerald-800 border-emerald-300"
+      },
+      "social": {
+        "bg": "bg-sky-50/80",
+        "border": "border-sky-200",
+        "text": "text-sky-900",
+        "accent": "bg-sky-600",
+        "badge": "bg-sky-100 text-sky-800 border-sky-300"
+      },
+      "governance": {
+        "bg": "bg-purple-50/80",
+        "border": "border-purple-200",
+        "text": "text-purple-900",
+        "accent": "bg-purple-600",
+        "badge": "bg-purple-100 text-purple-800 border-purple-300"
+      }
     },
-    "yes_no_scoring": {
-      "preferred_answer": "Toggle Switch (Yes / No)",
-      "points_input": "Numeric input for points when preferred answer is chosen",
-      "non_preferred_score": "Fixed at 0",
-      "max_points_display": "Auto-calculated, read-only field or badge equal to preferred answer points"
+    "statuses": {
+      "accepted": {
+        "bg": "bg-emerald-500/10",
+        "active_bg": "bg-emerald-600",
+        "border": "border-emerald-500",
+        "text": "text-emerald-700",
+        "active_text": "text-white"
+      },
+      "needs_clarification": {
+        "bg": "bg-amber-500/10",
+        "active_bg": "bg-amber-500",
+        "border": "border-amber-500",
+        "text": "text-amber-800",
+        "active_text": "text-white"
+      },
+      "rejected": {
+        "bg": "bg-rose-500/10",
+        "active_bg": "bg-rose-600",
+        "border": "border-rose-500",
+        "text": "text-rose-700",
+        "active_text": "text-white"
+      },
+      "submitted": {
+        "bg": "bg-teal-50",
+        "border": "border-teal-300",
+        "text": "text-teal-800"
+      }
     },
-    "multiple_choice_scoring": {
-      "option_type": "Single-select radio buttons for supplier view",
-      "table_columns": [
-        "Reorder handle",
-        "Option text",
-        "Score (numeric)",
-        "Delete action"
-      ],
-      "add_option_button": "Secondary / Outline button with Plus icon ('Add option')",
-      "max_points_display": "Auto-calculated, read-only max score among all options",
-      "validation_rules": "At least 2 options required, no duplicate/empty text, numeric scores >= 0, at least one score > 0"
+    "scoring_guidance": {
+      "bg": "bg-gradient-to-r from-sky-50 via-indigo-50/50 to-blue-50",
+      "border": "border-sky-200",
+      "title_text": "text-sky-950 font-bold",
+      "badge": "bg-sky-100 text-sky-800 border-sky-300"
     },
-    "evidence_section": {
-      "mandatory_toggle": "Toggle Switch: Not mandatory / Mandatory",
-      "score_dependency_toggle": "If Mandatory: Toggle Switch for 'Does the score depend on evidence?' (Yes / No)",
-      "penalty_percentage": "If Score Dependent: Input field 'If evidence isn't submitted, award [ % ] of points earned' (range 0-100, default 50%)"
-    },
-    "configured_questions_list": {
-      "display": "Row cards with question text, response type badge, mandatory/evidence tags, points tag",
-      "actions": "Edit, Reorder, Delete with confirmation dialog",
-      "locking": "Locked response type and option scores if supplier responses exist, with warning tooltip/dialog"
-    },
-    "footer_actions": {
-      "save_button": "Save N new/changed questions (dynamic counter)",
-      "close_button": "Close button with dirty check prompt: 'You have unsaved question changes. Are you sure you want to close?'"
+    "surfaces": {
+      "card_bg": "bg-white",
+      "card_border": "border-slate-200",
+      "sidebar_bg": "bg-slate-50/60",
+      "timeline_line": "bg-slate-200",
+      "hover_bg": "hover:bg-slate-100/80"
     }
   },
-  "testing_and_accessibility": {
-    "data_testid_convention": "kebab-case role-based test IDs on all interactive elements (e.g., data-testid='question-type-select', data-testid='preferred-answer-toggle', data-testid='add-option-button', data-testid='add-to-list-button', data-testid='save-questions-footer-button')",
-    "contrast": "Ensure WCAG AA contrast ratio (min 4.5:1 for normal text, 3:1 for large text and buttons)",
-    "focus_states": "Visible focus ring (ring-2 ring-primary ring-offset-2)"
+  "visual_enhancers": {
+    "borders_and_radius": "Rounded-xl for outer cards, rounded-lg for sub-elements, concentric inner padding p-4 to p-6.",
+    "shadows": "shadow-[0_4px_20px_rgba(0,0,0,0.03)] for cards, hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
+    "question_badge": "Inverted rounded-full circle icon with bold white number on vibrant pillar background or sky blue background",
+    "mcq_distribution_bar": "Animated percentage fill bars with supplier response highlighted using ring-2 ring-emerald-500 and distinct badge"
+  },
+  "grids_and_layouts": {
+    "page_container": "max-w-[1600px] mx-auto px-4 py-6 space-y-6",
+    "top_summary_grid": "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6",
+    "workspace_layout": "grid grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] gap-6 items-start",
+    "main_panel_stack": "space-y-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6",
+    "sidebar_panel_stack": "space-y-6"
+  },
+  "component_structure": {
+    "SupplierResponseReviewPage": "/app/frontend/src/modules/supplier-assessment/SupplierResponseReviewPage.jsx",
+    "ResponseReviewSidebar": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewSidebar.jsx",
+    "ResponseReviewQuestionPanel": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewQuestionPanel.jsx",
+    "ResponseAnswerHistory": "/app/frontend/src/modules/supplier-assessment/components/ResponseAnswerHistory.jsx",
+    "OtherResponsesDistribution": "/app/frontend/src/modules/supplier-assessment/components/OtherResponsesDistribution.jsx"
   },
   "instructions_to_main_agent": [
-    "Update the 'Add questions' dialog component in ESG supplier assessment without altering backend data contracts or breaking existing questionnaire structure.",
-    "Restrict response type selection strictly to 'Yes / No' and 'Multiple choice'.",
-    "In Yes/No scoring, implement the Preferred Answer toggle + Points if preferred answer chosen. Set non-preferred score to 0 and auto-calc max points.",
-    "In Multiple Choice, implement the options table with drag-to-reorder, option text, score, add option button, and auto-calc max points as highest option score. Validate >= 2 options, no empty/duplicates, numeric scores >= 0, at least one > 0.",
-    "In Evidence, replace dropdown with 'Mandatory / Not mandatory' toggle switch, score dependency toggle switch, and customizable percentage penalty field (0-100, default 50).",
-    "Implement the 'Draft, not saved' card with 'Add to list' button, moving items to the Configured questions list.",
-    "Render Supplier-facing multiple choice questions as single-select radio button groups.",
-    "Add explicit confirmation prompt before deleting saved questions and prompt on Close if there are unsaved pending changes.",
-    "Ensure table right edge is responsive and non-clipped on all screen sizes."
+    "1. Redesign SupplierResponseReviewPage.jsx: Enhance top header with colorful ESG pillar stat blocks (Environment, Social, Governance) in vibrant cards, supplier and questionnaire metadata cards with clear icons, and responsive tab buttons.",
+    "2. Redesign ResponseReviewSidebar.jsx: Upgrade taxonomy navigation with pillar badges, progress pill counters for category reviewed ratios, active category state with left accent bar and colored icons.",
+    "3. Redesign ResponseReviewQuestionPanel.jsx to match screenshot density and color alignment:",
+    "   a) Question header with circular numbered badge (e.g. ①) and title, plus question type tags.",
+    "   b) Supplier Response card: Styled option choices or formatted text answer with vibrant 'Submitted' status badge.",
+    "   c) Evidence preview block: File container showing PDF icon, original filename, file size, upload timestamp, and bright Preview / Download buttons.",
+    "   d) Scoring Guidance block: High-visibility electric blue / sky gradient card displaying points criteria per option or rule.",
+    "   e) Full-width Reviewer Assessment panel:",
+    "      - Status choices for Accept (emerald), Needs Clarification (amber), Reject (rose) with radio-style button cards.",
+    "      - Reviewer Score input with '/ max_points' label.",
+    "      - Reviewer Comment textarea with character count indicator (e.g. 132/500).",
+    "      - CTAs: 'Save Review' (primary button) and 'Save & Next ->' (accent button that saves review and advances to next question).",
+    "   f) Footer and top navigation bar with Previous and Next question controls.",
+    "4. Redesign ResponseAnswerHistory.jsx: Vertical timeline with connected line, color-coded event icons (v1 submission, reviewer feedback, v2 supplier revision, final decision), author tags, answer snapshots, and timestamp details.",
+    "5. Implement OtherResponsesDistribution.jsx component (or include within sidebar/panel): Visual percentage distribution bars for MCQ questions showing peer supplier response proportions, clearly labeling '(Supplier's response)' on the supplier's selection.",
+    "6. Ensure all existing data hooks, API calls (save review, open evidence, fetch response), and test IDs (data-testid) are strictly maintained.",
+    "7. All components use JavaScript (.jsx files)."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "spacing": "Use generous padding (p-4 to p-8) to avoid cramped UI inside dialogs and tables.",
-    "animations": "Micro-interactions for hover, toggle switches, and table reordering.",
-    "contrast_and_hover": "Explicit hover text colors when hover background changes.",
-    "testing_attributes": "All interactive elements MUST include explicit data-testid attributes."
+    "data_testid_rule": "MUST add data-testid to every interactive button, input, tab, badge, and section container.",
+    "file_format": "Use JS / JSX components strictly. Do not create TS/TSX files.",
+    "toast_library": "Use sonner for notifications.",
+    "contrast_and_accessibility": "Ensure high text contrast against tinted card backgrounds. Interactive buttons must have clear focus rings.",
+    "micro_interactions": "Smooth transition-colors and hover effects on decision buttons, file download cards, and category items."
   }
+},
+overwrite: true,
+path: "/app/design_guidelines.json"
 }
