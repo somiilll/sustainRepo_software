@@ -51,6 +51,8 @@ export default function SupplierQuestionnaire() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [hasUnlockedQuestions, setHasUnlockedQuestions] = useState(false);
+  const [unlockedQuestionIds, setUnlockedQuestionIds] = useState([]);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [verificationAccepted, setVerificationAccepted] = useState(false);
   const [uploadingQuestionId, setUploadingQuestionId] = useState('');
@@ -67,7 +69,11 @@ export default function SupplierQuestionnaire() {
       );
       setQuestionnaire(res.data);
       setQuestions(res.data.questions || []);
-      setIsReadOnly(res.data.response_status === 'submitted');
+      const isSubmitted = res.data.response_status === 'submitted';
+      const partiallyUnlocked = Boolean(res.data.has_unlocked_questions && (res.data.unlocked_question_ids || []).length > 0);
+      setIsReadOnly(isSubmitted && !partiallyUnlocked);
+      setHasUnlockedQuestions(partiallyUnlocked);
+      setUnlockedQuestionIds(res.data.unlocked_question_ids || []);
       
       // Load existing answers
       const existingAnswers = {};
@@ -187,7 +193,13 @@ export default function SupplierQuestionnaire() {
     
     try {
       if (isFinal) {
-        const answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+        let answersList;
+        if (hasUnlockedQuestions) {
+          // If submitting after clarification, only submit answers for unlocked questions
+          answersList = unlockedQuestionIds.map((qid) => ({ question_id: qid, answer: answers[qid] }));
+        } else {
+          answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+        }
         await axios.post(
           `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
           { answers: answersList, is_draft: false, data_verified: verificationAccepted },
@@ -274,7 +286,15 @@ export default function SupplierQuestionnaire() {
   const answeredCount = Object.keys(answers).length;
   const progress = (answeredCount / questions.length) * 100;
 
+  const isQuestionReadOnly = (question) => {
+    if (hasUnlockedQuestions) {
+      return !unlockedQuestionIds.includes(question.id);
+    }
+    return isReadOnly;
+  };
+
   const renderQuestionInput = (question) => {
+    const qReadOnly = isQuestionReadOnly(question);
     const value = answers[question.id];
     
     switch (question.response_type) {
@@ -283,7 +303,7 @@ export default function SupplierQuestionnaire() {
           <RadioGroup
             value={value?.toString() || ''}
             onValueChange={(v) => handleAnswer(question.id, v === 'true')}
-            disabled={isReadOnly}
+            disabled={qReadOnly}
             className="flex gap-4"
             data-testid={`supplier-questionnaire-answer-${question.id}`}
           >
@@ -304,7 +324,7 @@ export default function SupplierQuestionnaire() {
             type="number"
             value={value || ''}
             onChange={(e) => handleAnswer(question.id, e.target.value ? parseFloat(e.target.value) : '')}
-            disabled={isReadOnly}
+            disabled={qReadOnly}
             placeholder="Enter a number"
             className="max-w-xs"
             data-testid={`supplier-questionnaire-answer-${question.id}`}
@@ -316,7 +336,7 @@ export default function SupplierQuestionnaire() {
           <RadioGroup
             value={value || ''}
             onValueChange={(v) => handleAnswer(question.id, v)}
-            disabled={isReadOnly}
+            disabled={qReadOnly}
             className="space-y-2"
             data-testid={`supplier-questionnaire-answer-${question.id}`}
           >
@@ -330,7 +350,7 @@ export default function SupplierQuestionnaire() {
           <Textarea
             value={value || ''}
             onChange={(e) => handleAnswer(question.id, e.target.value)}
-            disabled={isReadOnly}
+            disabled={qReadOnly}
             placeholder="Enter your answer"
             rows={4}
             data-testid={`supplier-questionnaire-answer-${question.id}`}
@@ -340,6 +360,7 @@ export default function SupplierQuestionnaire() {
   };
 
   const renderQuestionEvidence = (question) => {
+    const qReadOnly = isQuestionReadOnly(question);
     const files = question.evidence_files || [];
     const evidenceScored = question.evidence_requirement === 'evidence_scored';
     const evidenceRequired = question.evidence_requirement === 'required' || question.assessment_type === 'type_a';
@@ -348,9 +369,9 @@ export default function SupplierQuestionnaire() {
     const showUpload = evidenceEnabled && answerAllowsUpload;
     if (!showUpload && files.length === 0) return null;
     return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'affects scoring for response' : 'is optional'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for the response.</p>}</div>{showUpload && !isReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'affects scoring for response' : 'is optional'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for the response.</p>}</div>{showUpload && !qReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
       {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
-      {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="min-w-0"><span className="flex items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span>{file.reused && <span className="mt-1 block text-xs font-medium text-emerald-700" data-testid={`supplier-question-evidence-reused-${question.id}-${file.id}`}>Existing evidence reused</span>}</span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!isReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
+      {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="min-w-0"><span className="flex items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span>{file.reused && <span className="mt-1 block text-xs font-medium text-emerald-700" data-testid={`supplier-question-evidence-reused-${question.id}-${file.id}`}>Existing evidence reused</span>}</span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!qReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
     </div>;
   };
 
@@ -377,6 +398,12 @@ export default function SupplierQuestionnaire() {
         {questionnaire.response_status === 'in_progress' && questionnaire.reopened_at && (
           <Badge className="bg-amber-100 text-amber-800" data-testid="supplier-questionnaire-reopened-badge">Unlocked for resubmission</Badge>
         )}
+        {hasUnlockedQuestions && (
+          <Badge className="bg-amber-100 text-amber-900 border-amber-300" data-testid="supplier-questionnaire-clarification-badge">
+            <RotateCcw className="mr-1 h-3 w-3" />
+            Clarification requested ({unlockedQuestionIds.length} question{unlockedQuestionIds.length > 1 ? 's' : ''})
+          </Badge>
+        )}
         </>}
       />
 
@@ -401,33 +428,82 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {questions.map((question, index) => <Card key={question.id} id={`supplier-question-${question.id}`} tabIndex={-1} className={`scroll-mt-24 transition-[box-shadow,border-color] ${question.parent_question_id ? 'ml-4 border-l-4 border-l-emerald-200 bg-emerald-50/30 sm:ml-8' : ''} ${highlightedQuestionId === question.id ? 'border-amber-400 ring-2 ring-amber-200' : ''}`} data-testid={`supplier-questionnaire-question-card-${question.id}`}>
-        <CardHeader>
-          <div className="flex items-start gap-2">
-            {answers[question.id] !== undefined ? (
-              <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
-            ) : (
-              <Circle className="h-5 w-5 text-stone-300 mt-0.5" />
-            )}
-            <div>
-              <CardTitle className="text-lg">
-                {question.parent_question_id ? <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span> : `${questions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `}{question.question_text}
-                {question.required && <span className="text-red-500 ml-1">*</span>}
-              </CardTitle>
-              {question.description && (
-                <CardDescription className="mt-2">{question.description}</CardDescription>
+      {questions.map((question, index) => {
+        const isQuestionUnlocked = hasUnlockedQuestions && unlockedQuestionIds.includes(question.id);
+        const review = question.review || {};
+        return (
+          <Card
+            key={question.id}
+            id={`supplier-question-${question.id}`}
+            tabIndex={-1}
+            className={`scroll-mt-24 transition-[box-shadow,border-color] ${
+              question.parent_question_id
+                ? 'ml-4 border-l-4 border-l-emerald-200 bg-emerald-50/30 sm:ml-8'
+                : ''
+            } ${
+              highlightedQuestionId === question.id
+                ? 'border-amber-400 ring-2 ring-amber-200'
+                : isQuestionUnlocked
+                ? 'border-amber-400 ring-2 ring-amber-200 bg-amber-50/20'
+                : ''
+            }`}
+            data-testid={`supplier-questionnaire-question-card-${question.id}`}
+          >
+            <CardHeader>
+              <div className="flex items-start gap-2">
+                {answers[question.id] !== undefined ? (
+                  <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
+                ) : (
+                  <Circle className="h-5 w-5 text-stone-300 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-lg">
+                      {question.parent_question_id ? (
+                        <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span>
+                      ) : (
+                        `${questions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `
+                      )}
+                      {question.question_text}
+                      {question.required && <span className="text-red-500 ml-1">*</span>}
+                    </CardTitle>
+                    {isQuestionUnlocked && (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300" data-testid={`question-unlocked-badge-${question.id}`}>
+                        <RotateCcw className="mr-1 h-3 w-3" /> Unlocked for edit
+                      </Badge>
+                    )}
+                  </div>
+                  {question.description && (
+                    <CardDescription className="mt-2">{question.description}</CardDescription>
+                  )}
+                </div>
+              </div>
+
+              {/* Reviewer Comment / Clarification Instruction Banner */}
+              {review.reviewer_note && (
+                <div
+                  className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950"
+                  data-testid={`supplier-question-reviewer-note-${question.id}`}
+                >
+                  <p className="font-semibold text-amber-900">
+                    Reviewer Feedback / Clarification Request:
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap">{review.reviewer_note}</p>
+                </div>
               )}
-            </div>
-          </div>
-          <Badge variant="outline" className="w-fit mt-2">
-            {question.category}
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          {renderQuestionInput(question)}
-          {renderQuestionEvidence(question)}
-        </CardContent>
-      </Card>)}</div>
+
+              <Badge variant="outline" className="w-fit mt-2">
+                {question.category}
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              {renderQuestionInput(question)}
+              {renderQuestionEvidence(question)}
+            </CardContent>
+          </Card>
+        );
+      })}
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-end border-t border-stone-200 pt-5">
@@ -440,7 +516,7 @@ export default function SupplierQuestionnaire() {
               </Button>
               <Button onClick={handleSubmit} disabled={submitting || submissionDeadlinePassed} title={submissionDeadlinePassed ? 'Ask your parent organization to extend the due date before submitting.' : undefined} data-testid="submit-supplier-questionnaire-button">
                 <Send className="h-4 w-4 mr-1" />
-                {submitting ? 'Submitting...' : submissionDeadlinePassed ? 'Submission overdue' : 'Submit'}
+                {submitting ? 'Submitting...' : submissionDeadlinePassed ? 'Submission overdue' : hasUnlockedQuestions ? 'Resubmit Clarifications' : 'Submit'}
               </Button>
             </>
           )}

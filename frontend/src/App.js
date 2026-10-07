@@ -76,6 +76,7 @@ import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
 import PCFStudio from './pages/PCFStudio';
 import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
+import SupplierResponseReviewPage from './modules/supplier-assessment/SupplierResponseReviewPage';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
 import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
@@ -366,6 +367,7 @@ const AppRoutes = () => {
           <Route path="supplier-assessment" element={<AdminRoute><SupplierAssessmentPeriodProvider><SupplierAssessmentAdminLayout /></SupplierAssessmentPeriodProvider></AdminRoute>}>
             <Route path="suppliers" element={<SupplierAssessmentSuppliers />} />
             <Route path="esg" element={<SupplierAssessmentESG />} />
+            <Route path="suppliers/:supplierId/questionnaires/:questionnaireId/review" element={<SupplierResponseReviewPage />} />
             <Route path="ghg" element={<SupplierAssessmentGHG />} />
             <Route path="ranking" element={<SupplierAssessmentRanking />} />
             <Route path="documents" element={<SupplierDocumentsAdmin />} />

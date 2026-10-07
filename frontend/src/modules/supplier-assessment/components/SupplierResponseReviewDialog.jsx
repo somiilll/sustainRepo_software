@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import { QuestionReviewCard } from './QuestionReviewCard';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -59,6 +60,7 @@ const QuestionScore = ({ scoreData, testId }) => {
 export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, supplierId, getAuthHeader, onScoreSaved }) => {
   const [scores, setScores] = useState({});
   const [savingQuestionId, setSavingQuestionId] = useState('');
+  const [reviewingQuestionId, setReviewingQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const calculatedScores = useMemo(() => Object.fromEntries((response?.score_breakdown?.question_scores || []).map((item) => [item.question_id, item])), [response]);
   const esgScore = response?.score_breakdown?.esg_score || {};
@@ -77,6 +79,29 @@ export const SupplierResponseReviewDialog = ({ open, onOpenChange, response, sup
     });
     setScores(nextScores);
   }, [response]);
+
+  const handleReviewSubmit = async (questionId, reviewPayload) => {
+    setReviewingQuestionId(questionId);
+    try {
+      const { data } = await axios.put(
+        `${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${response.id}/questions/${questionId}/review`,
+        reviewPayload,
+        { headers: getAuthHeader() },
+      );
+      toast.success(
+        reviewPayload.status === 'accepted'
+          ? 'Question response accepted'
+          : reviewPayload.needs_resubmission
+          ? 'Clarification requested & question unlocked for supplier'
+          : 'Question rejected with approved score',
+      );
+      onScoreSaved?.(data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not submit review decision');
+    } finally {
+      setReviewingQuestionId('');
+    }
+  };
 
   const saveQuestionScore = async (question) => {
     const value = scores[question.id];

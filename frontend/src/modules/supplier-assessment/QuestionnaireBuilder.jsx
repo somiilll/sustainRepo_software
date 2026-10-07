@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
@@ -166,6 +167,7 @@ const normalizeQuestionnaireReportingPeriod = (period) => {
 };
 
 export default function QuestionnaireBuilder() {
+  const navigate = useNavigate();
   const { getAuthHeader } = useAuth();
   const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [questionnaires, setQuestionnaires] = useState([]);
@@ -659,12 +661,8 @@ export default function QuestionnaireBuilder() {
 
   const openSubmissionReview = async (submission) => {
     if (!selectedQuestionnaire) return;
-    try {
-      const response = await axios.get(`${API}/supplier-assessment/suppliers/${submission.supplier_id}/questionnaires/${selectedQuestionnaire.id}/responses`, { headers: getAuthHeader() });
-      setReviewSupplier(submission);
-      setReviewResponse(response.data);
-      setShowSubmissionsDialog(false);
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not load supplier response'); }
+    setShowSubmissionsDialog(false);
+    navigate(`/supplier-assessment/suppliers/${submission.supplier_id}/questionnaires/${selectedQuestionnaire.id}/review`);
   };
 
   const resetQuestionForm = () => {

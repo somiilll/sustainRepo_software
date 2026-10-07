@@ -114,7 +114,7 @@ const ViewSupplierProgress = ({ supplier, submissionStatus }) => {
   return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-4 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} data-testid={`supplier-${module.code}-progress`}><div className="flex items-center justify-between gap-3 text-sm"><span>{module.label}</span><span className="font-medium" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div><div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-${module.code}-progress-track`}><div className={`h-2 rounded-full transition-[width] duration-500 ${module.tone}`} style={{ width: `${progress}%` }} data-testid={`supplier-${module.code}-progress-bar`} /></div></div>; })}</div></div>;
 };
 
-const ViewSupplierScores = ({ supplier }) => {
+const ViewSupplierScores = ({ supplier, onReviewClick }) => {
   const snapshot = supplier.canonical_score_snapshot || {};
   const scores = [
     { code: 'esg', label: 'ESG Score', value: supplier.esg_score ?? snapshot.esg_score },
@@ -122,7 +122,32 @@ const ViewSupplierScores = ({ supplier }) => {
     { code: 'social', label: 'Social Score', value: snapshot.social_score },
     { code: 'governance', label: 'Governance Score', value: snapshot.governance_score },
   ];
-  return <div className="border-t pt-4" data-testid="supplier-score-breakdown"><Label className="text-stone-500">ESG Score Breakdown</Label><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{scores.map((score) => <div key={score.code} className="border-l-2 border-emerald-400 bg-stone-50 px-3 py-2" data-testid={`supplier-${score.code}-score-summary`}><p className="text-xs text-stone-500">{score.label}</p><p className="mt-1 text-lg font-semibold text-stone-900" data-testid={`supplier-${score.code}-score-value`}>{score.value ?? 'Pending'}</p></div>)}</div></div>;
+  return (
+    <div className="border-t pt-4" data-testid="supplier-score-breakdown">
+      <div className="flex items-center justify-between">
+        <Label className="text-stone-500">ESG Score Breakdown</Label>
+        {supplier.questionnaire_ids?.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+            onClick={onReviewClick}
+            data-testid="view-supplier-review-response-button"
+          >
+            Review ESG Responses
+          </Button>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {scores.map((score) => (
+          <div key={score.code} className="border-l-2 border-emerald-400 bg-stone-50 px-3 py-2" data-testid={`supplier-${score.code}-score-summary`}>
+            <p className="text-xs text-stone-500">{score.label}</p>
+            <p className="mt-1 text-lg font-semibold text-stone-900" data-testid={`supplier-${score.code}-score-value`}>{score.value ?? 'Pending'}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export default function SupplierList() {
@@ -1044,7 +1069,16 @@ export default function SupplierList() {
               <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
               {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted {selectedSupplier.revenue_submitted_at ? new Date(selectedSupplier.revenue_submitted_at).toLocaleDateString() : ''}{selectedSupplier.revenue_submitted_at ? ' · ' : ''}locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
               
-              <ViewSupplierScores supplier={selectedSupplier} />
+              <ViewSupplierScores
+                supplier={selectedSupplier}
+                onReviewClick={() => {
+                  const qid = selectedSupplier.questionnaire_ids?.[0];
+                  if (qid) {
+                    setShowViewDialog(false);
+                    navigate(`/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${qid}/review`);
+                  }
+                }}
+              />
             </div>
           )}
           <DialogFooter className="shrink-0 border-t border-stone-200 bg-white px-7 py-4">
