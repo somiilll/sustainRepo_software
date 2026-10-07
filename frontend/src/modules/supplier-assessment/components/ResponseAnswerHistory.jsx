@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle2, CircleDot, FileText, MessageSquare, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, CircleDot, FileText, MessageSquare, RotateCcw, X } from 'lucide-react';
+import { Button } from '../../../components/ui/button';
 
 const dateTime = (value) => value ? new Date(value).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const answerText = (answer) => typeof answer === 'boolean' ? (answer ? 'Yes' : 'No') : answer === undefined || answer === null || answer === '' ? 'Not answered' : String(answer);
@@ -12,9 +13,9 @@ const eventDetails = (entry) => {
   return { label: 'Response Rejected', date: entry.reviewed_at, Icon: XCircle, node: 'bg-rose-500', card: 'border-rose-100 bg-rose-50/60', detail: entry.reviewer_note || `Reviewer score: ${entry.reviewer_score ?? 0}` };
 };
 
-export const ResponseAnswerHistory = ({ history, questionId }) => {
+export const ResponseAnswerHistory = ({ history, questionId, onClose }) => {
   return <section className="flex h-full min-w-0 flex-col overflow-hidden bg-white" data-testid={`response-review-history-${questionId}`}>
-  <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-5 py-4 text-white"><div className="flex items-center gap-2"><h2 className="truncate text-sm font-bold text-white" data-testid={`response-review-history-title-${questionId}`}>Answer Details &amp; History</h2><span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-slate-200" data-testid={`response-review-history-count-${questionId}`}>{history?.length || 0}</span></div></div>
+  <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 to-slate-800 px-5 py-4 text-white"><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><h2 className="truncate text-sm font-bold text-white" data-testid={`response-review-history-title-${questionId}`}>Answer Details &amp; History</h2><span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-slate-200" data-testid={`response-review-history-count-${questionId}`}>{history?.length || 0}</span></div><Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 border border-white/20 text-white hover:bg-white/15 hover:text-white" aria-label="Close answer details and history" title="Close history" onClick={onClose} data-testid="response-review-history-close-button"><X className="h-4 w-4" /></Button></div></div>
   <div className="flex-1 overflow-y-auto bg-slate-50/60 px-4 py-5" data-testid={`response-review-history-scroll-${questionId}`}>
     {history?.length ? <ol>{history.map((entry, index) => {
       const event = eventDetails(entry); const { Icon } = event;
