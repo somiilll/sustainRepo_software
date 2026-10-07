@@ -35,6 +35,7 @@ import {
   Download,
   Eye,
   Paperclip,
+  RotateCcw,
   LockKeyhole,
   Trash2,
 } from 'lucide-react';
