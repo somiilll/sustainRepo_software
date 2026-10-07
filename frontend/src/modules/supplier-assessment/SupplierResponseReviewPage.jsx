@@ -83,7 +83,10 @@ export default function SupplierResponseReviewPage() {
         if (!active) return;
         setReviewSuppliers(submissionsResult.data?.submissions || []);
         const available = Array.isArray(questionnairesResult.data) ? questionnairesResult.data : questionnairesResult.data?.questionnaires || [];
-        setPeriodQuestionnaires(available.filter((item) => item.id === questionnaireId || item.is_active !== false));
+        const candidates = available.filter((item) => item.is_active !== false);
+        const submissionChecks = await Promise.allSettled(candidates.map((item) => axios.get(`${API}/supplier-assessment/questionnaires/${item.id}/submissions`, { params, headers: getAuthHeader() })));
+        if (!active) return;
+        setPeriodQuestionnaires(candidates.filter((item, index) => submissionChecks[index].status === 'fulfilled' && (submissionChecks[index].value.data?.submissions || []).some((submission) => submission.supplier_id === supplierId)));
       } catch (error) {
         if (active) {
           setReviewSuppliers([]);
@@ -172,9 +175,9 @@ export default function SupplierResponseReviewPage() {
   const questionnaireName = questionnaire?.name || response?.name || 'ESG Questionnaire';
   const reportingPeriod = supplier?.reporting_period || response?.reporting_period || questionnaire?.reporting_period || 'Current period';
   return <div className="space-y-5 pb-10" data-testid="supplier-response-review-page">
-    <header className="border-b border-stone-200 bg-white px-1 pb-4" data-testid="response-review-header">
+    <header className="border-b border-stone-200 bg-white pb-4" data-testid="response-review-header">
       <div className="flex flex-wrap items-center gap-3">
-        <div><Button variant="ghost" className="-ml-3 h-8 px-3 text-slate-600 hover:bg-slate-100 hover:text-slate-950" onClick={() => navigate('/supplier-assessment/esg')} data-testid="response-review-back-button"><ArrowLeft className="h-4 w-4" />Back to ESG Questionnaire</Button><h1 className="mt-1 text-xl font-bold text-stone-950" data-testid="response-review-title">Review ESG Questionnaire Responses</h1></div>
+        <div><button type="button" className="inline-flex items-center gap-1.5 bg-transparent p-0 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950" onClick={() => navigate('/supplier-assessment/esg')} data-testid="response-review-back-button"><ArrowLeft className="h-4 w-4" />Back to ESG Questionnaire</button><h1 className="mt-1 text-2xl font-bold text-stone-950" data-testid="response-review-title">Review ESG Questionnaire Responses</h1></div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_9rem_repeat(3,9rem)]" data-testid="response-review-summary">
         <div className="flex min-w-0 items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/70 px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-600 text-white"><Building2 className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="text-xs font-medium text-sky-700">Supplier</p><Select value={supplierId} onValueChange={changeSupplier} disabled={loadingReviewOptions || reviewSuppliers.length === 0}><SelectTrigger className="mt-1 h-8 border-0 bg-transparent px-0 text-sm font-bold text-slate-950 shadow-none focus:ring-0" data-testid="response-review-supplier-select"><SelectValue>{supplierName}</SelectValue></SelectTrigger><SelectContent>{reviewSuppliers.map((item) => <SelectItem key={item.supplier_id} value={item.supplier_id} data-testid={`response-review-supplier-option-${item.supplier_id}`}>{item.supplier_name}</SelectItem>)}</SelectContent></Select></div></div>
