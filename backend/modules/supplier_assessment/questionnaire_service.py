@@ -1590,6 +1590,7 @@ async def submit_supplier_answers(
                         review_history.append({
                             "question_id": qid,
                             "event": "supplier_clarification_resubmitted",
+                            "supplier_revision": 2 + sum(1 for entry in review_history if entry.get("question_id") == qid and entry.get("event") == "supplier_clarification_resubmitted"),
                             "supplier_reply": (clarification_replies.get(qid) or {}).get("message"),
                             "supplier_answer_snapshot": answers_dict.get(qid),
                             "evidence_snapshot": list(question_evidence.get(qid) or []),
@@ -1761,6 +1762,10 @@ async def get_supplier_responses_for_admin(
     question_timestamps = response_doc.get("question_timestamps", {})
     question_reviews = response_doc.get("question_reviews", {})
     clarification_replies = response_doc.get("clarification_replies", {})
+    review_history = list(response_doc.get("review_history") or [])
+    reviewer_ids = list({entry.get("reviewed_by") for entry in review_history if entry.get("reviewed_by")})
+    reviewers = await db.users.find({"id": {"$in": reviewer_ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(len(reviewer_ids)) if reviewer_ids else []
+    reviewer_names = {reviewer["id"]: reviewer.get("full_name") or reviewer.get("name") or reviewer.get("email") or "Reviewer" for reviewer in reviewers}
     for q in questionnaire.get("questions", []):
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
@@ -1774,6 +1779,20 @@ async def get_supplier_responses_for_admin(
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
         q["clarification_reply"] = clarification_replies.get(q["id"])
+        question_history = [entry for entry in review_history if entry.get("question_id") == q["id"]]
+        timestamps = question_timestamps.get(q["id"]) or {}
+        if timestamps.get("submitted_at"):
+            question_history.insert(0, {
+                "event": "supplier_submission",
+                "submitted_at": timestamps["submitted_at"],
+                "supplier_revision": response_doc.get("revision") or 1,
+                "supplier_answer_snapshot": answers.get(q["id"]),
+                "evidence_snapshot": list((response_doc.get("question_evidence") or {}).get(q["id"], [])),
+            })
+        for entry in question_history:
+            if entry.get("reviewed_by"):
+                entry["reviewer_name"] = reviewer_names.get(entry["reviewed_by"], "Reviewer")
+        q["history"] = question_history
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
     questionnaire["calculated_score"] = response_doc.get("calculated_score") if response_doc else None
