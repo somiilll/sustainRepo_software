@@ -8,9 +8,9 @@ const PILLARS = {
 
 export const ResponseReviewSidebar = ({ groups, activeCategoryKey, onCategorySelect }) => (
   <aside className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_6px_24px_rgba(15,23,42,0.04)] xl:sticky xl:top-4" data-testid="response-review-taxonomy-sidebar">
-    <div className="border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
-      <p className="text-sm font-bold text-white" data-testid="response-review-sidebar-title">Questionnaire</p>
-      <p className="mt-1 text-xs text-slate-300" data-testid="response-review-sidebar-caption">Review progress by topic</p>
+    <div className="border-b border-stone-200 bg-white px-5 py-4">
+      <p className="text-sm font-semibold text-stone-900" data-testid="response-review-sidebar-title">Questionnaire</p>
+      <p className="mt-1 text-xs text-stone-500" data-testid="response-review-sidebar-caption">Review progress by topic</p>
     </div>
     <nav className="max-h-[calc(100vh-13rem)] overflow-y-auto bg-slate-50/60 p-3" aria-label="Questionnaire categories" data-testid="response-review-sidebar-navigation">
       {Object.entries(PILLARS).map(([pillar, config]) => {

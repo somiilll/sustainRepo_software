@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, Building2, CheckCircle2, ClipboardList, Leaf, Landmark, Sparkles, UsersRound } from 'lucide-react';
+import { ArrowLeft, Building2, CheckCircle2, ClipboardList, Leaf, Landmark, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge } from '../../components/ui/badge';
@@ -122,12 +122,12 @@ export default function SupplierResponseReviewPage() {
   const questionnaireName = questionnaire?.name || response?.name || 'ESG Questionnaire';
   const reportingPeriod = supplier?.reporting_period || response?.reporting_period || questionnaire?.reporting_period || 'Current period';
   return <div className="space-y-5 pb-10" data-testid="supplier-response-review-page">
-    <header className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.05)]" data-testid="response-review-header">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 px-4 py-4 text-white sm:px-5">
-        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="text-white hover:bg-white/10 hover:text-white" onClick={() => navigate('/supplier-assessment/esg')} aria-label="Back to questionnaires" data-testid="response-review-back-button"><ArrowLeft className="h-4 w-4" /></Button><div><p className="flex items-center gap-2 text-xs font-semibold text-emerald-300"><Sparkles className="h-3.5 w-3.5" />Supplier assessment</p><h1 className="mt-0.5 text-xl font-bold text-white" data-testid="response-review-title">Review Response</h1></div></div>
-        <Badge className="border border-emerald-300/30 bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/15" data-testid="response-review-status"><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Submitted</Badge>
+    <header className="border-b border-stone-200 bg-white px-1 pb-4" data-testid="response-review-header">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3"><Button variant="ghost" size="icon" onClick={() => navigate('/supplier-assessment/esg')} aria-label="Back to questionnaires" data-testid="response-review-back-button"><ArrowLeft className="h-4 w-4" /></Button><h1 className="text-xl font-bold text-stone-950" data-testid="response-review-title">Review Response</h1></div>
+        <Badge className="border border-emerald-200 bg-emerald-100 text-emerald-800 hover:bg-emerald-100" data-testid="response-review-status"><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Submitted</Badge>
       </div>
-      <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_9rem_repeat(3,9rem)]" data-testid="response-review-summary">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_9rem_repeat(3,9rem)]" data-testid="response-review-summary">
         <div className="flex min-w-0 items-center gap-3 rounded-md border border-sky-100 bg-sky-50/70 px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-sky-600 text-white"><Building2 className="h-4 w-4" /></span><div className="min-w-0"><p className="text-xs font-medium text-sky-700">Supplier</p><p className="truncate text-sm font-bold text-slate-950" data-testid="response-review-supplier-name">{supplierName}</p></div></div>
         <div className="flex min-w-0 items-center gap-3 rounded-md border border-indigo-100 bg-indigo-50/70 px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-indigo-600 text-white"><ClipboardList className="h-4 w-4" /></span><div className="min-w-0"><p className="text-xs font-medium text-indigo-700">Questionnaire</p><p className="truncate text-sm font-bold text-slate-950" data-testid="response-review-questionnaire-name">{questionnaireName}</p><p className="mt-0.5 text-xs text-slate-500" data-testid="response-review-reporting-period">{reportingPeriod}</p></div></div>
         <div className="rounded-md border border-slate-800 bg-slate-900 px-4 py-3 text-white"><p className="text-xs font-medium text-slate-300">Overall Score</p><p className="mt-1 text-xl font-bold" data-testid="response-review-overall-score">{scoreLabel(response?.calculated_score ?? esgScore.overall_score)} <span className="text-xs font-medium text-slate-300">/ 100</span></p></div>
