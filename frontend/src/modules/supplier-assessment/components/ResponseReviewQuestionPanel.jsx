@@ -17,7 +17,7 @@ const displayAnswer = (question) => {
 
 const dateTime = (value) => value ? new Date(value).toLocaleString(undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
-export const ResponseReviewQuestionPanel = ({ question, index, total, score, onAccept, onReject, onPrevious, onNext, onOpenEvidence, openingEvidenceKey, saving }) => {
+export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, total, score, onAccept, onReject, onPrevious, onNext, onOpenEvidence, openingEvidenceKey, saving }) => {
   const review = question.review || {};
   const isAccepted = review.status === 'accepted';
   const isClarification = review.status === 'rejected' && review.needs_resubmission;
@@ -28,14 +28,14 @@ export const ResponseReviewQuestionPanel = ({ question, index, total, score, onA
     ? review.reviewer_score ?? 0
     : score?.points_earned ?? question.manual_score ?? (question.answer === true ? question.point_scores?.yes_score : question.answer === false ? question.point_scores?.no_score : 0);
   const timestamps = question.timestamps || {};
-  const type = question.assessment_type ? question.assessment_type.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : question.response_type?.replace('_', ' ') || 'Question';
+  const responseType = question.response_type === 'yes_no' ? 'Yes / No' : question.response_type === 'dropdown' ? 'Multiple choice' : question.response_type === 'numeric' ? 'Numeric' : question.response_type === 'text' ? 'Text response' : 'Response';
   return (
     <section className="min-w-0 bg-white" data-testid={`response-review-question-panel-${question.id}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-5 py-4 lg:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
           <span className="font-semibold capitalize text-emerald-800" data-testid="response-review-question-pillar">{question.category}</span>
           <ChevronRight className="h-4 w-4 text-stone-400" />
-          <span className="truncate text-stone-600" data-testid="response-review-question-category">{question.question_category || 'General'}</span>
+          <span className="truncate text-stone-600" data-testid="response-review-question-category">{categoryLabel}</span>
         </div>
         <div className="flex items-center gap-2" data-testid="response-review-question-top-navigation">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={onPrevious} disabled={index === 0} aria-label="Previous question" data-testid="response-review-top-previous-button"><ChevronLeft className="h-4 w-4" /></Button>
@@ -49,7 +49,7 @@ export const ResponseReviewQuestionPanel = ({ question, index, total, score, onA
           <h2 className="text-lg font-bold text-stone-950" data-testid={`response-review-question-text-${question.id}`}>{index + 1}. {question.question_text}</h2>
           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-[10rem_minmax(0,1fr)]">
             <span className="font-medium text-stone-600">Question Type</span>
-            <span className="flex flex-wrap items-center gap-2"><Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100" data-testid={`response-review-question-type-${question.id}`}>{type}</Badge><span className="text-xs text-stone-500">{question.evidence_requirement === 'required' ? 'Evidence required' : question.evidence_requirement === 'evidence_scored' ? 'Evidence affects score' : 'Evidence optional'}</span></span>
+            <span className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium text-stone-800" data-testid={`response-review-question-type-${question.id}`}>{responseType}</span><span className="text-xs text-stone-500" data-testid={`response-review-evidence-rule-${question.id}`}>{question.evidence_requirement === 'required' ? 'Evidence required' : question.evidence_requirement === 'evidence_scored' ? 'Evidence affects score' : 'Evidence optional'}</span></span>
             {question.description && <><span className="font-medium text-stone-600">Description</span><p className="max-w-3xl leading-6 text-stone-800" data-testid={`response-review-question-description-${question.id}`}>{question.description}</p></>}
           </div>
         </div>
