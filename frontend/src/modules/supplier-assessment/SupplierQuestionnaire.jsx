@@ -12,6 +12,7 @@ import { Label } from '../../components/ui/label';
 import { SupplierDataVerificationAcknowledgement } from './components/SupplierDataVerificationAcknowledgement';
 import { SupplierPageHeader } from './components/SupplierPageHeader';
 import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +35,7 @@ import {
   Download,
   Eye,
   Paperclip,
+  LockKeyhole,
   Trash2,
 } from 'lucide-react';
 
@@ -514,10 +516,19 @@ export default function SupplierQuestionnaire() {
                 <Save className="h-4 w-4 mr-1" />
                 {saving ? 'Saving...' : 'Save Draft'}
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting || submissionDeadlinePassed} title={submissionDeadlinePassed ? 'Ask your parent organization to extend the due date before submitting.' : undefined} data-testid="submit-supplier-questionnaire-button">
-                <Send className="h-4 w-4 mr-1" />
-                {submitting ? 'Submitting...' : submissionDeadlinePassed ? 'Submission overdue' : hasUnlockedQuestions ? 'Resubmit Clarifications' : 'Submit'}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={submissionDeadlinePassed ? 0 : undefined} data-testid="submit-supplier-questionnaire-tooltip-trigger">
+                      <Button onClick={handleSubmit} disabled={submitting || submissionDeadlinePassed} aria-label={submissionDeadlinePassed ? 'Submit unavailable because the due date has passed' : undefined} data-testid="submit-supplier-questionnaire-button">
+                        {submissionDeadlinePassed ? <LockKeyhole className="h-4 w-4 mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                        {submitting ? 'Submitting...' : hasUnlockedQuestions ? 'Resubmit Clarifications' : 'Submit'}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {submissionDeadlinePassed && <TooltipContent data-testid="submit-supplier-questionnaire-overdue-tooltip">Your due date is passed, contact your customer to change the due date.</TooltipContent>}
+                </Tooltip>
+              </TooltipProvider>
             </>
           )}
         </div>
