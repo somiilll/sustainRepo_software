@@ -267,7 +267,8 @@ export default function SupplierQuestionnaire() {
       }
     }
     // Check required questions
-    const requiredUnanswered = questions.filter(
+    const questionsToSubmit = hasUnlockedQuestions ? questions.filter((question) => unlockedQuestionIds.includes(question.id)) : questions;
+    const requiredUnanswered = questionsToSubmit.filter(
       (q) => q.required && (answers[q.id] === undefined || answers[q.id] === '')
     );
     
@@ -276,7 +277,7 @@ export default function SupplierQuestionnaire() {
       focusQuestion(requiredUnanswered[0].id);
       return;
     }
-    const missingRequiredEvidence = questions.filter((question) => (
+    const missingRequiredEvidence = questionsToSubmit.filter((question) => (
       (question.evidence_requirement === 'required' || question.assessment_type === 'type_a')
       && (question.response_type !== 'yes_no' || answers[question.id] === true)
       && !(question.evidence_files || []).length
@@ -455,7 +456,7 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {questions.map((question, index) => {
+      {(hasUnlockedQuestions ? questions.filter((question) => unlockedQuestionIds.includes(question.id)) : questions).map((question, index) => {
         const isQuestionUnlocked = hasUnlockedQuestions && unlockedQuestionIds.includes(question.id);
         const review = question.review || {};
         const isClarificationRequest = review.status === 'rejected' && review.needs_resubmission;
@@ -491,16 +492,11 @@ export default function SupplierQuestionnaire() {
                       {question.parent_question_id ? (
                         <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span>
                       ) : (
-                        `${questions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `
+                        `${(hasUnlockedQuestions ? questions.filter((item) => unlockedQuestionIds.includes(item.id)) : questions).slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `
                       )}
                       {question.question_text}
                       {question.required && <span className="text-red-500 ml-1">*</span>}
                     </CardTitle>
-                    {isQuestionUnlocked && (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-300" data-testid={`question-unlocked-badge-${question.id}`}>
-                        <RotateCcw className="mr-1 h-3 w-3" /> Unlocked for edit
-                      </Badge>
-                    )}
                   </div>
                   {question.description && (
                     <CardDescription className="mt-2">{question.description}</CardDescription>

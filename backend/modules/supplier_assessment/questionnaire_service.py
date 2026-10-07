@@ -1158,6 +1158,8 @@ async def get_supplier_questionnaire_status(
         completion_percent = 0.0
         calculated_score = None
         submitted_at = None
+        has_unlocked_questions = False
+        unlocked_question_count = 0
         
         if response_doc:
             answers = response_doc.get("answers", {})
@@ -1168,6 +1170,8 @@ async def get_supplier_questionnaire_status(
             status = response_doc.get("status", "in_progress")
             submitted_at = response_doc.get("submitted_at")
             calculated_score = response_doc.get("calculated_score")
+            has_unlocked_questions = bool(response_doc.get("has_unlocked_questions"))
+            unlocked_question_count = len(response_doc.get("unlocked_question_ids") or [])
             
             if total_questions > 0:
                 completion_percent = min(100.0, (answered_count / total_questions) * 100)
@@ -1183,6 +1187,8 @@ async def get_supplier_questionnaire_status(
             "total_questions": total_questions,
             "calculated_score": calculated_score,
             "submitted_at": submitted_at,
+            "has_unlocked_questions": has_unlocked_questions,
+            "unlocked_question_count": unlocked_question_count,
             "due_date": q.get("due_date") or relationship.get("due_date"),
         })
     
@@ -1764,6 +1770,7 @@ async def get_supplier_responses_for_admin(
     question_timestamps = response_doc.get("question_timestamps", {})
     question_reviews = response_doc.get("question_reviews", {})
     review_marks = response_doc.get("review_marks", {})
+    question_review_drafts = response_doc.get("question_review_drafts", {})
     clarification_replies = response_doc.get("clarification_replies", {})
     review_history = list(response_doc.get("review_history") or [])
     reviewer_ids = list({entry.get("reviewed_by") for entry in review_history if entry.get("reviewed_by")})
@@ -1781,7 +1788,8 @@ async def get_supplier_responses_for_admin(
         q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
-        q["marked_for_review"] = bool((review_marks.get(q["id"]) or {}).get("marked"))
+        q["review_draft"] = question_review_drafts.get(q["id"])
+        q["marked_for_review"] = bool(question_review_drafts.get(q["id"]) or (review_marks.get(q["id"]) or {}).get("marked"))
         q["is_unlocked_for_supplier"] = q["id"] in set(response_doc.get("unlocked_question_ids") or [])
         q["clarification_reply"] = clarification_replies.get(q["id"])
         question_history = [entry for entry in review_history if entry.get("question_id") == q["id"]]
@@ -1993,6 +2001,10 @@ async def review_supplier_question_response(
 
     question_reviews = dict(response.get("question_reviews") or {})
     question_reviews[question_id] = review_entry
+    question_review_drafts = dict(response.get("question_review_drafts") or {})
+    question_review_drafts.pop(question_id, None)
+    review_marks = dict(response.get("review_marks") or {})
+    review_marks.pop(question_id, None)
 
     review_history = list(response.get("review_history") or [])
     review_history.append({
@@ -2012,6 +2024,8 @@ async def review_supplier_question_response(
 
     update_fields: Dict[str, Any] = {
         "question_reviews": question_reviews,
+        "question_review_drafts": question_review_drafts,
+        "review_marks": review_marks,
         "review_history": review_history,
         "has_unlocked_questions": has_unlocked,
         "unlocked_question_ids": unlocked_questions,
@@ -2055,6 +2069,75 @@ async def review_supplier_question_response(
         "score_breakdown": breakdown.model_dump(),
         "email_delivered": email_delivered,
     }
+
+
+async def save_supplier_question_review_draft(
+    self,
+    supplier_relationship_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    decision: Dict[str, Any],
+    reviewer_id: str,
+) -> Dict[str, Any]:
+    """Save a parent-only review draft without changing score, visibility, or supplier access."""
+    relationship = await self.get_supplier(supplier_relationship_id)
+    if not relationship:
+        raise ValueError("Supplier not found")
+    question = await db.supplier_questions.find_one(
+        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True},
+        {"_id": 0, "id": 1, "max_points": 1},
+    )
+    if not question:
+        raise ValueError("Question not found")
+    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+    response = await db.supplier_questionnaire_responses.find_one(
+        {
+            "supplier_relationship_id": supplier_relationship_id,
+            "questionnaire_id": questionnaire_id,
+            "reporting_period": reporting_period,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
+        },
+        {"_id": 0, "id": 1, "answers": 1, "question_review_drafts": 1, "review_marks": 1},
+        sort=[("revision", -1)],
+    )
+    if not response:
+        raise ValueError("This supplier response is not locked and cannot be reviewed")
+    if question_id not in (response.get("answers") or {}):
+        raise ValueError("A supplier response is required before this question can be marked for review")
+
+    status = decision.get("status")
+    if status not in {"accepted", "rejected"}:
+        raise ValueError("Decision status must be 'accepted' or 'rejected'")
+    needs_resubmission = bool(decision.get("needs_resubmission")) if status == "rejected" else False
+    reviewer_note = (decision.get("reviewer_note") or "").strip()
+    reviewer_score = float(decision.get("reviewer_score") or 0.0) if status == "rejected" and not needs_resubmission else None
+    if needs_resubmission and not reviewer_note:
+        raise ValueError("A reviewer comment is required when clarification is requested")
+    if status == "rejected" and not needs_resubmission and not reviewer_note:
+        raise ValueError("A review rationale is required when rejecting a response")
+    if reviewer_score is not None and (reviewer_score < 0 or reviewer_score > float(question.get("max_points") or 100)):
+        raise ValueError("Approved score must be between zero and the question maximum")
+
+    now = datetime.now(timezone.utc).isoformat()
+    draft = {
+        "status": status,
+        "needs_resubmission": needs_resubmission,
+        "reviewer_score": reviewer_score,
+        "reviewer_note": reviewer_note,
+        "drafted_by": reviewer_id,
+        "drafted_at": now,
+    }
+    drafts = dict(response.get("question_review_drafts") or {})
+    drafts[question_id] = draft
+    marks = dict(response.get("review_marks") or {})
+    marks[question_id] = {"marked": True, "marked_by": reviewer_id, "marked_at": now}
+    await db.supplier_questionnaire_responses.update_one(
+        {"id": response["id"]},
+        {"$set": {"question_review_drafts": drafts, "review_marks": marks, "updated_at": now}},
+    )
+    return {"question_id": question_id, "review_draft": draft, "marked_for_review": True}
 
 
 async def set_supplier_question_review_mark(

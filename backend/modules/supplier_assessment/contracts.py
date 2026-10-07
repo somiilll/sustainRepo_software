@@ -153,6 +153,10 @@ class QuestionReviewMark(BaseModel):
     marked: bool
 
 
+class QuestionReviewDraft(QuestionReviewDecision):
+    """Private parent-review draft that is never exposed to the supplier."""
+
+
 class ManualScoreUpdate(BaseModel):
     score: float = Field(ge=0, le=100)
     note: Optional[str] = Field(default=None, max_length=2000)

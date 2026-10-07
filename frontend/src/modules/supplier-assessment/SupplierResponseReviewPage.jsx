@@ -40,6 +40,7 @@ export default function SupplierResponseReviewPage() {
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [reviewingQuestionId, setReviewingQuestionId] = useState('');
   const [markingQuestionId, setMarkingQuestionId] = useState('');
+  const [draftingQuestionId, setDraftingQuestionId] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [reviewSuppliers, setReviewSuppliers] = useState([]);
   const [periodQuestionnaires, setPeriodQuestionnaires] = useState([]);
@@ -137,16 +138,27 @@ export default function SupplierResponseReviewPage() {
     if (Number.isNaN(score) || score < 0 || score > (selectedQuestion?.max_points ?? selectedQuestion?.weight ?? 100)) return toast.error('Enter an approved score within the question maximum');
     return submitReview({ status: 'rejected', needs_resubmission: false, reviewer_score: score, reviewer_note: reviewerNote.trim() });
   };
-  const toggleMarkForReview = async () => {
-    if (!selectedQuestion) return;
-    const marked = !selectedQuestion.marked_for_review;
-    setMarkingQuestionId(selectedQuestion.id);
+  const saveReviewDraft = async (decision, reviewerNote, reviewerScore) => {
+    if (!selectedQuestion) return false;
+    let payload;
+    if (decision === 'accepted') payload = { status: 'accepted', needs_resubmission: false };
+    else if (decision === 'clarification') {
+      if (!reviewerNote.trim()) { toast.error('A reviewer comment is required for clarification'); return false; }
+      payload = { status: 'rejected', needs_resubmission: true, reviewer_note: reviewerNote.trim() };
+    } else {
+      const score = Number(reviewerScore);
+      if (Number.isNaN(score) || score < 0 || score > (selectedQuestion.max_points ?? selectedQuestion.weight ?? 100)) { toast.error('Enter an approved score within the question maximum'); return false; }
+      if (!reviewerNote.trim()) { toast.error('A rejection rationale is required'); return false; }
+      payload = { status: 'rejected', needs_resubmission: false, reviewer_score: score, reviewer_note: reviewerNote.trim() };
+    }
+    setDraftingQuestionId(selectedQuestion.id);
     try {
-      await axios.put(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/questions/${selectedQuestion.id}/mark-for-review`, { marked }, { headers: getAuthHeader() });
-      toast.success(marked ? 'Question marked for review' : 'Question removed from review list');
+      await axios.put(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/questions/${selectedQuestion.id}/review-draft`, payload, { headers: getAuthHeader() });
+      toast.success('Review draft saved for the parent organization');
       await fetchResponseData();
-    } catch (error) { toast.error(error.response?.data?.detail || 'Could not update the review mark'); }
-    finally { setMarkingQuestionId(''); }
+      return true;
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not save the review draft'); return false; }
+    finally { setDraftingQuestionId(''); }
   };
   const openEvidence = async (file, download = false) => {
     if (!selectedQuestion) return false;
@@ -186,7 +198,7 @@ export default function SupplierResponseReviewPage() {
         {PILLARS.map(({ id, label, Icon, card, icon }) => <div key={id} className={`rounded-xl border px-4 py-3 ${card}`} data-testid={`response-review-pillar-score-${id}`}><p className={`flex items-center gap-1.5 text-xs font-bold ${icon}`}><Icon className="h-3.5 w-3.5" />{label}</p><p className="mt-1 text-xl font-bold">{scoreLabel(esgScore[id]?.score)} <span className="text-xs font-medium">/ 100</span></p></div>)}
       </div>
     </header>
-    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onMarkForReview={toggleMarkForReview} onOpenHistory={() => setHistoryOpen(true)} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} marking={markingQuestionId === selectedQuestion.id} /></main>
+    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onMarkForReview={saveReviewDraft} onOpenHistory={() => setHistoryOpen(true)} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} marking={draftingQuestionId === selectedQuestion.id} /></main>
     <Sheet open={historyOpen} onOpenChange={setHistoryOpen}><SheetContent side="right" hideClose className="w-full max-w-xl p-0 sm:max-w-xl" data-testid="response-review-history-drawer"><ResponseAnswerHistory history={selectedQuestion.history || []} questionId={selectedQuestion.id} onClose={() => setHistoryOpen(false)} /></SheetContent></Sheet>
   </div>;
 }

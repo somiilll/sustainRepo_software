@@ -12,12 +12,14 @@ const displayScore = (value) => {
 
 export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, total, score, onDecision, onMarkForReview, onOpenHistory, onPrevious, onNext, onOpenEvidence, openingEvidenceKey, saving, marking }) => {
   const review = question.review || {};
-  const isAccepted = review.status === 'accepted';
-  const isClarification = review.status === 'rejected' && review.needs_resubmission;
-  const isRejected = review.status === 'rejected' && !review.needs_resubmission;
+  const reviewDraft = question.review_draft || {};
+  const editableReview = reviewDraft.drafted_at ? reviewDraft : review;
+  const isAccepted = editableReview.status === 'accepted';
+  const isClarification = editableReview.status === 'rejected' && editableReview.needs_resubmission;
+  const isRejected = editableReview.status === 'rejected' && !editableReview.needs_resubmission;
   const [decision, setDecision] = useState(isAccepted ? 'accepted' : isClarification ? 'clarification' : isRejected ? 'rejected' : '');
-  const [reviewerNote, setReviewerNote] = useState(review.reviewer_note || '');
-  const [reviewerScore, setReviewerScore] = useState(String(review.reviewer_score ?? 0));
+  const [reviewerNote, setReviewerNote] = useState(editableReview.reviewer_note || '');
+  const [reviewerScore, setReviewerScore] = useState(String(editableReview.reviewer_score ?? 0));
   const maxPoints = question.max_points ?? question.weight ?? 100;
   const points = isRejected ? review.reviewer_score ?? 0 : score?.points_earned ?? question.manual_score ?? (question.answer === true ? question.point_scores?.yes_score : question.answer === false ? question.point_scores?.no_score : 0);
   const saveDisabled = saving || !decision || ((decision === 'clarification' || decision === 'rejected') && !reviewerNote.trim());
@@ -33,10 +35,10 @@ export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, to
 
     <div className="space-y-6 px-5 py-6 lg:px-6">
       <ResponseQuestionDetails question={question} index={index} onOpenHistory={onOpenHistory} onOpenEvidence={onOpenEvidence} openingEvidenceKey={openingEvidenceKey} />
-      <ResponseReviewerAssessment questionId={question.id} decision={decision} onDecisionChange={setDecision} reviewerNote={reviewerNote} onReviewerNoteChange={setReviewerNote} reviewerScore={reviewerScore} onReviewerScoreChange={setReviewerScore} maxPoints={maxPoints} currentPoints={points} review={review} clarificationReply={question.clarification_reply} saving={saving} saveDisabled={saveDisabled} />
+      <ResponseReviewerAssessment questionId={question.id} decision={decision} onDecisionChange={setDecision} reviewerNote={reviewerNote} onReviewerNoteChange={setReviewerNote} reviewerScore={reviewerScore} onReviewerScoreChange={setReviewerScore} maxPoints={maxPoints} currentPoints={points} review={review} reviewDraft={reviewDraft} clarificationReply={question.clarification_reply} saving={saving} saveDisabled={saveDisabled} />
     </div>
 
-    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 lg:px-6"><Button variant="outline" onClick={onPrevious} disabled={index === 0} data-testid="response-review-previous-button"><ChevronLeft className="mr-1.5 h-4 w-4" />Previous</Button><span className="text-xs font-semibold text-slate-600" data-testid="response-review-footer-position">Question {index + 1} of {total}</span><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button variant="outline" className={question.marked_for_review ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:text-amber-950' : 'border-slate-300 text-slate-700'} onClick={onMarkForReview} disabled={marking} data-testid={`response-review-mark-for-review-${question.id}`}><BookmarkCheck className="h-4 w-4" />{marking ? 'Saving…' : question.marked_for_review ? 'Marked for Review' : 'Mark for Review'}</Button><Button variant="outline" className="border-sky-500 text-sky-700 hover:bg-sky-50 hover:text-sky-800" onClick={saveReview} disabled={saveDisabled} data-testid={`response-review-save-decision-${question.id}`}><Save className="h-4 w-4" />{saving ? 'Saving…' : 'Save Review'}</Button><Button className="bg-blue-600 hover:bg-blue-700" onClick={saveAndNext} disabled={saveDisabled || index === total - 1} data-testid={`response-review-save-next-${question.id}`}>{saving ? 'Saving…' : 'Save & Next'}<ChevronRight className="h-4 w-4" /></Button><Button className="bg-slate-900 hover:bg-slate-800" onClick={onNext} disabled={index === total - 1} data-testid="response-review-next-button">Next<ChevronRight className="ml-1.5 h-4 w-4" /></Button></div></footer>
+    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-5 py-4 lg:px-6"><Button variant="outline" onClick={onPrevious} disabled={index === 0} data-testid="response-review-previous-button"><ChevronLeft className="mr-1.5 h-4 w-4" />Previous</Button><span className="text-xs font-semibold text-slate-600" data-testid="response-review-footer-position">Question {index + 1} of {total}</span><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button variant="outline" className={question.marked_for_review ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 hover:text-amber-950' : 'border-slate-300 text-slate-700'} onClick={() => onMarkForReview(decision, reviewerNote, reviewerScore)} disabled={saveDisabled || marking} data-testid={`response-review-mark-for-review-${question.id}`}><BookmarkCheck className="h-4 w-4" />{marking ? 'Saving draft…' : question.marked_for_review ? 'Review Draft Saved' : 'Mark for Review'}</Button><Button variant="outline" className="border-sky-500 text-sky-700 hover:bg-sky-50 hover:text-sky-800" onClick={saveReview} disabled={saveDisabled} data-testid={`response-review-save-decision-${question.id}`}><Save className="h-4 w-4" />{saving ? 'Saving…' : 'Save Review'}</Button><Button className="bg-blue-600 hover:bg-blue-700" onClick={saveAndNext} disabled={saveDisabled || index === total - 1} data-testid={`response-review-save-next-${question.id}`}>{saving ? 'Saving…' : 'Save & Next'}<ChevronRight className="h-4 w-4" /></Button><Button className="bg-slate-900 hover:bg-slate-800" onClick={onNext} disabled={index === total - 1} data-testid="response-review-next-button">Next<ChevronRight className="ml-1.5 h-4 w-4" /></Button></div></footer>
   </section>;
 };
 
