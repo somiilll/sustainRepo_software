@@ -60,6 +60,7 @@ export default function SupplierQuestionnaire() {
   const [uploadingQuestionId, setUploadingQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [highlightedQuestionId, setHighlightedQuestionId] = useState('');
+  const [clarificationReplies, setClarificationReplies] = useState({});
   const [pendingEvidenceReuse, setPendingEvidenceReuse] = useState(null);
   const submissionDeadlinePassed = Boolean(questionnaire?.submission_deadline_passed);
 
@@ -85,6 +86,11 @@ export default function SupplierQuestionnaire() {
         }
       });
       setAnswers(existingAnswers);
+      const existingReplies = {};
+      (res.data.questions || []).forEach((q) => {
+        if (q.clarification_reply?.message) existingReplies[q.id] = q.clarification_reply.message;
+      });
+      setClarificationReplies(existingReplies);
     } catch (err) {
       toast.error('Failed to load questionnaire');
       navigate('/supplier-assessment/supplier');
@@ -101,8 +107,19 @@ export default function SupplierQuestionnaire() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
+  const handleClarificationReply = (questionId, value) => {
+    setClarificationReplies((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const buildAnswersPayload = (questionIds) => questionIds.map((questionId) => ({
+    question_id: questionId,
+    answer: answers[questionId],
+    clarification_reply: clarificationReplies[questionId] ?? null,
+  }));
+
   const persistDraftAnswers = async () => {
-    const answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+    const questionIds = hasUnlockedQuestions ? unlockedQuestionIds : Object.keys(answers);
+    const answersList = buildAnswersPayload(questionIds);
     await axios.post(
       `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
       { answers: answersList, is_draft: true, data_verified: false },
@@ -197,10 +214,9 @@ export default function SupplierQuestionnaire() {
       if (isFinal) {
         let answersList;
         if (hasUnlockedQuestions) {
-          // If submitting after clarification, only submit answers for unlocked questions
-          answersList = unlockedQuestionIds.map((qid) => ({ question_id: qid, answer: answers[qid] }));
+          answersList = buildAnswersPayload(unlockedQuestionIds);
         } else {
-          answersList = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
+          answersList = buildAnswersPayload(Object.keys(answers));
         }
         await axios.post(
           `${API}/supplier-assessment/my-assessment/questionnaires/${questionnaireId}/answers`,
@@ -499,6 +515,12 @@ export default function SupplierQuestionnaire() {
               </Badge>
             </CardHeader>
             <CardContent>
+              {isQuestionUnlocked && (
+                <div className="mb-5 border border-sky-200 bg-sky-50 p-4" data-testid={`supplier-question-clarification-reply-${question.id}`}>
+                  <Label htmlFor={`supplier-question-clarification-reply-input-${question.id}`} className="text-sm font-semibold text-sky-950">Reply to reviewer</Label>
+                  <Textarea id={`supplier-question-clarification-reply-input-${question.id}`} value={clarificationReplies[question.id] || ''} onChange={(event) => handleClarificationReply(question.id, event.target.value)} className="mt-2 bg-white" rows={3} placeholder="Explain your clarification, correction, or evidence update." data-testid={`supplier-question-clarification-reply-input-${question.id}`} />
+                </div>
+              )}
               {renderQuestionInput(question)}
               {renderQuestionEvidence(question)}
             </CardContent>

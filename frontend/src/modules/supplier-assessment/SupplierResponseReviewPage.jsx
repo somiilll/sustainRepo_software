@@ -6,11 +6,6 @@ import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
-import { Textarea } from '../../components/ui/textarea';
 import { ResponseReviewSidebar } from './components/ResponseReviewSidebar';
 import { ResponseReviewQuestionPanel } from './components/ResponseReviewQuestionPanel';
 
@@ -42,10 +37,6 @@ export default function SupplierResponseReviewPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
   const [reviewingQuestionId, setReviewingQuestionId] = useState('');
-  const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [needsResubmission, setNeedsResubmission] = useState(true);
-  const [reviewerScore, setReviewerScore] = useState('0');
-  const [reviewerNote, setReviewerNote] = useState('');
 
   const fetchResponseData = useCallback(async () => {
     const result = await axios.get(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/responses`, { headers: getAuthHeader() });
@@ -96,27 +87,22 @@ export default function SupplierResponseReviewPage() {
       await axios.put(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/questions/${selectedQuestion.id}/review`, payload, { headers: getAuthHeader() });
       toast.success(payload.status === 'accepted' ? 'Question response accepted' : payload.needs_resubmission ? 'Clarification requested and question unlocked for supplier' : 'Question rejected with approved score');
       if (payload.needs_resubmission) {
-        setRejectModalOpen(false);
         navigate('/supplier-assessment/esg');
         return;
       }
       await fetchResponseData();
-      setRejectModalOpen(false);
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit review decision'); }
     finally { setReviewingQuestionId(''); }
   };
-
-  const openReject = () => {
-    const review = selectedQuestion?.review || {};
-    setNeedsResubmission(review.needs_resubmission ?? true);
-    setReviewerScore(review.reviewer_score === undefined || review.reviewer_score === null ? '0' : String(review.reviewer_score));
-    setReviewerNote(review.reviewer_note || ''); setRejectModalOpen(true);
-  };
-  const confirmReject = async () => {
-    if (!reviewerNote.trim()) return toast.error(needsResubmission ? 'Instructions or feedback for supplier is required' : 'Review rationale or comment is required');
+  const submitInlineDecision = async (decision, reviewerNote, reviewerScore) => {
+    if (decision === 'accepted') return submitReview({ status: 'accepted', needs_resubmission: false });
+    if (decision === 'clarification') {
+      if (!reviewerNote.trim()) return toast.error('A reviewer comment is required for clarification');
+      return submitReview({ status: 'rejected', needs_resubmission: true, reviewer_note: reviewerNote.trim() });
+    }
     const score = Number(reviewerScore);
-    if (!needsResubmission && (Number.isNaN(score) || score < 0 || score > (selectedQuestion?.max_points ?? 100))) return toast.error('Enter an approved score within the question maximum');
-    await submitReview(needsResubmission ? { status: 'rejected', needs_resubmission: true, reviewer_note: reviewerNote.trim() } : { status: 'rejected', needs_resubmission: false, reviewer_score: score, reviewer_note: reviewerNote.trim() });
+    if (Number.isNaN(score) || score < 0 || score > (selectedQuestion?.max_points ?? selectedQuestion?.weight ?? 100)) return toast.error('Enter an approved score within the question maximum');
+    return submitReview({ status: 'rejected', needs_resubmission: false, reviewer_score: score, reviewer_note: reviewerNote.trim() });
   };
   const openEvidence = async (file, download = false) => {
     if (!selectedQuestion) return;
@@ -142,7 +128,6 @@ export default function SupplierResponseReviewPage() {
       </div>
     </header>
     <div className="border-b border-stone-200 bg-white px-1" data-testid="response-review-tabs"><div className="flex flex-wrap gap-1">{[{ id: 'all', label: 'All Questions', count: questions.length }, ...PILLARS.map(({ id, label }) => ({ id, label, count: sidebarGroups[id].questionCount }))].map((tab) => <button key={tab.id} type="button" onClick={() => { setActivePillar(tab.id); setActiveCategoryKey(''); }} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${activePillar === tab.id ? 'border-emerald-600 bg-emerald-50/80 text-emerald-800' : 'border-transparent text-stone-600 hover:bg-stone-50 hover:text-stone-950'}`} data-testid={`response-review-tab-${tab.id}`}><span>{tab.label}</span><span className="rounded-full bg-white px-1.5 py-0.5 text-xs tabular-nums">{tab.count}</span></button>)}</div></div>
-    <main className="grid min-w-0 overflow-hidden border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)] xl:grid-cols-[18rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onAccept={() => submitReview({ status: 'accepted', needs_resubmission: false })} onReject={openReject} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} /></main>
-    <Dialog open={rejectModalOpen} onOpenChange={setRejectModalOpen}><DialogContent className="max-w-md" data-testid="response-review-reject-dialog"><DialogHeader><DialogTitle data-testid="response-review-reject-dialog-title">Reject Question Response</DialogTitle><DialogDescription>Choose whether to request a supplier clarification or set the approved score yourself.</DialogDescription></DialogHeader><div className="space-y-4 py-2"><div className="border border-stone-200 bg-stone-50 p-3 text-xs text-stone-700" data-testid="response-review-reject-question-summary">{selectedQuestion.question_text}</div><div><Label className="text-xs font-semibold text-stone-900">Does the supplier need to submit again? *</Label><RadioGroup value={needsResubmission ? 'yes' : 'no'} onValueChange={(value) => setNeedsResubmission(value === 'yes')} className="mt-2 space-y-2" data-testid="response-review-reject-mode"><label htmlFor="response-review-clarify" className={`flex cursor-pointer items-start gap-3 border p-3 text-sm ${needsResubmission ? 'border-amber-400 bg-amber-50' : 'border-stone-200'}`} data-testid="response-review-clarify-label"><RadioGroupItem value="yes" id="response-review-clarify" data-testid="response-review-clarify-radio" /><span><strong>Request clarification</strong><small className="mt-1 block text-xs text-stone-500">Unlocks only this question and emails the supplier.</small></span></label><label htmlFor="response-review-score-direct" className={`flex cursor-pointer items-start gap-3 border p-3 text-sm ${!needsResubmission ? 'border-rose-400 bg-rose-50' : 'border-stone-200'}`} data-testid="response-review-direct-score-label"><RadioGroupItem value="no" id="response-review-score-direct" data-testid="response-review-direct-score-radio" /><span><strong>Set approved score</strong><small className="mt-1 block text-xs text-stone-500">Keeps the response locked and applies your score.</small></span></label></RadioGroup></div>{!needsResubmission && <div><Label htmlFor="response-review-approved-score" className="text-xs font-semibold">Approved score *</Label><Input id="response-review-approved-score" type="number" min="0" max={selectedQuestion.max_points ?? 100} step="0.1" value={reviewerScore} onChange={(event) => setReviewerScore(event.target.value)} className="mt-1" data-testid="response-review-approved-score-input" /></div>}<div><Label htmlFor="response-review-reviewer-note" className="text-xs font-semibold">{needsResubmission ? 'Instructions for supplier *' : 'Review rationale *'}</Label><Textarea id="response-review-reviewer-note" value={reviewerNote} onChange={(event) => setReviewerNote(event.target.value)} className="mt-1" rows={4} data-testid="response-review-reviewer-note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setRejectModalOpen(false)} data-testid="response-review-cancel-reject-button">Cancel</Button><Button variant="destructive" disabled={!reviewerNote.trim() || reviewingQuestionId === selectedQuestion.id} onClick={confirmReject} data-testid="response-review-confirm-reject-button">Confirm decision</Button></DialogFooter></DialogContent></Dialog>
+    <main className="grid min-w-0 overflow-hidden border border-stone-200 bg-white shadow-[0_5px_20px_rgba(28,55,43,0.06)] xl:grid-cols-[18rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} /></main>
   </div>;
 }

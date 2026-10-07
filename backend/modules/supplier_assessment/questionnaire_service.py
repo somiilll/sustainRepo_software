@@ -1222,6 +1222,7 @@ async def get_questionnaire_for_supplier(
     # Merge answers into questions
     question_timestamps = response_doc.get("question_timestamps", {}) if response_doc else {}
     question_reviews = response_doc.get("question_reviews", {}) if response_doc else {}
+    clarification_replies = response_doc.get("clarification_replies", {}) if response_doc else {}
     unlocked_ids = set(response_doc.get("unlocked_question_ids") or []) if response_doc else set()
     for q in questionnaire.get("questions", []):
         q["answer"] = answers.get(q["id"])
@@ -1232,6 +1233,7 @@ async def get_questionnaire_for_supplier(
         )
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
+        q["clarification_reply"] = clarification_replies.get(q["id"])
         q["is_unlocked_for_edit"] = q["id"] in unlocked_ids
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
@@ -1491,10 +1493,12 @@ async def submit_supplier_answers(
     answers_dict = {}
     question_evidence = {}
     question_timestamps = {}
+    clarification_replies = {}
     if response_doc:
         answers_dict = dict(response_doc.get("answers", {}))
         question_evidence = dict(response_doc.get("question_evidence", {}))
         question_timestamps = dict(response_doc.get("question_timestamps", {}))
+        clarification_replies = dict(response_doc.get("clarification_replies", {}))
     
     for answer in answers:
         qid = answer["question_id"]
@@ -1507,6 +1511,14 @@ async def submit_supplier_answers(
             ts["created_at"] = now
         if prior_val != val:
             ts["updated_at"] = now
+        clarification_reply = answer.get("clarification_reply")
+        if clarification_reply is not None:
+            message = str(clarification_reply).strip()
+            if message:
+                clarification_replies[qid] = {"message": message, "replied_at": now, "replied_by": supplier_org_id}
+                ts["clarification_replied_at"] = now
+            else:
+                clarification_replies.pop(qid, None)
         question_timestamps[qid] = ts
     reused_evidence = dict((response_doc or {}).get("reused_evidence_by_question") or {})
     yes_no_questions = await db.supplier_questions.find({"questionnaire_id": questionnaire_id, "is_active": True, "response_type": "yes_no"}, {"_id": 0, "id": 1}).to_list(500)
@@ -1561,6 +1573,7 @@ async def submit_supplier_answers(
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
             "question_timestamps": question_timestamps,
+            "clarification_replies": clarification_replies,
             "customer_org_id": relationship["customer_org_id"],
             "status": status,
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -1569,12 +1582,22 @@ async def submit_supplier_answers(
             # If this was a partial resubmission of unlocked questions, lock them back up
             if is_partially_unlocked:
                 q_reviews = dict(response_doc.get("question_reviews") or {})
+                review_history = list(response_doc.get("review_history") or [])
                 for qid in submitted_qids:
                     if qid in q_reviews:
                         q_reviews[qid]["unlocked_for_supplier"] = False
                         q_reviews[qid]["resubmitted_at"] = submitted_at
+                        review_history.append({
+                            "question_id": qid,
+                            "event": "supplier_clarification_resubmitted",
+                            "supplier_reply": (clarification_replies.get(qid) or {}).get("message"),
+                            "supplier_answer_snapshot": answers_dict.get(qid),
+                            "evidence_snapshot": list(question_evidence.get(qid) or []),
+                            "replied_at": (clarification_replies.get(qid) or {}).get("replied_at") or submitted_at,
+                        })
                 remaining_unlocked = [qid for qid, rev in q_reviews.items() if rev.get("needs_resubmission") and rev.get("unlocked_for_supplier")]
                 update_data["question_reviews"] = q_reviews
+                update_data["review_history"] = review_history
                 update_data["unlocked_question_ids"] = remaining_unlocked
                 update_data["has_unlocked_questions"] = len(remaining_unlocked) > 0
 
@@ -1611,6 +1634,7 @@ async def submit_supplier_answers(
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
             "question_timestamps": question_timestamps,
+            "clarification_replies": clarification_replies,
             "status": status,
             "calculated_score": calculated_score,
             "score_breakdown": score_breakdown,
@@ -1736,6 +1760,7 @@ async def get_supplier_responses_for_admin(
     manual_question_scores = response_doc.get("manual_question_scores", {})
     question_timestamps = response_doc.get("question_timestamps", {})
     question_reviews = response_doc.get("question_reviews", {})
+    clarification_replies = response_doc.get("clarification_replies", {})
     for q in questionnaire.get("questions", []):
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
@@ -1748,6 +1773,7 @@ async def get_supplier_responses_for_admin(
         q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
+        q["clarification_reply"] = clarification_replies.get(q["id"])
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
     questionnaire["calculated_score"] = response_doc.get("calculated_score") if response_doc else None
@@ -1924,6 +1950,10 @@ async def review_supplier_question_response(
     needs_resubmission = bool(decision.get("needs_resubmission")) if status == "rejected" else False
     reviewer_score = float(decision.get("reviewer_score") or 0.0) if status == "rejected" and not needs_resubmission else None
     reviewer_note = (decision.get("reviewer_note") or "").strip()
+    if needs_resubmission and not reviewer_note:
+        raise ValueError("A reviewer comment is required when clarification is requested")
+    if reviewer_score is not None and (reviewer_score < 0 or reviewer_score > float(question.get("max_points") or 100)):
+        raise ValueError("Approved score must be between zero and the question maximum")
 
     now = datetime.now(timezone.utc).isoformat()
     review_entry = {

@@ -1845,7 +1845,7 @@ async def submit_my_answers(
     # Check if questionnaire is still open for editing
     response_doc = await supplier_service._current_questionnaire_response(questionnaire_id, relationship["id"])
     
-    if response_doc and response_doc.get("status") == "submitted":
+    if response_doc and response_doc.get("status") == "submitted" and not response_doc.get("has_unlocked_questions"):
         raise HTTPException(status_code=409, detail="Questionnaire already submitted and locked")
     
     try:

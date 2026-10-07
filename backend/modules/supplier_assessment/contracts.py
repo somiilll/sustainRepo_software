@@ -493,6 +493,7 @@ class SupplierAnswerSubmit(BaseModel):
     """Submit answer to a question."""
     question_id: str
     answer: Any  # Depends on response_type
+    clarification_reply: Optional[str] = Field(default=None, max_length=4000)
 
 
 class SupplierResponsesSubmit(BaseModel):
