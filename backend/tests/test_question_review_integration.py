@@ -114,7 +114,7 @@ async def test_per_question_review_lifecycle():
             questionnaire_id=questionnaire_id,
             supplier_relationship_id=rel_id,
             supplier_org_id=supplier_org_id,
-            answers=[{"question_id": q_id, "answer": True}],
+            answers=[{"question_id": q_id, "answer": True, "clarification_reply": "Certification document attached for your review."}],
             is_draft=False,
             data_verified=True,
             verified_by=user_id,
@@ -151,12 +151,14 @@ async def test_per_question_review_lifecycle():
         # Check overall supplier score with esg weight 100% = 30.0%
         assert round(review_final["overall_score"], 1) == 30.0
 
-        # Check audit trail history has 2 records
+        # Check audit trail history retains the clarification request, supplier resubmission, and final review.
         resp_final = await db.supplier_questionnaire_responses.find_one(
             {"questionnaire_id": questionnaire_id, "supplier_relationship_id": rel_id},
             {"_id": 0}
         )
-        assert len(resp_final.get("review_history", [])) == 2
+        history = resp_final.get("review_history", [])
+        assert len(history) == 3
+        assert any(entry.get("event") == "supplier_clarification_resubmitted" for entry in history)
 
     finally:
         # Cleanup test records
