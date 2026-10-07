@@ -127,6 +127,27 @@ class RevenueInfoUpdate(BaseModel):
     plant_location: Optional[str] = Field(default=None, max_length=1000)
 
 
+class QuestionReviewDecision(BaseModel):
+    """Parent organization review decision for a single questionnaire response question."""
+    status: Literal["accepted", "rejected"]
+    needs_resubmission: bool = False
+    reviewer_score: Optional[float] = Field(default=None, ge=0)
+    reviewer_note: Optional[str] = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_review_decision(self):
+        if self.status == "rejected":
+            if self.needs_resubmission:
+                if not (self.reviewer_note and self.reviewer_note.strip()):
+                    raise ValueError("A comment/note explaining what needs to be resubmitted is required when asking for resubmission.")
+            else:
+                if self.reviewer_score is None:
+                    raise ValueError("Reviewer approved score is required when rejected without resubmission.")
+                if not (self.reviewer_note and self.reviewer_note.strip()):
+                    raise ValueError("Review rationale/note is required when rejecting a response.")
+        return self
+
+
 class ManualScoreUpdate(BaseModel):
     score: float = Field(ge=0, le=100)
     note: Optional[str] = Field(default=None, max_length=2000)

@@ -345,6 +345,7 @@ class ScoreCalculator:
         revenue_percentage: Optional[float] = None,
         manual_scores: Optional[Dict[str, Any]] = None,
         evidence_by_question: Optional[Dict[str, List[str]]] = None,
+        question_reviews: Optional[Dict[str, Any]] = None,
     ) -> ScoreBreakdown:
         """
         Calculate complete supplier score with full breakdown.
@@ -376,6 +377,7 @@ class ScoreCalculator:
         notes: List[str] = []
         manual_scores = manual_scores or {}
         evidence_by_question = evidence_by_question or {}
+        question_reviews = question_reviews or {}
         
         # Calculate score for each question
         for q in questions:
@@ -496,6 +498,31 @@ class ScoreCalculator:
                         "manual_score": float(manual_score),
                         "score_source": "parent_manual_review",
                     })
+
+                # Check if there is an approved reviewer decision
+                review_entry = question_reviews.get(question_id)
+                if isinstance(review_entry, dict) and review_entry.get("status") in {"accepted", "rejected"}:
+                    rev_status = review_entry.get("status")
+                    if rev_status == "rejected" and not review_entry.get("needs_resubmission"):
+                        # Reviewer set an explicit approved score (e.g., 0 or partial points)
+                        approved_score = float(review_entry.get("reviewer_score", 0.0) or 0.0)
+                        max_p = float(q_score.max_points if q_score.max_points is not None else 100)
+                        # Interpret reviewer_score: if max_p is configured, reviewer_score is capped at max_p
+                        points_approved = min(max_p, max(0.0, approved_score))
+                        q_score.points_earned = points_approved
+                        q_score.raw_score = (points_approved / max_p * 100) if max_p > 0 else 0.0
+                        q_score.calculation_details.update({
+                            "review_status": "rejected",
+                            "reviewer_score": approved_score,
+                            "reviewer_note": review_entry.get("reviewer_note"),
+                            "score_source": "parent_question_review",
+                        })
+                    elif rev_status == "accepted":
+                        q_score.calculation_details.update({
+                            "review_status": "accepted",
+                            "score_source": "parent_question_accepted",
+                        })
+
                 question_scores.append(q_score)
             except Exception as e:
                 notes.append(f"Error calculating score for '{question_id}': {e}")

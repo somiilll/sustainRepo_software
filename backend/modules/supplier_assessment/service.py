@@ -98,6 +98,7 @@ class SupplierAssessmentService:
     unassign_questionnaire_from_supplier = _delegate_to(questionnaire_operations, questionnaire_operations.unassign_questionnaire_from_supplier)
     set_manual_questionnaire_score = _delegate_to(questionnaire_operations, questionnaire_operations.set_manual_questionnaire_score)
     set_manual_question_score = _delegate_to(questionnaire_operations, questionnaire_operations.set_manual_question_score)
+    review_supplier_question_response = _delegate_to(questionnaire_operations, questionnaire_operations.review_supplier_question_response)
     reopen_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.reopen_questionnaire)
     get_supplier_submission_status = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_submission_status)
 

@@ -1198,6 +1198,9 @@ async def get_questionnaire_for_supplier(
     evidence_by_question = response_doc.get("question_evidence", {}) if response_doc else {}
     
     # Merge answers into questions
+    question_timestamps = response_doc.get("question_timestamps", {}) if response_doc else {}
+    question_reviews = response_doc.get("question_reviews", {}) if response_doc else {}
+    unlocked_ids = set(response_doc.get("unlocked_question_ids") or []) if response_doc else set()
     for q in questionnaire.get("questions", []):
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
@@ -1205,8 +1208,13 @@ async def get_questionnaire_for_supplier(
             supplier_relationship_id, questionnaire_id, q["id"], evidence_by_question.get(q["id"], []),
             (response_doc.get("reused_evidence_by_question") or {}).get(q["id"], []) if response_doc else [],
         )
+        q["timestamps"] = question_timestamps.get(q["id"])
+        q["review"] = question_reviews.get(q["id"])
+        q["is_unlocked_for_edit"] = q["id"] in unlocked_ids
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
+    questionnaire["has_unlocked_questions"] = bool(response_doc.get("has_unlocked_questions")) if response_doc else False
+    questionnaire["unlocked_question_ids"] = list(unlocked_ids)
     questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
     questionnaire["reopened_at"] = response_doc.get("reopened_at") if response_doc else None
     with_questionnaire_reporting_period(questionnaire, relationship.get("reporting_period"))
@@ -1260,7 +1268,8 @@ async def reuse_supplier_question_evidence(
     """Attach an existing evidence asset to one more question without creating an R2 object."""
     reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
     response = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
-    if not response or response.get("status") == "submitted":
+    is_partially_unlocked = bool(response and response.get("has_unlocked_questions") and question_id in (response.get("unlocked_question_ids") or []))
+    if not response or (response.get("status") == "submitted" and not is_partially_unlocked):
         raise ValueError("Save a Yes response before reusing evidence")
     question = await db.supplier_questions.find_one(
         {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True}, {"_id": 0, "response_type": 1}
@@ -1313,7 +1322,8 @@ async def upload_supplier_question_evidence(
         raise ValueError("The selected file hash could not be verified")
     reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
     response_doc = await self._current_questionnaire_response(questionnaire_id, relationship["id"], reporting_period)
-    if response_doc and response_doc.get("status") == "submitted":
+    is_partially_unlocked = bool(response_doc and response_doc.get("has_unlocked_questions") and question_id in (response_doc.get("unlocked_question_ids") or []))
+    if response_doc and response_doc.get("status") == "submitted" and not is_partially_unlocked:
         raise ValueError("Questionnaire already submitted and locked")
     if question.get("response_type") == "yes_no" and (response_doc or {}).get("answers", {}).get(question_id) is not True:
         raise ValueError("Select Yes before uploading evidence for this question")
@@ -1366,7 +1376,10 @@ async def delete_supplier_question_evidence(
     response = await db.supplier_questionnaire_responses.find_one(
         {"questionnaire_id": questionnaire_id, "supplier_relationship_id": relationship["id"],
          "reporting_period": evidence.get("reporting_period"), f"question_evidence.{question_id}": evidence_id,
-         "status": {"$in": ["in_progress", "reopened"]}},
+         "$or": [
+             {"status": {"$in": ["in_progress", "reopened"]}},
+             {"has_unlocked_questions": True, "unlocked_question_ids": question_id},
+         ]},
         {"_id": 0}, sort=[("revision", -1)],
     )
     if not response:
@@ -1440,18 +1453,39 @@ async def submit_supplier_answers(
         raise ValueError("Questionnaire is not assigned to this supplier")
     reporting_period = (relationship or {}).get("reporting_period") or self._default_reporting_period()
     response_doc = await self._current_questionnaire_response(questionnaire_id, supplier_relationship_id, reporting_period)
-    if response_doc and response_doc.get("status") == "submitted":
+    is_partially_unlocked = bool(response_doc and response_doc.get("has_unlocked_questions"))
+    submitted_qids = {a["question_id"] for a in answers}
+    unlocked_set = set((response_doc or {}).get("unlocked_question_ids") or [])
+    if response_doc and response_doc.get("status") == "submitted" and not is_partially_unlocked:
         raise ValueError("Questionnaire already submitted and locked")
+    if response_doc and response_doc.get("status") == "submitted" and is_partially_unlocked:
+        # Only allow answers to be updated for questions that are currently unlocked
+        invalid_qids = submitted_qids - unlocked_set
+        if invalid_qids:
+            raise ValueError("Only questions requested for clarification can be edited")
     
     # Build answers dict
+    now = datetime.now(timezone.utc).isoformat()
     answers_dict = {}
     question_evidence = {}
+    question_timestamps = {}
     if response_doc:
-        answers_dict = response_doc.get("answers", {})
-        question_evidence = response_doc.get("question_evidence", {})
+        answers_dict = dict(response_doc.get("answers", {}))
+        question_evidence = dict(response_doc.get("question_evidence", {}))
+        question_timestamps = dict(response_doc.get("question_timestamps", {}))
     
     for answer in answers:
-        answers_dict[answer["question_id"]] = answer["answer"]
+        qid = answer["question_id"]
+        val = answer["answer"]
+        prior_val = answers_dict.get(qid)
+        answers_dict[qid] = val
+        # Track per-question created_at and updated_at
+        ts = dict(question_timestamps.get(qid) or {})
+        if not ts.get("created_at"):
+            ts["created_at"] = now
+        if prior_val != val:
+            ts["updated_at"] = now
+        question_timestamps[qid] = ts
     reused_evidence = dict((response_doc or {}).get("reused_evidence_by_question") or {})
     yes_no_questions = await db.supplier_questions.find({"questionnaire_id": questionnaire_id, "is_active": True, "response_type": "yes_no"}, {"_id": 0, "id": 1}).to_list(500)
     no_answer_ids = {question["id"] for question in yes_no_questions if answers_dict.get(question["id"]) in {False, "false", "False", "no", "No", "NO", 0}}
@@ -1462,6 +1496,13 @@ async def submit_supplier_answers(
     
     status = "in_progress" if is_draft else "submitted"
     submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
+    if submitted_at:
+        for qid in answers_dict:
+            ts = dict(question_timestamps.get(qid) or {})
+            if not ts.get("created_at"):
+                ts["created_at"] = submitted_at
+            ts["submitted_at"] = submitted_at
+            question_timestamps[qid] = ts
     if not is_draft and not data_verified:
         raise ValueError("Confirm that the submitted data has been reviewed and verified")
     if not is_draft and has_due_date_passed(questionnaire.get("due_date") or relationship.get("due_date")):
@@ -1497,11 +1538,24 @@ async def submit_supplier_answers(
             "answers": answers_dict,
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
+            "question_timestamps": question_timestamps,
             "customer_org_id": relationship["customer_org_id"],
             "status": status,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         if submitted_at:
+            # If this was a partial resubmission of unlocked questions, lock them back up
+            if is_partially_unlocked:
+                q_reviews = dict(response_doc.get("question_reviews") or {})
+                for qid in submitted_qids:
+                    if qid in q_reviews:
+                        q_reviews[qid]["unlocked_for_supplier"] = False
+                        q_reviews[qid]["resubmitted_at"] = submitted_at
+                remaining_unlocked = [qid for qid, rev in q_reviews.items() if rev.get("needs_resubmission") and rev.get("unlocked_for_supplier")]
+                update_data["question_reviews"] = q_reviews
+                update_data["unlocked_question_ids"] = remaining_unlocked
+                update_data["has_unlocked_questions"] = len(remaining_unlocked) > 0
+
             update_data.update({
                 "submitted_at": submitted_at,
                 "parent_visible": True,
@@ -1534,6 +1588,7 @@ async def submit_supplier_answers(
             "answers": answers_dict,
             "question_evidence": question_evidence,
             "reused_evidence_by_question": reused_evidence,
+            "question_timestamps": question_timestamps,
             "status": status,
             "calculated_score": calculated_score,
             "score_breakdown": score_breakdown,
@@ -1636,6 +1691,8 @@ async def get_supplier_responses_for_admin(
     
     # Merge answers into questions
     manual_question_scores = response_doc.get("manual_question_scores", {})
+    question_timestamps = response_doc.get("question_timestamps", {})
+    question_reviews = response_doc.get("question_reviews", {})
     for q in questionnaire.get("questions", []):
         q["answer"] = answers.get(q["id"])
         q["evidence_requirement"] = self._question_evidence_requirement(q.get("evidence_requirement"))
@@ -1646,6 +1703,8 @@ async def get_supplier_responses_for_admin(
         manual_entry = manual_question_scores.get(q["id"])
         q["manual_score"] = manual_entry.get("score") if isinstance(manual_entry, dict) else manual_entry
         q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
+        q["timestamps"] = question_timestamps.get(q["id"])
+        q["review"] = question_reviews.get(q["id"])
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
     questionnaire["calculated_score"] = response_doc.get("calculated_score") if response_doc else None
@@ -1773,6 +1832,165 @@ async def set_manual_question_score(
         "calculated_score": breakdown.esg_score.overall_score,
         "score_breakdown": breakdown.model_dump(),
     }
+
+async def review_supplier_question_response(
+    self,
+    supplier_relationship_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    decision: Dict[str, Any],
+    reviewer_id: str,
+) -> Dict[str, Any]:
+    """Parent organization review for a single question response (accept / reject with optional resubmission)."""
+    relationship = await self.get_supplier(supplier_relationship_id)
+    if not relationship:
+        raise ValueError("Supplier not found")
+    question = await db.supplier_questions.find_one(
+        {"id": question_id, "questionnaire_id": questionnaire_id, "is_active": True},
+        {"_id": 0, "id": 1, "question_text": 1, "max_points": 1, "section": 1, "category": 1},
+    )
+    if not question:
+        raise ValueError("Question not found")
+    reporting_period = relationship.get("reporting_period") or self._default_reporting_period()
+    response = await db.supplier_questionnaire_responses.find_one(
+        {
+            "supplier_relationship_id": supplier_relationship_id,
+            "questionnaire_id": questionnaire_id,
+            "reporting_period": reporting_period,
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+        },
+        {"_id": 0},
+        sort=[("revision", -1)],
+    )
+    if not response:
+        raise ValueError("Submitted questionnaire response not found")
+    answers = response.get("answers") or {}
+    if question_id not in answers or answers.get(question_id) is None or answers.get(question_id) == "":
+        raise ValueError("A supplier response is required before this question can be reviewed")
+
+    status = decision.get("status")
+    if status not in {"accepted", "rejected"}:
+        raise ValueError("Decision status must be 'accepted' or 'rejected'")
+
+    needs_resubmission = bool(decision.get("needs_resubmission")) if status == "rejected" else False
+    reviewer_score = float(decision.get("reviewer_score") or 0.0) if status == "rejected" and not needs_resubmission else None
+    reviewer_note = (decision.get("reviewer_note") or "").strip()
+
+    now = datetime.now(timezone.utc).isoformat()
+    review_entry = {
+        "status": status,
+        "needs_resubmission": needs_resubmission,
+        "reviewer_score": reviewer_score,
+        "reviewer_note": reviewer_note,
+        "unlocked_for_supplier": needs_resubmission,
+        "reviewed_by": reviewer_id,
+        "reviewed_at": now,
+    }
+
+    question_reviews = dict(response.get("question_reviews") or {})
+    question_reviews[question_id] = review_entry
+
+    review_history = list(response.get("review_history") or [])
+    review_history.append({
+        "question_id": question_id,
+        "status": status,
+        "needs_resubmission": needs_resubmission,
+        "reviewer_score": reviewer_score,
+        "reviewer_note": reviewer_note,
+        "reviewed_by": reviewer_id,
+        "reviewed_at": now,
+        "supplier_answer_snapshot": answers.get(question_id),
+        "evidence_snapshot": list((response.get("question_evidence") or {}).get(question_id) or []),
+    })
+
+    unlocked_questions = [qid for qid, rev in question_reviews.items() if rev.get("needs_resubmission") and rev.get("unlocked_for_supplier")]
+    has_unlocked = len(unlocked_questions) > 0
+
+    update_fields: Dict[str, Any] = {
+        "question_reviews": question_reviews,
+        "review_history": review_history,
+        "has_unlocked_questions": has_unlocked,
+        "unlocked_question_ids": unlocked_questions,
+        "updated_at": now,
+    }
+
+    await db.supplier_questionnaire_responses.update_one(
+        {"id": response["id"]},
+        {"$set": update_fields},
+    )
+
+    from modules.supplier_assessment.scoring import ScoringEngine
+    breakdown = await ScoringEngine(db).calculate_supplier_assessment(
+        supplier_relationship_id=supplier_relationship_id,
+        questionnaire_id=questionnaire_id,
+        save_to_db=True,
+        reporting_period=reporting_period,
+    )
+
+    email_delivered = False
+    if needs_resubmission:
+        email_delivered = await _send_question_clarification_notification(
+            relationship=relationship,
+            questionnaire_id=questionnaire_id,
+            question_text=question.get("question_text") or "Question",
+            reviewer_note=reviewer_note,
+            response_id=response["id"],
+            question_id=question_id,
+        )
+
+    log_event(logger, logging.INFO, "supplier_assessment.question_review.completed",
+              action="supplier_assessment.question_review", outcome="succeeded",
+              context={"supplier_id": supplier_relationship_id, "questionnaire_id": questionnaire_id, "question_id": question_id, "status": status, "needs_resubmission": needs_resubmission})
+
+    return {
+        "questionnaire_id": questionnaire_id,
+        "question_id": question_id,
+        "review": review_entry,
+        "calculated_score": breakdown.esg_score.overall_score,
+        "overall_score": breakdown.supplier_score.overall_score,
+        "score_breakdown": breakdown.model_dump(),
+        "email_delivered": email_delivered,
+    }
+
+
+async def _send_question_clarification_notification(
+    relationship: Dict[str, Any],
+    questionnaire_id: str,
+    question_text: str,
+    reviewer_note: str,
+    response_id: str,
+    question_id: str,
+) -> bool:
+    recipient_email = str(relationship.get("contact_email") or "").strip().lower()
+    if not recipient_email:
+        return False
+    customer = await db.organizations.find_one(
+        {"id": relationship["customer_org_id"]},
+        {"_id": 0, "name": 1, "organization_name": 1},
+    ) or {}
+    customer_name = customer.get("organization_name") or customer.get("name") or "Your customer"
+    q_doc = await db.supplier_questionnaires.find_one({"id": questionnaire_id}, {"_id": 0, "name": 1})
+    q_name = (q_doc or {}).get("name") or "ESG Questionnaire"
+    from modules.supplier_assessment.email_templates import question_clarification_requested_email
+    body = question_clarification_requested_email(
+        supplier_name=relationship.get("contact_person") or relationship.get("company_name") or "Supplier",
+        customer_name=customer_name,
+        questionnaire_name=q_name,
+        question_text=question_text,
+        reviewer_comment=reviewer_note,
+        login_link=f"{FRONTEND_URL.rstrip('/')}/login",
+    )
+    try:
+        return await send_email(
+            recipient_email,
+            f"Action needed: Clarification requested for {q_name}",
+            body,
+        )
+    except Exception as error:
+        logger.error("Failed to send question clarification email: %s", error)
+        return False
+
 
 async def reopen_questionnaire(
     self,

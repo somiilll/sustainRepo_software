@@ -40,6 +40,7 @@ from modules.supplier_assessment.contracts import (
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
+    QuestionReviewDecision,
     ManualScoreUpdate,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
@@ -1270,6 +1271,45 @@ async def set_manual_question_score(
     if not result:
         raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
     _log_supplier_event("supplier_assessment.question.manual_score.updated", action="supplier_assessment.question.manual_score.update", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": supplier_id})
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/review")
+async def review_supplier_question(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: QuestionReviewDecision,
+    current_user: dict = Depends(get_customer_admin),
+):
+    """Parent organization review for a single question response (Accept / Reject with optional resubmission)."""
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.review_supplier_question_response(
+            supplier_id,
+            questionnaire_id,
+            question_id,
+            data.model_dump(),
+            current_user["id"],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not result:
+        raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
+    _log_supplier_event(
+        "supplier_assessment.question_review.updated",
+        action="supplier_assessment.question_review.update",
+        outcome="succeeded",
+        context={
+            "questionnaire_id": questionnaire_id,
+            "question_id": question_id,
+            "supplier_id": supplier_id,
+            "status": data.status,
+            "needs_resubmission": data.needs_resubmission,
+        },
+    )
     return result
 
 
