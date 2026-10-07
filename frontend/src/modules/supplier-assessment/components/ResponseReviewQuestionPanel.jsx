@@ -10,7 +10,7 @@ const displayScore = (value) => {
   return Number.isInteger(score) ? String(score) : score.toFixed(2);
 };
 
-export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, total, score, onDecision, onMarkForReview, onPrevious, onNext, onOpenEvidence, openingEvidenceKey, saving, marking }) => {
+export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, total, score, onDecision, onMarkForReview, onOpenHistory, onPrevious, onNext, onOpenEvidence, openingEvidenceKey, saving, marking }) => {
   const review = question.review || {};
   const isAccepted = review.status === 'accepted';
   const isClarification = review.status === 'rejected' && review.needs_resubmission;
@@ -32,7 +32,7 @@ export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, to
     </div>
 
     <div className="space-y-6 px-5 py-6 lg:px-6">
-      <ResponseQuestionDetails question={question} index={index} maxPoints={maxPoints} onOpenEvidence={onOpenEvidence} openingEvidenceKey={openingEvidenceKey} />
+      <ResponseQuestionDetails question={question} index={index} maxPoints={maxPoints} onOpenHistory={onOpenHistory} onOpenEvidence={onOpenEvidence} openingEvidenceKey={openingEvidenceKey} />
       <ResponseReviewerAssessment questionId={question.id} decision={decision} onDecisionChange={setDecision} reviewerNote={reviewerNote} onReviewerNoteChange={setReviewerNote} reviewerScore={reviewerScore} onReviewerScoreChange={setReviewerScore} maxPoints={maxPoints} currentPoints={points} review={review} saving={saving} saveDisabled={saveDisabled} />
     </div>
 
