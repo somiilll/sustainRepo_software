@@ -258,6 +258,14 @@ export default function SupplierQuestionnaire() {
       toast.error('Submission deadline has passed. Ask your parent organization to extend the due date.');
       return;
     }
+    if (hasUnlockedQuestions) {
+      const questionWithoutReply = questions.find((question) => unlockedQuestionIds.includes(question.id) && !(clarificationReplies[question.id] || '').trim());
+      if (questionWithoutReply) {
+        toast.error('Add a reply to the reviewer before resubmitting this clarification');
+        focusQuestion(questionWithoutReply.id);
+        return;
+      }
+    }
     // Check required questions
     const requiredUnanswered = questions.filter(
       (q) => q.required && (answers[q.id] === undefined || answers[q.id] === '')

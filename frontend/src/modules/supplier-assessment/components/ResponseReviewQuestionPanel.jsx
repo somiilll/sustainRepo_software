@@ -20,7 +20,7 @@ export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, to
   const [reviewerScore, setReviewerScore] = useState(String(review.reviewer_score ?? 0));
   const maxPoints = question.max_points ?? question.weight ?? 100;
   const points = isRejected ? review.reviewer_score ?? 0 : score?.points_earned ?? question.manual_score ?? (question.answer === true ? question.point_scores?.yes_score : question.answer === false ? question.point_scores?.no_score : 0);
-  const saveDisabled = saving || !decision || (decision === 'clarification' && !reviewerNote.trim());
+  const saveDisabled = saving || !decision || ((decision === 'clarification' || decision === 'rejected') && !reviewerNote.trim());
 
   const saveReview = async (moveNext = false) => {
     const saved = await onDecision(decision, reviewerNote, reviewerScore);

@@ -1554,6 +1554,13 @@ async def submit_supplier_answers(
         ]
         if missing_evidence:
             raise ValueError(f"Evidence is required for a Yes response: {', '.join(missing_evidence[:3])}")
+        if is_partially_unlocked:
+            unanswered_clarifications = [
+                question_id for question_id in unlocked_set
+                if not str((clarification_replies.get(question_id) or {}).get("message") or "").strip()
+            ]
+            if unanswered_clarifications:
+                raise ValueError("Add a reply to the reviewer before resubmitting each requested clarification")
     # Calculate score if submitting
     calculated_score = None
     if not is_draft:
