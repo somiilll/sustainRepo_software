@@ -477,6 +477,7 @@ class QuestionnaireResponse(BaseModel):
     assignment_reporting_period: Optional[str] = None
     is_active: bool = True
     has_locked_submissions: bool = False
+    has_reviewable_submissions: bool = False
     has_submission_history: bool = False
     question_count: int = 0
     created_by: str

@@ -577,6 +577,14 @@ async def get_questionnaires(
     locked_ids = set(await db.supplier_questionnaire_responses.distinct(
         "questionnaire_id", {"questionnaire_id": {"$in": questionnaire_ids}, "status": "submitted", "$or": [{"is_current": True}, {"is_current": {"$exists": False}}]}
     )) if questionnaire_ids else set()
+    reviewable_ids = set(await db.supplier_questionnaire_responses.distinct(
+        "questionnaire_id", {
+            "questionnaire_id": {"$in": questionnaire_ids},
+            "status": "submitted",
+            "has_unlocked_questions": {"$ne": True},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
+        }
+    )) if questionnaire_ids else set()
     history_ids = set(await db.supplier_questionnaire_responses.distinct(
         "questionnaire_id", {
             "questionnaire_id": {"$in": questionnaire_ids},
@@ -586,6 +594,7 @@ async def get_questionnaires(
     for questionnaire in questionnaires:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
         questionnaire["has_locked_submissions"] = questionnaire["id"] in locked_ids
+        questionnaire["has_reviewable_submissions"] = questionnaire["id"] in reviewable_ids
         questionnaire["has_submission_history"] = questionnaire["id"] in history_ids
         with_questionnaire_reporting_period(questionnaire, reporting_period)
     return questionnaires
@@ -615,6 +624,15 @@ async def _questionnaire_submission_state(questionnaire_id: str) -> Dict[str, bo
     locked_submission = await db.supplier_questionnaire_responses.find_one(
         {"questionnaire_id": questionnaire_id, "status": "submitted", "$or": [{"is_current": True}, {"is_current": {"$exists": False}}]}, {"_id": 0, "id": 1}
     )
+    reviewable_submission = await db.supplier_questionnaire_responses.find_one(
+        {
+            "questionnaire_id": questionnaire_id,
+            "status": "submitted",
+            "has_unlocked_questions": {"$ne": True},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
+        },
+        {"_id": 0, "id": 1},
+    )
     submitted_history = await db.supplier_questionnaire_responses.find_one(
         {
             "questionnaire_id": questionnaire_id,
@@ -622,7 +640,11 @@ async def _questionnaire_submission_state(questionnaire_id: str) -> Dict[str, bo
         },
         {"_id": 0, "id": 1},
     )
-    return {"has_locked_submissions": bool(locked_submission), "has_submission_history": bool(submitted_history)}
+    return {
+        "has_locked_submissions": bool(locked_submission),
+        "has_reviewable_submissions": bool(reviewable_submission),
+        "has_submission_history": bool(submitted_history),
+    }
 
 
 async def unlock_all_questionnaire_responses(self, customer_org_id: str, questionnaire_id: str, unlocked_by: str) -> int:
@@ -1681,10 +1703,29 @@ async def get_supplier_responses_for_admin(
     
     relationship = await self.get_supplier(supplier_relationship_id)
     response_doc = await db.supplier_questionnaire_responses.find_one(
-        {"questionnaire_id": questionnaire_id, "supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
+        {
+            "questionnaire_id": questionnaire_id,
+            "supplier_relationship_id": supplier_relationship_id,
+            "reporting_period": (relationship or {}).get("reporting_period"),
+            "status": "submitted",
+            "parent_visible": {"$ne": False},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
+        },
         {"_id": 0}, sort=[("revision", -1)],
     )
     if not response_doc:
+        current_in_progress = await db.supplier_questionnaire_responses.find_one(
+            {
+                "questionnaire_id": questionnaire_id,
+                "supplier_relationship_id": supplier_relationship_id,
+                "reporting_period": (relationship or {}).get("reporting_period"),
+                "is_current": True,
+                "status": {"$in": ["in_progress", "reopened"]},
+            },
+            {"_id": 0, "id": 1},
+        )
+        if current_in_progress:
+            raise ValueError("This supplier response is in progress and cannot be reviewed until it is submitted and locked")
         return None
     if response_doc.get("has_unlocked_questions") or response_doc.get("unlocked_question_ids"):
         raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
@@ -1735,6 +1776,7 @@ async def get_questionnaire_submissions_for_admin(
         "status": "submitted",
         "parent_visible": {"$ne": False},
         "has_unlocked_questions": {"$ne": True},
+        "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
     }
     if reporting_period:
         query["reporting_period"] = reporting_period
@@ -1862,12 +1904,13 @@ async def review_supplier_question_response(
             "reporting_period": reporting_period,
             "status": "submitted",
             "parent_visible": {"$ne": False},
+            "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
         },
         {"_id": 0},
         sort=[("revision", -1)],
     )
     if not response:
-        raise ValueError("Submitted questionnaire response not found")
+        raise ValueError("This supplier response is not locked and cannot be reviewed")
     if response.get("has_unlocked_questions") or response.get("unlocked_question_ids"):
         raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
     answers = response.get("answers") or {}
