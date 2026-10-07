@@ -87,10 +87,6 @@ export default function SupplierResponseReviewPage() {
     try {
       await axios.put(`${API}/supplier-assessment/suppliers/${supplierId}/questionnaires/${questionnaireId}/questions/${selectedQuestion.id}/review`, payload, { headers: getAuthHeader() });
       toast.success(payload.status === 'accepted' ? 'Question response accepted' : payload.needs_resubmission ? 'Clarification requested and question unlocked for supplier' : 'Question rejected with approved score');
-      if (payload.needs_resubmission) {
-        navigate('/supplier-assessment/esg');
-        return true;
-      }
       await fetchResponseData();
       return true;
     } catch (error) { toast.error(error.response?.data?.detail || 'Could not submit review decision'); return false; }

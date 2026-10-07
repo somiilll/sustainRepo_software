@@ -581,7 +581,6 @@ async def get_questionnaires(
         "questionnaire_id", {
             "questionnaire_id": {"$in": questionnaire_ids},
             "status": "submitted",
-            "has_unlocked_questions": {"$ne": True},
             "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
         }
     )) if questionnaire_ids else set()
@@ -628,7 +627,6 @@ async def _questionnaire_submission_state(questionnaire_id: str) -> Dict[str, bo
         {
             "questionnaire_id": questionnaire_id,
             "status": "submitted",
-            "has_unlocked_questions": {"$ne": True},
             "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
         },
         {"_id": 0, "id": 1},
@@ -1752,9 +1750,6 @@ async def get_supplier_responses_for_admin(
         if current_in_progress:
             raise ValueError("This supplier response is in progress and cannot be reviewed until it is submitted and locked")
         return None
-    if response_doc.get("has_unlocked_questions") or response_doc.get("unlocked_question_ids"):
-        raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
-    
     answers = response_doc.get("answers", {}) if response_doc else {}
     
     # Merge answers into questions
@@ -1778,6 +1773,7 @@ async def get_supplier_responses_for_admin(
         q["manual_score_note"] = manual_entry.get("note") if isinstance(manual_entry, dict) else None
         q["timestamps"] = question_timestamps.get(q["id"])
         q["review"] = question_reviews.get(q["id"])
+        q["is_unlocked_for_supplier"] = q["id"] in set(response_doc.get("unlocked_question_ids") or [])
         q["clarification_reply"] = clarification_replies.get(q["id"])
         question_history = [entry for entry in review_history if entry.get("question_id") == q["id"]]
         timestamps = question_timestamps.get(q["id"]) or {}
@@ -1801,6 +1797,8 @@ async def get_supplier_responses_for_admin(
     questionnaire["submitted_at"] = response_doc.get("submitted_at") if response_doc else None
     questionnaire["score_breakdown"] = response_doc.get("score_breakdown") if response_doc else None
     questionnaire["canonical_score_snapshot"] = (relationship or {}).get("canonical_score_snapshot")
+    questionnaire["has_unlocked_questions"] = bool(response_doc.get("has_unlocked_questions"))
+    questionnaire["unlocked_question_ids"] = list(response_doc.get("unlocked_question_ids") or [])
     
     return questionnaire
 
@@ -1820,7 +1818,6 @@ async def get_questionnaire_submissions_for_admin(
         "questionnaire_id": questionnaire_id,
         "status": "submitted",
         "parent_visible": {"$ne": False},
-        "has_unlocked_questions": {"$ne": True},
         "$or": [{"is_current": True}, {"is_current": {"$exists": False}}],
     }
     if reporting_period:
@@ -1956,9 +1953,9 @@ async def review_supplier_question_response(
     )
     if not response:
         raise ValueError("This supplier response is not locked and cannot be reviewed")
-    if response.get("has_unlocked_questions") or response.get("unlocked_question_ids"):
-        raise ValueError("This supplier response is unlocked for clarification and cannot be reviewed until it is resubmitted and locked")
     answers = response.get("answers") or {}
+    if question_id in set(response.get("unlocked_question_ids") or []):
+        raise ValueError("This question is unlocked for supplier clarification and cannot be reviewed until it is resubmitted")
     if question_id not in answers or answers.get(question_id) is None or answers.get(question_id) == "":
         raise ValueError("A supplier response is required before this question can be reviewed")
 
