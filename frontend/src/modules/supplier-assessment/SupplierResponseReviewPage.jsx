@@ -175,7 +175,7 @@ export default function SupplierResponseReviewPage() {
   const questionnaireName = questionnaire?.name || response?.name || 'ESG Questionnaire';
   const reportingPeriod = supplier?.reporting_period || response?.reporting_period || questionnaire?.reporting_period || 'Current period';
   return <div className="space-y-5 pb-10" data-testid="supplier-response-review-page">
-    <header className="border-b border-stone-200 bg-white pb-4" data-testid="response-review-header">
+    <header className="border-b border-stone-200 bg-white px-4 pb-4 sm:px-5 lg:px-6" data-testid="response-review-header">
       <div className="flex flex-wrap items-center gap-3">
         <div><button type="button" className="inline-flex items-center gap-1.5 bg-transparent p-0 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950" onClick={() => navigate('/supplier-assessment/esg')} data-testid="response-review-back-button"><ArrowLeft className="h-4 w-4" />Back to ESG Questionnaire</button><h1 className="mt-1 text-2xl font-bold text-stone-950" data-testid="response-review-title">Review ESG Questionnaire Responses</h1></div>
       </div>
