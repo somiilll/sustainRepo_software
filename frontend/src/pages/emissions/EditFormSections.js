@@ -13,7 +13,6 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { MonthYearPicker } from '../../components/ui/month-year-picker';
-import { SearchableSelect } from '../../components/ui/searchable-select';
 import { Building2, Calendar as CalendarIcon, Info, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 
 /**
@@ -40,15 +39,7 @@ export const FacilityScopeSection = ({
           aria-readonly="true"
           className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800"
           data-testid="emission-facility-select"
-        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <SearchableSelect
-          id="facility"
-          value={formData.facility_id}
-          options={facilities.filter((facility) => facility.is_active !== false).map((facility) => ({ value: facility.id, label: `${facility.name}${facility.country ? ` (${facility.country})` : ''}` }))}
-          onValueChange={(value) => { setFormData({ ...formData, facility_id: value }); markFormDirty(); }}
-          placeholder="Select Facility"
-          leadingIcon={<Building2 className="h-4 w-4" />}
-          testId="emission-facility-select"
-        />}
+        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <div className="relative"><Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="facility" value={formData.facility_id} onChange={(event) => { setFormData({ ...formData, facility_id: event.target.value }); markFormDirty(); }} className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" data-testid="emission-facility-select"><option value="">Select Facility</option>{facilities.filter((facility) => facility.is_active !== false).map((facility) => <option key={facility.id} value={facility.id}>{facility.name}{facility.country ? ` (${facility.country})` : ''}</option>)}</select></div>}
     </div>
     <div className="space-y-1.5">
       <Label>Scope *</Label>

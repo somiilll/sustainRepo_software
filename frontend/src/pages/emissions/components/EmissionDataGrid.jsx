@@ -219,13 +219,22 @@ const EmissionDataGrid = forwardRef(({
     const ledger = ledgerScrollRef.current;
     const bottomScrollbar = bottomScrollbarRef.current;
     if (!ledger) return undefined;
+    let resizeFrame = null;
     const syncDimensions = () => {
-      setLedgerScrollWidth(ledger.scrollWidth);
-      setLedgerViewportWidth(ledger.clientWidth);
-      setLedgerScrollLeft(ledger.scrollLeft);
-      setBottomScrollbarWidth(bottomScrollbar?.clientWidth || ledger.clientWidth);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        const nextScrollWidth = ledger.scrollWidth;
+        const nextViewportWidth = ledger.clientWidth;
+        const nextScrollLeft = ledger.scrollLeft;
+        const nextBottomScrollbarWidth = bottomScrollbar?.clientWidth || nextViewportWidth;
+        setLedgerScrollWidth((current) => current === nextScrollWidth ? current : nextScrollWidth);
+        setLedgerViewportWidth((current) => current === nextViewportWidth ? current : nextViewportWidth);
+        setLedgerScrollLeft((current) => current === nextScrollLeft ? current : nextScrollLeft);
+        setBottomScrollbarWidth((current) => current === nextBottomScrollbarWidth ? current : nextBottomScrollbarWidth);
+      });
     };
-    const syncLedger = () => setLedgerScrollLeft(ledger.scrollLeft);
+    const syncLedger = () => setLedgerScrollLeft((current) => current === ledger.scrollLeft ? current : ledger.scrollLeft);
     syncDimensions();
     ledger.addEventListener('scroll', syncLedger, { passive: true });
     const observer = new ResizeObserver(syncDimensions);
@@ -234,6 +243,7 @@ const EmissionDataGrid = forwardRef(({
     return () => {
       ledger.removeEventListener('scroll', syncLedger);
       observer.disconnect();
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
     };
   }, [activeScope, effectiveColumnWidths, filteredEmissions.length]);
   

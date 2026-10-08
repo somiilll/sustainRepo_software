@@ -550,15 +550,7 @@ export default function EmissionEditForm(props) {
                         <div className="min-w-0">
                           <Label htmlFor="category_select">Select Category *</Label>
                           <div className="mt-1.5 min-w-0">
-                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <SearchableSelect
-                              id="category_select"
-                              value={selectedCategory}
-                              options={getCategoriesForScope.map((category) => ({ value: category, label: category }))}
-                              onValueChange={handleCategorySelect}
-                              placeholder="Select category..."
-                              leadingIcon={<CategoryIcon className="h-4 w-4" />}
-                              testId="category-select"
-                            />}
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <div className="relative"><CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="category_select" value={selectedCategory} onChange={(event) => handleCategorySelect(event.target.value)} className={editSelectWithIconClass} data-testid="category-select"><option value="">Select category...</option>{getCategoriesForScope.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>}
                           </div>
                         </div>
                         
@@ -686,15 +678,7 @@ export default function EmissionEditForm(props) {
 
                             {!editUseCustomFuel ? (
                               <div className="mt-1.5 min-w-0">
-                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
-                                  value={formData.fuel_id}
-                                  options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
-                                  onValueChange={handleFuelSelect}
-                                  placeholder={selectedCategory ? 'Search or select fuel type' : 'Select category first'}
-                                  searchPlaceholder="Search fuel types..."
-                                  disabled={!selectedCategory}
-                                  testId="fuel-select"
-                                />}
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select value={formData.fuel_id} onChange={(event) => handleFuelSelect(event.target.value)} disabled={!selectedCategory} className={`${editSelectClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`} data-testid="fuel-select"><option value="">{selectedCategory ? 'Select fuel type' : 'Select category first'}</option>{getFuelsForCategory.map((fuel) => <option key={fuel.id} value={fuel.id}>{fuel.fuel_name}</option>)}</select>}
                               </div>
                             ) : (
                               <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -744,21 +728,15 @@ export default function EmissionEditForm(props) {
                       {ghgUiState.showCalculationMethodology && (
                         <div className="min-w-0" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
-                          <div className="mt-1.5 min-w-0"><SearchableSelect
+                          <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
-                            onValueChange={(v) => {
-                              setEditCalcMethodology(v);
+                            onChange={(event) => {
+                              setEditCalcMethodology(event.target.value);
                               markFormDirty();
                             }}
-                            options={[
-                              { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
-                              { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
-                              { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
-                            ]}
-                            placeholder="Select methodology"
-                            leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
-                            testId="edit-calculation-methodology-select"
-                          /></div>
+                            className={editSelectWithIconClass}
+                            data-testid="edit-calculation-methodology-select"
+                          ><option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option><option value="using_qty_basis_ef">Using Qty Basis EF</option><option value="using_carbon_composition">Using Composition of Carbon</option></select></div>
                         </div>
                       )}
                       </div>
