@@ -232,7 +232,6 @@ export default function SupplierDocumentsAdmin() {
             <Label htmlFor="supplier-document-response-mode">Response type</Label>
             <select id="supplier-document-response-mode" value={responseMode} onChange={(event) => setResponseMode(event.target.value)} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700" data-testid="supplier-document-response-mode-select">
               <option value="ACCEPTANCE">Acceptance</option>
-              <option value="STATUS">Status</option>
               <option value="DOCUMENT_UPLOAD">Document Upload</option>
             </select>
           </div>
