@@ -38,3 +38,17 @@
     width: 100% !important;
   }
 }
+
+@media (min-width: 1280px) {
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end {
+    min-width: 39rem;
+  }
+
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end:not(:has([data-testid^="preview-supplier-agreement-"]))::before {
+    content: "";
+    display: inline-block;
+    width: 4.75rem;
+    height: 2rem;
+    flex: 0 0 auto;
+  }
+}
