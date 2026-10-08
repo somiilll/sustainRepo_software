@@ -644,6 +644,15 @@ async def preview_document(requirement_id: str, current_user: dict = Depends(get
         headers={"Content-Disposition": f'inline; filename="{preview["filename"]}"', "Cache-Control": "private, max-age=300"},
     )
 
+
+@router.get("/documents/{requirement_id}/download")
+async def download_document_source(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    version = await documents_service.get_customer_document_source(current_user["organization_id"], requirement_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    content, content_type = await get_r2_storage().get_file(version["bucket_type"], version["r2_key"])
+    return Response(content=content, media_type=content_type or version.get("content_type"), headers={"Content-Disposition": f'attachment; filename="{version["original_filename"]}"', "Cache-Control": "private, max-age=300"})
+
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
     """Remove an agreement from active supplier access while retaining immutable records."""

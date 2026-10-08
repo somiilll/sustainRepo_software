@@ -471,6 +471,19 @@ async def get_customer_document_preview(customer_org_id: str, requirement_id: st
     return {"content": preview_content, "content_type": "application/pdf", "filename": "document-preview.pdf"}
 
 
+async def get_customer_document_source(customer_org_id: str, requirement_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_document_requirements.find_one(
+        {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True},
+        {"_id": 0, "document_version_id": 1},
+    )
+    if not requirement:
+        return None
+    return await db.supplier_document_versions.find_one(
+        {"id": requirement["document_version_id"], "customer_org_id": customer_org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0},
+    )
+
+
 async def accept_supplier_document(relationship: Dict[str, Any], requirement_id: str, supplier_user_id: str) -> Optional[Dict[str, Any]]:
     document = await get_supplier_document(relationship, requirement_id)
     if not document:
@@ -642,7 +655,16 @@ async def list_customer_documents(customer_org_id: str, reporting_period: Option
         {"customer_org_id": customer_org_id, "is_active": True},
         {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
     ).to_list(1000)
+    version_ids = [requirement.get("document_version_id") for requirement in requirements if requirement.get("document_version_id")]
+    versions = await db.supplier_document_versions.find(
+        {"id": {"$in": version_ids}, "customer_org_id": customer_org_id, "is_deleted": {"$ne": True}},
+        {"_id": 0, "id": 1, "content_type": 1, "original_filename": 1},
+    ).to_list(1000)
+    versions_by_id = {version["id"]: version for version in versions}
     for requirement in requirements:
+        version = versions_by_id.get(requirement.get("document_version_id"), {})
+        requirement["content_type"] = version.get("content_type")
+        requirement["original_filename"] = version.get("original_filename")
         requirement["assigned_supplier_names"] = [
             supplier["company_name"] for supplier in suppliers
             if _is_requirement_available_to_relationship(requirement, supplier)
