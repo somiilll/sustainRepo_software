@@ -173,12 +173,13 @@ class SupplierDocumentResponse(BaseModel):
     version_number: int
     accepted: bool
     accepted_at: Optional[str] = None
-    response_mode: Literal["ACCEPTANCE", "STATUS"] = "ACCEPTANCE"
+    response_mode: Literal["ACCEPTANCE", "STATUS", "DOCUMENT_UPLOAD"] = "ACCEPTANCE"
     response_options: List[str] = []
     selected_response: Optional[str] = None
     responded_at: Optional[str] = None
     submission_status: Optional[str] = None
     has_been_viewed: bool = False
+    response_files: List[Dict[str, Any]] = []
     created_at: str
 
 

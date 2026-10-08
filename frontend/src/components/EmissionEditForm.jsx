@@ -547,23 +547,18 @@ export default function EmissionEditForm(props) {
                       {/* Category and Fuel Selection */}
                       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
-                        <div className="space-y-1.5">
+                        <div className="min-w-0">
                           <Label htmlFor="category_select">Select Category *</Label>
-                          <div className="relative">
-                            <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <select
+                          <div className="mt-1.5 min-w-0">
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <SearchableSelect
                               id="category_select"
                               value={selectedCategory}
-                              onChange={(e) => handleCategorySelect(e.target.value)}
-                              required
-                              className={editSelectWithIconClass}
-                              data-testid="category-select"
-                            >
-                              <option value="">Select category...</option>
-                              {getCategoriesForScope.map(category => (
-                                <option key={category} value={category}>{category}</option>
-                              ))}
-                            </select>}
+                              options={getCategoriesForScope.map((category) => ({ value: category, label: category }))}
+                              onValueChange={handleCategorySelect}
+                              placeholder="Select category..."
+                              leadingIcon={<CategoryIcon className="h-4 w-4" />}
+                              testId="category-select"
+                            />}
                           </div>
                         </div>
                         
@@ -747,27 +742,23 @@ export default function EmissionEditForm(props) {
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
                       {ghgUiState.showCalculationMethodology && (
-                        <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
+                        <div className="min-w-0" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
-                          <Select
+                          <div className="mt-1.5 min-w-0"><SearchableSelect
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
                             onValueChange={(v) => {
                               setEditCalcMethodology(v);
                               markFormDirty();
                             }}
-                          >
-                            <div className="relative">
-                              <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                              <SelectTrigger className="h-10 bg-stone-50 pl-10 text-sm text-stone-800" data-testid="edit-calculation-methodology-select">
-                                <SelectValue placeholder="Select methodology" />
-                              </SelectTrigger>
-                            </div>
-                            <SelectContent>
-                              <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
-                              <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
-                              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            options={[
+                              { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
+                              { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
+                              { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
+                            ]}
+                            placeholder="Select methodology"
+                            leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
+                            testId="edit-calculation-methodology-select"
+                          /></div>
                         </div>
                       )}
                       </div>
@@ -1457,7 +1448,7 @@ export default function EmissionEditForm(props) {
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40 h-10"
+                          className="h-10 w-24 shrink-0 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800"
                           data-testid="quantity-unit-select"
                         >
                           {availableQuantityUnits.map(unit => (

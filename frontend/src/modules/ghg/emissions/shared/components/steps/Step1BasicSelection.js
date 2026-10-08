@@ -306,7 +306,7 @@ export const Step1BasicSelection = ({
               onValueChange={setFacilityId}
               placeholder={filteredFacilities.length ? 'Select Facility' : 'No facilities available for this scope'}
               leadingIcon={<Building2 className="h-4 w-4" />}
-              data-testid="emission-facility-select"
+              testId="emission-facility-select"
             />
           {!hasFullKPIAccess && filteredFacilities.length === 0 && scope && (
             <p className="text-xs text-amber-600">
@@ -431,7 +431,7 @@ export const Step1BasicSelection = ({
             }}
             placeholder={categoriesForScope.length ? 'Select Category' : 'No categories available'}
             leadingIcon={<CategoryIcon className="h-4 w-4" />}
-            data-testid="emission-category-select"
+            testId="emission-category-select"
           />
       </div>
 
@@ -468,7 +468,7 @@ export const Step1BasicSelection = ({
                 { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
               ]}
               leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
-              data-testid="calculation-methodology-select"
+              testId="calculation-methodology-select"
             />
         </div>
       )}
@@ -829,7 +829,7 @@ export const Step1BasicSelection = ({
                 { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
               ]}
               leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
-              data-testid="calculation-methodology-select"
+              testId="calculation-methodology-select"
             />
         </div>
       )}

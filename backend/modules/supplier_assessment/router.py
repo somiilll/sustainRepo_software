@@ -572,6 +572,16 @@ async def get_document_supplier_responses(requirement_id: str, current_user: dic
     return response_data
 
 
+@router.get("/documents/{requirement_id}/responses/{supplier_id}/files/{file_id}")
+async def download_supplier_document_response_file(requirement_id: str, supplier_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_customer_admin)):
+    file = await documents_service.get_customer_supplier_document_response_file(current_user["organization_id"], requirement_id, supplier_id, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="Supplier response file not found")
+    content, content_type = await get_r2_storage().get_file(file["bucket_type"], file["r2_key"])
+    disposition = "attachment" if download else "inline"
+    return Response(content=content, media_type=content_type or file.get("content_type"), headers={"Content-Disposition": f'{disposition}; filename="{file["original_filename"]}"', "Cache-Control": "private, max-age=300"})
+
+
 @router.patch("/documents/{requirement_id}")
 async def update_document_due_date(requirement_id: str, data: DueDateUpdate, current_user: dict = Depends(get_customer_admin)):
     document = await documents_service.update_document_due_date(current_user["organization_id"], requirement_id, data.due_date)
@@ -1643,6 +1653,7 @@ async def get_my_documents(current_user: dict = Depends(get_supplier_user)):
 @router.get("/my-assessment/documents/{requirement_id}/view")
 async def get_my_document_view_url(
     requirement_id: str,
+    download: bool = False,
     current_user: dict = Depends(get_supplier_user),
 ):
     """Authorize the supplier and return a short-lived URL for the exact agreement version."""
@@ -1659,7 +1670,7 @@ async def get_my_document_view_url(
     try:
         return {"url": get_r2_storage().generate_presigned_url(
             version["bucket_type"], version["r2_key"], expiration=900,
-            response_content_disposition=f"inline; filename={version['original_filename']}",
+            response_content_disposition=f"{'attachment' if download else 'inline'}; filename={version['original_filename']}",
         )}
     except Exception:
         _log_supplier_event("supplier_assessment.document.view.failed", action="supplier_assessment.document.view", outcome="failed", level=logging.ERROR, error_code="DOCUMENT_VIEW_FAILED", context={"requirement_id": requirement_id, "supplier_id": relationship["id"]})
@@ -1703,6 +1714,60 @@ async def respond_to_my_document(requirement_id: str, data: SupplierDocumentStat
     await supplier_service._update_completion_status(relationship["id"])
     _log_supplier_event("supplier_assessment.document.responded", action="supplier_assessment.document.respond", outcome="succeeded", context={"requirement_id": requirement_id, "supplier_id": relationship["id"], "submission_id": response.get("id")})
     return {"response": response}
+
+
+@router.post("/my-assessment/documents/{requirement_id}/response-files")
+async def upload_my_document_response_files(requirement_id: str, files: List[UploadFile] = File(...), current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    payload = []
+    try:
+        for file in files:
+            content = await file.read()
+            await assert_evidence_storage_limit(relationship["customer_org_id"], len(content))
+            payload.append({"filename": file.filename or "supplier-response", "content_type": file.content_type or "application/octet-stream", "content": content})
+        response = await documents_service.upload_supplier_document_response_files(relationship, requirement_id, current_user["id"], payload)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"response_files": response.get("response_files", []), "submission_status": response.get("status")}
+
+
+@router.delete("/my-assessment/documents/{requirement_id}/response-files/{file_id}")
+async def delete_my_document_response_file(requirement_id: str, file_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await documents_service.remove_supplier_document_response_file(relationship, requirement_id, file_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/my-assessment/documents/{requirement_id}/submit-upload")
+async def submit_my_document_upload(requirement_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        response = await documents_service.submit_supplier_document_upload(relationship, requirement_id, current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await supplier_service._update_completion_status(relationship["id"])
+    return {"response": response}
+
+
+@router.get("/my-assessment/documents/{requirement_id}/response-files/{file_id}")
+async def view_my_document_response_file(requirement_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    file = await documents_service.get_supplier_document_response_file(relationship, requirement_id, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="Supplier response file not found")
+    content, content_type = await get_r2_storage().get_file(file["bucket_type"], file["r2_key"])
+    disposition = "attachment" if download else "inline"
+    return Response(content=content, media_type=content_type or file.get("content_type"), headers={"Content-Disposition": f'{disposition}; filename="{file["original_filename"]}"', "Cache-Control": "private, max-age=300"})
 
 @router.get("/my-assessment/trainings")
 async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):

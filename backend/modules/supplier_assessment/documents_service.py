@@ -28,7 +28,7 @@ ALLOWED_DOCUMENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
-RESPONSE_MODES = {"ACCEPTANCE", "STATUS"}
+RESPONSE_MODES = {"ACCEPTANCE", "STATUS", "DOCUMENT_UPLOAD"}
 
 
 def _now() -> str:
@@ -105,11 +105,11 @@ async def publish_agreement(
         raise ValueError("Agreement files must be between 1 byte and 10MB")
     response_mode = response_mode.upper()
     if response_mode not in RESPONSE_MODES:
-        raise ValueError("Document response mode must be ACCEPTANCE or STATUS")
+        raise ValueError("Document response mode must be ACCEPTANCE, STATUS, or DOCUMENT_UPLOAD")
     response_options = list(dict.fromkeys(option.strip() for option in (response_options or []) if option and option.strip()))
     if response_mode == "STATUS" and not response_options:
         raise ValueError("Add at least one status response option")
-    if response_mode == "ACCEPTANCE":
+    if response_mode != "STATUS":
         response_options = []
 
     organization_config = await _enable_documents_for_org(customer_org_id, created_by)
@@ -403,6 +403,7 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
             "selected_response": response.get("response_value") if response_mode == "STATUS" and response and not is_reopened else None,
             "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and not is_reopened else None,
             "submission_status": "reopened" if is_reopened else ("submitted" if response else "not_started"),
+            "response_files": (response or {}).get("response_files", []),
             "has_been_viewed": bool(viewed),
             "created_at": requirement["created_at"], "due_date": requirement.get("due_date"), "reporting_period": requirement.get("reporting_period") or relationship.get("reporting_period"),
         })
@@ -529,6 +530,101 @@ async def respond_to_supplier_document(relationship: Dict[str, Any], requirement
     return response
 
 
+async def upload_supplier_document_response_files(relationship: Dict[str, Any], requirement_id: str, supplier_user_id: str, files: List[Dict[str, Any]]) -> Dict[str, Any]:
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        raise ValueError("Document not found")
+    requirement, version = document["requirement"], document["version"]
+    if requirement.get("response_mode") != "DOCUMENT_UPLOAD":
+        raise ValueError("This document does not accept uploaded supplier files")
+    if not files:
+        raise ValueError("Choose at least one file to upload")
+    submission = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if submission and submission.get("status") == "submitted":
+        raise ValueError("This document response is locked. Ask the parent organization to unlock it.")
+    now = _now()
+    if not submission:
+        submission = {
+            "id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"],
+            "customer_org_id": relationship["customer_org_id"], "document_requirement_id": requirement_id, "document_version_id": version["id"],
+            "response_mode": "DOCUMENT_UPLOAD", "status": "draft", "revision": 1, "is_current": True, "parent_visible": False,
+            "response_files": [], "created_by": supplier_user_id, "created_at": now,
+        }
+        await db.supplier_document_submissions.insert_one(submission)
+        submission.pop("_id", None)
+    uploaded_files = list(submission.get("response_files") or [])
+    for file in files:
+        content = file["content"]
+        filename = file["filename"]
+        content_type = file["content_type"]
+        if content_type not in ALLOWED_DOCUMENT_TYPES:
+            raise ValueError("Supplier response files must be PDF, DOC, or DOCX")
+        if not content or len(content) > MAX_DOCUMENT_SIZE:
+            raise ValueError("Each supplier response file must be between 1 byte and 10MB")
+        upload = await get_r2_storage().upload_file(
+            file_content=content, filename=filename, bucket_type=DOCUMENT_BUCKET_TYPE, content_type=content_type,
+            folder="document-responses", metadata={"uploaded_by": supplier_user_id, "document_requirement_id": requirement_id, "kind": "supplier_document_response"}, organization_id=relationship["supplier_org_id"],
+        )
+        if upload.get("error"):
+            raise ValueError(upload["error"])
+        uploaded_files.append({"id": str(uuid.uuid4()), "original_filename": filename, "content_type": content_type, "file_size": len(content), "bucket_type": DOCUMENT_BUCKET_TYPE, "r2_key": upload["key"], "uploaded_by": supplier_user_id, "uploaded_at": now})
+    await db.supplier_document_submissions.update_one({"id": submission["id"]}, {"$set": {"response_files": uploaded_files, "status": "draft" if submission.get("status") != "reopened" else "reopened", "updated_at": now}})
+    submission["response_files"] = uploaded_files
+    return submission
+
+
+async def remove_supplier_document_response_file(relationship: Dict[str, Any], requirement_id: str, file_id: str) -> Dict[str, Any]:
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        raise ValueError("Document not found")
+    requirement, version = document["requirement"], document["version"]
+    if requirement.get("response_mode") != "DOCUMENT_UPLOAD":
+        raise ValueError("This document does not accept uploaded supplier files")
+    submission = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if not submission or submission.get("status") == "submitted":
+        raise ValueError("This document response is locked")
+    files = list(submission.get("response_files") or [])
+    if not any(file.get("id") == file_id for file in files):
+        raise ValueError("Uploaded file not found")
+    remaining = [file for file in files if file.get("id") != file_id]
+    await db.supplier_document_submissions.update_one({"id": submission["id"]}, {"$set": {"response_files": remaining, "updated_at": _now()}})
+    return {"submission_id": submission["id"], "response_files": remaining}
+
+
+async def submit_supplier_document_upload(relationship: Dict[str, Any], requirement_id: str, supplier_user_id: str) -> Dict[str, Any]:
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        raise ValueError("Document not found")
+    requirement, version = document["requirement"], document["version"]
+    if requirement.get("response_mode") != "DOCUMENT_UPLOAD":
+        raise ValueError("This document does not accept uploaded supplier files")
+    await _require_supplier_document_view(relationship, requirement_id)
+    submission = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if not submission:
+        raise ValueError("Upload at least one response file before submitting")
+    if submission.get("status") == "submitted":
+        return submission
+    if not submission.get("response_files"):
+        raise ValueError("Upload at least one response file before submitting")
+    now = _now()
+    await db.supplier_document_submissions.update_one({"id": submission["id"]}, {"$set": {"status": "submitted", "submitted_by": supplier_user_id, "submitted_at": now, "parent_visible": True, "updated_at": now}})
+    await db.supplier_document_submissions.update_many({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id, "id": {"$ne": submission["id"]}}, {"$set": {"parent_visible": False}})
+    submission.update({"status": "submitted", "submitted_by": supplier_user_id, "submitted_at": now, "parent_visible": True})
+    log_event(logger, logging.INFO, "supplier_assessment.document.upload.locked", action="supplier_assessment.document.upload.submit", outcome="locked", context={"supplier_id": relationship["id"], "requirement_id": requirement_id, "submission_id": submission["id"]})
+    return submission
+
+
+async def get_supplier_document_response_file(relationship: Dict[str, Any], requirement_id: str, file_id: str) -> Optional[Dict[str, Any]]:
+    document = await get_supplier_document(relationship, requirement_id)
+    if not document:
+        return None
+    requirement, version = document["requirement"], document["version"]
+    submission = await _current_document_submission(relationship["id"], requirement_id, version["id"])
+    if not submission:
+        return None
+    return next((file for file in submission.get("response_files") or [] if file.get("id") == file_id), None)
+
+
 async def list_customer_documents(customer_org_id: str, reporting_period: Optional[str] = None) -> List[Dict[str, Any]]:
     query = {"customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
@@ -575,10 +671,26 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
             response = visible_submission
             rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
+        elif assigned_requirement.get("response_mode", "ACCEPTANCE") == "DOCUMENT_UPLOAD":
+            response = visible_submission
+            rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "DOCUMENT_UPLOAD", "response_files": (response or {}).get("response_files", []), "responded_at": response.get("submitted_at") if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
         else:
             acceptance = visible_submission
             rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "ACCEPTANCE", "selected_response": "Accepted" if acceptance else None, "responded_at": (acceptance.get("accepted_at") or acceptance.get("submitted_at")) if acceptance else None, "can_unlock": bool(acceptance), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if acceptance else "pending")})
     return {"document_version_id": requirement["document_version_id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "response_options": requirement.get("response_options", []), "responses": rows}
+
+
+async def get_customer_supplier_document_response_file(customer_org_id: str, requirement_id: str, supplier_relationship_id: str, file_id: str) -> Optional[Dict[str, Any]]:
+    requirement = await db.supplier_document_requirements.find_one({"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "document_version_id": 1})
+    if not requirement:
+        return None
+    submission = await db.supplier_document_submissions.find_one(
+        {"supplier_relationship_id": supplier_relationship_id, "document_requirement_id": requirement_id, "document_version_id": requirement["document_version_id"], "status": "submitted", "parent_visible": True},
+        {"_id": 0, "response_files": 1}, sort=[("revision", -1)],
+    )
+    if not submission:
+        return None
+    return next((file for file in submission.get("response_files") or [] if file.get("id") == file_id), None)
 
 
 async def archive_document(customer_org_id: str, requirement_id: str) -> Optional[List[str]]:
@@ -632,7 +744,7 @@ async def reopen_supplier_document(customer_org_id: str, supplier_relationship_i
     if current:
         await db.supplier_document_submissions.update_one({"id": current["id"]}, {"$set": {"is_current": False}})
     latest = await db.supplier_document_submissions.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement_id}, {"_id": 0, "revision": 1}, sort=[("revision", -1)])
-    draft = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id, "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "status": "reopened", "revision": (latest.get("revision", 1) + 1) if latest else 2, "is_current": True, "parent_visible": False, "reopened_by": reopened_by, "reopened_at": _now()}
+    draft = {"id": str(uuid.uuid4()), "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "customer_org_id": customer_org_id, "document_requirement_id": requirement_id, "document_version_id": version["id"], "response_mode": requirement.get("response_mode", "ACCEPTANCE"), "status": "reopened", "revision": (latest.get("revision", 1) + 1) if latest else 2, "is_current": True, "parent_visible": False, "response_files": list((current or {}).get("response_files") or []), "reopened_by": reopened_by, "reopened_at": _now()}
     await db.supplier_document_submissions.insert_one(draft)
     draft.pop("_id", None)
     log_event(logger, logging.INFO, "supplier_assessment.document.unlocked", action="supplier_assessment.document.reopen", outcome="unlocked", context={"supplier_id": supplier_relationship_id, "requirement_id": requirement_id, "submission_id": draft["id"]})
