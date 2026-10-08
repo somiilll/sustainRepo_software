@@ -392,17 +392,19 @@ async def list_supplier_documents(relationship: Dict[str, Any]) -> List[Dict[str
         response_mode = requirement.get("response_mode", "ACCEPTANCE")
         response = await _current_document_submission(relationship["id"], requirement["id"], version["id"])
         viewed = await db.supplier_document_views.find_one({"supplier_relationship_id": relationship["id"], "document_requirement_id": requirement["id"]}, {"_id": 0, "id": 1})
-        is_reopened = bool(response and response.get("status") == "reopened")
+        submission_status = (response or {}).get("status") or ("submitted" if response else "not_started")
+        is_reopened = submission_status == "reopened"
+        is_submitted = submission_status == "submitted"
         documents.append({
             "id": requirement["id"], "title": requirement["title"],
             "original_filename": version["original_filename"], "content_type": version["content_type"],
             "file_size": version["file_size"], "document_version_id": version["id"],
-            "version_number": version["version_number"], "accepted": bool(response) and not is_reopened,
+            "version_number": version["version_number"], "accepted": bool(response) and is_submitted and response_mode == "ACCEPTANCE",
             "accepted_at": response.get("accepted_at") if response else None,
             "response_mode": response_mode, "response_options": requirement.get("response_options", []),
-            "selected_response": response.get("response_value") if response_mode == "STATUS" and response and not is_reopened else None,
-            "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and not is_reopened else None,
-            "submission_status": "reopened" if is_reopened else ("submitted" if response else "not_started"),
+            "selected_response": response.get("response_value") if response_mode == "STATUS" and response and is_submitted else None,
+            "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response_mode == "STATUS" and response and is_submitted else None,
+            "submission_status": submission_status,
             "response_files": (response or {}).get("response_files", []),
             "has_been_viewed": bool(viewed),
             "created_at": requirement["created_at"], "due_date": requirement.get("due_date"), "reporting_period": requirement.get("reporting_period") or relationship.get("reporting_period"),
