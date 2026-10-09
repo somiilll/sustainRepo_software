@@ -34,7 +34,6 @@ export default function SupplierResponseReviewPage() {
   const [supplier, setSupplier] = useState(null);
   const [questionnaire, setQuestionnaire] = useState(null);
   const [questions, setQuestions] = useState([]);
-  const [activePillar, setActivePillar] = useState('all');
   const [activeCategoryKey, setActiveCategoryKey] = useState('');
   const [selectedQuestionId, setSelectedQuestionId] = useState('');
   const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
@@ -100,10 +99,7 @@ export default function SupplierResponseReviewPage() {
   }, [getAuthHeader, questionnaire, questionnaireId, response, supplier]);
 
   const taxonomyNames = useMemo(() => Object.fromEntries(Object.entries(questionnaire?.esg_subcategories || {}).flatMap(([section, categories]) => (categories || []).map((category) => [`${section}:${category.code}`, category.name]))), [questionnaire]);
-  const visibleQuestions = useMemo(() => questions.filter((question) => {
-    if (activePillar !== 'all' && question.category !== activePillar) return false;
-    return !activeCategoryKey || `${question.category}:${question.question_category || 'general'}` === activeCategoryKey;
-  }), [activeCategoryKey, activePillar, questions]);
+  const visibleQuestions = questions;
   const selectedIndex = Math.max(0, visibleQuestions.findIndex((question) => question.id === selectedQuestionId));
   const selectedQuestion = visibleQuestions[selectedIndex] || null;
   const calculatedScores = useMemo(() => Object.fromEntries((response?.score_breakdown?.question_scores || []).map((item) => [item.question_id, item])), [response]);
@@ -116,6 +112,7 @@ export default function SupplierResponseReviewPage() {
   })), [questions, taxonomyNames]);
 
   useEffect(() => { if (visibleQuestions.length && !visibleQuestions.some((question) => question.id === selectedQuestionId)) setSelectedQuestionId(visibleQuestions[0].id); }, [selectedQuestionId, visibleQuestions]);
+  useEffect(() => { const selected = questions.find((question) => question.id === selectedQuestionId); if (selected) setActiveCategoryKey(`${selected.category}:${selected.question_category || 'general'}`); }, [questions, selectedQuestionId]);
 
   const submitReview = async (payload) => {
     if (!selectedQuestion) return false;
@@ -197,7 +194,7 @@ export default function SupplierResponseReviewPage() {
         {PILLARS.map(({ id, label, Icon, card, icon }) => <div key={id} className={`rounded-xl border px-4 py-3 ${card}`} data-testid={`response-review-pillar-score-${id}`}><p className={`flex items-center gap-1.5 text-xs font-bold ${icon}`}><Icon className="h-3.5 w-3.5" />{label}</p><p className="mt-1 text-xl font-bold">{scoreLabel(esgScore[id]?.score)} <span className="text-xs font-medium">/ 100</span></p></div>)}
       </div>
     </header>
-    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setActiveCategoryKey(categoryKey); setActivePillar(categoryKey.split(':')[0]); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onMarkForReview={saveReviewDraft} onOpenHistory={() => setHistoryOpen(true)} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} marking={draftingQuestionId === selectedQuestion.id} /></main>
+    <main className="grid min-w-0 items-start gap-4 xl:grid-cols-[18rem_minmax(0,1fr)] 2xl:grid-cols-[21rem_minmax(0,1fr)]" data-testid="response-review-workspace"><ResponseReviewSidebar groups={sidebarGroups} activeCategoryKey={activeCategoryKey} onCategorySelect={(categoryKey) => { const firstQuestion = questions.find((question) => `${question.category}:${question.question_category || 'general'}` === categoryKey); setSelectedQuestionId(firstQuestion?.id || ''); }} /><ResponseReviewQuestionPanel key={selectedQuestion.id} question={selectedQuestion} categoryLabel={taxonomyNames[`${selectedQuestion.category}:${selectedQuestion.question_category || 'general'}`] || humanize(selectedQuestion.question_category)} index={selectedIndex} total={visibleQuestions.length} score={calculatedScores[selectedQuestion.id]} onDecision={submitInlineDecision} onMarkForReview={saveReviewDraft} onOpenHistory={() => setHistoryOpen(true)} onPrevious={() => setSelectedQuestionId(visibleQuestions[Math.max(0, selectedIndex - 1)]?.id || selectedQuestion.id)} onNext={() => setSelectedQuestionId(visibleQuestions[Math.min(visibleQuestions.length - 1, selectedIndex + 1)]?.id || selectedQuestion.id)} onOpenEvidence={openEvidence} openingEvidenceKey={openingEvidenceKey} saving={reviewingQuestionId === selectedQuestion.id} marking={draftingQuestionId === selectedQuestion.id} /></main>
     <Sheet open={historyOpen} onOpenChange={setHistoryOpen}><SheetContent side="right" hideClose className="w-full max-w-xl p-0 sm:max-w-xl" data-testid="response-review-history-drawer"><ResponseAnswerHistory history={selectedQuestion.history || []} questionId={selectedQuestion.id} onClose={() => setHistoryOpen(false)} /></SheetContent></Sheet>
   </div>;
 }
