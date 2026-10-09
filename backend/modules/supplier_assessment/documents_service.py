@@ -326,7 +326,7 @@ async def list_document_assignments(customer_org_id: str, requirement_id: str) -
     return {"document_id": requirement_id, "document_version_id": requirement["document_version_id"], "assignments": rows}
 
 
-async def assign_document_to_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str, assigned_by: str) -> None:
+async def assign_document_to_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str, assigned_by: str) -> List[str]:
     source = await db.supplier_document_requirements.find_one(
         {"id": requirement_id, "customer_org_id": customer_org_id, "is_active": True}, {"_id": 0}
     )
@@ -336,8 +336,9 @@ async def assign_document_to_supplier(customer_org_id: str, requirement_id: str,
     if not source or not relationship:
         raise ValueError("Document or supplier is unavailable")
     await db.supplier_relationships.update_one({"id": relationship["id"]}, {"$addToSet": {"modules_enabled": "documents"}, "$set": {"updated_at": _now()}})
-    await assign_existing_documents_to_supplier(customer_org_id, relationship, [source["id"]], assigned_by)
+    assigned_requirement_ids = await assign_existing_documents_to_supplier(customer_org_id, relationship, [source["id"]], assigned_by)
     log_event(logger, logging.INFO, "supplier_assessment.document.assignment.added", action="supplier_assessment.document.assignment.add", outcome="succeeded", context={"customer_org_id": customer_org_id, "supplier_relationship_id": supplier_relationship_id, "requirement_id": requirement_id})
+    return assigned_requirement_ids
 
 
 async def unassign_document_from_supplier(customer_org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:

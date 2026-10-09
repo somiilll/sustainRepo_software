@@ -603,12 +603,12 @@ async def get_document_assignments(requirement_id: str, current_user: dict = Dep
 @router.post("/documents/{requirement_id}/assignments/{supplier_id}")
 async def assign_document_supplier(requirement_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
-        await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
+        assigned_requirement_ids = await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
         document = await db.supplier_document_requirements.find_one(
             {"id": requirement_id}, {"_id": 0, "title": 1, "document_version_id": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "documents", document.get("document_version_id", requirement_id),
+            supplier_id, "documents", assigned_requirement_ids[0] if assigned_requirement_ids else requirement_id,
             document.get("title") or "Document", due_date=document.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)
