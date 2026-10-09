@@ -805,12 +805,12 @@ async def get_training_assignments(training_id: str, reporting_period: Optional[
 @router.post("/trainings/{training_id}/assignments/{supplier_id}")
 async def assign_training_supplier(training_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
-        await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
+        assignment_id = await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
         training = await db.supplier_training_requirements.find_one(
             {"id": training_id}, {"_id": 0, "title": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "training", training_id, training.get("title") or "Training", due_date=training.get("due_date"),
+            supplier_id, "training", assignment_id, training.get("title") or "Training", due_date=training.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
@@ -959,15 +959,16 @@ async def get_questionnaire_assignments(questionnaire_id: str, reporting_period:
 @router.post("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
 async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
-        await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
+        is_new_assignment = await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
         ) or {}
-        await _notify_supplier_assignment_by_id(
-            supplier_id, "esg", questionnaire_id, normalize_questionnaire_template_name(
-                questionnaire.get("name") or "ESG questionnaire"
-            ), due_date=questionnaire.get("due_date"),
-        )
+        if is_new_assignment:
+            await _notify_supplier_assignment_by_id(
+                supplier_id, "esg", f"{questionnaire_id}:{uuid.uuid4()}", normalize_questionnaire_template_name(
+                    questionnaire.get("name") or "ESG questionnaire"
+                ), due_date=questionnaire.get("due_date"),
+            )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         _log_supplier_event("supplier_assessment.questionnaire.assignment.rejected", action="supplier_assessment.questionnaire.assignment.assign", outcome="rejected", level=logging.WARNING, error_code="QUESTIONNAIRE_ASSIGNMENT_REJECTED", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_id})

@@ -490,7 +490,7 @@ async def list_training_assignments(org_id: str, requirement_id: str, reporting_
     return {"training_id": requirement_id, "assignments": rows}
 
 
-async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
+async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> str:
     requirement = await db.supplier_training_requirements.find_one(
         {"id": requirement_id, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
@@ -504,8 +504,11 @@ async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier
         {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "is_active": True}, {"_id": 0, "id": 1}
     )
     if not existing:
-        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
+        assignment_id = str(uuid.uuid4())
+        await db.supplier_training_assignments.insert_one({"id": assignment_id, "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
         log_event(logger, logging.INFO, "supplier_assessment.training.assignment.added", action="supplier_assessment.training.assignment.add", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id})
+        return assignment_id
+    return existing["id"]
 
 
 async def unassign_training_from_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:

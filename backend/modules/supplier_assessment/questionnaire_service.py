@@ -782,17 +782,22 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
     return {"questionnaire_id": questionnaire_id, "reporting_period": effective_period, "assignments": rows}
 
 
-async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str, reporting_period: Optional[str] = None) -> None:
+async def assign_questionnaire_to_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str, reporting_period: Optional[str] = None) -> bool:
     questionnaire = await db.supplier_questionnaires.find_one({"id": questionnaire_id, "organization_id": customer_org_id, "is_active": True}, {"_id": 0, "assigned_supplier_ids": 1, "reporting_periods": 1, "assignment_reporting_period": 1})
     relationship_query = {"id": supplier_relationship_id, "customer_org_id": customer_org_id, "is_active": True}
     if reporting_period:
         relationship_query["reporting_period"] = reporting_period
-    relationship = await db.supplier_relationships.find_one(relationship_query, {"_id": 0, "id": 1})
+    relationship = await db.supplier_relationships.find_one(relationship_query, {"_id": 0, "id": 1, "questionnaire_ids": 1})
     if not questionnaire or not relationship or not questionnaire_is_available_for_period(questionnaire, relationship.get("reporting_period")):
         raise ValueError("Questionnaire or supplier is unavailable")
     now = datetime.now(timezone.utc).isoformat()
+    is_new_assignment = (
+        supplier_relationship_id not in set(questionnaire.get("assigned_supplier_ids") or [])
+        and questionnaire_id not in set(relationship.get("questionnaire_ids") or [])
+    )
     await db.supplier_questionnaires.update_one({"id": questionnaire_id}, {"$addToSet": {"assigned_supplier_ids": supplier_relationship_id}, "$set": {"assignment_mode": "selected", "updated_at": now}})
     await db.supplier_relationships.update_one({"id": supplier_relationship_id}, {"$addToSet": {"questionnaire_ids": questionnaire_id, "modules_enabled": "esg"}, "$set": {"updated_at": now}})
+    return is_new_assignment
 
 
 async def unassign_questionnaire_from_supplier(self, customer_org_id: str, questionnaire_id: str, supplier_relationship_id: str, reporting_period: Optional[str] = None) -> None:

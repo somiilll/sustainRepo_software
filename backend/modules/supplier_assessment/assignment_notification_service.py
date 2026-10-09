@@ -21,6 +21,10 @@ ASSIGNMENT_LABELS = {
 }
 
 
+def supplier_has_logged_in(relationship: Dict[str, Any]) -> bool:
+    return relationship.get("invitation_status") == "accepted"
+
+
 async def notify_supplier_assignment(
     relationship: Dict[str, Any],
     assignment_type: str,
@@ -34,6 +38,9 @@ async def notify_supplier_assignment(
     assignment_label = ASSIGNMENT_LABELS.get(assignment_type)
     if not recipient_email or not assignment_label or not assignment_id:
         log_event(logger, logging.WARNING, "supplier_assessment.email.assignment.skipped", action="supplier_assessment.email.assignment", outcome="skipped", error_code="ASSIGNMENT_EMAIL_INPUT_MISSING", context={"relationship_id": relationship.get("id"), "assignment_type": assignment_type})
+        return False
+    if not supplier_has_logged_in(relationship):
+        log_event(logger, logging.INFO, "supplier_assessment.email.assignment.suppressed", action="supplier_assessment.email.assignment", outcome="suppressed", context={"relationship_id": relationship.get("id"), "assignment_type": assignment_type, "assignment_id": assignment_id, "reason": "supplier_not_logged_in"})
         return False
 
     event_key = f"supplier-assignment:{assignment_type}:{relationship['id']}:{assignment_id}"
