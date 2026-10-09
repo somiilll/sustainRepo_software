@@ -4,6 +4,14 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { RadioGroup, RadioGroupItem } from '../../../components/ui/radio-group';
+import { Badge } from '../../../components/ui/badge';
+
+const evidencePreviewLabel = (question) => {
+  if (question.evidence_requirement === 'evidence_scored') return { label: 'Scoring based on evidence', className: 'bg-amber-50 text-amber-800' };
+  if (question.evidence_requirement === 'required' || question.assessment_type === 'type_a') return { label: 'Evidence required', className: 'bg-emerald-50 text-emerald-800' };
+  if (question.evidence_requirement === 'optional') return { label: 'Evidence optional', className: 'bg-sky-50 text-sky-800' };
+  return { label: 'Evidence not required', className: 'bg-stone-100 text-stone-700' };
+};
 
 export const SupplierQuestionnairePreviewDialog = ({ open, onOpenChange, questionnaire, questions }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
@@ -26,6 +34,7 @@ export const SupplierQuestionnairePreviewDialog = ({ open, onOpenChange, questio
                 {question.parent_question_id ? <span className="mr-2 text-xs font-medium text-emerald-700" data-testid={`supplier-question-preview-subquestion-label-${questionId}`}>Follow-up</span> : `${questionNumber}. `}
                 {question.question_text}{question.required && <span className="ml-1 text-rose-500">*</span>}
               </p>
+              <div className="mt-2 flex flex-wrap gap-2" data-testid={`supplier-question-preview-requirements-${questionId}`}><Badge className={`${evidencePreviewLabel(question).className} border-0 font-medium`} data-testid={`supplier-question-preview-evidence-requirement-${questionId}`}>{evidencePreviewLabel(question).label}</Badge></div>
               <div className="mt-3">
                 {question.response_type === 'yes_no' ? (
                   <div className="flex gap-2">

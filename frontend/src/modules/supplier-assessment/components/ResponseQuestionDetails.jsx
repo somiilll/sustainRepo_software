@@ -1,6 +1,14 @@
 import React from 'react';
 import { CheckCircle2, Download, Eye, History, Paperclip } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { Badge } from '../../../components/ui/badge';
+
+const evidenceReviewLabel = (question) => {
+  if (question.evidence_requirement === 'evidence_scored') return { label: 'Scoring based on evidence', className: 'bg-amber-50 text-amber-800' };
+  if (question.evidence_requirement === 'required' || question.assessment_type === 'type_a') return { label: 'Evidence required', className: 'bg-emerald-50 text-emerald-800' };
+  if (question.evidence_requirement === 'optional') return { label: 'Evidence optional', className: 'bg-sky-50 text-sky-800' };
+  return { label: 'Evidence not required', className: 'bg-stone-100 text-stone-700' };
+};
 
 const displayScore = (value) => {
   const score = Number(value);
@@ -27,7 +35,7 @@ const AnswerChoices = ({ question, answer }) => {
 export const ResponseQuestionDetails = ({ question, index, onOpenHistory, onOpenEvidence, openingEvidenceKey }) => {
   const answer = displayAnswer(question);
   return <>
-    <div data-testid={`response-review-question-details-${question.id}`}><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-sm">{index + 1}</span><div className="relative min-w-0 flex-1"><Button type="button" variant="ghost" size="icon" className="absolute right-0 -top-7 h-7 w-7 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Open answer details and history" title="Answer details and history" onClick={onOpenHistory} data-testid="response-review-history-open-button"><History className="h-4 w-4" /></Button><h2 className="pr-9 text-lg font-bold leading-7 text-slate-950" data-testid={`response-review-question-text-${question.id}`}>{question.question_text}</h2>{question.description && <p className="mt-2 text-sm leading-6 text-slate-600" data-testid={`response-review-question-description-${question.id}`}>{question.description}</p>}</div></div></div>
+    <div data-testid={`response-review-question-details-${question.id}`}><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-sm font-bold text-white shadow-sm">{index + 1}</span><div className="relative min-w-0 flex-1"><Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-7 w-7 text-slate-500 hover:bg-slate-100 hover:text-slate-900" aria-label="Open answer details and history" title="Answer details and history" onClick={onOpenHistory} data-testid="response-review-history-open-button"><History className="h-4 w-4" /></Button><h2 className="pr-9 text-lg font-bold leading-7 text-slate-950" data-testid={`response-review-question-text-${question.id}`}>{question.question_text}</h2><div className="mt-2 flex flex-wrap gap-2" data-testid={`response-review-question-requirements-${question.id}`}><Badge className={`${question.required ? 'bg-rose-50 text-rose-800' : 'bg-stone-100 text-stone-700'} border-0 font-medium`} data-testid={`response-review-question-requiredness-${question.id}`}>{question.required ? 'Mandatory' : 'Optional'}</Badge><Badge className={`${evidenceReviewLabel(question).className} border-0 font-medium`} data-testid={`response-review-question-evidence-policy-${question.id}`}>{evidenceReviewLabel(question).label}</Badge></div>{question.description && <p className="mt-2 text-sm leading-6 text-slate-600" data-testid={`response-review-question-description-${question.id}`}>{question.description}</p>}</div></div></div>
 
     <div className="grid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_4px_18px_rgba(15,23,42,0.04)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]" data-testid={`response-review-submission-block-${question.id}`}>
       <section className="border-b border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50/70 p-5 lg:border-b-0 lg:border-r" data-testid={`response-review-supplier-response-${question.id}`}><div className="flex items-center gap-2 text-sm font-bold text-emerald-900"><span className="grid h-7 w-7 place-items-center rounded-md bg-emerald-600 text-white"><Paperclip className="h-3.5 w-3.5" /></span>Supplier Response</div><div className="mt-4"><AnswerChoices question={question} answer={answer} /></div></section>
