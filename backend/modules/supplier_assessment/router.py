@@ -1531,8 +1531,8 @@ async def get_my_assessment(
     return {
         "relationship": relationship,
         "customer_name": customer_org.get("name") if customer_org else None,
-        "assessment_modules": supplier_assessment_module_registry.supplier_module_summaries(
-            effective_config, relationship
+        "assessment_modules": await supplier_assessment_module_registry.supplier_visible_module_summaries(
+            db, effective_config, relationship
         ),
     }
 
@@ -1556,7 +1556,7 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
     documents = await documents_service.list_supplier_documents(relationship) if documents_enabled else []
     trainings = await training_service.supplier_trainings(relationship) if training_enabled else []
     ghg_state = await ghg_submission_service.get_supplier_ghg_state(relationship)
-    modules = supplier_assessment_module_registry.supplier_module_summaries(effective_config, relationship)
+    modules = await supplier_assessment_module_registry.supplier_visible_module_summaries(db, effective_config, relationship)
     questionnaire_pending = [item for item in questionnaires if item.get("status") != "submitted"]
     document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
     training_pending = [item for item in trainings if item.get("status") != "completed"]

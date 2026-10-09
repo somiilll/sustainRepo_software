@@ -47,7 +47,7 @@ class EsgAssessmentModule(SupplierAssessmentModule):
             {"_id": 0, "id": 1},
         ).to_list(100)
         if not questionnaires:
-            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field)
+            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
 
         submitted_questionnaires = 0
         for questionnaire in questionnaires:
@@ -136,7 +136,7 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
             )
         ]
         if not requirements:
-            return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
+            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
 
         completed = 0
         for requirement in requirements:
@@ -205,6 +205,25 @@ class SupplierAssessmentModuleRegistry:
             }
             for module in self.enabled_modules(program_config)
         ]
+
+    async def supplier_visible_module_summaries(
+        self, database: Any, program_config: Dict[str, Any], relationship: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Expose only enabled modules with supplier-specific assigned work."""
+        module_config = program_config.get("modules") or {}
+        summaries = []
+        for module in self.enabled_modules(program_config):
+            completion = await module.get_completion(database, relationship)
+            if not completion.is_applicable:
+                continue
+            summaries.append({
+                "code": module.module_code,
+                "display_name": (module_config.get(module.module_code) or {}).get("display_name") or module.default_display_name,
+                "completion_percent": completion.completion_percent,
+                "supplier_path": module.supplier_path,
+                "description": module.supplier_description,
+            })
+        return summaries
 
 
 supplier_assessment_module_registry = SupplierAssessmentModuleRegistry([

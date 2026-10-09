@@ -217,13 +217,16 @@ export default function SupplierList() {
       setTrainings(availableTrainings);
       const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
-      setFormData((current) => ({
-        ...current,
-        modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || availableQuestionnaires.length > 0),
-        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId)) : availableQuestionnaires.map((questionnaire) => questionnaire.id),
-        document_requirement_ids: availableDocuments.map((document) => document.id),
-        training_requirement_ids: availableTrainings.map((training) => training.id),
-      }));
+      setFormData((current) => {
+        const questionnaire_ids = current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId));
+        return {
+          ...current,
+          modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || questionnaire_ids.length > 0),
+          questionnaire_ids,
+          document_requirement_ids: availableDocuments.map((document) => document.id),
+          training_requirement_ids: availableTrainings.map((training) => training.id),
+        };
+      });
     });
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
@@ -397,7 +400,11 @@ export default function SupplierList() {
           toast.error('At least one module must be enabled');
           return prev;
         }
-        return { ...prev, modules_enabled: current.filter(m => m !== module) };
+        return {
+          ...prev,
+          modules_enabled: current.filter(m => m !== module),
+          questionnaire_ids: module === 'esg' ? [] : prev.questionnaire_ids,
+        };
       } else {
         return { ...prev, modules_enabled: [...current, module] };
       }
