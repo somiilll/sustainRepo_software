@@ -115,6 +115,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 9, 2026 — Standardized Add Document and Add Training assignment panels with explicit white dialog/picker backgrounds, **Assign suppliers now** wording, and **Select all supplier** shared-picker copy. No test run was performed.
 - October 9, 2026 — Refined the ESG Questionnaire workspace: renamed and vertically stacked Question Type / Evidence tags; separated Multiple choice (violet), Required (emerald), and Scoring based (amber) badges; restored a clipboard Preview Questionnaire action; added the requested Points without evidence calculation tooltip to shared Add/Edit question controls; prevented negative Multiple-choice scores in the live draft control; and renamed staged-save copy to **Save N change(s)**. No test run was performed.
 - October 9, 2026 — Updated Add Supplier ESG assignment behavior: removing the last selected ESG questionnaire now automatically deselects the parent **ESG Questionnaire** module toggle. No test run was performed.
 - October 9, 2026 — Resolved the Edit GHG category state-sync regression. Selecting a fuel in the Edit GHG flow no longer overwrites the category selected by the user, so the saved update preserves the intended category. **User-confirmed testing complete.**

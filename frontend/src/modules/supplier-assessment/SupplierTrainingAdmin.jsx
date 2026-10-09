@@ -193,7 +193,7 @@ export default function SupplierTrainingAdmin() {
     <div className="grid gap-4 sm:grid-cols-3" data-testid="training-admin-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-total-card"><CardContent className="flex items-center gap-3 p-5"><GraduationCap className="h-5 w-5 text-amber-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">{trainingLabel} published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-total-value">{trainingSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-assigned-value">{trainingSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-completed-card"><CardContent className="flex items-center gap-3 p-5"><CircleCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Completed</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-completed-value">{trainingSummary.completed}</p></div></CardContent></Card></div>
 
     <Dialog open={showTrainingForm} onOpenChange={setShowTrainingForm}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="create-training-card">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto bg-white" data-testid="create-training-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold text-emerald-950" data-testid="create-training-heading">
             <Upload className="h-5 w-5 text-emerald-700" />
@@ -218,7 +218,7 @@ export default function SupplierTrainingAdmin() {
             <Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" />
           </div>
           <div className="md:col-span-2">
-            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
+            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} label="Assign suppliers now" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             {isCreating && file?.type.startsWith('video/') && <span className="mr-auto self-center text-xs font-medium text-emerald-800" data-testid="training-upload-progress">Uploading video {uploadProgress}%</span>}

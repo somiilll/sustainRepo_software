@@ -211,7 +211,7 @@ export default function SupplierDocumentsAdmin() {
     <div className="grid gap-4 sm:grid-cols-3" data-testid="supplier-documents-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-total-card"><CardContent className="flex items-center gap-3 p-5"><FileText className="h-5 w-5 text-teal-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Documents published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-total-value">{documentSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-assigned-value">{documentSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-documents-submitted-card"><CardContent className="flex items-center gap-3 p-5"><ShieldCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Responses submitted</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="supplier-documents-submitted-value">{documentSummary.submitted}</p></div></CardContent></Card></div>
 
     <Dialog open={showAgreementForm} onOpenChange={setShowAgreementForm}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto" data-testid="supplier-agreement-upload-card">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto bg-white" data-testid="supplier-agreement-upload-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold text-emerald-950">
             <Upload className="h-5 w-5 text-stone-600" />
@@ -246,7 +246,7 @@ export default function SupplierDocumentsAdmin() {
             </div>
           )}
           <div className="md:col-span-2">
-            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} label="Assign suppliers now (optional)" />
+            <SupplierAssignmentPicker selectedIds={selectedSuppliers} onChange={setSelectedSuppliers} getAuthHeader={getAuthHeader} testIdPrefix="document" reportingPeriod={reportingPeriod} label="Assign suppliers now" />
           </div>
           <div className="md:col-span-2 flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowAgreementForm(false)} data-testid="cancel-supplier-agreement-button">Cancel</Button>
