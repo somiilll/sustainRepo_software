@@ -19,11 +19,14 @@ export const QuestionnaireActionBar = ({
     <Tooltip><TooltipTrigger asChild><Button variant="outline" className="border-stone-200 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onReviewResponses} disabled={!reviewable} data-testid="review-questionnaire-submissions-button">
       <ClipboardCheck className="h-4 w-4" />Review responses
     </Button></TooltipTrigger><TooltipContent>{reviewable ? 'Review locked supplier responses' : 'Review is available after a supplier submits and locks a response'}</TooltipContent></Tooltip>
-    <Button variant="outline" className="h-auto min-h-10 border-stone-200 py-1.5 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onManageSuppliers} data-testid="manage-questionnaire-assignments-button">
-      <UsersRound className="h-4 w-4" /><span className="flex flex-col items-start"><span>Manage Suppliers</span><span className="text-[11px] font-normal leading-4 text-stone-500" data-testid="questionnaire-assigned-supplier-count">{questionnaire.assigned_supplier_count || 0} / {questionnaire.total_supplier_count || 0} suppliers assigned</span></span>
+    <Button variant="outline" className="border-stone-200 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onManageSuppliers} data-testid="manage-questionnaire-assignments-button">
+      <UsersRound className="h-4 w-4" />Manage Suppliers
     </Button>
-    <Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md xl:ml-auto" onClick={onAddQuestion} disabled={locked} data-testid="add-question-btn">
-      <Plus className="h-4 w-4" />Add question
-    </Button>
+    <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
+      <div className="flex min-h-10 items-center gap-2 border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-900" data-testid="questionnaire-assigned-supplier-count"><UsersRound className="h-4 w-4 text-sky-700" /><span className="text-xs font-semibold">{questionnaire.assigned_supplier_count || 0} / {questionnaire.total_supplier_count || 0} suppliers assigned</span></div>
+      <Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={onAddQuestion} disabled={locked} data-testid="add-question-btn">
+        <Plus className="h-4 w-4" />Add question
+      </Button>
+    </div>
   </div>;
 };
