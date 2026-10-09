@@ -39,26 +39,24 @@ export const SupplierRevenueContent = ({
     <TooltipProvider delayDuration={150}><div className="space-y-8" data-testid="supplier-revenue-content">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="supplier-revenue-percentage" className="text-sm font-medium text-slate-800">
-            Revenue Percentage from {customerName}<span className="ml-1 text-xs font-normal text-slate-500">(required to submit)</span>
+          <Label htmlFor="supplier-revenue-percentage" className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+            Revenue Percentage from {customerName}<span aria-hidden="true" className="text-rose-600">*</span><Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Revenue percentage information for ${customerName}`} className="inline-flex text-slate-400 transition-colors hover:text-emerald-700" data-testid="revenue-percentage-info-button"><Info className="h-3.5 w-3.5" aria-hidden="true" /></button></TooltipTrigger><TooltipContent data-testid="revenue-percentage-info-tooltip">Percentage of your total annual revenue received from this customer.</TooltipContent></Tooltip>
           </Label>
-          <p className="text-xs leading-5 text-slate-500">Percentage of your total annual revenue received from this customer.</p>
           <div className="relative max-w-xs">
-            <Input id="supplier-revenue-percentage" type="number" min="0" max="100" step="0.1" value={revenuePercentage} onChange={(event) => setRevenuePercentage(event.target.value)} placeholder="e.g., 15.5" className="bg-white pr-10" aria-required="false" disabled={submitted} data-testid="revenue-percentage-input" />
+            <Input id="supplier-revenue-percentage" type="number" min="0" max="100" step="0.1" value={revenuePercentage} onChange={(event) => setRevenuePercentage(event.target.value)} placeholder="e.g., 15.5" className="bg-white pr-10" aria-required="true" disabled={submitted} data-testid="revenue-percentage-input" />
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500">%</span>
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="supplier-revenue-amount" className="text-sm font-medium text-slate-800">
-            Annual Revenue Amount from {customerName}{revenueRequired && <span className="ml-1 text-xs font-normal text-slate-500">(required to submit)</span>}
+          <Label htmlFor="supplier-revenue-amount" className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+            Annual Revenue Amount from {customerName}{revenueRequired && <span aria-hidden="true" className="text-rose-600">*</span>}<Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Annual revenue amount information for ${customerName}`} className="inline-flex text-slate-400 transition-colors hover:text-emerald-700" data-testid="revenue-amount-info-button"><Info className="h-3.5 w-3.5" aria-hidden="true" /></button></TooltipTrigger><TooltipContent data-testid="revenue-amount-info-tooltip">Total annual revenue received from this customer.</TooltipContent></Tooltip>
           </Label>
-          <p className="text-xs leading-5 text-slate-500">Total annual revenue received from this customer.</p>
           <div className="flex max-w-md items-center gap-2">
             <Select value={revenueCurrency} onValueChange={setRevenueCurrency} disabled={submitted}>
               <SelectTrigger className="w-28 bg-white" data-testid="revenue-currency-select"><SelectValue /></SelectTrigger>
               <SelectContent>{CURRENCIES.map((currency) => <SelectItem key={currency.code} value={currency.code} data-testid={`revenue-currency-${currency.code.toLowerCase()}`}>{currency.symbol} {currency.code}</SelectItem>)}</SelectContent>
             </Select>
-            <Input id="supplier-revenue-amount" type="number" min="0" step="1000" value={revenueAmount} onChange={(event) => setRevenueAmount(event.target.value)} placeholder="e.g., 500000" className="min-w-0 flex-1 bg-white" aria-required="false" disabled={submitted} data-testid="revenue-amount-input" />
+            <Input id="supplier-revenue-amount" type="number" min="0" step="1000" value={revenueAmount} onChange={(event) => setRevenueAmount(event.target.value)} placeholder="e.g., 500000" className="min-w-0 flex-1 bg-white" aria-required={revenueRequired} disabled={submitted} data-testid="revenue-amount-input" />
           </div>
         </div>
         <div className="space-y-2">
