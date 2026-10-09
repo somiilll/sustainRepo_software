@@ -301,31 +301,31 @@ export default function SupplierGHGView() {
             <Table className="min-w-[1080px]" data-testid="supplier-ghg-logs-table">
               <TableHeader>
                 <TableRow className="border-stone-100 bg-emerald-50/50 hover:bg-emerald-50/50" data-testid="supplier-ghg-logs-table-header">
-                  <TableHead className="pl-6 text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-supplier-header">Supplier Org</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-period-header">Reporting Period</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-scope-header">Scope</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-category-header">Category</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-subcategory-header">Subcategory</TableHead>
-                  <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-attributed-header">Attributed emissions (tCO₂e)</TableHead>
-                  <TableHead className="pr-6 text-right text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-actions-header">Actions</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-supplier-header">Supplier Org</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-period-header">Reporting Period</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-scope-header">Scope</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-category-header">Category</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-subcategory-header">Subcategory</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-attributed-header">Attributed emissions (tCO₂e)</TableHead>
+                  <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-actions-header">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-loading">Loading emissions...</TableCell></TableRow> : filteredEmissions.length === 0 ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-empty">No emission records found.</TableCell></TableRow> : visibleEmissions.map((emission) => (
                   <TableRow key={emission.id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-ghg-log-row-${emission.id}`}>
-                    <TableCell className="pl-6 font-medium text-stone-900" data-testid={`supplier-ghg-log-supplier-${emission.id}`}>{emission.supplier_name}</TableCell>
-                    <TableCell>{emission.reporting_period}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-center font-medium text-stone-900" data-testid={`supplier-ghg-log-supplier-${emission.id}`}>{emission.supplier_name}</TableCell>
+                    <TableCell className="text-center">{emission.reporting_period}</TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="outline" className={emission.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-700' : emission.scope === 'scope2' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-stone-200 bg-stone-50 text-stone-700'} data-testid={`supplier-emission-scope-${emission.id}`}>
                         {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
                       </Badge>
                     </TableCell>
-                    <TableCell><span className="inline-flex items-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <SupplierEvidenceIndicator emissionId={emission.id} count={emission.evidence_files.length} />}</span></TableCell>
-                    <TableCell>{emission.fuel_type || emission.sub_category || '-'}</TableCell>
-                    <TableCell className="pr-6 text-right font-mono">
+                    <TableCell className="text-center"><span className="inline-flex items-center justify-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <SupplierEvidenceIndicator emissionId={emission.id} count={emission.evidence_files.length} />}</span></TableCell>
+                    <TableCell className="text-center">{emission.fuel_type || emission.sub_category || '-'}</TableCell>
+                    <TableCell className="text-center font-mono">
                       {displayValue(emission.attributed_emissions, 4)}
                     </TableCell>
-                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" className="h-8 border-stone-200 bg-white px-2.5 text-stone-700 shadow-none transition-[background-color,border-color,color] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-950" onClick={() => openEmissionDetail(emission)} data-testid={`view-supplier-emission-${emission.id}`}><Eye className="h-3.5 w-3.5" />View</Button></TableCell>
+                    <TableCell className="text-center"><Button variant="outline" size="sm" className="h-8 border-stone-200 bg-white px-2.5 text-stone-700 shadow-none transition-[background-color,border-color,color] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-950" onClick={() => openEmissionDetail(emission)} data-testid={`view-supplier-emission-${emission.id}`}><Eye className="h-3.5 w-3.5" />View</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

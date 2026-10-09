@@ -117,6 +117,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 9, 2026 — Center-aligned every header and value column in the Supplier GHG Emissions **Logs** table, including Supplier Org, reporting details, emissions value, and actions. Testing paused at user request.
 - October 9, 2026 — Updated parent Document/Training Manage suppliers confirmation: after applying staged assignment changes, **Confirm** now closes the dialog. Testing paused at user request.
 - October 9, 2026 — Added staged supplier assignment confirmation to the shared parent Document/Training supplier picker. Checkbox selections now remain pending until **Confirm supplier selection** applies them to the publish form. Testing paused at user request.
 - October 9, 2026 — Removed the redundant Mandatory/Optional badge from Questionnaire Preview because required questions already display `*`; kept the evidence-policy badge. Renamed the Supplier Assessment navigation item from **Ranking** to **Analysis**. Testing paused at user request.
