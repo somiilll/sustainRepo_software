@@ -556,7 +556,7 @@ export default function Facilities() {
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogContent className="max-h-[90vh] max-w-[1120px] gap-0 overflow-y-auto bg-white p-0 text-stone-900">
               <DialogHeader className="border-b border-stone-200 px-7 py-6">
-                <div className="flex items-start justify-between gap-4"><div><DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle><p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p></div>{!editingFacility && organization && !isSupplier && <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-1 text-sm text-stone-600"><input type="checkbox" checked={sameAsOrg} onChange={(e) => handleSameAsOrg(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" /><span>Use organisation details</span></label>}</div>
+                <div className="flex items-start justify-between gap-4"><div><DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>{!isSupplier && <p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p>}</div>{!editingFacility && organization && !isSupplier && <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-1 text-sm text-stone-600"><input type="checkbox" checked={sameAsOrg} onChange={(e) => handleSameAsOrg(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" /><span>Use organisation details</span></label>}</div>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-6 bg-white px-7 py-6 [&_input]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
                 {/* Supplier form: facility name required; address and responsible-contact fields optional */}
@@ -573,8 +573,8 @@ export default function Facilities() {
                         placeholder="Enter your facility name"
                       />
                     </div>
-                    <section className="space-y-4 border-t border-stone-100 pt-5" data-testid="supplier-add-facility-address-details">
-                      <div><h2 className="text-base font-semibold text-stone-900">Address Details</h2><p className="mt-1 text-sm text-stone-500">Optional</p></div>
+                    <section className="space-y-4 rounded-lg border border-stone-200 p-4" data-testid="supplier-add-facility-address-details">
+                      <div className="flex items-center gap-2 text-sm font-medium text-text-primary"><MapPin className="h-4 w-4" />Address Details</div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2 sm:col-span-2"><Label htmlFor="supplier-facility-address">Address details</Label><Input id="supplier-facility-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-address-input" /></div>
                         <div className="space-y-2"><Label htmlFor="supplier-facility-city">City</Label><Input id="supplier-facility-city" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-city-input" /></div>
@@ -584,11 +584,11 @@ export default function Facilities() {
                       </div>
                     </section>
                     <section className="space-y-4 border-t border-stone-100 pt-5" data-testid="supplier-add-facility-responsible-contact">
-                      <div><h2 className="text-base font-semibold text-stone-900">Responsible Contact</h2><p className="mt-1 text-sm text-stone-500">Optional</p></div>
-                      <div className="grid gap-4 sm:grid-cols-2">
+                      <h2 className="text-base font-semibold text-stone-900">Responsible Contact</h2>
+                      <div className="grid gap-4 md:grid-cols-3">
                         <div className="space-y-2"><Label htmlFor="supplier-responsible-person">Person Responsible</Label><Input id="supplier-responsible-person" value={formData.responsible_person} onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-responsible-person-input" /></div>
                         <div className="space-y-2"><Label htmlFor="supplier-responsible-designation">Designation</Label><Input id="supplier-responsible-designation" value={formData.responsible_person_designation} onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-responsible-designation-input" /></div>
-                        <div className="space-y-2 sm:col-span-2"><Label htmlFor="supplier-responsible-contact">Contact Details</Label><Input id="supplier-responsible-contact" value={formData.responsible_person_contact} onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })} className="bg-stone-50" placeholder="Email or phone" data-testid="supplier-add-facility-responsible-contact-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-responsible-contact">Contact Details</Label><Input id="supplier-responsible-contact" value={formData.responsible_person_contact} onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })} className="bg-stone-50" placeholder="Email or phone" data-testid="supplier-add-facility-responsible-contact-input" /></div>
                       </div>
                     </section>
                   </div>
