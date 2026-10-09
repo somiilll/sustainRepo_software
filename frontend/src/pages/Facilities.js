@@ -573,6 +573,10 @@ export default function Facilities() {
                         placeholder="Enter your facility name"
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="supplier-facility-sector">Sector/Industry</Label>
+                      <select id="supplier-facility-sector" value={formData.sector} onChange={(e) => setFormData({ ...formData, sector: e.target.value })} className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3" data-testid="supplier-add-facility-sector-select"><option value="">Select Sector</option>{sectors.map((sector) => <option key={sector.id} value={sector.name}>{sector.name}</option>)}</select>
+                    </div>
                     <section className="space-y-4 rounded-lg border border-stone-200 p-4" data-testid="supplier-add-facility-address-details">
                       <div className="flex items-center gap-2 text-sm font-medium text-text-primary"><MapPin className="h-4 w-4" />Address Details</div>
                       <div className="grid gap-4 sm:grid-cols-2">

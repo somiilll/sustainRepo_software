@@ -1281,8 +1281,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // Get the selected facility's sector and country for filtering fuels
   const selectedFacilitySector = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);
-    return facility?.sector || '';
-  }, [facilities, formData.facility_id]);
+    return facility?.sector || (isSupplierUser ? 'Manufacturing' : '');
+  }, [facilities, formData.facility_id, isSupplierUser]);
 
   const selectedFacilityCountry = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);

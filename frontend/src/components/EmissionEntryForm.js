@@ -2143,12 +2143,14 @@ export default function EmissionEntryForm({
       return fuelCategories.includes(category);
     });
     
-    // Filter by facility sector if available
-    if (selectedFacility?.sector) {
+    // Supplier facilities may not yet have a sector. Use Manufacturing as the
+    // calculation fallback until the supplier selects one in Facility details.
+    const facilitySector = selectedFacility?.sector?.trim() || (supplierContext ? 'Manufacturing' : '');
+    if (facilitySector) {
       filtered = filtered.filter(fuel => {
         if (fuel.industry_sectors && fuel.industry_sectors.length > 0) {
           return fuel.industry_sectors.some(s => 
-            s.toLowerCase() === selectedFacility.sector.toLowerCase()
+            s.toLowerCase() === facilitySector.toLowerCase()
           );
         }
         return true;
