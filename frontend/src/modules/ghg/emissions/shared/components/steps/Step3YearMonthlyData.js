@@ -1774,7 +1774,6 @@ const YearlyDataEntry = ({
                           value={displayedValue}
                           onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                          style={{ marginTop: -12 }}
                           data-testid={`yearly-${field.fieldKey || field.variable}-select`}
                           dangerouslySetInnerHTML={{
                             __html: buildNativeOptionsHtml(field.options, {
@@ -1785,7 +1784,7 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
@@ -1954,7 +1953,7 @@ const YearlyDataEntry = ({
                           Override Default
                         </label>
                       </div>
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
@@ -2120,7 +2119,7 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step="any"

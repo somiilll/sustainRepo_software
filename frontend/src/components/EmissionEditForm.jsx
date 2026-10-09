@@ -1752,7 +1752,7 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
-                  ) : <div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div>}
+                  ) : <div className="pt-2"><div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div></div>}
                   
                   {/* Upload New Evidence */}
                   <FileUpload
