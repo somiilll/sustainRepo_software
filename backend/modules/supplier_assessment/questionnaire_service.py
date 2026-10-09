@@ -2314,7 +2314,7 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
         for item in await list_supplier_documents(relationship)
     ]
     training = [
-        {"id": item["assignment_id"], "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0), "due_date": item.get("due_date") or relationship.get("due_date")}
+        {"id": item["assignment_id"], "training_requirement_id": item.get("training_requirement_id"), "name": item.get("title", "Training"), "status": item.get("status", "pending"), "completed_at": item.get("completed_at"), "progress_percent": item.get("progress_percent", 0), "due_date": item.get("due_date") or relationship.get("due_date")}
         for item in await supplier_trainings(relationship)
     ]
     program_context = await resolve_program_context(relationship)

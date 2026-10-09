@@ -411,6 +411,11 @@ export default function SupplierList() {
     });
   };
 
+  const isEsgAssignmentLocked = (submissionStatus?.esg || []).length > 0;
+  const isGhgAssignmentLocked = submissionStatus?.ghg?.status === 'locked';
+  const lockedDocumentIds = new Set((submissionStatus?.documents || []).filter((document) => document.status === 'locked').map((document) => document.id));
+  const lockedTrainingRequirementIds = new Set((submissionStatus?.training || []).filter((training) => training.status === 'completed').map((training) => training.training_requirement_id));
+
   return (
     <div className="space-y-7" data-testid="supplier-list">
       {/* Header */}
@@ -878,11 +883,13 @@ export default function SupplierList() {
                     id="edit-module-esg"
                     checked={formData.modules_enabled?.includes('esg')}
                     onCheckedChange={() => toggleModule('esg')}
+                    disabled={isEsgAssignmentLocked}
                   />
-                  <label htmlFor="edit-module-esg" className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="edit-module-esg" className={`flex items-center gap-2 text-sm ${isEsgAssignmentLocked ? 'cursor-not-allowed text-stone-500' : 'cursor-pointer'}`}>
                     <Leaf className="h-4 w-4 text-emerald-600" />
                     ESG Questionnaire
                   </label>
+                  {isEsgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-esg-module-lock">Submitted</Badge>}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -890,11 +897,13 @@ export default function SupplierList() {
                     id="edit-module-ghg"
                     checked={formData.modules_enabled?.includes('ghg')}
                     onCheckedChange={() => toggleModule('ghg')}
+                    disabled={isGhgAssignmentLocked}
                   />
-                  <label htmlFor="edit-module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="edit-module-ghg" className={`flex items-center gap-2 text-sm ${isGhgAssignmentLocked ? 'cursor-not-allowed text-stone-500' : 'cursor-pointer'}`}>
                     <Factory className="h-4 w-4 text-blue-600" />
                     GHG Emissions
                   </label>
+                  {isGhgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-ghg-module-lock">Submitted</Badge>}
                 </div>
               </div>
             </div>
@@ -926,7 +935,7 @@ export default function SupplierList() {
             {/* GHG Scope Selection */}
             {formData.modules_enabled?.includes('ghg') && (
               <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-4 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
-                <Label className="text-sm font-medium">GHG Scopes</Label>
+                <div className="flex items-center gap-2"><Label className="text-sm font-medium">GHG Scopes</Label>{isGhgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-ghg-scopes-lock">Submitted</Badge>}</div>
                 
                 <div className="flex gap-6">
                   <div className="flex items-center gap-2">
@@ -934,6 +943,7 @@ export default function SupplierList() {
                       id="edit-scope-1"
                       checked={formData.ghg_scopes_enabled?.includes('scope1')}
                       onCheckedChange={() => toggleScope('scope1')}
+                      disabled={isGhgAssignmentLocked}
                     />
                     <label htmlFor="edit-scope-1" className="text-sm cursor-pointer">
                       Scope 1 (Direct)
@@ -945,6 +955,7 @@ export default function SupplierList() {
                       id="edit-scope-2"
                       checked={formData.ghg_scopes_enabled?.includes('scope2')}
                       onCheckedChange={() => toggleScope('scope2')}
+                      disabled={isGhgAssignmentLocked}
                     />
                     <label htmlFor="edit-scope-2" className="text-sm cursor-pointer">
                       Scope 2 (Indirect)
@@ -953,7 +964,7 @@ export default function SupplierList() {
                 </div>
                 <div className="space-y-2 border-t border-stone-100 pt-3" data-testid="edit-supplier-ghg-submission-frequency-options">
                   <Label className="text-sm font-medium">GHG submission frequency</Label>
-                  <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} className="flex flex-wrap gap-4" data-testid="edit-supplier-ghg-submission-frequency-control">
+                  <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} disabled={isGhgAssignmentLocked} className="flex flex-wrap gap-4" data-testid="edit-supplier-ghg-submission-frequency-control">
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-monthly"><RadioGroupItem id="edit-supplier-ghg-monthly" value="monthly" data-testid="edit-supplier-ghg-monthly-radio" />Monthly</label>
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-quarterly"><RadioGroupItem id="edit-supplier-ghg-quarterly" value="quarterly" data-testid="edit-supplier-ghg-quarterly-radio" />Quarterly</label>
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-yearly"><RadioGroupItem id="edit-supplier-ghg-yearly" value="yearly" data-testid="edit-supplier-ghg-yearly-radio" />Yearly</label>
@@ -964,8 +975,8 @@ export default function SupplierList() {
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t border-stone-200 pt-4 md:grid-cols-2" data-testid="edit-supplier-assignment-summary">
-                {documents.length > 0 && <div className="rounded-lg border border-teal-200 bg-white p-3 shadow-[0_2px_10px_rgba(20,184,166,0.08)]" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-teal-700" />Documents</p><p className="mt-1 text-xs text-stone-500">Select the agreements this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{documents.map((document) => <label key={document.id} className="flex items-center gap-2" data-testid={`edit-supplier-document-${document.id}`}><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`edit-supplier-document-checkbox-${document.id}`} />{document.title}</label>)}</div></div>}
-                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-white p-3 shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</p><p className="mt-1 text-xs text-stone-500">Select the training this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{trainings.map((training) => <label key={training.id} className="flex items-center gap-2" data-testid={`edit-supplier-training-${training.id}`}><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`edit-supplier-training-checkbox-${training.id}`} />{training.title}</label>)}</div></div>}
+                {documents.length > 0 && <div className="rounded-lg border border-teal-200 bg-white p-3 shadow-[0_2px_10px_rgba(20,184,166,0.08)]" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-teal-700" />Documents</p><p className="mt-1 text-xs text-stone-500">Select the agreements this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{documents.map((document) => { const isLocked = lockedDocumentIds.has(document.id); return <label key={document.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-not-allowed text-stone-500' : ''}`} data-testid={`edit-supplier-document-${document.id}`}><Checkbox checked={formData.document_requirement_ids.includes(document.id) || isLocked} disabled={isLocked} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`edit-supplier-document-checkbox-${document.id}`} />{document.title}{isLocked && <Badge variant="outline" className="text-xs" data-testid={`edit-supplier-document-lock-${document.id}`}>Submitted</Badge>}</label>; })}</div></div>}
+                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-white p-3 shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</p><p className="mt-1 text-xs text-stone-500">Select the training this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{trainings.map((training) => { const isLocked = lockedTrainingRequirementIds.has(training.id); return <label key={training.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-not-allowed text-stone-500' : ''}`} data-testid={`edit-supplier-training-${training.id}`}><Checkbox checked={formData.training_requirement_ids.includes(training.id) || isLocked} disabled={isLocked} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`edit-supplier-training-checkbox-${training.id}`} />{training.title}{isLocked && <Badge variant="outline" className="text-xs" data-testid={`edit-supplier-training-lock-${training.id}`}>Completed</Badge>}</label>; })}</div></div>}
               </div>
             )}
           </div>
