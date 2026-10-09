@@ -10,8 +10,8 @@ export const QuestionnaireQuestionRow = ({ question, index, typeLabel, evidenceL
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', question.id);
   };
-  const typeClass = typeLabel === 'Yes / No' ? 'bg-sky-50 text-sky-700 hover:bg-sky-50' : typeLabel === 'Numeric' ? 'bg-violet-50 text-violet-700 hover:bg-violet-50' : 'bg-stone-100 text-stone-700 hover:bg-stone-100';
-  const evidenceClass = ['Required', 'Scoring based'].includes(evidenceLabel) ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50' : 'bg-stone-100 text-stone-600 hover:bg-stone-100';
+  const typeClass = typeLabel === 'Yes / No' ? 'bg-sky-50 text-sky-700 hover:bg-sky-50' : typeLabel === 'Multiple choice' ? 'bg-violet-50 text-violet-700 hover:bg-violet-50' : typeLabel === 'Numeric' ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-50' : 'bg-stone-100 text-stone-700 hover:bg-stone-100';
+  const evidenceClass = evidenceLabel === 'Required' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50' : evidenceLabel === 'Scoring based' ? 'bg-amber-50 text-amber-800 hover:bg-amber-50' : 'bg-stone-100 text-stone-600 hover:bg-stone-100';
   return <div onDragOver={(event) => !readOnly && event.preventDefault()} onDrop={(event) => !readOnly && onDrop(event.dataTransfer.getData('text/plain'), question.id)} className="border-b border-stone-100 px-4 py-5 last:border-0 lg:grid lg:grid-cols-[minmax(29rem,1fr)_11rem_5.5rem_4.5rem] lg:items-center lg:gap-3" data-testid={`question-${question.id}`}>
     <div className="mb-5 flex min-w-0 items-start gap-2 lg:mb-0">
       <span draggable={!readOnly} onDragStart={beginDrag} className={`mt-1 flex h-6 w-5 shrink-0 items-center justify-center text-stone-300 ${readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-grab hover:text-stone-500 active:cursor-grabbing'}`} data-testid={`question-reorder-handle-${question.id}`}><GripVertical className="h-4 w-4" aria-hidden="true" /><span className="sr-only">Reorder question</span></span>
