@@ -115,6 +115,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 9, 2026 — Simplified the Supplier Assessment dashboard’s Assigned Modules cards by removing the secondary descriptions below ESG questionnaires, GHG Emissions, Documents, and Training. Status badges, submission progress, and action buttons remain. Frontend lint passed.
 - October 9, 2026 — Refined the supplier Add/Edit Facility dialog: removed the customer production-detail subtitle and all Optional labels; placed Address Details in the same bordered MapPin container used for customers; and aligned Person Responsible, Designation, and Contact Details in one responsive row. Frontend lint passed.
 - October 9, 2026 — Corrected the main Facilities Add dialog for supplier users: removed the name-only guidance and exposed optional Address Details, Person Responsible, Designation, and Contact Details fields there as well. Frontend lint passed.
 - October 9, 2026 — Expanded supplier Facility Information with optional **Address Details**, **Person Responsible**, **Designation**, and **Contact Details** fields. Suppliers can load and update a saved facility through the dedicated onboarding route; the Facility name remains the only required field. Focused optional-field contract validation, Python compilation, and frontend lint passed.
