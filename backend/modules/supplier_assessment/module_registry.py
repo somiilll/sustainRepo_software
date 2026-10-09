@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List
 from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
+from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
 
 
 @dataclass(frozen=True)
@@ -122,22 +123,11 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
                 "customer_org_id": relationship["customer_org_id"],
                 "is_active": True,
             },
-            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1, "assignment_mode": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
         ).to_list(100)
         requirements = [
             requirement for requirement in requirements
-            if (
-                (not requirement.get("reporting_period") or requirement["reporting_period"] == relationship.get("reporting_period"))
-                and (
-                    relationship["id"] in (requirement.get("supplier_relationship_ids") or [])
-                    or (
-                        not requirement.get("supplier_relationship_ids")
-                        and
-                        requirement.get("assessment_program_id") == relationship.get("assessment_program_id")
-                        and requirement.get("assessment_program_version") == relationship.get("assessment_program_version")
-                    )
-                )
-            )
+            if _is_requirement_available_to_relationship(requirement, relationship)
         ]
         if not requirements:
             return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
@@ -169,8 +159,27 @@ class TrainingAssessmentModule(SupplierAssessmentModule):
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         assignments = await database.supplier_training_assignments.find(
-            {"supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0, "id": 1, "requirement_version_id": 1}
+            {
+                "supplier_relationship_id": relationship["id"],
+                "reporting_period": relationship.get("reporting_period"),
+                "is_active": True,
+            },
+            {"_id": 0, "id": 1, "training_requirement_id": 1, "requirement_version_id": 1},
         ).to_list(200)
+        requirement_ids = [assignment["training_requirement_id"] for assignment in assignments]
+        active_requirements = await database.supplier_training_requirements.find(
+            {
+                "id": {"$in": requirement_ids},
+                "is_active": True,
+                "is_deleted": {"$ne": True},
+            },
+            {"_id": 0, "id": 1},
+        ).to_list(200)
+        active_requirement_ids = {requirement["id"] for requirement in active_requirements}
+        assignments = [
+            assignment for assignment in assignments
+            if assignment["training_requirement_id"] in active_requirement_ids
+        ]
         if not assignments:
             return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
         completed = await database.supplier_training_progress.count_documents({
