@@ -19,17 +19,19 @@ const periodTone = (period) => period.status === 'submitted'
   ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
   : period.status === 'unlocked' ? 'border-amber-200 bg-amber-50 text-amber-800'
     : period.status === 'overdue' ? 'border-red-200 bg-red-50 text-red-800'
-      : period.status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800'
+      : period.status === 'upcoming' ? 'border-stone-200 bg-stone-50 text-stone-500'
+        : period.status === 'in_progress' ? 'border-blue-200 bg-blue-50 text-blue-800'
         : 'border-stone-200 bg-stone-50 text-stone-600';
 
 const periodStatusLabel = (period) => {
   if (period.status === 'submitted') return <><Lock className="mr-1 h-3 w-3" />Submitted · Locked</>;
   if (period.status === 'unlocked') return 'Unlocked for resubmission';
   if (period.status === 'overdue') return 'Overdue';
-  return period.status === 'in_progress' ? 'In progress' : 'Not started';
+  if (period.status === 'upcoming') return '-';
+  return period.status === 'in_progress' ? 'In progress' : 'Pending';
 };
 
-const canSubmitPeriod = (period) => period.status !== 'submitted' && Boolean(period.has_unsubmitted_entries);
+const canSubmitPeriod = (period) => !['submitted', 'upcoming'].includes(period.status) && Boolean(period.has_unsubmitted_entries);
 
 const submittedScopeTotal = (period, scope) => (
   period.submitted_at ? `${(period.submitted_scope_totals?.[scope] || 0).toFixed(4)} tCO₂e` : '—'

@@ -303,14 +303,16 @@ def _period_entries_query(relationship: Dict[str, Any], period: Dict[str, Any]) 
 
 
 def submission_period_display_status(
-    stored_status: Optional[str], has_unsubmitted_entries: bool, is_overdue: bool,
+    stored_status: Optional[str], has_unsubmitted_entries: bool, is_overdue: bool, is_future: bool,
 ) -> str:
     """Return the supplier-facing status for a submission period."""
     if stored_status in {"submitted", "unlocked"}:
         return stored_status
+    if is_future:
+        return "upcoming"
     if is_overdue:
         return "overdue"
-    return "in_progress" if has_unsubmitted_entries else "not_started"
+    return "in_progress" if has_unsubmitted_entries else "pending"
 
 
 def period_submitted_scope_totals(
@@ -389,9 +391,10 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             if entry.get("reporting_period") in allowed_entry_periods
         )
         submitted_scope_totals = period_submitted_scope_totals(submitted_entries, allowed_entry_periods)
-        is_overdue = record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
+        is_future = date.fromisoformat(definition["period_start"]) > today
+        is_overdue = not is_future and record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
         status = submission_period_display_status(
-            record.get("status"), bool(unsubmitted_entry_count), is_overdue,
+            record.get("status"), bool(unsubmitted_entry_count), is_overdue, is_future,
         )
         periods.append({
             "id": record.get("id") or definition["period_key"],
@@ -405,6 +408,7 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             "unlock_reason": record.get("unlock_reason"),
             "supplier_instructions": record.get("supplier_instructions") if status == "unlocked" else None,
             "is_overdue": is_overdue,
+            "is_future": is_future,
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
             "submitted_scope_totals": submitted_scope_totals,
