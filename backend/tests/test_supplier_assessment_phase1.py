@@ -166,6 +166,18 @@ async def test_esg_and_ghg_adapters_match_existing_completion_rules():
 
 
 @pytest.mark.asyncio
+async def test_esg_completion_marks_unresolved_clarifications_incomplete():
+    database = _completion_database()
+    database.supplier_questionnaire_responses.docs[0]["unlocked_question_ids"] = ["question-1"]
+    relationship = {**_relationship(), "questionnaire_ids": ["questionnaire-1"]}
+    esg_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
+        "modules": {"esg": {"enabled": True}}
+    }) if module.module_code == "esg")
+
+    assert (await esg_module.get_completion(database, relationship)).completion_percent == 50.0
+
+
+@pytest.mark.asyncio
 async def test_program_revision_binding_reuses_same_config_and_versions_changes(monkeypatch):
     database = _Database(supplier_assessment_programs=[])
     monkeypatch.setattr(programs, "db", database)

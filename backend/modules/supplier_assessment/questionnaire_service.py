@@ -1163,15 +1163,16 @@ async def get_supplier_questionnaire_status(
         
         if response_doc:
             answers = response_doc.get("answers", {})
+            unresolved_clarification_ids = active_question_ids & set(response_doc.get("unlocked_question_ids") or [])
             answered_count = sum(
-                answer is not None and question_id in active_question_ids
+                answer is not None and question_id in active_question_ids and question_id not in unresolved_clarification_ids
                 for question_id, answer in answers.items()
             )
             status = response_doc.get("status", "in_progress")
             submitted_at = response_doc.get("submitted_at")
             calculated_score = response_doc.get("calculated_score")
             has_unlocked_questions = bool(response_doc.get("has_unlocked_questions"))
-            unlocked_question_count = len(response_doc.get("unlocked_question_ids") or [])
+            unlocked_question_count = len(unresolved_clarification_ids)
             
             if total_questions > 0:
                 completion_percent = min(100.0, (answered_count / total_questions) * 100)
@@ -2036,6 +2037,7 @@ async def review_supplier_question_response(
         {"id": response["id"]},
         {"$set": update_fields},
     )
+    await self._update_completion_status(supplier_relationship_id)
 
     from modules.supplier_assessment.scoring import ScoringEngine
     breakdown = await ScoringEngine(db).calculate_supplier_assessment(

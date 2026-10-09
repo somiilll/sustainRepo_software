@@ -50,7 +50,7 @@ class EsgAssessmentModule(SupplierAssessmentModule):
         if not questionnaires:
             return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
 
-        submitted_questionnaires = 0
+        completion_total = 0.0
         for questionnaire in questionnaires:
             response_query = {
                 "questionnaire_id": questionnaire["id"], "supplier_relationship_id": relationship["id"],
@@ -62,11 +62,22 @@ class EsgAssessmentModule(SupplierAssessmentModule):
                 response_query,
                 {"_id": 0},
             )
-            submitted_questionnaires += int(response is not None)
+            if not response:
+                continue
+            active_questions = await database.supplier_questions.find(
+                {"questionnaire_id": questionnaire["id"], "is_active": True},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            if not active_questions:
+                completion_total += 100.0
+                continue
+            active_question_ids = {question["id"] for question in active_questions}
+            unresolved_clarifications = active_question_ids & set(response.get("unlocked_question_ids") or [])
+            completion_total += ((len(active_question_ids) - len(unresolved_clarifications)) / len(active_question_ids)) * 100
 
         return ModuleCompletion(
             self.module_code,
-            (submitted_questionnaires / len(questionnaires)) * 100,
+            completion_total / len(questionnaires),
             self.legacy_completion_field,
         )
 
