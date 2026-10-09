@@ -116,6 +116,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 9, 2026 — Refined supplier Document cards: due date, Preview document, Download document, and response status now share the title row; Response required is amber, Overdue is red, and Submitted remains green; the response-upload panel now has rounded-2xl corners. Frontend lint passed.
 - October 9, 2026 — Removed supplier Training’s regular In progress/Completed status pill. A fully completed training now displays a white tick inside its 100% green circular progress ring; overdue remains visible where applicable. Frontend lint passed.
 - October 9, 2026 — Reduced supplier Training card typography after visual review: training title, description, due/progress labels and values, status pills, and action button now use a more compact hierarchy aligned with the reference. Frontend lint passed.
 - October 9, 2026 — Redesigned supplier Training cards to match the provided reference: dedicated title/description, due-date, circular progress, status, and primary-action zones with desktop dividers; responsive stacking on smaller screens; date formatting as DD/MM/YYYY; and pill-shaped Continue/Open Training action. Frontend lint passed.
