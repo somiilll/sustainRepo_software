@@ -37,8 +37,6 @@ import {
   Building2,
   User,
   Calendar,
-  TrendingUp,
-  Percent,
   Leaf,
   Factory,
   FileText,
@@ -54,6 +52,12 @@ const statusColors = {
   pending: 'border-amber-200 bg-amber-50 text-amber-800',
   accepted: 'border-blue-200 bg-blue-50 text-blue-700',
   completed: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+};
+
+const supplierStatusLabel = (status) => {
+  if (status === 'pending') return 'Not Logged In';
+  if (status === 'accepted' || status === 'completed') return 'Logged In';
+  return status || 'Not Logged In';
 };
 
 const groupAvailableDocuments = (requirements) => Object.values((requirements || []).reduce((groups, requirement) => {
@@ -106,48 +110,12 @@ const ViewSupplierProgress = ({ supplier, submissionStatus }) => {
   if (!submissionStatus) return <div className="border-t pt-4 text-sm text-stone-500" data-testid="supplier-module-progress-loading">Loading assigned module progress…</div>;
   const visibility = submissionStatus.module_visibility || {};
   const modules = [
-    { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent, tone: 'bg-blue-500' },
-    { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent, tone: 'bg-emerald-500' },
-    { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent, tone: 'bg-teal-500' },
-    { code: 'training', label: 'Training', value: supplier.training_completion_percent, tone: 'bg-amber-500' },
+    { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent },
+    { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent },
+    { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent },
+    { code: 'training', label: 'Training', value: supplier.training_completion_percent },
   ].filter((module) => visibility[module.code]);
-  return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-4 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} data-testid={`supplier-${module.code}-progress`}><div className="flex items-center justify-between gap-3 text-sm"><span>{module.label}</span><span className="font-medium" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div><div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-${module.code}-progress-track`}><div className={`h-2 rounded-full transition-[width] duration-500 ${module.tone}`} style={{ width: `${progress}%` }} data-testid={`supplier-${module.code}-progress-bar`} /></div></div>; })}</div></div>;
-};
-
-const ViewSupplierScores = ({ supplier, onReviewClick }) => {
-  const snapshot = supplier.canonical_score_snapshot || {};
-  const scores = [
-    { code: 'esg', label: 'ESG Score', value: supplier.esg_score ?? snapshot.esg_score },
-    { code: 'environment', label: 'Environment Score', value: snapshot.environment_score },
-    { code: 'social', label: 'Social Score', value: snapshot.social_score },
-    { code: 'governance', label: 'Governance Score', value: snapshot.governance_score },
-  ];
-  return (
-    <div className="border-t pt-4" data-testid="supplier-score-breakdown">
-      <div className="flex items-center justify-between">
-        <Label className="text-stone-500">ESG Score Breakdown</Label>
-        {supplier.questionnaire_ids?.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-            onClick={onReviewClick}
-            data-testid="view-supplier-review-response-button"
-          >
-            Review ESG Responses
-          </Button>
-        )}
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {scores.map((score) => (
-          <div key={score.code} className="border-l-2 border-emerald-400 bg-stone-50 px-3 py-2" data-testid={`supplier-${score.code}-score-summary`}>
-            <p className="text-xs text-stone-500">{score.label}</p>
-            <p className="mt-1 text-lg font-semibold text-stone-900" data-testid={`supplier-${score.code}-score-value`}>{score.value ?? 'Pending'}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-3 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5" data-testid={`supplier-${module.code}-progress`}><span className="text-sm font-medium text-stone-800">{module.label}</span><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div>; })}</div></div>;
 };
 
 export default function SupplierList() {
@@ -492,7 +460,7 @@ export default function SupplierList() {
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-company-header">Company</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-contact-header">Contact</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-access-revoke-date-header">Access Revoke Date</TableHead>
-              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Status</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-progress-header">Progress</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">Score</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-last-reminder-header">Last Reminder</TableHead>
@@ -542,7 +510,7 @@ export default function SupplierList() {
                   </TableCell>
                   <TableCell className="px-4 py-4">
                     <Badge variant="outline" className={`rounded-full px-2.5 py-1 text-xs font-medium shadow-none ${statusColors[supplier.invitation_status] || 'border-stone-200 bg-stone-50 text-stone-700'}`} data-testid={`supplier-login-status-${supplier.id}`}>
-                      {supplier.invitation_status}
+                      {supplierStatusLabel(supplier.invitation_status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4 py-4">
@@ -561,10 +529,7 @@ export default function SupplierList() {
                   </TableCell>
                   <TableCell className="px-4 py-4" data-testid={`supplier-score-${supplier.id}`}>
                     {supplier.overall_score !== null ? (
-                      <div className="flex items-center gap-1.5">
-                        <TrendingUp className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-                        <span className="font-semibold text-stone-800">{supplier.overall_score}</span>
-                      </div>
+                      <span className="font-semibold text-stone-800">{supplier.overall_score}</span>
                     ) : (
                       <span className="text-stone-400">-</span>
                     )}
@@ -1036,31 +1001,12 @@ export default function SupplierList() {
                   <Label className="text-stone-500">Phone</Label>
                   <p className="font-medium" data-testid="view-supplier-contact-number">{selectedSupplier.contact_number || '-'}</p>
                 </div>
-                <div>
-                  <Label className="text-stone-500">Status</Label>
-                  <div className="mt-1" data-testid="view-supplier-status">
-                    <Badge className={statusColors[selectedSupplier.invitation_status]} data-testid="view-supplier-status-badge">
-                      {selectedSupplier.invitation_status}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-stone-500">Revenue %</Label>
-                  <p className="flex items-center gap-1 font-medium" data-testid="view-supplier-revenue-percentage">
-                    <Percent className="h-3 w-3" />
-                    {selectedSupplier.revenue_percentage !== null 
-                      ? `${selectedSupplier.revenue_percentage}%` 
-                      : 'Not provided'}
+                {selectedSupplier.revenue_submission_status === 'submitted' && <div>
+                  <Label className="text-stone-500">Revenue</Label>
+                  <p className="font-medium" data-testid="view-supplier-revenue-percentage">
+                    {selectedSupplier.revenue_percentage !== null ? `${selectedSupplier.revenue_percentage}%` : 'Not provided'}
                   </p>
-                </div>
-                <div>
-                  <Label className="text-stone-500">Revenue Amount</Label>
-                  <p className="font-medium" data-testid="view-supplier-revenue-amount">
-                    {selectedSupplier.revenue_amount !== null && selectedSupplier.revenue_amount !== undefined
-                      ? `${selectedSupplier.revenue_currency || 'USD'} ${selectedSupplier.revenue_amount.toLocaleString()}`
-                      : 'Not provided'}
-                  </p>
-                </div>
+                </div>}
                 <div>
                   <Label className="text-stone-500">Access Revoke Date</Label>
                   <p className="font-medium" data-testid="view-supplier-access-revoke-date">
@@ -1082,16 +1028,6 @@ export default function SupplierList() {
               <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
               {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted {selectedSupplier.revenue_submitted_at ? new Date(selectedSupplier.revenue_submitted_at).toLocaleDateString() : ''}{selectedSupplier.revenue_submitted_at ? ' · ' : ''}locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
               
-              <ViewSupplierScores
-                supplier={selectedSupplier}
-                onReviewClick={() => {
-                  const qid = selectedSupplier.questionnaire_ids?.[0];
-                  if (qid) {
-                    setShowViewDialog(false);
-                    navigate(`/supplier-assessment/suppliers/${selectedSupplier.id}/questionnaires/${qid}/review`);
-                  }
-                }}
-              />
             </div>
           )}
           <DialogFooter className="shrink-0 border-t border-stone-200 bg-white px-7 py-4">
@@ -1103,7 +1039,7 @@ export default function SupplierList() {
       </Dialog>
       <Dialog open={Boolean(reminderTarget)} onOpenChange={(open) => !open && setReminderTarget(null)}>
         <DialogContent data-testid="supplier-reminder-dialog"><DialogHeader><DialogTitle>Send assessment reminder</DialogTitle></DialogHeader>
-          <div className="space-y-3"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{reminderModulesLoading ? <p className="text-sm text-stone-500" data-testid="supplier-reminder-loading">Checking incomplete modules…</p> : pendingReminderModules.length ? <><label className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all')} onCheckedChange={(checked) => setReminderModules(checked ? ['all'] : [])} data-testid="supplier-reminder-module-all" />All pending modules</label>{pendingReminderModules.map((module) => <label key={module.code} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all') || reminderModules.includes(module.code)} onCheckedChange={(checked) => setReminderModules((current) => { const withoutAll = current.filter((item) => item !== 'all'); return checked ? [...new Set([...withoutAll, module.code])] : withoutAll.filter((item) => item !== module.code); })} data-testid={`supplier-reminder-module-${module.code}`} />{module.label}</label>)}</> : <p className="text-sm text-stone-500" data-testid="supplier-reminder-empty">No incomplete modules need a reminder.</p>}</div>
+          <div className="space-y-4"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{reminderModulesLoading ? <p className="text-sm text-stone-500" data-testid="supplier-reminder-loading">Checking incomplete modules…</p> : pendingReminderModules.length ? <><label className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-medium text-emerald-900" data-testid="supplier-reminder-all-pending-section"><Checkbox checked={reminderModules.includes('all')} onCheckedChange={(checked) => setReminderModules(checked ? ['all'] : [])} data-testid="supplier-reminder-module-all" />All pending modules</label><div className="space-y-2 border-t border-stone-200 pt-4" data-testid="supplier-reminder-individual-modules"><p className="text-xs font-medium uppercase text-stone-500">Or select individual modules</p>{pendingReminderModules.map((module) => <label key={module.code} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all') || reminderModules.includes(module.code)} onCheckedChange={(checked) => setReminderModules((current) => { const withoutAll = current.filter((item) => item !== 'all'); return checked ? [...new Set([...withoutAll, module.code])] : withoutAll.filter((item) => item !== module.code); })} data-testid={`supplier-reminder-module-${module.code}`} />{module.code === 'training' ? 'Training' : module.label}</label>)}</div></> : <p className="text-sm text-stone-500" data-testid="supplier-reminder-empty">No incomplete modules need a reminder.</p>}</div>
           <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} disabled={reminderModulesLoading || pendingReminderModules.length === 0 || reminderModules.length === 0} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
         </DialogContent>
       </Dialog>
