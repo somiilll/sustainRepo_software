@@ -140,7 +140,7 @@ export const questionDraftToPayload = (draft, order = draft.order || 0) => {
     description: draft.description || '',
     response_type: draft.response_type,
     options,
-    required: draft.required,
+    required: true,
     evidence_requirement: evidenceRequirement,
     assessment_type: assessmentType,
     max_points: maxPoints,

@@ -23,6 +23,16 @@ describe('question draft model', () => {
     expect(payload.scoring).toMatchObject({ rule: 'boolean', true_score: 25, false_score: 100 });
   });
 
+  it('always stores questions as mandatory', () => {
+    const draft = {
+      ...createQuestionDraft('environment', 'policy'),
+      question_text: 'Mandatory even when editing an optional legacy question',
+      required: false,
+    };
+
+    expect(questionDraftToPayload(draft).required).toBe(true);
+  });
+
   it('calculates multiple-choice max points from the highest option score', () => {
     const draft = {
       ...createQuestionDraft('environment', 'policy'),
