@@ -200,8 +200,8 @@ export default function Profile() {
             <div>
               <Label className="text-xs text-text-muted">Role</Label>
               <div className="mt-1">
-                <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full capitalize">
-                  {user?.role?.replace('_', ' ')}
+                <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full capitalize" data-testid="profile-role-value">
+                  {user?.user_type === 'supplier' || user?.org_type === 'supplier' ? 'Supplier' : user?.role?.replace('_', ' ')}
                 </span>
               </div>
             </div>
