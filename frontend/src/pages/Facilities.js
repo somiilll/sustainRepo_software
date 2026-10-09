@@ -559,14 +559,9 @@ export default function Facilities() {
                 <div className="flex items-start justify-between gap-4"><div><DialogTitle className="text-xl font-semibold text-stone-900">{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle><p className="mt-1 text-sm text-stone-500">Enter facility details below. You can update production quantity annually.</p></div>{!editingFacility && organization && !isSupplier && <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-1 text-sm text-stone-600"><input type="checkbox" checked={sameAsOrg} onChange={(e) => handleSameAsOrg(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" /><span>Use organisation details</span></label>}</div>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-6 bg-white px-7 py-6 [&_input]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
-                {/* Supplier simplified form - only name */}
+                {/* Supplier form: facility name required; address and responsible-contact fields optional */}
                 {isSupplier ? (
                   <div className="space-y-6">
-                    <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
-                      <p className="text-sm text-blue-800">
-                        As a supplier, you only need to provide the facility name. Additional details can be added later.
-                      </p>
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="name">Facility Name *</Label>
                       <Input
@@ -578,6 +573,24 @@ export default function Facilities() {
                         placeholder="Enter your facility name"
                       />
                     </div>
+                    <section className="space-y-4 border-t border-stone-100 pt-5" data-testid="supplier-add-facility-address-details">
+                      <div><h2 className="text-base font-semibold text-stone-900">Address Details</h2><p className="mt-1 text-sm text-stone-500">Optional</p></div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2 sm:col-span-2"><Label htmlFor="supplier-facility-address">Address details</Label><Input id="supplier-facility-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-address-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-facility-city">City</Label><Input id="supplier-facility-city" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-city-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-facility-state">State / Province</Label><Input id="supplier-facility-state" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-state-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-facility-country">Country</Label><Input id="supplier-facility-country" value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-country-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-facility-pincode">PIN / ZIP Code</Label><Input id="supplier-facility-pincode" value={formData.pincode} onChange={(e) => handlePincodeChange(e.target.value)} maxLength={6} className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`} data-testid="supplier-add-facility-pincode-input" />{pincodeError && <p className="text-xs text-red-500" data-testid="supplier-add-facility-pincode-error">{pincodeError}</p>}</div>
+                      </div>
+                    </section>
+                    <section className="space-y-4 border-t border-stone-100 pt-5" data-testid="supplier-add-facility-responsible-contact">
+                      <div><h2 className="text-base font-semibold text-stone-900">Responsible Contact</h2><p className="mt-1 text-sm text-stone-500">Optional</p></div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2"><Label htmlFor="supplier-responsible-person">Person Responsible</Label><Input id="supplier-responsible-person" value={formData.responsible_person} onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-responsible-person-input" /></div>
+                        <div className="space-y-2"><Label htmlFor="supplier-responsible-designation">Designation</Label><Input id="supplier-responsible-designation" value={formData.responsible_person_designation} onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })} className="bg-stone-50" data-testid="supplier-add-facility-responsible-designation-input" /></div>
+                        <div className="space-y-2 sm:col-span-2"><Label htmlFor="supplier-responsible-contact">Contact Details</Label><Input id="supplier-responsible-contact" value={formData.responsible_person_contact} onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })} className="bg-stone-50" placeholder="Email or phone" data-testid="supplier-add-facility-responsible-contact-input" /></div>
+                      </div>
+                    </section>
                   </div>
                 ) : (
                   /* Full form for non-suppliers */
