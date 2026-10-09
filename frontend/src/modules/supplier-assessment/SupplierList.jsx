@@ -422,12 +422,18 @@ export default function SupplierList() {
   };
 
   const toggleQuestionnaire = (questionnaireId) => {
-    setFormData((current) => ({
-      ...current,
-      questionnaire_ids: current.questionnaire_ids.includes(questionnaireId)
+    setFormData((current) => {
+      const questionnaire_ids = current.questionnaire_ids.includes(questionnaireId)
         ? current.questionnaire_ids.filter((id) => id !== questionnaireId)
-        : [...current.questionnaire_ids, questionnaireId],
-    }));
+        : [...current.questionnaire_ids, questionnaireId];
+      return {
+        ...current,
+        questionnaire_ids,
+        modules_enabled: questionnaire_ids.length === 0
+          ? current.modules_enabled.filter((module) => module !== 'esg')
+          : current.modules_enabled,
+      };
+    });
   };
 
   return (
