@@ -65,6 +65,7 @@ export default function SupplierQuestionnaire() {
   const [clarificationReplies, setClarificationReplies] = useState({});
   const [pendingEvidenceReuse, setPendingEvidenceReuse] = useState(null);
   const evidenceInputRefs = useRef({});
+  const [activeCategory, setActiveCategory] = useState('');
   const submissionDeadlinePassed = Boolean(questionnaire?.submission_deadline_passed);
 
   const fetchQuestionnaire = useCallback(async () => {
@@ -322,6 +323,13 @@ export default function SupplierQuestionnaire() {
   };
   const completedCount = displayedQuestions.filter(isQuestionComplete).length;
   const progress = displayedQuestions.length ? (completedCount / displayedQuestions.length) * 100 : 0;
+  const categoryMatches = (question, category) => String(question.category || '').toLowerCase() === category.toLowerCase();
+  const categories = ['Environment', 'Social', 'Governance'].filter((category) => displayedQuestions.some((question) => categoryMatches(question, category)));
+  const focusCategory = (category) => {
+    setActiveCategory(category);
+    const firstQuestion = displayedQuestions.find((question) => categoryMatches(question, category));
+    if (firstQuestion) focusQuestion(firstQuestion.id);
+  };
 
   const isQuestionReadOnly = (question) => {
     if (hasUnlockedQuestions) {
@@ -444,6 +452,8 @@ export default function SupplierQuestionnaire() {
         </>}
       />
 
+      {categories.length > 0 && <nav className="flex flex-wrap gap-2" aria-label="Questionnaire sections" data-testid="supplier-questionnaire-category-tabs">{categories.map((category) => <Button key={category} type="button" variant="outline" size="sm" onClick={() => focusCategory(category)} className={activeCategory === category ? 'border-emerald-700 bg-emerald-800 text-white hover:bg-emerald-900 hover:text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-emerald-300 hover:bg-emerald-50'} data-testid={`supplier-questionnaire-category-${category.toLowerCase()}`}>{category}</Button>)}</nav>}
+
       {/* Progress */}
       <Card>
         <CardContent className="py-4">
@@ -526,9 +536,6 @@ export default function SupplierQuestionnaire() {
                 </div>
               )}
 
-              <Badge variant="outline" className="w-fit mt-2">
-                {question.category}
-              </Badge>
             </CardHeader>
             <CardContent>
               {isQuestionUnlocked && (

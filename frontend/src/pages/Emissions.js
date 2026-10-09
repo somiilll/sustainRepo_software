@@ -3722,7 +3722,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           <Button
             onClick={() => setShowFilters(!showFilters)}
             variant="outline"
-            className="rounded-full"
+            className={`rounded-full border-stone-300 bg-white text-stone-800 shadow-sm transition-[background-color,border-color,color] hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-900 ${showFilters ? 'border-emerald-700 bg-emerald-800 text-white hover:bg-emerald-900 hover:text-white' : ''}`}
+            data-testid="emissions-toggle-filters-button"
           >
             <Filter className="w-4 h-4 mr-2" />
             {showFilters ? 'Hide' : 'Show'} Filters
