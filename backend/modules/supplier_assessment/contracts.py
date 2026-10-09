@@ -181,6 +181,7 @@ class SupplierDocumentResponse(BaseModel):
     has_been_viewed: bool = False
     response_files: List[Dict[str, Any]] = []
     created_at: str
+    due_date: Optional[str] = None
 
 
 class SupplierDocumentStatusSubmit(BaseModel):
