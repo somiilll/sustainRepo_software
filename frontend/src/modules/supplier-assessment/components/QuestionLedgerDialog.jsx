@@ -16,7 +16,7 @@ const sectionHeadingClasses = {
   governance: 'text-amber-800',
 };
 
-export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, onDeleteSaved, saving, questions = [], taxonomy = DEFAULT_SUPPLIER_ESG_TAXONOMY, scoringLocked = false }) => {
+export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, saving, questions = [], taxonomy = DEFAULT_SUPPLIER_ESG_TAXONOMY, scoringLocked = false }) => {
   const configuredTaxonomy = useMemo(() => cloneSupplierEsgTaxonomy(taxonomy), [taxonomy]);
   const categoriesFor = (section) => (configuredTaxonomy[section] || []).filter((category) => category.enabled);
   const firstCategory = (section) => categoriesFor(section)[0]?.code || '';
@@ -80,20 +80,6 @@ export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, onDeleteSaved
     resetDraft();
   };
 
-  const editConfiguredQuestion = (item) => {
-    setDraft({ ...item.draft, staged_key: item.key });
-    document.querySelector('[data-testid="question-draft-card"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const deleteConfiguredQuestion = (item) => {
-    if (item.kind === 'new') {
-      setChanges((current) => current.filter((change) => change.key !== item.key));
-      if (draft.staged_key === item.key) resetDraft();
-      return;
-    }
-    onDeleteSaved(item.question);
-  };
-
   const requestClose = () => {
     if (hasUnsavedChanges) setConfirmation({ type: 'close', action: () => onOpenChange(false) });
     else onOpenChange(false);
@@ -127,7 +113,7 @@ export const QuestionLedgerDialog = ({ open, onOpenChange, onSave, onDeleteSaved
           <div className="min-w-0 flex-1 overflow-y-auto p-5 sm:p-6" data-testid="question-ledger-question-area">
             <div className="mb-5 border-b border-stone-100 pb-4"><h2 className={`font-heading text-xl font-bold ${sectionHeadingClasses[activeSection] || 'text-stone-950'}`} data-testid="question-ledger-active-group">{groups.find((section) => section.value === activeSection)?.label} · {categoriesFor(activeSection).find((category) => category.code === activeCategory)?.name || 'No enabled subcategory'}</h2></div>
             <QuestionDraftCard draft={draft} onChange={setDraft} onAddToList={addDraftToList} scoringLocked={scoringLocked} />
-            <ConfiguredQuestionList items={configuredItems} onEdit={editConfiguredQuestion} onDelete={deleteConfiguredQuestion} scoringLocked={scoringLocked} />
+            <ConfiguredQuestionList items={configuredItems} scoringLocked={scoringLocked} />
           </div>
         </div>
         <DialogFooter className="border-t border-stone-200 px-6 py-4"><Button variant="outline" onClick={requestClose} data-testid="cancel-question-ledger">Close</Button><Button className="bg-emerald-800 text-white hover:bg-emerald-900" onClick={saveChanges} disabled={saving || changes.length === 0} data-testid="save-question-ledger">{saving ? 'Saving…' : `Save ${changes.length} change(s)`}</Button></DialogFooter>

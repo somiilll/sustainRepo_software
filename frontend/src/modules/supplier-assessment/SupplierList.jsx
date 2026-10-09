@@ -1013,7 +1013,7 @@ export default function SupplierList() {
                   <p className="font-medium" data-testid="view-supplier-contact-number">{selectedSupplier.contact_number || '-'}</p>
                 </div>
                 {selectedSupplier.revenue_submission_status === 'submitted' && <div>
-                  <Label className="text-stone-500">Revenue</Label>
+                  <Label className="text-stone-500">Revenue Share</Label>
                   <p className="font-medium" data-testid="view-supplier-revenue-percentage">
                     {selectedSupplier.revenue_percentage !== null ? `${selectedSupplier.revenue_percentage}%` : 'Not provided'}
                   </p>

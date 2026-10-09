@@ -1511,7 +1511,7 @@ export default function QuestionnaireBuilder() {
           </DialogFooter>
         </DialogContent>
       </Dialog>}
-      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleSaveLedgerQuestions} onDeleteSaved={requestQuestionDelete} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} scoringLocked={Boolean(selectedQuestionnaire?.requires_unlock_on_save)} />
+      <QuestionLedgerDialog open={showQuestionDialog && questionDialogMode === 'create'} onOpenChange={handleQuestionDialogOpenChange} onSave={handleSaveLedgerQuestions} saving={submitting} questions={questions} taxonomy={questionnaireTaxonomy} scoringLocked={Boolean(selectedQuestionnaire?.requires_unlock_on_save)} />
       <SupplierQuestionnairePreviewDialog open={showQuestionPreview} onOpenChange={setShowQuestionPreview} questionnaire={selectedQuestionnaire} questions={questions} />
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent data-testid="supplier-assessment-delete-confirmation-dialog">

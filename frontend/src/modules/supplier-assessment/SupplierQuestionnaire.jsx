@@ -320,7 +320,9 @@ export default function SupplierQuestionnaire() {
     const hasAnswer = answers[question.id] !== undefined && answers[question.id] !== null && answers[question.id] !== '';
     const evidenceRequired = question.evidence_requirement === 'required' || question.assessment_type === 'type_a';
     const evidenceNeededForAnswer = question.response_type !== 'yes_no' || answers[question.id] === true;
-    return hasAnswer && (!evidenceRequired || !evidenceNeededForAnswer || (question.evidence_files || []).length > 0);
+    const clarificationReplyRequired = hasUnlockedQuestions && unlockedQuestionIds.includes(question.id);
+    const hasClarificationReply = !clarificationReplyRequired || Boolean((clarificationReplies[question.id] || '').trim());
+    return hasAnswer && hasClarificationReply && (!evidenceRequired || !evidenceNeededForAnswer || (question.evidence_files || []).length > 0);
   };
   const completedCount = displayedQuestions.filter(isQuestionComplete).length;
   const progress = displayedQuestions.length ? (completedCount / displayedQuestions.length) * 100 : 0;
