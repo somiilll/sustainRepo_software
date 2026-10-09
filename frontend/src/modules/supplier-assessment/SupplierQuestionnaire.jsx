@@ -530,10 +530,7 @@ export default function SupplierQuestionnaire() {
                   className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950"
                   data-testid={`supplier-question-reviewer-note-${question.id}`}
                 >
-                  <p className="font-semibold">
-                    Need clarification
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap">{review.reviewer_note}</p>
+                  <p className="whitespace-pre-wrap"><span className="font-semibold">Reviewer Feedback / Clarification Request:</span>{' '}{review.reviewer_note}</p>
                 </div>
               )}
 

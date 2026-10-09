@@ -485,6 +485,8 @@ class QuestionnaireResponse(BaseModel):
     esg_subcategories: Optional[Dict[str, List[Dict[str, Any]]]] = None
     assignment_mode: Optional[str] = None
     assigned_supplier_ids: List[str] = []
+    assigned_supplier_count: int = 0
+    total_supplier_count: int = 0
     assignment_reporting_period: Optional[str] = None
     is_active: bool = True
     has_locked_submissions: bool = False
