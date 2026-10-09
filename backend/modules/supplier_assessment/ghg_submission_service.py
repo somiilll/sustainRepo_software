@@ -257,6 +257,24 @@ def _submission_period_definitions(relationship: Dict[str, Any]) -> List[Dict[st
     return [resolve_supplier_submission_period(relationship, key, "monthly") for key in keys]
 
 
+def submission_periods_due_through_today(
+    periods: List[Dict[str, Any]], today: Optional[date] = None,
+) -> List[Dict[str, Any]]:
+    """Return current-cadence GHG periods whose reporting window has ended."""
+    current_date = today or datetime.now(timezone.utc).date()
+    due_periods = []
+    for period in periods:
+        if period.get("is_previous_cadence"):
+            continue
+        try:
+            period_end = date.fromisoformat(str(period.get("period_end") or "")[:10])
+        except ValueError:
+            continue
+        if period_end <= current_date:
+            due_periods.append(period)
+    return due_periods
+
+
 async def has_overdue_supplier_ghg_submission_window(
     relationship: Dict[str, Any], submission_statuses: Optional[Dict[str, str]] = None,
 ) -> bool:

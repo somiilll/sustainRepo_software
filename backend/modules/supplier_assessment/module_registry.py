@@ -79,12 +79,16 @@ class GhgAssessmentModule(SupplierAssessmentModule):
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         if relationship.get("ghg_submission_frequency") in {"monthly", "quarterly", "yearly"}:
-            from modules.supplier_assessment.ghg_submission_service import get_supplier_ghg_submission_periods
+            from modules.supplier_assessment.ghg_submission_service import (
+                get_supplier_ghg_submission_periods,
+                submission_periods_due_through_today,
+            )
             periods = await get_supplier_ghg_submission_periods(relationship)
-            submitted_periods = sum(period["status"] == "submitted" for period in periods)
+            due_periods = submission_periods_due_through_today(periods)
+            submitted_periods = sum(period["status"] == "submitted" for period in due_periods)
             return ModuleCompletion(
                 self.module_code,
-                (submitted_periods / len(periods)) * 100 if periods else 0.0,
+                (submitted_periods / len(due_periods)) * 100 if due_periods else 0.0,
                 self.legacy_completion_field,
             )
         query = {
