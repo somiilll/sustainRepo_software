@@ -28,9 +28,7 @@ const questionnaireStatus = (questionnaire) => {
 
 const questionReviewStatus = (question) => {
   const review = question.review || {};
-  if (review.status === 'accepted') return <Badge className="ml-2 bg-emerald-100 text-emerald-800" data-testid={`supplier-esg-question-review-status-${question.id}`}>Accepted</Badge>;
-  if (review.status === 'rejected' && review.needs_resubmission && question.is_unlocked_for_edit) return <Badge className="ml-2 bg-amber-100 text-amber-900" data-testid={`supplier-esg-question-review-status-${question.id}`}>Needs clarification</Badge>;
-  if (review.status === 'rejected') return <Badge className="ml-2 bg-rose-100 text-rose-800" data-testid={`supplier-esg-question-review-status-${question.id}`}>Rejected</Badge>;
+  if (review.status === 'rejected' && review.needs_resubmission && question.is_unlocked_for_edit) return <Badge className="ml-2 bg-amber-100 text-amber-900" data-testid={`supplier-esg-question-review-status-${question.id}`}>Need clarification</Badge>;
   return null;
 };
 

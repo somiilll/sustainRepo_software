@@ -19,9 +19,12 @@ export const QuestionnaireActionBar = ({
     <Tooltip><TooltipTrigger asChild><Button variant="outline" className="border-stone-200 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onReviewResponses} disabled={!reviewable} data-testid="review-questionnaire-submissions-button">
       <ClipboardCheck className="h-4 w-4" />Review responses
     </Button></TooltipTrigger><TooltipContent>{reviewable ? 'Review locked supplier responses' : 'Review is available after a supplier submits and locks a response'}</TooltipContent></Tooltip>
-    <Button variant="outline" className="border-stone-200 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onManageSuppliers} data-testid="manage-questionnaire-assignments-button">
-      <UsersRound className="h-4 w-4" />Manage Suppliers
-    </Button>
+    <div className="flex flex-col items-start" data-testid="questionnaire-assignment-summary">
+      <Button variant="outline" className="border-stone-200 text-stone-700 hover:bg-stone-50 hover:text-stone-950" onClick={onManageSuppliers} data-testid="manage-questionnaire-assignments-button">
+        <UsersRound className="h-4 w-4" />Manage Suppliers
+      </Button>
+      <span className="mt-1 text-[11px] text-stone-500" data-testid="questionnaire-assigned-supplier-count">{questionnaire.assigned_supplier_count || 0} / {questionnaire.total_supplier_count || 0} suppliers assigned</span>
+    </div>
     <Button className="bg-emerald-800 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md xl:ml-auto" onClick={onAddQuestion} disabled={locked} data-testid="add-question-btn">
       <Plus className="h-4 w-4" />Add question
     </Button>

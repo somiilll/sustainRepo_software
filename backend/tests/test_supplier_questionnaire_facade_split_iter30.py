@@ -69,6 +69,7 @@ class _Collection:
 class _DB:
     def __init__(self):
         self.supplier_questionnaires = _Collection([])
+        self.supplier_relationships = _Collection([])
 
 
 @pytest.mark.asyncio

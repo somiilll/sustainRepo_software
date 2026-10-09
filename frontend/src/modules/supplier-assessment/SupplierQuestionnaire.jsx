@@ -480,8 +480,7 @@ export default function SupplierQuestionnaire() {
       {displayedQuestions.map((question, index) => {
         const isQuestionUnlocked = hasUnlockedQuestions && unlockedQuestionIds.includes(question.id);
         const review = question.review || {};
-        const isClarificationRequest = review.status === 'rejected' && review.needs_resubmission;
-        const isFinalRejection = review.status === 'rejected' && !review.needs_resubmission;
+        const isClarificationRequest = isQuestionUnlocked && review.status === 'rejected' && review.needs_resubmission;
         return (
           <Card
             key={question.id}
@@ -526,13 +525,13 @@ export default function SupplierQuestionnaire() {
               </div>
 
               {/* Reviewer Comment / Clarification Instruction Banner */}
-              {review.reviewer_note && (
+              {isClarificationRequest && review.reviewer_note && (
                 <div
-                  className={`mt-3 rounded-md border p-3 text-xs ${isClarificationRequest ? 'border-amber-300 bg-amber-50 text-amber-950' : isFinalRejection ? 'border-rose-300 bg-rose-50 text-rose-950' : 'border-sky-300 bg-sky-50 text-sky-950'}`}
+                  className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950"
                   data-testid={`supplier-question-reviewer-note-${question.id}`}
                 >
                   <p className="font-semibold">
-                    {isClarificationRequest ? 'Reviewer Feedback / Clarification Request:' : isFinalRejection ? 'Reviewer Rejection Rationale:' : 'Reviewer Feedback:'}
+                    Need clarification
                   </p>
                   <p className="mt-1 whitespace-pre-wrap">{review.reviewer_note}</p>
                 </div>

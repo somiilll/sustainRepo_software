@@ -590,11 +590,29 @@ async def get_questionnaires(
             "$or": [{"status": "submitted"}, {"submitted_at": {"$exists": True, "$nin": [None, ""]}}],
         }
     )) if questionnaire_ids else set()
+    supplier_query: Dict[str, Any] = {"customer_org_id": organization_id, "is_active": True}
+    if reporting_period:
+        supplier_query["reporting_period"] = reporting_period
+    active_suppliers = await db.supplier_relationships.find(
+        supplier_query,
+        {"_id": 0, "id": 1, "questionnaire_ids": 1},
+    ).to_list(1000)
     for questionnaire in questionnaires:
         questionnaire["scoring_method"] = questionnaire.get("scoring_method") or "question"
         questionnaire["has_locked_submissions"] = questionnaire["id"] in locked_ids
         questionnaire["has_reviewable_submissions"] = questionnaire["id"] in reviewable_ids
         questionnaire["has_submission_history"] = questionnaire["id"] in history_ids
+        if questionnaire.get("assignment_mode") == "all":
+            assigned_count = len(active_suppliers)
+        else:
+            assigned_ids = set(questionnaire.get("assigned_supplier_ids") or [])
+            assigned_count = sum(
+                supplier["id"] in assigned_ids
+                or questionnaire["id"] in (supplier.get("questionnaire_ids") or [])
+                for supplier in active_suppliers
+            )
+        questionnaire["assigned_supplier_count"] = assigned_count
+        questionnaire["total_supplier_count"] = len(active_suppliers)
         with_questionnaire_reporting_period(questionnaire, reporting_period)
     return questionnaires
 
@@ -1237,9 +1255,9 @@ async def get_questionnaire_for_supplier(
             (response_doc.get("reused_evidence_by_question") or {}).get(q["id"], []) if response_doc else [],
         )
         q["timestamps"] = question_timestamps.get(q["id"])
-        q["review"] = question_reviews.get(q["id"])
-        q["clarification_reply"] = clarification_replies.get(q["id"])
         q["is_unlocked_for_edit"] = q["id"] in unlocked_ids
+        q["review"] = question_reviews.get(q["id"]) if q["is_unlocked_for_edit"] else None
+        q["clarification_reply"] = clarification_replies.get(q["id"]) if q["is_unlocked_for_edit"] else None
     
     questionnaire["response_status"] = response_doc.get("status", "not_started") if response_doc else "not_started"
     questionnaire["has_unlocked_questions"] = bool(response_doc.get("has_unlocked_questions")) if response_doc else False
