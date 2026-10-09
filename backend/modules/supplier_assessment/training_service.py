@@ -321,10 +321,21 @@ async def training_status(org_id: str, requirement_id: str, reporting_period: Op
     assignment_query = {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}
     if reporting_period:
         assignment_query["reporting_period"] = reporting_period
-    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0}).to_list(1000)
-    result=[]
+    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0}).sort("assigned_at", -1).to_list(1000)
+    relationship_ids = list({assignment["supplier_relationship_id"] for assignment in assignments})
+    active_relationships = await db.supplier_relationships.find(
+        {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True},
+        {"_id": 0, "id": 1, "company_name": 1},
+    ).to_list(1000)
+    relationships_by_id = {relationship["id"]: relationship for relationship in active_relationships}
+    latest_assignments = {}
     for assignment in assignments:
-        relationship=await db.supplier_relationships.find_one({"id":assignment["supplier_relationship_id"],"customer_org_id":org_id},{"_id":0,"company_name":1})
+        relationship_id = assignment["supplier_relationship_id"]
+        if relationship_id in relationships_by_id and relationship_id not in latest_assignments:
+            latest_assignments[relationship_id] = assignment
+    result=[]
+    for assignment in latest_assignments.values():
+        relationship = relationships_by_id[assignment["supplier_relationship_id"]]
         progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
         if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started"),"highest_page_index":(progress or {}).get("highest_page_index",0)})
     return result

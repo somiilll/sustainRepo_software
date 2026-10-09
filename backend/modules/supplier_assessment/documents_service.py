@@ -680,19 +680,28 @@ async def list_document_supplier_responses(customer_org_id: str, requirement_id:
         return None
     related_query = {"customer_org_id": customer_org_id, "document_version_id": requirement["document_version_id"], "is_active": True}
     if requirement.get("reporting_period"):
-        related_query["reporting_period"] = requirement["reporting_period"]
+        related_query["$or"] = [
+            {"reporting_period": requirement["reporting_period"]},
+            {"reporting_period": None},
+            {"reporting_period": {"$exists": False}},
+        ]
     related_requirements = await db.supplier_document_requirements.find(related_query, {"_id": 0}).to_list(1000)
     suppliers = await db.supplier_relationships.find({"customer_org_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1, "company_name": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1}).to_list(1000)
     rows = []
     for supplier in suppliers:
-        assigned_requirement = next((item for item in related_requirements if _is_requirement_available_to_relationship(item, supplier)), None)
-        if not assigned_requirement:
+        assigned_requirements = [item for item in related_requirements if _is_requirement_available_to_relationship(item, supplier)]
+        if not assigned_requirements:
             continue
-        current_submission = await _current_document_submission(supplier["id"], assigned_requirement["id"], assigned_requirement["document_version_id"])
-        visible_submission = await db.supplier_document_submissions.find_one(
-            {"supplier_relationship_id": supplier["id"], "document_requirement_id": assigned_requirement["id"], "parent_visible": True, "status": "submitted"},
-            {"_id": 0}, sort=[("revision", -1)],
+        assigned_requirement_ids = [item["id"] for item in assigned_requirements]
+        current_submission = await db.supplier_document_submissions.find_one(
+            {"supplier_relationship_id": supplier["id"], "document_requirement_id": {"$in": assigned_requirement_ids}, "document_version_id": requirement["document_version_id"], "is_current": True},
+            {"_id": 0}, sort=[("updated_at", -1), ("revision", -1)],
         )
+        visible_submission = await db.supplier_document_submissions.find_one(
+            {"supplier_relationship_id": supplier["id"], "document_requirement_id": {"$in": assigned_requirement_ids}, "document_version_id": requirement["document_version_id"], "parent_visible": True, "status": "submitted"},
+            {"_id": 0}, sort=[("submitted_at", -1), ("revision", -1)],
+        )
+        assigned_requirement = next((item for item in assigned_requirements if item["id"] == (visible_submission or current_submission or {}).get("document_requirement_id")), assigned_requirements[0])
         if assigned_requirement.get("response_mode", "ACCEPTANCE") == "STATUS":
             response = visible_submission
             rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name"), "document_requirement_id": assigned_requirement["id"], "response_mode": "STATUS", "selected_response": response.get("response_value") if response else None, "responded_at": (response.get("responded_at") or response.get("submitted_at")) if response else None, "can_unlock": bool(response), "submission_status": current_submission.get("status", "submitted") if current_submission else ("submitted" if response else "pending")})
