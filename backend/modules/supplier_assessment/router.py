@@ -1596,6 +1596,33 @@ async def create_my_supplier_facility(data: FacilityCreate, current_user: dict =
     return await create_facility_for_organization(data, current_user["organization_id"], current_user)
 
 
+@router.get("/my-assessment/facility", response_model=FacilityResponse | None)
+async def get_my_supplier_facility(current_user: dict = Depends(get_supplier_user)):
+    """Return the supplier's editable facility profile, when one has been saved."""
+    facility = await db.facilities.find_one(
+        {"organization_id": current_user["organization_id"]}, {"_id": 0}
+    )
+    return FacilityResponse(**facility) if facility else None
+
+
+@router.put("/my-assessment/facility/{facility_id}", response_model=FacilityResponse)
+async def update_my_supplier_facility(
+    facility_id: str,
+    data: FacilityCreate,
+    current_user: dict = Depends(get_supplier_user),
+):
+    """Allow suppliers to edit their own organization facility profile."""
+    facility = await db.facilities.find_one(
+        {"id": facility_id, "organization_id": current_user["organization_id"]}, {"_id": 0}
+    )
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    update_data = data.model_dump()
+    await db.facilities.update_one({"id": facility_id}, {"$set": update_data})
+    updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    return FacilityResponse(**updated)
+
+
 @router.put("/my-assessment/revenue")
 async def update_my_revenue(
     data: RevenueInfoUpdate,
