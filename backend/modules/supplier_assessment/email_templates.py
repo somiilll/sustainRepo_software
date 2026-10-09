@@ -27,9 +27,17 @@ def supplier_invitation_email(
         "documents": "Documents and agreements requiring your response",
         "training": "Assigned training",
     }
-    requested_modules = assigned_modules or ["revenue", "esg", "ghg"]
+    requested_modules = assigned_modules if assigned_modules is not None else ["revenue", "esg", "ghg"]
     required_items = [module_labels[code] for code in requested_modules if code in module_labels]
     requirements_list = "".join(f"<li>{escape(item)}</li>" for item in required_items)
+    requirements_section = f"""
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    <strong>What you'll need to provide:</strong>
+                                </p>
+                                <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
+                                    {requirements_list}
+                                </ul>
+    """ if required_items else ""
     credentials_section = ""
     if temp_password:
         displayed_password = escape(temp_password)
@@ -95,12 +103,7 @@ def supplier_invitation_email(
                                 
                                 {access_revoke_section}
                                 
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    <strong>What you'll need to provide:</strong>
-                                </p>
-                                <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
-                                    {requirements_list}
-                                </ul>
+                                {requirements_section}
                                 
                                 {credentials_section}
                                 

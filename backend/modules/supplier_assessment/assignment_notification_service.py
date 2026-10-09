@@ -16,7 +16,7 @@ ASSIGNMENT_LABELS = {
     "esg": "ESG questionnaire",
     "ghg": "GHG emissions request",
     "documents": "document",
-    "training": "training",
+    "training": "Training",
     "revenue": "revenue information request",
 }
 

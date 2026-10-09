@@ -257,6 +257,18 @@ async def create_supplier(
         raise ValueError("FRONTEND_URL must be configured")
     login_link = f"{frontend_url}/login"
     
+    assigned_modules = []
+    if revenue_required:
+        assigned_modules.append("revenue")
+    if assigned_questionnaire_ids:
+        assigned_modules.append("esg")
+    if "ghg" in modules_enabled and ghg_scopes_enabled:
+        assigned_modules.append("ghg")
+    if document_requirement_ids:
+        assigned_modules.append("documents")
+    if training_requirement_ids:
+        assigned_modules.append("training")
+
     email_body = supplier_invitation_email(
         supplier_name=contact_person,
         customer_name=customer_name,
@@ -264,7 +276,7 @@ async def create_supplier(
         temp_password=temp_password,  # Will be None if user already exists
         login_link=login_link,
         access_revoke_date=access_revoke_date,
-        assigned_modules=["revenue", *modules_enabled],
+        assigned_modules=assigned_modules,
     )
     
     subject = f"Supplier Assessment Invitation from {customer_name}"
