@@ -38,6 +38,7 @@ import {
   RotateCcw,
   LockKeyhole,
   Trash2,
+  Upload,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -63,6 +64,7 @@ export default function SupplierQuestionnaire() {
   const [highlightedQuestionId, setHighlightedQuestionId] = useState('');
   const [clarificationReplies, setClarificationReplies] = useState({});
   const [pendingEvidenceReuse, setPendingEvidenceReuse] = useState(null);
+  const [activeCategory, setActiveCategory] = useState('');
   const submissionDeadlinePassed = Boolean(questionnaire?.submission_deadline_passed);
 
   const fetchQuestionnaire = useCallback(async () => {
@@ -311,8 +313,22 @@ export default function SupplierQuestionnaire() {
     );
   }
 
-  const answeredCount = Object.keys(answers).length;
-  const progress = (answeredCount / questions.length) * 100;
+  const displayedQuestions = hasUnlockedQuestions ? questions.filter((question) => unlockedQuestionIds.includes(question.id)) : questions;
+  const isQuestionComplete = (question) => {
+    const hasAnswer = answers[question.id] !== undefined && answers[question.id] !== null && answers[question.id] !== '';
+    const evidenceRequired = question.evidence_requirement === 'required' || question.assessment_type === 'type_a';
+    const evidenceNeededForAnswer = question.response_type !== 'yes_no' || answers[question.id] === true;
+    return hasAnswer && (!evidenceRequired || !evidenceNeededForAnswer || (question.evidence_files || []).length > 0);
+  };
+  const completedCount = displayedQuestions.filter(isQuestionComplete).length;
+  const progress = displayedQuestions.length ? (completedCount / displayedQuestions.length) * 100 : 0;
+  const categoryMatches = (question, category) => String(question.category || '').toLowerCase() === category.toLowerCase();
+  const categories = ['Environment', 'Social', 'Governance'].filter((category) => displayedQuestions.some((question) => categoryMatches(question, category)));
+  const focusCategory = (category) => {
+    setActiveCategory(category);
+    const firstQuestion = displayedQuestions.find((question) => categoryMatches(question, category));
+    if (firstQuestion) focusQuestion(firstQuestion.id);
+  };
 
   const isQuestionReadOnly = (question) => {
     if (hasUnlockedQuestions) {
@@ -397,7 +413,7 @@ export default function SupplierQuestionnaire() {
     const showUpload = evidenceEnabled && answerAllowsUpload;
     if (!showUpload && files.length === 0) return null;
     return <div className="mt-5 border-t border-stone-100 pt-4" data-testid={`supplier-question-evidence-${question.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className="text-stone-500">{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'affects scoring for response' : 'is optional'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for the response.</p>}</div>{showUpload && !qReadOnly && <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="max-w-xs cursor-pointer" data-testid={`supplier-question-evidence-upload-${question.id}`} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium text-stone-800" data-testid={`supplier-question-evidence-label-${question.id}`}>Evidence <span className={evidenceScored ? 'text-sm font-medium text-stone-800' : 'text-stone-500'}>{evidenceRequired ? 'required for a Yes response' : evidenceScored ? 'affects scoring for response' : 'is optional'}</span></p>{evidenceScored && <p className="mt-1 text-xs font-semibold text-stone-950">Missing evidence reduces the points earned for the response.</p>}</div>{showUpload && !qReadOnly && <label htmlFor={`supplier-question-evidence-input-${question.id}`} className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white shadow-sm transition-[background-color,opacity] hover:bg-emerald-900 ${uploadingQuestionId === question.id ? 'pointer-events-none opacity-60' : ''}`} data-testid={`supplier-question-evidence-upload-${question.id}`}><Upload className="h-4 w-4" aria-hidden="true" />{files.length ? 'Upload more files' : 'Choose files'}<Input id={`supplier-question-evidence-input-${question.id}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xls,.xlsx,.csv,.doc,.docx" disabled={uploadingQuestionId === question.id} onChange={(event) => { processEvidenceFiles(question, Array.from(event.target.files || [])); event.target.value = ''; }} className="sr-only" data-testid={`supplier-question-evidence-upload-input-${question.id}`} /></label>}</div>
       {uploadingQuestionId === question.id && <p className="mt-2 text-xs text-stone-500" data-testid={`supplier-question-evidence-uploading-${question.id}`}>Uploading evidence…</p>}
       {files.length > 0 && <ul className="mt-3 space-y-2" data-testid={`supplier-question-evidence-list-${question.id}`}>{files.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 border border-stone-200 bg-stone-50 px-3 py-2"><span className="min-w-0"><span className="flex items-center gap-2 text-sm text-stone-700" data-testid={`supplier-question-evidence-name-${question.id}-${file.id}`}><Paperclip className="h-4 w-4 shrink-0 text-stone-500" /> <span className="truncate">{file.original_filename}</span></span>{file.reused && <span className="mt-1 block text-xs font-medium text-emerald-700" data-testid={`supplier-question-evidence-reused-${question.id}-${file.id}`}>Existing evidence reused</span>}</span><span className="flex gap-1"><Button variant="ghost" size="icon" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-view`} onClick={() => openEvidence(question, file)} data-testid={`view-supplier-question-evidence-${question.id}-${file.id}`}><Eye className="h-4 w-4" /></Button><Button variant="ghost" size="icon" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${question.id}-${file.id}-download`} onClick={() => openEvidence(question, file, true)} data-testid={`download-supplier-question-evidence-${question.id}-${file.id}`}><Download className="h-4 w-4" /></Button>{!qReadOnly && <Button variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label={`Remove ${file.original_filename}`} onClick={() => removeEvidence(question, file)} data-testid={`remove-supplier-question-evidence-${question.id}-${file.id}`}><Trash2 className="h-4 w-4" /></Button>}</span></li>)}</ul>}
     </div>;
@@ -435,15 +451,17 @@ export default function SupplierQuestionnaire() {
         </>}
       />
 
+      {categories.length > 0 && <nav className="flex flex-wrap gap-2" aria-label="Questionnaire sections" data-testid="supplier-questionnaire-category-tags">{categories.map((category) => <Button key={category} type="button" variant="outline" size="sm" onClick={() => focusCategory(category)} className={activeCategory === category ? 'border-emerald-700 bg-emerald-800 text-white hover:bg-emerald-900 hover:text-white' : 'border-stone-300 bg-white text-stone-700 hover:border-emerald-300 hover:bg-emerald-50'} data-testid={`supplier-questionnaire-category-${category.toLowerCase()}`}>{category}</Button>)}</nav>}
+
       {/* Progress */}
       <Card>
         <CardContent className="py-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-stone-500">
-              {questions.length} questions
+              {displayedQuestions.length} questions
             </span>
             <span className="text-sm text-stone-500">
-              {answeredCount} answered
+              {completedCount} completed
             </span>
           </div>
           <div className="w-full bg-stone-200 rounded-full h-2">
@@ -456,7 +474,7 @@ export default function SupplierQuestionnaire() {
       </Card>
 
       <div className="space-y-4" data-testid="supplier-questionnaire-all-questions">
-      {(hasUnlockedQuestions ? questions.filter((question) => unlockedQuestionIds.includes(question.id)) : questions).map((question, index) => {
+      {displayedQuestions.map((question, index) => {
         const isQuestionUnlocked = hasUnlockedQuestions && unlockedQuestionIds.includes(question.id);
         const review = question.review || {};
         const isClarificationRequest = review.status === 'rejected' && review.needs_resubmission;
@@ -481,7 +499,7 @@ export default function SupplierQuestionnaire() {
           >
             <CardHeader>
               <div className="flex items-start gap-2">
-                {answers[question.id] !== undefined ? (
+                {isQuestionComplete(question) ? (
                   <CheckCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
                 ) : (
                   <Circle className="h-5 w-5 text-stone-300 mt-0.5" />
@@ -492,7 +510,7 @@ export default function SupplierQuestionnaire() {
                       {question.parent_question_id ? (
                         <span className="mr-2 text-sm font-medium text-emerald-700" data-testid={`supplier-subquestion-label-${question.id}`}>Follow-up</span>
                       ) : (
-                        `${(hasUnlockedQuestions ? questions.filter((item) => unlockedQuestionIds.includes(item.id)) : questions).slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `
+                        `${displayedQuestions.slice(0, index + 1).filter((item) => !item.parent_question_id).length}. `
                       )}
                       {question.question_text}
                       {question.required && <span className="text-red-500 ml-1">*</span>}
@@ -587,8 +605,8 @@ export default function SupplierQuestionnaire() {
             <AlertDialogDescription data-testid="supplier-evidence-reuse-description">{pendingEvidenceReuse?.candidate?.original_filename}{pendingEvidenceReuse && !pendingEvidenceReuse.exact ? ' — the selected file appears different from the existing upload.' : ''}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="cancel-supplier-evidence-reuse-button">Cancel</AlertDialogCancel>
-            <Button variant="outline" onClick={() => resolveEvidenceReuse(true)} data-testid="use-existing-supplier-evidence-button">Use Existing File</Button>
+            <AlertDialogCancel className="border border-stone-300 bg-white text-stone-800 hover:bg-stone-100" data-testid="cancel-supplier-evidence-reuse-button">Cancel</AlertDialogCancel>
+            <Button variant="outline" className="border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50 hover:text-emerald-900" onClick={() => resolveEvidenceReuse(true)} data-testid="use-existing-supplier-evidence-button">Use Existing File</Button>
             <AlertDialogAction onClick={() => resolveEvidenceReuse(false)} data-testid="upload-new-supplier-evidence-button">{pendingEvidenceReuse?.exact ? 'Upload Anyway' : 'Upload New File'}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
