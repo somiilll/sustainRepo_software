@@ -922,7 +922,7 @@ export default function QuestionnaireBuilder() {
         <QuestionnaireTaxonomySidebar questionnaires={questionnaires} selectedQuestionnaire={selectedQuestionnaire} onQuestionnaireChange={selectQuestionnaire} loading={loading} groupedQuestions={groupedQuestions} activeCategoryKey={activeCategoryKey} onCategoryChange={setActiveCategoryKey} />
         {selectedQuestionnaire ? (
           <section className="min-w-0 bg-white" data-testid="selected-questionnaire-panel">
-            <QuestionnaireActionBar questionnaire={selectedQuestionnaire} onEdit={() => openEditQuestionnaire(selectedQuestionnaire)} onReviewResponses={openSubmissions} onManageSuppliers={openQuestionnaireAssignments} onAddQuestion={() => {
+            <QuestionnaireActionBar questionnaire={selectedQuestionnaire} onEdit={() => openEditQuestionnaire(selectedQuestionnaire)} onPreview={() => setShowQuestionPreview(true)} onReviewResponses={openSubmissions} onManageSuppliers={openQuestionnaireAssignments} onAddQuestion={() => {
               resetQuestionForm();
               setEditingQuestion(null);
               setQuestionDialogMode('create');

@@ -32,7 +32,7 @@ export const QuestionnaireQuestionTable = ({
       ? <div className="border border-dashed border-stone-300 bg-stone-50 px-6 py-16 text-center text-sm text-stone-500" data-testid={`question-category-empty-${section.value}-${category.value}`}>No questions in this category.</div>
       : <div className="overflow-hidden border border-stone-200 bg-white" data-testid={`question-table-${section.value}-${category.value}`}>
         <div className="hidden grid-cols-[minmax(29rem,1fr)_11rem_5.5rem_4.5rem] items-center gap-3 bg-stone-100 px-4 py-4 text-xs font-semibold text-stone-600 lg:grid" data-testid={`question-table-header-${section.value}-${category.value}`}>
-          <span>Question &amp; description</span><span>Type &amp; evidence</span><span>Max points</span><span className="text-right">Actions</span>
+          <span>Question &amp; description</span><span>Question Type &amp; Evidence</span><span>Max points</span><span className="text-right">Actions</span>
         </div>
         {category.questions.map((question) => <QuestionnaireQuestionRow key={question.id} question={question} index={allQuestions.indexOf(question)} typeLabel={typeLabel(question.response_type)} evidenceLabel={evidenceLabel(question.evidence_requirement)} onEdit={() => onEdit(question)} onDelete={() => onDelete(question)} onDrop={onDrop} readOnly={readOnly} />)}
       </div>}
