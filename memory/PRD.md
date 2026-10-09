@@ -116,6 +116,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 9, 2026 — Reduced supplier Training card typography after visual review: training title, description, due/progress labels and values, status pills, and action button now use a more compact hierarchy aligned with the reference. Frontend lint passed.
 - October 9, 2026 — Redesigned supplier Training cards to match the provided reference: dedicated title/description, due-date, circular progress, status, and primary-action zones with desktop dividers; responsive stacking on smaller screens; date formatting as DD/MM/YYYY; and pill-shaped Continue/Open Training action. Frontend lint passed.
 - October 9, 2026 — Fixed supplier Document due-date display by adding `due_date` to the supplier document response model (the service already returned it, but FastAPI removed it). Supplier Training cards now hide “Page X of Y reached,” retain only completion percentage, and use wider metadata spacing. Focused response-model assertion, Python compilation, and frontend lint passed.
 - October 9, 2026 — Adjusted supplier Training row spacing: widened separation between training name, due date, and progress; moved the status badge directly beside the completion percentage; and kept the action aligned at the row end. Frontend lint passed.
