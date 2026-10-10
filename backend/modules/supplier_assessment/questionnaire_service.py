@@ -544,6 +544,16 @@ async def sync_advanced_questionnaire_bank(organization_id: str, created_by: str
     """Backward-compatible wrapper for the Advanced bank synchronizer."""
     await sync_system_questionnaire_bank(organization_id, created_by, "advanced", enabled)
 
+
+def questionnaire_is_assigned_to_supplier(questionnaire: Dict[str, Any], supplier: Dict[str, Any]) -> bool:
+    return (
+        supplier["id"] in set(questionnaire.get("assigned_supplier_ids") or [])
+        or (
+            "questionnaire_ids" in supplier
+            and questionnaire["id"] in set(supplier.get("questionnaire_ids") or [])
+        )
+    )
+
 async def get_questionnaires(
     self,
     organization_id: str,
@@ -602,15 +612,10 @@ async def get_questionnaires(
         questionnaire["has_locked_submissions"] = questionnaire["id"] in locked_ids
         questionnaire["has_reviewable_submissions"] = questionnaire["id"] in reviewable_ids
         questionnaire["has_submission_history"] = questionnaire["id"] in history_ids
-        if questionnaire.get("assignment_mode") == "all":
-            assigned_count = len(active_suppliers)
-        else:
-            assigned_ids = set(questionnaire.get("assigned_supplier_ids") or [])
-            assigned_count = sum(
-                supplier["id"] in assigned_ids
-                or questionnaire["id"] in (supplier.get("questionnaire_ids") or [])
-                for supplier in active_suppliers
-            )
+        assigned_count = sum(
+            questionnaire_is_assigned_to_supplier(questionnaire, supplier)
+            for supplier in active_suppliers
+        )
         questionnaire["assigned_supplier_count"] = assigned_count
         questionnaire["total_supplier_count"] = len(active_suppliers)
         with_questionnaire_reporting_period(questionnaire, reporting_period)
@@ -766,7 +771,6 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
     if effective_period:
         supplier_query["reporting_period"] = effective_period
     suppliers = await db.supplier_relationships.find(supplier_query, {"_id": 0, "id": 1, "company_name": 1, "questionnaire_ids": 1, "reporting_period": 1}).to_list(1000)
-    assigned_ids = set(questionnaire.get("assigned_supplier_ids") or [])
     response_query: Dict[str, Any] = {"questionnaire_id": questionnaire_id, "supplier_relationship_id": {"$in": [supplier["id"] for supplier in suppliers]}, "is_current": True}
     if effective_period:
         response_query["reporting_period"] = effective_period
@@ -776,7 +780,7 @@ async def list_questionnaire_assignments(self, customer_org_id: str, questionnai
     response_statuses = {response["supplier_relationship_id"]: response.get("status") for response in responses}
     rows = []
     for supplier in suppliers:
-        is_assigned = supplier["id"] in assigned_ids or ("questionnaire_ids" in supplier and questionnaire_id in (supplier.get("questionnaire_ids") or []))
+        is_assigned = questionnaire_is_assigned_to_supplier(questionnaire, supplier)
         status = response_statuses.get(supplier["id"], "not_started")
         rows.append({"supplier_relationship_id": supplier["id"], "supplier_name": supplier.get("company_name", "Supplier"), "is_assigned": is_assigned, "status": status, "can_unassign": is_assigned and status != "submitted", "can_unlock": is_assigned and status == "submitted"})
     return {"questionnaire_id": questionnaire_id, "reporting_period": effective_period, "assignments": rows}
