@@ -960,6 +960,13 @@ async def get_questionnaire_assignments(questionnaire_id: str, reporting_period:
 async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
         is_new_assignment = await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
+        assigned_relationship = await supplier_service.get_supplier(supplier_id)
+        if assigned_relationship:
+            enabled_modules = list(dict.fromkeys([
+                *(assigned_relationship.get("modules_enabled") or []),
+                "esg",
+            ]))
+            await supplier_service.update_supplier(supplier_id, {"modules_enabled": enabled_modules})
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
         ) or {}
