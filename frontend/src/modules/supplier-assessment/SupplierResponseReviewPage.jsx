@@ -126,7 +126,11 @@ export default function SupplierResponseReviewPage() {
     finally { setReviewingQuestionId(''); }
   };
   const submitInlineDecision = async (decision, reviewerNote, reviewerScore) => {
-    if (decision === 'accepted') return submitReview({ status: 'accepted', needs_resubmission: false });
+    if (decision === 'accepted') {
+      const score = Number(reviewerScore);
+      if (Number.isNaN(score) || score < 0 || score > (selectedQuestion?.max_points ?? selectedQuestion?.weight ?? 100)) return toast.error('Enter an approved score within the question maximum');
+      return submitReview({ status: 'accepted', needs_resubmission: false, reviewer_score: score });
+    }
     if (decision === 'clarification') {
       if (!reviewerNote.trim()) return toast.error('A reviewer comment is required for clarification');
       return submitReview({ status: 'rejected', needs_resubmission: true, reviewer_note: reviewerNote.trim() });
@@ -138,7 +142,11 @@ export default function SupplierResponseReviewPage() {
   const saveReviewDraft = async (decision, reviewerNote, reviewerScore) => {
     if (!selectedQuestion) return false;
     let payload;
-    if (decision === 'accepted') payload = { status: 'accepted', needs_resubmission: false };
+    if (decision === 'accepted') {
+      const score = Number(reviewerScore);
+      if (Number.isNaN(score) || score < 0 || score > (selectedQuestion.max_points ?? selectedQuestion.weight ?? 100)) { toast.error('Enter an approved score within the question maximum'); return false; }
+      payload = { status: 'accepted', needs_resubmission: false, reviewer_score: score };
+    }
     else if (decision === 'clarification') {
       if (!reviewerNote.trim()) { toast.error('A reviewer comment is required for clarification'); return false; }
       payload = { status: 'rejected', needs_resubmission: true, reviewer_note: reviewerNote.trim() };

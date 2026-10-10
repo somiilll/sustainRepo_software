@@ -503,7 +503,7 @@ class ScoreCalculator:
                 review_entry = question_reviews.get(question_id)
                 if isinstance(review_entry, dict) and review_entry.get("status") in {"accepted", "rejected"}:
                     rev_status = review_entry.get("status")
-                    if rev_status == "rejected" and not review_entry.get("needs_resubmission"):
+                    if review_entry.get("reviewer_score") is not None and not review_entry.get("needs_resubmission"):
                         # Reviewer set an explicit approved score (e.g., 0 or partial points)
                         approved_score = float(review_entry.get("reviewer_score", 0.0) or 0.0)
                         max_p = float(q_score.max_points if q_score.max_points is not None else 100)
@@ -512,7 +512,7 @@ class ScoreCalculator:
                         q_score.points_earned = points_approved
                         q_score.raw_score = (points_approved / max_p * 100) if max_p > 0 else 0.0
                         q_score.calculation_details.update({
-                            "review_status": "rejected",
+                            "review_status": rev_status,
                             "reviewer_score": approved_score,
                             "reviewer_note": review_entry.get("reviewer_note"),
                             "score_source": "parent_question_review",

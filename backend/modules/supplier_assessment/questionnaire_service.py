@@ -2009,7 +2009,7 @@ async def review_supplier_question_response(
         raise ValueError("Decision status must be 'accepted' or 'rejected'")
 
     needs_resubmission = bool(decision.get("needs_resubmission")) if status == "rejected" else False
-    reviewer_score = float(decision.get("reviewer_score") or 0.0) if status == "rejected" and not needs_resubmission else None
+    reviewer_score = float(decision["reviewer_score"]) if decision.get("reviewer_score") is not None and (status == "accepted" or (status == "rejected" and not needs_resubmission)) else None
     reviewer_note = (decision.get("reviewer_note") or "").strip()
     if needs_resubmission and not reviewer_note:
         raise ValueError("A reviewer comment is required when clarification is requested")
@@ -2141,7 +2141,7 @@ async def save_supplier_question_review_draft(
         raise ValueError("Decision status must be 'accepted' or 'rejected'")
     needs_resubmission = bool(decision.get("needs_resubmission")) if status == "rejected" else False
     reviewer_note = (decision.get("reviewer_note") or "").strip()
-    reviewer_score = float(decision.get("reviewer_score") or 0.0) if status == "rejected" and not needs_resubmission else None
+    reviewer_score = float(decision["reviewer_score"]) if decision.get("reviewer_score") is not None and (status == "accepted" or (status == "rejected" and not needs_resubmission)) else None
     if needs_resubmission and not reviewer_note:
         raise ValueError("A reviewer comment is required when clarification is requested")
     if status == "rejected" and not needs_resubmission and not reviewer_note:

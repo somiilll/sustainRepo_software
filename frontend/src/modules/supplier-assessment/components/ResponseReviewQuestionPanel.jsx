@@ -17,12 +17,12 @@ export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, to
   const isAccepted = editableReview.status === 'accepted';
   const isClarification = editableReview.status === 'rejected' && editableReview.needs_resubmission;
   const isRejected = editableReview.status === 'rejected' && !editableReview.needs_resubmission;
+  const maxPoints = question.max_points ?? question.weight ?? 100;
+  const points = isRejected ? review.reviewer_score ?? 0 : score?.points_earned ?? question.manual_score ?? (question.answer === true ? question.point_scores?.yes_score : question.answer === false ? question.point_scores?.no_score : 0);
   const isSavedClarification = isClarification && !reviewDraft.drafted_at;
   const [decision, setDecision] = useState(isSavedClarification ? '' : isAccepted ? 'accepted' : isClarification ? 'clarification' : isRejected ? 'rejected' : '');
   const [reviewerNote, setReviewerNote] = useState(isSavedClarification ? '' : editableReview.reviewer_note || '');
-  const [reviewerScore, setReviewerScore] = useState(String(editableReview.reviewer_score ?? 0));
-  const maxPoints = question.max_points ?? question.weight ?? 100;
-  const points = isRejected ? review.reviewer_score ?? 0 : score?.points_earned ?? question.manual_score ?? (question.answer === true ? question.point_scores?.yes_score : question.answer === false ? question.point_scores?.no_score : 0);
+  const [reviewerScore, setReviewerScore] = useState(String(editableReview.reviewer_score ?? points ?? 0));
   const saveDisabled = saving || !decision || ((decision === 'clarification' || decision === 'rejected') && !reviewerNote.trim());
   const latestReviewerComment = review.needs_resubmission ? review.reviewer_note || '' : '';
   const latestSupplierComment = question.clarification_reply?.message || '';
@@ -37,6 +37,8 @@ export const ResponseReviewQuestionPanel = ({ question, categoryLabel, index, to
   const saveAndNext = async () => { const saved = await saveReview(); if (saved && index < total - 1) onNext(); };
   const selectDecision = (nextDecision) => {
     if (nextDecision === 'clarification' && decision !== 'clarification') setReviewerNote('');
+    if (nextDecision === 'accepted' && decision !== 'accepted') setReviewerScore(String(points ?? 0));
+    if (nextDecision === 'rejected' && decision !== 'rejected') setReviewerScore('0');
     setDecision(nextDecision);
   };
 
