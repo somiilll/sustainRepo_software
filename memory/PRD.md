@@ -117,6 +117,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 10, 2026 — **P0 verification complete:** user confirmed the separate ESG assignment, clarification-cycle, and supplier assignment/reassignment email workflows have been tested. Remaining work is prioritized below as P1/P2.
 - October 10, 2026 — Removed the Accept retention helper message and the Accept calculated-score helper text from parent ESG Reviewer Assessment, retaining all controls and scoring behavior. Focused frontend ESLint passed.
 - October 10, 2026 — Renamed parent review **Reviewer Score** to **Evaluation Score**. Supplier ESG clarification action buttons now read **Respond to Queries** on both dashboard and ESG overview; clarification status tags and all workflow behavior remain unchanged. Focused frontend ESLint passed.
 - October 10, 2026 — Enabled score overrides for **Accept** decisions in parent ESG review. Accept now opens Reviewer Score with the calculated score as its editable default, validates the chosen value, persists it through final review or saved draft, and applies it in the scoring engine. Reject continues to default to zero while remaining editable. Focused backend tests passed (16/16), Python compilation passed, and focused frontend ESLint passed.
