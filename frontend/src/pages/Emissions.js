@@ -70,6 +70,7 @@ import {
   filterSupplierVisibleCategories,
   resolveSupplierGhgOverrides,
 } from '../modules/supplier-assessment/utils/supplierScopeAccess';
+import { resolveSubmittedSupplierEmissionIds } from '../modules/supplier-assessment/utils/supplierGhgPeriodLocks';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -160,6 +161,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [isSaving, setIsSaving] = useState(false); // Track save operation state
   const [formulaDataReady, setFormulaDataReady] = useState(false); // Track when formula data is loaded
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [supplierSubmissionPeriods, setSupplierSubmissionPeriods] = useState([]);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
   // OCR Prefill Data - from AI Invoice Extractor workflow
@@ -213,6 +215,27 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
+
+  useEffect(() => {
+    if (!isSupplierUser) {
+      setSupplierSubmissionPeriods([]);
+      return undefined;
+    }
+    let active = true;
+    axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission-periods`, { headers: getAuthHeader() })
+      .then(({ data }) => { if (active) setSupplierSubmissionPeriods(data.periods || []); })
+      .catch(() => { if (active) setSupplierSubmissionPeriods([]); });
+    return () => { active = false; };
+  }, [getAuthHeader, isSupplierUser]);
+
+  const lockedSupplierEmissionIds = useMemo(() => (
+    isSupplierUser
+      ? resolveSubmittedSupplierEmissionIds(emissions, supplierSubmissionPeriods)
+      : new Set()
+  ), [emissions, isSupplierUser, supplierSubmissionPeriods]);
+  const canAddSupplierEmission = !isSupplierUser
+    || supplierSubmissionPeriods.length === 0
+    || supplierSubmissionPeriods.some((period) => period.status !== 'submitted');
   
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
@@ -3733,6 +3756,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               <Button
                 type="button"
                 onClick={openCreateDialog}
+                disabled={!canAddSupplierEmission}
                 className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                 data-testid="add-emission-button"
               >
@@ -3997,6 +4021,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               getMethodLabel={getMethodLabel}
               isRegularUser={isRegularUser}
               hideHistoryActions={isSupplierUser}
+              lockedEmissionIds={lockedSupplierEmissionIds}
               handleEdit={handleEdit}
               fetchHistory={fetchHistory}
               openDeleteConfirm={openDeleteConfirm}
