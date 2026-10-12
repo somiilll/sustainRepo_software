@@ -33,7 +33,7 @@ export default function SupplierDocuments() {
   const confirmSubmission = async () => { const pending = pendingSubmission; if (!pending) return; setPendingSubmission(null); if (pending.type === 'upload') await submitUpload(pending.document); else if (pending.type === 'acceptance') await acceptDocument(pending.document); else await submitStatus(pending.document, pending.responseValue); };
   const statusCounts = documents.reduce((counts, document) => { counts.total += 1; const complete = document.accepted || document.selected_response || document.submission_status === 'submitted'; const due = document.due_date && new Date(`${document.due_date.slice(0, 10)}T23:59:59`) < new Date(); if (complete) counts.completed += 1; else if (due) counts.overdue += 1; else if (document.submission_status === 'reopened' || selectedStatus[document.id]) counts.draft += 1; else counts.pending += 1; return counts; }, { total: 0, completed: 0, draft: 0, pending: 0, overdue: 0 });
   const isOverdue = (document) => Boolean(document.due_date && document.submission_status !== 'submitted' && new Date(`${document.due_date.slice(0, 10)}T23:59:59`) < new Date());
-  return <div className="space-y-8" data-testid="supplier-documents-page">
+  return <div className="space-y-4" data-testid="supplier-documents-page">
     <SupplierPageHeader title="Documents" description="Review the current documents from your customer and provide the requested response." icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="supplier-documents" />
     {!loadError && <SupplierStatusInfographics title="Document status" counts={statusCounts} testId="supplier-documents" />}
     <section className="mt-8 grid gap-4" data-testid="supplier-documents-list">
