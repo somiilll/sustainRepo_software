@@ -62,7 +62,7 @@ export default function SupplierTraining() {
   }, { total: 0, completed: 0, draft: 0, pending: 0, overdue: 0 });
 
   const isTrainingOverdue = (item) => Boolean(item.due_date && item.status !== 'completed' && new Date(`${item.due_date.slice(0, 10)}T23:59:59`) < new Date());
-  return <div className="space-y-6" data-testid="supplier-training-page">
+  return <div className="space-y-4" data-testid="supplier-training-page">
     <SupplierPageHeader title="Trainings" description="Complete trainings assigned by your customer." icon={GraduationCap} iconClassName="border-amber-200 bg-amber-50 text-amber-700" testId="supplier-training" />
     <SupplierStatusInfographics title="Training status" counts={statusCounts} testId="supplier-training" />
     <section className="mt-8 grid gap-4" data-testid="supplier-training-list">
