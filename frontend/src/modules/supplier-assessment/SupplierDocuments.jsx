@@ -35,7 +35,7 @@ export default function SupplierDocuments() {
   const isOverdue = (document) => Boolean(document.due_date && document.submission_status !== 'submitted' && new Date(`${document.due_date.slice(0, 10)}T23:59:59`) < new Date());
   return <div className="space-y-4" data-testid="supplier-documents-page">
     <SupplierPageHeader title="Documents" description="Review the current documents from your customer and provide the requested response." icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="supplier-documents" />
-    {!loadError && <SupplierStatusInfographics title="Document status" counts={statusCounts} testId="supplier-documents" />}
+    {!loadError && <SupplierStatusInfographics title="Document status" counts={statusCounts} testId="supplier-documents" style={{ marginTop: 32 }} />}
     <section className="mt-8 grid gap-4" data-testid="supplier-documents-list">
       {loadError ? <LoadErrorState title="Unable to load documents" message={loadError} onRetry={loadDocuments} testId="supplier-documents-load-error" /> : loading ? <p className="py-10 text-center text-sm text-stone-500" data-testid="supplier-documents-loading">Loading documents…</p> : documents.length === 0 ? <Card data-testid="supplier-documents-empty-state"><CardContent className="py-12 text-center text-sm text-stone-500">No documents are required for this assessment.</CardContent></Card> : documents.map((document) => {
         const uploadMode = document.response_mode === 'DOCUMENT_UPLOAD'; const locked = document.submission_status === 'submitted'; const canSubmitUpload = uploadMode && !locked && document.has_been_viewed; const canAccept = document.response_mode === 'ACCEPTANCE' && !document.accepted && document.has_been_viewed;
