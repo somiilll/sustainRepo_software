@@ -9,8 +9,8 @@ const STATUS_ITEMS = [
   { key: 'overdue', label: 'Overdue', Icon: AlertTriangle, className: 'border-rose-200 bg-rose-50/60 text-rose-700' },
 ];
 
-export const SupplierStatusInfographics = ({ title, counts, testId }) => (
-  <section className="space-y-3" data-testid={`${testId}-infographics`}>
+export const SupplierStatusInfographics = ({ title, counts, testId, className = '' }) => (
+  <section className={`space-y-3 ${className}`} data-testid={`${testId}-infographics`}>
     <h2 className="text-lg font-semibold text-stone-900" data-testid={`${testId}-infographics-title`}>{title}</h2>
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       {STATUS_ITEMS.map(({ key, label, Icon, className }) => (
