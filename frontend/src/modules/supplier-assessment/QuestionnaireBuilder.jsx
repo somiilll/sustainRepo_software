@@ -1101,7 +1101,7 @@ export default function QuestionnaireBuilder() {
 
       {/* Edit Questionnaire Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="bg-white sm:max-w-lg" data-testid="edit-questionnaire-dialog">
           <DialogHeader>
             <DialogTitle>Edit Questionnaire</DialogTitle>
           </DialogHeader>
@@ -1113,27 +1113,23 @@ export default function QuestionnaireBuilder() {
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, name: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label>Due Date</Label>
               <Input
                 type="date"
+                className="bg-white"
                 min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
                 data-testid="edit-questionnaire-due-date-input"
               />
             </div>
-            <Accordion type="single" collapsible className="w-full" data-testid="edit-questionnaire-section-weights">
-              <AccordionItem value="esg-weights">
-                <AccordionTrigger className="text-sm font-medium">ESG Section Weight</AccordionTrigger>
-                <AccordionContent>
-                  <p className="pt-2 text-xs text-stone-500" data-testid="questionnaire-section-weight-default-note">Organization defaults are prefilled; you can adjust this questionnaire’s ESG section weights.</p>
-                  <div className="grid grid-cols-3 gap-2 pt-3">
-                    {['environment', 'social', 'governance'].map((section) => <div key={section}><Label className="text-xs capitalize">{section}</Label><Input type="number" min="0" max="100" step="0.01" value={questionnaireForm.esg_section_weights?.[section] ?? 0} onChange={(event) => setQuestionnaireForm({ ...questionnaireForm, esg_section_weights: { ...questionnaireForm.esg_section_weights, [section]: parseFloat(event.target.value) || 0 } })} data-testid={`edit-questionnaire-section-weight-${section}`} /></div>)}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <section className="space-y-3" data-testid="edit-questionnaire-section-weights">
+              <div><h3 className="text-sm font-medium text-stone-900">ESG Section Weight</h3><p className="mt-1 text-xs text-stone-500" data-testid="questionnaire-section-weight-default-note">Organization defaults are prefilled; you can adjust this questionnaire’s ESG section weights.</p></div>
+              <div className="grid grid-cols-3 gap-2">
+                {['environment', 'social', 'governance'].map((section) => <div key={section}><Label className="text-xs capitalize">{section}</Label><Input type="number" min="0" max="100" step="0.01" value={questionnaireForm.esg_section_weights?.[section] ?? 0} onChange={(event) => setQuestionnaireForm({ ...questionnaireForm, esg_section_weights: { ...questionnaireForm.esg_section_weights, [section]: parseFloat(event.target.value) || 0 } })} data-testid={`edit-questionnaire-section-weight-${section}`} /></div>)}
+              </div>
+            </section>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
