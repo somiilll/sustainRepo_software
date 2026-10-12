@@ -51,6 +51,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ### Supplier Assessment
 - Preserve the module registry and immutable program-revision model.
+- Analysis view header displays "Supplier Assessment".
 - Supplier ESG and GHG submissions are immutable, with parent-controlled reopen/resubmission.
 - Supplier GHG reporting derives from the active relationship and immutable program revision.
 - Suppliers receive only assigned Scope 1 and/or Scope 2; Scope 3 and Biogenic are excluded end-to-end.

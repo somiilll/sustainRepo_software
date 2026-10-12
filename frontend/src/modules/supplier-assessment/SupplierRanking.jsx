@@ -104,7 +104,7 @@ export default function SupplierRanking() {
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="supplier-ranking-header">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="supplier-ranking-heading-icon"><Trophy className="h-6 w-6" aria-hidden="true" /></div>
-        <h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ranking-heading">Supplier Rankings</h1>
+        <h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ranking-heading">Supplier Assessment</h1>
       </div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="supplier-ranking-period-control">
         <Label htmlFor="supplier-ranking-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ranking-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label>

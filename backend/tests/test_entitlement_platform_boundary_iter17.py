@@ -70,7 +70,7 @@ def test_admin_login_sets_http_only_cookie(api_client: requests.Session):
 
 
 def test_auth_login_cors_allows_trusted_origin_only(api_client: requests.Session):
-    trusted = "https://supplier-assess-ghg.preview.emergentagent.com"
+    trusted = "https://supplier-ghg-preview.preview.emergentagent.com"
     options_trusted = api_client.options(
         f"{BASE_URL}/api/auth/login",
         headers={
