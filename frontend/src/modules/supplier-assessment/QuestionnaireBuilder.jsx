@@ -1111,23 +1111,25 @@ export default function QuestionnaireBuilder() {
               <Input
                 value={questionnaireForm.name}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, name: e.target.value })}
+                className="bg-stone-50 border-stone-300 focus-visible:ring-stone-400 focus-visible:border-stone-400"
+                data-testid="edit-questionnaire-name-input"
               />
             </div>
             <div className="space-y-1">
               <Label>Due Date</Label>
               <Input
                 type="date"
-                className="bg-white"
                 min={new Date().toISOString().slice(0, 10)}
                 value={questionnaireForm.due_date}
                 onChange={(e) => setQuestionnaireForm({ ...questionnaireForm, due_date: e.target.value })}
+                className="bg-stone-50 border-stone-300 focus-visible:ring-stone-400 focus-visible:border-stone-400"
                 data-testid="edit-questionnaire-due-date-input"
               />
             </div>
             <section className="space-y-3" data-testid="edit-questionnaire-section-weights">
               <div><h3 className="text-sm font-medium text-stone-900">ESG Section Weight</h3><p className="mt-1 text-xs text-stone-500" data-testid="questionnaire-section-weight-default-note">Organization defaults are prefilled; you can adjust this questionnaire’s ESG section weights.</p></div>
               <div className="grid grid-cols-3 gap-2">
-                {['environment', 'social', 'governance'].map((section) => <div key={section}><Label className="text-xs capitalize">{section}</Label><Input type="number" min="0" max="100" step="0.01" value={questionnaireForm.esg_section_weights?.[section] ?? 0} onChange={(event) => setQuestionnaireForm({ ...questionnaireForm, esg_section_weights: { ...questionnaireForm.esg_section_weights, [section]: parseFloat(event.target.value) || 0 } })} data-testid={`edit-questionnaire-section-weight-${section}`} /></div>)}
+                {['environment', 'social', 'governance'].map((section) => <div key={section}><Label className="text-xs capitalize">{section}</Label><Input type="number" min="0" max="100" step="0.01" value={questionnaireForm.esg_section_weights?.[section] ?? 0} onChange={(event) => setQuestionnaireForm({ ...questionnaireForm, esg_section_weights: { ...questionnaireForm.esg_section_weights, [section]: parseFloat(event.target.value) || 0 } })} className="bg-stone-50 border-stone-300 focus-visible:ring-stone-400 focus-visible:border-stone-400" data-testid={`edit-questionnaire-section-weight-${section}`} /></div>)}
               </div>
             </section>
           </div>

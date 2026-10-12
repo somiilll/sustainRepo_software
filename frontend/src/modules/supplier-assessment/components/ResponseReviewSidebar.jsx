@@ -27,7 +27,16 @@ export const ResponseReviewSidebar = ({ groups, activeCategoryKey, onCategorySel
             </div>
             <div className="space-y-1 p-2">
               {group.categories.map((category) => {
-                const reviewedCount = category.questions.filter((question) => Boolean(question.review?.status)).length;
+                const reviewedCount = category.questions.filter((question) => {
+                  const status = question.review?.status;
+                  const needsResubmission = question.review?.needs_resubmission;
+                  // If sent for clarification (status is rejected and needs_resubmission is true), it is awaiting supplier response, so not counted as evaluated/reviewed
+                  if (status === 'rejected' && needsResubmission) return false;
+                  return Boolean(status);
+                }).length;
+                const clarificationCount = category.questions.filter((question) => {
+                  return question.review?.status === 'rejected' && question.review?.needs_resubmission;
+                }).length;
                 const selected = activeCategoryKey === category.key;
                 return (
                   <button
@@ -40,6 +49,7 @@ export const ResponseReviewSidebar = ({ groups, activeCategoryKey, onCategorySel
                   >
                     <span className="min-w-0 flex-1 break-words text-xs font-semibold">{category.label}</span>
                     <span className="flex shrink-0 items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-xs font-semibold tabular-nums shadow-sm" data-testid={`response-review-category-reviewed-count-${category.key}`}>
+                      {clarificationCount > 0 && <span className="inline-block h-2 w-2 rounded-full bg-amber-500" title={`${clarificationCount} clarification pending`} />}
                       {reviewedCount === category.questions.length && category.questions.length > 0 && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
                       {reviewedCount}/{category.questions.length}
                     </span>

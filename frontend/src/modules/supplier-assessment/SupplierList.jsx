@@ -72,7 +72,7 @@ const RequirementDeadline = ({ dueDate, testId }) => {
   const deadline = new Date(`${datePart}T23:59:59`);
   if (Number.isNaN(deadline.getTime())) return null;
   const isPastDue = deadline.getTime() < Date.now();
-  return <span className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500" data-testid={`${testId}-due-date`}><span>Due {new Date(`${datePart}T12:00:00`).toLocaleDateString()}</span>{isPastDue && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" data-testid={`${testId}-deadline-passed`}>Deadline passed</Badge>}</span>;
+  return <span className="ml-auto shrink-0 inline-flex items-center gap-1.5 text-xs text-stone-500" data-testid={`${testId}-due-date`}><span>Due {new Date(`${datePart}T12:00:00`).toLocaleDateString()}</span>{isPastDue && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" data-testid={`${testId}-deadline-passed`}>Deadline passed</Badge>}</span>;
 };
 
 const createSupplierForm = (reportingPeriod) => ({
@@ -467,7 +467,7 @@ export default function SupplierList() {
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-access-revoke-date-header">Access Revoke Date</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Status</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-progress-header">Progress</TableHead>
-              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">Score</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">ESG Score</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-last-reminder-header">Last Reminder</TableHead>
               <TableHead className="h-12 px-4 text-right font-semibold text-stone-700" data-testid="supplier-actions-header">Actions</TableHead>
             </TableRow>
@@ -705,11 +705,13 @@ export default function SupplierList() {
             </div>
             
             {/* Module Selection */}
-            <div className="space-y-3 border-t pt-2">
-              <Label className="text-base font-medium">Assessment Modules *</Label>
-              <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
+            <div className="space-y-4 pt-1">
+              <div>
+                <Label className="text-base font-medium">Assessment Modules *</Label>
+                <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
+              </div>
               <div className={`grid gap-4 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
-                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
+                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-4 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -728,20 +730,23 @@ export default function SupplierList() {
                       <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
                       <div className="space-y-2">
                         {questionnaires.map((questionnaire) => (
-                          <label key={questionnaire.id} className="flex items-start gap-2 text-sm">
-                            <Checkbox
-                              checked={formData.questionnaire_ids.includes(questionnaire.id)}
-                              onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
-                              data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
-                            />
-                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
+                          <label key={questionnaire.id} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <Checkbox
+                                checked={formData.questionnaire_ids.includes(questionnaire.id)}
+                                onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
+                                data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
+                              />
+                              <span className="truncate font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span>
+                            </span>
+                            <RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} />
                           </label>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>}
-                <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
+                <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-4 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="module-ghg"
@@ -796,9 +801,9 @@ export default function SupplierList() {
               </div>
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
-              <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></span></label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></span></label>)}</div>}
+              <div className="mt-5 grid gap-5 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
+                {documents.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><FileText className="h-4 w-4 text-teal-600" />Documents</span><div className="space-y-2.5 pt-1">{documents.map((document) => <label key={document.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 min-w-0"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span></span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></label>)}</div></div>}
+                {trainings.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><GraduationCap className="h-4 w-4 text-amber-600" />Training</span><div className="space-y-2.5 pt-1">{trainings.map((training) => <label key={training.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 min-w-0"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span></span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></label>)}</div></div>}
               </div>
             )}
           </div>
