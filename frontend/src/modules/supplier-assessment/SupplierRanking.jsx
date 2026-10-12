@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { BarChart3, CalendarDays, CheckCircle2, ChartLine, ChartPie, CloudDownload, Target, Trophy, TriangleAlert, Users } from 'lucide-react';
+import { BarChart3, CalendarDays, CheckCircle2, ChartLine, ChartPie, CircleDot, CloudDownload, Target, Trophy, TriangleAlert, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
@@ -14,7 +14,7 @@ import { RankingEmissionsTab } from './components/ranking/RankingEmissionsTab';
 import { RankingEsgTab } from './components/ranking/RankingEsgTab';
 import { RankingOverviewTab } from './components/ranking/RankingOverviewTab';
 import { SupplierRankingDetailDialog } from './components/ranking/SupplierRankingDetailDialog';
-import { averageCompletionValue, completionText, hasValue, moduleName, oldestOverdueDaysValue, scoreText } from './components/ranking/rankingUtils';
+import { averageCompletionValue, completionText, hasValue, moduleName, scoreText } from './components/ranking/rankingUtils';
 import { buildSupplierEmissionsAnalytics } from './utils/supplierEmissionsAnalytics';
 
 const buildRiskMatrix = (rankings, supplierTotals) => {
@@ -30,16 +30,16 @@ const buildRiskMatrix = (rankings, supplierTotals) => {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
 
-const RankingMetric = ({ id, label, value, detail, Icon }) => (
+const RankingMetric = ({ id, label, value, valueSecondary, valueSecondaryClassName = 'text-sm', detail, Icon }) => (
   <Card className="group relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
     <span className="absolute inset-x-0 top-0 h-1.5 bg-emerald-800" aria-hidden="true" />
-    <CardContent className="flex min-h-[148px] flex-col justify-between p-5 pt-6">
+    <CardContent className="flex min-h-[128px] flex-col justify-between p-5 pt-5">
       <div className="flex items-center gap-3">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700" data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-6 w-6" aria-hidden="true" /></span>
         <p className="text-xs font-semibold uppercase text-stone-600">{label}</p>
       </div>
       <div>
-        <p className="text-4xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-value`}>{value}</p>
+        <p className="flex min-w-0 items-baseline gap-2 text-4xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-value`}><span>{value}</span>{valueSecondary && <span className={`min-w-0 truncate font-medium text-stone-500 ${valueSecondaryClassName}`} data-testid={`supplier-ranking-${id}-value-secondary`}>{valueSecondary}</span>}</p>
         {detail && <p className="mt-1 truncate text-xs text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>}
       </div>
     </CardContent>
@@ -83,9 +83,8 @@ export default function SupplierRanking() {
   const riskMatrix = useMemo(() => buildRiskMatrix(rankings, emissionsAnalytics.supplierTotals), [rankings, emissionsAnalytics.supplierTotals]);
   const rows = useMemo(() => rankings.filter((row) => row.company_name.toLowerCase().includes(search.trim().toLowerCase())).sort((first, second) => { const firstValue = first[rankingSort.key]; const secondValue = second[rankingSort.key]; if (!hasValue(firstValue)) return hasValue(secondValue) ? 1 : 0; if (!hasValue(secondValue)) return -1; return (Number(firstValue) - Number(secondValue)) * (rankingSort.direction === 'asc' ? 1 : -1); }), [rankings, rankingSort, search]);
   const overdueSuppliers = useMemo(() => rankings.filter((row) => (row.overdue_modules || []).length > 0), [rankings]);
-  const attention = useMemo(() => overdueSuppliers.slice(0, 5), [overdueSuppliers]);
   const distribution = [{ name: 'Excellent', value: stats.score_distribution.excellent || 0, color: '#10b981' }, { name: 'Good', value: stats.score_distribution.good || 0, color: '#3b82f6' }, { name: 'Needs improvement', value: stats.score_distribution.average || 0, color: '#f59e0b' }, { name: 'Critical', value: stats.score_distribution.poor || 0, color: '#ef4444' }];
-  const modules = Object.entries(stats.module_summary || {}).map(([code, item]) => ({ code, name: moduleName(code), completion: item.average_completion || 0 }));
+  const modules = Object.entries(stats.module_summary || {}).map(([code, item]) => ({ code, name: moduleName(code), completion: item.average_completion || 0, completedSuppliers: item.completed_suppliers || 0, configuredSuppliers: item.configured_suppliers || 0 }));
   const rankingPageSize = 8;
   const rankingPageCount = Math.max(1, Math.ceil(rows.length / rankingPageSize));
   const visibleRankingRows = rows.slice((rankingPage - 1) * rankingPageSize, rankingPage * rankingPageSize);
@@ -94,22 +93,22 @@ export default function SupplierRanking() {
   const top = overall[0];
   const needCount = overdueSuppliers.length;
   const avgOverallCompletion = averageCompletionValue(stats.averages, rankings);
-  const oldestOverdueDays = oldestOverdueDaysValue(overdueSuppliers);
-  const overdueDetail = oldestOverdueDays !== null
-    ? `Oldest overdue ${oldestOverdueDays} ${oldestOverdueDays === 1 ? 'day' : 'days'}`
-    : 'Incomplete tasks past due';
-
   const metrics = [
-    { id: 'assessed', label: 'Suppliers assessed', value: stats.ranked, detail: `${stats.total} assigned`, Icon: Users, tone: 'stone' },
+    { id: 'assessed', label: 'Suppliers assessed', value: `${stats.ranked}/${stats.total}`, valueSecondary: 'assigned', Icon: Users, tone: 'stone' },
     { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), Icon: Target, tone: 'emerald' },
     { id: 'overall-completion', label: 'Overall Completion', value: completionText(avgOverallCompletion), Icon: CheckCircle2, tone: 'emerald' },
-    { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), detail: top?.company_name || 'No overall score yet', Icon: Trophy, tone: 'amber' },
-    { id: 'attention', label: 'Overdue follow-up', value: needCount, detail: overdueDetail, Icon: TriangleAlert, tone: 'rose' },
+    { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), valueSecondary: top?.company_name, valueSecondaryClassName: 'text-xs', Icon: Trophy, tone: 'amber' },
+    { id: 'attention', label: 'Overdue follow-up', value: needCount, Icon: TriangleAlert, tone: 'rose' },
+  ];
+  const esgScoreMetrics = [
+    { id: 'excellent-score', label: 'Excellent Score', value: distribution[0].value, Icon: CheckCircle2 },
+    { id: 'good-score', label: 'Good', value: distribution[1].value, Icon: CircleDot },
+    { id: 'improve-score', label: 'Improve', value: distribution[2].value, Icon: Target },
+    { id: 'critical-score', label: 'Critical', value: distribution[3].value, Icon: TriangleAlert },
   ];
 
   const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
   const toggleRankingSort = (key) => { setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' })); setRankingPage(1); };
-  const switchToDetails = () => setTab('table');
   const updateSearch = (value) => { setSearch(value); setRankingPage(1); };
 
   return <TooltipProvider><div className="space-y-7" data-testid="supplier-ranking">
@@ -126,10 +125,9 @@ export default function SupplierRanking() {
         </Select>
       </div>
     </header>
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="Supplier ranking summary">{metrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section>
-    <Tabs value={tab} onValueChange={setTab} className="space-y-6"><TabsList className="grid h-auto w-full grid-cols-2 rounded-none border-b border-stone-200 bg-transparent p-0 md:max-w-3xl md:grid-cols-4" data-testid="supplier-ranking-tabs"><TabsTrigger value="overview" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-overview-tab"><ChartPie className="h-4 w-4" aria-hidden="true" />Overview</TabsTrigger><TabsTrigger value="esg" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-esg-tab"><ChartLine className="h-4 w-4" aria-hidden="true" />ESG analysis</TabsTrigger><TabsTrigger value="emissions" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-emissions-tab"><CloudDownload className="h-4 w-4" aria-hidden="true" />Emissions</TabsTrigger><TabsTrigger value="table" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-details-tab"><BarChart3 className="h-4 w-4" aria-hidden="true" />Detailed rankings</TabsTrigger></TabsList>
-      <TabsContent value="overview">{tab === 'overview' && <RankingOverviewTab attention={attention} distribution={distribution} modules={modules} needCount={needCount} oldestOverdueDays={oldestOverdueDays} onReview={openDetail} onViewAll={switchToDetails} overall={overall} riskMatrix={riskMatrix} statusRows={rankings} />}</TabsContent>
-      <TabsContent value="esg">{tab === 'esg' && <RankingEsgTab averages={stats.averages} distribution={distribution} esg={esg} onReview={openDetail} onViewRankings={switchToDetails} overall={overall} />}</TabsContent>
+    <Tabs value={tab} onValueChange={setTab} className="space-y-6"><TabsList className="grid h-auto w-full grid-cols-2 rounded-none border-b border-stone-200 bg-transparent p-0 md:max-w-3xl md:grid-cols-4" data-testid="supplier-ranking-tabs"><TabsTrigger value="overview" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-overview-tab"><ChartPie className="h-4 w-4" aria-hidden="true" />Overview</TabsTrigger><TabsTrigger value="esg" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-esg-tab"><ChartLine className="h-4 w-4" aria-hidden="true" />ESG</TabsTrigger><TabsTrigger value="emissions" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-analysis-tab"><CloudDownload className="h-4 w-4" aria-hidden="true" />Analysis</TabsTrigger><TabsTrigger value="table" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-details-tab"><BarChart3 className="h-4 w-4" aria-hidden="true" />Detailed Ranking</TabsTrigger></TabsList>
+      <TabsContent value="overview">{tab === 'overview' && <section className="space-y-6" data-testid="supplier-ranking-overview-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="Supplier ranking summary" data-testid="supplier-ranking-overview-metrics">{metrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingOverviewTab distribution={distribution} modules={modules} overall={overall} riskMatrix={riskMatrix} /></section>}</TabsContent>
+      <TabsContent value="esg">{tab === 'esg' && <section className="space-y-6" data-testid="supplier-ranking-esg-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="ESG score distribution summary" data-testid="supplier-ranking-esg-metrics">{esgScoreMetrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingEsgTab averages={stats.averages} distribution={distribution} esg={esg} overall={overall} /></section>}</TabsContent>
       <TabsContent value="emissions">{tab === 'emissions' && <RankingEmissionsTab emissions={emissionsAnalytics.supplierTotals} emissionsAnalytics={emissionsAnalytics} scopeTotals={emissionsAnalytics.scopeTotals} />}</TabsContent>
       <TabsContent value="table">{tab === 'table' && <DetailedRankingTab loading={loading} onPageChange={setRankingPage} onRefresh={load} onReview={openDetail} onSearchChange={updateSearch} onSort={toggleRankingSort} page={rankingPage} pageCount={rankingPageCount} rankingEnd={rankingEnd} rankingStart={rankingStart} rows={rows} search={search} sort={rankingSort} visibleRows={visibleRankingRows} />}</TabsContent>
     </Tabs>
