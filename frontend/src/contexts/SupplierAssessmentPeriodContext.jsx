@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
+import { isFutureSupplierAssessmentPeriod } from '../modules/supplier-assessment/utils/supplierAssessmentPeriods';
 
 const SupplierAssessmentPeriodContext = createContext(null);
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -21,9 +22,13 @@ export const SupplierAssessmentPeriodProvider = ({ children }) => {
       .then((response) => {
         const data = response.data || {};
         const configuredType = data.reporting_year_type === 'calendar_year' ? 'CY' : 'FY';
+        const defaultPeriod = canonicalSupplierAssessmentPeriod(data.default_period);
         const savedPeriod = canonicalSupplierAssessmentPeriod(localStorage.getItem(storageKey));
-        const selectedPeriod = savedPeriod?.startsWith(configuredType) ? savedPeriod : canonicalSupplierAssessmentPeriod(data.default_period);
-        const availablePeriods = [...new Set([...(data.periods || []).map(canonicalSupplierAssessmentPeriod), selectedPeriod].filter(Boolean))];
+        const selectedPeriod = savedPeriod?.startsWith(configuredType) && !isFutureSupplierAssessmentPeriod(savedPeriod, defaultPeriod, data.reporting_year_type)
+          ? savedPeriod
+          : defaultPeriod;
+        const availablePeriods = [...new Set([...(data.periods || []).map(canonicalSupplierAssessmentPeriod), selectedPeriod]
+          .filter((period) => period && !isFutureSupplierAssessmentPeriod(period, defaultPeriod, data.reporting_year_type)))];
         setPeriods(availablePeriods);
         if (selectedPeriod) {
           setReportingPeriodState(selectedPeriod);
