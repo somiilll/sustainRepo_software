@@ -1,13 +1,11 @@
 import React from 'react';
-import { ArrowRight, CheckCircle2, CircleDot, MoreHorizontal, TriangleAlert } from 'lucide-react';
+import { ArrowRight, CheckCircle2, CircleDot, TriangleAlert } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '../../../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { initials, scoreMeta, scoreText } from './rankingUtils';
 import { SupplierRequirementProgress } from './SupplierRequirementProgress';
 import { SupplierSustainabilityRiskMatrix } from './SupplierSustainabilityRiskMatrix';
-
-const MoreIndicator = ({ id }) => <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-100 bg-white text-stone-600 shadow-sm" data-testid={id}><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></span>;
 
 const ScoreBand = ({ detail, Icon, id, label, tone, value }) => {
   const themes = {
@@ -19,11 +17,20 @@ const ScoreBand = ({ detail, Icon, id, label, tone, value }) => {
   return <Card className="group relative overflow-hidden rounded-xl border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-summary`}><span className={`absolute inset-x-0 top-0 h-1.5 ${theme.edge}`} aria-hidden="true" /><CardContent className="flex min-h-[126px] flex-col justify-between p-4 pt-5"><div className="flex items-center gap-2.5"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${theme.icon}`} data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-5 w-5" aria-hidden="true" /></span><p className="text-xs font-semibold uppercase text-stone-600">{label}</p></div><div><p className="text-3xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-count`}>{value}</p><p className="mt-1 truncate text-xs text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p></div></CardContent></Card>;
 };
 
-export const RankingOverviewTab = ({ attention, distribution, modules, needCount, onReview, onViewAll, overall, riskMatrix, statusRows }) => <section className="space-y-3 [&_.rounded-lg]:rounded-xl" data-testid="supplier-ranking-overview-panel">
-  <section className="grid gap-4 lg:grid-cols-3" data-testid="supplier-ranking-status-summary"><ScoreBand id="excellent" label="Excellent" value={distribution[0].value} detail="Overall score 80–100" Icon={CheckCircle2} tone="emerald" /><ScoreBand id="good" label="Good" value={distribution[1].value} detail="Overall score 60–79" Icon={CircleDot} tone="blue" /><ScoreBand id="needs-attention" label="Overdue follow-up" value={needCount} detail="Incomplete tasks past due" Icon={TriangleAlert} tone="red" /></section>
+export const RankingOverviewTab = ({ attention, distribution, modules, needCount, oldestOverdueDays, onReview, onViewAll, overall, riskMatrix, statusRows }) => {
+  const overdueDetail = oldestOverdueDays !== null && oldestOverdueDays !== undefined
+    ? `Oldest overdue ${oldestOverdueDays} ${oldestOverdueDays === 1 ? 'day' : 'days'}`
+    : 'Incomplete tasks past due';
+
+  return <section className="space-y-3 [&_.rounded-lg]:rounded-xl" data-testid="supplier-ranking-overview-panel">
+    <section className="grid gap-4 lg:grid-cols-3" data-testid="supplier-ranking-status-summary">
+      <ScoreBand id="excellent" label="Excellent" value={distribution[0].value} detail="Overall score 80–100" Icon={CheckCircle2} tone="emerald" />
+      <ScoreBand id="good" label="Good" value={distribution[1].value} detail="Overall score 60–79" Icon={CircleDot} tone="blue" />
+      <ScoreBand id="needs-attention" label="Overdue follow-up" value={needCount} detail={overdueDetail} Icon={TriangleAlert} tone="red" />
+    </section>
 
   <section className="grid gap-4 xl:grid-cols-2" data-testid="supplier-ranking-overview-score-row">
-    <Card className="overflow-hidden rounded-lg border-stone-100 bg-white shadow-[0_6px_18px_rgba(28,25,23,0.05)]" data-testid="supplier-score-distribution-card"><CardHeader className="flex-row items-start justify-between border-b-0 pb-0"><div><CardTitle className="text-base text-stone-900">Overall score distribution</CardTitle><p className="mt-0.5 text-xs text-stone-500">Suppliers by overall score band</p></div><MoreIndicator id="supplier-score-distribution-more-indicator" /></CardHeader><CardContent className="pt-2">{overall.length ? <ResponsiveContainer width="100%" height={172}><BarChart data={distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}><CartesianGrid vertical={false} stroke="#e7e5e4" strokeDasharray="2 2" /><XAxis dataKey="name" tick={{ fontSize: 11, fill: '#57534e' }} interval={0} tickLine={false} axisLine={{ stroke: '#d6d3d1' }} tickFormatter={(label) => label === 'Needs improvement' ? 'Improve' : label} /><YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#57534e' }} tickLine={false} axisLine={{ stroke: '#d6d3d1' }} /><Tooltip cursor={{ fill: '#fafaf9' }} /><Bar dataKey="value" radius={[4, 4, 0, 0]}>{distribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-14 text-center text-sm text-stone-500" data-testid="supplier-score-distribution-empty">No overall scores yet.</p>}</CardContent></Card>
+    <Card className="overflow-hidden rounded-lg border-stone-100 bg-white shadow-[0_6px_18px_rgba(28,25,23,0.05)]" data-testid="supplier-score-distribution-card"><CardHeader className="border-b-0 pb-0"><div><CardTitle className="text-base text-stone-900">Overall score distribution</CardTitle><p className="mt-0.5 text-xs text-stone-500">Suppliers by overall score band</p></div></CardHeader><CardContent className="pt-2">{overall.length ? <ResponsiveContainer width="100%" height={172}><BarChart data={distribution} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}><CartesianGrid vertical={false} stroke="#e7e5e4" strokeDasharray="2 2" /><XAxis dataKey="name" tick={{ fontSize: 11, fill: '#57534e' }} interval={0} tickLine={false} axisLine={{ stroke: '#d6d3d1' }} tickFormatter={(label) => label === 'Needs improvement' ? 'Improve' : label} /><YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#57534e' }} tickLine={false} axisLine={{ stroke: '#d6d3d1' }} /><Tooltip cursor={{ fill: '#fafaf9' }} /><Bar dataKey="value" radius={[4, 4, 0, 0]}>{distribution.map((item) => <Cell key={item.name} fill={item.color} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-14 text-center text-sm text-stone-500" data-testid="supplier-score-distribution-empty">No overall scores yet.</p>}</CardContent></Card>
     <Card className="overflow-hidden rounded-lg border-stone-100 bg-white shadow-[0_6px_18px_rgba(28,25,23,0.05)]" data-testid="supplier-module-coverage-card"><CardHeader className="border-b-0 pb-0"><CardTitle className="text-base text-stone-900">Assessment module coverage</CardTitle><p className="mt-0.5 text-xs text-stone-500">Completion across assigned suppliers</p></CardHeader><CardContent className="pt-2">{modules.length ? <ResponsiveContainer width="100%" height={172}><BarChart data={modules} layout="vertical" margin={{ top: 4, right: 10, left: 0, bottom: 0 }}><CartesianGrid horizontal={false} stroke="#e7e5e4" strokeDasharray="2 2" /><XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#57534e' }} tickLine={false} axisLine={{ stroke: '#d6d3d1' }} tickFormatter={(value) => `${value}%`} /><YAxis type="category" dataKey="name" width={82} tick={{ fontSize: 12, fill: '#44403c' }} tickLine={false} axisLine={false} /><Tooltip formatter={(value) => [`${value}%`, 'Completion']} cursor={{ fill: '#fafaf9' }} /><Bar dataKey="completion" radius={[0, 4, 4, 0]}>{modules.map((item) => <Cell key={item.name} fill={scoreMeta(item.completion).color} />)}</Bar></BarChart></ResponsiveContainer> : <p className="py-14 text-center text-sm text-stone-500" data-testid="supplier-module-coverage-empty">No modules configured.</p>}</CardContent></Card>
   </section>
 
@@ -35,3 +42,4 @@ export const RankingOverviewTab = ({ attention, distribution, modules, needCount
   <SupplierSustainabilityRiskMatrix matrix={riskMatrix} />
   <section className="grid gap-4 xl:grid-cols-2" data-testid="supplier-requirement-progress-row"><SupplierRequirementProgress rows={statusRows} type="documents" /><SupplierRequirementProgress rows={statusRows} type="training" /></section>
 </section>;
+};

@@ -711,11 +711,13 @@ class SupplierRankingEntry(BaseModel):
     governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
+    overall_completion_percent: Optional[float] = None
     completion_status: str
     status_label: Optional[str] = None
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
     overdue_modules: List[str] = []
+    oldest_overdue_days: Optional[int] = None
     module_progress: Dict[str, float] = {}
     due_date: Optional[str] = None
     revenue_percentage: Optional[float] = None
@@ -739,6 +741,7 @@ class AverageScores(BaseModel):
     environment: Optional[float] = None
     social: Optional[float] = None
     governance: Optional[float] = None
+    overall_completion: Optional[float] = None
 
 
 class SupplierRankingResponse(BaseModel):
