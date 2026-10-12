@@ -40,10 +40,11 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
   }, []);
 
   const recordMedia = (element, force = false) => {
-    const position = Math.floor(element.currentTime || 0);
+    const playbackPosition = force && viewer.duration_seconds ? viewer.duration_seconds : element.currentTime || 0;
+    const position = Math.floor(playbackPosition);
     if (force || position - lastMediaSecond.current >= 10) {
       lastMediaSecond.current = position;
-      record({ event_type: 'media_progress', position_seconds: element.currentTime || 0 });
+      record({ event_type: 'media_progress', position_seconds: playbackPosition });
     }
   };
 
