@@ -212,6 +212,8 @@ async def supplier_trainings(relationship: Dict[str, Any]):
 async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str, highest_page_index: Optional[int] = None):
     if not 0 <= percent <= 100:
         raise ValueError("Progress must be between 0 and 100")
+    if percent >= 99.5:
+        percent = 100.0
     assignment=await db.supplier_training_assignments.find_one({"id":assignment_id,"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0})
     if not assignment: return None
     requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"]},{"_id":0})

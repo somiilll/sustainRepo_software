@@ -256,6 +256,11 @@ async def test_update_progress_status_lifecycle_and_version_id_immutable(monkeyp
     assert status_done["training_version_id"] == "training-version-immutable"
     assert status_done["completed_at"] is not None
 
+    fake_db.supplier_training_requirements.docs[0]["completion_threshold"] = 100
+    rounded_completion = await training_service.update_progress(relationship, "assignment-1", 99.98, "supplier-user")
+    assert rounded_completion["progress_percent"] == 100.0
+    assert rounded_completion["status"] == "completed"
+
     with pytest.raises(ValueError, match="between 0 and 100"):
         await training_service.update_progress(relationship, "assignment-1", 101, "supplier-user")
 
@@ -340,15 +345,19 @@ async def test_training_module_completion_empty_and_completed_paths():
     # module_registry.TrainingAssessmentModule completion contract
     module = TrainingAssessmentModule()
 
-    empty_db = _DB(supplier_training_assignments=[], supplier_training_progress=[])
+    empty_db = _DB(supplier_training_assignments=[], supplier_training_requirements=[], supplier_training_progress=[])
     empty_completion = await module.get_completion(empty_db, {"id": "relationship-1"})
     assert empty_completion.completion_percent == 0.0
     assert empty_completion.is_applicable is False
 
     populated_db = _DB(
         supplier_training_assignments=[
-            {"id": "a1", "supplier_relationship_id": "relationship-1", "is_active": True, "requirement_version_id": "v1"},
-            {"id": "a2", "supplier_relationship_id": "relationship-1", "is_active": True, "requirement_version_id": "v2"},
+            {"id": "a1", "supplier_relationship_id": "relationship-1", "is_active": True, "training_requirement_id": "requirement-1", "requirement_version_id": "v1"},
+            {"id": "a2", "supplier_relationship_id": "relationship-1", "is_active": True, "training_requirement_id": "requirement-2", "requirement_version_id": "v2"},
+        ],
+        supplier_training_requirements=[
+            {"id": "requirement-1", "is_active": True, "is_deleted": False},
+            {"id": "requirement-2", "is_active": True, "is_deleted": False},
         ],
         supplier_training_progress=[
             {"training_assignment_id": "a1", "supplier_relationship_id": "relationship-1", "status": "completed"},
