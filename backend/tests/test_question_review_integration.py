@@ -109,7 +109,38 @@ async def test_per_question_review_lifecycle():
         assert question_item["is_unlocked_for_edit"] is True
         assert question_item["review"]["reviewer_note"] == "Please attach certification document."
 
-        # 3. Supplier resubmits only unlocked question
+        # 3. A clarification draft must not reopen the whole questionnaire.
+        draft_res = await supplier_service.submit_supplier_answers(
+            questionnaire_id=questionnaire_id,
+            supplier_relationship_id=rel_id,
+            supplier_org_id=supplier_org_id,
+            answers=[{"question_id": q_id, "answer": True, "clarification_reply": "I am preparing the certification evidence."}],
+            is_draft=True,
+            data_verified=False,
+        )
+        assert draft_res["status"] == "submitted"
+        draft_response = await db.supplier_questionnaire_responses.find_one(
+            {"questionnaire_id": questionnaire_id, "supplier_relationship_id": rel_id},
+            {"_id": 0},
+        )
+        assert draft_response["status"] == "submitted"
+        assert draft_response["has_unlocked_questions"] is True
+        assert q_id in draft_response["unlocked_question_ids"]
+
+        # Parent review list should continue to show this submitted response
+        # while supplier is only saving clarification drafts.
+        parent_submissions_after_draft = await supplier_service.get_questionnaire_submissions_for_admin(
+            customer_org_id=customer_org_id,
+            questionnaire_id=questionnaire_id,
+            reporting_period=reporting_period,
+        )
+        assert parent_submissions_after_draft is not None
+        assert any(
+            item.get("supplier_id") == rel_id
+            for item in parent_submissions_after_draft.get("submissions", [])
+        )
+
+        # 4. Supplier resubmits only unlocked question
         resubmit_res = await supplier_service.submit_supplier_answers(
             questionnaire_id=questionnaire_id,
             supplier_relationship_id=rel_id,
@@ -131,7 +162,20 @@ async def test_per_question_review_lifecycle():
         assert resp_after["question_reviews"][q_id]["unlocked_for_supplier"] is False
         assert resp_after["question_reviews"][q_id].get("resubmitted_at") is not None
 
-        # 4. Parent reviews again: Rejects without resubmission with approved score 3.0 and rationale
+        # After explicit clarification resubmission, supplier should still
+        # be discoverable in parent review submissions.
+        parent_submissions_after_resubmit = await supplier_service.get_questionnaire_submissions_for_admin(
+            customer_org_id=customer_org_id,
+            questionnaire_id=questionnaire_id,
+            reporting_period=reporting_period,
+        )
+        assert parent_submissions_after_resubmit is not None
+        assert any(
+            item.get("supplier_id") == rel_id
+            for item in parent_submissions_after_resubmit.get("submissions", [])
+        )
+
+        # 5. Parent reviews again: Rejects without resubmission with approved score 3.0 and rationale
         review_final = await supplier_service.review_supplier_question_response(
             supplier_relationship_id=rel_id,
             questionnaire_id=questionnaire_id,

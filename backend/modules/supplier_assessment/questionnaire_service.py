@@ -1560,7 +1560,10 @@ async def submit_supplier_answers(
         evidence_to_remove.extend(question_evidence.pop(question_id, []) or [])
         reused_evidence.pop(question_id, None)
     
-    status = "in_progress" if is_draft else "submitted"
+    # A clarification draft changes only an already-unlocked question. Keep the
+    # parent-visible questionnaire submission locked and reviewable until the
+    # supplier explicitly resubmits the clarification.
+    status = "submitted" if is_partially_unlocked else "in_progress" if is_draft else "submitted"
     submitted_at = None if is_draft else datetime.now(timezone.utc).isoformat()
     if submitted_at:
         for qid in answers_dict:
