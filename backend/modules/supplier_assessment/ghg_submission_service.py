@@ -391,17 +391,28 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             if entry.get("reporting_period") in allowed_entry_periods
         )
         submitted_scope_totals = period_submitted_scope_totals(submitted_entries, allowed_entry_periods)
+        legacy_submitted_entries = [
+            entry for entry in submitted_entries
+            if entry.get("reporting_period") in allowed_entry_periods
+        ]
+        legacy_submission_at = min(
+            (entry.get("submitted_to_parent_org") for entry in legacy_submitted_entries if entry.get("submitted_to_parent_org")),
+            default=None,
+        )
+        effective_status = record.get("status") or (
+            "submitted" if legacy_submission_at and not unsubmitted_entry_count else None
+        )
         is_future = date.fromisoformat(definition["period_start"]) > today
-        is_overdue = not is_future and record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
+        is_overdue = not is_future and effective_status != "submitted" and date.fromisoformat(definition["due_date"]) < today
         status = submission_period_display_status(
-            record.get("status"), bool(unsubmitted_entry_count), is_overdue, is_future,
+            effective_status, bool(unsubmitted_entry_count), is_overdue, is_future,
         )
         periods.append({
             "id": record.get("id") or definition["period_key"],
             **definition,
             "status": status,
             "revision": int(record.get("revision") or 0),
-            "submitted_at": record.get("submitted_at"),
+            "submitted_at": record.get("submitted_at") or legacy_submission_at,
             "submitted_by": record.get("submitted_by"),
             "unlocked_at": record.get("unlocked_at"),
             "unlocked_by": record.get("unlocked_by"),

@@ -97,10 +97,13 @@ class GhgAssessmentModule(SupplierAssessmentModule):
             )
             periods = await get_supplier_ghg_submission_periods(relationship)
             due_periods = submission_periods_due_through_today(periods)
-            submitted_periods = sum(period["status"] == "submitted" for period in due_periods)
+            completion_periods = due_periods or [
+                period for period in periods if period["status"] == "submitted"
+            ]
+            submitted_periods = sum(period["status"] == "submitted" for period in completion_periods)
             return ModuleCompletion(
                 self.module_code,
-                (submitted_periods / len(due_periods)) * 100 if due_periods else 0.0,
+                (submitted_periods / len(completion_periods)) * 100 if completion_periods else 0.0,
                 self.legacy_completion_field,
             )
         query = {
