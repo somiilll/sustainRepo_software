@@ -710,7 +710,7 @@ export default function SupplierList() {
                 <Label className="text-base font-medium">Assessment Modules *</Label>
                 <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
               </div>
-              <div className={`grid gap-4 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
+              <div className={`grid gap-5 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
                 {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-4 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
@@ -728,7 +728,7 @@ export default function SupplierList() {
                     <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-questionnaire-assignment-options">
                       <Label className="text-sm font-medium">Assign ESG questionnaire(s)</Label>
                       <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {questionnaires.map((questionnaire) => (
                           <label key={questionnaire.id} className="flex items-center justify-between gap-3 text-sm">
                             <span className="flex items-center gap-2 min-w-0">
@@ -763,7 +763,7 @@ export default function SupplierList() {
                     <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-ghg-scope-options">
                       <Label className="text-sm font-medium">GHG Scopes</Label>
                       <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
-                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                      <div className="flex flex-wrap gap-x-5 gap-y-3">
                         <div className="flex items-center gap-2">
                     <Checkbox
                       id="scope-1"
@@ -802,8 +802,8 @@ export default function SupplierList() {
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="mt-5 grid gap-5 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><FileText className="h-4 w-4 text-teal-600" />Documents</span><div className="space-y-2.5 pt-1">{documents.map((document) => <label key={document.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 min-w-0"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span></span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></label>)}</div></div>}
-                {trainings.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><GraduationCap className="h-4 w-4 text-amber-600" />Training</span><div className="space-y-2.5 pt-1">{trainings.map((training) => <label key={training.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 min-w-0"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span></span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></label>)}</div></div>}
+                {documents.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><FileText className="h-4 w-4 text-teal-600" />Documents</span><div className="space-y-3 border-t border-stone-100 pt-3" data-testid="new-supplier-document-options">{documents.map((document) => <label key={document.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex min-w-0 items-center gap-2"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span></span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></label>)}</div></div>}
+                {trainings.length > 0 && <div className="space-y-3 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><GraduationCap className="h-4 w-4 text-amber-600" />Training</span><div className="space-y-3 border-t border-stone-100 pt-3" data-testid="new-supplier-training-options">{trainings.map((training) => <label key={training.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex min-w-0 items-center gap-2"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span></span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></label>)}</div></div>}
               </div>
             )}
           </div>
