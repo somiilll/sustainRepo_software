@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../../../components
 
 const formatEmissions = (value) => Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const SERIES = [
-  { key: 'total_attributed_emissions', name: 'Total', stroke: '#0f766e', fill: '#0f766e', opacity: 0.1 },
+  { key: 'total_attributed_emissions', name: 'Total', stroke: '#334155', fill: '#334155', opacity: 0.1 },
   { key: 'scope1_attributed_emissions', name: 'Scope 1', stroke: '#059669', fill: '#059669', opacity: 0.05 },
   { key: 'scope2_attributed_emissions', name: 'Scope 2', stroke: '#2563eb', fill: '#2563eb', opacity: 0.05 },
 ];

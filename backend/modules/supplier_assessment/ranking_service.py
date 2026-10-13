@@ -335,13 +335,14 @@ async def get_supplier_rankings(
             for category, score in category_scores.items():
                 if score is None:
                     continue
-                record = category_totals.setdefault(category, {"total": 0.0, "count": 0.0})
+                key = f"{pillar}:{category}"
+                record = category_totals.setdefault(key, {"pillar": pillar, "category": category, "total": 0.0, "count": 0.0})
                 record["total"] += float(score)
                 record["count"] += 1
     category_insights = sorted(
         [
-            {"category": category, "average_score": round(values["total"] / values["count"], 1), "supplier_count": int(values["count"])}
-            for category, values in category_totals.items()
+            {"pillar": values["pillar"], "category": values["category"], "average_score": round(values["total"] / values["count"], 1), "supplier_count": int(values["count"])}
+            for values in category_totals.values()
             if values["count"]
         ],
         key=lambda item: item["average_score"],
