@@ -329,9 +329,9 @@ async def get_supplier_rankings(
     for response in current_responses.values():
         if response.get("status") != "submitted":
             continue
-        breakdown = response.get("score_breakdown") or {}
+        section_scores = (response.get("score_breakdown") or {}).get("section_scores") or {}
         for pillar in ("environment", "social", "governance"):
-            category_scores = (breakdown.get(pillar) or {}).get("category_scores") or {}
+            category_scores = (section_scores.get(pillar) or {}).get("category_scores") or {}
             for category, score in category_scores.items():
                 if score is None:
                     continue

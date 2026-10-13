@@ -2301,11 +2301,11 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
     relationship = await self.get_supplier(supplier_relationship_id)
     if not relationship:
         return {"esg": [], "esg_items": [], "ghg": {"status": "pending"}, "documents": [], "training": []}
-    submitted_responses = await db.supplier_questionnaire_responses.find(
-        {"supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "status": "submitted", "parent_visible": {"$ne": False}},
-        {"_id": 0, "questionnaire_id": 1, "submitted_at": 1, "revision": 1},
+    current_responses = await db.supplier_questionnaire_responses.find(
+        {"supplier_relationship_id": supplier_relationship_id, "reporting_period": (relationship or {}).get("reporting_period"), "is_current": True},
+        {"_id": 0, "questionnaire_id": 1, "status": 1, "submitted_at": 1, "revision": 1, "parent_visible": 1},
     ).to_list(100)
-    submitted_by_questionnaire = {item["questionnaire_id"]: item for item in submitted_responses}
+    response_by_questionnaire = {item["questionnaire_id"]: item for item in current_responses}
     questionnaire_ids = relationship.get("questionnaire_ids") or []
     questionnaire_query: Dict[str, Any] = {
         "organization_id": relationship["customer_org_id"],
@@ -2320,13 +2320,13 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
     ).to_list(500)
     esg_items = []
     for questionnaire in questionnaires:
-        submitted = submitted_by_questionnaire.get(questionnaire["id"])
+        response = response_by_questionnaire.get(questionnaire["id"])
+        status = "submitted" if response and response.get("status") == "submitted" and response.get("parent_visible") is not False else "in_progress" if response else "pending"
         esg_items.append({
             "questionnaire_id": questionnaire["id"],
             "name": questionnaire.get("name", "Questionnaire"),
-            "status": "locked" if submitted else "pending",
-            "locked_at": submitted.get("submitted_at") if submitted else None,
-            "submitted_at": submitted.get("submitted_at") if submitted else None,
+            "status": status,
+            "submitted_at": response.get("submitted_at") if response else None,
             "due_date": relationship.get("due_date"),
         })
     from modules.supplier_assessment.ghg_submission_service import reporting_period_values
@@ -2339,10 +2339,14 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
         {"_id": 0, "submitted_to_parent_org": 1},
     ).to_list(1000)
     locked_at = min((entry.get("submitted_to_parent_org") for entry in ghg_entries if entry.get("submitted_to_parent_org")), default=None)
+    ghg_resubmission = await db.supplier_ghg_submissions.find_one(
+        {"relationship_id": supplier_relationship_id, "status": "unlocked"},
+        {"_id": 0, "id": 1},
+    )
     from modules.supplier_assessment.documents_service import list_supplier_documents
     from modules.supplier_assessment.training_service import supplier_trainings
     documents = [
-        {"id": item["id"], "name": item.get("title", "Document"), "status": "locked" if item.get("submission_status") == "submitted" else "pending", "locked_at": item.get("responded_at"), "due_date": item.get("due_date") or relationship.get("due_date")}
+        {"id": item["id"], "name": item.get("title", "Document"), "status": "submitted" if item.get("submission_status") == "submitted" else "in_progress" if item.get("submission_status") in {"draft", "reopened"} else "pending", "submitted_at": item.get("responded_at"), "due_date": item.get("due_date") or relationship.get("due_date")}
         for item in await list_supplier_documents(relationship)
     ]
     training = [
@@ -2358,9 +2362,9 @@ async def get_supplier_submission_status(self, supplier_relationship_id: str) ->
         "training": bool((program_modules.get("training") or {}).get("enabled", False)) and bool(training),
     }
     return {
-        "esg": [item for item in esg_items if item["status"] == "locked"],
+        "esg": [item for item in esg_items if item["status"] == "submitted"],
         "esg_items": esg_items,
-        "ghg": {"status": "locked" if ghg_entries else "pending", "locked_at": locked_at, "entry_count": len(ghg_entries), "due_date": relationship.get("due_date")},
+        "ghg": {"status": "in_progress" if ghg_resubmission else "submitted" if ghg_entries else "pending", "submitted_at": locked_at, "entry_count": len(ghg_entries), "due_date": relationship.get("due_date")},
         "documents": documents,
         "training": training,
         "module_visibility": module_visibility,
