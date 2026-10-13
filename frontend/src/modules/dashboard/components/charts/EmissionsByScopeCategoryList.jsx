@@ -28,7 +28,7 @@ function getCategoryVisual(item) {
   return scope;
 }
 
-export default function EmissionsByScopeCategoryList({ data = [], showScope3 = true, viewAllPath = '/emissions' }) {
+export default function EmissionsByScopeCategoryList({ data = [], showDescription = true, showScope3 = true, viewAllInFilters = false, viewAllPath = '/emissions' }) {
   const [activeScope, setActiveScope] = useState('all');
   const navigate = useNavigate();
 
@@ -53,7 +53,7 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-stone-900" data-testid="emissions-by-scope-category-title">Emissions by Scope &amp; Category</h3>
-            <p className="mt-0.5 text-xs text-stone-500">Breakdown of total emissions across scopes and categories</p>
+            {showDescription && <p className="mt-0.5 text-xs text-stone-500">Breakdown of total emissions across scopes and categories</p>}
           </div>
         </div>
         <div className="shrink-0 text-right" data-testid="emissions-by-scope-category-total">
@@ -80,6 +80,7 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
             {filter.label}
           </button>
         ))}
+        {viewAllInFilters && <button type="button" onClick={() => navigate(viewAllPath)} className="ml-auto inline-flex items-center gap-1 border border-transparent px-1 text-xs font-semibold text-teal-700 transition-colors hover:text-teal-900" data-testid="view-all-emission-categories-button">View all GHG data <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></button>}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-stone-100">
@@ -111,9 +112,9 @@ export default function EmissionsByScopeCategoryList({ data = [], showScope3 = t
         ) : (
           <div className="flex h-32 items-center justify-center text-sm text-stone-400" data-testid="emission-category-list-empty">No emission categories for this scope in the selected window.</div>
         )}
-        <div className="flex justify-end bg-stone-50 px-3 py-3">
+        {!viewAllInFilters && <div className="flex justify-end bg-stone-50 px-3 py-3">
           <button type="button" onClick={() => navigate(viewAllPath)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 transition-colors hover:text-teal-900" data-testid="view-all-emission-categories-button">View all GHG data <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></button>
-        </div>
+        </div>}
       </div>
     </div>
   );
