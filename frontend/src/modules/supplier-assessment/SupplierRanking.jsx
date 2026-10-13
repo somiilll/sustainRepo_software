@@ -111,7 +111,7 @@ export default function SupplierRanking() {
   const toggleRankingSort = (key) => { setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' })); setRankingPage(1); };
   const updateSearch = (value) => { setSearch(value); setRankingPage(1); };
 
-  return <TooltipProvider><div className="space-y-5" data-testid="supplier-ranking"><style>{`[data-testid="supplier-ranking-tabs"] [data-state="active"] { background-color: #047857 !important; color: #ffffff !important; box-shadow: 0 1px 2px rgba(6, 78, 59, 0.22) !important; }`}</style>
+  return <TooltipProvider><div className="space-y-5" data-testid="supplier-ranking"><style>{`[data-testid="supplier-ranking-tabs"] { border-radius: 9999px !important; } [data-testid="supplier-ranking-tabs"] button { border-radius: 9999px !important; } [data-testid="supplier-ranking-tabs"] [data-state="active"] { background-color: #065F46 !important; color: #ffffff !important; box-shadow: 0 1px 2px rgba(6, 78, 59, 0.26) !important; }`}</style>
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="supplier-ranking-header">
       <div className="flex items-center gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="supplier-ranking-heading-icon"><Trophy className="h-6 w-6" aria-hidden="true" /></div>
