@@ -24,7 +24,8 @@ const buildRiskMatrix = (rankings, supplierTotals) => {
   const intensityThreshold = values.length ? values[Math.floor(values.length / 2)] : 0;
   const groupCounts = { critical: 0, strategic: 0, priority: 0, developing: 0 };
   const categorized = rows.map((row) => { const highIntensity = row.emissions_intensity >= intensityThreshold && (intensityThreshold > 0 || row.emissions_intensity > 0); const group = highIntensity ? row.esg_score >= 60 ? 'priority' : 'critical' : row.esg_score >= 60 ? 'strategic' : 'developing'; groupCounts[group] += 1; return { ...row, group }; });
-  return { rows: categorized, intensityThreshold, maxIntensity: Math.max(1, ...values) * 1.12, groupCounts };
+  const highestIntensity = Math.max(0, ...values);
+  return { rows: categorized, intensityThreshold, maxIntensity: highestIntensity > 0 ? highestIntensity * 1.12 : 1, maxIntensityLabel: highestIntensity > 0 ? highestIntensity * 1.12 : null, groupCounts };
 };
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
