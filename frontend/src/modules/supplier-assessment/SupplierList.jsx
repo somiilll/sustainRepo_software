@@ -24,7 +24,6 @@ import {
   DialogFooter,
 } from '../../components/ui/dialog';
 import { Label } from '../../components/ui/label';
-import { RadioGroup, RadioGroupItem } from '../../components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { 
@@ -87,7 +86,7 @@ const createSupplierForm = (reportingPeriod) => ({
   modules_enabled: ['esg', 'ghg'],
   ghg_scopes_enabled: ['scope1', 'scope2'],
   ghg_submission_frequency: 'yearly',
-  revenue_required: false,
+  revenue_required: true,
   questionnaire_ids: [],
   document_requirement_ids: [],
   training_requirement_ids: [],
@@ -317,7 +316,7 @@ export default function SupplierList() {
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
       ghg_submission_frequency: supplier.ghg_submission_frequency || 'yearly',
-      revenue_required: supplier.revenue_required === true,
+      revenue_required: true,
       questionnaire_ids: supplier.questionnaire_ids || [],
       document_requirement_ids: supplier.document_requirement_ids || [],
       training_requirement_ids: supplier.training_requirement_ids || [],
@@ -686,22 +685,6 @@ export default function SupplierList() {
                 </div>
                 <Input type="date" min={new Date().toISOString().slice(0, 10)} value={formData.access_revoke_date} onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })} data-testid="supplier-access-revoke-date" />
               </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Label>Is Annual Revenue required?</Label>
-                <FieldInfo label="Annual revenue is required for intensity calculations." testId="annual-revenue-info" />
-              </div>
-              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
-                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-optional">
-                  <RadioGroupItem id="annual-revenue-optional" value="optional" data-testid="annual-revenue-optional-radio" />
-                  Optional
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-required">
-                  <RadioGroupItem id="annual-revenue-required" value="required" data-testid="annual-revenue-required-radio" />
-                  Required
-                </label>
-              </RadioGroup>
-            </div>
             </div>
             
             {/* Module Selection */}
@@ -871,10 +854,6 @@ export default function SupplierList() {
                 onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })}
                 data-testid="edit-supplier-access-revoke-date"
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Is Annual Revenue required?</Label>
-              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-4" data-testid="edit-annual-revenue-required-control"><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="optional" data-testid="edit-annual-revenue-optional-radio" />Optional</label><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="required" data-testid="edit-annual-revenue-required-radio" />Required</label></RadioGroup>
             </div>
             </div>
             

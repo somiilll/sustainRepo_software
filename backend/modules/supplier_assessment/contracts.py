@@ -22,7 +22,7 @@ class SupplierCreate(BaseModel):
     tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
-    revenue_required: bool = False
+    revenue_required: bool = True
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
@@ -68,7 +68,7 @@ class SupplierResponse(BaseModel):
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
-    revenue_required: bool = False
+    revenue_required: bool = True
     parts_components_manufactured: Optional[str] = None
     plant_location: Optional[str] = None
     invitation_status: str  # pending, accepted, completed

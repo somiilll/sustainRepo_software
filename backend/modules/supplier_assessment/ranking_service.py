@@ -215,7 +215,7 @@ async def get_supplier_rankings(
             # If relationship has a due_date, compute days
             overdue_item_days.append(get_overdue_days(s.get("due_date")))
         if (
-            s.get("revenue_required", False)
+            s.get("revenue_required", True)
             and (s["id"], s.get("reporting_period")) not in submitted_revenue_periods
             and due_date_has_passed(s.get("due_date"))
         ):

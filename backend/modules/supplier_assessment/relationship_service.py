@@ -54,7 +54,7 @@ async def create_supplier(
     ghg_scopes_enabled: Optional[List[str]] = None,
     ghg_submission_frequency: str = "yearly",
     reporting_period: Optional[str] = None,
-    revenue_required: bool = False,
+    revenue_required: bool = True,
     questionnaire_ids: Optional[List[str]] = None,
     document_requirement_ids: Optional[List[str]] = None,
     training_requirement_ids: Optional[List[str]] = None,
@@ -69,6 +69,7 @@ async def create_supplier(
     4. Create supplier_relationship record
     """
     validate_due_date(access_revoke_date)
+    revenue_required = True
     company_name = (company_name or "").strip()
     email = (email or "").strip().lower()
     duplicate_supplier = await db.supplier_relationships.find_one(
@@ -748,7 +749,7 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
         raise ValueError("Supplier relationship not found")
     if relationship.get("revenue_percentage") is None:
         raise ValueError("Save the mandatory revenue percentage before submitting")
-    if relationship.get("revenue_required", False) and relationship.get("revenue_amount") is None:
+    if relationship.get("revenue_required", True) and relationship.get("revenue_amount") is None:
         raise ValueError("Save the mandatory annual revenue amount before submitting")
     period = relationship.get("reporting_period") or self._default_reporting_period()
     existing = await db.supplier_revenue_submissions.find_one(
