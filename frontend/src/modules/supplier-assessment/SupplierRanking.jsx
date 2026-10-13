@@ -30,16 +30,16 @@ const buildRiskMatrix = (rankings, supplierTotals) => {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
 
-const RankingMetric = ({ id, label, value, valueSecondary, valueSecondaryClassName = 'text-sm', detail, Icon }) => (
+const RankingMetric = ({ accentColor, iconSurface, id, label, value, valueClassName = 'text-4xl', valueSecondary, valueSecondaryClassName = 'text-sm', detail, Icon }) => (
   <Card className="group relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
-    <span className="absolute inset-x-0 top-0 h-1.5 bg-emerald-800" aria-hidden="true" />
+    <span className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: accentColor }} aria-hidden="true" />
     <CardContent className="flex min-h-[128px] flex-col justify-between p-5 pt-5">
       <div className="flex items-center gap-3">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700" data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-6 w-6" aria-hidden="true" /></span>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: iconSurface, color: accentColor }} data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-6 w-6" aria-hidden="true" /></span>
         <p className="text-xs font-semibold uppercase text-stone-600">{label}</p>
       </div>
       <div>
-        <p className="flex min-w-0 items-baseline gap-2 text-4xl font-semibold text-stone-950" data-testid={`supplier-ranking-${id}-value`}><span>{value}</span>{valueSecondary && <span className={`min-w-0 truncate font-medium text-stone-500 ${valueSecondaryClassName}`} data-testid={`supplier-ranking-${id}-value-secondary`}>{valueSecondary}</span>}</p>
+        <p className={`flex min-w-0 items-baseline gap-2 font-semibold text-stone-950 ${valueClassName}`} data-testid={`supplier-ranking-${id}-value`}><span>{value}</span>{valueSecondary && <span className={`min-w-0 truncate font-medium text-stone-500 ${valueSecondaryClassName}`} data-testid={`supplier-ranking-${id}-value-secondary`}>{valueSecondary}</span>}</p>
         {detail && <p className="mt-1 truncate text-xs text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>}
       </div>
     </CardContent>
@@ -50,7 +50,7 @@ export default function SupplierRanking() {
   const { getAuthHeader } = useAuth();
   const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
   const [rankings, setRankings] = useState([]);
-  const [stats, setStats] = useState({ total: 0, ranked: 0, averages: {}, score_distribution: {}, module_summary: {} });
+  const [stats, setStats] = useState({ total: 0, ranked: 0, averages: {}, score_distribution: {}, module_summary: {}, category_insights: [] });
   const [submittedEmissions, setSubmittedEmissions] = useState(EMPTY_SUBMITTED_EMISSIONS);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview');
@@ -70,7 +70,7 @@ export default function SupplierRanking() {
       if (rankingResult.status === 'rejected') throw rankingResult.reason;
       const data = rankingResult.value.data;
       setRankings(data.rankings || []);
-      setStats({ total: data.total_suppliers || 0, ranked: data.ranked_suppliers || 0, averages: data.averages || {}, score_distribution: data.score_distribution || {}, module_summary: data.module_summary || {} });
+      setStats({ total: data.total_suppliers || 0, ranked: data.ranked_suppliers || 0, averages: data.averages || {}, score_distribution: data.score_distribution || {}, module_summary: data.module_summary || {}, category_insights: data.category_insights || [] });
       if (emissionsResult.status === 'fulfilled') setSubmittedEmissions(emissionsResult.value.data || EMPTY_SUBMITTED_EMISSIONS);
       else { setSubmittedEmissions(EMPTY_SUBMITTED_EMISSIONS); toast.error('Failed to load emissions analytics'); }
     } catch { toast.error('Failed to load rankings'); } finally { setLoading(false); }
@@ -94,17 +94,17 @@ export default function SupplierRanking() {
   const needCount = overdueSuppliers.length;
   const avgOverallCompletion = averageCompletionValue(stats.averages, rankings);
   const metrics = [
-    { id: 'assessed', label: 'Suppliers assessed', value: `${stats.ranked}/${stats.total}`, valueSecondary: 'assigned', Icon: Users, tone: 'stone' },
-    { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), Icon: Target, tone: 'emerald' },
-    { id: 'overall-completion', label: 'Overall Completion', value: completionText(avgOverallCompletion), Icon: CheckCircle2, tone: 'emerald' },
-    { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), valueSecondary: top?.company_name, valueSecondaryClassName: 'text-xs', Icon: Trophy, tone: 'amber' },
-    { id: 'attention', label: 'Overdue follow-up', value: needCount, Icon: TriangleAlert, tone: 'rose' },
+    { id: 'assessed', label: 'Suppliers assessed', value: `${stats.ranked}/${stats.total}`, valueSecondary: 'assigned', Icon: Users, accentColor: '#2563EB', iconSurface: '#DBEAFE' },
+    { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), Icon: Target, accentColor: '#10B981', iconSurface: '#D1FAE5' },
+    { id: 'overall-completion', label: 'Overall Completion', value: completionText(avgOverallCompletion), Icon: CheckCircle2, accentColor: '#F59E0B', iconSurface: '#FEF3C7' },
+    { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), valueSecondary: top?.company_name, valueSecondaryClassName: 'text-xs', Icon: Trophy, accentColor: '#8B5CF6', iconSurface: '#EDE9FE' },
+    { id: 'attention', label: 'Overdue follow-up', value: needCount, Icon: TriangleAlert, accentColor: '#EF4444', iconSurface: '#FEE2E2' },
   ];
   const esgScoreMetrics = [
-    { id: 'excellent-score', label: 'Excellent Score', value: distribution[0].value, Icon: CheckCircle2 },
-    { id: 'good-score', label: 'Good', value: distribution[1].value, Icon: CircleDot },
-    { id: 'improve-score', label: 'Improve', value: distribution[2].value, Icon: Target },
-    { id: 'critical-score', label: 'Critical', value: distribution[3].value, Icon: TriangleAlert },
+    { id: 'excellent-score', label: 'Excellent Score', value: `${distribution[0].value} supplier${distribution[0].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: CheckCircle2, accentColor: '#10B981', iconSurface: '#D1FAE5' },
+    { id: 'good-score', label: 'Good Score', value: `${distribution[1].value} supplier${distribution[1].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: CircleDot, accentColor: '#2563EB', iconSurface: '#DBEAFE' },
+    { id: 'improve-score', label: 'Improve Score', value: `${distribution[2].value} supplier${distribution[2].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: Target, accentColor: '#F59E0B', iconSurface: '#FEF3C7' },
+    { id: 'critical-score', label: 'Critical Score', value: `${distribution[3].value} supplier${distribution[3].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: TriangleAlert, accentColor: '#EF4444', iconSurface: '#FEE2E2' },
   ];
 
   const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
@@ -127,7 +127,7 @@ export default function SupplierRanking() {
     </header>
     <Tabs value={tab} onValueChange={setTab} className="space-y-6"><TabsList className="grid h-auto w-full grid-cols-2 rounded-none border-b border-stone-200 bg-transparent p-0 md:max-w-3xl md:grid-cols-4" data-testid="supplier-ranking-tabs"><TabsTrigger value="overview" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-overview-tab"><ChartPie className="h-4 w-4" aria-hidden="true" />Overview</TabsTrigger><TabsTrigger value="esg" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-esg-tab"><ChartLine className="h-4 w-4" aria-hidden="true" />ESG</TabsTrigger><TabsTrigger value="emissions" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-analysis-tab"><CloudDownload className="h-4 w-4" aria-hidden="true" />Analysis</TabsTrigger><TabsTrigger value="table" className="relative h-12 justify-start gap-2 rounded-none border-b-2 border-transparent bg-transparent px-3 text-stone-500 shadow-none hover:text-stone-900 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-stone-950 data-[state=active]:shadow-none data-[state=active]:[&>svg]:text-emerald-600" data-testid="supplier-ranking-details-tab"><BarChart3 className="h-4 w-4" aria-hidden="true" />Detailed Ranking</TabsTrigger></TabsList>
       <TabsContent value="overview">{tab === 'overview' && <section className="space-y-6" data-testid="supplier-ranking-overview-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="Supplier ranking summary" data-testid="supplier-ranking-overview-metrics">{metrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingOverviewTab distribution={distribution} modules={modules} overall={overall} riskMatrix={riskMatrix} /></section>}</TabsContent>
-      <TabsContent value="esg">{tab === 'esg' && <section className="space-y-6" data-testid="supplier-ranking-esg-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="ESG score distribution summary" data-testid="supplier-ranking-esg-metrics">{esgScoreMetrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingEsgTab averages={stats.averages} distribution={distribution} esg={esg} overall={overall} /></section>}</TabsContent>
+      <TabsContent value="esg">{tab === 'esg' && <section className="space-y-6" data-testid="supplier-ranking-esg-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="ESG score distribution summary" data-testid="supplier-ranking-esg-metrics">{esgScoreMetrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingEsgTab averages={stats.averages} categoryInsights={stats.category_insights} distribution={distribution} esg={esg} overall={overall} /></section>}</TabsContent>
       <TabsContent value="emissions">{tab === 'emissions' && <RankingEmissionsTab emissions={emissionsAnalytics.supplierTotals} emissionsAnalytics={emissionsAnalytics} scopeTotals={emissionsAnalytics.scopeTotals} />}</TabsContent>
       <TabsContent value="table">{tab === 'table' && <DetailedRankingTab loading={loading} onPageChange={setRankingPage} onRefresh={load} onReview={openDetail} onSearchChange={updateSearch} onSort={toggleRankingSort} page={rankingPage} pageCount={rankingPageCount} rankingEnd={rankingEnd} rankingStart={rankingStart} rows={rows} search={search} sort={rankingSort} visibleRows={visibleRankingRows} />}</TabsContent>
     </Tabs>

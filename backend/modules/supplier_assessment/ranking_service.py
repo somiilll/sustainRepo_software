@@ -36,7 +36,7 @@ async def get_supplier_rankings(
     supplier_ids = [supplier["id"] for supplier in suppliers]
     response_docs = await db.supplier_questionnaire_responses.find(
         {"supplier_relationship_id": {"$in": supplier_ids}},
-        {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "revision": 1, "updated_at": 1},
+        {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "score_breakdown": 1, "revision": 1, "updated_at": 1},
     ).sort([("revision", -1), ("updated_at", -1)]).to_list(10000)
     supplier_by_id = {supplier["id"]: supplier for supplier in suppliers}
     ghg_submission_records = await db.supplier_ghg_submissions.find(
@@ -325,6 +325,28 @@ async def get_supplier_rankings(
     avg_social = average_score("social_score")
     avg_gov = average_score("governance_score")
     avg_overall_completion = average_score("overall_completion_percent")
+    category_totals: Dict[str, Dict[str, float]] = {}
+    for response in current_responses.values():
+        if response.get("status") != "submitted":
+            continue
+        breakdown = response.get("score_breakdown") or {}
+        for pillar in ("environment", "social", "governance"):
+            category_scores = (breakdown.get(pillar) or {}).get("category_scores") or {}
+            for category, score in category_scores.items():
+                if score is None:
+                    continue
+                record = category_totals.setdefault(category, {"total": 0.0, "count": 0.0})
+                record["total"] += float(score)
+                record["count"] += 1
+    category_insights = sorted(
+        [
+            {"category": category, "average_score": round(values["total"] / values["count"], 1), "supplier_count": int(values["count"])}
+            for category, values in category_totals.items()
+            if values["count"]
+        ],
+        key=lambda item: item["average_score"],
+        reverse=True,
+    )
     module_summary = {
         code: {
             "configured_suppliers": int(totals["configured_suppliers"]),
@@ -347,4 +369,5 @@ async def get_supplier_rankings(
             "overall_completion": avg_overall_completion,
         },
         "module_summary": module_summary,
+        "category_insights": category_insights,
     }

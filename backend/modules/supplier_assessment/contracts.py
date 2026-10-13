@@ -752,6 +752,7 @@ class SupplierRankingResponse(BaseModel):
     score_distribution: Optional[ScoreDistribution] = None
     averages: Optional[AverageScores] = None
     module_summary: Dict[str, Dict[str, Any]] = {}
+    category_insights: List[Dict[str, Any]] = []
 
 
 # ============================================================================
