@@ -18,13 +18,13 @@ import { averageCompletionValue, completionText, hasValue, moduleName, scoreText
 import { buildSupplierEmissionsAnalytics } from './utils/supplierEmissionsAnalytics';
 
 const buildRiskMatrix = (rankings, supplierTotals) => {
-  const emissionsBySupplier = new Map(supplierTotals.map((row) => [row.supplier_id, row.total_emissions]));
-  const rows = rankings.filter((row) => hasValue(row.esg_score)).map((row) => ({ supplier_id: row.supplier_id, company_name: row.company_name, esg_score: Number(row.esg_score), attributed_emissions: Number(emissionsBySupplier.get(row.supplier_id) || 0) }));
-  const values = rows.map((row) => row.attributed_emissions).sort((first, second) => first - second);
-  const emissionsThreshold = values.length ? values[Math.floor(values.length / 2)] : 0;
+  const intensityBySupplier = new Map(supplierTotals.map((row) => [row.supplier_id, { intensity: row.total_intensity, currency: row.revenue_currency }]));
+  const rows = rankings.filter((row) => hasValue(row.esg_score)).map((row) => ({ supplier_id: row.supplier_id, company_name: row.company_name, esg_score: Number(row.esg_score), emissions_intensity: intensityBySupplier.get(row.supplier_id)?.intensity, revenue_currency: intensityBySupplier.get(row.supplier_id)?.currency })).filter((row) => hasValue(row.emissions_intensity));
+  const values = rows.map((row) => Number(row.emissions_intensity)).sort((first, second) => first - second);
+  const intensityThreshold = values.length ? values[Math.floor(values.length / 2)] : 0;
   const groupCounts = { critical: 0, strategic: 0, priority: 0, developing: 0 };
-  const categorized = rows.map((row) => { const highEmissions = row.attributed_emissions >= emissionsThreshold && (emissionsThreshold > 0 || row.attributed_emissions > 0); const group = highEmissions ? row.esg_score >= 60 ? 'priority' : 'critical' : row.esg_score >= 60 ? 'strategic' : 'developing'; groupCounts[group] += 1; return { ...row, group }; });
-  return { rows: categorized, emissionsThreshold, maxEmissions: Math.max(1, ...values) * 1.12, groupCounts };
+  const categorized = rows.map((row) => { const highIntensity = row.emissions_intensity >= intensityThreshold && (intensityThreshold > 0 || row.emissions_intensity > 0); const group = highIntensity ? row.esg_score >= 60 ? 'priority' : 'critical' : row.esg_score >= 60 ? 'strategic' : 'developing'; groupCounts[group] += 1; return { ...row, group }; });
+  return { rows: categorized, intensityThreshold, maxIntensity: Math.max(1, ...values) * 1.12, groupCounts };
 };
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;

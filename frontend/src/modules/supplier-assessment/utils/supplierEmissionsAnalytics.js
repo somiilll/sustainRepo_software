@@ -35,6 +35,8 @@ export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = 
       scope1_emissions: Number(supplier.scope1 || 0),
       scope2_emissions: Number(supplier.scope2 || 0),
       total_emissions: Number(supplier.total || 0),
+      total_intensity: hasNumber(supplier.total_intensity) ? Number(supplier.total_intensity) : null,
+      revenue_currency: supplier.revenue_currency,
       revenue_percentage: supplier.revenue_percentage,
     }))
     .sort((a, b) => b.total_emissions - a.total_emissions);
