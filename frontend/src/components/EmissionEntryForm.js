@@ -38,6 +38,8 @@ const API = `${BACKEND_URL}/api`;
 
 const createC6TripId = () => `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const EMPTY_SPEND_CURRENCY_MAP = {};
+
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
@@ -1289,7 +1291,9 @@ export default function EmissionEntryForm({
 
   // Get the actual year for a month based on reporting type
   // For financial year: Apr-Dec use selected year, Jan-Mar use selected year + 1
-  const getActualYearForMonth = (monthKey) => {
+  // Stable callback: spend-currency memos depend on it, so a new fn identity
+  // every render would defeat their memoization and loop the defaults fetch.
+  const getActualYearForMonth = useCallback((monthKey) => {
     if (reportingYearType === 'financial') {
       const monthNum = parseInt(monthKey);
       if (monthNum >= 1 && monthNum <= 3) {
@@ -1297,7 +1301,7 @@ export default function EmissionEntryForm({
       }
     }
     return reportingYear;
-  };
+  }, [reportingYearType, reportingYear]);
 
   // Step 4: Notes — moved to useEmissionFormState (F2 integration).
   
@@ -1483,7 +1487,7 @@ export default function EmissionEntryForm({
     || spendValueField?.allowedUnits?.[0]
     || '';
   const spendCurrencyByPeriod = useMemo(() => {
-    if (scope3Method !== 'spend_basis') return {};
+    if (scope3Method !== 'spend_basis') return EMPTY_SPEND_CURRENCY_MAP;
     const map = {};
     if (frequencyType === 'yearly') {
       const yearlyPeriod = reportingYearType === 'financial'
