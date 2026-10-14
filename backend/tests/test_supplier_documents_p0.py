@@ -55,7 +55,10 @@ class _Collection:
                 document.update(update.get("$set", {}))
                 return
         if upsert:
-            self.docs.append(deepcopy(update.get("$set", {})))
+            self.docs.append({
+                **deepcopy(update.get("$setOnInsert", {})),
+                **deepcopy(update.get("$set", {})),
+            })
 
     async def update_many(self, query, update):
         for document in self.docs:
@@ -69,6 +72,8 @@ class _Database:
             setattr(self, name, _Collection(docs))
         if not hasattr(self, "supplier_document_submissions"):
             self.supplier_document_submissions = _Collection()
+        if not hasattr(self, "supplier_document_views"):
+            self.supplier_document_views = _Collection()
 
 
 class _Storage:
@@ -93,6 +98,18 @@ def _relationship(relationship_id, supplier_org_id, program_id="program-1", vers
         "assessment_program_id": program_id,
         "assessment_program_version": version,
     }
+
+
+@pytest.mark.asyncio
+async def test_document_view_persists_supplier_organization_id(monkeypatch):
+    database = _Database(supplier_document_views=[])
+    monkeypatch.setattr(documents_service, "db", database)
+
+    await documents_service.mark_supplier_document_viewed(
+        _relationship("relationship-1", "supplier-1"), "requirement-1", "version-1", "supplier-user-1"
+    )
+
+    assert database.supplier_document_views.docs[0]["supplier_org_id"] == "supplier-1"
 
 
 @pytest.mark.asyncio
@@ -153,6 +170,10 @@ async def test_supplier_isolation_multiple_acceptances_and_immutable_acceptance(
             {"id": "version-1", "original_filename": "nda.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1},
             {"id": "version-2", "original_filename": "other.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1},
         ],
+        supplier_document_views=[
+            {"id": "view-1", "supplier_relationship_id": "relationship-1", "document_requirement_id": "requirement-1"},
+            {"id": "view-2", "supplier_relationship_id": "relationship-2", "document_requirement_id": "requirement-1"},
+        ],
         supplier_document_acceptances=[],
         supplier_document_responses=[],
     )
@@ -182,6 +203,7 @@ async def test_status_response_is_version_bound_and_satisfies_document_completio
     database = _Database(
         supplier_document_requirements=[{"id": "requirement-1", "customer_org_id": "customer-1", "assessment_program_id": "program-1", "assessment_program_version": 1, "document_version_id": "version-1", "response_mode": "STATUS", "response_options": ["I have done it", "I will do it"], "is_active": True, "title": "Supplier policy", "created_at": "2026-01-01"}],
         supplier_document_versions=[{"id": "version-1", "original_filename": "policy.pdf", "content_type": "application/pdf", "file_size": 42, "version_number": 1}],
+        supplier_document_views=[{"id": "view-1", "supplier_relationship_id": "relationship-1", "document_requirement_id": "requirement-1"}],
         supplier_document_acceptances=[], supplier_document_responses=[],
     )
     monkeypatch.setattr(documents_service, "db", database)

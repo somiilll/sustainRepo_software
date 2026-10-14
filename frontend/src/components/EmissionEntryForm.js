@@ -4,6 +4,8 @@ import { Button } from './ui/button';
 import { Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '../lib/uploadUtils';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { calculateFileSha256 } from '../lib/evidenceHash';
 
 // Import Step components for modular form rendering
 import { Step1BasicSelection } from '../modules/ghg/emissions/shared/components/steps/Step1BasicSelection';
@@ -35,6 +37,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const createC6TripId = () => `c6-trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
@@ -636,6 +639,28 @@ export default function EmissionEntryForm({
   
   // Store OCR month/quantity info for deferred application after formConfig loads
   const [ocrPendingQuantity, setOcrPendingQuantity] = useState(null);
+  const [duplicateEvidencePrompt, setDuplicateEvidencePrompt] = useState(null);
+  const duplicateEvidenceResolverRef = useRef(null);
+
+  const resolveDuplicateEvidencePrompt = useCallback((shouldUpload) => {
+    duplicateEvidenceResolverRef.current?.(shouldUpload);
+    duplicateEvidenceResolverRef.current = null;
+    setDuplicateEvidencePrompt(null);
+  }, []);
+
+  const confirmDuplicateEvidence = useCallback((file, sha256Hash, evidences, periodLabel) => {
+    const duplicate = evidences.find((evidence) => (
+      evidence?.filename === file.name
+      && evidence?.sha256_hash
+      && evidence.sha256_hash === sha256Hash
+    ));
+    if (!duplicate) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      duplicateEvidenceResolverRef.current = resolve;
+      setDuplicateEvidencePrompt({ filename: file.name, periodLabel });
+    });
+  }, []);
   
   // Phase 1: Set scope, category, fuel, and other metadata (runs immediately)
   useEffect(() => {
@@ -2118,12 +2143,14 @@ export default function EmissionEntryForm({
       return fuelCategories.includes(category);
     });
     
-    // Filter by facility sector if available
-    if (selectedFacility?.sector) {
+    // Supplier facilities may not yet have a sector. Use Manufacturing as the
+    // calculation fallback until the supplier selects one in Facility details.
+    const facilitySector = selectedFacility?.sector?.trim() || (supplierContext ? 'Manufacturing' : '');
+    if (facilitySector) {
       filtered = filtered.filter(fuel => {
         if (fuel.industry_sectors && fuel.industry_sectors.length > 0) {
           return fuel.industry_sectors.some(s => 
-            s.toLowerCase() === selectedFacility.sector.toLowerCase()
+            s.toLowerCase() === facilitySector.toLowerCase()
           );
         }
         return true;
@@ -2617,12 +2644,35 @@ export default function EmissionEntryForm({
       return;
     }
 
+    const evidences = tripId
+      ? (periodKey === 'yearly'
+        ? c6Trips.yearly?.find((entry) => entry.id === tripId)?.evidences || []
+        : c6Trips.monthly?.[periodKey]?.find((entry) => entry.id === tripId)?.evidences || [])
+      : periodKey === 'yearly'
+        ? yearlyData.evidences || []
+        : monthlyData[periodKey]?.evidences || [];
+    const periodLabel = tripId
+      ? 'this business travel trip'
+      : periodKey === 'yearly'
+        ? 'annual data'
+        : `${MONTHS.find((month) => month.key === periodKey)?.name || 'this month'} data`;
+    let sha256Hash = null;
+    try {
+      sha256Hash = await calculateFileSha256(file);
+    } catch (error) {
+      console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
+    }
+    if (sha256Hash && !(await confirmDuplicateEvidence(file, sha256Hash, evidences, periodLabel))) {
+      return;
+    }
+
     const draftEvidence = {
       filename: file.name,
       file,
       size: file.size,
       content_type: file.type,
       is_draft: true,
+      sha256_hash: sha256Hash,
     };
     if (tripId) {
       updateC6Trip(periodKey, tripId, 'evidences', (evidences = []) => [...evidences, draftEvidence]);
@@ -2643,23 +2693,36 @@ export default function EmissionEntryForm({
         };
       });
     }
-    const periodLabel = tripId
-      ? 'trip'
-      : periodKey === 'yearly'
-      ? 'annual data'
-      : MONTHS.find((month) => month.key === periodKey)?.name;
     toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
   const handleC7EmployeeEvidenceUpload = async (employeeId, periodKey, file) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) throw new Error(sizeErr);
+    const employee = employees.find((entry) => entry.id === employeeId);
+    const evidences = periodKey === 'yearly'
+      ? employee?.yearly_data?.evidences || []
+      : employee?.monthly_data?.[periodKey]?.evidences || [];
+    const periodLabel = periodKey === 'yearly'
+      ? 'annual employee commuting data'
+      : `${MONTHS.find((month) => month.key === periodKey)?.name || 'this month'} employee commuting data`;
+    let sha256Hash = null;
+    try {
+      sha256Hash = await calculateFileSha256(file);
+    } catch (error) {
+      console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
+    }
+    if (sha256Hash && !(await confirmDuplicateEvidence(file, sha256Hash, evidences, periodLabel))) {
+      return;
+    }
+
     const uploadedEvidence = {
       filename: file.name,
       file,
       size: file.size,
       content_type: file.type,
       is_draft: true,
+      sha256_hash: sha256Hash,
     };
     setEmployees((previousEmployees) => previousEmployees.map((employee) => {
       if (employee.id !== employeeId) return employee;
@@ -2685,9 +2748,6 @@ export default function EmissionEntryForm({
       };
     }));
     onFormChange?.();
-    const periodLabel = periodKey === 'yearly'
-      ? 'annual data'
-      : MONTHS.find((month) => month.key === periodKey)?.name || 'the selected period';
     toast.success(`Evidence uploaded for ${periodLabel}`);
   };
 
@@ -2755,6 +2815,7 @@ export default function EmissionEntryForm({
     const results = await Promise.allSettled(uploads.map(({ id, evidence, employeeId, periodKey }) => {
       const uploadData = new FormData();
       uploadData.append('file', evidence.file);
+      if (evidence.sha256_hash) uploadData.append('sha256_hash', evidence.sha256_hash);
       const query = new URLSearchParams();
       if (employeeId) query.set('employee_id', employeeId);
       if (periodKey) query.set('period_key', periodKey);
@@ -3472,6 +3533,18 @@ export default function EmissionEntryForm({
 
   return (
     <div className="min-w-0 space-y-6" data-testid="single-page-emission-form">
+      <AlertDialog open={Boolean(duplicateEvidencePrompt)} onOpenChange={(open) => { if (!open) resolveDuplicateEvidencePrompt(false); }}>
+        <AlertDialogContent data-testid="duplicate-evidence-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle data-testid="duplicate-evidence-dialog-title">Duplicate evidence detected</AlertDialogTitle>
+            <AlertDialogDescription data-testid="duplicate-evidence-dialog-description">“{duplicateEvidencePrompt?.filename}” has the same filename and SHA-256 content hash as evidence already attached to {duplicateEvidencePrompt?.periodLabel}. Do you want to upload it again?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => resolveDuplicateEvidencePrompt(false)} data-testid="duplicate-evidence-cancel-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => resolveDuplicateEvidencePrompt(true)} className="bg-emerald-700 hover:bg-emerald-800" data-testid="duplicate-evidence-confirm-button">Upload anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* OCR Import Notice Banner */}
       {ocrPrefillData && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">

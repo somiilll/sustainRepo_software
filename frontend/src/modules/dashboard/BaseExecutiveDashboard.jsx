@@ -197,7 +197,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
   ) : null;
 
   return (
-    <div className="w-full max-w-full space-y-6 overflow-x-hidden pb-0" data-testid="executive-dashboard">
+    <div className="w-full max-w-full space-y-6 overflow-x-visible pb-0" data-testid="executive-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · GHG Dashboard` : 'GHG Dashboard'}
         subtitle={`Reporting window: ${dateRangeLabel}`}
@@ -210,6 +210,8 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         esgSection={data.esgSection}
         setEsgSection={data.setEsgSection}
         showDashboardToggle={data.showDashboardToggle}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         showExport
         exportButton={
           <DashboardExportButton

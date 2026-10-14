@@ -484,7 +484,11 @@ export default function SBTiTargetsPage() {
           <Badge variant="outline" className="text-xs">{items.length} target{items.length !== 1 ? 's' : ''}</Badge>
         </div>
         {isAdmin && (
-          <Button onClick={() => handleCreate(termType)} className="bg-emerald-600 hover:bg-emerald-700 gap-1" size="sm">
+          <Button
+            onClick={() => handleCreate(termType)}
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+            data-testid={`sbti-add-${termType}-target-button`}
+          >
             <Plus className="w-4 h-4" /> Add Target
           </Button>
         )}

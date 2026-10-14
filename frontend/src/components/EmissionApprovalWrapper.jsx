@@ -33,6 +33,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { downloadSecureFile, getUploadedFileId } from '../lib/secureFileAccess';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -427,10 +428,18 @@ export default function EmissionApprovalWrapper({ item, onClose, onApproved }) {
                     </span>
                   </div>
                   <a
-                    href={file.url || file.file_url}
+                    href={getUploadedFileId(file.url || file.file_url) ? '#' : (file.url || file.file_url)}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={(event) => {
+                      const fileId = getUploadedFileId(file.url || file.file_url);
+                      if (fileId) {
+                        event.preventDefault();
+                        void downloadSecureFile(fileId).catch(() => toast.error('Unable to download evidence file'));
+                      }
+                    }}
                     className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                    data-testid={`approval-evidence-download-${idx}`}
                   >
                     <Download className="w-4 h-4" />
                     Download

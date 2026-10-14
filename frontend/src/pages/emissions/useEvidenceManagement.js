@@ -20,6 +20,7 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 
 import { validateFileSize } from '../../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../../lib/secureFileAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -50,7 +51,7 @@ export function useEvidenceManagement({
 }) {
   const pendingDeletionIds = useRef(new Set());
 
-  const handleFileUpload = async (file) => {
+  const handleFileUpload = async (file, sha256Hash = null) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       throw new Error(sizeErr);
@@ -61,6 +62,7 @@ export function useEvidenceManagement({
       size: file.size,
       content_type: file.type,
       is_draft: true,
+      sha256_hash: sha256Hash,
     }]);
     toast.success('File uploaded');
   };
@@ -109,13 +111,14 @@ export function useEvidenceManagement({
     const uploadResults = await Promise.allSettled(drafts.map((evidence) => {
       const formDataUpload = new FormData();
       formDataUpload.append('file', evidence.file);
+      if (evidence.sha256_hash) formDataUpload.append('sha256_hash', evidence.sha256_hash);
       return axios.post(`${API}/emissions/${emissionId}/evidence`, formDataUpload, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
       });
     }));
-    const deletionResults = await Promise.allSettled([...pendingDeletionIds.current].map((fileId) => (
-      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
-    )));
+    // The emission save already removes deleted URLs and performs reference-aware R2 cleanup.
+    // Calling the generic file-delete endpoint here would bypass that shared-evidence safeguard.
+    const deletionResults = [];
     pendingDeletionIds.current.clear();
     const failures = [...uploadResults, ...deletionResults].filter((result) => result.status === 'rejected').length;
     if (failures) {
@@ -138,7 +141,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
+      void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file'));
       return;
     }
 
@@ -163,8 +166,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
+      await downloadSecureFile(fileId);
       return;
     }
 

@@ -7,6 +7,7 @@ import React from 'react';
 import { ChevronDown, ChevronUp, SlidersHorizontal, Sparkles, Download } from 'lucide-react';
 import DashboardFilters from '../../../../pages/dashboard/components/DashboardFilters';
 import NotificationBell from '../../../../components/NotificationBell';
+import { SecureFileImage } from '../../../../components/SecureFileImage';
 
 export default function StickyFilterBar({
   title = 'Executive Dashboard',
@@ -24,16 +25,18 @@ export default function StickyFilterBar({
   esgSection = 'all', // 'all' | 'environment' | 'social' | 'governance'
   setEsgSection,
   showDashboardToggle = false,
+  organizationLogo = null,
+  organizationName = '',
 }) {
   return (
     <div
-      className="-mx-4 px-6 pt-3 pb-4 mb-4 relative z-50 bg-white border-b border-stone-200/70 shadow-[0_1px_0_0_rgba(0,0,0,0.02)] sm:-mx-8 sm:px-10"
+      className="-mx-4 px-6 pt-3 pb-4 mb-4 relative z-50 bg-white border-b border-stone-200/70 shadow-[0_1px_0_0_rgba(0,0,0,0.02)] lg:-mx-5 lg:px-8"
       data-testid="sticky-filter-bar"
     >
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md">
-            <Sparkles className="w-4 h-4" />
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg flex items-center justify-center border border-emerald-100 bg-white text-white shadow-md" data-testid="dashboard-header-brand-mark">
+            <SecureFileImage source={organizationLogo} alt={`${organizationName || 'Organization'} logo`} className="h-full w-full object-contain" testId="dashboard-header-organization-logo" fallback={<span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600"><Sparkles className="w-4 h-4" aria-hidden="true" data-testid="dashboard-header-fallback-icon" /></span>} />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg font-heading font-bold text-stone-900 truncate">{title}</h1>

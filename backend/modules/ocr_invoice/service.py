@@ -166,8 +166,9 @@ async def process_upload_batch(files, organization_id: str, user: dict, mode: Ex
                 filename=filename,
                 bucket_type="ocr_temp",
                 content_type=upload_file.content_type or "application/octet-stream",
-                folder=f"ocr/{organization_id}/{upload_id}",
-                org_name=organization_id,
+                folder="ocr",
+                organization_id=organization_id,
+                subfolder=upload_id,
             )
         except Exception:
             logger.exception("OCR source upload failed", extra={"organization_id": organization_id, "ocr_filename": filename})
@@ -332,8 +333,9 @@ async def queue_upload_batch(files, organization_id: str, user: dict, mode: Extr
                 filename=filename,
                 bucket_type="ocr_temp",
                 content_type=upload_file.content_type or "application/octet-stream",
-                folder=f"ocr/{organization_id}/{upload_id}",
-                org_name=organization_id,
+                folder="ocr",
+                organization_id=organization_id,
+                subfolder=upload_id,
             )
         except Exception:
             logger.exception("OCR source staging failed", extra={"organization_id": organization_id, "ocr_filename": filename})

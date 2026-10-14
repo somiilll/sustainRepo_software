@@ -8,6 +8,27 @@ export const scoreText = (value) => (
 
 export const completionText = (value) => (hasValue(value) ? `${scoreText(value)}%` : '—');
 
+export const averageCompletionValue = (averages, rankings = []) => {
+  if (hasValue(averages?.overall_completion)) {
+    return Number(averages.overall_completion);
+  }
+  const values = (rankings || [])
+    .map((r) => r.overall_completion_percent)
+    .filter(hasValue)
+    .map(Number);
+  if (!values.length) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+};
+
+export const oldestOverdueDaysValue = (rankings = []) => {
+  const values = (rankings || [])
+    .map((r) => r.oldest_overdue_days)
+    .filter((value) => hasValue(value) && Number(value) > 0)
+    .map(Number);
+  if (!values.length) return null;
+  return Math.max(...values);
+};
+
 export const moduleName = (key) => (
   ({ esg: 'ESG', ghg: 'GHG', documents: 'Documents', training: 'Training' }[key] || key)
 );

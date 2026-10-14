@@ -27,9 +27,17 @@ def supplier_invitation_email(
         "documents": "Documents and agreements requiring your response",
         "training": "Assigned training",
     }
-    requested_modules = assigned_modules or ["revenue", "esg", "ghg"]
+    requested_modules = assigned_modules if assigned_modules is not None else ["revenue", "esg", "ghg"]
     required_items = [module_labels[code] for code in requested_modules if code in module_labels]
     requirements_list = "".join(f"<li>{escape(item)}</li>" for item in required_items)
+    requirements_section = f"""
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    <strong>What you'll need to provide:</strong>
+                                </p>
+                                <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
+                                    {requirements_list}
+                                </ul>
+    """ if required_items else ""
     credentials_section = ""
     if temp_password:
         displayed_password = escape(temp_password)
@@ -95,12 +103,7 @@ def supplier_invitation_email(
                                 
                                 {access_revoke_section}
                                 
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    <strong>What you'll need to provide:</strong>
-                                </p>
-                                <ul style="color: #4b5563; font-size: 14px; line-height: 1.8; margin: 0 0 25px 0; padding-left: 20px;">
-                                    {requirements_list}
-                                </ul>
+                                {requirements_section}
                                 
                                 {credentials_section}
                                 
@@ -316,3 +319,46 @@ def supplier_assignment_email(
     </body>
     </html>
     """
+
+
+def questionnaire_change_email(question_text: str, login_link: str) -> str:
+    """Supplier-facing notice for a changed ESG questionnaire question."""
+    safe_question = escape(question_text or "An ESG questionnaire question")
+    return f"""
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f8f9fa;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f9fa;padding:40px 20px;"><tr><td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);">
+          <tr><td style="padding:30px;text-align:center;border-bottom:1px solid #e5e7eb;"><img src="{SUSTAINREPO_LOGO_URL}" alt="SustainRepo" style="width:60px;height:60px;border-radius:8px;margin-bottom:10px;"><h1 style="color:#1f2937;margin:10px 0 0;font-size:24px;font-weight:600;">SustainRepo</h1></td></tr>
+          <tr><td style="padding:40px 30px;"><h2 style="color:#1f2937;margin:0 0 20px;font-size:20px;">ESG questionnaire updated</h2><p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 18px;">Your customer has updated an ESG questionnaire assigned to you.</p><div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:16px 18px;color:#14532d;font-size:14px;line-height:1.6;margin:0 0 22px;">{safe_question}</div><p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 24px;">Please review and submit the response.</p><table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;"><tr><td style="background:#15803d;border-radius:8px;"><a href="{login_link}" style="display:inline-block;padding:14px 32px;color:#fff;text-decoration:none;font-size:15px;font-weight:600;">Open supplier portal</a></td></tr></table></td></tr>
+          <tr><td style="background:#f9fafb;padding:20px 30px;border-radius:0 0 12px 12px;border-top:1px solid #e5e7eb;"><p style="color:#6b7280;font-size:12px;margin:0;text-align:center;">&copy; 2026 SustainRepo. All rights reserved.</p></td></tr>
+        </table></td></tr></table>
+    </body></html>"""
+
+
+def question_clarification_requested_email(
+    supplier_name: str,
+    customer_name: str,
+    questionnaire_name: str,
+    question_text: str,
+    reviewer_comment: str,
+    login_link: str,
+) -> str:
+    """HTML email sent to supplier when a specific question is rejected and clarification/resubmission is requested."""
+    safe_supplier = escape(supplier_name or "Supplier")
+    safe_customer = escape(customer_name or "Your customer")
+    safe_q_name = escape(questionnaire_name or "ESG Questionnaire")
+    safe_q_text = escape(question_text or "Question")
+    safe_comment = escape(reviewer_comment or "").replace("\n", "<br>")
+
+    return f"""
+    <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#f8f9fa;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f9fa;padding:40px 20px;"><tr><td align="center">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);">
+          <tr><td style="padding:30px;text-align:center;border-bottom:1px solid #e5e7eb;"><img src="{SUSTAINREPO_LOGO_URL}" alt="SustainRepo" style="width:60px;height:60px;border-radius:8px;margin-bottom:10px;"><h1 style="color:#1f2937;margin:10px 0 0;font-size:24px;font-weight:600;">SustainRepo</h1></td></tr>
+          <tr><td style="padding:40px 30px;"><h2 style="color:#1f2937;margin:0 0 20px;font-size:20px;">Clarification requested on ESG response</h2><p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 18px;">Hello <strong style="color:#15803d;">{safe_supplier}</strong>,</p><p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px;"><strong style="color:#15803d;">{safe_customer}</strong> has reviewed your submission for <strong>{safe_q_name}</strong> and requested clarification or updated evidence on the following question:</p><div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:16px 18px;color:#14532d;font-size:14px;line-height:1.6;margin:0 0 20px;"><strong>Question:</strong> {safe_q_text}</div><div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:16px 18px;color:#92400e;font-size:14px;line-height:1.6;margin:0 0 24px;"><strong>Reviewer Feedback:</strong><br>{safe_comment}</div><p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 24px;">Only this question has been unlocked. Please review the feedback, update your response or evidence, and submit.</p><table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;"><tr><td style="background-color:#15803d;border-radius:8px;"><a href="{login_link}" style="display:inline-block;padding:14px 32px;color:#fff;text-decoration:none;font-size:15px;font-weight:600;">Open supplier portal</a></td></tr></table></td></tr>
+          <tr><td style="background:#f9fafb;padding:20px 30px;border-radius:0 0 12px 12px;border-top:1px solid #e5e7eb;"><p style="color:#6b7280;font-size:12px;margin:0;text-align:center;">&copy; 2026 SustainRepo. All rights reserved.</p></td></tr>
+        </table></td></tr></table>
+    </body></html>"""
+

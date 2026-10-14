@@ -5,6 +5,7 @@ import { Progress } from '../../components/ui/progress';
 import { OcrBatchQueue } from './OcrBatchQueue';
 
 const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp,.avif,.csv,.xlsx,.xls';
+const LEGACY_ACCEPTED = '.pdf,.png,.jpg,.jpeg,.avif';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_FILES_PER_BATCH = 20;
 const fileKey = (file) => `${file.name}-${file.size}`;
@@ -17,7 +18,7 @@ const validationError = (file, index) => {
   return '';
 };
 
-export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling }) => {
+export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProcess, processing, progress, onDownloadTemplate, downloadingTemplate, queue, onCancel, canCancelProcessing, cancelling, legacyMode = false }) => {
   const inputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
@@ -29,7 +30,8 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
     setValidationErrors((current) => {
       const next = { ...current };
       Array.from(existing.values()).forEach((file, index) => {
-        const error = validationError(file, index);
+        const extension = `.${file.name.split('.').pop().toLowerCase()}`;
+        const error = legacyMode && !LEGACY_ACCEPTED.split(',').includes(extension) ? 'Legacy OCR supports PDF and image invoices only' : validationError(file, index);
         if (error) next[fileKey(file)] = error;
         else delete next[fileKey(file)];
       });
@@ -67,7 +69,7 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
           ref={inputRef}
           type="file"
           className="hidden"
-          accept={ACCEPTED}
+          accept={legacyMode ? LEGACY_ACCEPTED : ACCEPTED}
           multiple
           onChange={(event) => addFiles(event.target.files)}
           data-testid="ocr-file-input"
@@ -78,15 +80,17 @@ export const UploadWorkspace = ({ files, fileErrors = {}, onFilesChange, onProce
           </span>
           <h2 id="ocr-upload-heading" className="mt-4 text-lg font-semibold text-slate-950">Add source documents</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-            Invoices, utility bills, receipts, CSV ledgers and Excel workbooks. Upload up to 20 files at once; the first 15 pages of each PDF are processed, with a 20MB limit per file.
+            {legacyMode
+              ? 'Upload PDF or image invoices for Scope 1 and Scope 2 fuel and electricity extraction. Upload up to 20 files at once, with a 20MB limit per file.'
+              : 'Invoices, utility bills, receipts, CSV ledgers and Excel workbooks. Upload up to 20 files at once; the first 15 pages of each PDF are processed, with a 20MB limit per file.'}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} disabled={processing} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-browse-files-button">
               <FileText className="mr-2 h-4 w-4" aria-hidden="true" />Upload Files
             </Button>
-            <Button type="button" variant="outline" onClick={onDownloadTemplate} disabled={processing || downloadingTemplate} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-download-template-upload-button">
+            {!legacyMode && <Button type="button" variant="outline" onClick={onDownloadTemplate} disabled={processing || downloadingTemplate} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-download-template-upload-button">
               {downloadingTemplate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" aria-hidden="true" />}Download template
-            </Button>
+            </Button>}
           </div>
         </> : <div className="w-full max-w-4xl space-y-4 text-left" data-testid="ocr-selected-files-list">
           <h2 id="ocr-upload-heading" className="sr-only">Selected source documents</h2>

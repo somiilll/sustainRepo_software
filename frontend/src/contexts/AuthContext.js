@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import {
+  clearStoredAccessToken,
+  getStoredAccessToken,
+  installAuthSessionInterceptors,
+  refreshAccessToken,
+  storeAccessToken,
+} from '../lib/authSession';
 
 const AuthContext = createContext(null);
 
@@ -9,19 +16,31 @@ const API = `${BACKEND_URL}/api`;
 
 // Inactivity timeout in milliseconds (15 minutes)
 const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
+const ACCESS_TOKEN_REFRESH_BUFFER = 5 * 60 * 1000;
+
+const getAccessExpiry = (accessToken) => {
+  try {
+    const [, payload] = accessToken.split('.');
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000;
+  } catch {
+    return null;
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(getStoredAccessToken());
   const [loading, setLoading] = useState(true);
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [subscriptionExpiryDate, setSubscriptionExpiryDate] = useState(null);
   const inactivityTimerRef = useRef(null);
+  const tokenRefreshTimerRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
 
   // Logout function
   const logout = useCallback((reason = null) => {
-    localStorage.removeItem('token');
+    clearStoredAccessToken();
+    void axios.post(`${API}/auth/logout`, {}, { withCredentials: true, skipAuthRefresh: true }).catch(() => null);
     setToken(null);
     setUser(null);
     setSubscriptionExpired(false);
@@ -32,6 +51,10 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
     }
+    if (tokenRefreshTimerRef.current) {
+      clearTimeout(tokenRefreshTimerRef.current);
+      tokenRefreshTimerRef.current = null;
+    }
     
     if (reason === 'inactivity') {
       toast.warning('You have been logged out due to inactivity.');
@@ -39,6 +62,24 @@ export const AuthProvider = ({ children }) => {
       toast.error('Subscription is required. Please contact your administrator.');
     }
   }, []);
+
+  useEffect(() => installAuthSessionInterceptors({
+    onToken: (nextToken, nextUser) => {
+      setToken(nextToken);
+      if (nextUser) setUser(nextUser);
+    },
+    onSessionExpired: () => logout(),
+  }), [logout]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const expiry = getAccessExpiry(token);
+    const delay = Math.max(0, (expiry || Date.now()) - Date.now() - ACCESS_TOKEN_REFRESH_BUFFER);
+    tokenRefreshTimerRef.current = setTimeout(() => {
+      void refreshAccessToken().catch(() => logout());
+    }, delay);
+    return () => clearTimeout(tokenRefreshTimerRef.current);
+  }, [token, logout]);
 
   // Reset inactivity timer on user activity
   const resetInactivityTimer = useCallback(() => {
@@ -121,7 +162,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('token');
+      let storedToken = getStoredAccessToken();
+      if (!storedToken) {
+        try {
+          storedToken = await refreshAccessToken();
+          setToken(storedToken);
+        } catch {
+          storedToken = null;
+        }
+      }
       if (storedToken) {
         try {
           const response = await axios.get(`${API}/auth/me`, {
@@ -150,7 +199,7 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error('Auth init failed:', error);
-          localStorage.removeItem('token');
+          clearStoredAccessToken();
           setToken(null);
         }
       }
@@ -161,9 +210,9 @@ export const AuthProvider = ({ children }) => {
   }, [checkSubscriptionStatus]);
 
   const login = async (email, password) => {
-    const response = await axios.post(`${API}/auth/login`, { email, password });
+    const response = await axios.post(`${API}/auth/login`, { email, password }, { withCredentials: true, skipAuthRefresh: true });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
+    storeAccessToken(access_token);
     setToken(access_token);
     
     // Fetch org_type for non-super_admin users
@@ -194,9 +243,9 @@ export const AuthProvider = ({ children }) => {
       password,
       full_name,
       role
-    });
+    }, { withCredentials: true, skipAuthRefresh: true });
     const { access_token, user: userData } = response.data;
-    localStorage.setItem('token', access_token);
+    storeAccessToken(access_token);
     setToken(access_token);
     setUser(userData);
     return userData;

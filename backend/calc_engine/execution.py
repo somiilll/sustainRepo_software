@@ -658,7 +658,7 @@ class CalcEngine:
             await self.db.ce_calculation_audit_logs.insert_one({
                 "id": audit_log_id,
                 "emission_record_id": emission_record_id,
-                "org_id": org_id,
+                "organization_id": org_id,
                 "formula_id": formula.get("id"),
                 "formula_version_id": formula.get("version_id"),
                 "inputs": inputs,

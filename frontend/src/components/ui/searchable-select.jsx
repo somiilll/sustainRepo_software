@@ -25,8 +25,10 @@ export const SearchableSelect = ({
   placeholder = 'Select an option',
   searchPlaceholder = 'Search...',
   disabled = false,
+  id,
   testId,
   className,
+  leadingIcon = null,
   menuClassName,
   menuAlign = 'start',
   wrapOptionLabels = false,
@@ -113,20 +115,22 @@ export const SearchableSelect = ({
   }, [autoSizeMenuToOptions, open, options]);
 
   return (
-    <div className="min-w-0">
+    <div className="relative min-w-0">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             ref={triggerRef}
+            id={id}
             type="button"
             disabled={disabled}
             className={cn(
-              'flex h-10 w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-3 text-left text-sm transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50',
+              `flex h-10 w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 text-left text-sm font-normal leading-5 text-stone-800 transition-colors hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 ${leadingIcon ? 'pl-10 pr-3' : 'px-3'}`,
               className,
             )}
             data-testid={testId}
           >
-            <span className={selectedOption ? 'truncate text-stone-800' : 'truncate text-stone-500'}>
+            {leadingIcon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600" aria-hidden="true">{leadingIcon}</span>}
+            <span className={selectedOption ? 'truncate text-sm font-normal leading-5 text-stone-800' : 'truncate text-sm font-normal leading-5 text-stone-500'}>
               {selectedOption?.label || placeholder}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-stone-400" aria-hidden="true" />

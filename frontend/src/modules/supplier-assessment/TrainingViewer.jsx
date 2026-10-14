@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Progress } from '../../components/ui/progress';
@@ -12,7 +12,9 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
   const [pageIndex, setPageIndex] = useState(initialPageIndex);
   const [highestPageReached, setHighestPageReached] = useState(viewer.highest_page_index || 0);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const lastMediaSecond = useRef(0);
+  const pageCanvasRef = useRef(null);
 
   const record = async (event) => {
     setIsSaving(true);
@@ -31,16 +33,32 @@ export const TrainingViewer = ({ assignmentId, viewer, getAuthHeader, onProgress
     if (viewer.viewer_type === 'pages') record({ event_type: 'page_view', unit_index: pageIndex + 1 });
   }, [pageIndex]); // The page itself is the consumption unit.
 
+  useEffect(() => {
+    const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === pageCanvasRef.current);
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    return () => document.removeEventListener('fullscreenchange', updateFullscreen);
+  }, []);
+
   const recordMedia = (element, force = false) => {
-    const position = Math.floor(element.currentTime || 0);
+    const playbackPosition = force && viewer.duration_seconds ? viewer.duration_seconds : element.currentTime || 0;
+    const position = Math.floor(playbackPosition);
     if (force || position - lastMediaSecond.current >= 10) {
       lastMediaSecond.current = position;
-      record({ event_type: 'media_progress', position_seconds: element.currentTime || 0 });
+      record({ event_type: 'media_progress', position_seconds: playbackPosition });
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await pageCanvasRef.current?.requestFullscreen();
+    } catch {
+      toast.error('Fullscreen is not available in this browser');
     }
   };
 
   if (viewer.viewer_type === 'pages') return <div className="space-y-4" data-testid="training-page-viewer">
-    <div className="relative overflow-hidden border bg-stone-100" data-testid="training-page-canvas"><img src={viewer.page_urls[pageIndex]} alt={`Training page ${pageIndex + 1}`} className="mx-auto max-h-[58vh] w-auto max-w-full object-contain" draggable="false" data-testid={`training-page-image-${pageIndex + 1}`} /></div>
+    <div ref={pageCanvasRef} className={`relative overflow-hidden border bg-stone-100 ${isFullscreen ? 'flex h-screen items-center justify-center' : ''}`} data-testid="training-page-canvas"><img src={viewer.page_urls[pageIndex]} alt={`Training page ${pageIndex + 1}`} className={`mx-auto w-auto max-w-full object-contain ${isFullscreen ? 'max-h-screen' : 'max-h-[58vh]'}`} draggable="false" data-testid={`training-page-image-${pageIndex + 1}`} /><Button type="button" variant="secondary" size="icon" className="absolute right-3 top-3 bg-white/95 text-stone-800 shadow-sm hover:bg-white" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'} data-testid="training-page-fullscreen-button">{isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</Button></div>
     <div className="flex items-center justify-between gap-3"><Button variant="outline" size="sm" disabled={pageIndex === 0} onClick={() => setPageIndex((current) => current - 1)} data-testid="training-page-previous-button"><ChevronLeft className="h-4 w-4" />Previous</Button><div className="text-center"><span className="block text-sm font-medium text-stone-700" data-testid="training-page-indicator">Page {pageIndex + 1} of {viewer.page_count}</span><span className="block text-xs text-stone-500" data-testid="training-highest-page-indicator">Page reached: {Math.max(highestPageReached, pageIndex + 1)}</span></div><Button variant="outline" size="sm" disabled={pageIndex === viewer.page_count - 1} onClick={() => setPageIndex((current) => current + 1)} data-testid="training-page-next-button">Next<ChevronRight className="h-4 w-4" /></Button></div>
     {isSaving && <p className="flex items-center gap-2 text-xs text-stone-500" data-testid="training-progress-saving"><Loader2 className="h-3 w-3 animate-spin" />Saving progress</p>}
   </div>;

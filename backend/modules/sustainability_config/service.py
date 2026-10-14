@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 import re
 
 from shared.database.mongo import db
-from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements, sync_legacy_entitlement_mirror
+from modules.entitlements.service import DEFAULT_ENTITLEMENT_CONFIG, normalize_entitlement_config, normalize_entitlements
+from modules.sustainability_config.supplier_taxonomy import normalize_supplier_esg_subcategories, supplier_esg_subcategory_defaults
 
 
 def _now() -> str:
@@ -58,7 +59,12 @@ DEFAULT_SUPPLIER_ASSESSMENT_CONFIG = {
         },
         "documents": {"enabled": False, "display_name": "Documents"},
         "training": {"enabled": False, "display_name": "Training"},
-    }
+    },
+    "esg_subcategories": supplier_esg_subcategory_defaults(),
+    "basic_question_bank_enabled": True,
+    "standard_question_bank_enabled": True,
+    "advanced_question_bank_enabled": True,
+    "esg_section_weights": {"environment": 33.33, "social": 33.33, "governance": 33.34},
 }
 
 DEFAULT_ORGANIZATION_SETTINGS = {
@@ -112,12 +118,27 @@ def resolve_supplier_assessment_config_from_org_config(org_cfg: Optional[Dict[st
         "modules": {
             code: dict(module_config)
             for code, module_config in DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["modules"].items()
-        }
+        },
+        "esg_subcategories": supplier_esg_subcategory_defaults(),
+        "basic_question_bank_enabled": True,
+        "standard_question_bank_enabled": True,
+        "advanced_question_bank_enabled": True,
     }
-    configured_modules = ((org_cfg or {}).get("supplier_assessment") or {}).get("modules") or {}
+    configured_supplier_assessment = (org_cfg or {}).get("supplier_assessment") or {}
+    configured_modules = configured_supplier_assessment.get("modules") or {}
     for code, module_config in configured_modules.items():
         if code in resolved["modules"] and isinstance(module_config, dict):
             resolved["modules"][code].update(module_config)
+    resolved["esg_subcategories"] = normalize_supplier_esg_subcategories(
+        configured_supplier_assessment.get("esg_subcategories")
+    )
+    resolved["basic_question_bank_enabled"] = bool(configured_supplier_assessment.get("basic_question_bank_enabled", True))
+    resolved["standard_question_bank_enabled"] = bool(configured_supplier_assessment.get("standard_question_bank_enabled", True))
+    resolved["advanced_question_bank_enabled"] = bool(configured_supplier_assessment.get("advanced_question_bank_enabled", True))
+    weights = configured_supplier_assessment.get("esg_section_weights") or DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["esg_section_weights"]
+    if abs(sum(float(weights.get(section, 0)) for section in ("environment", "social", "governance")) - 100) > 0.01:
+        weights = DEFAULT_SUPPLIER_ASSESSMENT_CONFIG["esg_section_weights"]
+    resolved["esg_section_weights"] = {section: float(weights.get(section, 0)) for section in ("environment", "social", "governance")}
     return resolved
 
 
@@ -151,8 +172,6 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
             return_document=True,
             projection={"_id": 0},
         )
-        if "entitlements" in updates:
-            await sync_legacy_entitlement_mirror(org_id, updates["entitlements"])
         if "organization_settings" in updates:
             await sync_legacy_organization_settings_mirror(org_id, updates["organization_settings"])
         return result
@@ -178,7 +197,6 @@ async def upsert_org_config(org_id: str, data: dict, user_id: str) -> Dict[str, 
         }
         await _coll().insert_one(doc)
         doc.pop("_id", None)
-        await sync_legacy_entitlement_mirror(org_id, doc["entitlements"])
         await sync_legacy_organization_settings_mirror(org_id, doc["organization_settings"])
         return doc
 

@@ -136,7 +136,7 @@ def test_resolver_quarterly_uses_financial_year_quarter_order_apr_to_mar():
     q3 = service.resolve_supplier_submission_period(_relationship("quarterly"), "2025-10", "monthly")
     q4 = service.resolve_supplier_submission_period(_relationship("quarterly"), "2026-01", "monthly")
 
-    assert q1["period_key"] == "FY 2025-26-Q1"
+    assert q1["period_key"] == "FY 2025-2026-Q1"
     assert q1["month_keys"] == ["2025-04", "2025-05", "2025-06"]
     assert q2["month_keys"] == ["2025-07", "2025-08", "2025-09"]
     assert q3["month_keys"] == ["2025-10", "2025-11", "2025-12"]
@@ -145,7 +145,7 @@ def test_resolver_quarterly_uses_financial_year_quarter_order_apr_to_mar():
 
 def test_resolver_yearly_maps_all_twelve_months():
     period = service.resolve_supplier_submission_period(_relationship("yearly"), "2025-04", "monthly")
-    assert period["period_key"] == "FY 2025-26"
+    assert period["period_key"] == "FY 2025-2026"
     assert len(period["month_keys"]) == 12
     assert period["month_keys"][0] == "2025-04"
     assert period["month_keys"][-1] == "2026-03"
@@ -183,6 +183,17 @@ class _FakeSubmissionsCollection:
             if expected_status and self._find_one_doc.get("status") != expected_status:
                 return None
         return self._find_one_doc
+
+
+class _LegacySubmittedEmissionsCollection:
+    def __init__(self, row):
+        self._row = row
+
+    def find(self, query, *_args, **_kwargs):
+        submitted_filter = query.get("submitted_to_parent_org") or {}
+        if submitted_filter.get("$exists") is True:
+            return _FakeCursor([self._row])
+        return _FakeCursor([])
 
 
 @pytest.mark.asyncio
@@ -223,7 +234,7 @@ async def test_future_empty_period_is_not_started_and_cannot_be_submitted(monkey
 
     periods = await service.get_supplier_ghg_submission_periods(relationship)
 
-    assert periods[0]["status"] == "not_started"
+    assert periods[0]["status"] == "upcoming"
     assert periods[0]["has_unsubmitted_entries"] is False
 
 
@@ -249,9 +260,36 @@ async def test_future_period_with_draft_data_is_in_progress_and_submittable(monk
 
     periods = await service.get_supplier_ghg_submission_periods(relationship)
 
-    assert periods[0]["status"] == "in_progress"
+    assert periods[0]["status"] == "upcoming"
     assert periods[0]["has_unsubmitted_entries"] is True
     assert periods[0]["unsubmitted_entry_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_legacy_submitted_annual_entries_map_to_a_submitted_period(monkeypatch):
+    relationship = {
+        "id": "REL_LEGACY_YEARLY",
+        "reporting_period": "FY 2025-26",
+        "ghg_submission_frequency": "yearly",
+        "financial_year_start_month": 4,
+    }
+    fake_db = SimpleNamespace(
+        supplier_ghg_submissions=_FakeSubmissionsCollection(rows=[]),
+        emission_records=_LegacySubmittedEmissionsCollection({
+            "id": "legacy-entry",
+            "source": "supplier",
+            "supplier_relationship_id": "REL_LEGACY_YEARLY",
+            "scope": "scope1",
+            "reporting_period": "2025-04",
+            "submitted_to_parent_org": "2025-05-01T00:00:00+00:00",
+        }),
+    )
+    monkeypatch.setattr(service, "db", fake_db)
+
+    periods = await service.get_supplier_ghg_submission_periods(relationship)
+
+    assert periods[0]["status"] == "submitted"
+    assert periods[0]["submitted_at"] == "2025-05-01T00:00:00+00:00"
 
 
 @pytest.mark.asyncio

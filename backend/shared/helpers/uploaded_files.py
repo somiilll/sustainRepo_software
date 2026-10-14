@@ -1,5 +1,5 @@
 import re
-from typing import Any, Iterable, Set
+from typing import Any, Iterable, Optional, Set
 
 from r2_storage import get_r2_storage
 
@@ -48,3 +48,25 @@ async def delete_uploaded_files(database, file_ids: Iterable[str]) -> int:
         return 0
     result = await database.uploaded_files.delete_many({"id": {"$in": [record["id"] for record in records]}})
     return result.deleted_count
+
+
+async def delete_unreferenced_emission_files(
+    database, file_ids: Iterable[str], excluding_record_id: str | None = None, excluding_record_ids: Optional[Iterable[str]] = None,
+) -> int:
+    """Delete evidence only when no other emission record still references its file URL."""
+    unreferenced_ids = []
+    for file_id in dict.fromkeys(file_id for file_id in file_ids if file_id):
+        query = {"evidence_url": {"$regex": re.escape(f"/api/files/{file_id}")}}
+        excluded_ids = set(excluding_record_ids or [])
+        if excluding_record_id:
+            excluded_ids.add(excluding_record_id)
+        if excluded_ids:
+            query["id"] = {"$nin": list(excluded_ids)}
+        referenced = False
+        for collection_name in ("emission_records", "approved_emission_records"):
+            if await database[collection_name].find_one(query, {"_id": 0, "id": 1}):
+                referenced = True
+                break
+        if not referenced:
+            unreferenced_ids.append(file_id)
+    return await delete_uploaded_files(database, unreferenced_ids)

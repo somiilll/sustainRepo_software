@@ -1,6 +1,7 @@
 """Focused unit tests for supplier training validation and progress/version behavior."""
 
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,6 +72,7 @@ class _Collection:
             self.docs.append(deepcopy(update.get("$set", {})))
 
     async def update_many(self, query, update):
+        modified_count = 0
         for index, doc in enumerate(self.docs):
             matches = True
             for key, value in query.items():
@@ -86,6 +88,8 @@ class _Collection:
                 next_doc = deepcopy(doc)
                 next_doc.update(update.get("$set", {}))
                 self.docs[index] = next_doc
+                modified_count += 1
+        return SimpleNamespace(modified_count=modified_count)
 
     async def insert_one(self, doc):
         self.docs.append(deepcopy(doc))
@@ -180,13 +184,15 @@ async def test_page_consumption_events_control_progress(monkeypatch):
         supplier_training_progress=[], supplier_training_consumption_events=[],
     )
     monkeypatch.setattr(training_service, "db", fake_db)
-    relationship = {"id": "rel-1"}
+    relationship = {"id": "rel-1", "supplier_org_id": "supplier-org-1"}
 
     progress = await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 1}, "supplier-user")
 
     assert progress["progress_percent"] == 50.0
     assert progress["status"] == "in_progress"
+    assert progress["supplier_org_id"] == "supplier-org-1"
     assert fake_db.supplier_training_consumption_events.docs[0]["event_type"] == "page_view"
+    assert fake_db.supplier_training_consumption_events.docs[0]["supplier_org_id"] == "supplier-org-1"
     with pytest.raises(ValueError, match="Invalid training page event"):
         await training_service.record_consumption_event(relationship, "assignment-1", {"event_type": "page_view", "unit_index": 3}, "supplier-user")
 
@@ -233,11 +239,12 @@ async def test_update_progress_status_lifecycle_and_version_id_immutable(monkeyp
     )
     monkeypatch.setattr(training_service, "db", fake_db)
 
-    relationship = {"id": "relationship-1"}
+    relationship = {"id": "relationship-1", "supplier_org_id": "supplier-org-1"}
 
     status_zero = await training_service.update_progress(relationship, "assignment-1", 0, "supplier-user")
     assert status_zero["status"] == "not_started"
     assert status_zero["training_version_id"] == "training-version-immutable"
+    assert status_zero["supplier_org_id"] == "supplier-org-1"
 
     status_mid = await training_service.update_progress(relationship, "assignment-1", 50, "supplier-user")
     assert status_mid["status"] == "in_progress"
@@ -248,6 +255,11 @@ async def test_update_progress_status_lifecycle_and_version_id_immutable(monkeyp
     assert status_done["status"] == "completed"
     assert status_done["training_version_id"] == "training-version-immutable"
     assert status_done["completed_at"] is not None
+
+    fake_db.supplier_training_requirements.docs[0]["completion_threshold"] = 100
+    rounded_completion = await training_service.update_progress(relationship, "assignment-1", 99.98, "supplier-user")
+    assert rounded_completion["progress_percent"] == 100.0
+    assert rounded_completion["status"] == "completed"
 
     with pytest.raises(ValueError, match="between 0 and 100"):
         await training_service.update_progress(relationship, "assignment-1", 101, "supplier-user")
@@ -333,15 +345,19 @@ async def test_training_module_completion_empty_and_completed_paths():
     # module_registry.TrainingAssessmentModule completion contract
     module = TrainingAssessmentModule()
 
-    empty_db = _DB(supplier_training_assignments=[], supplier_training_progress=[])
+    empty_db = _DB(supplier_training_assignments=[], supplier_training_requirements=[], supplier_training_progress=[])
     empty_completion = await module.get_completion(empty_db, {"id": "relationship-1"})
     assert empty_completion.completion_percent == 0.0
     assert empty_completion.is_applicable is False
 
     populated_db = _DB(
         supplier_training_assignments=[
-            {"id": "a1", "supplier_relationship_id": "relationship-1", "is_active": True, "requirement_version_id": "v1"},
-            {"id": "a2", "supplier_relationship_id": "relationship-1", "is_active": True, "requirement_version_id": "v2"},
+            {"id": "a1", "supplier_relationship_id": "relationship-1", "is_active": True, "training_requirement_id": "requirement-1", "requirement_version_id": "v1"},
+            {"id": "a2", "supplier_relationship_id": "relationship-1", "is_active": True, "training_requirement_id": "requirement-2", "requirement_version_id": "v2"},
+        ],
+        supplier_training_requirements=[
+            {"id": "requirement-1", "is_active": True, "is_deleted": False},
+            {"id": "requirement-2", "is_active": True, "is_deleted": False},
         ],
         supplier_training_progress=[
             {"training_assignment_id": "a1", "supplier_relationship_id": "relationship-1", "status": "completed"},

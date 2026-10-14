@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -69,6 +70,7 @@ import {
   filterSupplierVisibleCategories,
   resolveSupplierGhgOverrides,
 } from '../modules/supplier-assessment/utils/supplierScopeAccess';
+import { resolveSubmittedSupplierEmissionIds } from '../modules/supplier-assessment/utils/supplierGhgPeriodLocks';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -159,6 +161,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [isSaving, setIsSaving] = useState(false); // Track save operation state
   const [formulaDataReady, setFormulaDataReady] = useState(false); // Track when formula data is loaded
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [supplierSubmissionPeriods, setSupplierSubmissionPeriods] = useState([]);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
   // OCR Prefill Data - from AI Invoice Extractor workflow
@@ -208,10 +211,31 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [searchQuery, setSearchQuery] = useState(''); // Search query for emissions
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState('created_at'); // Sort options: date, facility, fuel, emissions
+  const [sortBy, setSortBy] = useState('updated_at'); // Sort options: date, facility, fuel, emissions
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
+
+  useEffect(() => {
+    if (!isSupplierUser) {
+      setSupplierSubmissionPeriods([]);
+      return undefined;
+    }
+    let active = true;
+    axios.get(`${API}/supplier-assessment/my-assessment/emissions/submission-periods`, { headers: getAuthHeader() })
+      .then(({ data }) => { if (active) setSupplierSubmissionPeriods(data.periods || []); })
+      .catch(() => { if (active) setSupplierSubmissionPeriods([]); });
+    return () => { active = false; };
+  }, [getAuthHeader, isSupplierUser]);
+
+  const lockedSupplierEmissionIds = useMemo(() => (
+    isSupplierUser
+      ? resolveSubmittedSupplierEmissionIds(emissions, supplierSubmissionPeriods)
+      : new Set()
+  ), [emissions, isSupplierUser, supplierSubmissionPeriods]);
+  const canAddSupplierEmission = !isSupplierUser
+    || supplierSubmissionPeriods.length === 0
+    || supplierSubmissionPeriods.some((period) => period.status !== 'submitted');
   
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
@@ -1076,7 +1100,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     getAuthHeader,
   });
 
-  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+  const handleC7EditEvidenceUpload = useCallback(async (employeeId, periodKey, file, sha256Hash = null) => {
     const sizeError = validateFileSize(file);
     if (sizeError) throw new Error(sizeError);
 
@@ -1084,6 +1108,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       filename: file.name,
       file,
       is_draft: true,
+      sha256_hash: sha256Hash,
     };
       setEditEmployees((currentEmployees) => currentEmployees.map((employee) => {
         if (employee.id !== employeeId) return employee;
@@ -1162,14 +1187,14 @@ export default function Emissions({ organizationGhgOverrides = null }) {
     const uploads = await Promise.allSettled(drafts.map(({ evidence, employeeId, periodKey }) => {
       const uploadData = new FormData();
       uploadData.append('file', evidence.file);
+      if (evidence.sha256_hash) uploadData.append('sha256_hash', evidence.sha256_hash);
       const query = new URLSearchParams({ employee_id: employeeId, period_key: periodKey });
       return axios.post(`${API}/emissions/${emissionId}/evidence?${query.toString()}`, uploadData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
       });
     }));
-    const deletions = await Promise.allSettled((editDraft.c7EvidenceIdsToDelete || []).map((fileId) => (
-      axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() })
-    )));
+    // C7 record persistence owns evidence cleanup; do not bypass shared-file checks via /files.
+    const deletions = [];
     const failures = [...uploads, ...deletions].filter((result) => result.status === 'rejected').length;
     if (failures) toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
   }, [editDraft.c7EvidenceIdsToDelete, getAuthHeader]);
@@ -1200,7 +1225,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         ...prev,
         fuel_id: '',
         fuel_type: '',
-        category: '',
         sub_category: '',
         emission_factor_co2: '',
         emission_factor_ch4: '',
@@ -1258,7 +1282,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         ...prev,
         fuel_id: fuelId,
         fuel_type: fuel.fuel_name,
-        category: fuel.category,
         sub_category: fuel.fuel_name,
         emission_factor_co2: fuel.emission_factor_co2?.toString() || '',
         emission_factor_ch4: fuel.emission_factor_ch4?.toString() || '',
@@ -1281,8 +1304,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
   // Get the selected facility's sector and country for filtering fuels
   const selectedFacilitySector = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);
-    return facility?.sector || '';
-  }, [facilities, formData.facility_id]);
+    return facility?.sector || (isSupplierUser ? 'Manufacturing' : '');
+  }, [facilities, formData.facility_id, isSupplierUser]);
 
   const selectedFacilityCountry = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);
@@ -3722,7 +3745,8 @@ export default function Emissions({ organizationGhgOverrides = null }) {
           <Button
             onClick={() => setShowFilters(!showFilters)}
             variant="outline"
-            className="rounded-full"
+            className={`rounded-full border-stone-300 bg-white text-stone-800 shadow-sm transition-[background-color,border-color,color] hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-900 ${showFilters ? 'border-emerald-700 bg-emerald-800 text-white hover:bg-emerald-900 hover:text-white' : ''}`}
+            data-testid="emissions-toggle-filters-button"
           >
             <Filter className="w-4 h-4 mr-2" />
             {showFilters ? 'Hide' : 'Show'} Filters
@@ -3732,6 +3756,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               <Button
                 type="button"
                 onClick={openCreateDialog}
+                disabled={!canAddSupplierEmission}
                 className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                 data-testid="add-emission-button"
               >
@@ -3964,12 +3989,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
                 key={s.code}
                 value={s.code}
                 disabled={isDisabled}
-                className={`rounded-full px-4 transition-[background-color,color,box-shadow] duration-200 ${isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:bg-emerald-50 hover:text-emerald-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm data-[state=active]:hover:bg-emerald-900'}`}
+                className={`relative overflow-hidden rounded-full px-4 transition-colors duration-200 ${isDisabled ? 'cursor-not-allowed opacity-60 text-stone-400' : 'text-stone-600 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none'}`}
                 data-testid={`scope-tab-${s.code}`}
               >
-                {s.name}
+                {activeScope === s.code && !isDisabled && <motion.span layoutId="ghg-scope-active-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10">{s.name}</span>
                 {isDisabled && disabledReason && (
-                  <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                  <span className="absolute -top-2 -right-2 z-20 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                     {disabledReason}
                   </span>
                 )}
@@ -3983,27 +4009,30 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         </div>
 
         <TabsContent value={activeScope} className="mt-6">
-          {/* Enterprise Data Grid Layout */}
-          <EmissionDataGrid
-            ref={emissionDataGridRef}
-            activeScope={activeScope}
-            onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
-            filteredEmissions={filteredEmissions}
-            facilities={facilities}
-            filteredScope3Activities={filteredScope3Activities}
-            getMethodLabel={getMethodLabel}
-            isRegularUser={isRegularUser}
-            hideHistoryActions={isSupplierUser}
-            handleEdit={handleEdit}
-            fetchHistory={fetchHistory}
-            openDeleteConfirm={openDeleteConfirm}
-            onBulkDelete={openBulkDeleteConfirm}
-            showFilters={showFilters}
-            filterFacility={filterFacility}
-            filterDateRange={filterDateRange}
-            filterCategory={filterCategory}
-            filterFrequency={filterFrequency}
-          />
+          <div key={activeScope} className="animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none" data-testid={`emissions-scope-content-${activeScope}`}>
+            {/* Enterprise Data Grid Layout */}
+            <EmissionDataGrid
+              ref={emissionDataGridRef}
+              activeScope={activeScope}
+              onColumnWidthsCustomizedChange={setHasCustomizedColumnWidths}
+              filteredEmissions={filteredEmissions}
+              facilities={facilities}
+              filteredScope3Activities={filteredScope3Activities}
+              getMethodLabel={getMethodLabel}
+              isRegularUser={isRegularUser}
+              hideHistoryActions={isSupplierUser}
+              lockedEmissionIds={lockedSupplierEmissionIds}
+              handleEdit={handleEdit}
+              fetchHistory={fetchHistory}
+              openDeleteConfirm={openDeleteConfirm}
+              onBulkDelete={openBulkDeleteConfirm}
+              showFilters={showFilters}
+              filterFacility={filterFacility}
+              filterDateRange={filterDateRange}
+              filterCategory={filterCategory}
+              filterFrequency={filterFrequency}
+            />
+          </div>
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

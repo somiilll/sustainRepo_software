@@ -102,10 +102,9 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True}, {"_id": 0}
     ).to_list(1000)
     if len(relationships) != len(set(relationship_ids)): raise ValueError("One or more suppliers are not available to this organization")
-    organization = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1, "organization_name": 1})
     viewer_seed = await _prepare_viewer(content, file_name, content_type)
     storage = get_r2_storage()
-    upload = await storage.upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, org_name=(organization or {}).get("organization_name") or (organization or {}).get("name"))
+    upload = await storage.upload_file(content, file_name, TRAINING_BUCKET, content_type, folder=TRAINING_FOLDER, metadata={"uploaded_by": user_id, "kind": "supplier_training"}, organization_id=org_id)
     if upload.get("error"): raise ValueError(upload["error"])
     viewer_manifest = {"viewer_type": viewer_seed["viewer_type"]}
     uploaded_render_keys = []
@@ -130,7 +129,7 @@ async def create_training(org_id: str, user_id: str, title: str, description: st
         raise
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "viewer_manifest": viewer_manifest, "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "organization_id": org_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": len(content), "bucket_type": TRAINING_BUCKET, "r2_key": upload["key"], "viewer_manifest": viewer_manifest, "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": threshold, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments=[]
@@ -168,7 +167,7 @@ async def create_training_from_multipart(org_id: str, user_id: str, title: str, 
         raise ValueError("One or more suppliers are not available to this organization")
     now, content_id, requirement_id, version_id = _now(), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     content_doc = {"id": content_id, "organization_id": org_id, "title": title.strip(), "description": description or "", "created_by": user_id, "created_at": now}
-    version = {"id": version_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
+    version = {"id": version_id, "organization_id": org_id, "training_content_id": content_id, "version_number": 1, "original_filename": file_name, "content_type": content_type, "file_size": file_size, "bucket_type": TRAINING_BUCKET, "r2_key": storage_key, "viewer_manifest": {"viewer_type": _viewer_type(content_type), "duration_seconds": None}, "viewer_processing_status": "processing", "created_by": user_id, "created_at": now}
     requirement = {"id": requirement_id, "upload_session_id": upload_session_id, "organization_id": org_id, "training_content_id": content_id, "training_version_id": version_id, "completion_threshold": 100.0, "title": title.strip(), "description": description or "", "due_date": due_date or None, "is_active": True, "is_deleted": False, "created_by": user_id, "created_at": now}
     await db.supplier_training_contents.insert_one(content_doc); await db.supplier_training_versions.insert_one(version); await db.supplier_training_requirements.insert_one(requirement)
     assignments = []
@@ -207,18 +206,22 @@ async def supplier_trainings(relationship: Dict[str, Any]):
         progress=await db.supplier_training_progress.find_one({"supplier_relationship_id":relationship["id"],"training_assignment_id":assignment["id"]},{"_id":0})
         if requirement and version:
             manifest = version.get("viewer_manifest") or {}
-            result.append({"assignment_id":assignment["id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started"),"highest_page_index":(progress or {}).get("highest_page_index",0),"page_count":manifest.get("page_count") if manifest.get("viewer_type") == "pages" else None})
+            progress_percent = float((progress or {}).get("progress_percent", 0) or 0)
+            is_effectively_complete = progress_percent >= 99.5
+            result.append({"assignment_id":assignment["id"],"training_requirement_id":assignment["training_requirement_id"],"title":requirement["title"],"description":requirement["description"],"completion_threshold":requirement["completion_threshold"],"due_date":requirement.get("due_date"),"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"version_number":version["version_number"],"content_type":version["content_type"],"assigned_at":assignment["assigned_at"],"progress_percent":100.0 if is_effectively_complete else progress_percent,"status":"completed" if is_effectively_complete else (progress or {}).get("status","not_started"),"completed_at":(progress or {}).get("completed_at"),"highest_page_index":(progress or {}).get("highest_page_index",0),"page_count":manifest.get("page_count") if manifest.get("viewer_type") == "pages" else None})
     return result
 
 async def update_progress(relationship: Dict[str, Any], assignment_id: str, percent: float, user_id: str, highest_page_index: Optional[int] = None):
     if not 0 <= percent <= 100:
         raise ValueError("Progress must be between 0 and 100")
+    if percent >= 99.5:
+        percent = 100.0
     assignment=await db.supplier_training_assignments.find_one({"id":assignment_id,"supplier_relationship_id":relationship["id"],"is_active":True},{"_id":0})
     if not assignment: return None
     requirement=await db.supplier_training_requirements.find_one({"id":assignment["training_requirement_id"]},{"_id":0})
     status="completed" if percent >= requirement["completion_threshold"] else ("in_progress" if percent else "not_started")
     existing=await db.supplier_training_progress.find_one({"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"]},{"_id":0})
-    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
+    now=_now(); progress={"id":(existing or {}).get("id",str(uuid.uuid4())),"training_assignment_id":assignment_id,"supplier_relationship_id":relationship["id"],"supplier_org_id":relationship["supplier_org_id"],"training_version_id":assignment["requirement_version_id"],"reporting_period":assignment.get("reporting_period") or relationship.get("reporting_period"),"progress_percent":percent,"status":status,"completed_at":now if status=="completed" else None,"updated_by":user_id,"updated_at":now}
     persisted_highest_page = max(int((existing or {}).get("highest_page_index") or 0), int(highest_page_index or 0))
     if persisted_highest_page:
         progress["highest_page_index"] = persisted_highest_page
@@ -313,7 +316,7 @@ async def record_consumption_event(relationship: Dict[str, Any], assignment_id: 
         duration = manifest["duration_seconds"]
         percent = max(current_percent, round(min(max(event["position_seconds"], 0), duration) / duration * 100, 2))
     now = _now()
-    await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
+    await db.supplier_training_consumption_events.insert_one({"id": str(uuid.uuid4()), "training_assignment_id": assignment_id, "supplier_relationship_id": relationship["id"], "supplier_org_id": relationship["supplier_org_id"], "training_version_id": assignment["requirement_version_id"], "event_type": event["event_type"], "unit_index": event.get("unit_index"), "position_seconds": event.get("position_seconds"), "progress_percent": percent, "recorded_at": now, "recorded_by": user_id})
     return await update_progress(relationship, assignment_id, percent, user_id, highest_page_index)
 
 async def training_status(org_id: str, requirement_id: str, reporting_period: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
@@ -322,10 +325,21 @@ async def training_status(org_id: str, requirement_id: str, reporting_period: Op
     assignment_query = {"training_requirement_id": requirement_id, "organization_id": org_id, "is_active": True}
     if reporting_period:
         assignment_query["reporting_period"] = reporting_period
-    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0}).to_list(1000)
-    result=[]
+    assignments = await db.supplier_training_assignments.find(assignment_query, {"_id": 0}).sort("assigned_at", -1).to_list(1000)
+    relationship_ids = list({assignment["supplier_relationship_id"] for assignment in assignments})
+    active_relationships = await db.supplier_relationships.find(
+        {"id": {"$in": relationship_ids}, "customer_org_id": org_id, "is_active": True},
+        {"_id": 0, "id": 1, "company_name": 1},
+    ).to_list(1000)
+    relationships_by_id = {relationship["id"]: relationship for relationship in active_relationships}
+    latest_assignments = {}
     for assignment in assignments:
-        relationship=await db.supplier_relationships.find_one({"id":assignment["supplier_relationship_id"],"customer_org_id":org_id},{"_id":0,"company_name":1})
+        relationship_id = assignment["supplier_relationship_id"]
+        if relationship_id in relationships_by_id and relationship_id not in latest_assignments:
+            latest_assignments[relationship_id] = assignment
+    result=[]
+    for assignment in latest_assignments.values():
+        relationship = relationships_by_id[assignment["supplier_relationship_id"]]
         progress=await db.supplier_training_progress.find_one({"training_assignment_id":assignment["id"]},{"_id":0})
         if relationship: result.append({"supplier_relationship_id":assignment["supplier_relationship_id"],"supplier_name":relationship.get("company_name"),"assigned_at":assignment["assigned_at"],"progress_percent":(progress or {}).get("progress_percent",0),"status":(progress or {}).get("status","not_started"),"highest_page_index":(progress or {}).get("highest_page_index",0)})
     return result
@@ -480,7 +494,7 @@ async def list_training_assignments(org_id: str, requirement_id: str, reporting_
     return {"training_id": requirement_id, "assignments": rows}
 
 
-async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:
+async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> str:
     requirement = await db.supplier_training_requirements.find_one(
         {"id": requirement_id, "organization_id": org_id, "is_active": True, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
@@ -494,8 +508,11 @@ async def assign_training_to_supplier(org_id: str, requirement_id: str, supplier
         {"supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id, "reporting_period": relationship.get("reporting_period"), "is_active": True}, {"_id": 0, "id": 1}
     )
     if not existing:
-        await db.supplier_training_assignments.insert_one({"id": str(uuid.uuid4()), "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
+        assignment_id = str(uuid.uuid4())
+        await db.supplier_training_assignments.insert_one({"id": assignment_id, "supplier_relationship_id": supplier_relationship_id, "organization_id": org_id, "training_requirement_id": requirement_id, "requirement_version_id": requirement["training_version_id"], "reporting_period": relationship.get("reporting_period"), "assigned_at": _now(), "is_active": True})
         log_event(logger, logging.INFO, "supplier_assessment.training.assignment.added", action="supplier_assessment.training.assignment.add", outcome="succeeded", context={"organization_id": org_id, "supplier_relationship_id": supplier_relationship_id, "training_requirement_id": requirement_id})
+        return assignment_id
+    return existing["id"]
 
 
 async def unassign_training_from_supplier(org_id: str, requirement_id: str, supplier_relationship_id: str) -> None:

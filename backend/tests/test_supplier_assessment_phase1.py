@@ -166,6 +166,18 @@ async def test_esg_and_ghg_adapters_match_existing_completion_rules():
 
 
 @pytest.mark.asyncio
+async def test_esg_completion_marks_unresolved_clarifications_incomplete():
+    database = _completion_database()
+    database.supplier_questionnaire_responses.docs[0]["unlocked_question_ids"] = ["question-1"]
+    relationship = {**_relationship(), "questionnaire_ids": ["questionnaire-1"]}
+    esg_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
+        "modules": {"esg": {"enabled": True}}
+    }) if module.module_code == "esg")
+
+    assert (await esg_module.get_completion(database, relationship)).completion_percent == 50.0
+
+
+@pytest.mark.asyncio
 async def test_program_revision_binding_reuses_same_config_and_versions_changes(monkeypatch):
     database = _Database(supplier_assessment_programs=[])
     monkeypatch.setattr(programs, "db", database)
@@ -231,6 +243,9 @@ async def test_document_acceptance_is_versioned_and_contributes_to_completion(mo
         "id": "document-version-1", "original_filename": "nda.pdf", "content_type": "application/pdf",
         "file_size": 12, "version_number": 1,
     }])
+    database.supplier_document_views = _Collection([{
+        "id": "view-1", "supplier_relationship_id": "relationship-1", "document_requirement_id": "requirement-1",
+    }])
     database.supplier_document_acceptances = _Collection([])
     monkeypatch.setattr(documents_service, "db", database)
     monkeypatch.setattr(programs, "db", database)
@@ -247,6 +262,70 @@ async def test_document_acceptance_is_versioned_and_contributes_to_completion(mo
     await supplier_service._update_completion_status("relationship-1")
     assert database.supplier_relationships.docs[0]["documents_completion_percent"] == 100.0
     assert database.supplier_relationships.docs[0]["overall_completion_percent"] == 53.3
+
+
+@pytest.mark.asyncio
+async def test_document_completion_excludes_unassigned_legacy_requirements():
+    relationship = _relationship()
+    database = _completion_database()
+    database.supplier_document_requirements = _Collection([
+        {
+            "id": "requirement-complete", "customer_org_id": "customer-1",
+            "document_version_id": "document-version-complete", "is_active": True,
+            "assignment_mode": "selected", "supplier_relationship_ids": ["relationship-1"],
+        },
+        {
+            "id": "requirement-pending", "customer_org_id": "customer-1",
+            "document_version_id": "document-version-pending", "is_active": True,
+            "assignment_mode": "selected", "supplier_relationship_ids": ["relationship-1"],
+        },
+        {
+            "id": "legacy-unassigned", "customer_org_id": "customer-1",
+            "document_version_id": "document-version-legacy", "is_active": True,
+            "assignment_mode": "selected", "supplier_relationship_ids": [],
+            "excluded_supplier_relationship_ids": ["relationship-1"],
+        },
+    ])
+    database.supplier_document_submissions = _Collection([{
+        "supplier_relationship_id": "relationship-1",
+        "document_requirement_id": "requirement-complete",
+        "document_version_id": "document-version-complete",
+        "is_current": True,
+        "status": "submitted",
+    }])
+
+    document_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
+        "modules": {"documents": {"enabled": True}}
+    }) if module.module_code == "documents")
+
+    assert (await document_module.get_completion(database, relationship)).completion_percent == 50.0
+
+
+@pytest.mark.asyncio
+async def test_training_completion_excludes_prior_period_and_retired_assignments():
+    relationship = {**_relationship(), "reporting_period": "FY 2026-2027"}
+    database = _completion_database()
+    database.supplier_training_assignments = _Collection([
+        {"id": "assignment-complete", "supplier_relationship_id": "relationship-1", "training_requirement_id": "training-complete", "reporting_period": "FY 2026-2027", "is_active": True},
+        {"id": "assignment-pending", "supplier_relationship_id": "relationship-1", "training_requirement_id": "training-pending", "reporting_period": "FY 2026-2027", "is_active": True},
+        {"id": "assignment-prior-period", "supplier_relationship_id": "relationship-1", "training_requirement_id": "training-prior-period", "reporting_period": "FY 2025-2026", "is_active": True},
+        {"id": "assignment-retired", "supplier_relationship_id": "relationship-1", "training_requirement_id": "training-retired", "reporting_period": "FY 2026-2027", "is_active": True},
+    ])
+    database.supplier_training_requirements = _Collection([
+        {"id": "training-complete", "is_active": True, "is_deleted": False},
+        {"id": "training-pending", "is_active": True, "is_deleted": False},
+        {"id": "training-prior-period", "is_active": True, "is_deleted": False},
+        {"id": "training-retired", "is_active": False, "is_deleted": True},
+    ])
+    database.supplier_training_progress = _Collection([
+        {"supplier_relationship_id": "relationship-1", "training_assignment_id": "assignment-complete", "status": "completed"},
+    ])
+
+    training_module = next(module for module in supplier_assessment_module_registry.enabled_modules({
+        "modules": {"training": {"enabled": True}}
+    }) if module.module_code == "training")
+
+    assert (await training_module.get_completion(database, relationship)).completion_percent == 50.0
 
 
 @pytest.mark.asyncio

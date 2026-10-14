@@ -14,6 +14,7 @@ from app.logging import get_logger, log_event
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
 
 logger = get_logger(__name__)
 
@@ -53,11 +54,12 @@ async def create_supplier(
     ghg_scopes_enabled: Optional[List[str]] = None,
     ghg_submission_frequency: str = "yearly",
     reporting_period: Optional[str] = None,
-    revenue_required: bool = False,
+    revenue_required: bool = True,
     questionnaire_ids: Optional[List[str]] = None,
     document_requirement_ids: Optional[List[str]] = None,
     training_requirement_ids: Optional[List[str]] = None,
     vendor_code: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new supplier:
@@ -67,6 +69,7 @@ async def create_supplier(
     4. Create supplier_relationship record
     """
     validate_due_date(access_revoke_date)
+    revenue_required = True
     company_name = (company_name or "").strip()
     email = (email or "").strip().lower()
     duplicate_supplier = await db.supplier_relationships.find_one(
@@ -163,10 +166,11 @@ async def create_supplier(
     ]
     ghg_scopes_enabled = (program_modules.get("ghg") or {}).get("scopes", ["scope1", "scope2"])
 
+    effective_reporting_period = reporting_period or await self._organization_default_reporting_period(customer_org_id)
     assigned_questionnaire_ids: List[str] = []
     if "esg" in modules_enabled:
         active_questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": customer_org_id, "is_active": True}, {"_id": 0, "id": 1}
+            {"organization_id": customer_org_id, "is_active": True, "reporting_periods": normalize_questionnaire_reporting_period(effective_reporting_period)}, {"_id": 0, "id": 1}
         ).to_list(100)
         active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
         if not questionnaire_ids:
@@ -202,11 +206,12 @@ async def create_supplier(
         "contact_person": contact_person,
         "contact_email": email,
         "contact_number": contact_number,
+        "tier": tier,
         "revenue_percentage": None,
         "revenue_required": revenue_required,
         "invitation_status": "pending",
         "access_revoke_date": access_revoke_date,
-        "reporting_period": reporting_period or await self._organization_default_reporting_period(customer_org_id),
+        "reporting_period": effective_reporting_period,
         "financial_year_start_month": int(customer_reporting_config.get("financial_year_start_month") or 4),
         "last_reminder_sent": None,
         "reminder_count": 0,
@@ -253,6 +258,18 @@ async def create_supplier(
         raise ValueError("FRONTEND_URL must be configured")
     login_link = f"{frontend_url}/login"
     
+    assigned_modules = []
+    if revenue_required:
+        assigned_modules.append("revenue")
+    if assigned_questionnaire_ids:
+        assigned_modules.append("esg")
+    if "ghg" in modules_enabled and ghg_scopes_enabled:
+        assigned_modules.append("ghg")
+    if document_requirement_ids:
+        assigned_modules.append("documents")
+    if training_requirement_ids:
+        assigned_modules.append("training")
+
     email_body = supplier_invitation_email(
         supplier_name=contact_person,
         customer_name=customer_name,
@@ -260,7 +277,7 @@ async def create_supplier(
         temp_password=temp_password,  # Will be None if user already exists
         login_link=login_link,
         access_revoke_date=access_revoke_date,
-        assigned_modules=["revenue", *modules_enabled],
+        assigned_modules=assigned_modules,
     )
     
     subject = f"Supplier Assessment Invitation from {customer_name}"
@@ -390,7 +407,12 @@ async def update_supplier(
 
     if "questionnaire_ids" in updates:
         active_questionnaires = await db.supplier_questionnaires.find(
-            {"organization_id": relationship["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1}
+            {
+                "organization_id": relationship["customer_org_id"],
+                "is_active": True,
+                "reporting_periods": normalize_questionnaire_reporting_period(relationship.get("reporting_period")),
+            },
+            {"_id": 0, "id": 1},
         ).to_list(100)
         active_ids = {questionnaire["id"] for questionnaire in active_questionnaires}
         updates["questionnaire_ids"] = list(dict.fromkeys(updates["questionnaire_ids"] or []))
@@ -406,6 +428,7 @@ async def update_supplier(
                 {
                     "supplier_relationship_id": relationship_id,
                     "questionnaire_id": {"$in": list(removed_questionnaire_ids)},
+                    "reporting_period": relationship.get("reporting_period"),
                     "status": "submitted",
                 },
                 {"_id": 0, "questionnaire_id": 1},
@@ -726,7 +749,7 @@ async def submit_revenue_info(self, relationship_id: str, supplier_org_id: str, 
         raise ValueError("Supplier relationship not found")
     if relationship.get("revenue_percentage") is None:
         raise ValueError("Save the mandatory revenue percentage before submitting")
-    if relationship.get("revenue_required", False) and relationship.get("revenue_amount") is None:
+    if relationship.get("revenue_required", True) and relationship.get("revenue_amount") is None:
         raise ValueError("Save the mandatory annual revenue amount before submitting")
     period = relationship.get("reporting_period") or self._default_reporting_period()
     existing = await db.supplier_revenue_submissions.find_one(

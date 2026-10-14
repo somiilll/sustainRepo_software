@@ -74,7 +74,9 @@ import WorkflowApproverQueue from './pages/WorkflowApproverQueue';
 import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
+import PCFStudio from './pages/PCFStudio';
 import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
+import SupplierResponseReviewPage from './modules/supplier-assessment/SupplierResponseReviewPage';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
 import SupplierAssessmentGHG from './pages/SupplierAssessmentGHG';
 import SupplierAssessmentRanking from './pages/SupplierAssessmentRanking';
@@ -93,6 +95,8 @@ import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
 import { OCRProvider } from './contexts/OCRContext';
 import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentPeriodContext';
+import { ConnectivityProvider } from './contexts/ConnectivityContext';
+import { ConnectivityStatusBanner } from './components/ConnectivityStatusBanner';
 import { initializeCategoryModules } from './modules/emissions';
 
 // Initialize the emissions Category Registry once at app boot.
@@ -357,11 +361,13 @@ const AppRoutes = () => {
           <Route path="reports" element={<Reports />} />
           <Route path="mis-reports" element={<MISReports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
+          <Route path="pcf-studio" element={<EntitlementRoute entitlement="pcf_studio" moduleName="PCF Studio"><PCFStudio /></EntitlementRoute>} />
           
           {/* Supplier Assessment Routes (Customer Admin) */}
           <Route path="supplier-assessment" element={<AdminRoute><SupplierAssessmentPeriodProvider><SupplierAssessmentAdminLayout /></SupplierAssessmentPeriodProvider></AdminRoute>}>
             <Route path="suppliers" element={<SupplierAssessmentSuppliers />} />
             <Route path="esg" element={<SupplierAssessmentESG />} />
+            <Route path="suppliers/:supplierId/questionnaires/:questionnaireId/review" element={<SupplierResponseReviewPage />} />
             <Route path="ghg" element={<SupplierAssessmentGHG />} />
             <Route path="ranking" element={<SupplierAssessmentRanking />} />
             <Route path="documents" element={<SupplierDocumentsAdmin />} />
@@ -418,16 +424,19 @@ function App() {
   return (
     <AppErrorBoundary>
     <AuthProvider>
-      <OrganizationProvider>
-        <OCRProvider>
-          <BrowserRouter>
-            <div className="App">
-              <OrganizationErrorGate />
-              <Toaster position="top-right" />
-            </div>
-          </BrowserRouter>
-        </OCRProvider>
-      </OrganizationProvider>
+      <ConnectivityProvider>
+        <OrganizationProvider>
+          <OCRProvider>
+            <BrowserRouter>
+              <div className="App">
+                <ConnectivityStatusBanner />
+                <OrganizationErrorGate />
+                <Toaster position="top-right" />
+              </div>
+            </BrowserRouter>
+          </OCRProvider>
+        </OrganizationProvider>
+      </ConnectivityProvider>
     </AuthProvider>
     </AppErrorBoundary>
   );

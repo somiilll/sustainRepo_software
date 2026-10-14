@@ -172,6 +172,7 @@ def build_esg_proposal_version_event(
     return {
         "id": str(uuid.uuid4()),
         "record_id": current.get("id"),
+        "organization_id": current.get("organization_id") or current.get("org_id"),
         "version": updated.get("version", current.get("version")),
         "section": section,
         "snapshot": updated,

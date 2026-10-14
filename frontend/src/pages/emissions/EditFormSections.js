@@ -34,27 +34,12 @@ export const FacilityScopeSection = ({
   <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(25rem,1.45fr)_minmax(15rem,1fr)]">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
-      <div className="relative">
-        <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-        {readOnly ? <div
+      {readOnly ? <div
           role="textbox"
           aria-readonly="true"
           className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800"
           data-testid="emission-facility-select"
-        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <select
-          id="facility"
-          value={formData.facility_id}
-          onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
-          required
-          className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
-          data-testid="emission-facility-select"
-        >
-          <option value="">Select Facility</option>
-          {facilities.filter(f => f.is_active !== false).map(f => (
-            <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
-          ))}
-        </select>}
-      </div>
+        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <div className="relative"><Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="facility" value={formData.facility_id} onChange={(event) => { setFormData({ ...formData, facility_id: event.target.value }); markFormDirty(); }} className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" data-testid="emission-facility-select"><option value="">Select Facility</option>{facilities.filter((facility) => facility.is_active !== false).map((facility) => <option key={facility.id} value={facility.id}>{facility.name}{facility.country ? ` (${facility.country})` : ''}</option>)}</select></div>}
     </div>
     <div className="space-y-1.5">
       <Label>Scope *</Label>
@@ -63,7 +48,7 @@ export const FacilityScopeSection = ({
           const isScope3 = scope.code === 'scope3';
           const isDisabled = isScope3 && !hasScope3Access;
           return (
-            <label key={scope.code} className={`relative flex shrink-0 items-center gap-2 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
+            <label key={scope.code} className={`relative flex shrink-0 items-center gap-2 text-sm font-normal leading-5 text-stone-800 ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
               <input
                 type="radio"
                 value={scope.code}

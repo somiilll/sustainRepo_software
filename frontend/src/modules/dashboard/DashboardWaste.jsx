@@ -204,6 +204,8 @@ export default function DashboardWaste({ data }) {
     <div className="space-y-5 pb-8" data-testid="waste-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Waste` : 'Waste Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={`Reporting: ${dateRangeLabel}`}
         showFilters={showFilters}
         setShowFilters={setShowFilters}

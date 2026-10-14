@@ -35,6 +35,8 @@ export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = 
       scope1_emissions: Number(supplier.scope1 || 0),
       scope2_emissions: Number(supplier.scope2 || 0),
       total_emissions: Number(supplier.total || 0),
+      total_intensity: hasNumber(supplier.total_intensity) ? Number(supplier.total_intensity) : null,
+      revenue_currency: supplier.revenue_currency,
       revenue_percentage: supplier.revenue_percentage,
     }))
     .sort((a, b) => b.total_emissions - a.total_emissions);
@@ -53,37 +55,32 @@ export const buildSupplierEmissionsAnalytics = (payload = {}, reportingPeriod = 
     }))
     .sort((a, b) => b.intensity - a.intensity);
 
-  const supplierCategories = new Map();
-  const categoryTotals = new Map();
+  const scopeCategoryTotals = new Map();
   records.forEach((record) => {
-    if (record.scope !== 'scope1' || !hasNumber(record.attributed_emissions)) return;
-    const supplierId = record.supplier_relationship_id;
+    if (!['scope1', 'scope2'].includes(record.scope) || !hasNumber(record.attributed_emissions)) return;
     const category = record.category || 'Uncategorized';
     const value = Number(record.attributed_emissions);
-    if (!supplierCategories.has(supplierId)) supplierCategories.set(supplierId, { supplier_id: supplierId, company_name: record.supplier_name, values: new Map() });
-    const supplier = supplierCategories.get(supplierId);
-    supplier.values.set(category, (supplier.values.get(category) || 0) + value);
-    categoryTotals.set(category, (categoryTotals.get(category) || 0) + value);
+    const key = `${record.scope}:${category}`;
+    const current = scopeCategoryTotals.get(key) || { scope: record.scope, name: category, value: 0 };
+    current.value += value;
+    scopeCategoryTotals.set(key, current);
   });
-  const categories = [...categoryTotals].sort((a, b) => b[1] - a[1]).map(([name], index) => ({ name, dataKey: `category_${index}`, color: SERIES_COLORS[index % SERIES_COLORS.length] }));
-  const scope1CategoryData = [...supplierCategories.values()]
-    .sort((a, b) => a.company_name.localeCompare(b.company_name))
-    .map((supplier) => ({
-      supplier_id: supplier.supplier_id,
-      company_name: supplier.company_name,
-      ...Object.fromEntries(categories.map((category) => [category.dataKey, supplier.values.get(category.name) || 0])),
-    }));
+  const scopeCategoryData = [...scopeCategoryTotals.values()].sort((a, b) => b.value - a.value);
 
   const monthlyTotals = new Map();
   records.forEach((record) => {
-    if (!/^\d{4}-\d{2}$/.test(record.reporting_period || '') || !hasNumber(record.attributed_emissions)) return;
-    monthlyTotals.set(record.reporting_period, (monthlyTotals.get(record.reporting_period) || 0) + Number(record.attributed_emissions));
+    if (!/^\d{4}-\d{2}$/.test(record.reporting_period || '') || !['scope1', 'scope2'].includes(record.scope) || !hasNumber(record.attributed_emissions)) return;
+    const totals = monthlyTotals.get(record.reporting_period) || { scope1: 0, scope2: 0 };
+    totals[record.scope] += Number(record.attributed_emissions);
+    monthlyTotals.set(record.reporting_period, totals);
   });
   const monthlyTrend = reportingMonths(reportingPeriod, records).map((period) => ({
     period,
     month: monthLabel(period),
-    total_attributed_emissions: monthlyTotals.has(period) ? monthlyTotals.get(period) : null,
+    total_attributed_emissions: monthlyTotals.has(period) ? monthlyTotals.get(period).scope1 + monthlyTotals.get(period).scope2 : null,
+    scope1_attributed_emissions: monthlyTotals.has(period) ? monthlyTotals.get(period).scope1 : null,
+    scope2_attributed_emissions: monthlyTotals.has(period) ? monthlyTotals.get(period).scope2 : null,
   }));
 
-  return { supplierTotals, scopeTotals, intensityData, scope1CategoryData, categories, monthlyTrend };
+  return { supplierTotals, scopeTotals, intensityData, scopeCategoryData, monthlyTrend };
 };

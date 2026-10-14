@@ -257,22 +257,6 @@ export const Step1BasicSelection = ({
     return result;
   }, [dynamicScopes, disabledScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
 
-  const facilityOptionsHtml = useMemo(() => {
-    const options = filteredFacilities.length === 0
-      ? '<option value="_no_facilities" disabled>No facilities available for this scope</option>'
-      : filteredFacilities.map((facility) => (
-        `<option value="${escapeOptionHtml(facility.id)}">${escapeOptionHtml(facility.name)}${facility.country ? ` (${escapeOptionHtml(facility.country)})` : ''}</option>`
-      )).join('');
-    return `<option value="">Select Facility</option>${options}`;
-  }, [filteredFacilities]);
-
-  const categoryOptionsHtml = useMemo(() => {
-    const options = categoriesForScope.length === 0
-      ? '<option value="_no_categories" disabled>No categories available for this scope</option>'
-      : categoriesForScope.map((option) => `<option value="${escapeOptionHtml(option)}">${escapeOptionHtml(option)}</option>`).join('');
-    return `<option value="">Select Category</option>${options}`;
-  }, [categoriesForScope]);
-
   const scope3MethodOptionsHtml = useMemo(() => (
     `<option value="">Select Method</option>${availableScope3Methods.map((method) => (
       `<option value="${escapeOptionHtml(method)}">${escapeOptionHtml(getMethodLabel(method))}</option>`
@@ -315,17 +299,15 @@ export const Step1BasicSelection = ({
         {/* Facility */}
         <div className="space-y-2">
           <Label htmlFor="emission-facility-select">Facility <span className="text-red-500">*</span></Label>
-          <div className="relative">
-            <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-            <select
+          <SearchableSelect
               id="emission-facility-select"
               value={facilityId}
-              onChange={(event) => setFacilityId(event.target.value)}
-              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              data-testid="emission-facility-select"
-              dangerouslySetInnerHTML={{ __html: facilityOptionsHtml }}
+              options={filteredFacilities.map((facility) => ({ value: facility.id, label: `${facility.name}${facility.country ? ` (${facility.country})` : ''}` }))}
+              onValueChange={setFacilityId}
+              placeholder={filteredFacilities.length ? 'Select Facility' : 'No facilities available for this scope'}
+              leadingIcon={<Building2 className="h-4 w-4" />}
+              testId="emission-facility-select"
             />
-          </div>
           {!hasFullKPIAccess && filteredFacilities.length === 0 && scope && (
             <p className="text-xs text-amber-600">
               You don&apos;t have access to any facilities for {scope}. Contact your admin.
@@ -338,7 +320,7 @@ export const Step1BasicSelection = ({
           <Label>Scope <span className="text-red-500">*</span></Label>
           <div className="flex min-h-10 flex-wrap items-center gap-4">
             {filteredScopes.map(s => (
-                <label key={s.code} className="flex items-center gap-2 cursor-pointer">
+                <label key={s.code} className="flex cursor-pointer items-center gap-2 text-sm font-normal leading-5 text-stone-800">
                   <input
                     type="radio"
                     value={s.code}
@@ -362,7 +344,7 @@ export const Step1BasicSelection = ({
                     className="h-4 w-4 accent-emerald-600"
                     data-testid={`entry-scope-${s.code}`}
                   />
-                  <span className="text-sm">{s.name}</span>
+                  <span>{s.name}</span>
                 </label>
               ))}
           </div>
@@ -378,7 +360,7 @@ export const Step1BasicSelection = ({
           <div className="flex min-h-10 flex-wrap items-center gap-6 sm:col-span-2">
             <Label className="shrink-0" data-testid="biogenic-emission-type-label">Select Biogenic Emission Type <span className="text-red-500">*</span></Label>
             <div className="flex min-h-10 flex-wrap items-center gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-normal leading-5 text-stone-800">
                 <input
                   type="radio"
                   value="scope1"
@@ -393,9 +375,9 @@ export const Step1BasicSelection = ({
                   className="h-4 w-4 accent-emerald-600"
                   data-testid="biogenic-scope-radio-scope1"
                 />
-                <span className="text-sm">Direct Emissions</span>
+                <span>Direct Emissions</span>
               </label>
-              <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+              <label className={`flex items-center gap-2 text-sm font-normal leading-5 text-stone-800 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input
                   type="radio"
                   value="scope3"
@@ -411,7 +393,7 @@ export const Step1BasicSelection = ({
                   className="h-4 w-4 accent-emerald-600"
                   data-testid="biogenic-scope-radio-scope3"
                 />
-                <span className="text-sm">Indirect Emissions</span>
+                <span>Indirect Emissions</span>
                 {!hasScope3Access && (
                   <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                     Not Available
@@ -430,13 +412,11 @@ export const Step1BasicSelection = ({
       {/* Category */}
       <div className="min-w-0 space-y-2">
         <Label htmlFor="emission-category-select">Category <span className="text-red-500">*</span></Label>
-        <div className="relative">
-          <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-          <select
+        <SearchableSelect
             id="emission-category-select"
             value={category}
-            onChange={(event) => {
-              const value = event.target.value;
+            options={categoriesForScope.map((option) => ({ value: option, label: option }))}
+            onValueChange={(value) => {
               if (onCategoryChange) {
                 onCategoryChange(value);
                 return;
@@ -449,11 +429,10 @@ export const Step1BasicSelection = ({
               setTypeOfProduct?.('');
               setScope3ActivityId('');
             }}
-            className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-            data-testid="emission-category-select"
-            dangerouslySetInnerHTML={{ __html: categoryOptionsHtml }}
+            placeholder={categoriesForScope.length ? 'Select Category' : 'No categories available'}
+            leadingIcon={<CategoryIcon className="h-4 w-4" />}
+            testId="emission-category-select"
           />
-        </div>
       </div>
 
       {/* Process Emissions: keep Category, Process Type, and Methodology aligned. */}
@@ -469,7 +448,7 @@ export const Step1BasicSelection = ({
                 process_type: event.target.value,
                 calculation_methodology: 'using_heat_basis_ncv',
               }))}
-              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="process-type-select"
               dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
             />
@@ -480,19 +459,17 @@ export const Step1BasicSelection = ({
       {ghgUiState.showProcessType && ghgUiState.showCalculationMethodology && (
         <div className="min-w-0 space-y-2" data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
-          <div className="relative">
-            <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-            <select
+          <SearchableSelect
               value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
-              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
-              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              data-testid="calculation-methodology-select"
-            >
-              <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
-              <option value="using_qty_basis_ef">Using Qty Basis EF</option>
-              <option value="using_carbon_composition">Using Composition of Carbon</option>
-            </select>
-          </div>
+              onValueChange={(value) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: value }))}
+              options={[
+                { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
+                { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
+                { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
+              ]}
+              leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
+              testId="calculation-methodology-select"
+            />
         </div>
       )}
 
@@ -508,7 +485,7 @@ export const Step1BasicSelection = ({
                 setScope3Method(e.target.value);
                 setScope3ActivityId('');
               }}
-              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10"
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               data-testid="biogenic-scope3-method-select"
               dangerouslySetInnerHTML={{ __html: scope3MethodOptionsHtml }}
             />
@@ -563,7 +540,7 @@ export const Step1BasicSelection = ({
               <select
                 value={scope3ActivityId}
                 onChange={(e) => setScope3ActivityId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid="biogenic-scope3-activity-select"
                 dangerouslySetInnerHTML={{ __html: biogenicActivityOptionsHtml }}
               />
@@ -667,7 +644,7 @@ export const Step1BasicSelection = ({
                   setScope3ActivityType(e.target.value);
                   setScope3ActivityId('');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid="scope3-activity-type-filter"
                 dangerouslySetInnerHTML={{ __html: activityTypeOptionsHtml }}
               />
@@ -687,7 +664,7 @@ export const Step1BasicSelection = ({
                   // path through the decision tree — clear it.
                   setTypeOfProduct?.('');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid="scope3-subcategory-select"
                 dangerouslySetInnerHTML={{ __html: subcategoryOptionsHtml }}
               />
@@ -708,7 +685,7 @@ export const Step1BasicSelection = ({
                     setTypeOfProduct?.(e.target.value);
                     setScope3ActivityId('');
                   }}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                   data-testid="scope3-type-of-product-select"
                   dangerouslySetInnerHTML={{ __html: typeOfProductOptionsHtml }}
                 />
@@ -814,7 +791,7 @@ export const Step1BasicSelection = ({
                   setScope3ActivityType(nextType);
                   setScope3ActivityId(matching?.id || '');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid={`${wasteCategoryKey}-activity-type-select`}
               >
                 <option value="">Select activity type...</option>
@@ -843,19 +820,17 @@ export const Step1BasicSelection = ({
       {ghgUiState.showCalculationMethodology && !ghgUiState.showProcessType && (
         <div className={`space-y-2 ${usesDirectFuelLayout ? '' : 'mt-4 border-b border-stone-200 pb-6'}`} data-testid="calculation-methodology-section">
           <Label>Calculation Methodology</Label>
-          <div className="relative">
-            <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-            <select
+          <SearchableSelect
               value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
-              onChange={(event) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: event.target.value }))}
-              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              data-testid="calculation-methodology-select"
-            >
-              <option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option>
-              <option value="using_qty_basis_ef">Using Qty Basis EF</option>
-              <option value="using_carbon_composition">Using Composition of Carbon</option>
-            </select>
-          </div>
+              onValueChange={(value) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: value }))}
+              options={[
+                { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
+                { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
+                { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
+              ]}
+              leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
+              testId="calculation-methodology-select"
+            />
         </div>
       )}
 

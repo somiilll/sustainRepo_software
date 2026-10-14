@@ -95,7 +95,7 @@ export default function TargetSettingsPage({ organization, currentUser }) {
         {canManage && (
           <Button
             onClick={openAdd}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
             data-testid="target-add-btn"
           >
             <Plus className="w-4 h-4 mr-1" />

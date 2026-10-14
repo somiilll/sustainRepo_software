@@ -46,8 +46,8 @@ MAPPINGS_PATH = os.path.join(MODULE_DIR, "ocr_mappings.json")
 VENDOR_CACHE_PATH = os.path.join(MODULE_DIR, "vendor_cache.json")
 
 # Model configuration from environment
-OCR_MODEL_PRIMARY = os.environ.get("OCR_MODEL_PRIMARY", "claude-sonnet-5")
-OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-haiku-4-5")
+OCR_MODEL_PRIMARY = os.environ.get("OCR_MODEL_PRIMARY", "claude-sonnet-5-5")
+OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-haiku-5-5")
 
 # MongoDB Collections
 OCR_UPLOADS_COLLECTION = "ocr_uploads"
@@ -102,6 +102,21 @@ def _get_org(user: dict) -> str:
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     return org_id
+
+
+async def _enabled_ocr_scopes(org_id: str) -> set[str]:
+    """Return the currently enabled OCR scopes for an organization."""
+    _, enabled_scopes, _ = await build_org_context(org_id)
+    return enabled_scopes
+
+
+async def _require_enabled_ocr_item_scope(item: dict, org_id: str) -> set[str]:
+    """Block direct actions on historical OCR rows from disabled scopes."""
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    scope = (item.get("current_values") or {}).get("scope")
+    if scope not in enabled_scopes:
+        raise HTTPException(status_code=409, detail="This OCR row belongs to a scope that is no longer enabled for your organization")
+    return enabled_scopes
 
 
 def _preview_path(upload_id: str, file_index: int) -> str:
@@ -608,7 +623,6 @@ async def _legacy_upload_invoices(
     """
     org_id = _get_org(current_user)
     user_id = current_user.get("id")
-    
     # Validate files
     allowed_extensions = ('.pdf', '.png', '.jpg', '.jpeg', '.avif')
     valid_files = []
@@ -674,8 +688,9 @@ async def _legacy_upload_invoices(
                 filename=file.filename,
                 bucket_type='ocr_temp',
                 content_type=file.content_type or 'application/octet-stream',
-                folder=f"ocr/{org_id}/{upload_id}",
-                org_name=org_id
+                folder="ocr",
+                organization_id=org_id,
+                subfolder=upload_id,
             )
             
             if "error" in upload_result:
@@ -842,9 +857,14 @@ async def _legacy_upload_invoices(
     # Return response (exclude _id fields)
     return {
         "upload_id": upload_id,
+        "pipeline": "legacy_fuel_taxonomy",
         "file_count": len(upload_record["files"]),
         "total_line_items": len(all_line_items),
         "needs_review_count": upload_record["needs_review_count"],
+        "files": [
+            {key: value for key, value in file_info.items() if key not in {"temp_key", "temp_url"}}
+            for file_info in upload_record["files"]
+        ],
         "line_items": [
             {k: v for k, v in item.items() if k != "_id"}
             for item in all_line_items
@@ -943,8 +963,9 @@ async def list_upload_history(
         for user in users if user.get("id")
     }
     upload_ids = [upload.get("id") for upload in uploads if upload.get("id")]
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     active_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"organization_id": org_id, "upload_id": {"$in": upload_ids}},
+        {"organization_id": org_id, "upload_id": {"$in": upload_ids}, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0, "id": 1, "upload_id": 1, "file_index": 1, "filename": 1, "current_values": 1},
     ).sort("created_at", 1).to_list(5000) if upload_ids else []
     active_rows_by_file = {}
@@ -962,16 +983,18 @@ async def list_upload_history(
             is_final = file.get("resolution_status") == "resolved" or (line_item_count > 0 and total_resolved >= line_item_count)
             if raw_status == "failed" or upload.get("status") == "failed":
                 file_status = "Error"
-            elif raw_status in {"cancelled", "cancel_requested"} or upload.get("status") == "cleared":
-                file_status = "Event Cancelled"
             elif saved_count and rejected_count:
                 file_status = "Partially Saved"
             elif is_final and saved_count:
                 file_status = "Saved"
-            elif is_final and rejected_count:
+            elif rejected_count:
                 file_status = "Rejected All"
             elif saved_count or rejected_count:
                 file_status = "Partially Saved"
+            elif raw_status in {"cancelled", "cancel_requested"}:
+                file_status = "Event Cancelled"
+            elif upload.get("status") == "cleared":
+                file_status = "Rejected All"
             elif raw_status in {"queued", "processing", "awaiting_facility_assignment"}:
                 file_status = "Processing"
             else:
@@ -1008,8 +1031,9 @@ async def get_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     
     # Get line items
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     line_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id},
+        {"upload_id": upload_id, "organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0}
     ).to_list(1000)
     
@@ -1279,8 +1303,9 @@ async def export_upload_csv(
     )
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
     items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id, "organization_id": org_id},
+        {"upload_id": upload_id, "organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}},
         {"_id": 0, "current_values": 1, "confidence_score": 1, "needs_review": 1, "status": 1, "filename": 1},
     ).to_list(5000)
     fieldnames = [
@@ -1343,8 +1368,12 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
         ),
         *({"scope": "water", "value": value, "label": value, "key": key, "code": key, "id": category_ids.get(value)} for key, value in WATER_CATEGORY_NAMES.items()),
     ]
+    categories = [category for category in categories if category["scope"] in scopes]
+    legacy_pipeline = "scope3" not in scopes
     return {
         "enabled_scopes": scopes,
+        "pipeline": "legacy_fuel_taxonomy" if legacy_pipeline else "queued_multiscope",
+        "supports_extraction_modes": not legacy_pipeline,
         "modes": [
             {
                 "key": mode.key,
@@ -1353,6 +1382,7 @@ async def get_ocr_configuration(current_user: dict = Depends(get_current_user)):
                 "reasoning_model": mode.reasoning_model,
             }
             for mode in MODES.values()
+            if not legacy_pipeline
         ],
         "categories": categories,
         "facilities": facilities,
@@ -1371,6 +1401,9 @@ async def get_ocr_factor_options(
 ):
     """Return canonical factor and unit choices for one OCR edit combination."""
     org_id = _get_org(current_user)
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    if scope not in enabled_scopes:
+        raise HTTPException(status_code=403, detail="This scope is not enabled for your organization")
     facility = None
     if facility_id:
         facility = await db.facilities.find_one(
@@ -1501,7 +1534,8 @@ async def list_line_items(
     """List OCR line items for the organization with optional filters."""
     org_id = _get_org(current_user)
     
-    query = {"organization_id": org_id}
+    enabled_scopes = await _enabled_ocr_scopes(org_id)
+    query = {"organization_id": org_id, "current_values.scope": {"$in": list(enabled_scopes)}}
     if upload_id:
         query["upload_id"] = upload_id
     if status:
@@ -1534,6 +1568,7 @@ async def edit_line_item(
     
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    enabled_scopes = await _require_enabled_ocr_item_scope(item, org_id)
     
     if item.get("status") == "imported":
         raise HTTPException(status_code=400, detail="Cannot edit imported line items")
@@ -1544,6 +1579,8 @@ async def edit_line_item(
     
     submitted = edit_data.model_dump(exclude_unset=True)
     submitted = canonicalize_calculation_units(submitted)
+    if submitted.get("scope") and submitted["scope"] not in enabled_scopes:
+        raise HTTPException(status_code=422, detail="Choose a scope enabled for your organization")
     remember_override = submitted.pop("remember_override", False)
     if submitted.get("facility_id"):
         facility = await db.facilities.find_one(
@@ -1678,6 +1715,7 @@ async def accept_line_item(
     
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    await _require_enabled_ocr_item_scope(item, org_id)
     
     if item.get("status") == "imported":
         raise HTTPException(status_code=400, detail="Line item already imported")
@@ -1810,6 +1848,7 @@ async def save_line_item_to_ghg(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Line item not found")
+    await _require_enabled_ocr_item_scope(item, org_id)
     if item.get("status") == "imported":
         raise HTTPException(status_code=409, detail="This OCR row has already been saved to GHG records")
     values = _without_generated_spreadsheet_row_identifier(
@@ -2012,13 +2051,12 @@ async def finalize_water_import(
     if not evidence_url:
         try:
             file_content, source_content_type = await r2_storage.get_file("ocr_temp", item.get("temp_file_key"))
-            org_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1}) or {}
             evidence_result = await r2_storage.upload_file(
                 file_content=file_content,
                 filename=filename,
                 bucket_type="esg_records_evidence",
                 content_type=source_content_type or "application/octet-stream",
-                org_name=org_doc.get("name") or org_id,
+                organization_id=org_id,
             )
             if not evidence_result or not evidence_result.get("key"):
                 raise RuntimeError("Evidence upload did not return a storage key")
@@ -2171,17 +2209,12 @@ async def finalize_import(
                 }
                 content_type = source_content_type or content_types.get(ext, 'application/octet-stream')
                 
-                # Get org name for path (use org name instead of org_id)
-                org_doc = await db.organizations.find_one({"id": org_id}, {"name": 1, "_id": 0})
-                org_name = org_doc.get("name", org_id) if org_doc else org_id
-                
-                # Upload to evidence bucket with path: {org_name}/{date}/{file}
                 evidence_result = await r2_storage.upload_file(
                     file_content=temp_file_content,
                     filename=filename,
                     bucket_type='emission_evidence',
                     content_type=content_type,
-                    org_name=org_name  # No folder param - uses org_name/date/file structure
+                    organization_id=org_id,
                 )
                 
                 if evidence_result and evidence_result.get("key"):
@@ -2356,9 +2389,10 @@ async def delete_upload(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     
-    # Get all line items to clean up temp files
+    # Resolve every remaining workspace row as rejected before cleanup so saved
+    # and rejected audit outcomes remain visible after source deletion.
     line_items = await db[OCR_LINE_ITEMS_COLLECTION].find(
-        {"upload_id": upload_id}
+        {"upload_id": upload_id, "organization_id": org_id}
     ).to_list(1000)
     
     # Delete temp files from R2
@@ -2384,14 +2418,35 @@ async def delete_upload(
     if cleanup_failed:
         raise HTTPException(status_code=502, detail="Could not remove all temporary files from storage. The upload remains available for retry.")
     
-    # Delete line items
-    await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id})
+    files_by_index = {file.get("file_index"): dict(file) for file in upload.get("files", [])}
+    for item in line_items:
+        file_info = files_by_index.get(item.get("file_index"))
+        if not file_info:
+            continue
+        file_info["resolved_count"] = int(file_info.get("resolved_count") or 0) + 1
+        file_info["rejected_count"] = int(file_info.get("rejected_count") or 0) + 1
+        file_info.setdefault("history_rows", []).append(_history_line_item(item, "rejected"))
+        if int(file_info.get("resolved_count") or 0) >= int(file_info.get("line_item_count") or 0):
+            file_info["resolution_status"] = "resolved"
+
+    # Keep the file-level audit trail, but remove temporary storage pointers
+    # before replacing the complete embedded file list. MongoDB rejects an
+    # update that sets `files` and unsets `files.$[]` in the same operation.
+    cleared_files = []
+    for file_info in files_by_index.values():
+        cleared_file = dict(file_info)
+        cleared_file.pop("temp_key", None)
+        cleared_file.pop("temp_url", None)
+        cleared_files.append(cleared_file)
+
+    # Delete only the temporary review rows after their terminal outcomes are recorded.
+    await db[OCR_LINE_ITEMS_COLLECTION].delete_many({"upload_id": upload_id, "organization_id": org_id})
     
     # Retain safe file-audit metadata for OCR History after workspace cleanup.
     now = datetime.now(timezone.utc).isoformat()
     await db[OCR_UPLOADS_COLLECTION].update_one(
         {"id": upload_id, "organization_id": org_id},
-        {"$set": {"status": "cleared", "cleared_at": now, "updated_at": now}, "$unset": {"files.$[].temp_key": "", "files.$[].temp_url": ""}},
+        {"$set": {"status": "cleared", "files": cleared_files, "cleared_at": now, "updated_at": now}},
     )
     
     return {

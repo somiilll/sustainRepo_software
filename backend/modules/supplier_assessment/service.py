@@ -71,6 +71,7 @@ class SupplierAssessmentService:
     get_supplier_rankings = _delegate_to(ranking_operations, ranking_operations.get_supplier_rankings)
     create_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.create_questionnaire)
     get_questionnaires = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaires)
+    unlock_all_questionnaire_responses = _delegate_to(questionnaire_operations, questionnaire_operations.unlock_all_questionnaire_responses)
     get_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire)
     update_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.update_questionnaire)
     delete_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.delete_questionnaire)
@@ -83,13 +84,13 @@ class SupplierAssessmentService:
     get_supplier_questionnaire_status = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_questionnaire_status)
     get_questionnaire_for_supplier = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire_for_supplier)
     _question_evidence_metadata = _delegate_to(questionnaire_operations, questionnaire_operations._question_evidence_metadata)
+    find_supplier_question_evidence_duplicates = _delegate_to(questionnaire_operations, questionnaire_operations.find_supplier_question_evidence_duplicates)
+    reuse_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.reuse_supplier_question_evidence)
     upload_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.upload_supplier_question_evidence)
     delete_supplier_question_evidence = _delegate_to(questionnaire_operations, questionnaire_operations.delete_supplier_question_evidence)
     get_question_evidence_file = _delegate_to(questionnaire_operations, questionnaire_operations.get_question_evidence_file)
     submit_supplier_answers = _delegate_to(questionnaire_operations, questionnaire_operations.submit_supplier_answers)
     _calculate_questionnaire_score = _delegate_to(questionnaire_operations, questionnaire_operations._calculate_questionnaire_score)
-    _calculate_legacy_score = _delegate_to(questionnaire_operations, questionnaire_operations._calculate_legacy_score)
-    _get_legacy_answer_score = questionnaire_operations._get_legacy_answer_score
     get_supplier_responses_for_admin = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_responses_for_admin)
     get_questionnaire_submissions_for_admin = _delegate_to(questionnaire_operations, questionnaire_operations.get_questionnaire_submissions_for_admin)
     list_questionnaire_assignments = _delegate_to(questionnaire_operations, questionnaire_operations.list_questionnaire_assignments)
@@ -97,6 +98,9 @@ class SupplierAssessmentService:
     unassign_questionnaire_from_supplier = _delegate_to(questionnaire_operations, questionnaire_operations.unassign_questionnaire_from_supplier)
     set_manual_questionnaire_score = _delegate_to(questionnaire_operations, questionnaire_operations.set_manual_questionnaire_score)
     set_manual_question_score = _delegate_to(questionnaire_operations, questionnaire_operations.set_manual_question_score)
+    review_supplier_question_response = _delegate_to(questionnaire_operations, questionnaire_operations.review_supplier_question_response)
+    save_supplier_question_review_draft = _delegate_to(questionnaire_operations, questionnaire_operations.save_supplier_question_review_draft)
+    set_supplier_question_review_mark = _delegate_to(questionnaire_operations, questionnaire_operations.set_supplier_question_review_mark)
     reopen_questionnaire = _delegate_to(questionnaire_operations, questionnaire_operations.reopen_questionnaire)
     get_supplier_submission_status = _delegate_to(questionnaire_operations, questionnaire_operations.get_supplier_submission_status)
 
@@ -147,7 +151,7 @@ class SupplierAssessmentService:
 
     @staticmethod
     def _question_evidence_requirement(value: Optional[str]) -> str:
-        return value if value in {"not_required", "optional", "required"} else "not_required"
+        return value if value in {"not_required", "optional", "required", "evidence_scored"} else "not_required"
     
 
 

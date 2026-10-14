@@ -25,6 +25,8 @@ from modules.auth.email_templates import user_invite_email
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
 from modules.emissions.contracts import EmissionRecordCreate
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
+from modules.entitlements.service import resolve_entitlements
+from modules.organizations.presentation import enrich_organization_response
 from modules.superadmin.contracts import (
     CalculationFormulaCreate, CalculationFormulaResponse,
     CurrencyConversionCreate, CurrencyConversionUpdate,
@@ -63,7 +65,11 @@ async def create_organization(org_data: OrganizationCreate, current_user: dict =
     org_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.organizations.insert_one(org_dict)
-    return OrganizationResponse(**org_dict)
+    await upsert_org_config(org_dict["id"], {}, current_user["id"])
+    from modules.supplier_assessment.questionnaire_service import seed_bundled_questionnaire_banks, sync_questionnaire_banks_for_organization
+    await seed_bundled_questionnaire_banks()
+    await sync_questionnaire_banks_for_organization(org_dict["id"], current_user["id"])
+    return OrganizationResponse(**(await enrich_organization_response(org_dict)))
 
 @router.get("/super-admin/organizations", response_model=List[OrganizationResponse])
 async def get_all_organizations(
@@ -72,7 +78,7 @@ async def get_all_organizations(
 ):
     query = {} if include_deleted else {"is_deleted": False}
     orgs = await db.organizations.find(query, {"_id": 0}).to_list(1000)
-    return [OrganizationResponse(**org) for org in orgs]
+    return [OrganizationResponse(**(await enrich_organization_response(org))) for org in orgs]
 
 @router.put("/super-admin/organizations/{org_id}", response_model=OrganizationResponse)
 async def update_organization(
@@ -97,7 +103,7 @@ async def update_organization(
     await db.organizations.update_one({"id": org_id}, {"$set": update_dict})
     
     updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    return OrganizationResponse(**updated)
+    return OrganizationResponse(**(await enrich_organization_response(updated)))
 
 @router.delete("/super-admin/organizations/{org_id}")
 async def soft_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
@@ -569,7 +575,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-review.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -792,8 +798,7 @@ async def get_org_feature_flags(
         "feature_flags": {
             "approval_workflow_enabled": (await resolve_organization_settings(org_id, migrate=True))["approval_workflow_enabled"],
             "multi_level_approval_enabled": (await resolve_organization_settings(org_id, migrate=True))["multi_level_approval_enabled"],
-            "has_ghg": org.get("has_ghg", True),
-            "has_esg": org.get("has_esg", True),
+            "entitlements": await resolve_entitlements(org_id, migrate=True),
         }
     }
 

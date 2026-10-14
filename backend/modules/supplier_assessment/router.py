@@ -16,6 +16,7 @@ from app.logging import get_logger, log_event
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.entitlements.dependencies import assert_evidence_storage_limit, assert_supplier_limit
 from modules.supplier_assessment.service import supplier_service
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period, normalize_questionnaire_template_name
 from modules.supplier_assessment.module_registry import supplier_assessment_module_registry
 from modules.supplier_assessment.contracts import (
     SupplierCreate,
@@ -30,12 +31,18 @@ from modules.supplier_assessment.contracts import (
     QuestionUpdate,
     QuestionResponse,
     SupplierResponsesSubmit,
+    SupplierEvidenceDuplicateCheck,
+    SupplierEvidenceReuseRequest,
     SupplierDataVerificationSubmit,
     SupplierGhgSubmissionPeriodSubmit,
+    SupplierGhgBulkSubmissionPeriodsSubmit,
     SupplierGhgUnlockRequest,
     SupplierQuestionnaireStatusResponse,
     SupplierRankingResponse,
     ReminderSend,
+    QuestionReviewDecision,
+    QuestionReviewDraft,
+    QuestionReviewMark,
     ManualScoreUpdate,
     SupplierEmissionCreate,
     SupplierEmissionResponse,
@@ -137,7 +144,7 @@ async def _notify_new_supplier_update_assignments(
         previous_questionnaires = previous.get("questionnaire_ids")
         if previous_questionnaires is None:
             previous_questionnaires = [row["id"] for row in await db.supplier_questionnaires.find(
-                {"organization_id": previous["customer_org_id"], "is_active": True}, {"_id": 0, "id": 1},
+                {"organization_id": previous["customer_org_id"], "is_active": True, "reporting_periods": normalize_questionnaire_reporting_period(previous.get("reporting_period"))}, {"_id": 0, "id": 1},
             ).to_list(1000)]
         new_questionnaire_ids = questionnaire_ids - set(previous_questionnaires)
         questionnaires = await db.supplier_questionnaires.find(
@@ -145,7 +152,9 @@ async def _notify_new_supplier_update_assignments(
         ).to_list(1000)
         for questionnaire in questionnaires:
             await notify_supplier_assignment(
-                current, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                current, "esg", questionnaire["id"], normalize_questionnaire_template_name(
+                    questionnaire.get("name") or "ESG questionnaire"
+                ),
                 due_date=questionnaire.get("due_date"),
             )
 
@@ -335,6 +344,7 @@ async def create_supplier(
             contact_person=data.contact_person,
             email=data.email,
             contact_number=data.contact_number,
+            tier=data.tier,
             access_revoke_date=data.access_revoke_date,
             created_by=current_user["id"],
             created_by_email=current_user["email"],
@@ -342,7 +352,7 @@ async def create_supplier(
             ghg_scopes_enabled=data.ghg_scopes_enabled,
             ghg_submission_frequency=data.ghg_submission_frequency,
             reporting_period=data.reporting_period,
-            revenue_required=data.revenue_required,
+            revenue_required=True,
             questionnaire_ids=data.questionnaire_ids,
             document_requirement_ids=data.document_requirement_ids,
             training_requirement_ids=data.training_requirement_ids,
@@ -410,6 +420,7 @@ async def update_supplier(
         raise HTTPException(status_code=403, detail="Access denied")
     
     updates = data.model_dump(exclude_unset=True)
+    updates["revenue_required"] = True
     assignment_request = {
         key: updates.get(key)
         for key in ("questionnaire_ids", "document_requirement_ids", "training_requirement_ids", "revenue_required")
@@ -562,6 +573,16 @@ async def get_document_supplier_responses(requirement_id: str, current_user: dic
     return response_data
 
 
+@router.get("/documents/{requirement_id}/responses/{supplier_id}/files/{file_id}")
+async def download_supplier_document_response_file(requirement_id: str, supplier_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_customer_admin)):
+    file = await documents_service.get_customer_supplier_document_response_file(current_user["organization_id"], requirement_id, supplier_id, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="Supplier response file not found")
+    content, content_type = await get_r2_storage().get_file(file["bucket_type"], file["r2_key"])
+    disposition = "attachment" if download else "inline"
+    return Response(content=content, media_type=content_type or file.get("content_type"), headers={"Content-Disposition": f'{disposition}; filename="{file["original_filename"]}"', "Cache-Control": "private, max-age=300"})
+
+
 @router.patch("/documents/{requirement_id}")
 async def update_document_due_date(requirement_id: str, data: DueDateUpdate, current_user: dict = Depends(get_customer_admin)):
     document = await documents_service.update_document_due_date(current_user["organization_id"], requirement_id, data.due_date)
@@ -583,12 +604,12 @@ async def get_document_assignments(requirement_id: str, current_user: dict = Dep
 @router.post("/documents/{requirement_id}/assignments/{supplier_id}")
 async def assign_document_supplier(requirement_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
-        await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
+        assigned_requirement_ids = await documents_service.assign_document_to_supplier(current_user["organization_id"], requirement_id, supplier_id, current_user["id"])
         document = await db.supplier_document_requirements.find_one(
             {"id": requirement_id}, {"_id": 0, "title": 1, "document_version_id": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "documents", document.get("document_version_id", requirement_id),
+            supplier_id, "documents", assigned_requirement_ids[0] if assigned_requirement_ids else requirement_id,
             document.get("title") or "Document", due_date=document.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)
@@ -623,6 +644,15 @@ async def preview_document(requirement_id: str, current_user: dict = Depends(get
         media_type=preview["content_type"],
         headers={"Content-Disposition": f'inline; filename="{preview["filename"]}"', "Cache-Control": "private, max-age=300"},
     )
+
+
+@router.get("/documents/{requirement_id}/download")
+async def download_document_source(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
+    version = await documents_service.get_customer_document_source(current_user["organization_id"], requirement_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    content, content_type = await get_r2_storage().get_file(version["bucket_type"], version["r2_key"])
+    return Response(content=content, media_type=content_type or version.get("content_type"), headers={"Content-Disposition": f'attachment; filename="{version["original_filename"]}"', "Cache-Control": "private, max-age=300"})
 
 @router.delete("/documents/{requirement_id}")
 async def delete_document(requirement_id: str, current_user: dict = Depends(get_customer_admin)):
@@ -671,8 +701,14 @@ async def initiate_training_upload(payload: TrainingUploadInitiate, current_user
     await assert_evidence_storage_limit(current_user["organization_id"], payload.file_size)
     training_service.validate_due_date(payload.due_date)
     storage = get_r2_storage()
-    organization = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0, "name": 1, "organization_name": 1})
-    upload = await asyncio.to_thread(storage.initiate_multipart_upload, payload.filename, training_service.TRAINING_BUCKET, payload.content_type, training_service.TRAINING_FOLDER, (organization or {}).get("organization_name") or (organization or {}).get("name"))
+    upload = await asyncio.to_thread(
+        storage.initiate_multipart_upload,
+        filename=payload.filename,
+        bucket_type=training_service.TRAINING_BUCKET,
+        content_type=payload.content_type,
+        folder=training_service.TRAINING_FOLDER,
+        organization_id=current_user["organization_id"],
+    )
     part_size = 16 * 1024 * 1024
     session_id = str(uuid.uuid4())
     session = {"id": session_id, "organization_id": current_user["organization_id"], "user_id": current_user["id"], "status": "initiated", "bucket_type": training_service.TRAINING_BUCKET, "r2_key": upload["key"], "upload_id": upload["upload_id"], "part_size": part_size, "part_count": math.ceil(payload.file_size / part_size), "file_size": payload.file_size, "filename": payload.filename, "content_type": payload.content_type, "title": payload.title, "description": payload.description, "due_date": payload.due_date, "supplier_relationship_ids": payload.supplier_relationship_ids, "created_at": datetime.now(timezone.utc).isoformat()}
@@ -770,12 +806,12 @@ async def get_training_assignments(training_id: str, reporting_period: Optional[
 @router.post("/trainings/{training_id}/assignments/{supplier_id}")
 async def assign_training_supplier(training_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
     try:
-        await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
+        assignment_id = await training_service.assign_training_to_supplier(current_user["organization_id"], training_id, supplier_id)
         training = await db.supplier_training_requirements.find_one(
             {"id": training_id}, {"_id": 0, "title": 1, "due_date": 1},
         ) or {}
         await _notify_supplier_assignment_by_id(
-            supplier_id, "training", training_id, training.get("title") or "Training", due_date=training.get("due_date"),
+            supplier_id, "training", assignment_id, training.get("title") or "Training", due_date=training.get("due_date"),
         )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
@@ -851,13 +887,14 @@ async def create_questionnaire(
             assignment_mode=data.assignment_mode,
             supplier_relationship_ids=data.supplier_relationship_ids,
             assignment_reporting_period=data.assignment_reporting_period,
+            reporting_periods=data.reporting_periods,
         )
         relationships = await db.supplier_relationships.find(
             {"id": {"$in": questionnaire.get("assigned_supplier_ids") or []}, "is_active": True}, {"_id": 0},
         ).to_list(1000)
         for relationship in relationships:
             await notify_supplier_assignment(
-                relationship, "esg", questionnaire["id"], questionnaire.get("name") or "ESG questionnaire",
+                relationship, "esg", questionnaire.get("name") or "ESG questionnaire",
                 due_date=questionnaire.get("due_date"),
             )
         _log_supplier_event("supplier_assessment.questionnaire.create.completed", action="supplier_assessment.questionnaire.create", outcome="succeeded", context={"questionnaire_id": questionnaire.get("id"), "assigned_supplier_count": len(relationships)})
@@ -913,24 +950,33 @@ async def get_questionnaire_submissions(
 
 
 @router.get("/questionnaires/{questionnaire_id}/assignments")
-async def get_questionnaire_assignments(questionnaire_id: str, current_user: dict = Depends(get_customer_admin)):
-    result = await supplier_service.list_questionnaire_assignments(current_user["organization_id"], questionnaire_id)
+async def get_questionnaire_assignments(questionnaire_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
+    result = await supplier_service.list_questionnaire_assignments(current_user["organization_id"], questionnaire_id, reporting_period)
     if not result:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     return result
 
 
 @router.post("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
-async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
-        await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        is_new_assignment = await supplier_service.assign_questionnaire_to_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
+        assigned_relationship = await supplier_service.get_supplier(supplier_id)
+        if assigned_relationship:
+            enabled_modules = list(dict.fromkeys([
+                *(assigned_relationship.get("modules_enabled") or []),
+                "esg",
+            ]))
+            await supplier_service.update_supplier(supplier_id, {"modules_enabled": enabled_modules})
         questionnaire = await db.supplier_questionnaires.find_one(
             {"id": questionnaire_id}, {"_id": 0, "name": 1, "due_date": 1},
         ) or {}
-        await _notify_supplier_assignment_by_id(
-            supplier_id, "esg", questionnaire_id, questionnaire.get("name") or "ESG questionnaire",
-            due_date=questionnaire.get("due_date"),
-        )
+        if is_new_assignment:
+            await _notify_supplier_assignment_by_id(
+                supplier_id, "esg", f"{questionnaire_id}:{uuid.uuid4()}", normalize_questionnaire_template_name(
+                    questionnaire.get("name") or "ESG questionnaire"
+                ), due_date=questionnaire.get("due_date"),
+            )
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         _log_supplier_event("supplier_assessment.questionnaire.assignment.rejected", action="supplier_assessment.questionnaire.assignment.assign", outcome="rejected", level=logging.WARNING, error_code="QUESTIONNAIRE_ASSIGNMENT_REJECTED", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_id})
@@ -940,9 +986,9 @@ async def assign_questionnaire_supplier(questionnaire_id: str, supplier_id: str,
 
 
 @router.delete("/questionnaires/{questionnaire_id}/assignments/{supplier_id}")
-async def unassign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, current_user: dict = Depends(get_customer_admin)):
+async def unassign_questionnaire_supplier(questionnaire_id: str, supplier_id: str, reporting_period: Optional[str] = None, current_user: dict = Depends(get_customer_admin)):
     try:
-        await supplier_service.unassign_questionnaire_from_supplier(current_user["organization_id"], questionnaire_id, supplier_id)
+        await supplier_service.unassign_questionnaire_from_supplier(current_user["organization_id"], questionnaire_id, supplier_id, reporting_period)
         await supplier_service._update_completion_status(supplier_id)
     except ValueError as error:
         _log_supplier_event("supplier_assessment.questionnaire.assignment.rejected", action="supplier_assessment.questionnaire.assignment.unassign", outcome="rejected", level=logging.WARNING, error_code="QUESTIONNAIRE_UNASSIGNMENT_REJECTED", context={"questionnaire_id": questionnaire_id, "supplier_id": supplier_id})
@@ -988,9 +1034,21 @@ async def delete_questionnaire(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.delete_questionnaire(questionnaire_id)
+    try:
+        await supplier_service.delete_questionnaire(questionnaire_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.questionnaire.deleted", action="supplier_assessment.questionnaire.delete", outcome="succeeded", context={"questionnaire_id": questionnaire_id})
     return {"message": "Questionnaire deleted"}
+
+
+@router.post("/questionnaires/{questionnaire_id}/unlock-all")
+async def unlock_all_questionnaire_responses(questionnaire_id: str, current_user: dict = Depends(get_customer_admin)):
+    questionnaire = await supplier_service.get_questionnaire(questionnaire_id)
+    if not questionnaire or questionnaire["organization_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Questionnaire not found")
+    unlocked = await supplier_service.unlock_all_questionnaire_responses(current_user["organization_id"], questionnaire_id, current_user["id"])
+    return {"unlocked_count": unlocked}
 
 
 @router.post("/questionnaires/{questionnaire_id}/duplicate")
@@ -1032,23 +1090,29 @@ async def add_question(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    result = await supplier_service.add_question(
-        questionnaire_id=questionnaire_id,
-        question_text=data.question_text,
-        description=data.description,
-        response_type=data.response_type,
-        options=[o.model_dump() for o in data.options] if data.options else None,
-        required=data.required,
-        evidence_requirement=data.evidence_requirement,
-        weight=data.weight,
-        importance=data.importance,
-        exact_numerical_weight=data.exact_numerical_weight,
-        category=data.category,
-        order=data.order,
-        scoring=data.scoring.model_dump() if data.scoring else None,
-        parent_question_id=data.parent_question_id,
-        question_category=data.question_category,
-    )
+    try:
+        result = await supplier_service.add_question(
+            questionnaire_id=questionnaire_id,
+            question_text=data.question_text,
+            description=data.description,
+            response_type=data.response_type,
+            options=[o.model_dump() for o in data.options] if data.options else None,
+            required=data.required,
+            evidence_requirement=data.evidence_requirement,
+            assessment_type=data.assessment_type,
+            max_points=data.max_points,
+            point_scores=data.point_scores.model_dump() if data.point_scores else None,
+            missing_evidence_percent=data.missing_evidence_percent,
+            weight=data.weight,
+            exact_numerical_weight=data.exact_numerical_weight,
+            category=data.category,
+            order=data.order,
+            scoring=data.scoring.model_dump() if data.scoring else None,
+            parent_question_id=data.parent_question_id,
+            question_category=data.question_category,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.created", action="supplier_assessment.question.create", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": result.get("id"), "parent_question_id": result.get("parent_question_id")})
     return result
 
@@ -1075,7 +1139,10 @@ async def update_question(
     if "scoring" in updates and updates["scoring"]:
         updates["scoring"] = updates["scoring"] if isinstance(updates["scoring"], dict) else updates["scoring"].model_dump()
     
-    result = await supplier_service.update_question(question_id, updates)
+    try:
+        result = await supplier_service.update_question(question_id, updates)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.updated", action="supplier_assessment.question.update", outcome="succeeded", context={"questionnaire_id": question["questionnaire_id"], "question_id": question_id, "updated_field_count": len(updates)})
     return result
 
@@ -1094,7 +1161,10 @@ async def delete_question(
     if not questionnaire or questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.delete_question(question_id)
+    try:
+        await supplier_service.delete_question(question_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.deleted", action="supplier_assessment.question.delete", outcome="succeeded", context={"questionnaire_id": question["questionnaire_id"], "question_id": question_id})
     return {"message": "Question deleted"}
 
@@ -1113,7 +1183,10 @@ async def reorder_questions(
     if questionnaire["organization_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    await supplier_service.reorder_questions(questionnaire_id, orders)
+    try:
+        await supplier_service.reorder_questions(questionnaire_id, orders)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.reordered", action="supplier_assessment.question.reorder", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_count": len(orders)})
     return {"message": "Questions reordered"}
 
@@ -1133,7 +1206,10 @@ async def get_supplier_responses(
     if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
         raise HTTPException(status_code=404, detail="Supplier not found")
     
-    result = await supplier_service.get_supplier_responses_for_admin(supplier_id, questionnaire_id)
+    try:
+        result = await supplier_service.get_supplier_responses_for_admin(supplier_id, questionnaire_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error))
     if not result:
         raise HTTPException(status_code=404, detail="Questionnaire not found")
     
@@ -1228,6 +1304,97 @@ async def set_manual_question_score(
     if not result:
         raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
     _log_supplier_event("supplier_assessment.question.manual_score.updated", action="supplier_assessment.question.manual_score.update", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": supplier_id})
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/review")
+async def review_supplier_question(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: QuestionReviewDecision,
+    current_user: dict = Depends(get_customer_admin),
+):
+    """Parent organization review for a single question response (Accept / Reject with optional resubmission)."""
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.review_supplier_question_response(
+            supplier_id,
+            questionnaire_id,
+            question_id,
+            data.model_dump(),
+            current_user["id"],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    if not result:
+        raise HTTPException(status_code=404, detail="Submitted questionnaire response not found")
+    _log_supplier_event(
+        "supplier_assessment.question_review.updated",
+        action="supplier_assessment.question_review.update",
+        outcome="succeeded",
+        context={
+            "questionnaire_id": questionnaire_id,
+            "question_id": question_id,
+            "supplier_id": supplier_id,
+            "status": data.status,
+            "needs_resubmission": data.needs_resubmission,
+        },
+    )
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/mark-for-review")
+async def set_supplier_question_review_mark(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: QuestionReviewMark,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.set_supplier_question_review_mark(
+            supplier_id, questionnaire_id, question_id, data.marked, current_user["id"]
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    _log_supplier_event(
+        "supplier_assessment.question_review.mark.updated",
+        action="supplier_assessment.question_review.mark",
+        outcome="succeeded",
+        context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": supplier_id, "marked": data.marked},
+    )
+    return result
+
+
+@router.put("/suppliers/{supplier_id}/questionnaires/{questionnaire_id}/questions/{question_id}/review-draft")
+async def save_supplier_question_review_draft(
+    supplier_id: str,
+    questionnaire_id: str,
+    question_id: str,
+    data: QuestionReviewDraft,
+    current_user: dict = Depends(get_customer_admin),
+):
+    supplier = await supplier_service.get_supplier(supplier_id)
+    if not supplier or supplier["customer_org_id"] != current_user["organization_id"]:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    try:
+        result = await supplier_service.save_supplier_question_review_draft(
+            supplier_id, questionnaire_id, question_id, data.model_dump(), current_user["id"]
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    _log_supplier_event(
+        "supplier_assessment.question_review.draft.saved",
+        action="supplier_assessment.question_review.draft",
+        outcome="succeeded",
+        context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": supplier_id},
+    )
     return result
 
 
@@ -1373,8 +1540,8 @@ async def get_my_assessment(
     return {
         "relationship": relationship,
         "customer_name": customer_org.get("name") if customer_org else None,
-        "assessment_modules": supplier_assessment_module_registry.supplier_module_summaries(
-            effective_config, relationship
+        "assessment_modules": await supplier_assessment_module_registry.supplier_visible_module_summaries(
+            db, effective_config, relationship
         ),
     }
 
@@ -1398,7 +1565,7 @@ async def get_my_assessment_onboarding(current_user: dict = Depends(get_supplier
     documents = await documents_service.list_supplier_documents(relationship) if documents_enabled else []
     trainings = await training_service.supplier_trainings(relationship) if training_enabled else []
     ghg_state = await ghg_submission_service.get_supplier_ghg_state(relationship)
-    modules = supplier_assessment_module_registry.supplier_module_summaries(effective_config, relationship)
+    modules = await supplier_assessment_module_registry.supplier_visible_module_summaries(db, effective_config, relationship)
     questionnaire_pending = [item for item in questionnaires if item.get("status") != "submitted"]
     document_pending = [item for item in documents if not item.get("accepted") and not item.get("selected_response") and item.get("submission_status") != "submitted"]
     training_pending = [item for item in trainings if item.get("status") != "completed"]
@@ -1436,6 +1603,33 @@ async def create_my_supplier_facility(data: FacilityCreate, current_user: dict =
     if not await ghg_submission_service.supplier_ghg_is_enabled(relationship):
         raise HTTPException(status_code=403, detail="Facility setup is unavailable because GHG is not assigned to this supplier assessment")
     return await create_facility_for_organization(data, current_user["organization_id"], current_user)
+
+
+@router.get("/my-assessment/facility", response_model=FacilityResponse | None)
+async def get_my_supplier_facility(current_user: dict = Depends(get_supplier_user)):
+    """Return the supplier's editable facility profile, when one has been saved."""
+    facility = await db.facilities.find_one(
+        {"organization_id": current_user["organization_id"]}, {"_id": 0}
+    )
+    return FacilityResponse(**facility) if facility else None
+
+
+@router.put("/my-assessment/facility/{facility_id}", response_model=FacilityResponse)
+async def update_my_supplier_facility(
+    facility_id: str,
+    data: FacilityCreate,
+    current_user: dict = Depends(get_supplier_user),
+):
+    """Allow suppliers to edit their own organization facility profile."""
+    facility = await db.facilities.find_one(
+        {"id": facility_id, "organization_id": current_user["organization_id"]}, {"_id": 0}
+    )
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    update_data = data.model_dump()
+    await db.facilities.update_one({"id": facility_id}, {"$set": update_data})
+    updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    return FacilityResponse(**updated)
 
 
 @router.put("/my-assessment/revenue")
@@ -1504,6 +1698,7 @@ async def get_my_documents(current_user: dict = Depends(get_supplier_user)):
 @router.get("/my-assessment/documents/{requirement_id}/view")
 async def get_my_document_view_url(
     requirement_id: str,
+    download: bool = False,
     current_user: dict = Depends(get_supplier_user),
 ):
     """Authorize the supplier and return a short-lived URL for the exact agreement version."""
@@ -1520,7 +1715,7 @@ async def get_my_document_view_url(
     try:
         return {"url": get_r2_storage().generate_presigned_url(
             version["bucket_type"], version["r2_key"], expiration=900,
-            response_content_disposition=f"inline; filename={version['original_filename']}",
+            response_content_disposition=f"{'attachment' if download else 'inline'}; filename={version['original_filename']}",
         )}
     except Exception:
         _log_supplier_event("supplier_assessment.document.view.failed", action="supplier_assessment.document.view", outcome="failed", level=logging.ERROR, error_code="DOCUMENT_VIEW_FAILED", context={"requirement_id": requirement_id, "supplier_id": relationship["id"]})
@@ -1564,6 +1759,60 @@ async def respond_to_my_document(requirement_id: str, data: SupplierDocumentStat
     await supplier_service._update_completion_status(relationship["id"])
     _log_supplier_event("supplier_assessment.document.responded", action="supplier_assessment.document.respond", outcome="succeeded", context={"requirement_id": requirement_id, "supplier_id": relationship["id"], "submission_id": response.get("id")})
     return {"response": response}
+
+
+@router.post("/my-assessment/documents/{requirement_id}/response-files")
+async def upload_my_document_response_files(requirement_id: str, files: List[UploadFile] = File(...), current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    payload = []
+    try:
+        for file in files:
+            content = await file.read()
+            await assert_evidence_storage_limit(relationship["customer_org_id"], len(content))
+            payload.append({"filename": file.filename or "supplier-response", "content_type": file.content_type or "application/octet-stream", "content": content})
+        response = await documents_service.upload_supplier_document_response_files(relationship, requirement_id, current_user["id"], payload)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    return {"response_files": response.get("response_files", []), "submission_status": response.get("status")}
+
+
+@router.delete("/my-assessment/documents/{requirement_id}/response-files/{file_id}")
+async def delete_my_document_response_file(requirement_id: str, file_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await documents_service.remove_supplier_document_response_file(relationship, requirement_id, file_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/my-assessment/documents/{requirement_id}/submit-upload")
+async def submit_my_document_upload(requirement_id: str, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        response = await documents_service.submit_supplier_document_upload(relationship, requirement_id, current_user["id"])
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await supplier_service._update_completion_status(relationship["id"])
+    return {"response": response}
+
+
+@router.get("/my-assessment/documents/{requirement_id}/response-files/{file_id}")
+async def view_my_document_response_file(requirement_id: str, file_id: str, download: bool = False, current_user: dict = Depends(get_supplier_user)):
+    relationship = await supplier_service.get_supplier_relationship_for_user(user_id=current_user["id"], user_org_id=current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    file = await documents_service.get_supplier_document_response_file(relationship, requirement_id, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="Supplier response file not found")
+    content, content_type = await get_r2_storage().get_file(file["bucket_type"], file["r2_key"])
+    disposition = "attachment" if download else "inline"
+    return Response(content=content, media_type=content_type or file.get("content_type"), headers={"Content-Disposition": f'{disposition}; filename="{file["original_filename"]}"', "Cache-Control": "private, max-age=300"})
 
 @router.get("/my-assessment/trainings")
 async def get_my_trainings(current_user: dict = Depends(get_supplier_user)):
@@ -1656,7 +1905,7 @@ async def get_my_questionnaire(
 
 @router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence")
 async def upload_my_question_evidence(
-    questionnaire_id: str, question_id: str, file: UploadFile = File(...),
+    questionnaire_id: str, question_id: str, file: UploadFile = File(...), sha256_hash: Optional[str] = Form(None),
     current_user: dict = Depends(get_supplier_user),
 ):
     relationship = await supplier_service.get_supplier_relationship_for_user(
@@ -1669,13 +1918,41 @@ async def upload_my_question_evidence(
         await assert_evidence_storage_limit(relationship["customer_org_id"], len(content))
         evidence = await supplier_service.upload_supplier_question_evidence(
             relationship, questionnaire_id, question_id, file.filename or "evidence", file.content_type or "", content,
-            current_user["id"],
+            current_user["id"], sha256_hash,
         )
     except ValueError as error:
         _log_supplier_event("supplier_assessment.question.evidence.upload.rejected", action="supplier_assessment.question.evidence.upload", outcome="rejected", level=logging.WARNING, error_code="QUESTION_EVIDENCE_UPLOAD_REJECTED", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": relationship["id"]})
         raise HTTPException(status_code=400, detail=str(error))
     _log_supplier_event("supplier_assessment.question.evidence.uploaded", action="supplier_assessment.question.evidence.upload", outcome="succeeded", context={"questionnaire_id": questionnaire_id, "question_id": question_id, "supplier_id": relationship["id"], "evidence_id": evidence.get("id"), "bytes_uploaded": len(content)})
     return evidence
+
+
+@router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/duplicates")
+async def check_my_question_evidence_duplicates(
+    questionnaire_id: str, question_id: str, data: SupplierEvidenceDuplicateCheck,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await supplier_service.find_supplier_question_evidence_duplicates(relationship, questionnaire_id, data.sha256_hash, data.filename)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+@router.post("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/reuse")
+async def reuse_my_question_evidence(
+    questionnaire_id: str, question_id: str, data: SupplierEvidenceReuseRequest,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        return await supplier_service.reuse_supplier_question_evidence(relationship, questionnaire_id, question_id, data.evidence_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.delete("/my-assessment/questionnaires/{questionnaire_id}/questions/{question_id}/evidence/{evidence_id}")
@@ -1732,7 +2009,7 @@ async def submit_my_answers(
     # Check if questionnaire is still open for editing
     response_doc = await supplier_service._current_questionnaire_response(questionnaire_id, relationship["id"])
     
-    if response_doc and response_doc.get("status") == "submitted":
+    if response_doc and response_doc.get("status") == "submitted" and not response_doc.get("has_unlocked_questions"):
         raise HTTPException(status_code=409, detail="Questionnaire already submitted and locked")
     
     try:
@@ -1870,6 +2147,24 @@ async def submit_my_ghg_submission_period(
         raise HTTPException(status_code=400, detail=str(error))
     await supplier_service._update_completion_status(relationship["id"])
     return submission
+
+
+@router.post("/my-assessment/emissions/submission-periods/submit-bulk")
+async def submit_my_ghg_submission_periods_bulk(
+    data: SupplierGhgBulkSubmissionPeriodsSubmit,
+    current_user: dict = Depends(get_supplier_user),
+):
+    relationship = await supplier_service.get_supplier_relationship_for_user(current_user["id"], current_user["organization_id"])
+    if not relationship:
+        raise HTTPException(status_code=404, detail="No active supplier relationship found")
+    try:
+        submissions = await ghg_submission_service.submit_supplier_ghg_periods(
+            relationship, data.period_keys, current_user["id"], data.data_verified,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    await supplier_service._update_completion_status(relationship["id"])
+    return {"submissions": submissions}
 
 
 @router.post("/my-assessment/emissions")

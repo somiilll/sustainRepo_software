@@ -26,7 +26,7 @@ from shared.helpers.audit_helpers import (
     get_input_label_map_from_db,
     DEFAULT_INPUT_LABEL_MAP,
 )
-from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.helpers.uploaded_files import delete_unreferenced_emission_files, extract_uploaded_file_ids
 from shared.utils.emission_records import without_legacy_quantity_fields
 
 # Collection names
@@ -728,7 +728,7 @@ async def approve_request(
         update_data["updated_by_name"] = approver.get("full_name", "")
         removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_data)
         try:
-            await delete_uploaded_files(db, removed_file_ids)
+            await delete_unreferenced_emission_files(db, removed_file_ids, original_id)
         except Exception:
             return (False, "Could not remove replaced evidence from storage. The record was not updated.")
         
@@ -757,7 +757,7 @@ async def approve_request(
         if not existing:
             return (False, "Original record not found")
         try:
-            await delete_uploaded_files(db, extract_uploaded_file_ids(existing))
+            await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), original_id)
         except Exception:
             return (False, "Could not remove emission evidence from storage. The record was not deleted.")
 

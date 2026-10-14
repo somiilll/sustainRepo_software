@@ -33,3 +33,14 @@
 1. Sign in using an account from `/app/memory/test_credentials.md` and open Reports.
 2. Generate a GHG Inventory Report for a valid facility and reporting window.
 3. Confirm `POST /api/reports/ghg-inventory` succeeds, then `GET /api/reports/download/{download_token}` sends `Authorization: Bearer <token>` and returns the report file instead of `401 Not authenticated`.
+
+## Login Error Classification and Refresh Retry Checks
+
+1. Submit an invalid email/password pair to `POST /api/auth/login`.
+   - Expect HTTP 401 with `error_code: INVALID_CREDENTIALS` and the generic message `Invalid email or password.`
+   - Confirm the browser does not send a refresh retry for the failed login request and the login toast preserves `Invalid email or password.` rather than substituting a session-expired message.
+2. Sign in using the current active account listed in `/app/memory/test_credentials.md`.
+   - Expect HTTP 200, an access token, and a refresh cookie.
+3. Request `POST /api/auth/refresh` with no refresh cookie.
+   - Expect HTTP 401 with `error_code: SESSION_EXPIRED`.
+4. Confirm a protected API 401 still makes one refresh attempt and retries only after a successful refresh.

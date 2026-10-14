@@ -53,7 +53,7 @@ export const OcrFacilityAssignmentDialog = ({ files, facilities, open, saving, o
             <div className="grid gap-4 border border-emerald-200 bg-emerald-50/60 p-4 md:grid-cols-[minmax(0,1fr)_17rem] md:items-center" data-testid="ocr-facility-assign-all-control">
               <label className="flex min-h-10 items-center gap-3" data-testid="ocr-facility-assign-all-toggle">
                 <Checkbox checked={applyToAll} onCheckedChange={(checked) => setApplyToAll(checked === true)} data-testid="ocr-facility-assign-all-checkbox" />
-                <span><span className="block text-sm font-semibold text-slate-950">Mark the same facility for every invoice</span><span className="mt-1 block text-xs text-slate-600">You can change an individual invoice below afterwards.</span></span>
+                <span><span className="block text-sm font-semibold text-slate-950">Mark the same facility for every invoice</span></span>
               </label>
               <div className="space-y-1.5">
                 <Label data-testid="ocr-facility-assign-all-label">Facility</Label>

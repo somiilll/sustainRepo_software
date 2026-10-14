@@ -2,6 +2,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
+from modules.supplier_assessment.documents_service import _is_requirement_available_to_relationship
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,11 @@ class EsgAssessmentModule(SupplierAssessmentModule):
     supplier_description = "Complete the questionnaires assigned by your customer."
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
-        questionnaire_query = {"organization_id": relationship["customer_org_id"], "is_active": True}
+        questionnaire_query = {
+            "organization_id": relationship["customer_org_id"],
+            "is_active": True,
+            "reporting_periods": normalize_questionnaire_reporting_period(relationship.get("reporting_period")),
+        }
         if "questionnaire_ids" in relationship:
             questionnaire_query["id"] = {"$in": relationship.get("questionnaire_ids") or []}
         questionnaires = await database.supplier_questionnaires.find(
@@ -42,9 +48,9 @@ class EsgAssessmentModule(SupplierAssessmentModule):
             {"_id": 0, "id": 1},
         ).to_list(100)
         if not questionnaires:
-            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field)
+            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
 
-        submitted_questionnaires = 0
+        completion_total = 0.0
         for questionnaire in questionnaires:
             response_query = {
                 "questionnaire_id": questionnaire["id"], "supplier_relationship_id": relationship["id"],
@@ -56,11 +62,22 @@ class EsgAssessmentModule(SupplierAssessmentModule):
                 response_query,
                 {"_id": 0},
             )
-            submitted_questionnaires += int(response is not None)
+            if not response:
+                continue
+            active_questions = await database.supplier_questions.find(
+                {"questionnaire_id": questionnaire["id"], "is_active": True},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            if not active_questions:
+                completion_total += 100.0
+                continue
+            active_question_ids = {question["id"] for question in active_questions}
+            unresolved_clarifications = active_question_ids & set(response.get("unlocked_question_ids") or [])
+            completion_total += ((len(active_question_ids) - len(unresolved_clarifications)) / len(active_question_ids)) * 100
 
         return ModuleCompletion(
             self.module_code,
-            (submitted_questionnaires / len(questionnaires)) * 100,
+            completion_total / len(questionnaires),
             self.legacy_completion_field,
         )
 
@@ -74,12 +91,19 @@ class GhgAssessmentModule(SupplierAssessmentModule):
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         if relationship.get("ghg_submission_frequency") in {"monthly", "quarterly", "yearly"}:
-            from modules.supplier_assessment.ghg_submission_service import get_supplier_ghg_submission_periods
+            from modules.supplier_assessment.ghg_submission_service import (
+                get_supplier_ghg_submission_periods,
+                submission_periods_due_through_today,
+            )
             periods = await get_supplier_ghg_submission_periods(relationship)
-            submitted_periods = sum(period["status"] == "submitted" for period in periods)
+            due_periods = submission_periods_due_through_today(periods)
+            completion_periods = due_periods or [
+                period for period in periods if period["status"] == "submitted"
+            ]
+            submitted_periods = sum(period["status"] == "submitted" for period in completion_periods)
             return ModuleCompletion(
                 self.module_code,
-                (submitted_periods / len(periods)) * 100 if periods else 0.0,
+                (submitted_periods / len(completion_periods)) * 100 if completion_periods else 0.0,
                 self.legacy_completion_field,
             )
         query = {
@@ -113,25 +137,14 @@ class DocumentsAssessmentModule(SupplierAssessmentModule):
                 "customer_org_id": relationship["customer_org_id"],
                 "is_active": True,
             },
-            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
+            {"_id": 0, "id": 1, "document_version_id": 1, "response_mode": 1, "supplier_relationship_ids": 1, "excluded_supplier_relationship_ids": 1, "assignment_mode": 1, "reporting_period": 1, "assessment_program_id": 1, "assessment_program_version": 1},
         ).to_list(100)
         requirements = [
             requirement for requirement in requirements
-            if (
-                (not requirement.get("reporting_period") or requirement["reporting_period"] == relationship.get("reporting_period"))
-                and (
-                    relationship["id"] in (requirement.get("supplier_relationship_ids") or [])
-                    or (
-                        not requirement.get("supplier_relationship_ids")
-                        and
-                        requirement.get("assessment_program_id") == relationship.get("assessment_program_id")
-                        and requirement.get("assessment_program_version") == relationship.get("assessment_program_version")
-                    )
-                )
-            )
+            if _is_requirement_available_to_relationship(requirement, relationship)
         ]
         if not requirements:
-            return ModuleCompletion(self.module_code, 100.0, self.legacy_completion_field)
+            return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
 
         completed = 0
         for requirement in requirements:
@@ -160,8 +173,27 @@ class TrainingAssessmentModule(SupplierAssessmentModule):
 
     async def get_completion(self, database: Any, relationship: Dict[str, Any]) -> ModuleCompletion:
         assignments = await database.supplier_training_assignments.find(
-            {"supplier_relationship_id": relationship["id"], "is_active": True}, {"_id": 0, "id": 1, "requirement_version_id": 1}
+            {
+                "supplier_relationship_id": relationship["id"],
+                "reporting_period": relationship.get("reporting_period"),
+                "is_active": True,
+            },
+            {"_id": 0, "id": 1, "training_requirement_id": 1, "requirement_version_id": 1},
         ).to_list(200)
+        requirement_ids = [assignment["training_requirement_id"] for assignment in assignments]
+        active_requirements = await database.supplier_training_requirements.find(
+            {
+                "id": {"$in": requirement_ids},
+                "is_active": True,
+                "is_deleted": {"$ne": True},
+            },
+            {"_id": 0, "id": 1},
+        ).to_list(200)
+        active_requirement_ids = {requirement["id"] for requirement in active_requirements}
+        assignments = [
+            assignment for assignment in assignments
+            if assignment["training_requirement_id"] in active_requirement_ids
+        ]
         if not assignments:
             return ModuleCompletion(self.module_code, 0.0, self.legacy_completion_field, is_applicable=False)
         completed = await database.supplier_training_progress.count_documents({
@@ -200,6 +232,25 @@ class SupplierAssessmentModuleRegistry:
             }
             for module in self.enabled_modules(program_config)
         ]
+
+    async def supplier_visible_module_summaries(
+        self, database: Any, program_config: Dict[str, Any], relationship: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Expose only enabled modules with supplier-specific assigned work."""
+        module_config = program_config.get("modules") or {}
+        summaries = []
+        for module in self.enabled_modules(program_config):
+            completion = await module.get_completion(database, relationship)
+            if not completion.is_applicable:
+                continue
+            summaries.append({
+                "code": module.module_code,
+                "display_name": (module_config.get(module.module_code) or {}).get("display_name") or module.default_display_name,
+                "completion_percent": completion.completion_percent,
+                "supplier_path": module.supplier_path,
+                "description": module.supplier_description,
+            })
+        return summaries
 
 
 supplier_assessment_module_registry = SupplierAssessmentModuleRegistry([

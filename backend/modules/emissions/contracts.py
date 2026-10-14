@@ -261,6 +261,7 @@ class EmissionRecordResponse(BaseModel):
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
+    evidence_files: Optional[List[Dict[str, Any]]] = None
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None

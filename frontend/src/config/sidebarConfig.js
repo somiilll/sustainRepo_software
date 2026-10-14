@@ -8,18 +8,21 @@
 const sidebarConfig = [
   {
     key: 'dashboard',
+    accessScope: 'core',
     label: 'Dashboard',
     icon: 'LayoutDashboard',
     path: '/dashboard',
   },
   {
     key: 'organization',
+    accessScope: 'core',
     label: 'Organization',
     icon: 'Building2',
     path: '/organization',
   },
   {
     key: 'facilities',
+    accessScope: 'core',
     label: 'Facilities',
     icon: 'Factory',
     path: '/facilities',
@@ -151,6 +154,12 @@ const sidebarConfig = [
     path: '/peer-benchmarking',
   },
   {
+    key: 'pcf_studio',
+    label: 'PCF',
+    icon: 'PackageSearch',
+    path: '/pcf-studio',
+  },
+  {
     key: 'supplier_assessment',
     label: 'Supplier Assessment',
     icon: 'Truck',
@@ -160,7 +169,7 @@ const sidebarConfig = [
       { key: 'supplier_assessment.ghg', label: 'GHG Emissions', icon: 'Cloud', path: '/supplier-assessment/ghg', adminOnly: true },
       { key: 'supplier_assessment.documents', label: 'Documents', icon: 'FileSignature', path: '/supplier-assessment/documents', adminOnly: true },
       { key: 'supplier_assessment.trainings', label: 'Trainings', icon: 'GraduationCap', path: '/supplier-assessment/trainings', adminOnly: true },
-      { key: 'supplier_assessment.ranking', label: 'Ranking', icon: 'Trophy', path: '/supplier-assessment/ranking', adminOnly: true },
+      { key: 'supplier_assessment.ranking', label: 'Analysis', icon: 'Trophy', path: '/supplier-assessment/ranking', adminOnly: true },
       // Supplier-side routes (shown only for supplier users)
       { key: 'supplier_assessment.supplier', label: 'Supplier', icon: 'User', path: '/supplier-assessment/supplier', supplierOnly: true },
       { key: 'supplier_assessment.my_esg', label: 'ESG', icon: 'ClipboardList', path: '/supplier-assessment/supplier/esg', supplierOnly: true },
@@ -171,6 +180,7 @@ const sidebarConfig = [
   },
   {
     key: 'users',
+    accessScope: 'core',
     label: 'Users',
     icon: 'Users',
     path: '/users',
@@ -185,6 +195,7 @@ const sidebarConfig = [
   },
   {
     key: 'profile',
+    accessScope: 'core',
     label: 'Profile',
     icon: 'User',
     path: '/profile',

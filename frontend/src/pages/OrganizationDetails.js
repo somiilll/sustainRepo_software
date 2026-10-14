@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -11,10 +12,12 @@ import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload,
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
+import { SecureFileImage } from '../components/SecureFileImage';
 import {
   createDraftEvidence,
   deleteEvidenceFiles,
@@ -50,7 +53,6 @@ export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
   const [activeTab, setActiveTab] = useState('basic');
@@ -102,13 +104,6 @@ export default function OrganizationDetails() {
     else setPincodeError('');
   };
 
-  // Helper to get full logo URL
-  const getFullLogoUrl = (logoPath) => {
-    if (!logoPath) return null;
-    if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
-    return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
-  };
-
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
@@ -122,7 +117,7 @@ export default function OrganizationDetails() {
     mission: '',
     vision: '',
     process_description: '',
-    org_boundaries_approach: '',
+    org_boundaries_approach: 'control',
     org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
     equity_share_reported_data_type: '',  // "org_share" or "total_facility"
@@ -159,14 +154,8 @@ export default function OrganizationDetails() {
     if (!data.country || data.country.trim() === '') return false;
     if (!data.pincode || data.pincode.trim() === '') return false;
     if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
-    if (!data.org_boundaries_approach || data.org_boundaries_approach.trim() === '') return false;
     if (!data.person_responsible || data.person_responsible.trim() === '') return false;
     if (!data.reporting_year_type) return false;
-    
-    // If control approach selected, must specify at least one control type
-    if (data.org_boundaries_approach === 'control' && (!data.control_types || data.control_types.length === 0)) {
-      return false;
-    }
     
     return true;
   }, []);
@@ -283,7 +272,7 @@ export default function OrganizationDetails() {
         }
       }
       
-      // Keep logo URL as stored in DB (relative path) - use getFullLogoUrl() for display only
+      // Keep the protected file route; SecureFileImage resolves it through an authenticated request.
       const logoUrl = response.data.logo || '';
       
       setFormData({
@@ -299,7 +288,7 @@ export default function OrganizationDetails() {
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
-        org_boundaries_approach: response.data.org_boundaries_approach || '',
+        org_boundaries_approach: response.data.org_boundaries_approach || 'control',
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
         equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
@@ -375,7 +364,6 @@ export default function OrganizationDetails() {
     try {
       revokeDraftEvidence(pendingLogo);
       setPendingLogo(createDraftEvidence(file, { type: 'logo' }));
-      setLogoError(false);
       toast.success('Logo uploaded');
     } catch (error) {
       toast.error(getUploadErrorMessage(error, file));
@@ -479,21 +467,9 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: Organizational Boundary is mandatory
-    if (!formData.org_boundaries_approach || formData.org_boundaries_approach.trim() === '') {
-      toast.error('Organizational Boundary Approach is mandatory');
-      return;
-    }
-    
     // Validation: Person Responsible is mandatory
     if (!formData.person_responsible || formData.person_responsible.trim() === '') {
       toast.error('Person Responsible is mandatory');
-      return;
-    }
-    
-    // Validation: If control approach selected, must specify at least one control type
-    if (formData.org_boundaries_approach === 'control' && (!formData.control_types || formData.control_types.length === 0)) {
-      toast.error('Please select at least one control type (Operational or Financial)');
       return;
     }
     
@@ -626,7 +602,6 @@ export default function OrganizationDetails() {
                 toast.error('Your subscription has expired. Please contact your administrator to renew.');
                 return;
               }
-              setLogoError(false); // Reset logo error when entering edit mode
               setActiveTab('basic');
               setEditing(true);
             }} 
@@ -646,18 +621,9 @@ export default function OrganizationDetails() {
           <div className="p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-              {organization?.logo && !logoError ? (
-                <img
-                  src={getFullLogoUrl(organization.logo)}
-                  alt={organization.name}
-                  className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm"
-                  onError={() => setLogoError(true)}
-                />
-              ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50">
+              <SecureFileImage source={organization?.logo} alt={`${organization?.name || 'Organization'} logo`} className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm" testId="organization-summary-logo" fallback={<div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50" data-testid="organization-summary-logo-fallback">
                   <Building className="h-10 w-10 text-primary" />
-                </div>
-              )}
+                </div>} />
               <div className="min-w-0 flex-1 self-center">
                 <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
                   {organization?.name}
@@ -675,38 +641,42 @@ export default function OrganizationDetails() {
 
       {/* Framework Tabs - with increased top spacing */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="h-auto max-w-full justify-start overflow-x-auto bg-stone-100 p-1 rounded-lg">
+        <TabsList className="relative flex h-auto w-full max-w-full justify-start overflow-hidden rounded-full bg-stone-100 p-1 sm:w-auto sm:overflow-x-auto">
           <TabsTrigger 
             value="basic" 
-            className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+            className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
             data-testid="organization-tab-basic"
           >
-            Basic Details
+            {activeTab === 'basic' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+            <span className="relative z-10 whitespace-nowrap">Basic Details</span>
           </TabsTrigger>
           {showGhgDetails && (
             <TabsTrigger
               value="ghg"
-              className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+              className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
               data-testid="organization-tab-ghg"
             >
-              GHG Details
+              {activeTab === 'ghg' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+              <span className="relative z-10 whitespace-nowrap">GHG Details</span>
             </TabsTrigger>
           )}
           {showOperationalData && (
             <>
               <TabsTrigger
                 value="production"
-                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
                 data-testid="organization-tab-production"
               >
-                Production Data
+                {activeTab === 'production' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Production Data</span>
               </TabsTrigger>
               <TabsTrigger
                 value="revenue"
-                className="data-[state=active]:bg-white data-[state=active]:text-primary px-4 sm:px-6"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
                 data-testid="organization-tab-revenue"
               >
-                Revenue Data
+                {activeTab === 'revenue' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Revenue Data</span>
               </TabsTrigger>
             </>
           )}
@@ -725,19 +695,9 @@ export default function OrganizationDetails() {
               <div className="space-y-2">
                 <Label>Logo (Upload)</Label>
                 <div className="flex items-center gap-4">
-                  {(pendingLogo?.preview_url || formData.logo) && !logoError ? (
-                    <img 
-                      src={pendingLogo?.preview_url || getFullLogoUrl(formData.logo)} 
-                      alt="Logo preview" 
-                      className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
-                      onError={() => setLogoError(true)}
-                      onLoad={() => setLogoError(false)}
-                    />
-                  ) : (
-                    <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                  <SecureFileImage source={pendingLogo?.preview_url || formData.logo} alt="Logo preview" className="w-16 h-16 object-contain border border-stone-200 rounded-lg" testId="organization-logo-preview" fallback={<div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100" data-testid="organization-logo-preview-fallback">
                       <ImageOff className="w-6 h-6 text-stone-400" />
-                    </div>
-                  )}
+                    </div>} />
                   <div className="flex-1">
                     <input
                       id="logo-upload"
@@ -924,7 +884,7 @@ export default function OrganizationDetails() {
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Organizational Boundaries</Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -959,7 +919,7 @@ export default function OrganizationDetails() {
                 {/* Sub-options for Control Approach - Now allows multiple selection */}
                 {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both') && (
                   <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
-                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-red-500">*</span></Label>
+                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-text-muted font-normal">(Optional)</span></Label>
                     <p className="text-xs text-text-muted mb-2">You can select one or both options</p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -1011,9 +971,6 @@ export default function OrganizationDetails() {
                         </label>
                       </div>
                     </div>
-                    {(formData.control_types?.length === 0 || !formData.control_types) && formData.org_boundaries_approach?.startsWith('control') && (
-                      <p className="text-xs text-amber-600 mt-2">Please select at least one control type</p>
-                    )}
                   </div>
                 )}
                 
@@ -1245,23 +1202,24 @@ export default function OrganizationDetails() {
                     const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
                     let viewUrl = att.is_draft ? att.preview_url : (isUploadedFile ? att.url : ensureProtocol(att.url));
                     let downloadUrl = att.url;
+                    let uploadedFileId = null;
                     if (isUploadedFile && !att.is_draft) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
-                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+                        uploadedFileId = fileIdMatch[1];
+                        viewUrl = '#';
                       }
                     }
                     return (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm truncate">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
                         {/* Only show Download for uploaded files, not external links */}
                         {isUploadedFile && !att.is_draft && (
                           <button 
                             type="button"
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
                             className="text-xs text-green-600 hover:underline flex items-center gap-1"
                             data-testid={`organization-attachment-download-${idx}`}
                           >
@@ -1650,11 +1608,12 @@ export default function OrganizationDetails() {
                   const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
                   let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                   let downloadUrl = att.url;
+                  let uploadedFileId = null;
                   if (isUploadedFile) {
                     const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                     if (fileIdMatch) {
-                      viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-                      downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+                      uploadedFileId = fileIdMatch[1];
+                      viewUrl = '#';
                     }
                   }
                   return (
@@ -1664,11 +1623,12 @@ export default function OrganizationDetails() {
                       </div>
                       <span className="flex-1 text-sm font-medium text-text-primary truncate">{att.name}</span>
                       <div className="flex gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-primary hover:underline" data-testid={`organization-profile-attachment-view-${idx}`}>View</a>
                         {isUploadedFile && (
                           <button 
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
                             className="text-xs text-emerald-600 hover:underline"
+                            data-testid={`organization-profile-attachment-download-${idx}`}
                           >
                             Download
                           </button>

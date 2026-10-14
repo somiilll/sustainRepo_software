@@ -47,6 +47,18 @@ def test_facade_questionnaire_methods_bound_to_questionnaire_service_module():
         )
 
 
+def test_questionnaire_assignment_summary_uses_explicit_active_supplier_assignments():
+    questionnaire = {
+        "id": "questionnaire-basic",
+        "assignment_mode": "all",
+        "assigned_supplier_ids": ["supplier-1", "supplier-2"],
+    }
+
+    assert questionnaire_service.questionnaire_is_assigned_to_supplier(questionnaire, {"id": "supplier-1", "questionnaire_ids": []}) is True
+    assert questionnaire_service.questionnaire_is_assigned_to_supplier(questionnaire, {"id": "supplier-3", "questionnaire_ids": ["questionnaire-basic"]}) is True
+    assert questionnaire_service.questionnaire_is_assigned_to_supplier(questionnaire, {"id": "supplier-4", "questionnaire_ids": []}) is False
+
+
 class _Cursor:
     def __init__(self, docs):
         self.docs = docs
@@ -69,6 +81,7 @@ class _Collection:
 class _DB:
     def __init__(self):
         self.supplier_questionnaires = _Collection([])
+        self.supplier_relationships = _Collection([])
 
 
 @pytest.mark.asyncio

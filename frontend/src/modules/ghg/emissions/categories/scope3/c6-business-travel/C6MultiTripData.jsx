@@ -1,13 +1,12 @@
 import React from 'react';
-import { FileText, MapPin, Plus, Trash2, Upload, X } from 'lucide-react';
+import { MapPin, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '../../../../../../components/ui/button';
 import { Input } from '../../../../../../components/ui/input';
 import { Label } from '../../../../../../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
 import { DynamicFieldRenderer } from '../../../shared/components/DynamicFieldRenderer';
 import { FlightDetailsSection } from '../../../../../../components/FlightDetailsSection';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { EvidenceHoverPreview } from '../../../shared/components/EvidenceHoverPreview';
 
 const getCompoundSuffix = (field, trip) => {
   if (!field?.compoundWithVariable) return '';
@@ -48,28 +47,7 @@ const TripEvidence = ({ periodKey, trip, onUpload, onRemove }) => {
               {count > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`c6-trip-${trip.id}-evidence-count`}>{count}</span>}
             </label>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
-            {count === 0 ? (
-              <span className="text-xs">Upload evidence (PDF, Excel, Word)</span>
-            ) : (
-              <div className="space-y-1.5 text-xs">
-                <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
-                {evidences.map((evidence, index) => {
-                  const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
-                  const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                  const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
-                  return (
-                    <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
-                      <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`c6-trip-${trip.id}-evidence-view-${index}`}>{evidence.filename}</a>
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onRemove(periodKey, trip.id, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`c6-trip-${trip.id}-evidence-remove-${index}`}><X className="h-3 w-3" /></button>
-                    </div>
-                  );
-                })}
-                <span className="text-stone-500">Click icon to add more</span>
-              </div>
-            )}
-          </TooltipContent>
+          <TooltipContent side="bottom" align="end" className="w-80 rounded-lg border border-stone-200 bg-white p-0 text-stone-900 shadow-xl" data-testid={`c6-trip-${trip.id}-evidence-preview`}><EvidenceHoverPreview evidences={evidences} onRemove={(index) => onRemove(periodKey, trip.id, index)} testIdPrefix={`c6-trip-${trip.id}-evidence`} /></TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>

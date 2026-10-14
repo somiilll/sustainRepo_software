@@ -832,6 +832,8 @@ export default function DashboardEnvironment({ data }) {
     <div className="space-y-5" data-testid="dashboard-environment">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Environment` : 'Environment Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={`Reporting: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}

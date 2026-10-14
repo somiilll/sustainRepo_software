@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, MoreHorizontal } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Lock, MoreHorizontal } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
@@ -134,15 +134,16 @@ const EvidenceIndicator = ({ emissionId, count }) => (
   </TooltipProvider>
 );
 
-const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, handleEdit, fetchHistory, openDeleteConfirm }) => (
+const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, locked, handleEdit, fetchHistory, openDeleteConfirm }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button type="button" size="icon" variant="ghost" onClick={(event) => event.stopPropagation()} className="h-8 w-8" aria-label={`More actions for emission ${emission.id}`} data-testid={`emission-actions-menu-${emission.id}`}><MoreHorizontal className="h-4 w-4" /></Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="bg-white opacity-100" data-testid={`emission-actions-menu-content-${emission.id}`}>
-      <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+      {locked && <DropdownMenuItem disabled data-testid={`emission-period-locked-${emission.id}`}><Lock className="mr-2 h-4 w-4" />Submitted period locked</DropdownMenuItem>}
+      <DropdownMenuItem disabled={locked} onSelect={(event) => { if (locked) return; event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
       {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
-      <DropdownMenuItem className="text-red-700 focus:text-red-700" onSelect={(event) => { event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+      <DropdownMenuItem disabled={locked} className="text-red-700 focus:text-red-700" onSelect={(event) => { if (locked) return; event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
 );
@@ -155,6 +156,7 @@ const EmissionDataGrid = forwardRef(({
   getMethodLabel,
   isRegularUser,
   hideHistoryActions = false,
+  lockedEmissionIds = new Set(),
   handleEdit,
   fetchHistory,
   openDeleteConfirm,
@@ -219,13 +221,22 @@ const EmissionDataGrid = forwardRef(({
     const ledger = ledgerScrollRef.current;
     const bottomScrollbar = bottomScrollbarRef.current;
     if (!ledger) return undefined;
+    let resizeFrame = null;
     const syncDimensions = () => {
-      setLedgerScrollWidth(ledger.scrollWidth);
-      setLedgerViewportWidth(ledger.clientWidth);
-      setLedgerScrollLeft(ledger.scrollLeft);
-      setBottomScrollbarWidth(bottomScrollbar?.clientWidth || ledger.clientWidth);
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        const nextScrollWidth = ledger.scrollWidth;
+        const nextViewportWidth = ledger.clientWidth;
+        const nextScrollLeft = ledger.scrollLeft;
+        const nextBottomScrollbarWidth = bottomScrollbar?.clientWidth || nextViewportWidth;
+        setLedgerScrollWidth((current) => current === nextScrollWidth ? current : nextScrollWidth);
+        setLedgerViewportWidth((current) => current === nextViewportWidth ? current : nextViewportWidth);
+        setLedgerScrollLeft((current) => current === nextScrollLeft ? current : nextScrollLeft);
+        setBottomScrollbarWidth((current) => current === nextBottomScrollbarWidth ? current : nextBottomScrollbarWidth);
+      });
     };
-    const syncLedger = () => setLedgerScrollLeft(ledger.scrollLeft);
+    const syncLedger = () => setLedgerScrollLeft((current) => current === ledger.scrollLeft ? current : ledger.scrollLeft);
     syncDimensions();
     ledger.addEventListener('scroll', syncLedger, { passive: true });
     const observer = new ResizeObserver(syncDimensions);
@@ -234,6 +245,7 @@ const EmissionDataGrid = forwardRef(({
     return () => {
       ledger.removeEventListener('scroll', syncLedger);
       observer.disconnect();
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
     };
   }, [activeScope, effectiveColumnWidths, filteredEmissions.length]);
   
@@ -247,6 +259,7 @@ const EmissionDataGrid = forwardRef(({
   
   // Handle row selection
   const handleSelectRow = (id) => {
+    if (lockedEmissionIds.has(id)) return;
     setSelectedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(id)) {
@@ -260,16 +273,17 @@ const EmissionDataGrid = forwardRef(({
 
   const selectionModeActive = selectedIds.size > 0;
   const handleRowSelection = (id) => {
-    if (!selectionModeActive) return;
+    if (!selectionModeActive || lockedEmissionIds.has(id)) return;
     handleSelectRow(id);
   };
   
   // Handle select all
   const handleSelectAll = () => {
-    if (selectedIds.size === filteredEmissions.length) {
+    const deletableEmissions = filteredEmissions.filter((emission) => !lockedEmissionIds.has(emission.id));
+    if (selectedIds.size === deletableEmissions.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredEmissions.map(e => e.id)));
+      setSelectedIds(new Set(deletableEmissions.map((emission) => emission.id)));
     }
   };
 
@@ -352,14 +366,16 @@ const EmissionDataGrid = forwardRef(({
   
   // Handle bulk delete
   const handleBulkDelete = () => {
-    if (selectedIds.size > 0 && onBulkDelete) {
-      onBulkDelete(Array.from(selectedIds));
+    const deletableIds = Array.from(selectedIds).filter((id) => !lockedEmissionIds.has(id));
+    if (deletableIds.length > 0 && onBulkDelete) {
+      onBulkDelete(deletableIds);
       setSelectedIds(new Set());
     }
   };
   
-  const isAllSelected = filteredEmissions.length > 0 && selectedIds.size === filteredEmissions.length;
-  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < filteredEmissions.length;
+  const deletableEmissionCount = filteredEmissions.filter((emission) => !lockedEmissionIds.has(emission.id)).length;
+  const isAllSelected = deletableEmissionCount > 0 && selectedIds.size === deletableEmissionCount;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < deletableEmissionCount;
   
   // Get facility name for sorting
   const getFacilityName = (emission) => {
@@ -475,7 +491,7 @@ const EmissionDataGrid = forwardRef(({
         </div>
       )}
       
-      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(70vh,52rem)] overflow-x-hidden overflow-y-auto" data-testid="emissions-ledger-scroll-region">
+      <div ref={ledgerScrollRef} onWheel={handleLedgerWheel} className="h-[min(70vh,46rem)] overflow-x-hidden overflow-y-auto lg:h-[min(74vh,55rem)]" data-testid="emissions-ledger-scroll-region">
       {/* Fixed Header Row */}
       <div className="min-w-max sticky top-0 z-10 bg-stone-50 border-b border-stone-200 px-4 py-3">
         <div className="flex min-w-max items-center gap-2 bg-stone-50 text-xs font-semibold text-stone-600 uppercase tracking-wider">
@@ -569,8 +585,9 @@ const EmissionDataGrid = forwardRef(({
       </div>
 
       {/* Data Rows */}
-      <div className="divide-y divide-stone-100">
+      <div>
         {sortedEmissions.map((emission) => {
+          const locked = lockedEmissionIds.has(emission.id);
           const facility = facilities.find(f => f.id === emission.facility_id);
           const dfv = emission.dynamic_field_values || {};
           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
@@ -628,7 +645,7 @@ const EmissionDataGrid = forwardRef(({
           return (
             <div
               key={emission.id}
-              className={`min-w-max px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : ''}`}
+              className={`min-w-max border-b border-stone-200 px-4 py-3 flex items-center gap-2 transition-colors group ${selectionModeActive && !locked ? 'cursor-pointer hover:bg-green-50/50' : 'cursor-default'} ${selectedIds.has(emission.id) ? 'bg-amber-50' : locked ? 'bg-stone-50/70' : ''}`}
               onClick={() => handleRowSelection(emission.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -646,6 +663,7 @@ const EmissionDataGrid = forwardRef(({
               <div className="w-8 flex-shrink-0 flex items-center justify-center">
                 <Checkbox
                   checked={selectedIds.has(emission.id)}
+                  disabled={locked}
                   onCheckedChange={() => handleSelectRow(emission.id)}
                   onClick={(e) => e.stopPropagation()}
                   data-testid={`select-emission-${emission.id}`}
@@ -687,6 +705,7 @@ const EmissionDataGrid = forwardRef(({
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                    {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
@@ -724,6 +743,7 @@ const EmissionDataGrid = forwardRef(({
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                    {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
@@ -772,6 +792,7 @@ const EmissionDataGrid = forwardRef(({
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
                     <StatusCell emission={emission} />
+                    {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
                     {formatLastUpdated(emission)}
@@ -780,7 +801,7 @@ const EmissionDataGrid = forwardRef(({
               )}
 
               <div className="flex flex-shrink-0 items-center justify-center" style={columnStyle('actions')}>
-                <EmissionRowActions emission={emission} isRegularUser={isRegularUser} hideHistoryActions={hideHistoryActions} handleEdit={handleEdit} fetchHistory={fetchHistory} openDeleteConfirm={openDeleteConfirm} />
+                <EmissionRowActions emission={emission} isRegularUser={isRegularUser} hideHistoryActions={hideHistoryActions} locked={locked} handleEdit={handleEdit} fetchHistory={fetchHistory} openDeleteConfirm={openDeleteConfirm} />
               </div>
             </div>
           );

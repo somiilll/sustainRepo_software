@@ -408,7 +408,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
         aside={userIsAdmin && (
           <Button 
             onClick={handleCreate}
-            className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
             data-testid="create-target-btn"
           >
             <Plus className="w-4 h-4" />
@@ -510,7 +510,11 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
                 : 'Create your first ESG target to track KPI performance'}
             </p>
             {userIsAdmin && !search && (
-              <Button onClick={handleCreate} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
+              <Button
+                onClick={handleCreate}
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+                data-testid="esg-empty-add-target-button"
+              >
                 <Plus className="w-4 h-4" />
                 Add Target
               </Button>

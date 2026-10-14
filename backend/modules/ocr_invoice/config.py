@@ -67,8 +67,8 @@ MODES = {
         key="fast",
         label="Fast",
         provider="anthropic",
-        vision_model="claude-sonnet-5",
-        reasoning_model="claude-haiku-4-5",
+        vision_model="claude-sonnet-5-5",
+        reasoning_model="claude-haiku-5-5",
         api_key_env="ANTHROPIC_API_KEY",
     ),
     "think": ExtractionMode(

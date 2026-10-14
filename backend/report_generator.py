@@ -2652,6 +2652,36 @@ class GHGReportGenerator:
             import traceback
             traceback.print_exc()
     
+    @staticmethod
+    def _entries_at_configured_base_year_level(record: Optional[Dict]) -> list[Dict]:
+        """Return only direct entries stored at a Base Year record's selected depth.
+
+        A Scope-level figure is already the complete figure for that scope. It must
+        never be interpreted as a set of missing categories/subcategories. The same
+        applies to Category-level figures. Historic records without an entry-level
+        marker are preserved as-is.
+        """
+        if not record:
+            return []
+        level = record.get("data_entry_level")
+        entries = record.get("emissions_data") or []
+        if level not in {"scope", "category", "subcategory"}:
+            return entries
+        filtered = []
+        for entry in entries:
+            if str(entry.get("scope") or "").lower() == "sinks":
+                filtered.append(entry)
+                continue
+            category = str(entry.get("category") or "").strip()
+            subcategory = str(entry.get("subcategory") or "").strip()
+            if level == "scope" and not category and not subcategory:
+                filtered.append(entry)
+            elif level == "category" and category and not subcategory:
+                filtered.append(entry)
+            elif level == "subcategory" and category and subcategory:
+                filtered.append(entry)
+        return filtered
+
     def _get_base_year_emissions_for_entity(self, entity_type: str, entity_id: str) -> Optional[Dict]:
         """Get base year emissions data for a facility or organization from the database.
         For Scope 1,2,3 reports, fetches both scope12 and scope3 base year records separately."""
@@ -2692,11 +2722,10 @@ class GHGReportGenerator:
                     'has_scope3_base_year': scope3_record is not None,
                     'scope12_base_year': scope12_record.get('base_year') if scope12_record else None,
                     'scope3_base_year': scope3_record.get('base_year') if scope3_record else None,
-                    'scope12_emissions_data': scope12_record.get('emissions_data', []) if scope12_record else [],
-                    'scope3_emissions_data': scope3_record.get('emissions_data', []) if scope3_record else [],
+                    'scope12_emissions_data': self._entries_at_configured_base_year_level(scope12_record),
+                    'scope3_emissions_data': self._entries_at_configured_base_year_level(scope3_record),
                     # Combined emissions_data for the table display
-                    'emissions_data': (scope12_record.get('emissions_data', []) if scope12_record else []) + 
-                                      (scope3_record.get('emissions_data', []) if scope3_record else []),
+                    'emissions_data': self._entries_at_configured_base_year_level(scope12_record) + self._entries_at_configured_base_year_level(scope3_record),
                     # Use scope12 base year as primary, fallback to scope3 if scope12 doesn't exist
                     'base_year': scope12_record.get('base_year') if scope12_record else (scope3_record.get('base_year') if scope3_record else 'N/A'),
                 }
@@ -2711,7 +2740,8 @@ class GHGReportGenerator:
                     base_year_record['has_scope12_base_year'] = True
                     base_year_record['scope12_base_year'] = base_year_record.get('base_year')
                     # Populate scope12_emissions_data for consistency with Scope 1,2,3 reports
-                    base_year_record['scope12_emissions_data'] = base_year_record.get('emissions_data', [])
+                    base_year_record['scope12_emissions_data'] = self._entries_at_configured_base_year_level(base_year_record)
+                    base_year_record['emissions_data'] = self._entries_at_configured_base_year_level(base_year_record)
                 return base_year_record
         except Exception as e:
             print(f"Error getting base year emissions: {e}")

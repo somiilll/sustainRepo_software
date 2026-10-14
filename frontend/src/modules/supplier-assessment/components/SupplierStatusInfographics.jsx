@@ -9,11 +9,14 @@ const STATUS_ITEMS = [
   { key: 'overdue', label: 'Overdue', Icon: AlertTriangle, className: 'border-rose-200 bg-rose-50/60 text-rose-700' },
 ];
 
-export const SupplierStatusInfographics = ({ title, counts, testId }) => (
-  <section className="space-y-3" data-testid={`${testId}-infographics`}>
+export const SupplierStatusInfographics = ({ title, counts, testId, className = '', style, hiddenKeys = [] }) => {
+  const visibleStatusItems = STATUS_ITEMS.filter(({ key }) => !hiddenKeys.includes(key));
+  const gridClassName = visibleStatusItems.length === 4 ? 'grid grid-cols-2 gap-3 md:grid-cols-4' : 'grid grid-cols-2 gap-3 md:grid-cols-5';
+
+  return <section className={`space-y-3 ${className}`} style={style} data-testid={`${testId}-infographics`}>
     <h2 className="text-lg font-semibold text-stone-900" data-testid={`${testId}-infographics-title`}>{title}</h2>
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-      {STATUS_ITEMS.map(({ key, label, Icon, className }) => (
+    <div className={gridClassName}>
+      {visibleStatusItems.map(({ key, label, Icon, className }) => (
         <div key={key} className={`min-w-0 rounded-lg border p-4 ${className}`} data-testid={`${testId}-${key}-stat`}>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium">{label}</span>
@@ -23,5 +26,5 @@ export const SupplierStatusInfographics = ({ title, counts, testId }) => (
         </div>
       ))}
     </div>
-  </section>
-);
+  </section>;
+};

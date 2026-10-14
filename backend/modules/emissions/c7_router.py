@@ -39,7 +39,7 @@ from shared.helpers.audit_helpers import (
     compute_user_input_changes,
     get_input_label_map_from_db,
 )
-from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.helpers.uploaded_files import delete_unreferenced_emission_files, delete_uploaded_files, extract_uploaded_file_ids
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -491,7 +491,7 @@ async def delete_c7_monthly_entry(
         "changes": {"action": "deleted", "old_values": entry}
     }
     try:
-        await delete_uploaded_files(db, extract_uploaded_file_ids(entry))
+        await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(entry), entry_id)
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove emission evidence from storage. The entry was not deleted.") from error
 

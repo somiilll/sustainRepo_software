@@ -50,24 +50,21 @@ async def get_mis_reporting_context(current_user: dict) -> tuple[Optional[dict],
     if not organization_id:
         return None, False
 
-    organization = await db.organizations.find_one(
-        {"id": organization_id},
-        {"_id": 0, "name": 1, "has_ghg": 1, "has_esg": 1, "module_access": 1},
-    )
+    organization = await db.organizations.find_one({"id": organization_id}, {"_id": 0, "name": 1})
     if not organization:
         return None, False
 
     entitlements = await resolve_entitlements(organization_id, migrate=True)
-    mis_reports_enabled = entitlements["mis_reports"]
-    return organization, current_user.get("role") == "admin" and mis_reports_enabled
+    organization["entitlements"] = entitlements
+    return organization, current_user.get("role") == "admin" and entitlements["mis_reports"]
 
 
 @router.get("/mis-reports/catalog", response_model=MISReportCatalogResponse)
 async def get_mis_report_catalog(current_user: dict = Depends(get_current_user)):
     """Expose the V1 MIS report catalog with permission-aware availability."""
     organization, can_generate_reports = await get_mis_reporting_context(current_user)
-    has_ghg = True if organization is None else organization.get("has_ghg", True)
-    has_esg = True if organization is None else organization.get("has_esg", True)
+    has_ghg = True if organization is None else organization["entitlements"]["environment"]
+    has_esg = True if organization is None else any(organization["entitlements"][code] for code in ("environment", "social", "governance"))
     templates = build_mis_report_templates(has_ghg, has_esg)
 
     if not can_generate_reports:

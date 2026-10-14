@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
+import { BaseYearHierarchyEditor } from '../modules/baseYear/BaseYearHierarchyEditor';
 import {
   Dialog,
   DialogContent,
@@ -87,6 +88,23 @@ const getScope12LedgerTotals = (emissions = []) => {
     return isSink && Number.isFinite(amount) ? total + amount : total;
   }, 0);
   return { gross, net: gross + sinks, hasSinks: sinks !== 0 };
+};
+
+const parseCanonicalSinkDate = (sink, fiscalStartMonth = 4) => {
+  const period = sink?.reporting_period || '';
+  const monthly = period.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (monthly) return { year: Number(monthly[1]), month: Number(monthly[2]) - 1 };
+
+  const storedStart = String(sink?.start_date || '').match(/^(\d{4})-(0[1-9]|1[0-2])/);
+  if (storedStart) return { year: Number(storedStart[1]), month: Number(storedStart[2]) - 1 };
+
+  const calendar = period.match(/^CY(\d{4})$/);
+  if (calendar) return { year: Number(calendar[1]), month: 0 };
+
+  const financial = period.match(/^FY\s+(\d{4})-(\d{4})$/);
+  if (financial) return { year: Number(financial[1]), month: Math.max(0, Number(fiscalStartMonth || 4) - 1) };
+
+  return null;
 };
 
 function Scope12LedgerTotal({ emissions, testId }) {
@@ -330,6 +348,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
   // Phase 1 Enhancement: Manual category addition
   const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
   const [newCategoryEntry, setNewCategoryEntry] = useState({ scope: '', category: '', subcategory: '', tco2e: 0 });
+  const [dataEntryLevel, setDataEntryLevel] = useState('subcategory');
   const [availableCategories, setAvailableCategories] = useState([]); // Dynamic categories from system
   const [manuallyAddedCategories, setManuallyAddedCategories] = useState([]); // Track manually added entries
   const [scope3Categories, setScope3Categories] = useState([]); // Scope 3 categories (C1, C2, etc.)
@@ -554,17 +573,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         setSinksExistInOldestYear(true);
         
         // Helper to parse sink date
-        const parseSinkDate = (sink) => {
-          if (sink.reporting_period) {
-            const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-            if (match) return `${match[1]}`;
-          }
-          if (sink.start_date) {
-            const match = sink.start_date.match(/(\d{4})/);
-            if (match) return match[1];
-          }
-          return sink.reporting_year || 'Unknown';
-        };
+        const parseSinkDate = (sink) => String(parseCanonicalSinkDate(sink, organization?.financial_year_start_month)?.year || 'Unknown');
         
         // Group sinks by description/type and show unique ones for input
         const uniqueSinkTypes = [];
@@ -599,6 +608,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   // Handle edit button click (opens editable dialog for records where base year < oldest year)
   const handleEditEmissions = async (record) => {
+    const savedEntry = (record.emissions_data || []).find((entry) => String(entry.scope || '').toLowerCase() !== 'sinks');
+    setDataEntryLevel(record.data_entry_level || savedEntry?.entry_level || (!savedEntry?.category ? 'scope' : !savedEntry?.subcategory ? 'category' : 'subcategory'));
     const entityType = record.facility_id ? 'facility' : 'organization';
     const entityId = record.facility_id || record.organization_id;
     const entityName = record.facility_id 
@@ -694,6 +705,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
       console.error('Error fetching fresh combinations:', error);
       // Fallback to saved data only
       setEmissionsData(record.emissions_data || []);
+      setDataEntryLevel(record.data_entry_level || 'subcategory');
     }
     
     // Fetch oldest year info to determine editability
@@ -715,17 +727,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
           setSinksExistInOldestYear(true);
           
           // Helper to parse sink date
-          const parseSinkDate = (sink) => {
-            if (sink.reporting_period) {
-              const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-              if (match) return `${match[1]}`;
-            }
-            if (sink.start_date) {
-              const match = sink.start_date.match(/(\d{4})/);
-              if (match) return match[1];
-            }
-            return sink.reporting_year || 'Unknown';
-          };
+          const parseSinkDate = (sink) => String(parseCanonicalSinkDate(sink, organization?.financial_year_start_month)?.year || 'Unknown');
           
           // Load existing sinks data or create inputs
           const existingSinks = record.sinks_data || [];
@@ -914,6 +916,26 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     setEmissionsData(updated);
   };
 
+  const handleHierarchyValueChange = (node, value) => {
+    const tco2e = value === '' ? 0 : Number(value);
+    setEmissionsData((current) => {
+      const index = current.findIndex((entry) => entry.scope === node.scope && (entry.category || '') === node.category && (entry.subcategory || '') === node.subcategory && (entry.entry_level || 'subcategory') === node.entry_level);
+      if (index === -1) return [...current, { ...node, tco2e: Number.isFinite(tco2e) ? tco2e : 0, isManuallyAdded: true }];
+      return current.map((entry, entryIndex) => entryIndex === index ? { ...entry, tco2e: Number.isFinite(tco2e) ? tco2e : 0 } : entry);
+    });
+  };
+
+  const handleHierarchyDelete = (node) => {
+    setEmissionsData((current) => current.filter((entry) => !(entry.scope === node.scope && (entry.category || '') === (node.category || '') && (entry.subcategory || '') === (node.subcategory || '') && (entry.entry_level || (!entry.category ? 'scope' : !entry.subcategory ? 'category' : 'subcategory')) === node.entry_level)));
+  };
+
+  const handleDataEntryLevelChange = (level) => {
+    if (level === dataEntryLevel) return;
+    setDataEntryLevel(level);
+    setEmissionsData((current) => current.filter((entry) => entry.scope === 'Sinks'));
+    toast.message(`Switched to ${level} entry. Enter direct values at the selected hierarchy level.`);
+  };
+
   const handleSaveBaseYear = async () => {
     // Validate justification for new records (not editing existing ones)
     // Phase 2: Check for existing record with the same scope group
@@ -968,6 +990,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
         emissions_data: filteredEmissionsData, // Use filtered data
+        data_entry_level: dataEntryLevel,
         sinks_data: sinkData,
         justification: baseYearJustification.trim(), // Mandatory justification
         notes: useOldestYear === false ? baseYearNotes : null  // Include notes only for non-oldest year
@@ -977,6 +1000,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         // Update existing record
         await axios.put(`${API}/base-year-emissions/${existingRecord.id}`, {
           emissions_data: filteredEmissionsData, // Use filtered data
+          data_entry_level: dataEntryLevel,
           sinks_data: sinkData,
           base_year: selectedYear,
           justification: baseYearJustification.trim() || existingRecord.justification, // Keep existing if not changed
@@ -1261,6 +1285,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     setBaseYearJustification(''); // Reset justification
     setChangeReason(''); // Reset change reason
     setSelectedScopeGroup('scope12'); // Reset to default scope group
+    setDataEntryLevel('subcategory');
     // Phase 1 Enhancement: Reset manual category states
     setShowAddCategoryForm(false);
     setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
@@ -1459,16 +1484,20 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
   // Phase 1 Enhancement: Add a manual category entry
   const handleAddManualCategory = () => {
-    if (!newCategoryEntry.scope || !newCategoryEntry.category) {
-      toast.error('Please select both Scope and Category');
+    const requiresCategory = dataEntryLevel !== 'scope';
+    const requiresSubcategory = dataEntryLevel === 'subcategory';
+    if (!newCategoryEntry.scope || (requiresCategory && !newCategoryEntry.category) || (requiresSubcategory && !newCategoryEntry.subcategory)) {
+      toast.error(dataEntryLevel === 'scope' ? 'Please select a Scope' : dataEntryLevel === 'category' ? 'Please select both Scope and Category' : 'Please select Scope, Category, and Subcategory');
       return;
     }
+    const category = requiresCategory ? newCategoryEntry.category : '';
+    const subcategory = requiresSubcategory ? newCategoryEntry.subcategory : '';
     
     // Check if this combination already exists in emissionsData
     const exists = emissionsData.some(entry => 
       entry.scope === newCategoryEntry.scope && 
-      entry.category === newCategoryEntry.category && 
-      (entry.subcategory || '') === (newCategoryEntry.subcategory || '')
+      entry.category === category && 
+      (entry.subcategory || '') === subcategory
     );
     
     if (exists) {
@@ -1479,9 +1508,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     // Add to emissions data
     const newEntry = {
       scope: newCategoryEntry.scope,
-      category: newCategoryEntry.category,
-      subcategory: newCategoryEntry.subcategory || '',
+      category,
+      subcategory,
       tco2e: parseFloat(newCategoryEntry.tco2e) || 0,
+      entry_level: dataEntryLevel,
       isManuallyAdded: true // Track that this was manually added
     };
     
@@ -1577,27 +1607,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
     console.log('[getSinksForBaseYear] targetYear:', targetYear);
     
     // Helper to parse sink date and get month/year
-    const parseSinkDate = (sink) => {
-      // Try reporting_period first (format: "2025-01")
-      if (sink.reporting_period) {
-        const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
-        if (match) {
-          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 }; // 0-indexed month
-        }
-      }
-      // Try start_date (format: "2025-01-01")
-      if (sink.start_date) {
-        const match = sink.start_date.match(/(\d{4})-(\d{2})/);
-        if (match) {
-          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 };
-        }
-      }
-      // Fallback to reporting_year/reporting_month if available
-      if (sink.reporting_year) {
-        return { year: parseInt(sink.reporting_year), month: sink.reporting_month ?? 0 };
-      }
-      return null;
-    };
+    const parseSinkDate = (sink) => parseCanonicalSinkDate(sink, organization?.financial_year_start_month);
     
     // Helper to check if a sink is within the year range (same logic as emissions)
     const isInYearRange = (sink) => {
@@ -1792,7 +1802,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
         </div>
         
         {record ? (
-          <div className="space-y-2">
+                  <div className="mt-10 space-y-2">
             <div>
               <p className="text-xs text-text-muted">Base Year</p>
               <p className="font-semibold text-sm">{record.base_year}</p>
@@ -2325,7 +2335,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
 
       {/* Setup Dialog */}
       <Dialog open={showSetupDialog} onOpenChange={(open) => { if (!open) { setShowSetupDialog(false); resetState(); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className={`${setupStep === 'enter_emissions' ? 'max-w-5xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
@@ -2423,7 +2433,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               )}
               
               {/* Phase 1 Enhancement: Add Category Button */}
-              <div className="flex justify-end">
+              <div className="hidden">
                 <Button
                   variant="outline"
                   size="sm"
@@ -2431,14 +2441,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                   className="text-xs"
                 >
                   <PlusCircle className="w-4 h-4 mr-1" />
-                  Add Category
+                  {dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}
                 </Button>
               </div>
               
               {/* Phase 1 Enhancement: Add Category Form */}
               {showAddCategoryForm && (
                 <div className="p-4 border border-dashed border-primary/50 rounded-lg bg-primary/5 space-y-3">
-                  <h4 className="text-sm font-medium text-primary">Add New Category</h4>
+                  <h4 className="text-sm font-medium text-primary">{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Scope *</Label>
@@ -2465,7 +2475,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    {dataEntryLevel !== 'scope' && <div>
                       <Label className="text-xs">
                         {newCategoryEntry.scope === 'Biogenic (Direct)' ? 'Fuel Name *' : 'Category *'}
                       </Label>
@@ -2496,8 +2506,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           )}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div>
+                    </div>}
+                    {dataEntryLevel === 'subcategory' && <div>
                       <Label className="text-xs">
                         {newCategoryEntry.scope === 'scope3' ? 'Activity' : 
                          newCategoryEntry.scope === 'Biogenic (Indirect)' ? 'Activity *' :
@@ -2568,7 +2578,7 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                           onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
                         />
                       )}
-                    </div>
+                    </div>}
                     <div>
                       <Label className="text-xs">tCO₂e *</Label>
                       <Input
@@ -2603,13 +2613,14 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 </div>
               )}
               
-              {emissionsData.length === 0 && !showAddCategoryForm ? (
+              <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}<Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}><PlusCircle className="mr-1 h-4 w-4" />{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</Button></div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
+              {false && emissionsData.length === 0 && !showAddCategoryForm ? (
                 <div className="py-4 text-center text-text-muted">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                   <p>No emission categories found.</p>
                   <p className="text-xs mt-1">Click &quot;Add Category&quot; to manually add base year emissions.</p>
                 </div>
-              ) : emissionsData.length > 0 && (
+              ) : false && emissionsData.length > 0 && (
                 <div className="max-h-72 overflow-y-auto border rounded-lg">
                   <Table>
                     <TableHeader>
@@ -2707,8 +2718,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               
               {/* MANDATORY Justification field for base year selection */}
               {emissionsData.length > 0 && (
-                <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                <div className="mt-12 border-t border-slate-200 pt-8 space-y-2">
+                  <Label className="flex items-center gap-2 font-medium">
                     <AlertCircle className="w-4 h-4" />
                     Justification for Selecting this Base Year *
                   </Label>
@@ -2716,16 +2727,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                     placeholder="Explain why you selected this year as your base year (e.g., first year of complete GHG inventory, strategic planning cycle start, regulatory requirement, etc.)"
                     value={baseYearJustification}
                     onChange={(e) => setBaseYearJustification(e.target.value)}
-                    className={`min-h-[100px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                    className="min-h-[100px]"
                   />
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-amber-700">
-                      This justification is required for audit compliance (minimum 10 characters).
-                    </p>
-                    <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-                      {baseYearJustification.trim().length}/10 min
-                    </span>
-                  </div>
                 </div>
               )}
               
@@ -2796,9 +2799,10 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             {selectedScopeGroup === 'scope3' && (
               <Scope3EmissionsSummary emissions={emissionsData} testId="base-year-edit-scope3-emissions-summary" />
             )}
+            <div className="space-y-3" data-testid="base-year-entry-level-selector"><div className="flex flex-wrap items-center gap-2"><Label className="mr-2 text-sm font-semibold">Data Entry Level</Label>{['scope', 'category', 'subcategory'].map((level) => <Button key={level} type="button" size="sm" variant={dataEntryLevel === level ? 'default' : 'outline'} onClick={() => handleDataEntryLevelChange(level)} data-testid={`entry-level-option-${level}`}>{level[0].toUpperCase() + level.slice(1)}</Button>)}<Button type="button" size="sm" variant="outline" className="ml-auto" onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}><PlusCircle className="mr-1 h-4 w-4" />{dataEntryLevel === 'scope' ? 'Add Scope' : dataEntryLevel === 'category' ? 'Add Category' : 'Add Subcategory'}</Button></div><p className="text-xs text-slate-500">Values are direct entries at the selected level. Parent and child values cannot be mixed.</p><BaseYearHierarchyEditor sourceEntries={emissionCombinations} entries={emissionsData} entryLevel={dataEntryLevel} onValueChange={handleHierarchyValueChange} onDeleteEntry={handleHierarchyDelete} /></div>
             
             {/* Phase 1 Enhancement: Add Category Button */}
-            <div className="flex justify-end">
+            <div className="hidden">
               <Button
                 variant="outline"
                 size="sm"
@@ -2971,13 +2975,13 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
               </div>
             )}
             
-            {emissionsData.length === 0 && !showAddCategoryForm ? (
+            {false && emissionsData.length === 0 && !showAddCategoryForm ? (
               <div className="py-4 text-center text-text-muted">
                 <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                 <p>No emission data found.</p>
                 <p className="text-xs mt-1">Click &quot;Add Category&quot; to manually add base year emissions.</p>
               </div>
-            ) : emissionsData.length > 0 && (
+            ) : false && emissionsData.length > 0 && (
               <div className="max-h-72 overflow-y-auto border rounded-lg">
                 <Table>
                   <TableHeader>
@@ -3032,8 +3036,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
             )}
             
             {/* Justification field - always editable in edit mode */}
-            <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <Label className="flex items-center gap-2 text-amber-800 font-medium">
+            <div className="mt-12 border-t border-slate-200 pt-8 space-y-2">
+              <Label className="flex items-center gap-2 font-medium">
                 <AlertCircle className="w-4 h-4" />
                 Justification for Selecting this Base Year *
               </Label>
@@ -3041,16 +3045,8 @@ export default function BaseYearEmissions({ hideTopHeader = false } = {}) {
                 placeholder="Explain why you selected this year as your base year..."
                 value={baseYearJustification}
                 onChange={(e) => setBaseYearJustification(e.target.value)}
-                className={`min-h-[80px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                className="min-h-[80px]"
               />
-              <div className="flex justify-between items-center">
-                <p className="text-xs text-amber-700">
-                  This justification is required for audit compliance (minimum 10 characters).
-                </p>
-                <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-                  {baseYearJustification.trim().length}/10 min
-                </span>
-              </div>
             </div>
             
             {/* Notes field - always editable in edit mode */}

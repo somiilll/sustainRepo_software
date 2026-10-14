@@ -210,11 +210,13 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
   console.log("wasteRows", wasteRows)
 
   return (
-    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-hidden pb-10" data-testid="executive-esg-dashboard">
+    <div className="w-full max-w-full min-w-0 space-y-6 overflow-x-visible pb-10" data-testid="executive-esg-dashboard">
 
       {/* ── Header / Filter Bar ── */}
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Executive ESG Dashboard` : 'Executive ESG Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={dateRange.from && dateRange.to ? `Reporting window: ${format(dateRange.from, 'MMM yyyy')} – ${format(dateRange.to, 'MMM yyyy')}` : 'Reporting window'}
         liveBadge={isLive ? <span className="text-[10px] font-semibold text-emerald-700">LIVE</span> : null}
         showFilters={showFilters}
@@ -274,6 +276,7 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
             chartType="area" 
             accent="#15803D" 
             unit="tCO₂e" 
+            yAxisLabel="tCO₂e"
             testId="ghg-emission-trend" 
             loading={analyticsLoading} 
             // Pass the toggle inside the card using a custom prop
@@ -308,14 +311,14 @@ export default function ExecutiveAnalyticsDashboard({ data }) {
 
       {/* ── Row 3: Energy ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" testId="energy-mix-chart" loading={analyticsLoading} />
-        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share and energy intensity trend" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316' }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Energy Mix" subtitle="Renewable and non-renewable consumption" data={energyRows} series={ENERGY_SERIES} chartType="bar" stacked accent="#F97316" unit="MWh" yAxisLabel="MWh" testId="energy-mix-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Renewable % & Energy Intensity" subtitle="Renewable share (left axis) and energy intensity (right axis)" data={renewableIntensityRows} series={[{ key: 'renewablePct', label: 'Renewable %', color: '#65A30D', yAxisId: 'left', unit: '%', axisLabel: 'Renewable %' }, { key: 'energyIntensity', label: 'Energy Intensity', color: '#F97316', yAxisId: 'right', unit: `MWh/${productionUnit || 'unit'}`, axisLabel: `MWh/${productionUnit || 'unit'}` }]} accent="#65A30D" testId="renewable-intensity-trend" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 4: Water & Waste ── */}
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2">
-        <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" testId="water-flow-chart" loading={analyticsLoading} />
-        <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" testId="waste-management-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Water Flow" subtitle="Water volumes by operational stage" data={waterRows} series={WATER_SERIES} chartType="area" accent="#0284C7" unit="KL" yAxisLabel="KL" testId="water-flow-chart" loading={analyticsLoading} />
+        <AnalyticsChartCard title="Waste Management" subtitle="Generated, recovered, and disposed" data={wasteRows} series={WASTE_SERIES} chartType="area" accent="#57534E" unit="MT" yAxisLabel="MT" testId="waste-management-chart" loading={analyticsLoading} />
       </div>
 
       {/* ── Row 5: LTIFR & AP Days ── */}

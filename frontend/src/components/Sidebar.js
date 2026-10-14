@@ -55,6 +55,9 @@ function withSupplierAssessmentLabels(items, resolvedConfig) {
 
 function isActive(path, loc) {
   if (!path) return false;
+  const isSupplierResponseReview = /^\/supplier-assessment\/suppliers\/[^/]+\/questionnaires\/[^/]+\/review$/.test(loc.pathname);
+  if (path === '/supplier-assessment/esg' && isSupplierResponseReview) return true;
+  if (path === '/supplier-assessment/suppliers' && isSupplierResponseReview) return false;
   return loc.pathname === path || loc.pathname.startsWith(path + '/');
 }
 

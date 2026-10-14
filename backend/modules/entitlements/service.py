@@ -1,8 +1,6 @@
 """Canonical organization entitlement resolution.
 
-Organization configuration is authoritative. Legacy organization flags are read
-only as a compatibility source during the one-time migration and mirrored on
-writes for older, not-yet-migrated consumers.
+Organization configuration is authoritative for every entitlement decision.
 """
 from datetime import datetime, timezone
 from copy import deepcopy
@@ -24,6 +22,7 @@ ENTITLEMENT_CATALOG = (
     "reports",
     "mis_reports",
     "peer_benchmarking",
+    "pcf_studio",
     "supplier_assessment",
     "audit_trails",
     "evidence_storage",
@@ -51,14 +50,11 @@ DEFAULT_ENTITLEMENT_CONFIG = {
     "reports": {"enabled": True, "scope_1_2": True, "scope_1_2_3": True, "ai_executive_summary": True},
     "mis_reports": {"enabled": True, "configurations_allowed": None},
     "peer_benchmarking": {"enabled": True},
+    "pcf_studio": {"enabled": True},
     "supplier_assessment": {"enabled": True, "suppliers_allowed": None},
     "audit_trails": {"enabled": True},
     "evidence_storage": {"enabled": True, "storage_limit_gb": None},
 }
-
-# Deprecated name retained for callers that need the complete config default.
-DEFAULT_ENTITLEMENTS = DEFAULT_ENTITLEMENT_CONFIG
-
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -123,6 +119,7 @@ def entitlement_access_map(value: Optional[Dict[str, Any]]) -> Dict[str, bool]:
         "reports": bool(config["reports"]["enabled"]),
         "mis_reports": bool(config["mis_reports"]["enabled"]),
         "peer_benchmarking": bool(config["peer_benchmarking"]["enabled"]),
+        "pcf_studio": bool(config["pcf_studio"]["enabled"]),
         "supplier_assessment": bool(config["supplier_assessment"]["enabled"]),
         "audit_trails": bool(config["audit_trails"]["enabled"]),
         "evidence_storage": bool(config["evidence_storage"]["enabled"]),
@@ -147,30 +144,9 @@ def entitlement_access_map(value: Optional[Dict[str, Any]]) -> Dict[str, bool]:
 
 
 def normalize_entitlements(value: Optional[Dict[str, Any]]) -> Dict[str, bool]:
-    """Return the 15 canonical top-level access flags for legacy consumers."""
+    """Return the canonical top-level access flags for route guards and navigation."""
     access = entitlement_access_map(value)
     return {code: access[code] for code in ENTITLEMENT_CATALOG}
-
-
-def legacy_entitlements(organization: Optional[Dict[str, Any]]) -> Dict[str, bool]:
-    """Convert legacy organization flags without making them the source of truth."""
-    org = organization or {}
-    access = org.get("module_access") or {}
-    resolved = {code: bool(access[code]) if code in access else bool(normalize_entitlements(None)[code]) for code in ENTITLEMENT_CATALOG}
-
-    if "repo_pilot" not in access:
-        resolved["repo_pilot"] = bool(org.get("repo_pilot_enabled", False))
-    if "targets" not in access:
-        resolved["targets"] = bool(org.get("sbti_targets_enabled", False))
-    if "environment" not in access:
-        resolved["environment"] = bool(org.get("has_ghg", True) or org.get("has_esg", True))
-    if "social" not in access:
-        resolved["social"] = bool(org.get("has_esg", True))
-    if "governance" not in access:
-        resolved["governance"] = bool(org.get("has_esg", True))
-    if "mis_reports" not in access and "reports" in access:
-        resolved["mis_reports"] = bool(access["reports"])
-    return resolved
 
 
 async def resolve_entitlements(org_id: str, *, migrate: bool = False) -> Dict[str, bool]:
@@ -179,57 +155,14 @@ async def resolve_entitlements(org_id: str, *, migrate: bool = False) -> Dict[st
 
 
 async def resolve_entitlement_config(org_id: str, *, migrate: bool = False) -> Dict[str, Any]:
-    """Resolve the complete entitlement document used by every policy boundary."""
-    organization = await db["organizations"].find_one(
-        {"id": org_id},
-        {"_id": 0, "has_ghg": 1, "has_esg": 1, "repo_pilot_enabled": 1,
-         "sbti_targets_enabled": 1, "module_access": 1},
-    )
+    """Resolve the complete canonical entitlement document used by every policy boundary."""
     config = await db["organization_config"].find_one(
         {"organization_id": org_id}, {"_id": 0, "entitlements": 1},
     )
     configured = (config or {}).get("entitlements")
-    if configured is not None:
-        normalized = normalize_entitlement_config(configured)
-        if migrate and normalized != configured:
-            await db["organization_config"].update_one(
-                {"organization_id": org_id}, {"$set": {"entitlements": normalized, "updated_at": _now()}},
-            )
-        return normalized
-
-    resolved = legacy_entitlements(organization)
-    nested = normalize_entitlement_config(resolved)
-    if migrate and organization:
-        now = _now()
+    normalized = normalize_entitlement_config(configured)
+    if migrate and normalized != configured:
         await db["organization_config"].update_one(
-            {"organization_id": org_id},
-            {
-                "$set": {
-                    "entitlements": nested,
-                    "updated_at": now,
-                    "updated_by": "legacy_entitlement_migration",
-                },
-                "$setOnInsert": {
-                    "organization_id": org_id,
-                    "created_at": now,
-                    "created_by": "legacy_entitlement_migration",
-                },
-            },
-            upsert=True,
+            {"organization_id": org_id}, {"$set": {"entitlements": normalized, "updated_at": _now()}},
         )
-    return nested
-
-
-async def sync_legacy_entitlement_mirror(org_id: str, entitlements: Dict[str, Any]) -> None:
-    """Keep deprecated fields readable while Org Config remains authoritative."""
-    resolved = normalize_entitlements(entitlements)
-    await db["organizations"].update_one(
-        {"id": org_id},
-        {"$set": {
-            "module_access": resolved,
-            "repo_pilot_enabled": resolved["repo_pilot"],
-            "sbti_targets_enabled": resolved["targets"],
-            "has_ghg": resolved["environment"],
-            "has_esg": any(resolved[code] for code in ("environment", "social", "governance")),
-        }},
-    )
+    return normalized

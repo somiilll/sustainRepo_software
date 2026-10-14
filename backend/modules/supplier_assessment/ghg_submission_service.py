@@ -93,7 +93,7 @@ def describe_reporting_period(parent_period: str | None, financial_year_start_mo
     if financial_match:
         start_year = int(financial_match.group(1))
         end_year = start_year + 1
-        canonical_period = f"FY {start_year}-{str(end_year)[-2:]}"
+        canonical_period = f"FY {start_year}-{end_year}"
         start_month = max(1, min(12, int(financial_year_start_month or 4)))
         allowed_months = [
             f"{year}-{month:02d}"
@@ -257,6 +257,24 @@ def _submission_period_definitions(relationship: Dict[str, Any]) -> List[Dict[st
     return [resolve_supplier_submission_period(relationship, key, "monthly") for key in keys]
 
 
+def submission_periods_due_through_today(
+    periods: List[Dict[str, Any]], today: Optional[date] = None,
+) -> List[Dict[str, Any]]:
+    """Return current-cadence GHG periods whose reporting window has ended."""
+    current_date = today or datetime.now(timezone.utc).date()
+    due_periods = []
+    for period in periods:
+        if period.get("is_previous_cadence"):
+            continue
+        try:
+            period_end = date.fromisoformat(str(period.get("period_end") or "")[:10])
+        except ValueError:
+            continue
+        if period_end <= current_date:
+            due_periods.append(period)
+    return due_periods
+
+
 async def has_overdue_supplier_ghg_submission_window(
     relationship: Dict[str, Any], submission_statuses: Optional[Dict[str, str]] = None,
 ) -> bool:
@@ -285,14 +303,16 @@ def _period_entries_query(relationship: Dict[str, Any], period: Dict[str, Any]) 
 
 
 def submission_period_display_status(
-    stored_status: Optional[str], has_unsubmitted_entries: bool, is_overdue: bool,
+    stored_status: Optional[str], has_unsubmitted_entries: bool, is_overdue: bool, is_future: bool,
 ) -> str:
     """Return the supplier-facing status for a submission period."""
     if stored_status in {"submitted", "unlocked"}:
         return stored_status
+    if is_future:
+        return "upcoming"
     if is_overdue:
         return "overdue"
-    return "in_progress" if has_unsubmitted_entries else "not_started"
+    return "in_progress" if has_unsubmitted_entries else "pending"
 
 
 def period_submitted_scope_totals(
@@ -371,22 +391,35 @@ async def get_supplier_ghg_submission_periods(relationship: Dict[str, Any]) -> L
             if entry.get("reporting_period") in allowed_entry_periods
         )
         submitted_scope_totals = period_submitted_scope_totals(submitted_entries, allowed_entry_periods)
-        is_overdue = record.get("status") != "submitted" and date.fromisoformat(definition["due_date"]) < today
+        legacy_submitted_entries = [
+            entry for entry in submitted_entries
+            if entry.get("reporting_period") in allowed_entry_periods
+        ]
+        legacy_submission_at = min(
+            (entry.get("submitted_to_parent_org") for entry in legacy_submitted_entries if entry.get("submitted_to_parent_org")),
+            default=None,
+        )
+        effective_status = record.get("status") or (
+            "submitted" if legacy_submission_at and not unsubmitted_entry_count else None
+        )
+        is_future = date.fromisoformat(definition["period_start"]) > today
+        is_overdue = not is_future and effective_status != "submitted" and date.fromisoformat(definition["due_date"]) < today
         status = submission_period_display_status(
-            record.get("status"), bool(unsubmitted_entry_count), is_overdue,
+            effective_status, bool(unsubmitted_entry_count), is_overdue, is_future,
         )
         periods.append({
             "id": record.get("id") or definition["period_key"],
             **definition,
             "status": status,
             "revision": int(record.get("revision") or 0),
-            "submitted_at": record.get("submitted_at"),
+            "submitted_at": record.get("submitted_at") or legacy_submission_at,
             "submitted_by": record.get("submitted_by"),
             "unlocked_at": record.get("unlocked_at"),
             "unlocked_by": record.get("unlocked_by"),
             "unlock_reason": record.get("unlock_reason"),
             "supplier_instructions": record.get("supplier_instructions") if status == "unlocked" else None,
             "is_overdue": is_overdue,
+            "is_future": is_future,
             "has_unsubmitted_entries": bool(unsubmitted_entry_count),
             "unsubmitted_entry_count": unsubmitted_entry_count,
             "submitted_scope_totals": submitted_scope_totals,
@@ -487,6 +520,39 @@ async def submit_supplier_ghg_period(
     log_event(logger, logging.INFO, "supplier_assessment.ghg_period.locked", action="supplier_assessment.ghg_period.submit", outcome="locked",
               context={"relationship_id": relationship.get("id"), "period_key": period_key, "submission_id": submission_id})
     return {key: value for key, value in document.items() if key != "history"}
+
+
+async def submit_supplier_ghg_periods(
+    relationship: Dict[str, Any], period_keys: List[str], submitted_by: str, data_verified: bool,
+) -> List[Dict[str, Any]]:
+    """Validate a supplier's chosen reporting periods before locking each one."""
+    if not data_verified:
+        raise ValueError("Confirm that the submitted data has been reviewed and verified")
+    await ensure_ghg_submission_indexes()
+    await _hydrate_reporting_year_start(relationship)
+    definitions = {period["period_key"]: period for period in _submission_period_definitions(relationship)}
+    selected_periods = []
+    for period_key in period_keys:
+        period = definitions.get(period_key)
+        if not period:
+            raise ValueError("GHG submission period is not part of this supplier assignment")
+        existing = await db.supplier_ghg_submissions.find_one(
+            {"relationship_id": relationship["id"], "period_key": period_key}, {"_id": 0, "status": 1},
+        )
+        if existing and existing.get("status") == "submitted":
+            raise ValueError(f"{period['label']} is already locked")
+        entries = await db.emission_records.find(
+            {**_period_entries_query(relationship, period), "$or": [{"submitted_to_parent_org": {"$exists": False}}, {"submitted_to_parent_org": None}]},
+            {"_id": 0, "id": 1},
+        ).to_list(1)
+        if not entries:
+            raise ValueError(f"Add at least one GHG entry in {period['label']} before submitting")
+        selected_periods.append(period_key)
+
+    return [
+        await submit_supplier_ghg_period(relationship, period_key, submitted_by, data_verified=True)
+        for period_key in selected_periods
+    ]
 
 
 async def unlock_supplier_ghg_period(

@@ -1,11 +1,13 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Plus, Trash2, User, Calculator, Users, Upload, FileText, Download, X } from 'lucide-react';
+import { Plus, Trash2, User, Calculator, Users, Upload } from 'lucide-react';
+import { EvidenceHoverPreview } from '../modules/ghg/emissions/shared/components/EvidenceHoverPreview';
 import {
   getAnnualReportingPeriodDayLimit,
   getMonthlyReportingPeriodDayLimit,
@@ -87,72 +89,26 @@ const EmployeeEvidenceCell = ({
         }}
         data-testid={`${testIdPrefix}-input`}
       />
-      <label
-        htmlFor={inputId}
-        title="Upload evidence"
-        aria-label="Upload evidence"
-        className={`relative inline-flex items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
-        data-testid={`${testIdPrefix}-upload-trigger`}
-      >
-        <Upload className="h-4 w-4" />
-        {showLabel && (
-          <span>{evidences.length > 0 ? `${evidences.length} file${evidences.length > 1 ? 's' : ''} attached` : 'Upload Evidence'}</span>
-        )}
-        {!showLabel && evidences.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`${testIdPrefix}-count`}>
-            {evidences.length}
-          </span>
-        )}
-      </label>
-      {evidences.map((evidence, evidenceIndex) => {
-        const fileId = evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
-        const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence?.url;
-        return (
-          <React.Fragment key={`${evidence?.file_id || evidence?.url || evidenceIndex}`}>
-            {viewUrl && (
-              <a
-                href={viewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={evidence.filename || `Evidence ${evidenceIndex + 1}`}
-                onClick={(event) => event.stopPropagation()}
-                className="inline-flex h-7 w-7 items-center justify-center text-emerald-700 transition-colors hover:text-emerald-900"
-                data-testid={`${testIdPrefix}-view-${evidenceIndex}`}
-              >
-                <FileText className="h-4 w-4" />
-              </a>
-            )}
-            {onEvidenceDownload && evidence?.url && (
-              <button
-                type="button"
-                title={`Download ${evidence.filename || 'evidence'}`}
-                onClick={(event) => onEvidenceDownload(evidence.url, event, evidence.filename)}
-                className="inline-flex h-7 w-7 items-center justify-center text-sky-700 transition-colors hover:text-sky-900"
-                data-testid={`${testIdPrefix}-download-${evidenceIndex}`}
-              >
-                <Download className="h-4 w-4" />
-              </button>
-            )}
-            {onEvidenceRemove && (
-              <button
-                type="button"
-                title={`Remove ${evidence.filename || 'evidence'}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  Promise.resolve(onEvidenceRemove(employeeId, periodKey, evidenceIndex)).catch((error) => {
-                    toast.error(error.message || 'Could not remove evidence');
-                  });
-                }}
-                className="inline-flex h-7 w-7 items-center justify-center text-stone-400 transition-colors hover:text-red-600"
-                disabled={disabled}
-                data-testid={`${testIdPrefix}-remove-${evidenceIndex}`}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </React.Fragment>
-        );
-      })}
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <label
+              htmlFor={inputId}
+              title="Upload evidence"
+              aria-label="Upload evidence"
+              className={`relative inline-flex items-center justify-center rounded border border-stone-200 bg-white text-stone-600 transition-colors ${showLabel ? 'h-10 gap-2 px-3 text-sm font-medium' : 'h-8 w-8'} ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-emerald-500 hover:text-emerald-700'}`}
+              data-testid={`${testIdPrefix}-upload-trigger`}
+            >
+              <Upload className="h-4 w-4" />
+              {showLabel && <span>{evidences.length > 0 ? `${evidences.length} file${evidences.length > 1 ? 's' : ''} attached` : 'Upload Evidence'}</span>}
+              {!showLabel && evidences.length > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[10px] font-bold text-white" data-testid={`${testIdPrefix}-count`}>{evidences.length}</span>}
+            </label>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="end" className="w-80 rounded-lg border border-stone-200 bg-white p-0 text-stone-900 shadow-xl" data-testid={`${testIdPrefix}-preview`}>
+            <EvidenceHoverPreview evidences={evidences} onRemove={onEvidenceRemove ? (index) => onEvidenceRemove(employeeId, periodKey, index) : undefined} disabled={disabled} testIdPrefix={testIdPrefix} />
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };

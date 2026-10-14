@@ -24,6 +24,15 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _sink_query_for_current_user(sink_id: str, current_user: dict) -> dict:
+    if current_user.get("role") == "super_admin":
+        return {"id": sink_id}
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="Organization context is required")
+    return {"id": sink_id, "organization_id": organization_id}
+
+
 @router.post("/sinks", response_model=SinkResponse)
 async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
     facility = None
@@ -74,8 +83,6 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
             sink_data.reporting_period,
             sink_data.frequency_type,
             organization or {},
-            sink_data.reporting_year,
-            sink_data.reporting_month,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -133,7 +140,7 @@ async def get_sinks(current_user: dict = Depends(get_current_user)):
 
 @router.get("/sinks/{sink_id}", response_model=SinkResponse)
 async def get_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
-    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    sink = await db.sinks.find_one(_sink_query_for_current_user(sink_id, current_user), {"_id": 0})
     if not sink:
         raise HTTPException(status_code=404, detail="Sink record not found")
     return SinkResponse(**sink)
@@ -141,7 +148,8 @@ async def get_sink(sink_id: str, current_user: dict = Depends(get_current_user))
 
 @router.put("/sinks/{sink_id}", response_model=SinkResponse)
 async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
-    existing = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    sink_query = _sink_query_for_current_user(sink_id, current_user)
+    existing = await db.sinks.find_one(sink_query, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Sink record not found")
 
@@ -159,8 +167,6 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
             sink_data.reporting_period,
             existing_frequency,
             organization or {},
-            sink_data.reporting_year,
-            sink_data.reporting_month,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -176,8 +182,8 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_dict)
-    await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
-    updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    await db.sinks.update_one(sink_query, {"$set": update_dict})
+    updated = await db.sinks.find_one(sink_query, {"_id": 0})
     if removed_file_ids:
         try:
             await delete_uploaded_files(db, removed_file_ids)
@@ -195,7 +201,8 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
 
 @router.delete("/sinks/{sink_id}")
 async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
-    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    sink_query = _sink_query_for_current_user(sink_id, current_user)
+    sink = await db.sinks.find_one(sink_query, {"_id": 0})
     if not sink:
         raise HTTPException(status_code=404, detail="Sink record not found")
 
@@ -204,7 +211,7 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove sink evidence from storage. The sink was not deleted.") from error
 
-    result = await db.sinks.delete_one({"id": sink_id})
+    result = await db.sinks.delete_one(sink_query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sink record not found")
     try:

@@ -26,3 +26,29 @@
   visibility: hidden !important;
   opacity: 0 !important;
 }
+
+@media (max-width: 640px) {
+  .toaster.group {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    width: auto !important;
+  }
+
+  .toaster.group [data-sonner-toast] {
+    width: 100% !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end {
+    min-width: 39rem;
+  }
+
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end:not(:has([data-testid^="preview-supplier-agreement-"]))::before {
+    content: "";
+    display: inline-block;
+    width: 4.75rem;
+    height: 2rem;
+    flex: 0 0 auto;
+  }
+}

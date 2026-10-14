@@ -37,8 +37,6 @@ import {
   Building2,
   User,
   Calendar,
-  TrendingUp,
-  Percent,
   Leaf,
   Factory,
   FileText,
@@ -56,6 +54,12 @@ const statusColors = {
   completed: 'border-emerald-200 bg-emerald-50 text-emerald-800',
 };
 
+const supplierStatusLabel = (status) => {
+  if (status === 'pending') return 'Not Logged In';
+  if (status === 'accepted' || status === 'completed') return 'Logged In';
+  return status || 'Not Logged In';
+};
+
 const groupAvailableDocuments = (requirements) => Object.values((requirements || []).reduce((groups, requirement) => {
   const key = requirement.document_version_id || requirement.id;
   if (!groups[key]) groups[key] = requirement;
@@ -68,7 +72,7 @@ const RequirementDeadline = ({ dueDate, testId }) => {
   const deadline = new Date(`${datePart}T23:59:59`);
   if (Number.isNaN(deadline.getTime())) return null;
   const isPastDue = deadline.getTime() < Date.now();
-  return <span className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500" data-testid={`${testId}-due-date`}><span>Due {new Date(`${datePart}T12:00:00`).toLocaleDateString()}</span>{isPastDue && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" data-testid={`${testId}-deadline-passed`}>Deadline passed</Badge>}</span>;
+  return <span className="ml-auto shrink-0 inline-flex items-center gap-1.5 text-xs text-stone-500" data-testid={`${testId}-due-date`}><span>Due {new Date(`${datePart}T12:00:00`).toLocaleDateString()}</span>{isPastDue && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700" data-testid={`${testId}-deadline-passed`}>Deadline passed</Badge>}</span>;
 };
 
 const createSupplierForm = (reportingPeriod) => ({
@@ -77,12 +81,13 @@ const createSupplierForm = (reportingPeriod) => ({
   contact_person: '',
   email: '',
   contact_number: '',
+  tier: '',
   access_revoke_date: '',
   reporting_period: reportingPeriod,
   modules_enabled: ['esg', 'ghg'],
   ghg_scopes_enabled: ['scope1', 'scope2'],
   ghg_submission_frequency: 'yearly',
-  revenue_required: false,
+  revenue_required: true,
   questionnaire_ids: [],
   document_requirement_ids: [],
   training_requirement_ids: [],
@@ -105,23 +110,12 @@ const ViewSupplierProgress = ({ supplier, submissionStatus }) => {
   if (!submissionStatus) return <div className="border-t pt-4 text-sm text-stone-500" data-testid="supplier-module-progress-loading">Loading assigned module progress…</div>;
   const visibility = submissionStatus.module_visibility || {};
   const modules = [
-    { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent, tone: 'bg-blue-500' },
-    { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent, tone: 'bg-emerald-500' },
-    { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent, tone: 'bg-teal-500' },
-    { code: 'training', label: 'Training', value: supplier.training_completion_percent, tone: 'bg-amber-500' },
+    { code: 'esg', label: 'ESG Questionnaire', value: supplier.esg_completion_percent },
+    { code: 'ghg', label: 'GHG Emissions', value: supplier.ghg_completion_percent },
+    { code: 'documents', label: 'Documents', value: supplier.documents_completion_percent },
+    { code: 'training', label: 'Training', value: supplier.training_completion_percent },
   ].filter((module) => visibility[module.code]);
-  return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-4 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} data-testid={`supplier-${module.code}-progress`}><div className="flex items-center justify-between gap-3 text-sm"><span>{module.label}</span><span className="font-medium" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></div><div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-stone-200" data-testid={`supplier-${module.code}-progress-track`}><div className={`h-2 rounded-full transition-[width] duration-500 ${module.tone}`} style={{ width: `${progress}%` }} data-testid={`supplier-${module.code}-progress-bar`} /></div></div>; })}</div></div>;
-};
-
-const ViewSupplierScores = ({ supplier }) => {
-  const snapshot = supplier.canonical_score_snapshot || {};
-  const scores = [
-    { code: 'esg', label: 'ESG Score', value: supplier.esg_score ?? snapshot.esg_score },
-    { code: 'environment', label: 'Environment Score', value: snapshot.environment_score },
-    { code: 'social', label: 'Social Score', value: snapshot.social_score },
-    { code: 'governance', label: 'Governance Score', value: snapshot.governance_score },
-  ];
-  return <div className="border-t pt-4" data-testid="supplier-score-breakdown"><Label className="text-stone-500">ESG Score Breakdown</Label><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{scores.map((score) => <div key={score.code} className="border-l-2 border-emerald-400 bg-stone-50 px-3 py-2" data-testid={`supplier-${score.code}-score-summary`}><p className="text-xs text-stone-500">{score.label}</p><p className="mt-1 text-lg font-semibold text-stone-900" data-testid={`supplier-${score.code}-score-value`}>{score.value ?? 'Pending'}</p></div>)}</div></div>;
+  return <div className="border-t pt-4" data-testid="supplier-module-progress"><Label className="text-stone-500">Completion Progress</Label><div className="mt-3 grid gap-3 sm:grid-cols-2">{modules.map((module) => { const progress = Math.round(module.value || 0); return <div key={module.code} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2.5" data-testid={`supplier-${module.code}-progress`}><span className="text-sm font-medium text-stone-800">{module.label}</span><span className="flex shrink-0 items-center gap-2"><span className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: `conic-gradient(#15803d ${progress * 3.6}deg, #e7e5e4 0deg)` }} data-testid={`supplier-${module.code}-progress-ring`}><span className="h-7 w-7 rounded-full bg-white" /></span><span className="text-sm font-semibold text-stone-800" data-testid={`supplier-${module.code}-progress-percent`}>{progress}%</span></span></div>; })}</div></div>;
 };
 
 export default function SupplierList() {
@@ -183,7 +177,7 @@ export default function SupplierList() {
     Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/questionnaires`, { params: { reporting_period: reportingPeriod }, headers: getAuthHeader() }),
     ]).then(([documentResult, trainingResult, questionnaireResult]) => {
       const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
       const availableTrainings = trainingResult.status === 'fulfilled' ? (trainingResult.value.data || []).filter((training) => training.is_active !== false && !training.is_deleted) : [];
@@ -191,13 +185,16 @@ export default function SupplierList() {
       setTrainings(availableTrainings);
       const availableQuestionnaires = questionnaireResult.status === 'fulfilled' ? (questionnaireResult.value.data || []).filter((questionnaire) => questionnaire.is_active !== false && !questionnaire.is_deleted) : [];
       setQuestionnaires(availableQuestionnaires);
-      setFormData((current) => ({
-        ...current,
-        modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || availableQuestionnaires.length > 0),
-        questionnaire_ids: current.questionnaire_ids.length ? current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId)) : availableQuestionnaires.map((questionnaire) => questionnaire.id),
-        document_requirement_ids: availableDocuments.map((document) => document.id),
-        training_requirement_ids: availableTrainings.map((training) => training.id),
-      }));
+      setFormData((current) => {
+        const questionnaire_ids = current.questionnaire_ids.filter((questionnaireId) => availableQuestionnaires.some((questionnaire) => questionnaire.id === questionnaireId));
+        return {
+          ...current,
+          modules_enabled: current.modules_enabled.filter((module) => module !== 'esg' || questionnaire_ids.length > 0),
+          questionnaire_ids,
+          document_requirement_ids: availableDocuments.map((document) => document.id),
+          training_requirement_ids: availableTrainings.map((training) => training.id),
+        };
+      });
     });
   }, [showAddDialog, getAuthHeader, reportingPeriod]);
 
@@ -207,7 +204,7 @@ export default function SupplierList() {
     Promise.allSettled([
       axios.get(`${API}/supplier-assessment/documents?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(selectedSupplier.reporting_period || reportingPeriod)}`, { headers: getAuthHeader() }),
-      axios.get(`${API}/supplier-assessment/questionnaires`, { headers: getAuthHeader() }),
+      axios.get(`${API}/supplier-assessment/questionnaires`, { params: { reporting_period: selectedSupplier.reporting_period || reportingPeriod }, headers: getAuthHeader() }),
       axios.get(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}/submission-status`, { headers: getAuthHeader() }),
     ]).then(([documentResult, trainingResult, questionnaireResult, statusResult]) => {
       const availableDocuments = documentResult.status === 'fulfilled' ? groupAvailableDocuments(documentResult.value.data) : [];
@@ -241,6 +238,7 @@ export default function SupplierList() {
     try {
       await axios.post(`${API}/supplier-assessment/suppliers`, {
         ...formData,
+        tier: formData.tier || null,
         reporting_period: reportingPeriod,
       }, {
         headers: getAuthHeader(),
@@ -261,8 +259,9 @@ export default function SupplierList() {
     
     setSubmitting(true);
     try {
-      const { questionnaire_ids, ...supplierDetails } = formData;
-      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, questionnaireAssignmentsLoaded ? formData : supplierDetails, {
+      const normalizedFormData = { ...formData, tier: formData.tier || null };
+      const { questionnaire_ids, ...supplierDetails } = normalizedFormData;
+      await axios.put(`${API}/supplier-assessment/suppliers/${selectedSupplier.id}`, questionnaireAssignmentsLoaded ? normalizedFormData : supplierDetails, {
         headers: getAuthHeader(),
       });
       toast.success('Supplier updated');
@@ -307,16 +306,18 @@ export default function SupplierList() {
     setSelectedSupplier(supplier);
     setQuestionnaireAssignmentsLoaded(false);
     setFormData({
+      vendor_code: supplier.vendor_code || '',
       company_name: supplier.company_name,
       contact_person: supplier.contact_person,
       email: supplier.contact_email,
       contact_number: supplier.contact_number || '',
+      tier: supplier.tier || '',
       access_revoke_date: supplier.access_revoke_date || '',
       reporting_period: supplier.reporting_period || `CY${new Date().getFullYear()}`,
       modules_enabled: supplier.modules_enabled || ['esg', 'ghg'],
       ghg_scopes_enabled: supplier.ghg_scopes_enabled || ['scope1', 'scope2'],
       ghg_submission_frequency: supplier.ghg_submission_frequency || 'yearly',
-      revenue_required: supplier.revenue_required === true,
+      revenue_required: true,
       questionnaire_ids: supplier.questionnaire_ids || [],
       document_requirement_ids: supplier.document_requirement_ids || [],
       training_requirement_ids: supplier.training_requirement_ids || [],
@@ -367,7 +368,11 @@ export default function SupplierList() {
           toast.error('At least one module must be enabled');
           return prev;
         }
-        return { ...prev, modules_enabled: current.filter(m => m !== module) };
+        return {
+          ...prev,
+          modules_enabled: current.filter(m => m !== module),
+          questionnaire_ids: module === 'esg' ? [] : prev.questionnaire_ids,
+        };
       } else {
         return { ...prev, modules_enabled: [...current, module] };
       }
@@ -392,13 +397,24 @@ export default function SupplierList() {
   };
 
   const toggleQuestionnaire = (questionnaireId) => {
-    setFormData((current) => ({
-      ...current,
-      questionnaire_ids: current.questionnaire_ids.includes(questionnaireId)
+    setFormData((current) => {
+      const questionnaire_ids = current.questionnaire_ids.includes(questionnaireId)
         ? current.questionnaire_ids.filter((id) => id !== questionnaireId)
-        : [...current.questionnaire_ids, questionnaireId],
-    }));
+        : [...current.questionnaire_ids, questionnaireId];
+      return {
+        ...current,
+        questionnaire_ids,
+        modules_enabled: questionnaire_ids.length === 0
+          ? current.modules_enabled.filter((module) => module !== 'esg')
+          : current.modules_enabled,
+      };
+    });
   };
+
+  const isEsgAssignmentLocked = (submissionStatus?.esg || []).length > 0;
+  const isGhgAssignmentLocked = submissionStatus?.ghg?.status === 'locked';
+  const lockedDocumentIds = new Set((submissionStatus?.documents || []).filter((document) => document.status === 'locked').map((document) => document.id));
+  const lockedTrainingRequirementIds = new Set((submissionStatus?.training || []).filter((training) => training.status === 'completed').map((training) => training.training_requirement_id));
 
   return (
     <div className="space-y-7" data-testid="supplier-list">
@@ -449,9 +465,9 @@ export default function SupplierList() {
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-company-header">Company</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-contact-header">Contact</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-access-revoke-date-header">Access Revoke Date</TableHead>
-              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Login Status</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-ledger-login-status-header">Status</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-progress-header">Progress</TableHead>
-              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">Score</TableHead>
+              <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-score-header">ESG Score</TableHead>
               <TableHead className="h-12 px-4 font-semibold text-stone-700" data-testid="supplier-last-reminder-header">Last Reminder</TableHead>
               <TableHead className="h-12 px-4 text-right font-semibold text-stone-700" data-testid="supplier-actions-header">Actions</TableHead>
             </TableRow>
@@ -499,7 +515,7 @@ export default function SupplierList() {
                   </TableCell>
                   <TableCell className="px-4 py-4">
                     <Badge variant="outline" className={`rounded-full px-2.5 py-1 text-xs font-medium shadow-none ${statusColors[supplier.invitation_status] || 'border-stone-200 bg-stone-50 text-stone-700'}`} data-testid={`supplier-login-status-${supplier.id}`}>
-                      {supplier.invitation_status}
+                      {supplierStatusLabel(supplier.invitation_status)}
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4 py-4">
@@ -518,10 +534,7 @@ export default function SupplierList() {
                   </TableCell>
                   <TableCell className="px-4 py-4" data-testid={`supplier-score-${supplier.id}`}>
                     {supplier.overall_score !== null ? (
-                      <div className="flex items-center gap-1.5">
-                        <TrendingUp className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-                        <span className="font-semibold text-stone-800">{supplier.overall_score}</span>
-                      </div>
+                      <span className="font-semibold text-stone-800">{supplier.overall_score}</span>
                     ) : (
                       <span className="text-stone-400">-</span>
                     )}
@@ -660,36 +673,29 @@ export default function SupplierList() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Tier</Label>
+                <Select value={formData.tier || undefined} onValueChange={(tier) => setFormData({ ...formData, tier })}>
+                  <SelectTrigger data-testid="supplier-tier-select"><SelectValue placeholder="Select supplier tier" /></SelectTrigger>
+                  <SelectContent><SelectItem value="tier_1">Tier 1</SelectItem><SelectItem value="tier_2">Tier 2</SelectItem><SelectItem value="tier_3">Tier 3</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Label>Access Revoke Date</Label>
                   <FieldInfo label="After this date, the supplier's assessment access will be revoked." testId="supplier-access-revoke-date-info" />
                 </div>
                 <Input type="date" min={new Date().toISOString().slice(0, 10)} value={formData.access_revoke_date} onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })} data-testid="supplier-access-revoke-date" />
               </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <Label>Is Annual Revenue required?</Label>
-                <FieldInfo label="Annual revenue is required for intensity calculations." testId="annual-revenue-info" />
-              </div>
-              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-5" data-testid="annual-revenue-required-control">
-                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-optional">
-                  <RadioGroupItem id="annual-revenue-optional" value="optional" data-testid="annual-revenue-optional-radio" />
-                  Optional
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="annual-revenue-required">
-                  <RadioGroupItem id="annual-revenue-required" value="required" data-testid="annual-revenue-required-radio" />
-                  Required
-                </label>
-              </RadioGroup>
-            </div>
             </div>
             
             {/* Module Selection */}
-            <div className="space-y-3 border-t pt-2">
-              <Label className="text-base font-medium">Assessment Modules *</Label>
-              <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
-              <div className={`grid gap-4 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
-                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-3 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
+            <div className="space-y-4 pt-1">
+              <div>
+                <Label className="text-base font-medium">Assessment Modules *</Label>
+                <p className="text-sm text-stone-500">Select which modules the supplier needs to complete</p>
+              </div>
+              <div className={`grid gap-5 ${questionnaires.length > 0 ? 'md:grid-cols-2' : ''}`}>
+                {questionnaires.length > 0 && <div className="space-y-3 rounded-lg border border-purple-200 bg-white p-4 shadow-[0_2px_10px_rgba(168,85,247,0.08)]">
                   <div className="flex items-center gap-2">
                   <Checkbox
                     id="module-esg"
@@ -706,22 +712,25 @@ export default function SupplierList() {
                     <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-questionnaire-assignment-options">
                       <Label className="text-sm font-medium">Assign ESG questionnaire(s)</Label>
                       <p className="text-xs text-stone-500">Select the questionnaires this supplier must complete.</p>
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-3">
                         {questionnaires.map((questionnaire) => (
-                          <label key={questionnaire.id} className="flex items-start gap-2 text-sm">
-                            <Checkbox
-                              checked={formData.questionnaire_ids.includes(questionnaire.id)}
-                              onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
-                              data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
-                            />
-                            <span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span><RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} /></span>
+                          <label key={questionnaire.id} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <Checkbox
+                                checked={formData.questionnaire_ids.includes(questionnaire.id)}
+                                onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
+                                data-testid={`new-supplier-questionnaire-${questionnaire.id}`}
+                              />
+                              <span className="truncate font-medium text-stone-800" data-testid={`new-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span>
+                            </span>
+                            <RequirementDeadline dueDate={questionnaire.due_date} testId={`new-supplier-questionnaire-${questionnaire.id}`} />
                           </label>
                         ))}
                       </div>
                     </div>
                   )}
                 </div>}
-                <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
+                <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-4 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="module-ghg"
@@ -738,7 +747,7 @@ export default function SupplierList() {
                     <div className="space-y-3 border-t border-stone-100 pt-3" data-testid="supplier-ghg-scope-options">
                       <Label className="text-sm font-medium">GHG Scopes</Label>
                       <p className="text-xs text-stone-500">Select which scopes the supplier should report</p>
-                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                      <div className="flex flex-wrap gap-x-5 gap-y-3">
                         <div className="flex items-center gap-2">
                     <Checkbox
                       id="scope-1"
@@ -776,9 +785,9 @@ export default function SupplierList() {
               </div>
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
-              <div className="grid gap-4 border-t pt-4 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
-                {documents.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-stone-600" />Documents</span>{documents.map((document) => <label key={document.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></span></label>)}</div>}
-                {trainings.length > 0 && <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3"><span className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-stone-600" />Training</span>{trainings.map((training) => <label key={training.id} className="flex items-start gap-2 text-sm"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="min-w-0"><span className="block font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></span></label>)}</div>}
+              <div className="mt-5 grid gap-5 md:grid-cols-2 [&>div:first-child]:!border-teal-300 [&>div:first-child]:!shadow-[0_4px_16px_rgba(20,184,166,0.18)] [&>div:last-child]:!border-amber-300 [&>div:last-child]:!shadow-[0_4px_16px_rgba(245,158,11,0.18)]" data-testid="supplier-existing-assignment-options">
+                {documents.length > 0 && <div className="space-y-0 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><FileText className="h-4 w-4 text-teal-600" />Documents</span><div className="flex flex-col gap-3 border-t border-stone-100 pt-3" data-testid="new-supplier-document-options">{documents.map((document) => <label key={document.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex min-w-0 items-center gap-2"><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`new-supplier-document-${document.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-document-name-${document.id}`}>{document.title}</span></span><RequirementDeadline dueDate={document.due_date} testId={`new-supplier-document-${document.id}`} /></label>)}</div></div>}
+                {trainings.length > 0 && <div className="space-y-0 rounded-lg border border-stone-200 bg-white p-4"><span className="flex items-center gap-2 text-sm font-semibold text-stone-900"><GraduationCap className="h-4 w-4 text-amber-600" />Training</span><div className="flex flex-col gap-3 border-t border-stone-100 pt-3" data-testid="new-supplier-training-options">{trainings.map((training) => <label key={training.id} className="flex items-center justify-between gap-3 text-sm"><span className="flex min-w-0 items-center gap-2"><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`new-supplier-training-${training.id}`} /><span className="truncate font-medium text-stone-800" data-testid={`new-supplier-training-name-${training.id}`}>{training.title}</span></span><RequirementDeadline dueDate={training.due_date} testId={`new-supplier-training-${training.id}`} /></label>)}</div></div>}
               </div>
             )}
           </div>
@@ -801,6 +810,10 @@ export default function SupplierList() {
           </DialogHeader>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-white px-7 py-5" data-testid="edit-supplier-form-scroll-area">
             <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Vendor Code</Label>
+              <Input value={formData.vendor_code} onChange={(e) => setFormData({ ...formData, vendor_code: e.target.value })} placeholder="Enter vendor code" data-testid="edit-supplier-vendor-code" />
+            </div>
             <div className="space-y-2">
               <Label>Company Name</Label>
               <Input
@@ -827,6 +840,13 @@ export default function SupplierList() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Tier</Label>
+              <Select value={formData.tier || undefined} onValueChange={(tier) => setFormData({ ...formData, tier })}>
+                <SelectTrigger data-testid="edit-supplier-tier-select"><SelectValue placeholder="Select supplier tier" /></SelectTrigger>
+                <SelectContent><SelectItem value="tier_1">Tier 1</SelectItem><SelectItem value="tier_2">Tier 2</SelectItem><SelectItem value="tier_3">Tier 3</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Access Revoke Date</Label>
               <Input
                 type="date"
@@ -835,10 +855,6 @@ export default function SupplierList() {
                 onChange={(e) => setFormData({ ...formData, access_revoke_date: e.target.value })}
                 data-testid="edit-supplier-access-revoke-date"
               />
-            </div>
-            <div className="space-y-2 rounded-lg border border-stone-200 bg-white p-3">
-              <Label>Is Annual Revenue required?</Label>
-              <RadioGroup value={formData.revenue_required ? 'required' : 'optional'} onValueChange={(value) => setFormData({ ...formData, revenue_required: value === 'required' })} className="flex flex-wrap gap-4" data-testid="edit-annual-revenue-required-control"><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="optional" data-testid="edit-annual-revenue-optional-radio" />Optional</label><label className="flex items-center gap-2 text-sm"><RadioGroupItem value="required" data-testid="edit-annual-revenue-required-radio" />Required</label></RadioGroup>
             </div>
             </div>
             
@@ -852,11 +868,13 @@ export default function SupplierList() {
                     id="edit-module-esg"
                     checked={formData.modules_enabled?.includes('esg')}
                     onCheckedChange={() => toggleModule('esg')}
+                    disabled={isEsgAssignmentLocked}
                   />
-                  <label htmlFor="edit-module-esg" className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="edit-module-esg" className={`flex items-center gap-2 text-sm ${isEsgAssignmentLocked ? 'cursor-not-allowed text-stone-500' : 'cursor-pointer'}`}>
                     <Leaf className="h-4 w-4 text-emerald-600" />
                     ESG Questionnaire
                   </label>
+                  {isEsgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-esg-module-lock">Submitted</Badge>}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -864,11 +882,13 @@ export default function SupplierList() {
                     id="edit-module-ghg"
                     checked={formData.modules_enabled?.includes('ghg')}
                     onCheckedChange={() => toggleModule('ghg')}
+                    disabled={isGhgAssignmentLocked}
                   />
-                  <label htmlFor="edit-module-ghg" className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="edit-module-ghg" className={`flex items-center gap-2 text-sm ${isGhgAssignmentLocked ? 'cursor-not-allowed text-stone-500' : 'cursor-pointer'}`}>
                     <Factory className="h-4 w-4 text-blue-600" />
                     GHG Emissions
                   </label>
+                  {isGhgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-ghg-module-lock">Submitted</Badge>}
                 </div>
               </div>
             </div>
@@ -888,7 +908,7 @@ export default function SupplierList() {
                           onCheckedChange={() => toggleQuestionnaire(questionnaire.id)}
                           data-testid={`edit-supplier-questionnaire-${questionnaire.id}`}
                         />
-                        <span>{questionnaire.name}</span>
+                        <span data-testid={`edit-supplier-questionnaire-name-${questionnaire.id}`}>{questionnaire.name}</span>
                         {isSubmitted && <Badge variant="outline" className="ml-auto text-xs" data-testid={`submitted-questionnaire-lock-${questionnaire.id}`}>Submitted</Badge>}
                       </label>
                     );
@@ -900,7 +920,7 @@ export default function SupplierList() {
             {/* GHG Scope Selection */}
             {formData.modules_enabled?.includes('ghg') && (
               <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-4 shadow-[0_2px_10px_rgba(59,130,246,0.08)]">
-                <Label className="text-sm font-medium">GHG Scopes</Label>
+                <div className="flex items-center gap-2"><Label className="text-sm font-medium">GHG Scopes</Label>{isGhgAssignmentLocked && <Badge variant="outline" className="text-xs" data-testid="edit-supplier-ghg-scopes-lock">Submitted</Badge>}</div>
                 
                 <div className="flex gap-6">
                   <div className="flex items-center gap-2">
@@ -908,6 +928,7 @@ export default function SupplierList() {
                       id="edit-scope-1"
                       checked={formData.ghg_scopes_enabled?.includes('scope1')}
                       onCheckedChange={() => toggleScope('scope1')}
+                      disabled={isGhgAssignmentLocked}
                     />
                     <label htmlFor="edit-scope-1" className="text-sm cursor-pointer">
                       Scope 1 (Direct)
@@ -919,6 +940,7 @@ export default function SupplierList() {
                       id="edit-scope-2"
                       checked={formData.ghg_scopes_enabled?.includes('scope2')}
                       onCheckedChange={() => toggleScope('scope2')}
+                      disabled={isGhgAssignmentLocked}
                     />
                     <label htmlFor="edit-scope-2" className="text-sm cursor-pointer">
                       Scope 2 (Indirect)
@@ -927,7 +949,7 @@ export default function SupplierList() {
                 </div>
                 <div className="space-y-2 border-t border-stone-100 pt-3" data-testid="edit-supplier-ghg-submission-frequency-options">
                   <Label className="text-sm font-medium">GHG submission frequency</Label>
-                  <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} className="flex flex-wrap gap-4" data-testid="edit-supplier-ghg-submission-frequency-control">
+                  <RadioGroup value={formData.ghg_submission_frequency} onValueChange={(value) => setFormData((current) => ({ ...current, ghg_submission_frequency: value }))} disabled={isGhgAssignmentLocked} className="flex flex-wrap gap-4" data-testid="edit-supplier-ghg-submission-frequency-control">
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-monthly"><RadioGroupItem id="edit-supplier-ghg-monthly" value="monthly" data-testid="edit-supplier-ghg-monthly-radio" />Monthly</label>
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-quarterly"><RadioGroupItem id="edit-supplier-ghg-quarterly" value="quarterly" data-testid="edit-supplier-ghg-quarterly-radio" />Quarterly</label>
                     <label className="flex cursor-pointer items-center gap-2 text-sm" htmlFor="edit-supplier-ghg-yearly"><RadioGroupItem id="edit-supplier-ghg-yearly" value="yearly" data-testid="edit-supplier-ghg-yearly-radio" />Yearly</label>
@@ -938,8 +960,8 @@ export default function SupplierList() {
             </div>
             {(documents.length > 0 || trainings.length > 0) && (
               <div className="grid gap-4 border-t border-stone-200 pt-4 md:grid-cols-2" data-testid="edit-supplier-assignment-summary">
-                {documents.length > 0 && <div className="rounded-lg border border-teal-200 bg-white p-3 shadow-[0_2px_10px_rgba(20,184,166,0.08)]" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-teal-700" />Documents</p><p className="mt-1 text-xs text-stone-500">Select the agreements this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{documents.map((document) => <label key={document.id} className="flex items-center gap-2" data-testid={`edit-supplier-document-${document.id}`}><Checkbox checked={formData.document_requirement_ids.includes(document.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`edit-supplier-document-checkbox-${document.id}`} />{document.title}</label>)}</div></div>}
-                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-white p-3 shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</p><p className="mt-1 text-xs text-stone-500">Select the training this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{trainings.map((training) => <label key={training.id} className="flex items-center gap-2" data-testid={`edit-supplier-training-${training.id}`}><Checkbox checked={formData.training_requirement_ids.includes(training.id)} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`edit-supplier-training-checkbox-${training.id}`} />{training.title}</label>)}</div></div>}
+                {documents.length > 0 && <div className="rounded-lg border border-teal-200 bg-white p-3 shadow-[0_2px_10px_rgba(20,184,166,0.08)]" data-testid="edit-supplier-documents-summary"><p className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-teal-700" />Documents</p><p className="mt-1 text-xs text-stone-500">Select the agreements this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{documents.map((document) => { const isLocked = lockedDocumentIds.has(document.id); return <label key={document.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-not-allowed text-stone-500' : ''}`} data-testid={`edit-supplier-document-${document.id}`}><Checkbox checked={formData.document_requirement_ids.includes(document.id) || isLocked} disabled={isLocked} onCheckedChange={(checked) => setFormData((current) => ({ ...current, document_requirement_ids: checked ? [...current.document_requirement_ids, document.id] : current.document_requirement_ids.filter((id) => id !== document.id) }))} data-testid={`edit-supplier-document-checkbox-${document.id}`} />{document.title}{isLocked && <Badge variant="outline" className="text-xs" data-testid={`edit-supplier-document-lock-${document.id}`}>Submitted</Badge>}</label>; })}</div></div>}
+                {trainings.length > 0 && <div className="rounded-lg border border-amber-200 bg-white p-3 shadow-[0_2px_10px_rgba(245,158,11,0.08)]" data-testid="edit-supplier-trainings-summary"><p className="flex items-center gap-2 text-sm font-semibold"><GraduationCap className="h-4 w-4 text-amber-700" />Training</p><p className="mt-1 text-xs text-stone-500">Select the training this supplier should receive.</p><div className="mt-2 space-y-2 text-sm">{trainings.map((training) => { const isLocked = lockedTrainingRequirementIds.has(training.id); return <label key={training.id} className={`flex items-center gap-2 ${isLocked ? 'cursor-not-allowed text-stone-500' : ''}`} data-testid={`edit-supplier-training-${training.id}`}><Checkbox checked={formData.training_requirement_ids.includes(training.id) || isLocked} disabled={isLocked} onCheckedChange={(checked) => setFormData((current) => ({ ...current, training_requirement_ids: checked ? [...current.training_requirement_ids, training.id] : current.training_requirement_ids.filter((id) => id !== training.id) }))} data-testid={`edit-supplier-training-checkbox-${training.id}`} />{training.title}{isLocked && <Badge variant="outline" className="text-xs" data-testid={`edit-supplier-training-lock-${training.id}`}>Completed</Badge>}</label>; })}</div></div>}
               </div>
             )}
           </div>
@@ -975,31 +997,18 @@ export default function SupplierList() {
                   <Label className="text-stone-500">Phone</Label>
                   <p className="font-medium" data-testid="view-supplier-contact-number">{selectedSupplier.contact_number || '-'}</p>
                 </div>
-                <div>
-                  <Label className="text-stone-500">Status</Label>
-                  <div className="mt-1" data-testid="view-supplier-status">
-                    <Badge className={statusColors[selectedSupplier.invitation_status]} data-testid="view-supplier-status-badge">
-                      {selectedSupplier.invitation_status}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-stone-500">Revenue %</Label>
-                  <p className="flex items-center gap-1 font-medium" data-testid="view-supplier-revenue-percentage">
-                    <Percent className="h-3 w-3" />
-                    {selectedSupplier.revenue_percentage !== null 
-                      ? `${selectedSupplier.revenue_percentage}%` 
-                      : 'Not provided'}
+                {selectedSupplier.revenue_submission_status === 'submitted' && <div>
+                  <Label className="text-stone-500">Revenue Share</Label>
+                  <p className="font-medium" data-testid="view-supplier-revenue-percentage">
+                    {selectedSupplier.revenue_percentage !== null ? `${selectedSupplier.revenue_percentage}%` : 'Not provided'}
                   </p>
-                </div>
-                <div>
+                </div>}
+                {selectedSupplier.revenue_submission_status === 'submitted' && <div>
                   <Label className="text-stone-500">Revenue Amount</Label>
                   <p className="font-medium" data-testid="view-supplier-revenue-amount">
-                    {selectedSupplier.revenue_amount !== null && selectedSupplier.revenue_amount !== undefined
-                      ? `${selectedSupplier.revenue_currency || 'USD'} ${selectedSupplier.revenue_amount.toLocaleString()}`
-                      : 'Not provided'}
+                    {selectedSupplier.revenue_amount !== null && selectedSupplier.revenue_amount !== undefined ? `${selectedSupplier.revenue_currency || 'USD'} ${selectedSupplier.revenue_amount.toLocaleString()}` : 'Not provided'}
                   </p>
-                </div>
+                </div>}
                 <div>
                   <Label className="text-stone-500">Access Revoke Date</Label>
                   <p className="font-medium" data-testid="view-supplier-access-revoke-date">
@@ -1021,7 +1030,6 @@ export default function SupplierList() {
               <ViewSupplierProgress supplier={selectedSupplier} submissionStatus={submissionStatus} />
               {selectedSupplier.revenue_submission_status === 'submitted' && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" data-testid="supplier-org-information-unlock-controls"><div><Label className="text-stone-500">Org Information</Label><p className="mt-1 text-sm text-stone-600" data-testid="supplier-org-information-lock-status">Submitted {selectedSupplier.revenue_submitted_at ? new Date(selectedSupplier.revenue_submitted_at).toLocaleDateString() : ''}{selectedSupplier.revenue_submitted_at ? ' · ' : ''}locked</p></div><Button variant="outline" size="sm" disabled={unlockingOrgInformation} onClick={unlockOrgInformation} data-testid="unlock-supplier-org-information-button"><LockOpen className="mr-1 h-4 w-4" />{unlockingOrgInformation ? 'Unlocking…' : 'Unlock'}</Button></div>}
               
-              <ViewSupplierScores supplier={selectedSupplier} />
             </div>
           )}
           <DialogFooter className="shrink-0 border-t border-stone-200 bg-white px-7 py-4">
@@ -1033,7 +1041,7 @@ export default function SupplierList() {
       </Dialog>
       <Dialog open={Boolean(reminderTarget)} onOpenChange={(open) => !open && setReminderTarget(null)}>
         <DialogContent data-testid="supplier-reminder-dialog"><DialogHeader><DialogTitle>Send assessment reminder</DialogTitle></DialogHeader>
-          <div className="space-y-3"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{reminderModulesLoading ? <p className="text-sm text-stone-500" data-testid="supplier-reminder-loading">Checking incomplete modules…</p> : pendingReminderModules.length ? <><label className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all')} onCheckedChange={(checked) => setReminderModules(checked ? ['all'] : [])} data-testid="supplier-reminder-module-all" />All pending modules</label>{pendingReminderModules.map((module) => <label key={module.code} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all') || reminderModules.includes(module.code)} onCheckedChange={(checked) => setReminderModules((current) => { const withoutAll = current.filter((item) => item !== 'all'); return checked ? [...new Set([...withoutAll, module.code])] : withoutAll.filter((item) => item !== module.code); })} data-testid={`supplier-reminder-module-${module.code}`} />{module.label}</label>)}</> : <p className="text-sm text-stone-500" data-testid="supplier-reminder-empty">No incomplete modules need a reminder.</p>}</div>
+          <div className="space-y-4"><p className="text-sm text-stone-600" data-testid="supplier-reminder-period">Reporting period: {reminderTarget?.reporting_period || 'Current period'}</p>{reminderModulesLoading ? <p className="text-sm text-stone-500" data-testid="supplier-reminder-loading">Checking incomplete modules…</p> : pendingReminderModules.length ? <><label className="flex items-center gap-2 px-3 py-2 text-base font-semibold text-stone-900" data-testid="supplier-reminder-all-pending-section"><Checkbox checked={reminderModules.includes('all')} onCheckedChange={(checked) => setReminderModules(checked ? ['all'] : [])} data-testid="supplier-reminder-module-all" />All pending modules</label><div className="space-y-2 border-t border-stone-200 pl-7 pr-3 pt-4" data-testid="supplier-reminder-individual-modules">{pendingReminderModules.map((module) => <label key={module.code} className="flex items-center gap-2 text-sm"><Checkbox checked={reminderModules.includes('all') || reminderModules.includes(module.code)} onCheckedChange={(checked) => setReminderModules((current) => { const withoutAll = current.filter((item) => item !== 'all'); return checked ? [...new Set([...withoutAll, module.code])] : withoutAll.filter((item) => item !== module.code); })} data-testid={`supplier-reminder-module-${module.code}`} />{module.code === 'training' ? 'Training' : module.label}</label>)}</div></> : <p className="text-sm text-stone-500" data-testid="supplier-reminder-empty">No incomplete modules need a reminder.</p>}</div>
           <DialogFooter><Button variant="outline" onClick={() => setReminderTarget(null)} data-testid="cancel-supplier-reminder-button">Cancel</Button><Button onClick={handleReminder} disabled={reminderModulesLoading || pendingReminderModules.length === 0 || reminderModules.length === 0} data-testid="send-supplier-reminder-button">Send reminder</Button></DialogFooter>
         </DialogContent>
       </Dialog>

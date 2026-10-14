@@ -46,7 +46,7 @@ import {
 const FALLBACK_CONFIGURATION = {
   enabled_scopes: ['scope1', 'scope2'],
   modes: [
-    { key: 'fast', label: 'Fast', vision_model: 'claude-sonnet-5', reasoning_model: 'claude-haiku-4-5' },
+    { key: 'fast', label: 'Fast', vision_model: 'claude-sonnet-5-5', reasoning_model: 'claude-haiku-5-5' },
     { key: 'think', label: 'Think', vision_model: 'gpt-5.6-sol', reasoning_model: 'gpt-5.6-terra' },
   ],
   categories: [],
@@ -126,9 +126,11 @@ export default function OCRInvoice() {
   const [bulkRejecting, setBulkRejecting] = useState(false);
   const [bulkRejectRows, setBulkRejectRows] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [clearWorkspaceConfirmOpen, setClearWorkspaceConfirmOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const legacyOcr = configuration.pipeline === 'legacy_fuel_taxonomy';
 
   useEffect(() => {
     let mounted = true;
@@ -248,9 +250,12 @@ export default function OCRInvoice() {
     if (facilityPreviewUrl) URL.revokeObjectURL(facilityPreviewUrl);
   }, [facilityPreviewUrl]);
 
+  const visibleItems = useMemo(() => (
+    items.filter((item) => configuration.enabled_scopes.includes(item.current_values?.scope))
+  ), [items, configuration.enabled_scopes]);
   const selectedFileItems = useMemo(() => (
-    selectedFile ? items.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : items
-  ), [items, selectedFile]);
+    selectedFile ? visibleItems.filter((item) => item.upload_id === selectedFile.upload_id && item.file_index === selectedFile.file_index) : visibleItems
+  ), [visibleItems, selectedFile]);
   const sourceFiles = useMemo(() => upload?.files || [], [upload]);
 
   const processFiles = async () => {
@@ -265,6 +270,25 @@ export default function OCRInvoice() {
     let staged = false;
     try {
       const { data } = await uploadOcrFiles(files, mode, getAuthHeader());
+      if (data.pipeline === 'legacy_fuel_taxonomy') {
+        const legacyFiles = (data.files || []).map((file) => ({ ...file, upload_id: data.upload_id }));
+        setUpload({ upload_ids: [data.upload_id], files: legacyFiles });
+        setItems(data.line_items || []);
+        setFileQueue(legacyFiles.map((file) => ({
+          id: `${data.upload_id}-${file.file_index}`,
+          uploadId: data.upload_id,
+          fileIndex: file.file_index,
+          filename: file.filename,
+          status: file.status || 'completed',
+          uploadStatus: 'completed',
+        })));
+        setSelectedFile(null);
+        setSelectedItem(null);
+        localStorage.setItem('ocr-active-upload-ids', JSON.stringify([data.upload_id]));
+        toast.success(`${data.file_count} Scope 1/2 source document${data.file_count === 1 ? '' : 's'} extracted.`);
+        staged = true;
+        return;
+      }
       if (!data.files?.length) {
         const message = data.errors?.[0]?.error || 'No invoice could be staged securely.';
         setStagedFileErrors(fileErrorMap(files, data.errors, message));
@@ -692,9 +716,11 @@ export default function OCRInvoice() {
   const removeResolvedRows = (resolvedRows) => {
     if (!resolvedRows.length) return;
     const resolvedIds = new Set(resolvedRows.map(({ item }) => item.id));
-    const completedFileKeys = new Set(resolvedRows
-      .filter(({ data }) => data.file_completed)
-      .map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const remainingItems = items.filter((item) => !resolvedIds.has(item.id));
+    const resolvedFileKeys = new Set(resolvedRows.map(({ item }) => `${item.upload_id}-${item.file_index}`));
+    const completedFileKeys = new Set([...resolvedFileKeys].filter((fileKey) => (
+      !remainingItems.some((item) => `${item.upload_id}-${item.file_index}` === fileKey)
+    )));
     const remainingFiles = (upload?.files || []).filter((file) => !completedFileKeys.has(`${file.upload_id}-${file.file_index}`));
     const remainingUploadIds = [...new Set(remainingFiles.map((file) => file.upload_id))];
     setItems((current) => current.filter((item) => !resolvedIds.has(item.id)));
@@ -816,9 +842,9 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={<div className="flex flex-wrap items-center gap-2" data-testid="ocr-header-actions">
           <Button type="button" variant="outline" onClick={openHistory} disabled={historyLoading} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-history-button"><History className="mr-2 h-4 w-4" />History</Button>
-          <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />
+          {!legacyOcr && <ExtractionModeSelector modes={configuration.modes} value={mode} onChange={setMode} disabled={processing} compact />}
           {upload && <>
-            <Button type="button" variant="outline" onClick={clearUpload} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
+            <Button type="button" variant="outline" onClick={() => setClearWorkspaceConfirmOpen(true)} className="border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground" data-testid="ocr-clear-upload-button"><Trash2 className="mr-2 h-4 w-4" />Clear workspace</Button>
           </>}
         </div>}
       />
@@ -836,7 +862,7 @@ export default function OCRInvoice() {
 
       {!upload ? (
         <div className="w-full">
-          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} />
+          <UploadWorkspace files={files} fileErrors={stagedFileErrors} onFilesChange={(nextFiles) => { setFiles(nextFiles); setStagedFileErrors({}); }} onProcess={processFiles} processing={processing} progress={progress} onDownloadTemplate={downloadTemplate} downloadingTemplate={downloadingTemplate} queue={Object.keys(stagedFileErrors).length ? [] : fileQueue} onCancel={cancelProcessing} canCancelProcessing={Boolean(activeExtractionIds.length)} cancelling={cancellingQueue} legacyMode={legacyOcr} />
         </div>
       ) : (
         <div className="space-y-8">
@@ -911,6 +937,12 @@ export default function OCRInvoice() {
             <AlertDialogCancel disabled={bulkRejecting} data-testid="ocr-bulk-reject-cancel-button">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={rejectRows} disabled={bulkRejecting} className="bg-red-700 hover:bg-red-800" data-testid="ocr-bulk-reject-confirm-button">{bulkRejecting ? 'Rejecting…' : 'Reject rows'}</AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={clearWorkspaceConfirmOpen} onOpenChange={setClearWorkspaceConfirmOpen}>
+        <AlertDialogContent data-testid="ocr-clear-workspace-confirmation-dialog">
+          <AlertDialogHeader><AlertDialogTitle>Clear OCR workspace?</AlertDialogTitle><AlertDialogDescription>Saved rows remain saved. Any unresolved rows are recorded as rejected before the temporary workspace is removed.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel data-testid="ocr-cancel-clear-workspace-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { setClearWorkspaceConfirmOpen(false); clearUpload(); }} className="bg-rose-700 text-white hover:bg-rose-800" data-testid="ocr-confirm-clear-workspace-button">Clear workspace</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </main>

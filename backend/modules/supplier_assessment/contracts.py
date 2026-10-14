@@ -19,9 +19,10 @@ class SupplierCreate(BaseModel):
     contact_person: str
     email: EmailStr
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
-    revenue_required: bool = False
+    revenue_required: bool = True
     # Module configuration
     modules_enabled: Optional[List[Literal["esg", "ghg", "documents", "training"]]] = None
     ghg_scopes_enabled: Optional[List[Literal["scope1", "scope2"]]] = None
@@ -37,6 +38,7 @@ class SupplierUpdate(BaseModel):
     company_name: Optional[str] = None
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     access_revoke_date: Optional[str] = Field(default=None, validation_alias=AliasChoices("access_revoke_date", "due_date"))
     reporting_period: Optional[str] = None
     is_active: Optional[bool] = None
@@ -62,10 +64,11 @@ class SupplierResponse(BaseModel):
     contact_person: str
     contact_email: str
     contact_number: Optional[str] = None
+    tier: Optional[Literal["tier_1", "tier_2", "tier_3"]] = None
     revenue_percentage: Optional[float] = None
     revenue_amount: Optional[float] = None
     revenue_currency: Optional[str] = "USD"
-    revenue_required: bool = False
+    revenue_required: bool = True
     parts_components_manufactured: Optional[str] = None
     plant_location: Optional[str] = None
     invitation_status: str  # pending, accepted, completed
@@ -124,6 +127,36 @@ class RevenueInfoUpdate(BaseModel):
     plant_location: Optional[str] = Field(default=None, max_length=1000)
 
 
+class QuestionReviewDecision(BaseModel):
+    """Parent organization review decision for a single questionnaire response question."""
+    status: Literal["accepted", "rejected"]
+    needs_resubmission: bool = False
+    reviewer_score: Optional[float] = Field(default=None, ge=0)
+    reviewer_note: Optional[str] = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_review_decision(self):
+        if self.status == "rejected":
+            if self.needs_resubmission:
+                if not (self.reviewer_note and self.reviewer_note.strip()):
+                    raise ValueError("A comment/note explaining what needs to be resubmitted is required when asking for resubmission.")
+            else:
+                if self.reviewer_score is None:
+                    raise ValueError("Reviewer approved score is required when rejected without resubmission.")
+                if not (self.reviewer_note and self.reviewer_note.strip()):
+                    raise ValueError("Review rationale/note is required when rejecting a response.")
+        return self
+
+
+class QuestionReviewMark(BaseModel):
+    """Parent reviewer flag for a question that needs follow-up before finalizing review."""
+    marked: bool
+
+
+class QuestionReviewDraft(QuestionReviewDecision):
+    """Private parent-review draft that is never exposed to the supplier."""
+
+
 class ManualScoreUpdate(BaseModel):
     score: float = Field(ge=0, le=100)
     note: Optional[str] = Field(default=None, max_length=2000)
@@ -140,13 +173,15 @@ class SupplierDocumentResponse(BaseModel):
     version_number: int
     accepted: bool
     accepted_at: Optional[str] = None
-    response_mode: Literal["ACCEPTANCE", "STATUS"] = "ACCEPTANCE"
+    response_mode: Literal["ACCEPTANCE", "STATUS", "DOCUMENT_UPLOAD"] = "ACCEPTANCE"
     response_options: List[str] = []
     selected_response: Optional[str] = None
     responded_at: Optional[str] = None
     submission_status: Optional[str] = None
     has_been_viewed: bool = False
+    response_files: List[Dict[str, Any]] = []
     created_at: str
+    due_date: Optional[str] = None
 
 
 class SupplierDocumentStatusSubmit(BaseModel):
@@ -192,6 +227,14 @@ class QuestionOption(BaseModel):
     value: str
     label: str
     score: Optional[float] = None  # Score for this option (question-level scoring)
+
+
+class EvidencePointScores(BaseModel):
+    """Point awards for point-based Yes/No assessment questions."""
+    yes_score: Optional[float] = Field(default=None, ge=0)
+    yes_with_evidence_score: float = Field(ge=0)
+    yes_without_evidence_score: float = Field(ge=0)
+    no_score: float = Field(default=0, ge=0)
 
 
 class QuestionScoringConfig(BaseModel):
@@ -270,14 +313,15 @@ class QuestionCreate(BaseModel):
     response_type: str  # yes_no, numeric, text, dropdown, percentage, currency
     options: Optional[List[QuestionOption]] = None  # For dropdown
     required: bool = True
-    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
-    # `weight` is retained for older API clients. New clients use importance or
-    # an exact override; the service persists the effective value in `weight`.
+    evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
+    assessment_type: Literal["standard", "type_a", "type_b", "type_c"] = "standard"
+    max_points: Optional[float] = Field(default=None, gt=0)
+    point_scores: Optional[EvidencePointScores] = None
+    missing_evidence_percent: Optional[float] = Field(default=None, ge=0, le=100)
     weight: Optional[float] = None
-    importance: Literal["low", "medium", "high"] = "medium"
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: str  # ESG section: environment, social, governance
-    question_category: Literal["policy", "reporting", "certification"] = "policy"
+    question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
     order: int = 0
     parent_question_id: Optional[str] = None
     # New: Scoring configuration
@@ -285,6 +329,15 @@ class QuestionCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_choice_mapping_options(self):
+        if self.evidence_requirement == "evidence_scored":
+            if self.assessment_type != "type_c":
+                raise ValueError("evidence_scored questions must use assessment_type type_c")
+            if self.max_points is None or self.point_scores is None:
+                raise ValueError("evidence_scored questions require max_points and point_scores")
+        if self.max_points is not None and self.point_scores is not None:
+            point_values = (value for value in self.point_scores.model_dump().values() if value is not None)
+            if any(value > self.max_points for value in point_values):
+                raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
             return self
         if self.response_type != "dropdown":
@@ -304,12 +357,15 @@ class QuestionUpdate(BaseModel):
     response_type: Optional[str] = None
     options: Optional[List[QuestionOption]] = None
     required: Optional[bool] = None
-    evidence_requirement: Optional[Literal["not_required", "optional", "required"]] = None
+    evidence_requirement: Optional[Literal["not_required", "optional", "required", "evidence_scored"]] = None
+    assessment_type: Optional[Literal["standard", "type_a", "type_b", "type_c"]] = None
+    max_points: Optional[float] = Field(default=None, gt=0)
+    point_scores: Optional[EvidencePointScores] = None
+    missing_evidence_percent: Optional[float] = Field(default=None, ge=0, le=100)
     weight: Optional[float] = None
-    importance: Optional[Literal["low", "medium", "high"]] = None
     exact_numerical_weight: Optional[float] = Field(default=None, gt=0)
     category: Optional[str] = None
-    question_category: Optional[Literal["policy", "reporting", "certification"]] = None
+    question_category: Optional[str] = Field(default=None, min_length=2, max_length=100)
     order: Optional[int] = None
     parent_question_id: Optional[str] = None
     is_active: Optional[bool] = None
@@ -318,6 +374,11 @@ class QuestionUpdate(BaseModel):
 
     @model_validator(mode="after")
     def validate_choice_mapping_options(self):
+        if self.evidence_requirement == "evidence_scored" and self.assessment_type not in {None, "type_c"}:
+            raise ValueError("evidence_scored questions must use assessment_type type_c")
+        if self.max_points is not None and self.point_scores is not None:
+            if any(value > self.max_points for value in self.point_scores.model_dump().values() if value is not None):
+                raise ValueError("evidence point scores cannot exceed max_points")
         if not self.scoring or self.scoring.rule != "choice_mapping":
             return self
         if self.response_type is not None and self.response_type != "dropdown":
@@ -342,12 +403,15 @@ class QuestionResponse(BaseModel):
     response_type: str
     options: Optional[List[Dict[str, Any]]] = None
     required: bool = True
-    evidence_requirement: Literal["not_required", "optional", "required"] = "not_required"
+    evidence_requirement: Literal["not_required", "optional", "required", "evidence_scored"] = "not_required"
+    assessment_type: str = "standard"
+    missing_evidence_percent: Optional[float] = None
+    max_points: Optional[float] = None
+    point_scores: Optional[Dict[str, float]] = None
     weight: float = 1.0
-    importance: str = "medium"
     exact_numerical_weight: Optional[float] = None
     category: str
-    question_category: Literal["policy", "reporting", "certification"] = "policy"
+    question_category: str = "policy"
     order: int = 0
     parent_question_id: Optional[str] = None
     is_active: bool = True
@@ -384,6 +448,7 @@ class QuestionnaireCreate(BaseModel):
     assignment_mode: Literal["all", "selected"] = "all"
     supplier_relationship_ids: List[str] = Field(default_factory=list)
     assignment_reporting_period: Optional[str] = None
+    reporting_periods: List[str] = Field(default_factory=list)
 
 
 class QuestionnaireUpdate(BaseModel):
@@ -397,6 +462,7 @@ class QuestionnaireUpdate(BaseModel):
     # New: Explicit weight configurations
     esg_section_weights: Optional[ESGSectionWeightsConfig] = None
     overall_supplier_weights: Optional[OverallSupplierWeightsConfig] = None
+    reporting_periods: Optional[List[str]] = None
 
 
 class QuestionnaireResponse(BaseModel):
@@ -406,16 +472,26 @@ class QuestionnaireResponse(BaseModel):
     id: str
     organization_id: str
     name: str
+    display_name: Optional[str] = None
+    reporting_period: Optional[str] = None
+    reporting_periods: List[str] = []
     description: Optional[str] = None
+    system_question_bank: Optional[str] = None
     due_date: Optional[str] = None
     scoring_method: str = "question"
     section_weights: Optional[Dict[str, float]] = None
     esg_section_weights: Optional[Dict[str, float]] = None
     overall_supplier_weights: Optional[Dict[str, float]] = None
+    esg_subcategories: Optional[Dict[str, List[Dict[str, Any]]]] = None
     assignment_mode: Optional[str] = None
     assigned_supplier_ids: List[str] = []
+    assigned_supplier_count: int = 0
+    total_supplier_count: int = 0
     assignment_reporting_period: Optional[str] = None
     is_active: bool = True
+    has_locked_submissions: bool = False
+    has_reviewable_submissions: bool = False
+    has_submission_history: bool = False
     question_count: int = 0
     created_by: str
     created_at: str
@@ -430,6 +506,7 @@ class SupplierAnswerSubmit(BaseModel):
     """Submit answer to a question."""
     question_id: str
     answer: Any  # Depends on response_type
+    clarification_reply: Optional[str] = Field(default=None, max_length=4000)
 
 
 class SupplierResponsesSubmit(BaseModel):
@@ -445,6 +522,15 @@ class SupplierResponsesSubmit(BaseModel):
         return self
 
 
+class SupplierEvidenceDuplicateCheck(BaseModel):
+    sha256_hash: str = Field(min_length=64, max_length=64)
+    filename: str = Field(min_length=1, max_length=255)
+
+
+class SupplierEvidenceReuseRequest(BaseModel):
+    evidence_id: str = Field(min_length=1, max_length=100)
+
+
 class SupplierDataVerificationSubmit(BaseModel):
     """Required acknowledgement for a final supplier submission."""
     data_verified: Literal[True]
@@ -452,6 +538,19 @@ class SupplierDataVerificationSubmit(BaseModel):
 
 class SupplierGhgSubmissionPeriodSubmit(SupplierDataVerificationSubmit):
     """Required acknowledgement for one supplier GHG reporting period."""
+
+
+class SupplierGhgBulkSubmissionPeriodsSubmit(SupplierDataVerificationSubmit):
+    """Required acknowledgement for a selected set of supplier GHG reporting periods."""
+    period_keys: List[str] = Field(min_length=1, max_length=24)
+
+    @model_validator(mode="after")
+    def require_unique_periods(self):
+        normalized = [period_key.strip() for period_key in self.period_keys if period_key.strip()]
+        if not normalized or len(normalized) != len(set(normalized)):
+            raise ValueError("Choose one or more unique reporting periods")
+        self.period_keys = normalized
+        return self
 
 
 class SupplierGhgUnlockRequest(BaseModel):
@@ -466,6 +565,7 @@ class SupplierQuestionnaireStatusResponse(BaseModel):
     questionnaire_id: str
     questionnaire_name: str
     supplier_relationship_id: str
+    reporting_period: Optional[str] = None
     status: str  # not_started, in_progress, submitted
     completion_percent: float = 0.0
     answered_count: int = 0
@@ -611,11 +711,13 @@ class SupplierRankingEntry(BaseModel):
     governance_score: Optional[float] = None
     ghg_score: Optional[float] = None
     overall_score: Optional[float] = None
+    overall_completion_percent: Optional[float] = None
     completion_status: str
     status_label: Optional[str] = None
     question_progress: Optional[str] = None
     attention_reasons: List[str] = []
     overdue_modules: List[str] = []
+    oldest_overdue_days: Optional[int] = None
     module_progress: Dict[str, float] = {}
     due_date: Optional[str] = None
     revenue_percentage: Optional[float] = None
@@ -639,6 +741,7 @@ class AverageScores(BaseModel):
     environment: Optional[float] = None
     social: Optional[float] = None
     governance: Optional[float] = None
+    overall_completion: Optional[float] = None
 
 
 class SupplierRankingResponse(BaseModel):
@@ -649,6 +752,7 @@ class SupplierRankingResponse(BaseModel):
     score_distribution: Optional[ScoreDistribution] = None
     averages: Optional[AverageScores] = None
     module_summary: Dict[str, Dict[str, Any]] = {}
+    category_insights: List[Dict[str, Any]] = []
 
 
 # ============================================================================

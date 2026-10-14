@@ -16,6 +16,7 @@ import { validateFileSize } from '../lib/uploadUtils';
 import { useGHGAccess } from '../hooks/useKPIAccess';
 import { LoadErrorState } from '../components/LoadErrorState';
 import { getUserFriendlyError } from '../lib/userFriendlyError';
+import { downloadSecureFile, getUploadedFileId, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   createDraftEvidence,
   deleteEvidenceFiles,
@@ -115,50 +116,40 @@ const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
   return false;
 };
 
-const getSinkMonthRange = (sink, reportingYearType, fiscalStartMonth) => {
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(sink.reporting_period || '')) {
-    return { start: sink.reporting_period, end: sink.reporting_period };
+const getSinkPeriodDetails = (sink, reportingYearType, fiscalStartMonth) => {
+  const period = sink.reporting_period || '';
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    const [actualYear, actualMonth] = period.split('-').map(Number);
+    return {
+      frequency: 'monthly',
+      reportingYear: String(reportingYearType === 'financial' && actualMonth < Number(fiscalStartMonth || 4) ? actualYear - 1 : actualYear),
+      month: actualMonth - 1,
+      start: period,
+      end: period,
+    };
   }
-  if (/^CY\d{4}$/.test(sink.reporting_period || '')) {
-    const year = sink.reporting_period.slice(2);
-    return { start: `${year}-01`, end: `${year}-12` };
+  if (/^CY\d{4}$/.test(period)) {
+    const year = period.slice(2);
+    return { frequency: 'yearly', reportingYear: year, month: null, start: `${year}-01`, end: `${year}-12` };
   }
-  if (/^FY \d{4}-\d{4}$/.test(sink.reporting_period || '')) {
-    const startYear = Number(sink.reporting_period.slice(3, 7));
+  if (/^FY \d{4}-\d{4}$/.test(period)) {
+    const startYear = Number(period.slice(3, 7));
     const startMonth = Math.min(12, Math.max(1, Number(fiscalStartMonth || 4)));
     const endMonth = startMonth === 1 ? 12 : startMonth - 1;
     return {
+      frequency: 'yearly',
+      reportingYear: String(startYear),
+      month: null,
       start: `${startYear}-${String(startMonth).padStart(2, '0')}`,
       end: `${startMonth === 1 ? startYear : startYear + 1}-${String(endMonth).padStart(2, '0')}`,
     };
   }
+  return { frequency: 'monthly', reportingYear: '', month: null, start: '', end: '' };
+};
 
-  const reportingYear = Number(sink.reporting_year || sink.start_date?.slice(0, 4));
-  if (!reportingYear) return { start: '', end: '' };
-
-  if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
-    if (reportingYearType !== 'financial') {
-      return { start: `${reportingYear}-01`, end: `${reportingYear}-12` };
-    }
-    const startMonth = Math.min(12, Math.max(1, Number(fiscalStartMonth || 4)));
-    const endMonth = startMonth === 1 ? 12 : startMonth - 1;
-    return {
-      start: `${reportingYear}-${String(startMonth).padStart(2, '0')}`,
-      end: `${startMonth === 1 ? reportingYear : reportingYear + 1}-${String(endMonth).padStart(2, '0')}`,
-    };
-  }
-
-  if (sink.reporting_month !== null && sink.reporting_month !== undefined) {
-    const month = Number(sink.reporting_month) + 1;
-    const year = reportingYearType === 'financial' && month < Number(fiscalStartMonth || 4)
-      ? reportingYear + 1
-      : reportingYear;
-    const period = `${year}-${String(month).padStart(2, '0')}`;
-    return { start: period, end: period };
-  }
-
-  const start = sink.start_date?.slice(0, 7) || '';
-  return { start, end: sink.end_date?.slice(0, 7) || start };
+const getSinkMonthRange = (sink, reportingYearType, fiscalStartMonth) => {
+  const { start, end } = getSinkPeriodDetails(sink, reportingYearType, fiscalStartMonth);
+  return { start, end };
 };
 
 export default function Sinks() {
@@ -263,7 +254,7 @@ export default function Sinks() {
   }, [user?.role, canAccessSinks]);
   const canManageOrganizationSinks = user?.role === 'admin'
     || user?.role === 'super_admin'
-    || (canAccessSinks && (hasFullKPIAccess || accessInfo?.facility_restrictions?.sinks == null));
+    || (canAccessSinks && (hasFullKPIAccess || kpiAccessInfo?.facility_restrictions?.sinks == null));
   
   // Filter facilities based on KPI assignment for sinks
   const kpiFilteredFacilities = useMemo(() => {
@@ -627,19 +618,10 @@ export default function Sinks() {
     setEditingSink(sink);
     setFormErrors({});
 
-    const freq = sink.frequency_type || (sink.reporting_month === null ? 'yearly' : 'monthly');
-    let year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : currentReportingYear);
-    let month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
-
-    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(sink.reporting_period || '')) {
-      const [actualYear, actualMonth] = sink.reporting_period.split('-').map(Number);
-      month = actualMonth - 1;
-      year = String(reportingYearType === 'financial' && actualMonth < Number(organization?.financial_year_start_month || 4)
-        ? actualYear - 1
-        : actualYear);
-    } else if (/^(?:FY )?\d{4}-\d{4}$/.test(sink.reporting_period || '') || /^CY\d{4}$/.test(sink.reporting_period || '')) {
-      year = sink.reporting_period.match(/\d{4}/)?.[0] || year;
-    }
+    const period = getSinkPeriodDetails(sink, reportingYearType, organization?.financial_year_start_month);
+    const freq = period.frequency;
+    const year = period.reportingYear || currentReportingYear;
+    const month = period.month ?? 0;
 
     setFormData({
       facility_id: sink.facility_id || ORGANIZATION_SINK_VALUE,
@@ -699,19 +681,7 @@ export default function Sinks() {
     if (/^CY\d{4}$/.test(sink.reporting_period || '')) return `CY ${sink.reporting_period.slice(2)}`;
     if (/^FY \d{4}-\d{4}$/.test(sink.reporting_period || '')) return sink.reporting_period;
 
-    if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
-      return formatReportingYear(sink.reporting_year);
-    }
-    if (sink.reporting_month !== null && sink.reporting_month !== undefined && sink.reporting_year) {
-      return `${SHORT_MONTHS[sink.reporting_month]}'${sink.reporting_year}`;
-    }
-    if (sink.start_date) {
-      try {
-        const d = new Date(sink.start_date);
-        return `${SHORT_MONTHS[d.getMonth()]}'${d.getFullYear()}`;
-      } catch { return sink.reporting_year || '-'; }
-    }
-    return sink.reporting_year || '-';
+    return '—';
   };
 
   const getEvidenceCount = (sink) => {
@@ -753,8 +723,8 @@ export default function Sinks() {
       
       switch (sortBy) {
         case 'date':
-          const dateA = a.start_date ? new Date(a.start_date) : new Date(`${a.reporting_year}-${(a.reporting_month || 0) + 1}-01`);
-          const dateB = b.start_date ? new Date(b.start_date) : new Date(`${b.reporting_year}-${(b.reporting_month || 0) + 1}-01`);
+          const dateA = new Date(getSinkMonthRange(a, reportingYearType, organization?.financial_year_start_month).start || '9999-12');
+          const dateB = new Date(getSinkMonthRange(b, reportingYearType, organization?.financial_year_start_month).start || '9999-12');
           comparison = dateA - dateB;
           break;
         case 'facility':
@@ -786,8 +756,9 @@ export default function Sinks() {
 
   // Determine which months to show in form
   const isEditMode = !!editingSink;
-  const isEditingYearly = isEditMode && (editingSink?.frequency_type === 'yearly' || editingSink?.reporting_month === null);
-  const editMonth = isEditingYearly ? null : (selectedEditMonth ?? editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
+  const editingPeriod = getSinkPeriodDetails(editingSink || {}, reportingYearType, organization?.financial_year_start_month);
+  const isEditingYearly = isEditMode && editingPeriod.frequency === 'yearly';
+  const editMonth = isEditingYearly ? null : (selectedEditMonth ?? editingPeriod.month);
   const editMonthlyReportingPeriod = editMonth === null
     ? ''
     : getMonthlyReportingPeriod(editMonth, formData.reporting_year, reportingYearType, organization?.financial_year_start_month);
@@ -962,18 +933,24 @@ export default function Sinks() {
                     {yearlyData.evidence && yearlyData.evidence.length > 0 && (
                       <div className="space-y-1.5">
                         <Label className="text-xs text-stone-500">Evidence Files</Label>
-                        {yearlyData.evidence.map((file, fileIdx) => (
+                        {yearlyData.evidence.map((file, fileIdx) => {
+                          const fileId = getUploadedFileId(file.url);
+                          const canPreview = isPreviewableFile(file);
+                          return (
                           <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`yearly-evidence-file-${fileIdx}`}>
                             <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
                             <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-                            <a href={file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
+                            {canPreview && <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-yearly-evidence-${fileIdx}`}>
                               <Eye className="w-3.5 h-3.5" />
-                            </a>
+                            </a>}
                             <button 
                               type="button"
                               onClick={async () => {
-                                const downloadUrl = file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/download`;
-                                window.location.href = downloadUrl;
+                                if (fileId) {
+                                  await downloadSecureFile(fileId);
+                                } else {
+                                  window.location.href = file.preview_url;
+                                }
                               }}
                               className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
                               title="Download"
@@ -985,7 +962,8 @@ export default function Sinks() {
                               <X className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -1376,18 +1354,24 @@ function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, on
       {evidence.length > 0 && (
         <div className="space-y-1.5">
           <Label className="text-xs text-stone-500">Evidence Files</Label>
-          {evidence.map((file, fileIdx) => (
+          {evidence.map((file, fileIdx) => {
+            const fileId = getUploadedFileId(file.url);
+            const canPreview = isPreviewableFile(file);
+            return (
             <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`evidence-file-${monthIndex}-${fileIdx}`}>
               <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
               <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
-              <a href={file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
+              {canPreview && <a href={file.is_draft ? file.preview_url : '#'} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file')); } : undefined} className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
                 <Eye className="w-3.5 h-3.5" />
-              </a>
+              </a>}
               <button 
                 type="button"
                 onClick={async () => {
-                  const downloadUrl = file.is_draft ? file.preview_url : `${BACKEND_URL}${file.url}/download`;
-                  await downloadFileHelper(downloadUrl, file.name);
+                  if (fileId) {
+                    await downloadSecureFile(fileId);
+                  } else {
+                    await downloadFileHelper(file.preview_url, file.name);
+                  }
                 }}
                 className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
                 title="Download" 
@@ -1399,7 +1383,8 @@ function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, on
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

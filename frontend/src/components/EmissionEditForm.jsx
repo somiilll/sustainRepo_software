@@ -31,6 +31,7 @@ import {
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
+import { downloadSecureFile, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   Trash2,
   Calendar as CalendarIcon,
@@ -66,6 +67,8 @@ import {
 import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
 import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
 import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { calculateFileSha256 } from '../lib/evidenceHash';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -310,6 +313,38 @@ export default function EmissionEditForm(props) {
   const editEmployeeYearlyTotal = draft.employeeYearlyTotal;
   const dynamicFieldValues = draft.dynamicFieldValues;
   const existingEvidences = draft.existingEvidences;
+  const [duplicateEvidencePrompt, setDuplicateEvidencePrompt] = useState(null);
+  const confirmDuplicateEvidence = useCallback(async (file, evidences, context) => {
+    let sha256Hash = null;
+    try {
+      sha256Hash = await calculateFileSha256(file);
+    } catch (error) {
+      console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
+    }
+    const duplicate = sha256Hash && evidences.some((evidence) => evidence?.filename === file.name && evidence?.sha256_hash === sha256Hash);
+    if (!duplicate) return { shouldUpload: true, sha256Hash };
+    setDuplicateEvidencePrompt({ file, sha256Hash, ...context });
+    return { shouldUpload: false, sha256Hash };
+  }, []);
+  const handleEditEvidenceUpload = useCallback(async (file) => {
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, existingEvidences, { type: 'standard' });
+    if (shouldUpload) await handleFileUpload(file, sha256Hash);
+  }, [confirmDuplicateEvidence, existingEvidences, handleFileUpload]);
+  const handleEditC7EvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+    const employee = editEmployees.find((entry) => entry.id === employeeId);
+    const evidences = periodKey === 'yearly' ? employee?.yearly_data?.evidences || [] : employee?.monthly_data?.[periodKey]?.evidences || [];
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, evidences, { type: 'c7', employeeId, periodKey });
+    if (shouldUpload) await handleC7EvidenceUpload(employeeId, periodKey, file, sha256Hash);
+  }, [confirmDuplicateEvidence, editEmployees, handleC7EvidenceUpload]);
+  const resolveDuplicateEvidence = useCallback((shouldUpload) => {
+    const prompt = duplicateEvidencePrompt;
+    setDuplicateEvidencePrompt(null);
+    if (!shouldUpload || !prompt) return;
+    const upload = prompt.type === 'c7'
+      ? handleC7EvidenceUpload(prompt.employeeId, prompt.periodKey, prompt.file, prompt.sha256Hash)
+      : handleFileUpload(prompt.file, prompt.sha256Hash);
+    void upload.catch((error) => toast.error(error?.message || 'Unable to stage evidence file'));
+  }, [duplicateEvidencePrompt, handleC7EvidenceUpload, handleFileUpload]);
   const overrideCalorificValue = draft.overrideCalorificValue;
   const overrideDensity = draft.overrideDensity;
   const overrideEmissionFactorHeat = draft.overrideEmissionFactorHeat;
@@ -423,6 +458,18 @@ export default function EmissionEditForm(props) {
 
   return (
                 <form onSubmit={readOnly ? (event) => event.preventDefault() : handleSubmit} className="space-y-5" data-testid="emission-form">
+                  <AlertDialog open={Boolean(duplicateEvidencePrompt)} onOpenChange={(open) => { if (!open) resolveDuplicateEvidence(false); }}>
+                    <AlertDialogContent data-testid="edit-duplicate-evidence-dialog">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle data-testid="edit-duplicate-evidence-dialog-title">Duplicate evidence detected</AlertDialogTitle>
+                        <AlertDialogDescription data-testid="edit-duplicate-evidence-dialog-description">“{duplicateEvidencePrompt?.file?.name}” has the same filename and SHA-256 content hash as evidence already staged for this emission period. Do you want to upload it again?</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => resolveDuplicateEvidence(false)} data-testid="edit-duplicate-evidence-cancel-button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => resolveDuplicateEvidence(true)} className="bg-emerald-700 hover:bg-emerald-800" data-testid="edit-duplicate-evidence-confirm-button">Upload anyway</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 {readOnly && <p className="sr-only" data-testid="emission-form-read-only-status">This emission record is read-only.</p>}
                 <fieldset disabled={readOnly} className="min-w-0 space-y-5 disabled:opacity-100" data-testid={readOnly ? "emission-form-read-only-fields" : undefined}>
                 <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
@@ -500,23 +547,10 @@ export default function EmissionEditForm(props) {
                       {/* Category and Fuel Selection */}
                       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
-                        <div className="space-y-1.5">
+                        <div className="min-w-0">
                           <Label htmlFor="category_select">Select Category *</Label>
-                          <div className="relative">
-                            <CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
-                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <select
-                              id="category_select"
-                              value={selectedCategory}
-                              onChange={(e) => handleCategorySelect(e.target.value)}
-                              required
-                              className={editSelectWithIconClass}
-                              data-testid="category-select"
-                            >
-                              <option value="">Select category...</option>
-                              {getCategoriesForScope.map(category => (
-                                <option key={category} value={category}>{category}</option>
-                              ))}
-                            </select>}
+                          <div className="mt-1.5 min-w-0">
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <div className="relative"><CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="category_select" value={selectedCategory} onChange={(event) => handleCategorySelect(event.target.value)} className={editSelectWithIconClass} data-testid="category-select"><option value="">Select category...</option>{getCategoriesForScope.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>}
                           </div>
                         </div>
                         
@@ -644,15 +678,7 @@ export default function EmissionEditForm(props) {
 
                             {!editUseCustomFuel ? (
                               <div className="mt-1.5 min-w-0">
-                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <SearchableSelect
-                                  value={formData.fuel_id}
-                                  options={getFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
-                                  onValueChange={handleFuelSelect}
-                                  placeholder={selectedCategory ? 'Search or select fuel type' : 'Select category first'}
-                                  searchPlaceholder="Search fuel types..."
-                                  disabled={!selectedCategory}
-                                  testId="fuel-select"
-                                />}
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select value={formData.fuel_id} onChange={(event) => handleFuelSelect(event.target.value)} disabled={!selectedCategory} className={`${editSelectClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`} data-testid="fuel-select"><option value="">{selectedCategory ? 'Select fuel type' : 'Select category first'}</option>{getFuelsForCategory.map((fuel) => <option key={fuel.id} value={fuel.id}>{fuel.fuel_name}</option>)}</select>}
                               </div>
                             ) : (
                               <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -700,27 +726,17 @@ export default function EmissionEditForm(props) {
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
                       {ghgUiState.showCalculationMethodology && (
-                        <div className="space-y-1.5" data-testid="edit-calculation-methodology-section">
+                        <div className="min-w-0" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
-                          <Select
+                          <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
-                            onValueChange={(v) => {
-                              setEditCalcMethodology(v);
+                            onChange={(event) => {
+                              setEditCalcMethodology(event.target.value);
                               markFormDirty();
                             }}
-                          >
-                            <div className="relative">
-                              <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
-                              <SelectTrigger className="h-10 bg-stone-50 pl-10 text-sm text-stone-800" data-testid="edit-calculation-methodology-select">
-                                <SelectValue placeholder="Select methodology" />
-                              </SelectTrigger>
-                            </div>
-                            <SelectContent>
-                              <SelectItem value="using_heat_basis_ncv">Using Heat Basis (NCV)</SelectItem>
-                              <SelectItem value="using_qty_basis_ef">Using Qty Basis EF</SelectItem>
-                              <SelectItem value="using_carbon_composition">Using Composition of Carbon</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            className={editSelectWithIconClass}
+                            data-testid="edit-calculation-methodology-select"
+                          ><option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option><option value="using_qty_basis_ef">Using Qty Basis EF</option><option value="using_carbon_composition">Using Composition of Carbon</option></select></div>
                         </div>
                       )}
                       </div>
@@ -955,7 +971,7 @@ export default function EmissionEditForm(props) {
                       disabled={false}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
-                      onEvidenceUpload={handleC7EvidenceUpload}
+                      onEvidenceUpload={handleEditC7EvidenceUpload}
                       onEvidenceRemove={handleC7EvidenceRemove}
                       onEvidenceDownload={handleC7EvidenceDownload}
                       evidenceBackendUrl={BACKEND_URL}
@@ -1410,7 +1426,7 @@ export default function EmissionEditForm(props) {
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40 h-10"
+                          className="h-10 w-24 shrink-0 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800"
                           data-testid="quantity-unit-select"
                         >
                           {availableQuantityUnits.map(unit => (
@@ -1684,7 +1700,8 @@ export default function EmissionEditForm(props) {
                       {existingEvidences.map((evidence, idx) => {
                         const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                         const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                        const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                        const viewUrl = fileId ? '#' : evidence.url;
+                        const canPreview = isPreviewableFile(evidence);
                         
                         return (
                           <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
@@ -1693,26 +1710,28 @@ export default function EmissionEditForm(props) {
                               {evidence.filename || `Evidence ${idx + 1}`}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <a
+                              {canPreview && <a
                                 href={viewUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(console.error); } : undefined}
                                 className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
                                 title="View file"
+                                data-testid={`emission-evidence-view-${idx}`}
                               >
                                 <Eye className="w-3 h-3" />
                                 View
-                              </a>
+                              </a>}
                               {fileId && (
                                 <button
                                   type="button"
                                   onClick={async (e) => {
                                     e.preventDefault();
-                                    // Use fetch + blob for proper download
-                                    await downloadFileHelper(`${BACKEND_URL}/api/files/${fileId}/download`, evidence.filename || `Evidence-${idx + 1}`);
+                                    await downloadSecureFile(fileId);
                                   }}
                                   className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
                                   title="Download file"
+                                data-testid={`emission-evidence-download-${idx}`}
                                 >
                                   <Download className="w-3 h-3" />
                                   Download
@@ -1733,12 +1752,12 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
-                  ) : <div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div>}
+                  ) : <div className="pt-2"><div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div></div>}
                   
                   {/* Upload New Evidence */}
                   <FileUpload
                     label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
-                    onUpload={handleFileUpload}
+                    onUpload={handleEditEvidenceUpload}
                     onRemove={handleRemoveEvidence}
                     multiple={true}
                   />

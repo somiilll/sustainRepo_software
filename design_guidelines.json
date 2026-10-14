@@ -1,102 +1,132 @@
 {
-  "project_name": "Supplier Portal Dashboard, ESG Modules & OCR Extraction Refactor",
-  "archetype": "ORGANIC & EARTHY WITH PRECISION SaaS DASHBOARD",
-  "theme": "Light mode primary with emerald/slate high-contrast accents",
-  "file_type_extension": ".js / .jsx",
+  "project_title": "SustainRepo Review Response Workspace Redesign",
+  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST ESG ANALYTICS",
   "typography": {
-    "font_family_heading": "Cabinet Grotesk, Outfit, sans-serif",
-    "font_family_body": "Inter, DM Sans, system-ui, sans-serif",
-    "font_family_mono": "JetBrains Mono, Fira Code, monospace",
-    "hierarchy": {
-      "h1": "text-3xl font-bold text-emerald-950 sm:text-4xl lg:text-5xl tracking-tight",
-      "h2": "text-2xl font-semibold text-slate-900 tracking-tight",
-      "h3": "text-xl font-medium text-slate-900",
-      "h4": "text-lg font-medium text-slate-800",
-      "body": "text-sm sm:text-base text-slate-700 leading-relaxed",
-      "small": "text-xs font-medium text-slate-500 uppercase tracking-wider"
+    "heading_font": "Cabinet Grotesk, Outfit, sans-serif",
+    "body_font": "IBM Plex Sans, Inter, sans-serif",
+    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
+    "scales": {
+      "h1_page_title": "text-2xl font-bold tracking-tight text-slate-900 md:text-3xl",
+      "h2_question_title": "text-lg font-bold tracking-tight text-slate-950 md:text-xl leading-snug",
+      "h3_section_header": "text-sm font-semibold uppercase tracking-wider text-slate-700",
+      "body_main": "text-sm text-slate-800 leading-relaxed",
+      "body_secondary": "text-xs text-slate-500",
+      "badge_text": "text-xs font-semibold tracking-wide uppercase"
     }
   },
   "colors": {
-    "primary": {
-      "emerald_950": "#022c22",
-      "emerald_800": "#065f46",
-      "emerald_700": "#047857",
-      "emerald_600": "#059669",
-      "emerald_100": "#d1fae5",
-      "emerald_50": "#ecfdf5"
+    "pillars": {
+      "environment": {
+        "bg": "bg-emerald-50/80",
+        "border": "border-emerald-200",
+        "text": "text-emerald-900",
+        "accent": "bg-emerald-600",
+        "badge": "bg-emerald-100 text-emerald-800 border-emerald-300"
+      },
+      "social": {
+        "bg": "bg-sky-50/80",
+        "border": "border-sky-200",
+        "text": "text-sky-900",
+        "accent": "bg-sky-600",
+        "badge": "bg-sky-100 text-sky-800 border-sky-300"
+      },
+      "governance": {
+        "bg": "bg-purple-50/80",
+        "border": "border-purple-200",
+        "text": "text-purple-900",
+        "accent": "bg-purple-600",
+        "badge": "bg-purple-100 text-purple-800 border-purple-300"
+      }
     },
-    "slate": {
-      "950": "#020617",
-      "900": "#0f172a",
-      "700": "#334155",
-      "600": "#475569",
-      "200": "#e2e8f0",
-      "100": "#f1f5f9",
-      "50": "#f8fafc"
+    "statuses": {
+      "accepted": {
+        "bg": "bg-emerald-500/10",
+        "active_bg": "bg-emerald-600",
+        "border": "border-emerald-500",
+        "text": "text-emerald-700",
+        "active_text": "text-white"
+      },
+      "needs_clarification": {
+        "bg": "bg-amber-500/10",
+        "active_bg": "bg-amber-500",
+        "border": "border-amber-500",
+        "text": "text-amber-800",
+        "active_text": "text-white"
+      },
+      "rejected": {
+        "bg": "bg-rose-500/10",
+        "active_bg": "bg-rose-600",
+        "border": "border-rose-500",
+        "text": "text-rose-700",
+        "active_text": "text-white"
+      },
+      "submitted": {
+        "bg": "bg-teal-50",
+        "border": "border-teal-300",
+        "text": "text-teal-800"
+      }
     },
-    "warning": {
-      "amber_50": "#fffbeb",
-      "amber_200": "#fde68a",
-      "amber_950": "#451a03"
+    "scoring_guidance": {
+      "bg": "bg-gradient-to-r from-sky-50 via-indigo-50/50 to-blue-50",
+      "border": "border-sky-200",
+      "title_text": "text-sky-950 font-bold",
+      "badge": "bg-sky-100 text-sky-800 border-sky-300"
     },
-    "error": {
-      "red_50": "#fef2f2",
-      "red_700": "#b91c1c",
-      "red_800": "#991b1b"
+    "surfaces": {
+      "card_bg": "bg-white",
+      "card_border": "border-slate-200",
+      "sidebar_bg": "bg-slate-50/60",
+      "timeline_line": "bg-slate-200",
+      "hover_bg": "hover:bg-slate-100/80"
     }
   },
-  "layout_and_structure": {
-    "page_container": "mx-auto w-full max-w-[1700px] space-y-6 p-4 sm:p-6 lg:p-8",
-    "grid_system": "grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-12",
-    "header_pattern": "ModulePageHeader with title, icon, and aside action controls",
-    "ocr_workspace_layout": "Full width stacked/responsive layout with compact header controls"
+  "visual_enhancers": {
+    "borders_and_radius": "Rounded-xl for outer cards, rounded-lg for sub-elements, concentric inner padding p-4 to p-6.",
+    "shadows": "shadow-[0_4px_20px_rgba(0,0,0,0.03)] for cards, hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
+    "question_badge": "Inverted rounded-full circle icon with bold white number on vibrant pillar background or sky blue background",
+    "mcq_distribution_bar": "Animated percentage fill bars with supplier response highlighted using ring-2 ring-emerald-500 and distinct badge"
   },
-  "ocr_refactor_requirements": {
-    "page_header": "Use ModulePageHeader with title 'OCR Extraction', icon FileText or Sparkles, and matching Bulk Upload style (data-testid='ocr-invoice-header').",
-    "remove_hero_copy": "COMPLETELY REMOVE the introductory banner block containing 'Secure organization workspace Activity extraction Convert invoices and ledgers into reviewable Scope 1, 2 and 3 activity data.'",
-    "extraction_mode_relocation": "Shift Fast/Think extraction mode selector into the header action area / right-aligned inline toolbar where the Download template button is located.",
-    "extraction_mode_compact_buttons": "Compact the Fast and Think mode buttons by removing the summary text ('Rapid extraction and classification' / 'Deeper reasoning for complex documents'). Display title, model badge, and icon in a clean pill/toggle group.",
-    "full_width_workspace": "Allow source document preview, upload dropzone, batch queue, and line items review table to acquire full width across the grid without unnecessary multi-column sidebars when hero is cleared."
+  "grids_and_layouts": {
+    "page_container": "max-w-[1600px] mx-auto px-4 py-6 space-y-6",
+    "top_summary_grid": "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6",
+    "workspace_layout": "grid grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] gap-6 items-start",
+    "main_panel_stack": "space-y-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6",
+    "sidebar_panel_stack": "space-y-6"
   },
-  "manual_ghg_create_form_fix": {
-    "state_synchronization_bug": "Fix payload unit mismatch where 'kg' was randomly sent instead of the selected unit (e.g., 'kl' or 'L').",
-    "resolution_rule": "Ensure form state synchronization listens directly to the unit dropdown change handler and updates both internal state and dispatch payload atomically. Validate unit payload prior to POST/PUT API dispatch."
-  },
-  "image_urls": [
-    {
-      "category": "dashboard_analytics",
-      "description": "Analytics dashboard monitor",
-      "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHszfHxzdXN0YWluYWJpbGl0eSUyMGRhdGElMjBjbGVhbiUyMHJlcG9ydHxlbnwwfHx8fDE3ODk1NDEzOTF8MA&ixlib=rb-4.1.0&q=85"
-    },
-    {
-      "category": "sustainability_report",
-      "description": "Chart and report trends",
-      "url": "https://images.pexels.com/photos/7947744/pexels-photo-7947744.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
-    }
-  ],
-  "motion": {
-    "hover_transitions": "transition-colors duration-150 ease-in-out",
-    "button_press": "active:scale-[0.98] transition-transform",
-    "panel_fade": "animate-in fade-in duration-200"
-  },
-  "testing": {
-    "data_testid_convention": "kebab-case data-testid on every interactive and key informational element (e.g. data-testid='ocr-mode-fast-button', data-testid='ocr-download-template-button', data-testid='ocr-review-table')",
-    "required": true
+  "component_structure": {
+    "SupplierResponseReviewPage": "/app/frontend/src/modules/supplier-assessment/SupplierResponseReviewPage.jsx",
+    "ResponseReviewSidebar": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewSidebar.jsx",
+    "ResponseReviewQuestionPanel": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewQuestionPanel.jsx",
+    "ResponseAnswerHistory": "/app/frontend/src/modules/supplier-assessment/components/ResponseAnswerHistory.jsx",
+    "OtherResponsesDistribution": "/app/frontend/src/modules/supplier-assessment/components/OtherResponsesDistribution.jsx"
   },
   "instructions_to_main_agent": [
-    "Refactor frontend/src/pages/OCRInvoice.js and frontend/src/modules/ocr/ExtractionModeSelector.jsx to fulfill all user explicitly requested UI changes.",
-    "Integrate ModulePageHeader in OCRInvoice.js using icon={FileText} or icon={Sparkles} and title='OCR Extraction'.",
-    "Remove legacy hero copy banner from OCRInvoice.js.",
-    "Move Fast/Think mode selector into the ModulePageHeader header action area (aside slot) or header toolbar.",
-    "Reduce Fast/Think selector button sizes by removing the text 'Rapid extraction and classification' and 'Deeper reasoning for complex documents'.",
-    "Expand UploadWorkspace, DocumentPreview, and OcrReviewTable to take full width.",
-    "Verify and fix unit state synchronization in GHG Create form (e.g., DynamicFieldRenderer.js or EmissionEntryForm.js / useEmissionFormState.js) so unit changes like 'kl' or 'L' are accurately reflected in submission payload instead of falling back to 'kg'."
+    "1. Redesign SupplierResponseReviewPage.jsx: Enhance top header with colorful ESG pillar stat blocks (Environment, Social, Governance) in vibrant cards, supplier and questionnaire metadata cards with clear icons, and responsive tab buttons.",
+    "2. Redesign ResponseReviewSidebar.jsx: Upgrade taxonomy navigation with pillar badges, progress pill counters for category reviewed ratios, active category state with left accent bar and colored icons.",
+    "3. Redesign ResponseReviewQuestionPanel.jsx to match screenshot density and color alignment:",
+    "   a) Question header with circular numbered badge (e.g. ①) and title, plus question type tags.",
+    "   b) Supplier Response card: Styled option choices or formatted text answer with vibrant 'Submitted' status badge.",
+    "   c) Evidence preview block: File container showing PDF icon, original filename, file size, upload timestamp, and bright Preview / Download buttons.",
+    "   d) Scoring Guidance block: High-visibility electric blue / sky gradient card displaying points criteria per option or rule.",
+    "   e) Full-width Reviewer Assessment panel:",
+    "      - Status choices for Accept (emerald), Needs Clarification (amber), Reject (rose) with radio-style button cards.",
+    "      - Reviewer Score input with '/ max_points' label.",
+    "      - Reviewer Comment textarea with character count indicator (e.g. 132/500).",
+    "      - CTAs: 'Save Review' (primary button) and 'Save & Next ->' (accent button that saves review and advances to next question).",
+    "   f) Footer and top navigation bar with Previous and Next question controls.",
+    "4. Redesign ResponseAnswerHistory.jsx: Vertical timeline with connected line, color-coded event icons (v1 submission, reviewer feedback, v2 supplier revision, final decision), author tags, answer snapshots, and timestamp details.",
+    "5. Implement OtherResponsesDistribution.jsx component (or include within sidebar/panel): Visual percentage distribution bars for MCQ questions showing peer supplier response proportions, clearly labeling '(Supplier's response)' on the supplier's selection.",
+    "6. Ensure all existing data hooks, API calls (save review, open evidence, fetch response), and test IDs (data-testid) are strictly maintained.",
+    "7. All components use JavaScript (.jsx files)."
   ],
-  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
-    "Never use generic centered layouts or unstyled default HTML select/input elements.",
-    "Maintain high APCA contrast across all interactive states; hover states must explicitly declare text color.",
-    "Ensure glassmorphism and header containers always have background opacities (never pure transparent background).",
-    "Attach data-testid attributes to all buttons, inputs, tables, headers, and modal actions.",
-    "Use sonner for toast notifications."
-  ]
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "data_testid_rule": "MUST add data-testid to every interactive button, input, tab, badge, and section container.",
+    "file_format": "Use JS / JSX components strictly. Do not create TS/TSX files.",
+    "toast_library": "Use sonner for notifications.",
+    "contrast_and_accessibility": "Ensure high text contrast against tinted card backgrounds. Interactive buttons must have clear focus rings.",
+    "micro_interactions": "Smooth transition-colors and hover effects on decision buttons, file download cards, and category items."
+  }
+},
+overwrite: true,
+path: "/app/design_guidelines.json"
 }

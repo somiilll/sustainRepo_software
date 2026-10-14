@@ -1,13 +1,10 @@
-# Test Credentials — Staging Reset
+# Test Credentials
 
-## Super Admin Account
-- **Email**: superadmin@sustainrepo.com
-- **Password**: sustainrepo@2026
-- **Role**: super_admin
-- **Organization ID**: None (platform-level account)
-- **Requires password change**: Yes
+## Organization Admin
+- **Email**: goyalsomil2001@gmail.com
+- **Password**: TestUser123!
+- **Role**: admin
+- **Organization ID**: 9067d872-8a3a-4ed9-8494-e3ef04952f7c
 
-## Notes
-- This is the only account after the staging reset.
-- All previous organization, supplier, admin, and user credentials are invalid.
-- Auth endpoints: `/api/auth/login`, `/api/auth/me`, `/api/auth/change-password`.
+## Auth Endpoints
+- `/api/auth/login`, `/api/auth/me`, `/api/auth/refresh`, `/api/auth/logout`, `/api/auth/change-password`.

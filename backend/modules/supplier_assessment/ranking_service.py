@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from shared.database.mongo import db
 from modules.supplier_assessment.ghg_submission_service import has_overdue_supplier_ghg_submission_window
+from modules.supplier_assessment.questionnaire_service import normalize_questionnaire_reporting_period
 
 # ========================================================================
 # Supplier Rankings
@@ -23,8 +24,11 @@ async def get_supplier_rankings(
         {"_id": 0}
     ).to_list(1000)
     
+    questionnaire_query: Dict[str, Any] = {"organization_id": customer_org_id, "is_active": True}
+    if reporting_period:
+        questionnaire_query["reporting_periods"] = normalize_questionnaire_reporting_period(reporting_period)
     active_questionnaires = await db.supplier_questionnaires.find(
-        {"organization_id": customer_org_id, "is_active": True},
+        questionnaire_query,
         {"_id": 0, "id": 1, "question_count": 1, "due_date": 1},
     ).to_list(500)
     questionnaire_by_id = {questionnaire["id"]: questionnaire for questionnaire in active_questionnaires}
@@ -32,7 +36,7 @@ async def get_supplier_rankings(
     supplier_ids = [supplier["id"] for supplier in suppliers]
     response_docs = await db.supplier_questionnaire_responses.find(
         {"supplier_relationship_id": {"$in": supplier_ids}},
-        {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "revision": 1, "updated_at": 1},
+        {"_id": 0, "supplier_relationship_id": 1, "questionnaire_id": 1, "reporting_period": 1, "status": 1, "answers": 1, "score_breakdown": 1, "revision": 1, "updated_at": 1},
     ).sort([("revision", -1), ("updated_at", -1)]).to_list(10000)
     supplier_by_id = {supplier["id"]: supplier for supplier in suppliers}
     ghg_submission_records = await db.supplier_ghg_submissions.find(
@@ -99,13 +103,24 @@ async def get_supplier_rankings(
     training_status_by_assignment = {
         progress["training_assignment_id"]: progress.get("status") for progress in training_progress
     }
+    today_utc = datetime.now(timezone.utc).date()
+
     def due_date_has_passed(value: Optional[str]) -> bool:
         if not value:
             return False
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).date() < datetime.now(timezone.utc).date()
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).date() < today_utc
         except ValueError:
             return False
+
+    def get_overdue_days(value: Optional[str]) -> int:
+        if not value:
+            return 0
+        try:
+            d = datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+            return max(0, (today_utc - d).days)
+        except ValueError:
+            return 0
 
 
     def dedupe_document_requirements(requirements: list[Dict[str, Any]], relationship_id: str) -> list[Dict[str, Any]]:
@@ -185,36 +200,43 @@ async def get_supplier_rankings(
                 "status": status,
             })
         overdue_modules = []
-        if any(
-            questionnaire_id not in submitted_questionnaire_ids
-            and due_date_has_passed(questionnaire_by_id[questionnaire_id].get("due_date"))
-            for questionnaire_id in assigned_questionnaire_ids
-        ):
-            overdue_modules.append("ESG Questionnaire")
+        overdue_item_days = []
+        for questionnaire_id in assigned_questionnaire_ids:
+            if questionnaire_id not in submitted_questionnaire_ids:
+                q_due = questionnaire_by_id[questionnaire_id].get("due_date")
+                if due_date_has_passed(q_due):
+                    overdue_modules.append("ESG Questionnaire")
+                    overdue_item_days.append(get_overdue_days(q_due))
         enabled_modules = set(s.get("modules_enabled") or ["esg", "ghg"])
         if "ghg" in enabled_modules and await has_overdue_supplier_ghg_submission_window(
             s, ghg_submission_statuses.get(s["id"]),
         ):
             overdue_modules.append("GHG Emissions")
+            # If relationship has a due_date, compute days
+            overdue_item_days.append(get_overdue_days(s.get("due_date")))
         if (
-            s.get("revenue_required", False)
+            s.get("revenue_required", True)
             and (s["id"], s.get("reporting_period")) not in submitted_revenue_periods
             and due_date_has_passed(s.get("due_date"))
         ):
             overdue_modules.append("Annual Revenue")
-        if any(
-            document_submission_status.get((s["id"], requirement["id"])) != "submitted"
-            and due_date_has_passed(requirement.get("due_date"))
-            for requirement in applicable_documents
-        ):
-            overdue_modules.append("Documents")
-        if any(
-            training_status_by_assignment.get(assignment["id"]) != "completed"
-            and due_date_has_passed(training_due_dates.get(assignment["training_requirement_id"]))
-            for assignment in applicable_training
-        ):
-            overdue_modules.append("Training")
+            overdue_item_days.append(get_overdue_days(s.get("due_date")))
+        for requirement in applicable_documents:
+            if document_submission_status.get((s["id"], requirement["id"])) != "submitted":
+                doc_due = requirement.get("due_date")
+                if due_date_has_passed(doc_due):
+                    overdue_modules.append("Documents")
+                    overdue_item_days.append(get_overdue_days(doc_due))
+        for assignment in applicable_training:
+            if training_status_by_assignment.get(assignment["id"]) != "completed":
+                t_due = training_due_dates.get(assignment["training_requirement_id"])
+                if due_date_has_passed(t_due):
+                    overdue_modules.append("Training")
+                    overdue_item_days.append(get_overdue_days(t_due))
+        overdue_item_days = [days for days in overdue_item_days if days > 0]
+        overdue_modules = list(dict.fromkeys(overdue_modules))
         is_overdue = bool(overdue_modules)
+        oldest_overdue_days = max(overdue_item_days) if overdue_item_days else None
         all_assigned_submitted = bool(assigned_questionnaire_ids) and submitted_count == len(assigned_questionnaire_ids)
         if s.get("overall_completion_percent", 0) >= 100:
             completion_status, status_label = "completed", "Completed"
@@ -259,11 +281,13 @@ async def get_supplier_rankings(
             "governance_score": round(gov_score, 1) if gov_score is not None else None,
             # Rankings are ESG-led: GHG is tracked in its dedicated emissions view.
             "overall_score": round(esg_score, 1) if esg_score is not None else None,
+            "overall_completion_percent": round(float(s.get("overall_completion_percent") or 0), 1),
             "completion_status": completion_status,
             "status_label": status_label,
             "question_progress": f"{answered_questions} / {total_questions} questions" if completion_status == "in_progress" and total_questions else None,
             "attention_reasons": attention_reasons,
             "overdue_modules": overdue_modules,
+            "oldest_overdue_days": oldest_overdue_days,
             "module_progress": module_progress,
             "due_date": s.get("due_date"),
             "revenue_percentage": s.get("revenue_percentage"),
@@ -300,6 +324,30 @@ async def get_supplier_rankings(
     avg_env = average_score("environment_score")
     avg_social = average_score("social_score")
     avg_gov = average_score("governance_score")
+    avg_overall_completion = average_score("overall_completion_percent")
+    category_totals: Dict[str, Dict[str, float]] = {}
+    for response in current_responses.values():
+        if response.get("status") != "submitted":
+            continue
+        section_scores = (response.get("score_breakdown") or {}).get("section_scores") or {}
+        for pillar in ("environment", "social", "governance"):
+            category_scores = (section_scores.get(pillar) or {}).get("category_scores") or {}
+            for category, score in category_scores.items():
+                if score is None:
+                    continue
+                key = f"{pillar}:{category}"
+                record = category_totals.setdefault(key, {"pillar": pillar, "category": category, "total": 0.0, "count": 0.0})
+                record["total"] += float(score)
+                record["count"] += 1
+    category_insights = sorted(
+        [
+            {"pillar": values["pillar"], "category": values["category"], "average_score": round(values["total"] / values["count"], 1), "supplier_count": int(values["count"])}
+            for values in category_totals.values()
+            if values["count"]
+        ],
+        key=lambda item: item["average_score"],
+        reverse=True,
+    )
     module_summary = {
         code: {
             "configured_suppliers": int(totals["configured_suppliers"]),
@@ -319,6 +367,8 @@ async def get_supplier_rankings(
             "environment": avg_env,
             "social": avg_social,
             "governance": avg_gov,
+            "overall_completion": avg_overall_completion,
         },
         "module_summary": module_summary,
+        "category_insights": category_insights,
     }

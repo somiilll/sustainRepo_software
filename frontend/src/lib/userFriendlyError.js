@@ -33,10 +33,13 @@ export const getSafeUserMessage = (message, fallbackMessage = '') => safeText(me
 export const getUserFriendlyError = (error, fallbackMessage = '', { preferFallback = false } = {}) => {
   if (!error?.response) return 'Unable to connect. Please check your connection and try again.';
   const { status, data } = error.response;
-  if ([401, 403, 422, 429].includes(status)) return STATUS_MESSAGES[status];
-  if (preferFallback && fallbackMessage) return fallbackMessage;
+  if (data?.error_code === 'INVALID_CREDENTIALS') {
+    return safeText(data?.message) || 'Invalid email or password.';
+  }
   const serverMessage = safeText(data?.message) || detailMessage(data?.detail);
   if (serverMessage && status < 500) return serverMessage;
+  if ([401, 403, 422, 429].includes(status)) return STATUS_MESSAGES[status];
+  if (preferFallback && fallbackMessage) return fallbackMessage;
   return fallbackMessage || STATUS_MESSAGES[status] || 'Unable to complete this request. Please try again.';
 };
 

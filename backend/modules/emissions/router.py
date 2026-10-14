@@ -51,7 +51,7 @@ from modules.emissions.contracts import (
 )
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
-from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
+from shared.helpers.uploaded_files import delete_unreferenced_emission_files, delete_uploaded_files, extract_uploaded_file_ids
 from shared.utils.density_units import normalize_density_dynamic_values
 from shared.utils.emission_records import without_legacy_quantity_fields
 
@@ -120,6 +120,19 @@ def _without_scope3_selection_fields(record: dict) -> dict:
             if key not in SCOPE3_SELECTION_DYNAMIC_FIELDS
         }
     return sanitized
+
+
+def _sync_evidence_files_with_urls(existing_record: dict, update_data: dict) -> dict:
+    """Retain structured GHG evidence metadata only for URLs that remain attached."""
+    if "evidence_url" not in update_data:
+        return update_data
+    retained_urls = {url.strip() for url in str(update_data.get("evidence_url") or "").split(",") if url.strip()}
+    synchronized = dict(update_data)
+    synchronized["evidence_files"] = [
+        evidence for evidence in (existing_record.get("evidence_files") or [])
+        if evidence.get("url") in retained_urls
+    ]
+    return synchronized
 
 
 def _canonicalize_c7_update(payload: dict, record_data: EmissionRecordCreate) -> dict:
@@ -1029,9 +1042,10 @@ async def rollback_emission_submission_batch(
         return {"rolled_back_count": 0}
 
     try:
-        await delete_uploaded_files(
+        await delete_unreferenced_emission_files(
             db,
             set().union(*(extract_uploaded_file_ids(record) for record in records)),
+            excluding_record_ids=record_ids,
         )
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove submission evidence from storage. The batch was not rolled back.") from error
@@ -1400,6 +1414,10 @@ async def update_emission_record(
     except CalculationVersionError as error:
         raise HTTPException(status_code=409, detail=str(error))
 
+    versioned_update_data = _sync_evidence_files_with_urls(existing, versioned_update_data)
+    if "evidence_url" in versioned_update_data:
+        versioned_record_data["evidence_files"] = versioned_update_data["evidence_files"]
+
     is_c7_employee_commuting = _is_c7_employee_commuting(record_data)
     if is_c7_employee_commuting:
         versioned_record_data = _canonicalize_c7_update(versioned_record_data, record_data)
@@ -1650,7 +1668,7 @@ async def update_emission_record(
 
     # ─── Direct-apply path (admin, super_admin, or workflow disabled) ────
     try:
-        await delete_uploaded_files(db, removed_file_ids)
+        await delete_unreferenced_emission_files(db, removed_file_ids, record_id)
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove replaced evidence from storage. The emission was not updated.") from error
 
@@ -2085,7 +2103,7 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
 
     target_collection = (delete_payload or {}).get("target_collection", source_collection)
     try:
-        await delete_uploaded_files(db, extract_uploaded_file_ids(existing))
+        await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), record_id)
     except Exception as error:
         raise HTTPException(status_code=502, detail="Could not remove emission evidence from storage. The emission was not deleted.") from error
     result = await db[target_collection].delete_one({"id": record_id})

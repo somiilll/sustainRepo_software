@@ -156,6 +156,8 @@ export default function DashboardGovernance({ data }) {
     <div className="space-y-5" data-testid="dashboard-governance">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Governance` : 'Governance Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={`Reporting: ${dateRangeLabel}`}
         liveBadge={liveBadge}
         showFilters={showFilters}

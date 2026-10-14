@@ -410,6 +410,7 @@ class UploadProcessor:
                     history_entries.append({
                         "id": str(uuid.uuid4()),
                         "emission_id": record["id"],
+                        "organization_id": record.get("organization_id"),
                         "scope": record.get("scope", "scope3"),
                         "category": record.get("category", ""),
                         "reporting_month": record.get("reporting_period"),

@@ -23,8 +23,12 @@ export default function Dashboard() {
   const data = useDashboardData();
   const { organization, hasScope3Access } = data;
   
-  const hasGhg = organization?.has_ghg !== false;
-  const hasEsg = organization?.has_esg === true;
+  const hasGhg = organization?.entitlements?.environment !== false;
+  const hasEsg = Boolean(
+    organization?.entitlements?.environment
+    || organization?.entitlements?.social
+    || organization?.entitlements?.governance,
+  );
   
   // Default to ESG if both modules enabled, else GHG
   const [dashboardType, setDashboardType] = useState(hasEsg ? 'esg' : 'ghg');

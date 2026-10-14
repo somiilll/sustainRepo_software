@@ -55,6 +55,7 @@ class ScoringEngine:
         save_to_db: bool = True,
         answers_override: Optional[Dict[str, Any]] = None,
         manual_scores_override: Optional[Dict[str, Any]] = None,
+        evidence_by_question_override: Optional[Dict[str, List[str]]] = None,
         reporting_period: Optional[str] = None,
     ) -> ScoreBreakdown:
         """
@@ -112,6 +113,7 @@ class ScoringEngine:
         )
         answers = answers_override if answers_override is not None else (response_doc.get("answers", {}) if response_doc else {})
         manual_scores = manual_scores_override if manual_scores_override is not None else (response_doc.get("manual_question_scores", {}) if response_doc else {})
+        question_reviews = (response_doc or {}).get("question_reviews", {})
         revenue = await self.get_revenue_component(supplier_relationship_id, effective_period)
         
         # Calculate GHG score
@@ -122,6 +124,7 @@ class ScoringEngine:
         # Get weight configurations
         esg_weights = self._get_esg_weights(questionnaire)
         overall_weights = self._get_overall_weights(questionnaire)
+        subcategory_weights = self._get_subcategory_weights(questionnaire)
         
         # Run calculation
         breakdown = self.calculator.calculate_full_score(
@@ -132,10 +135,13 @@ class ScoringEngine:
             questions=questions,
             answers=answers,
             esg_weights=esg_weights,
+            subcategory_weights=subcategory_weights,
             overall_weights=overall_weights,
             ghg_score=ghg_component.get("score"),
             revenue_percentage=revenue.get("revenue_percentage"),
             manual_scores=manual_scores,
+            evidence_by_question=evidence_by_question_override if evidence_by_question_override is not None else (response_doc or {}).get("question_evidence", {}),
+            question_reviews=question_reviews,
         )
         breakdown.supplier_score.ghg_intensity_tco2e_per_million_revenue = ghg_component.get("intensity")
         breakdown.supplier_score.ghg_total_emissions = ghg_component.get("total_emissions")
@@ -197,8 +203,8 @@ class ScoringEngine:
     def _get_esg_weights(self, questionnaire: Dict[str, Any]) -> ESGSectionWeights:
         """Extract ESG section weights from questionnaire config."""
         section_weights = questionnaire.get("section_weights", {})
-        # Also check for new field name
-        esg_weights = questionnaire.get("esg_section_weights", section_weights)
+        # Also check for esg_weights or esg_section_weights
+        esg_weights = questionnaire.get("esg_weights") or questionnaire.get("esg_section_weights") or section_weights
         
         return ESGSectionWeights(
             environment=esg_weights.get("environment", 33.33),
@@ -208,13 +214,27 @@ class ScoringEngine:
     
     def _get_overall_weights(self, questionnaire: Dict[str, Any]) -> OverallSupplierWeights:
         """Extract overall supplier score weights from questionnaire config."""
-        overall_weights = questionnaire.get("overall_supplier_weights", {})
-        
-        return OverallSupplierWeights(
-            esg=overall_weights.get("esg", 40),
-            ghg=overall_weights.get("ghg", 40),
-            revenue=overall_weights.get("revenue", 20),
-        )
+        overall_weights = questionnaire.get("overall_weights") or questionnaire.get("overall_supplier_weights") or {}
+        if overall_weights:
+            return OverallSupplierWeights(
+                esg=overall_weights.get("esg", 40),
+                ghg=overall_weights.get("ghg", 40),
+                revenue=overall_weights.get("revenue", 20 if "revenue" in overall_weights else (100 - overall_weights.get("esg", 40) - overall_weights.get("ghg", 40))),
+            )
+        return OverallSupplierWeights(esg=40, ghg=40, revenue=20)
+
+    def _get_subcategory_weights(self, questionnaire: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+        taxonomy = questionnaire.get("esg_subcategories") or {}
+        if not taxonomy and questionnaire.get("subcategory_weights"):
+            return questionnaire.get("subcategory_weights") or {}
+        return {
+            section: {
+                item.get("code"): float(item.get("weight") or 0)
+                for item in taxonomy.get(section, [])
+                if item.get("enabled") and item.get("code")
+            }
+            for section in ("environment", "social", "governance")
+        }
     
     async def _save_score_results(
         self,
@@ -289,7 +309,7 @@ class ScoringEngine:
             List of results with supplier_id and new_score
         """
         responses = await self.db.supplier_questionnaire_responses.find(
-            {"questionnaire_id": questionnaire_id, "status": "submitted"},
+            {"questionnaire_id": questionnaire_id, "status": {"$ne": "submitted"}},
             {"_id": 0, "supplier_relationship_id": 1}
         ).to_list(1000)
         

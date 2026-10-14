@@ -10,6 +10,7 @@ from modules.organizations.contracts import OrganizationCreate, OrganizationResp
 from shared.database.mongo import db
 from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
 from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config, resolve_entitlements
+from modules.organizations.presentation import enrich_organization_response
 from modules.sustainability_config.service import resolve_organization_settings
 
 router = APIRouter()
@@ -70,8 +71,6 @@ class YearlyDataCreate(BaseModel):
 
 class OrgModuleConfig(BaseModel):
     """Organization module configuration for frontend sidebar visibility."""
-    has_ghg: bool = True
-    has_esg: bool = True
     enabled_access: Optional[list] = None  # scope1_2 or scope1_2_3
     esg_frameworks_enabled: Optional[list] = None
     approval_workflow_enabled: bool = False  # Single-level approval workflow
@@ -87,8 +86,6 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     if current_user["role"] == "super_admin":
         # Super admin sees all modules
         return OrgModuleConfig(
-            has_ghg=True,
-            has_esg=True,
             enabled_access=["scope1_2_3"],
             esg_frameworks_enabled=["BRSR", "GRI"],
             approval_workflow_enabled=True,
@@ -104,7 +101,7 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     
     org = await db.organizations.find_one(
         {"id": org_id},
-        {"_id": 0, "has_ghg": 1, "has_esg": 1, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1, "timezone": 1}
+        {"_id": 0, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1, "timezone": 1}
     )
     
     if not org:
@@ -120,8 +117,6 @@ async def get_org_module_config(current_user: dict = Depends(get_current_user)):
     if permissions.get("environment.ghg.scope_3"):
         enabled_access.extend(["scope3", "scope1_2_3"])
     return OrgModuleConfig(
-        has_ghg=entitlements["environment"],
-        has_esg=any(entitlements[code] for code in ("environment", "social", "governance")),
         enabled_access=enabled_access,
         esg_frameworks_enabled=organization_settings["esg_frameworks_enabled"],
         approval_workflow_enabled=organization_settings["approval_workflow_enabled"],
@@ -150,16 +145,7 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
         org["org_type"] = "customer"
     if "timezone" not in org or not org.get("timezone"):
         org["timezone"] = "Asia/Kolkata"  # IST
-    detailed_entitlements = await resolve_entitlement_config(current_user["organization_id"], migrate=True)
-    entitlements = await resolve_entitlements(current_user["organization_id"], migrate=True)
-    permissions = entitlement_access_map(detailed_entitlements)
-    org["enabled_access"] = [
-        *(["scope1_2"] if permissions.get("environment.ghg.scope_1_2") else []),
-        *(["scope3", "scope1_2_3"] if permissions.get("environment.ghg.scope_3") else []),
-    ]
-    org["module_access"] = entitlements
-    org["has_ghg"] = entitlements["environment"]
-    org["has_esg"] = any(entitlements[code] for code in ("environment", "social", "governance"))
+    org = await enrich_organization_response(org)
     
     return OrganizationResponse(**org)
 
@@ -178,7 +164,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     update_dict = org_data.model_dump(exclude_unset=True)
 
     # Fields that admin shouldn't be able to overwrite (super-admin only).
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled', 'has_ghg', 'has_esg', 'sbti_targets_enabled', 'repo_pilot_enabled', 'module_access']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled']
     for field in fields_to_preserve:
         update_dict.pop(field, None)
 
@@ -205,7 +191,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
         new_values=update_dict,
     )
 
-    return OrganizationResponse(**updated)
+    return OrganizationResponse(**(await enrich_organization_response(updated)))
 
 
 def _normalize_org_year(reporting_year: str) -> tuple:

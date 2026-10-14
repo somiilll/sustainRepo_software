@@ -28,6 +28,6 @@ def test_prepare_bulk_calculation_audit_links_trace_to_emission_record():
     assert "_calculation_audit" not in record
     assert len(audits) == 1
     assert audits[0]["emission_record_id"] == "emission-1"
-    assert audits[0]["org_id"] == "org-1"
+    assert audits[0]["organization_id"] == "org-1"
     assert audits[0]["audit_log"]
     assert audits[0]["formula_version_id"] == "formula-version-1"

@@ -63,33 +63,55 @@ class R2Storage:
             raise ValueError(f"Invalid bucket type: {bucket_type}. Valid types: {list(self.buckets.keys())}")
         return bucket
     
-    def _generate_unique_key(self, filename: str, folder: str = None, org_name: str = None) -> str:
-        """Generate a unique key for the file"""
+    @staticmethod
+    def _sanitize_path(value: str | None) -> str:
+        """Return a traversal-safe R2 path while preserving intentional nesting."""
+        parts = []
+        for raw_part in str(value or "").strip("/").split("/"):
+            normalized = raw_part.strip()
+            if not normalized or normalized in {".", ".."}:
+                continue
+            safe_part = "".join(
+                char if char.isalnum() or char in "-_" else "_"
+                for char in normalized
+            ).strip("_")
+            if safe_part:
+                parts.append(safe_part)
+        return "/".join(parts)
+
+    def _generate_unique_key(
+        self,
+        filename: str,
+        folder: str = None,
+        organization_id: str = None,
+        subfolder: str = None,
+    ) -> str:
+        """Generate a unique key using the immutable organization ID."""
         file_ext = filename.split('.')[-1] if '.' in filename else ''
         unique_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime('%Y%m%d')
         
-        # Build path: org_name/timestamp/file or folder/org_name/timestamp/file
         base_name = f"{unique_id}.{file_ext}" if file_ext else unique_id
-        
-        if org_name:
-            # Sanitize org_name for use in path
-            normalized_org_name = str(org_name).strip()
-            safe_org = ''.join(c if c.isalnum() or c in '-_' else '_' for c in normalized_org_name).rstrip('_')
-            if not safe_org:
-                safe_org = None
-            if safe_org:
-                if folder:
-                    return f"{folder}/{safe_org}/{timestamp}/{base_name}"
-                return f"{safe_org}/{timestamp}/{base_name}"
-        
-        if folder:
-            return f"{folder}/{timestamp}/{base_name}"
-        return f"{timestamp}/{base_name}"
+        path_parts = [
+            self._sanitize_path(folder),
+            self._sanitize_path(organization_id),
+            self._sanitize_path(subfolder),
+            timestamp,
+            base_name,
+        ]
+        return "/".join(part for part in path_parts if part)
 
-    def initiate_multipart_upload(self, filename: str, bucket_type: str, content_type: str, folder: str = None, org_name: str = None) -> dict:
+    def initiate_multipart_upload(
+        self,
+        filename: str,
+        bucket_type: str,
+        content_type: str,
+        folder: str = None,
+        organization_id: str = None,
+        subfolder: str = None,
+    ) -> dict:
         bucket = self._get_bucket(bucket_type)
-        key = self._generate_unique_key(filename, folder, org_name)
+        key = self._generate_unique_key(filename, folder, organization_id, subfolder)
         result = self.client.create_multipart_upload(Bucket=bucket, Key=key, ContentType=content_type)
         return {"bucket": bucket, "key": key, "upload_id": result["UploadId"]}
 
@@ -129,7 +151,8 @@ class R2Storage:
         content_type: str,
         folder: str = None,
         metadata: dict = None,
-        org_name: str = None,
+        organization_id: str = None,
+        subfolder: str = None,
         object_key: str = None,
     ) -> dict:
         """
@@ -142,7 +165,8 @@ class R2Storage:
             content_type: MIME type of the file
             folder: Optional folder/prefix for organizing files
             metadata: Optional metadata to store with the file
-            org_name: Optional organization name for path prefix
+            organization_id: Immutable organization ID used as the path prefix
+            subfolder: Optional path placed after the organization ID
         
         Returns:
             dict with bucket, key, and file info
@@ -169,9 +193,15 @@ class R2Storage:
                 if not key or ".." in key.split("/"):
                     raise ValueError("Invalid object storage key")
             else:
-                key = self._generate_unique_key(filename, folder, org_name)
+                key = self._generate_unique_key(filename, folder, organization_id, subfolder)
             
-            logger.info(f"[R2_UPLOAD] Starting: bucket={bucket}, key={key}, size={len(file_content)}, org={org_name}")
+            logger.info(
+                "[R2_UPLOAD] Starting: bucket=%s, key=%s, size=%s, organization_id=%s",
+                bucket,
+                key,
+                len(file_content),
+                organization_id,
+            )
             
             # Prepare upload parameters
             upload_params = {

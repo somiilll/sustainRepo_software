@@ -428,19 +428,6 @@ async def get_assignment_history(
     return {"history": history}
 
 
-@router.get("/response-versions/{question_key}")
-async def get_response_versions(
-    question_key: str,
-    reporting_period: str,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    DEPRECATED: Use /api/esg-questionnaire/history/{question_key} instead.
-    This endpoint is kept for backwards compatibility but returns empty.
-    """
-    return {"versions": [], "deprecated": True, "use": "/api/esg-questionnaire/history/{question_key}"}
-
-
 # ============================================
 # REMINDER ENDPOINTS (Admin only)
 # ============================================
@@ -624,6 +611,15 @@ async def get_accessible_facilities(
 # COMPLETION TRACKING ENDPOINTS
 # ============================================
 
+def _assignment_query_for_current_user(assignment_id: str, current_user: dict) -> dict:
+    if current_user.get("role") == "super_admin":
+        return {"id": assignment_id}
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="Organization context is required")
+    return {"id": assignment_id, "organization_id": organization_id}
+
+
 @router.get("/assignments/{assignment_id}/progress")
 async def get_assignment_progress_detailed(
     assignment_id: str,
@@ -636,7 +632,7 @@ async def get_assignment_progress_detailed(
     from .completion_service import completion_service
     from shared.database.mongo import db
     
-    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    assignment = await db.esg_assignments.find_one(_assignment_query_for_current_user(assignment_id, current_user), {"_id": 0})
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
@@ -686,7 +682,7 @@ async def get_assignment_progress_summary(
     from .completion_service import completion_service
     from shared.database.mongo import db
     
-    assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+    assignment = await db.esg_assignments.find_one(_assignment_query_for_current_user(assignment_id, current_user), {"_id": 0})
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     

@@ -93,7 +93,7 @@ export default function Reports({ showMISFoundation = false }) {
   const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
   
   // Check if organization has GHG module enabled (hides GHG reports if disabled)
-  const hasGhgEnabled = organization?.has_ghg !== false;
+  const hasGhgEnabled = organization?.entitlements?.environment !== false;
 
   const fetchFacilities = async () => {
     try {
@@ -521,7 +521,7 @@ export default function Reports({ showMISFoundation = false }) {
       {hasScope12Access && hasGhgEnabled && (
         <div className={`${showMISFoundation ? 'hidden' : ''} grid grid-cols-1 items-stretch gap-5 md:grid-cols-3`} data-testid="report-action-cards">
         <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex h-full flex-col">
+          <div className="flex flex-1 flex-col">
             <div className="flex items-center gap-3">
               <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
                 <FileText className="w-7 h-7 text-teal-700" />
@@ -532,13 +532,13 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
               </p>
-              <div className="pt-2 flex justify-center">
+              <div className="mt-auto pt-2 flex justify-center">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <div className="flex flex-wrap justify-center gap-3">
                   <DialogTrigger asChild>
                     <Button 
                       onClick={() => openGhgReportDialog('docx')}
-                      className="bg-teal-700 hover:bg-teal-800 text-white"
+                      className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                       data-testid="generate-ghg-inventory-btn"
                     >
                       <FileText className="w-4 h-4 mr-2" />
@@ -723,7 +723,7 @@ export default function Reports({ showMISFoundation = false }) {
       </Card>
 
       <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="ghg-excel-card">
-        <div className="flex h-full flex-col">
+        <div className="flex flex-1 flex-col">
           <div className="flex items-center gap-3">
             <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
               <FileSpreadsheet className="w-7 h-7 text-teal-700" />
@@ -732,11 +732,11 @@ export default function Reports({ showMISFoundation = false }) {
           </div>
           <div className="mt-4 flex flex-1 flex-col">
             <p className="text-sm text-text-secondary">Download a structured Excel summary of your GHG emissions data.</p>
-            <div className="pt-2 flex justify-center">
+            <div className="mt-auto pt-2 flex justify-center">
               <Button
                 type="button"
                 onClick={() => openGhgReportDialog('xlsx')}
-                className="bg-teal-700 hover:bg-teal-800 text-white"
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                 data-testid="open-ghg-excel-summary-button"
               >
                 <FileSpreadsheet className="w-4 h-4 mr-2" />
@@ -778,7 +778,7 @@ export default function Reports({ showMISFoundation = false }) {
       </Dialog>
 
       <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex h-full flex-col">
+          <div className="flex flex-1 flex-col">
             <div className="flex items-center gap-3">
               <div className="inline-flex w-fit rounded-lg bg-stone-100 p-2">
                 <Sparkles className="w-7 h-7 text-stone-700" />
@@ -789,12 +789,12 @@ export default function Reports({ showMISFoundation = false }) {
               <p className="text-sm text-text-secondary">
                 Generate an AI-powered executive summary of your emissions data.
               </p>
-              <div className="pt-2 flex justify-center">
+              <div className="mt-auto pt-2 flex justify-center">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
                     onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
-                    className="bg-teal-700 hover:bg-teal-800 text-white"
+                    className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                     data-testid="generate-ai-report-btn"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />

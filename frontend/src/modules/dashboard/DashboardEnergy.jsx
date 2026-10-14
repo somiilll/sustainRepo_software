@@ -180,6 +180,8 @@ export default function DashboardEnergy({ data }) {
     <div className="space-y-5 pb-8" data-testid="energy-dashboard">
       <StickyFilterBar
         title={organization?.name ? `${organization.name} · Energy` : 'Energy Dashboard'}
+        organizationLogo={organization?.logo}
+        organizationName={organization?.name}
         subtitle={`Reporting: ${dateRangeLabel}`}
         showFilters={showFilters}
         setShowFilters={setShowFilters}

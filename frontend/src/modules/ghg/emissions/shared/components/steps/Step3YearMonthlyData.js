@@ -13,8 +13,9 @@ import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
 import { Button } from '../../../../../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../../../../components/ui/tooltip';
-import { Info, Upload, X, FileText } from 'lucide-react';
+import { Info, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { EvidenceHoverPreview } from '../EvidenceHoverPreview';
 
 // Import CustomFuelMonthFields for per-month custom fuel inputs
 import CustomFuelMonthFields from '../CustomFuelMonthFields';
@@ -220,32 +221,7 @@ const EvidenceIconCell = ({
               )}
             </label>
           </TooltipTrigger>
-          <TooltipContent side="bottom" align="center" className="max-w-xs bg-white text-stone-900 shadow-lg">
-            {count === 0 ? (
-              <span className="text-xs">Upload evidence (PDF, Excel, Word)</span>
-            ) : (
-              <div className="space-y-1.5 text-xs">
-                <span className="font-medium">{count} file{count > 1 ? 's' : ''} attached</span>
-                {evidences.map((evidence, index) => {
-                  const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
-                  const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                  const viewUrl = fileId ? `${backendUrl}/api/files/${fileId}/view` : evidence.url;
-                  return (
-                    <div key={`${evidence.url || evidence.filename}-${index}`} className="flex items-center gap-1.5">
-                      <FileText className="h-3 w-3 shrink-0 text-green-600" />
-                      <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-stone-900 underline decoration-stone-400 underline-offset-2 transition-colors hover:text-stone-700" title={evidence.filename} data-testid={`month-${monthKey}-evidence-view-${index}`}>
-                        {evidence.filename}
-                      </a>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); removeEvidence(monthKey, index); }} className="shrink-0 text-red-400 hover:text-red-600" title="Remove" data-testid={`month-${monthKey}-evidence-remove-${index}`}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-                <span className="text-stone-500">Click icon to add more</span>
-              </div>
-            )}
-          </TooltipContent>
+          <TooltipContent side="bottom" align="end" className="w-80 rounded-lg border border-stone-200 bg-white p-0 text-stone-900 shadow-xl" data-testid={`month-${monthKey}-evidence-preview`}><EvidenceHoverPreview evidences={evidences} onRemove={(index) => removeEvidence(monthKey, index)} testIdPrefix={`month-${monthKey}-evidence`} /></TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
@@ -1798,7 +1774,6 @@ const YearlyDataEntry = ({
                           value={displayedValue}
                           onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                          style={{ marginTop: -12 }}
                           data-testid={`yearly-${field.fieldKey || field.variable}-select`}
                           dangerouslySetInnerHTML={{
                             __html: buildNativeOptionsHtml(field.options, {
@@ -1809,7 +1784,7 @@ const YearlyDataEntry = ({
                           }}
                         />
                       ) : (
-                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                        <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                           <Input
                             type="number"
                             step={isUnitlessCountField ? "1" : "any"}
@@ -1978,7 +1953,7 @@ const YearlyDataEntry = ({
                           Override Default
                         </label>
                       </div>
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step={isUnitlessCountField ? "1" : "any"}
@@ -2144,7 +2119,7 @@ const YearlyDataEntry = ({
                         )}
                       </div>
                       
-                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100" style={{ marginTop: -12 }}>
+                      <div className="flex overflow-hidden rounded-md border border-stone-200 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
                         <Input
                           type="number"
                           step="any"

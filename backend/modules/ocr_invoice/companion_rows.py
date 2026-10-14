@@ -29,17 +29,8 @@ def build_companion_rows(row: dict) -> list[dict]:
     if is_renewable_electricity:
         return []
     if "electricity" in category_text:
-        coal_subcategory = "Coal (electricity generation)"
         td_subcategory = "Electricity - T&D losses and Generation"
         return [
-            {
-                **base,
-                "subcategory": coal_subcategory,
-                "fuel_name": coal_subcategory,
-                "ef_database": "DEFRA",
-                "ef_lookup_key": coal_subcategory,
-                "accounting_rationale": "Upstream fuel-cycle emissions for electricity generation from coal. Financial spend booked on parent transaction to prevent double counting.",
-            },
             {
                 **base,
                 "subcategory": td_subcategory,

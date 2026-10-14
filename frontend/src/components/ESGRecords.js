@@ -23,6 +23,7 @@ import {
   toEvidencePayload,
   uploadDraftEvidences,
 } from '../lib/draftEvidence';
+import { getUploadedFileId, openSecureFile } from '../lib/secureFileAccess';
 import { 
   Plus, Search, Filter, History, FileText, Upload, 
   ChevronLeft, ChevronRight, Loader2, Building2, Calendar,
@@ -1085,7 +1086,7 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
                           <span className="truncate max-w-[200px]">{file.filename}</span>
                           <Badge variant="outline" className="text-[10px]">{Math.round(file.file_size / 1024)} KB</Badge>
                         </div>
-                        {file.preview_url && <a href={file.preview_url} target="_blank" rel="noopener noreferrer" className="text-blue-600" data-testid={`add-esg-evidence-view-${file.id}`}><Eye className="w-3 h-3" /></a>}
+                        {file.preview_url && <a href={getUploadedFileId(file.preview_url) ? '#' : file.preview_url} target="_blank" rel="noopener noreferrer" onClick={getUploadedFileId(file.preview_url) ? (event) => { event.preventDefault(); void openSecureFile(getUploadedFileId(file.preview_url)).catch(console.error); } : undefined} className="text-blue-600" data-testid={`add-esg-evidence-view-${file.id}`}><Eye className="w-3 h-3" /></a>}
                         <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-6 w-6 p-0 text-red-500" data-testid={`add-esg-evidence-remove-${file.id}`}>
                           <X className="w-3 h-3" />
                         </Button>
@@ -1546,7 +1547,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
                         <Badge variant="outline" className="text-xs flex-shrink-0">{Math.round(file.file_size / 1024)} KB</Badge>
                       </div>
                       <div className="flex items-center gap-1">
-                        {(file.preview_url || file.upload_url) && <a href={file.preview_url || `${BACKEND_URL}${file.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 p-1" data-testid={`edit-esg-evidence-view-${file.id}`}><Eye className="w-4 h-4" /></a>}
+                        {(file.preview_url || file.upload_url) && <a href={getUploadedFileId(file.preview_url || file.upload_url) ? '#' : (file.preview_url || file.upload_url)} target="_blank" rel="noopener noreferrer" onClick={getUploadedFileId(file.preview_url || file.upload_url) ? (event) => { event.preventDefault(); void openSecureFile(getUploadedFileId(file.preview_url || file.upload_url)).catch(console.error); } : undefined} className="text-blue-600 p-1" data-testid={`edit-esg-evidence-view-${file.id}`}><Eye className="w-4 h-4" /></a>}
                       <Button variant="ghost" size="sm" onClick={() => removeEvidence(file.id)} className="h-7 w-7 p-0 text-red-500 flex-shrink-0" data-testid={`edit-esg-evidence-remove-${file.id}`}>
                         <X className="w-4 h-4" />
                       </Button>

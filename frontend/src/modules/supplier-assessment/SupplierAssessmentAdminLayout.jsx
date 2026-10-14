@@ -14,7 +14,8 @@ export default function SupplierAssessmentAdminLayout() {
   const questionnaireOwnsPeriodControl = location.pathname.endsWith('/supplier-assessment/esg');
   const documentsOwnPeriodControl = location.pathname.endsWith('/supplier-assessment/documents');
   const trainingOwnsPeriodControl = location.pathname.endsWith('/supplier-assessment/trainings');
-  const showPeriodControl = !rankingOwnsPeriodControl && !supplierListOwnsPeriodControl && !supplierGhgOwnsPeriodControl && !questionnaireOwnsPeriodControl && !documentsOwnPeriodControl && !trainingOwnsPeriodControl;
+  const isReviewPage = location.pathname.includes('/review');
+  const showPeriodControl = !rankingOwnsPeriodControl && !supplierListOwnsPeriodControl && !supplierGhgOwnsPeriodControl && !questionnaireOwnsPeriodControl && !documentsOwnPeriodControl && !trainingOwnsPeriodControl && !isReviewPage;
   return <div className="relative" data-testid="supplier-assessment-admin-layout">
     {showPeriodControl && <div className="mb-6 flex justify-end sm:absolute sm:right-0 sm:top-0 sm:mb-0" data-testid="supplier-assessment-period-bar">
       <div className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-emerald-700" /><Label htmlFor="supplier-assessment-reporting-period" className="text-sm">Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-assessment-reporting-period" className="w-36 bg-white" data-testid="supplier-assessment-period-selector"><SelectValue /></SelectTrigger><SelectContent>{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-assessment-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>

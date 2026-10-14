@@ -16,7 +16,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from shared.database.mongo import db
@@ -51,6 +51,24 @@ router = APIRouter()
 
 MAX_FAILED_LOGIN_ATTEMPTS = 5
 LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
+REFRESH_COOKIE_NAME = "sustainrepo_refresh"
+REFRESH_COOKIE_PATH = "/api/auth"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        secure=os.environ["FRONTEND_URL"].startswith("https://"),
+        samesite="lax",
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
 
 
 def _login_attempt_identifier(email: str) -> str:
@@ -102,7 +120,7 @@ def _validate_password_strength(pwd: str) -> None:
 
 @router.post("/auth/signup", response_model=TokenResponse)
 @limiter.limit("5/minute")
-async def signup(request: Request, user_data: UserCreate):
+async def signup(request: Request, user_data: UserCreate, response: Response):
     existing = await db.users.find_one(
         {"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0}
     )
@@ -128,13 +146,14 @@ async def signup(request: Request, user_data: UserCreate):
     access_token = create_access_token(data={"sub": user_dict["id"]})
     refresh_token = create_refresh_token(data={"sub": user_dict["id"]})
     user_response = UserResponse(**{k: v for k, v in user_dict.items() if k != "password_hash"})
+    _set_refresh_cookie(response, refresh_token)
 
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)
+    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
 
 @router.post("/auth/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def login(request: Request, credentials: UserLogin):
+async def login(request: Request, credentials: UserLogin, response: Response):
     logger.info(f"[AUTH_LOGIN] Attempt: email={credentials.email}")
     identifier = _login_attempt_identifier(credentials.email)
     await _ensure_login_not_locked(identifier)
@@ -182,9 +201,10 @@ async def login(request: Request, credentials: UserLogin):
     refresh_token = create_refresh_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
     await db.login_attempts.delete_one({"identifier": identifier})
+    _set_refresh_cookie(response, refresh_token)
 
     logger.info(f"[AUTH_LOGIN] Success: email={credentials.email}, user_id={user['id']}, role={user.get('role')}")
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token, token_type="bearer", user=user_response)
+    return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
 
 @router.post("/auth/change-password")
@@ -223,7 +243,7 @@ async def forgot_password(request: Request, reset_data: PasswordReset):
         "used": False,
     })
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-review.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     email_body = password_reset_email(user.get('full_name', 'User'), reset_link)
@@ -282,17 +302,16 @@ async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depen
 
 
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
 @router.post("/auth/refresh", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def refresh_token(request: Request, data: RefreshRequest):
+async def refresh_token(request: Request, response: Response):
     """Exchange a valid refresh token for a new access token."""
     import jwt as _jwt
+    supplied_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if not supplied_refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh token is required. Please login again.")
     try:
-        payload = decode_access_token(data.refresh_token)
+        payload = decode_access_token(supplied_refresh_token)
     except _jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired. Please login again.")
     except _jwt.InvalidTokenError:
@@ -305,10 +324,19 @@ async def refresh_token(request: Request, data: RefreshRequest):
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if user.get("is_deleted") or not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="User account is no longer active")
     await ensure_supplier_relationship_active(user)
 
     new_access = create_access_token(data={"sub": user_id})
     new_refresh = create_refresh_token(data={"sub": user_id})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
+    _set_refresh_cookie(response, new_refresh)
 
-    return TokenResponse(access_token=new_access, refresh_token=new_refresh, token_type="bearer", user=user_response)
+    return TokenResponse(access_token=new_access, token_type="bearer", user=user_response)
+
+
+@router.post("/auth/logout", status_code=204)
+async def logout(response: Response):
+    """Clear the browser's HttpOnly refresh cookie for manual and inactivity logout."""
+    _clear_refresh_cookie(response)
