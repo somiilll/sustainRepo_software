@@ -46,8 +46,8 @@ MAPPINGS_PATH = os.path.join(MODULE_DIR, "ocr_mappings.json")
 VENDOR_CACHE_PATH = os.path.join(MODULE_DIR, "vendor_cache.json")
 
 # Model configuration from environment
-OCR_MODEL_PRIMARY = os.environ.get("OCR_MODEL_PRIMARY", "claude-sonnet-5")
-OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-haiku-4-5")
+OCR_MODEL_PRIMARY = os.environ.get("OCR_MODEL_PRIMARY", "claude-sonnet-5-5")
+OCR_MODEL_DISAMBIGUATION = os.environ.get("OCR_MODEL_DISAMBIGUATION", "claude-haiku-5-5")
 
 # MongoDB Collections
 OCR_UPLOADS_COLLECTION = "ocr_uploads"

@@ -46,7 +46,7 @@ import {
 const FALLBACK_CONFIGURATION = {
   enabled_scopes: ['scope1', 'scope2'],
   modes: [
-    { key: 'fast', label: 'Fast', vision_model: 'claude-sonnet-5', reasoning_model: 'claude-haiku-4-5' },
+    { key: 'fast', label: 'Fast', vision_model: 'claude-sonnet-5-5', reasoning_model: 'claude-haiku-5-5' },
     { key: 'think', label: 'Think', vision_model: 'gpt-5.6-sol', reasoning_model: 'gpt-5.6-terra' },
   ],
   categories: [],

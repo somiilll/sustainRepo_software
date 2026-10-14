@@ -13,8 +13,8 @@ from anthropic import Anthropic
 
 # Models
 MODELS = {
-    "sonnet5": "claude-sonnet-5",
-    "haiku4.5": "claude-haiku-4-5"
+    "sonnet5": "claude-sonnet-5-5",
+    "haiku4.5": "claude-haiku-5-5"
 }
 
 def load_fuel_categories(json_path):
@@ -33,7 +33,7 @@ def load_fuel_categories(json_path):
         })
     return fuel_records
 
-def disambiguate_fuel(raw_name, raw_context, fuel_records, client, model_id="claude-haiku-4-5"):
+def disambiguate_fuel(raw_name, raw_context, fuel_records, client, model_id="claude-haiku-5-5"):
     # Create a concise taxonomy list (using original name + category)
     taxonomy = []
     for r in fuel_records:
