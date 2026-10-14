@@ -1489,6 +1489,49 @@ export default function EmissionEntryForm({
     activeMonths,
     getAuthHeader,
   });
+
+  // Clear stale spend conversion rates when the source currency changes so a
+  // previous currency's rate (e.g. INR 93.32) never sticks after switching to
+  // USD (which resolves to 1.0). Method/period changes already refresh via
+  // field switching + full data resets; only the currency switch left stale
+  // values behind because persisted row state wins over fetched defaults.
+  const prevSpendSourceCurrencyRef = useRef(spendSourceCurrency);
+  useEffect(() => {
+    const prevCurrency = prevSpendSourceCurrencyRef.current;
+    prevSpendSourceCurrencyRef.current = spendSourceCurrency;
+    if (!prevCurrency || prevCurrency === spendSourceCurrency) return;
+    if (scope3Method !== 'spend_basis') return;
+    const spendRateKeys = ['exchange_rate', 'ppp', 'inflation_rate', 'exchange_rate_unit', 'ppp_unit', 'inflation_rate_unit'];
+    const hasStaleRate = (row = {}) => spendRateKeys.some((key) => Object.prototype.hasOwnProperty.call(row, key));
+    const stripStaleRates = (row = {}) => {
+      const next = { ...row };
+      spendRateKeys.forEach((key) => { delete next[key]; });
+      return next;
+    };
+    setMonthlyData((previousMonths) => {
+      let changed = false;
+      const nextMonths = {};
+      Object.entries(previousMonths || {}).forEach(([monthKey, row]) => {
+        if (hasStaleRate(row)) {
+          nextMonths[monthKey] = stripStaleRates(row);
+          changed = true;
+        } else {
+          nextMonths[monthKey] = row;
+        }
+      });
+      return changed ? nextMonths : previousMonths;
+    });
+    setYearlyData((previous) => (hasStaleRate(previous) ? stripStaleRates(previous) : previous));
+    setC6Trips((previous) => ({
+      yearly: (previous.yearly || []).map((trip) => (hasStaleRate(trip) ? stripStaleRates(trip) : trip)),
+      monthly: Object.fromEntries(
+        Object.entries(previous.monthly || {}).map(([monthKey, trips]) => [
+          monthKey,
+          (trips || []).map((trip) => (hasStaleRate(trip) ? stripStaleRates(trip) : trip)),
+        ]),
+      ),
+    }));
+  }, [spendSourceCurrency, scope3Method, setMonthlyData, setYearlyData, setC6Trips]);
   
   // Update matched formula ID when it changes
   useEffect(() => {
