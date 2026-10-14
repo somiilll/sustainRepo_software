@@ -1479,9 +1479,33 @@ export default function EmissionEntryForm({
     || spendValueField?.expectedUnit
     || spendValueField?.allowedUnits?.[0]
     || '';
+  const spendCurrencyFallback = spendValueField?.expectedUnit
+    || spendValueField?.allowedUnits?.[0]
+    || '';
+  const spendCurrencyByPeriod = useMemo(() => {
+    if (scope3Method !== 'spend_basis') return {};
+    const map = {};
+    if (frequencyType === 'yearly') {
+      const yearlyPeriod = reportingYearType === 'financial'
+        ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+        : `CY${reportingYear}`;
+      const cur = yearlyData.spent_value_unit || spendCurrencyFallback;
+      if (cur) map[yearlyPeriod] = cur;
+      return map;
+    }
+    (activeMonths || []).forEach((m) => {
+      const monthKey = m.key || m;
+      const actualYear = getActualYearForMonth(monthKey);
+      const period = `${actualYear}-${monthKey}`;
+      const cur = (monthlyData?.[monthKey]?.spent_value_unit) || spendCurrencyFallback;
+      if (cur) map[period] = cur;
+    });
+    return map;
+  }, [scope3Method, frequencyType, reportingYearType, reportingYear, activeMonths, monthlyData, yearlyData, spendCurrencyFallback, getActualYearForMonth]);
   const spendCurrencyDefaults = useSpendCurrencyDefaults({
     enabled: scope3Method === 'spend_basis',
     sourceCurrency: spendSourceCurrency,
+    currencyByPeriod: spendCurrencyByPeriod,
     conversionMethod: spendCurrencyConversionMethod,
     reportingYearType,
     reportingYear,
@@ -1490,48 +1514,93 @@ export default function EmissionEntryForm({
     getAuthHeader,
   });
 
-  // Clear stale spend conversion rates when the source currency changes so a
-  // previous currency's rate (e.g. INR 93.32) never sticks after switching to
-  // USD (which resolves to 1.0). Method/period changes already refresh via
-  // field switching + full data resets; only the currency switch left stale
-  // values behind because persisted row state wins over fetched defaults.
-  const prevSpendSourceCurrencyRef = useRef(spendSourceCurrency);
+  // Clear stale spend conversion rates per-row when that row's source currency
+  // changes. The previous aggregate scalar (first monthlyData match) never
+  // flipped when only one of 12 monthly rows changed, so April INR 93.32 stuck
+  // after switching that row to USD. Track effective currency per row/year/trip
+  // and strip only the rows whose currency actually changed.
+  const SPEND_RATE_STRIP_KEYS = ['exchange_rate', 'ppp', 'inflation_rate', 'exchange_rate_unit', 'ppp_unit', 'inflation_rate_unit', 'override_exchange_rate', 'override_ppp', 'override_inflation_rate'];
+  const prevSpendRowCurrencyRef = useRef({});
+  const prevSpendTripCurrencyRef = useRef({});
   useEffect(() => {
-    const prevCurrency = prevSpendSourceCurrencyRef.current;
-    prevSpendSourceCurrencyRef.current = spendSourceCurrency;
-    if (!prevCurrency || prevCurrency === spendSourceCurrency) return;
-    if (scope3Method !== 'spend_basis') return;
-    const spendRateKeys = ['exchange_rate', 'ppp', 'inflation_rate', 'exchange_rate_unit', 'ppp_unit', 'inflation_rate_unit'];
-    const hasStaleRate = (row = {}) => spendRateKeys.some((key) => Object.prototype.hasOwnProperty.call(row, key));
-    const stripStaleRates = (row = {}) => {
+    if (scope3Method !== 'spend_basis') {
+      return;
+    }
+    const fallback = spendCurrencyFallback;
+    const stripRow = (row = {}) => {
       const next = { ...row };
-      spendRateKeys.forEach((key) => { delete next[key]; });
+      SPEND_RATE_STRIP_KEYS.forEach((key) => { delete next[key]; });
       return next;
     };
-    setMonthlyData((previousMonths) => {
-      let changed = false;
-      const nextMonths = {};
-      Object.entries(previousMonths || {}).forEach(([monthKey, row]) => {
-        if (hasStaleRate(row)) {
-          nextMonths[monthKey] = stripStaleRates(row);
-          changed = true;
-        } else {
-          nextMonths[monthKey] = row;
-        }
-      });
-      return changed ? nextMonths : previousMonths;
+    const hasStaleRate = (row = {}) => SPEND_RATE_STRIP_KEYS.some((key) => Object.prototype.hasOwnProperty.call(row, key));
+
+    const prevRowMap = prevSpendRowCurrencyRef.current || {};
+    const nextRowMap = {};
+    const changedMonths = [];
+    Object.entries(monthlyData || {}).forEach(([monthKey, row]) => {
+      const cur = row?.spent_value_unit || fallback || '';
+      const period = `${getActualYearForMonth(monthKey)}-${monthKey}`;
+      nextRowMap[monthKey] = cur;
+      nextRowMap[period] = cur;
+      const prev = prevRowMap[monthKey] ?? prevRowMap[period];
+      if (prev === undefined || prev === cur || !cur) return;
+      if (hasStaleRate(row)) changedMonths.push(monthKey);
     });
-    setYearlyData((previous) => (hasStaleRate(previous) ? stripStaleRates(previous) : previous));
-    setC6Trips((previous) => ({
-      yearly: (previous.yearly || []).map((trip) => (hasStaleRate(trip) ? stripStaleRates(trip) : trip)),
-      monthly: Object.fromEntries(
-        Object.entries(previous.monthly || {}).map(([monthKey, trips]) => [
-          monthKey,
-          (trips || []).map((trip) => (hasStaleRate(trip) ? stripStaleRates(trip) : trip)),
-        ]),
-      ),
-    }));
-  }, [spendSourceCurrency, scope3Method, setMonthlyData, setYearlyData, setC6Trips]);
+    const yearlyPeriod = reportingYearType === 'financial'
+      ? `FY ${reportingYear}-${String(Number(reportingYear) + 1).slice(-2)}`
+      : `CY${reportingYear}`;
+    const curYearly = yearlyData?.spent_value_unit || fallback || '';
+    nextRowMap.__yearly = curYearly;
+    nextRowMap[yearlyPeriod] = curYearly;
+    const prevYearly = prevRowMap.__yearly ?? prevRowMap[yearlyPeriod];
+    const yearlyChanged = prevYearly !== undefined && curYearly && prevYearly !== curYearly && hasStaleRate(yearlyData);
+    prevSpendRowCurrencyRef.current = nextRowMap;
+
+    const prevTripMap = prevSpendTripCurrencyRef.current || {};
+    const nextTripMap = {};
+    const changedTripIds = new Set();
+    const collectTrips = (trips = []) => {
+      (trips || []).forEach((trip) => {
+        if (!trip?.id) return;
+        const cur = trip?.spent_value_unit || fallback || '';
+        nextTripMap[trip.id] = cur;
+        const prev = prevTripMap[trip.id];
+        if (prev !== undefined && cur && prev !== cur && hasStaleRate(trip)) changedTripIds.add(trip.id);
+      });
+    };
+    collectTrips(c6Trips?.yearly);
+    Object.values(c6Trips?.monthly || {}).forEach(collectTrips);
+    prevSpendTripCurrencyRef.current = nextTripMap;
+
+    if (changedMonths.length === 0 && !yearlyChanged && changedTripIds.size === 0) return;
+    if (changedMonths.length > 0) {
+      setMonthlyData((previousMonths) => {
+        let changed = false;
+        const nextMonths = { ...previousMonths };
+        changedMonths.forEach((monthKey) => {
+          if (previousMonths?.[monthKey] && hasStaleRate(previousMonths[monthKey])) {
+            nextMonths[monthKey] = stripRow(previousMonths[monthKey]);
+            changed = true;
+          }
+        });
+        return changed ? nextMonths : previousMonths;
+      });
+    }
+    if (yearlyChanged) {
+      setYearlyData((previous) => (hasStaleRate(previous) ? stripRow(previous) : previous));
+    }
+    if (changedTripIds.size > 0) {
+      setC6Trips((previous) => ({
+        yearly: (previous.yearly || []).map((trip) => (changedTripIds.has(trip.id) && hasStaleRate(trip) ? stripRow(trip) : trip)),
+        monthly: Object.fromEntries(
+          Object.entries(previous.monthly || {}).map(([monthKey, trips]) => [
+            monthKey,
+            (trips || []).map((trip) => (changedTripIds.has(trip.id) && hasStaleRate(trip) ? stripRow(trip) : trip)),
+          ]),
+        ),
+      }));
+    }
+  }, [monthlyData, yearlyData, c6Trips, scope3Method, spendCurrencyFallback, reportingYearType, reportingYear, getActualYearForMonth, setMonthlyData, setYearlyData, setC6Trips]);
   
   // Update matched formula ID when it changes
   useEffect(() => {
