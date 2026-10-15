@@ -179,6 +179,10 @@ class KPIDefinitionCreate(BaseModel):
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
     
+    # Framework references (used for future framework-based fetching)
+    brsr_reference: Optional[str] = None  # e.g., "P6-E3"
+    gri_disclosure: Optional[str] = None  # e.g., "303-5-a"
+    
     # Source
     source_type: SourceType = SourceType.RECORDS
     source_config: Optional[Dict[str, Any]] = None
@@ -233,6 +237,9 @@ class KPIDefinitionUpdate(BaseModel):
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
     
+    brsr_reference: Optional[str] = None
+    gri_disclosure: Optional[str] = None
+    
     source_type: Optional[SourceType] = None
     source_config: Optional[Dict[str, Any]] = None
     
@@ -271,6 +278,9 @@ class KPIDefinitionResponse(BaseModel):
     category_name: Optional[str] = None
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
+    
+    brsr_reference: Optional[str] = None
+    gri_disclosure: Optional[str] = None
     
     source_type: str
     source_config: Optional[Dict[str, Any]] = None

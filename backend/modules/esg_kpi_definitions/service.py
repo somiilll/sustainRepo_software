@@ -60,6 +60,9 @@ class ESGKPIDefinitionsService:
             "subcategory": data.subcategory,
             "sub_subcategory": data.sub_subcategory,
             
+            "brsr_reference": (data.brsr_reference or "").strip() or None,
+            "gri_disclosure": (data.gri_disclosure or "").strip() or None,
+            
             "source_type": data.source_type.value,
             "source_config": data.source_config,
             
@@ -135,7 +138,8 @@ class ESGKPIDefinitionsService:
         source_type: Optional[str] = None,
         search: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        include_archived: bool = False
+        include_archived: bool = False,
+        framework: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List KPI definitions with optional filters."""
         query = {}
@@ -152,6 +156,12 @@ class ESGKPIDefinitionsService:
             query["source_type"] = source_type
         if tags:
             query["tags"] = {"$in": tags}
+        framework_field = {"brsr": "brsr_reference", "gri": "gri_disclosure"}.get((framework or "").lower())
+        if framework_field:
+            query[framework_field] = {"$nin": [None, ""]}
+        elif (framework or "").lower() == "none":
+            query["brsr_reference"] = {"$in": [None, ""]}
+            query["gri_disclosure"] = {"$in": [None, ""]}
         if search:
             from shared.security import safe_regex
             _s = safe_regex(search)
@@ -159,7 +169,9 @@ class ESGKPIDefinitionsService:
                 {"metric_name": {"$regex": _s, "$options": "i"}},
                 {"short_name": {"$regex": _s, "$options": "i"}},
                 {"metric_code": {"$regex": _s, "$options": "i"}},
-                {"description": {"$regex": _s, "$options": "i"}}
+                {"description": {"$regex": _s, "$options": "i"}},
+                {"brsr_reference": {"$regex": _s, "$options": "i"}},
+                {"gri_disclosure": {"$regex": _s, "$options": "i"}}
             ]
         
         cursor = db[self.COLLECTION].find(query, {"_id": 0}).sort([

@@ -25,6 +25,7 @@ const KPIDefinitions = () => {
     search: '',
     section: '',
     status: '',
+    framework: '',
   });
 
   // Fetch KPI definitions
@@ -36,6 +37,7 @@ const KPIDefinitions = () => {
       if (filters.search) params.append('search', filters.search);
       if (filters.section) params.append('section', filters.section);
       if (filters.status) params.append('status', filters.status);
+      if (filters.framework) params.append('framework', filters.framework);
 
       const response = await fetch(
         `${API_URL}/api/esg-kpi-definitions?${params.toString()}`,

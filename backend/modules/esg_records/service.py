@@ -15,6 +15,7 @@ from .contracts import (
     ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
     UpdateRecordRequest, RecordListFilters
 )
+from .water_consumption_rules import apply_water_consumption_rules
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
@@ -142,6 +143,10 @@ class ESGRecordsService:
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
+
+        data.field_values = apply_water_consumption_rules(
+            data.category, data.subcategory, data.field_values, is_draft=data.status == "draft"
+        )
         
         # ACCESS CONTROL: Check if user has valid assignment
         assignment = None
@@ -1196,6 +1201,15 @@ class ESGRecordsService:
             return None
         
         org_id = current.get("org_id")
+        
+        if data.field_values is not None:
+            try:
+                data.field_values = apply_water_consumption_rules(
+                    current.get("category"), current.get("subcategory"), data.field_values,
+                    is_draft=data.status == "draft",
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         
         # =========================================================================
         # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit

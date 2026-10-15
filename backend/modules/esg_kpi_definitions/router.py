@@ -30,6 +30,7 @@ async def list_kpi_definitions(
     search: Optional[str] = Query(None, description="Search in name/code/description"),
     tags: Optional[str] = Query(None, description="Comma-separated tags filter"),
     include_archived: bool = Query(False, description="Include archived KPIs"),
+    framework: Optional[str] = Query(None, description="Framework filter: brsr, gri or none"),
     current_user: dict = Depends(get_super_admin_user)
 ):
     """List all KPI definitions with optional filters. Super Admin only."""
@@ -42,7 +43,8 @@ async def list_kpi_definitions(
         source_type=source_type,
         search=search,
         tags=tags_list,
-        include_archived=include_archived
+        include_archived=include_archived,
+        framework=framework
     )
     
     return kpi_defs

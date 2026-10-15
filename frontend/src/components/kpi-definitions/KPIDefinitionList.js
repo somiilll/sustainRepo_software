@@ -79,6 +79,22 @@ const KPIDefinitionList = ({
           </SelectContent>
         </Select>
 
+        {/* Framework Filter */}
+        <Select
+          value={filters.framework || 'all'}
+          onValueChange={(value) => handleFilterChange('framework', value)}
+        >
+          <SelectTrigger className="w-[150px]" data-testid="kpi-filter-framework">
+            <SelectValue placeholder="Framework" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Frameworks</SelectItem>
+            <SelectItem value="brsr">BRSR</SelectItem>
+            <SelectItem value="gri">GRI</SelectItem>
+            <SelectItem value="none">No Framework</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* Refresh */}
         <Button
           variant="outline"
@@ -100,6 +116,7 @@ const KPIDefinitionList = ({
               <TableHead className="w-[150px]">Category</TableHead>
               <TableHead className="w-[150px]">Subcategory</TableHead>
               <TableHead className="w-[100px]">Section</TableHead>
+              <TableHead className="w-[140px]">Framework</TableHead>
               <TableHead className="w-[80px]">Status</TableHead>
               <TableHead className="w-[80px] text-center">Refs</TableHead>
               <TableHead className="w-[50px]"></TableHead>
@@ -108,14 +125,14 @@ const KPIDefinitionList = ({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2" />
                   Loading KPI definitions...
                 </TableCell>
               </TableRow>
             ) : filteredKpis.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No KPI definitions found
                 </TableCell>
               </TableRow>
@@ -152,6 +169,23 @@ const KPIDefinitionList = ({
                       `}>
                         {sectionConfig.label || kpi.section}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1" data-testid={`kpi-frameworks-${kpi.id}`}>
+                        {kpi.brsr_reference && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+                            BRSR: {kpi.brsr_reference}
+                          </span>
+                        )}
+                        {kpi.gri_disclosure && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                            GRI: {kpi.gri_disclosure}
+                          </span>
+                        )}
+                        {!kpi.brsr_reference && !kpi.gri_disclosure && (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className={`

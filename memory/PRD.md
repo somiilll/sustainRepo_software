@@ -548,3 +548,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
   6. Review Response Mandatory Indicator: Replaced the verbose `Mandatory` badge with a sleek red asterisk `*` beside the question title in `ResponseQuestionDetails.jsx`.
   7. Add Supplier Form Spacing & Layout: Enhanced spacing between module cards and between Documents/Trainings; aligned Due Date to the right of each item rather than below; cleaned up borders between modules.
   **TESTING SKIPPED PER EXPLICIT USER COMMAND ("dont test")**.
+## 2026-08 — KPI Definitions: BRSR/GRI references (Water → Consumption)
+- KPI definitions now carry `brsr_reference` and `gri_disclosure` (create/edit form, list badges, `framework=brsr|gri|none` filter, search).
+- 7 Water → Consumption KPIs aligned via `backend/scripts/seed_water_consumption_kpis.py` (Total, Ground, Surface, Third-party, Seawater, Water-stress, Change in storage); each points to its own record field and is active.
+- Record rules (`esg_records/water_consumption_rules.py`): total auto-fills from sources, a manual total must equal the sum of the sources, water-stress ≤ total, no negatives. `quantity` is no longer required in the category config.
+- Not tested via UI/testing agent (curl and service-level checks only). "(related)/(input)" relation text from the spec is not stored.

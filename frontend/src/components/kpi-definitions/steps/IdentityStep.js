@@ -192,6 +192,37 @@ const IdentityStep = ({ formData, setFormData, errors, categoryData, setCategory
           </Select>
         </div>
 
+        {/* Framework Mapping */}
+        <div>
+          <Label htmlFor="brsr_reference" className="text-sm font-medium">
+            BRSR Reference
+          </Label>
+          <Input
+            id="brsr_reference"
+            value={formData.brsr_reference || ''}
+            onChange={(e) => handleChange('brsr_reference', e.target.value)}
+            placeholder="e.g., P6-E3"
+            className="mt-1"
+            data-testid="kpi-brsr-reference"
+          />
+          <p className="text-gray-500 text-xs mt-1">Leave blank if this KPI is not part of BRSR</p>
+        </div>
+
+        <div>
+          <Label htmlFor="gri_disclosure" className="text-sm font-medium">
+            GRI Disclosure
+          </Label>
+          <Input
+            id="gri_disclosure"
+            value={formData.gri_disclosure || ''}
+            onChange={(e) => handleChange('gri_disclosure', e.target.value)}
+            placeholder="e.g., 303-5-a"
+            className="mt-1"
+            data-testid="kpi-gri-disclosure"
+          />
+          <p className="text-gray-500 text-xs mt-1">Leave blank if this KPI is not part of GRI</p>
+        </div>
+
         {/* Description */}
         <div className="md:col-span-2">
           <Label htmlFor="description" className="text-sm font-medium">

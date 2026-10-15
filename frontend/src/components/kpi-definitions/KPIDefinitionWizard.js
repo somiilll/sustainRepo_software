@@ -25,6 +25,8 @@ const DEFAULT_FORM_DATA = {
   category_name: '',
   subcategory: '',
   sub_subcategory: '',
+  brsr_reference: '',
+  gri_disclosure: '',
   source_type: 'records',
   source_config: null,
   aggregation_type: 'sum',
