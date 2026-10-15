@@ -15,6 +15,11 @@ const isEntered = (v) => v !== undefined && v !== null && v !== '';
 const VOLUME_FACTORS = { litres: 1, kilolitres: 1000, megalitres: 1000000 };
 const isRowFilled = (row) => Object.values(row || {}).some(isEntered);
 
+const derivedValue = (row, { num, den }) => {
+  const d = Number(row?.[den]);
+  return isEntered(row?.[num]) && d ? Math.round((Number(row[num]) / d) * 1e6) / 1e6 : '-';
+};
+
 function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
   const columns = field.table_columns || [];
   const setCell = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
@@ -55,7 +60,12 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
               <tr key={i} className="border-t" data-testid={`${testIdPrefix}-${field.field_key}-row-${i}`}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-2 py-1.5 min-w-[130px]">
-                    {c.type === 'dropdown' ? (
+                    {c.derived ? (
+                      <span className="text-sm text-stone-700 px-2"
+                            data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}>
+                        {derivedValue(row, c.derived)}
+                      </span>
+                    ) : c.type === 'dropdown' ? (
                       <Select value={row[c.key] || ''} onValueChange={(v) => setCell(i, c.key, v)}>
                         <SelectTrigger className="h-9 border-stone-300"
                                        data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}>
@@ -147,6 +157,12 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
         vals[f.field_key] = rows.length;
         return;
       }
+      if (op === 'ratio') {
+        const sumOf = (col) => rows.reduce((t, r) => t + (Number(r[col]) || 0), 0);
+        const den = sumOf(f.table_summary.den_column);
+        vals[f.field_key] = den ? Math.round((sumOf(f.table_summary.num_column) / den) * 1e6) / 1e6 : 0;
+        return;
+      }
       const target = VOLUME_FACTORS[String(unitOf(vals, f.field_key)).toLowerCase()] || 1;
       const numbers = rows.filter((r) => isEntered(r[column])).map((r) => Number(r[column]) * (unitColumn
         ? (VOLUME_FACTORS[String(r[unitColumn] || unitOf(vals, f.field_key)).toLowerCase()] || 1) / target : 1));
@@ -155,6 +171,18 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
       vals[f.field_key] = Math.round(result * 1e6) / 1e6;
     });
   };
+
+  const deriveRatios = (vals) => {
+    fields.filter((f) => f.ratio).forEach(({ field_key: key, ratio: { num, den, scale } }) => {
+      if (isEntered(vals[num]) && Number(vals[den])) {
+        vals[key] = Math.round((Number(vals[num]) * scale / Number(vals[den])) * 1e6) / 1e6;
+      } else {
+        delete vals[key];
+      }
+    });
+  };
+
+  const handleChoice = (key, value) => onChange((prev) => ({ ...prev, [key]: value }));
 
   const handleTable = (key, rows) => {
     onChange((prev) => {
@@ -177,6 +205,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
       if (cleared) delete next[key];
       else next[key] = num;
       propagate(next, key);
+      deriveRatios(next);
       return next;
     });
   };
@@ -211,6 +240,8 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     const key = field.field_key;
     const kids = children[key] || [];
     const isAuto = !manual.current.has(key) && (sumChildren[key] || []).some((c) => isEntered(values?.[c]));
+    const isChoice = ['dropdown', 'radio'].includes(field.type);
+    const optionRef = isChoice ? field.option_refs?.[values?.[key]] : null;
     if (field.group && field.group !== lastGroup) {
       lastGroup = field.group;
       rows.push(
@@ -254,23 +285,46 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
                 GRI: {field.gri_disclosure}
               </span>
             )}
-            {(isAuto || field.table_summary) && (
+            {optionRef?.brsr && (
+              <span className="px-1.5 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200"
+                    data-testid={`${testIdPrefix}-${key}-option-brsr`}>
+                Selected - BRSR: {optionRef.brsr}
+              </span>
+            )}
+            {optionRef?.gri && (
+              <span className="px-1.5 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200"
+                    data-testid={`${testIdPrefix}-${key}-option-gri`}>
+                Selected - GRI: {optionRef.gri}
+              </span>
+            )}
+            {(isAuto || field.table_summary || field.ratio) && (
               <span className="px-1.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Auto
               </span>
             )}
           </div>
         </div>
-        <Input
-          type="number"
-          value={values?.[key] ?? ''}
-          disabled={!!field.table_summary}
-          onChange={(e) => handleValue(key, e.target.value)}
-          min={field.validation?.min}
-          step={field.validation?.step}
-          className="w-40 border-stone-300"
-          data-testid={`${testIdPrefix}-${key}-input`}
-        />
+        {isChoice ? (
+          <Select value={values?.[key] || ''} onValueChange={(v) => handleChoice(key, v)}>
+            <SelectTrigger className="w-72 max-w-full border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options || []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            type="number"
+            value={values?.[key] ?? ''}
+            disabled={!!field.table_summary || !!field.ratio}
+            onChange={(e) => handleValue(key, e.target.value)}
+            min={field.validation?.min}
+            step={field.validation?.step}
+            className="w-40 border-stone-300"
+            data-testid={`${testIdPrefix}-${key}-input`}
+          />
+        )}
         {field.has_unit && field.allowed_units?.length > 0 && (
           <Select value={values?.[`${key}_unit`] || field.default_unit || ''} onValueChange={(u) => handleUnit(key, u)}>
             <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${key}-unit-select`}>

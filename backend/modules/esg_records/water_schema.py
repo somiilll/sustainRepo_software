@@ -202,7 +202,7 @@ def _fmt(value: float) -> str:
 def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                       field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Auto-fill totals from their parts, or validate typed totals against them."""
-    cat, sub = (category or "").lower(), (subcategory or "").lower()
+    cat, sub = (category or "").strip().lower(), (subcategory or "").strip().lower()
     global _ACTIVE_LABELS
     _ACTIVE_LABELS = GRID_LABELS.get(sub, {}) if cat == WORKFORCE_CATEGORY.lower() else {}
     field_values = apply_table_rules(category, subcategory, field_values, is_draft)
@@ -223,6 +223,11 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
     for parts, total in rules["quality"]:
         keys.update(parts)
         keys.add(total)
+    for parts, total in rules.get("sum_le", []):
+        keys.update(parts)
+        keys.add(total)
+    for key, num, den, _scale in rules.get("ratios", []):
+        keys.update((key, num, den))
 
     values = {k: _num(field_values.get(k), k) for k in keys}
     if any(v is not None and v < 0 for v in values.values()):
@@ -245,12 +250,21 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                 "Fix the parts or enter only the total."
             )
 
+    for key, num, den, scale in rules.get("ratios", []):
+        if values[num] is not None and values[den]:
+            values[key] = out[key] = round(values[num] * scale / values[den], 6)
+
     if all(values[r] is None for r in roots):
         raise ValueError("Enter the total, or at least one source/destination value")
 
     for small, big in rules["le"]:
         if values[small] is not None and values[big] is not None and values[small] > values[big] + TOLERANCE:
             raise ValueError(f"{_label(small)} cannot exceed {_label(big)}")
+
+    for parts, total in rules.get("sum_le", []):
+        entered = [values[p] for p in parts if values[p] is not None]
+        if entered and values[total] is not None and sum(entered) > values[total] + TOLERANCE:
+            raise ValueError(f"{' + '.join(_label(p) for p in parts)} ({_fmt(sum(entered))}) cannot exceed {_label(total)} ({_fmt(values[total])})")
 
     for parts, total in rules["quality"]:
         if values[total] is None or any(values[p] is None for p in parts):

@@ -182,12 +182,18 @@ async def sync_waste(db, now):
         print(f"Waste/{sub}: KPIs {counts}")
 
 
+SECTIONS = {"Complaints": "social", "Employees/Worker": "social", "Health & Safety": "social", "Training": "social",
+            "Anti-corruption": "governance", "Competitive Behaviour ": "governance",
+            "Financial & Procurement Metrics": "governance", "Incidents": "governance"}
+
+
 def env_field(spec, meta):
     table = spec["type"] == "table"
+    choice = spec["type"] == "dropdown"
     field = {
-        "field_key": spec["key"], "label": spec["label"], "type": "table" if table else "number", "required": False,
-        "placeholder": "", "options": [], "default_value": None,
-        "validation": {} if table else ({"min": 0, "max": 100} if spec["percent"] else {"min": 0}),
+        "field_key": spec["key"], "label": spec["label"], "type": spec["type"] if (table or choice) else "number", "required": False,
+        "placeholder": "", "options": spec["options"] or [], "default_value": None,
+        "validation": {} if (table or choice) else ({"min": 0, "max": 100} if spec["percent"] else {"min": 0}),
         "has_unit": bool(spec["units"]), "allowed_units": spec["units"] or [], "default_unit": spec["default_unit"] if spec["units"] else None,
         "table_columns": [{k: v for k, v in c.items() if v is not None} for c in spec["cols"]] if table else [],
         "table_min_rows": 0, "table_max_rows": 50,
@@ -197,6 +203,10 @@ def env_field(spec, meta):
     }
     if spec["summary"]:
         field["table_summary"] = spec["summary"]
+    if spec["option_refs"]:
+        field["option_refs"] = spec["option_refs"]
+    if spec["ratio"]:
+        field["ratio"] = dict(zip(("num", "den", "scale"), spec["ratio"]))
     return field
 
 
@@ -217,7 +227,7 @@ async def sync_env(db, now):
                 continue
             row = {"key": sp["key"], "name": sp["kpi"], "brsr": sp["brsr"], "gri": sp["gri"], "old_code": sp["old"],
                    "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"],
-                   "section": "social" if category in ("Complaints", "Employees/Worker", "Health & Safety") else "environment"}
+                   "section": SECTIONS.get(category, "environment")}
             if sp["units"]:
                 row["unit_config"] = {"default_unit": sp["default_unit"], "supported_units": sp["units"], "allow_unit_conversion": False}
             elif sp["percent"]:

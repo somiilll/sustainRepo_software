@@ -6,16 +6,17 @@ UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1000.0, "megalitres": 1_000_000.0}
 
 
 def F(key, label, type="number", units=None, default_unit=None, group="", level=0, parent=None, brsr=None, gri=None,
-      kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None):
+      kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None,
+      options=None, option_refs=None, ratio=None, sum_le=None):
     return {"key": key, "label": label, "type": type, "units": units, "default_unit": default_unit or (units or [None])[0],
             "group": group, "level": level, "parent": parent, "brsr": brsr, "gri": gri, "kpi": kpi, "old": old,
             "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent,
-            "le": le, "eq_parts": eq_parts}
+            "le": le, "eq_parts": eq_parts, "options": options, "option_refs": option_refs, "ratio": ratio, "sum_le": sum_le}
 
 
-def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None):
+def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None, derived=None):
     return {"key": key, "label": label, "type": type, "options": options, "required": required,
-            "gri_disclosure": gri, "brsr_reference": brsr, "max": max}
+            "gri_disclosure": gri, "brsr_reference": brsr, "max": max, "derived": derived}
 
 
 YN = ["Yes", "No"]
@@ -351,6 +352,211 @@ SPECS[REHAB] = [
     _n("rehabilitated_workers", "Workers", "By Group", 1, brsr="P3-L3", kpi="Rehabilitated / Placed - Workers"),
 ]
 
+
+GEN_TRAINING = ("Training", "General Training")
+SEC_TRAINING = ("Training", "Security Training")
+ACPC = ("Anti-corruption", "Anti-Corruption Policy Communication")
+ACCI = ("Anti-corruption", "Confirmed Corruption Incidents")
+COMPETITIVE = ("Competitive Behaviour ", "Anti-Competitive Behaviour & Anti-Trust Cases")
+AP_DAYS = ("Financial & Procurement Metrics", "Accounts Payable Days")
+VIOLATIONS = ("Incidents", "Incidents of Violations")
+BREACH = ("Incidents", "Data Breach")
+NONCOMPLIANCE = ("Incidents", "Non-compliance")
+ANY_ENTRY = {GEN_TRAINING, BREACH}
+
+# slug, label, trainings key, female key, male key, brsr, gri
+_TOPICS = [
+    ("health_safety", "Health & Safety", "no_of_trainings_on_health_safety", "no_of_female_attendees_for_training_on_health_safety",
+     "no_of_male_attendees_for_training_on_health_safety", "P3-E8", "403-5-a"),
+    ("environment", "Environment", "no_of_trainings_on_environment", "no_of_female_attendees_for_training_on_environment",
+     "no_of_male_attendees_for_training_on_environment", "P1-E1 (input)", None),
+    ("human_rights", "Human Rights", "no_of_trainings_on_human_right_issues", "no_of_female_attendees_for_trainings_on_human_right_issues",
+     "no_of_male_attendees_trainings_on_human_right_issues", "P5-E1", None),
+    ("org_policies", "Organisation Policies", "no_of_trainings_on_organization_policy_ies",
+     "no_of_female_attendees_for_trainings_on_organization_policy_ies", "no_of_male_attendees_for_trainings_on_organization_policy_ies",
+     "P1-E1 (input)", None),
+    ("skill_upgrading", "Skill Upgrading", "no_of_trainings_on_skill_upgrade_up_skilling",
+     "no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling", "no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling",
+     "P3-E8", "404-2-a"),
+    ("re_skilling", "Re-skilling", "no_of_trainings_on_re_skilling", "no_of_female_attendees_for_trainings_on_re_skilling",
+     "no_of_male_attendees_for_trainings_on_re_skilling", "P3-E8 (input)", "404-2-a; 102-3-d"),
+    ("anti_corruption", "Anti-corruption", "no_of_trainings_on_anti_corruption", "no_of_female_attendees_for_trainings_on_anti_corruption",
+     "no_of_male_attendees_for_trainings_on_anti_corruption", "P1-E1 (input)", "205-2-d, 205-2-e"),
+    ("ethical_principles", "Ethical Principles", "no_of_trainings_on_ethical_principles",
+     "no_of_female_attendees_for_trainings_on_ethical_principles", "no_of_male_attendees_for_trainings_on_ethical_principles",
+     "P1-E1 (input)", "205-2 (related)"),
+]
+_AUD_BRSR = "P1-E1; P3-E8; P5-E1"
+_HRS = "training_hours_by_category"
+SPECS[GEN_TRAINING] = [
+    F("no_of_trainings_done", "Trainings completed (Total)", group="Totals", brsr="P1-E1", gri="404-1 (related)",
+      kpi="Trainings Completed (Total)", old="SOC_NO_OF_TRAININGS_DONE", sum_of=[t[2] for t in _TOPICS]),
+    F("no_of_female_attendees", "Attendees (Total) - Female", group="Totals", brsr="P3-E8 (input)", gri="404-1-a (related)",
+      kpi="Training Attendees (Total) - Female", sum_of=[t[3] for t in _TOPICS]),
+    F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8 (input)", gri="404-1-a (related)",
+      kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
+    F("training_attendes_type", "Training audience (per training)", type="dropdown", group="Training Audience",
+      brsr=_AUD_BRSR, gri="404-1-a (related)",
+      options=["Board of Directors", "Key Managerial Personnel", "Employees (permanent / other than permanent)",
+               "Workers (permanent / other than permanent)"],
+      option_refs={"Board of Directors": {"brsr": "P1-E1"}, "Key Managerial Personnel": {"brsr": "P1-E1"},
+                   "Employees (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"},
+                   "Workers (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"}}),
+    F("employee_worker_type", "Employee / worker type (per training)", type="dropdown", group="Training Audience", level=1,
+      parent="training_attendes_type", brsr=_AUD_BRSR, gri="404-1-a (related)", options=["Permanent", "Other than Permanent"]),
+]
+for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
+    _g = f"By Topic - {_label}"
+    SPECS[GEN_TRAINING] += [
+        F(_tk, "Number of trainings", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Number of Trainings"),
+        F(_fk, "Attendees - Female", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Female Attendees"),
+        F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
+    ]
+SPECS[GEN_TRAINING] += [
+    F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
+      kpi="Total Training Hours - Female", summary={"source": _HRS, "op": "sum", "column": "total_hours_female"}),
+    F("total_training_hours_male", "Total training hours - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
+      kpi="Total Training Hours - Male", summary={"source": _HRS, "op": "sum", "column": "total_hours_male"}),
+    F("average_training_hours_female", "Average hours per employee - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
+      kpi="Average Training Hours per Employee - Female", agg="avg",
+      summary={"source": _HRS, "op": "ratio", "num_column": "total_hours_female", "den_column": "employees_female"}),
+    F("average_training_hours_male", "Average hours per employee - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
+      kpi="Average Training Hours per Employee - Male", agg="avg",
+      summary={"source": _HRS, "op": "ratio", "num_column": "total_hours_male", "den_column": "employees_male"}),
+    F(_HRS, "Training hours by employee category (one row per category)", type="table", group="Training Hours", cols=[
+        C("employee_category", "Employee category", required=True, gri="404-1-a"),
+        C("total_hours_female", "Total training hours - Female", "number", gri="404-1-a"),
+        C("total_hours_male", "Total training hours - Male", "number", gri="404-1-a"),
+        C("employees_female", "Number of employees - Female", "number", gri="404-1-a"),
+        C("employees_male", "Number of employees - Male", "number", gri="404-1-a"),
+        C("average_hours_female", "Average hours per employee - Female (auto)", "number", gri="404-1-a",
+          derived={"num": "total_hours_female", "den": "employees_female"}),
+        C("average_hours_male", "Average hours per employee - Male (auto)", "number", gri="404-1-a",
+          derived={"num": "total_hours_male", "den": "employees_male"}),
+    ]),
+]
+
+SPECS[SEC_TRAINING] = [
+    F("no_of_trainings_done", "Security trainings completed", group="Totals", gri="410-1 (related)",
+      kpi="Security Trainings Completed", old="SOC_NO_OF_SECURITY_TRAININGS_DONE"),
+    F("security_personnel_who_received_training", "% security personnel trained", group="Totals", gri="410-1-a", percent=True,
+      agg="avg", kpi="% Security Personnel Trained", old="SOC_OF_SECURITY_PERSONNEL_WHO_RECEIVED_TRAIN"),
+    F("no_of_trainings_on_human_rights_policies", "Training on human-rights policies", group="By Content", gri="410-1-a",
+      kpi="Security Trainings - Human-rights Policies", old="SOC_NO_OF_HUMAN_RIGHTS_POLICIES_TRAININGS_DO"),
+    F("no_of_trainings_on_specific_procedures_their_application_to_security", "Training on security procedures and their application",
+      group="By Content", gri="410-1-a", kpi="Security Trainings - Procedures and Their Application",
+      old="SOC_NO_OF_SPECIFIC_PROCEDURES_THEIR_APPLICAT"),
+]
+
+SPECS[ACPC] = [
+    F("number_communicated", "People communicated (Total)", group="Total", gri="205-2", kpi="Anti-corruption Policy - People Communicated (Total)",
+      old="GOV_NO_OF_PEOPLE_COMMUNICATED_ABOUT_ANTICORR",
+      sum_of=["no_of_board_of_directors_communicated", "no_of_key_management_personnel_communicated", "no_of_employee_communicated",
+              "no_of_business_partner_communicated"]),
+    F("no_of_board_of_directors_communicated", "Board members", group="By Group", level=1, parent="number_communicated", gri="205-2-a",
+      kpi="Anti-corruption Policy - Board Members Communicated", old="GOV_NO_OF_GOVERNANCE_BODY_MEMBERS_COMMUNICAT"),
+    F("no_of_key_management_personnel_communicated", "Key management personnel", group="By Group", level=1, parent="number_communicated",
+      gri="205-2-b", kpi="Anti-corruption Policy - Key Management Personnel Communicated"),
+    F("no_of_employee_communicated", "Employees (excluding KMP)", group="By Group", level=1, parent="number_communicated", gri="205-2-b",
+      kpi="Anti-corruption Policy - Employees Communicated", old="GOV_NO_OF_EMPLOYEES_COMMUNICATED_ABOUT_ANTIC"),
+    F("no_of_business_partner_communicated", "Business partners", group="By Group", level=1, parent="number_communicated", gri="205-2-c",
+      kpi="Anti-corruption Policy - Business Partners Communicated", old="GOV_NO_OF_BUSINESS_PARTNERS_COMMUNICATED_ABO"),
+]
+
+_CT = "no_of_confirmed_corruption_incidents"
+SPECS[ACCI] = [
+    F(_CT, "Confirmed corruption incidents (Total)", group="Total", brsr="P1-E5 (partial)", gri="205-3-a",
+      kpi="Confirmed Corruption Incidents (Total)"),
+    F("no_of_employees_dismissed", "Employees dismissed", group="Actions - Employees", level=1, parent=_CT, gri="205-3-b",
+      kpi="Corruption - Employees Dismissed"),
+    F("no_of_employees_disciplined", "Employees disciplined", group="Actions - Employees", level=1, parent=_CT,
+      brsr="P1-E5 (partial)", gri="205-3-b", kpi="Corruption - Employees Disciplined"),
+    F("no_of_business_partner_contracts_terminated", "Contracts terminated", group="Actions - Business Partners", level=1, parent=_CT,
+      gri="205-3-c", kpi="Corruption - Business Partner Contracts Terminated"),
+    F("no_of_business_partner_contracts_not_renewed", "Contracts not renewed", group="Actions - Business Partners", level=1, parent=_CT,
+      gri="205-3-c", kpi="Corruption - Business Partner Contracts Not Renewed"),
+    F("no_of_public_legal_cases_regarding_corruption_against_org_employee", "Public legal cases regarding corruption",
+      group="Legal Cases", level=1, parent=_CT, gri="205-3-d", kpi="Corruption - Public Legal Cases"),
+]
+
+_AC = "total_no_of_cases"
+SPECS[COMPETITIVE] = [
+    F(_AC, "Anti-competitive behaviour cases (Total)", group="Total", brsr="P7-E2 (partial)", gri="206-1-a",
+      kpi="Anti-competitive Behaviour Cases (Total)"),
+    F("no_of_public_legal_cases_regarding_anti_competitive_and_violations_of_anti_trust_and_monopoly_legislation",
+      "of which: Public legal cases - anti-competitive behaviour, anti-trust, monopoly", group="Total", level=1, parent=_AC,
+      gri="206-1-a", kpi="Anti-competitive Behaviour - Public Legal Cases", le=_AC),
+]
+
+SPECS[AP_DAYS] = [
+    F("accounts_payable_days", "Accounts Payable Days", units=["Days"], group="Accounts Payable Days", brsr="P1-E8", agg="avg",
+      kpi="Accounts Payable Days", ratio=("accounts_payable", "cost_of_goods_services_procured", 365)),
+    F("accounts_payable", "Accounts payable", group="Accounts Payable Days", level=1, parent="accounts_payable_days",
+      brsr="P1-E8 (input)", kpi="Accounts Payable"),
+    F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable Days", level=1,
+      parent="accounts_payable_days", brsr="P1-E8 (input)", kpi="Cost of Goods/Services Procured"),
+]
+
+_VT = "no_of_incidents_of_violations"
+SPECS[VIOLATIONS] = [
+    F(_VT, "Violation incidents (Total)", group="Total", gri="411-1-a (related); 406-1-a (related)", kpi="Violation Incidents (Total)"),
+    F("no_of_incidents_of_violations_related_to_indigenous_peoples_rights", "of which: Related to Indigenous Peoples' rights",
+      group="Total", level=1, parent=_VT, gri="411-1-a", kpi="Violation Incidents - Indigenous Peoples' Rights", le=_VT),
+    F("no_of_incidents_reviewed_by_the_organization", "of which: Reviewed by the organisation", group="Total", level=1, parent=_VT,
+      gri="411-1-b-i; 406-1-b-i", kpi="Violation Incidents - Reviewed by the Organisation", le=_VT),
+]
+
+_BT = "no_of_incidents_of_data_breach"
+_BP = "no_of_data_breach_which_involved_personally_identifiable_information_of_customers"
+_PC = "total_substantiated_privacy_complaints"
+SPECS[BREACH] = [
+    F(_BT, "Data-breach incidents (Total)", group="Data Breaches", brsr="P9-E7 (a)", gri="418-1-b (related)",
+      kpi="Data-breach Incidents (Total)", old="GOV_NO_OF_DATA_BREACH_INCIDENTS"),
+    F(_BP, "of which: Involving customer PII", group="Data Breaches", level=1, parent=_BT, brsr="P9-E7 (b) (input)", gri="418-1-b",
+      kpi="Data-breach Incidents - Involving Customer PII", old="GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_PERSONA", le=_BT),
+    F("percentage_data_breach_involving_customer_pii", "% of breaches involving customer PII", group="Data Breaches", level=1,
+      parent=_BT, brsr="P9-E7 (b)", percent=True, agg="avg", kpi="% Data Breaches Involving Customer PII", ratio=(_BP, _BT, 100)),
+    F("no_of_data_breach_where_there_was_leaks_thefts_or_losses_of_customer_data", "of which: Leaks / thefts / losses of customer data",
+      group="Data Breaches", level=1, parent=_BT, gri="418-1-b", kpi="Data-breach Incidents - Leaks / Thefts / Losses of Customer Data",
+      old="GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_LEAKS_T", le=_BT),
+    F(_PC, "Substantiated privacy complaints (Total)", group="Privacy Complaints", gri="418-1-a", kpi="Substantiated Privacy Complaints (Total)",
+      sum_of=["no_of_complaints_substantiated_by_the_organization", "no_of_complaints_received_from_regulatory_bodies"]),
+    F("no_of_complaints_substantiated_by_the_organization", "From outside parties (substantiated by the organisation)",
+      group="Privacy Complaints", level=1, parent=_PC, gri="418-1-a-i", kpi="Privacy Complaints - From Outside Parties",
+      old="GOV_NO_OF_DATA_BREACH_INCIDENTS_SUBSTANTIATE"),
+    F("no_of_complaints_received_from_regulatory_bodies", "From regulatory bodies", group="Privacy Complaints", level=1, parent=_PC,
+      gri="418-1-a-ii", kpi="Privacy Complaints - From Regulatory Bodies", old="GOV_NO_OF_DATA_BREACH_INCIDENTS_RECEIVED_FRO"),
+]
+
+_NC = "no_of_cases"
+_NC_OUT = ["non_compliance_result_in_a_fine_or_penalty", "non_compliance_result_in_a_warning", "non_compliance_with_voluntary_codes"]
+_NC_TYPES = {
+    "Laws & regulations - general": {"gri": "2-27-a", "brsr": "P1-E2 (partial)"},
+    "Environmental laws": {"gri": "2-27-a", "brsr": "P6-E13 (partial)"},
+    "Product & service health and safety": {"gri": "416-2-a"},
+    "Product & service information and labelling": {"gri": "417-2-a"},
+    "Marketing communications": {"gri": "417-3-a"},
+}
+SPECS[NONCOMPLIANCE] = [
+    F(_NC, "Non-compliance cases (Total)", group="Total", brsr="P1-E2; P6-E13 (partial)",
+      gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", kpi="Non-compliance Cases (Total)", old="GOV_NO_OF_NONCOMPLIANCE_INCIDENTS", sum_le=_NC_OUT),
+    F("non_compliance_type", "Non-compliance type (select per case)", type="dropdown", group="Total", level=1, parent=_NC,
+      brsr="P1-E2; P6-E13 (partial)", gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", options=list(_NC_TYPES), option_refs=_NC_TYPES),
+    F("non_compliance_result_in_a_fine_or_penalty", "Resulting in fine / penalty", group="By Outcome", level=1, parent=_NC,
+      brsr="P1-E2 (partial)", gri="2-27-a-i; 416-2-a-i; 417-2-a-i, 417-3-a-i", kpi="Non-compliance - Resulting in Fine / Penalty",
+      old="GOV_NO_OF_NONCOMPLIANCE_THAT_RESULTED_IN_A_F"),
+    F("non_compliance_result_in_a_warning", "Resulting in warning", group="By Outcome", level=1, parent=_NC,
+      gri="416-2-a-ii; 417-2-a-ii, 417-3-a-ii", kpi="Non-compliance - Resulting in Warning", old="GOV_NO_OF_NONCOMPLIANCE_THAT_RESULTED_IN_A_W"),
+    F("non_compliance_with_voluntary_codes", "Non-compliance with voluntary codes", group="By Outcome", level=1, parent=_NC,
+      gri="416-2-a-iii; 417-2-a-iii, 417-3-a-iii", kpi="Non-compliance - With Voluntary Codes", old="GOV_NO_OF_NONCOMPLIANCE_WITH_VOLUNTARY_CODE"),
+    F("non_compliance_fine_amount", "Fine / penalty amount", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2", gri="2-27-b",
+      kpi="Non-compliance - Fine / Penalty Amount"),
+    F("non_compliance_settlement_amount", "Settlement amount", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2",
+      gri="2-27-b (related)", kpi="Non-compliance - Settlement Amount"),
+    F("non_compliance_compounding_fee", "Compounding fee", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2",
+      gri="2-27-b (related)", kpi="Non-compliance - Compounding Fee"),
+]
+
 # Existing Restoration / Rehabilitation fields keep their data; only references are added.
 RESTORATION_REFS = {
     "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11 (partial)", "101-5-a"),
@@ -374,11 +580,13 @@ def _sum_rules(cat: str, sub: str) -> Optional[Dict[str, Any]]:
     sums = [(s["key"], s["sum_of"]) for s in specs if s["sum_of"]]
     le = [(s["key"], s["le"]) for s in specs if s["le"]]
     quality = []
+    sum_le = [(s["sum_le"], s["key"]) for s in specs if s["sum_le"]]
+    ratios = [(s["key"], *s["ratio"]) for s in specs if s["ratio"]]
     for s in specs:
         parts = s["eq_parts"]
         for group in ([parts] if parts and not isinstance(parts[0], list) else parts or []):
             quality.append((group, s["key"]))
-    if not (sums or le or quality):
+    if not (sums or le or quality or sum_le or ratios):
         return None
     parents = dict(sums)
 
@@ -387,10 +595,15 @@ def _sum_rules(cat: str, sub: str) -> Optional[Dict[str, Any]]:
 
     sums.sort(key=lambda x: depth(x[0]))
     numeric = [s["key"] for s in specs if s["type"] == "number"]
-    return {"root": [p for p, _c in sums] or numeric, "sums": sums, "le": le, "quality": quality, "other": []}
+    root = numeric if (cat, sub) in ANY_ENTRY else [p for p, _c in sums] or numeric
+    return {"root": root, "sums": sums, "le": le, "quality": quality, "other": [], "sum_le": sum_le, "ratios": ratios}
 
 
-ENV_SUM_RULES = {(cat.lower(), sub.lower()): r for (cat, sub) in SPECS if (r := _sum_rules(cat, sub))}
+def _norm(value: Optional[str]) -> str:
+    return (value or "").strip().lower()
+
+
+ENV_SUM_RULES = {(_norm(cat), _norm(sub)): r for (cat, sub) in SPECS if (r := _sum_rules(cat, sub))}
 ENV_LABELS = {s["key"]: s["label"] for specs in SPECS.values() for s in specs}
 
 
@@ -405,7 +618,7 @@ def _number(value: Any, label: str) -> Optional[float]:
 
 def apply_table_rules(category: str, subcategory: str, field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Validate repeatable tables and derive their count / sum / average summary fields."""
-    key = next((k for k in SPECS if k[0].lower() == (category or "").lower() and k[1].lower() == (subcategory or "").lower()), None)
+    key = next((k for k in SPECS if _norm(k[0]) == _norm(category) and _norm(k[1]) == _norm(subcategory)), None)
     specs = SPECS.get(key) if key else None
     if not specs or not any(s["type"] == "table" for s in specs):
         return field_values
@@ -426,12 +639,23 @@ def apply_table_rules(category: str, subcategory: str, field_values: Dict[str, A
                         raise ValueError(f"Row {i}: {col['label']} cannot exceed {col['max']}")
                 if col["required"] and not is_draft and value in (None, ""):
                     raise ValueError(f"{spec['label']} row {i}: {col['label']} is required")
+            for col in (c for c in spec["cols"] if c["derived"]):
+                num = _number(row.get(col["derived"]["num"]), col["label"])
+                den = _number(row.get(col["derived"]["den"]), col["label"])
+                row[col["key"]] = round(num / den, 6) if num is not None and den else None
         out[spec["key"]] = rows
     for spec in (s for s in specs if s["summary"]):
         sm = spec["summary"]
         rows = out.get(sm["source"]) or []
         if sm["op"] == "count":
             out[spec["key"]] = len(rows)
+            continue
+        if sm["op"] == "ratio":
+            num = sum(_number(r.get(sm["num_column"]), sm["num_column"]) or 0 for r in rows)
+            den = sum(_number(r.get(sm["den_column"]), sm["den_column"]) or 0 for r in rows)
+            out[spec["key"]] = round(num / den, 6) if den else 0
+            if spec["units"]:
+                out[f"{spec['key']}_unit"] = out.get(f"{spec['key']}_unit") or spec["default_unit"]
             continue
         unit = out.get(f"{spec['key']}_unit") or spec["default_unit"]
         target = UNIT_FACTORS.get(str(unit).lower(), 1.0)

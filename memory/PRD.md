@@ -601,3 +601,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `ENV_SUM_RULES` is now keyed by (category, subcategory) and sums are ordered children-first; `eq_parts` may be a list of groups.
 - Old H&S Incidents dropdown-based fields and old New Hires dropdown fields replaced (no migration). A duplicate "Health & Safety Incidents" subcategory exists under `Employees/Worker`; left untouched.
 - Not UI-tested (user preference).
+
+## 2026-08 — Training / Anti-corruption / Competitive / Financial / Incidents (final batch)
+- `env_schema.py` SPECS now cover Training (General, Security), Anti-corruption (Policy Communication, Confirmed Incidents), Competitive Behaviour (category name has a trailing space; lookups now strip), Financial & Procurement (Accounts Payable Days), Incidents (Violations, Data Breach, Non-compliance). Seed script syncs them (sections: Training social; others governance).
+- New engine options: `ratio` (AUTO = num x scale / den: AP days, % PII breaches), `sum_le` (sum of outcomes <= total), table `derived` columns and `ratio` summaries (training hours by employee category -> total / average hours F/M), dropdown fields with per-option BRSR/GRI refs (`option_refs`), `ANY_ENTRY` root rule. `HierarchicalFields.jsx` renders dropdowns, live ratios, derived cells.
+- Old per-topic/old type fields replaced without migration; archived KPIs left archived.
+- Verified via rule checks + seed run only; no UI/testing agent (user preference).
+- Backlog unchanged: P0 Retire & Replace KPIs; P2 UI-configurable auto-sum rules.

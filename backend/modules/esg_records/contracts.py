@@ -57,6 +57,8 @@ class ESGRecordFieldConfig(BaseModel):
     brsr_reference: Optional[str] = None
     gri_disclosure: Optional[str] = None
     table_summary: Optional[Dict[str, Any]] = None
+    option_refs: Optional[Dict[str, Any]] = None
+    ratio: Optional[Dict[str, Any]] = None
 
 
 class ESGRecordCategoryConfig(BaseModel):
