@@ -12,7 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 export const hasFieldTree = (fields) => (fields || []).some((f) => f.group || f.parent_key);
 
 const isEntered = (v) => v !== undefined && v !== null && v !== '';
-const VOLUME_FACTORS = { litres: 1, kilolitres: 1000, megalitres: 1000000 };
+const VOLUME_FACTORS = {
+  litres: 1, kilolitres: 1000, megalitres: 1000000,
+  j: 1, kj: 1e3, mj: 1e6, gj: 1e9, tj: 1e12, kwh: 3.6e6, mwh: 3.6e9, gwh: 3.6e12,
+};
 const isRowFilled = (row) => Object.values(row || {}).some(isEntered);
 
 const derivedValue = (row, { num, den }) => {
@@ -151,8 +154,18 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
 
   const deriveSummaries = (vals) => {
     fields.filter((f) => f.table_summary).forEach((f) => {
-      const { source, op, column, unit_column: unitColumn } = f.table_summary;
+      const { source, op, column, unit_column: unitColumn, optional } = f.table_summary;
       const rows = (vals[source] || []).filter(isRowFilled);
+      if (optional) {
+        if (rows.length === 0) {
+          if (auto.current.has(f.field_key)) {
+            delete vals[f.field_key];
+            auto.current.delete(f.field_key);
+          }
+          return;
+        }
+        auto.current.add(f.field_key);
+      }
       if (op === 'count') {
         vals[f.field_key] = rows.length;
         return;
@@ -184,10 +197,19 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
 
   const handleChoice = (key, value) => onChange((prev) => ({ ...prev, [key]: value }));
 
+  const handleMulti = (key, option, checked) => onChange((prev) => {
+    const current = prev[key] || [];
+    return { ...prev, [key]: checked ? [...current, option] : current.filter((o) => o !== option) };
+  });
+
+  const summaryLocked = (f) => !!f.table_summary
+    && (!f.table_summary.optional || (values?.[f.table_summary.source] || []).some(isRowFilled));
+
   const handleTable = (key, rows) => {
     onChange((prev) => {
       const next = { ...prev, [key]: rows };
       deriveSummaries(next);
+      fields.filter((f) => f.table_summary?.optional).forEach((f) => propagate(next, f.field_key));
       return next;
     });
   };
@@ -241,6 +263,8 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     const kids = children[key] || [];
     const isAuto = !manual.current.has(key) && (sumChildren[key] || []).some((c) => isEntered(values?.[c]));
     const isChoice = ['dropdown', 'radio'].includes(field.type);
+    const isMulti = field.type === 'checkbox_group';
+    const isText = ['text', 'textarea'].includes(field.type);
     const optionRef = isChoice ? field.option_refs?.[values?.[key]] : null;
     if (field.group && field.group !== lastGroup) {
       lastGroup = field.group;
@@ -297,14 +321,28 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
                 Selected - GRI: {optionRef.gri}
               </span>
             )}
-            {(isAuto || field.table_summary || field.ratio) && (
+            {(isAuto || summaryLocked(field) || field.ratio) && (
               <span className="px-1.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Auto
               </span>
             )}
           </div>
         </div>
-        {isChoice ? (
+        {isMulti ? (
+          <div className="flex flex-wrap gap-3" data-testid={`${testIdPrefix}-${key}-multi`}>
+            {(field.options || []).map((o) => (
+              <label key={o} className="flex items-center gap-1.5 text-sm">
+                <input type="checkbox" checked={(values?.[key] || []).includes(o)}
+                       onChange={(e) => handleMulti(key, o, e.target.checked)}
+                       data-testid={`${testIdPrefix}-${key}-option-${o.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} />
+                {o}
+              </label>
+            ))}
+          </div>
+        ) : isText ? (
+          <Input type="text" value={values?.[key] ?? ''} onChange={(e) => handleChoice(key, e.target.value)}
+                 className="w-72 max-w-full border-stone-300" data-testid={`${testIdPrefix}-${key}-input`} />
+        ) : isChoice ? (
           <Select value={values?.[key] || ''} onValueChange={(v) => handleChoice(key, v)}>
             <SelectTrigger className="w-72 max-w-full border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
               <SelectValue placeholder="Select" />
@@ -317,7 +355,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
           <Input
             type="number"
             value={values?.[key] ?? ''}
-            disabled={!!field.table_summary || !!field.ratio}
+            disabled={summaryLocked(field) || !!field.ratio}
             onChange={(e) => handleValue(key, e.target.value)}
             min={field.validation?.min}
             step={field.validation?.step}

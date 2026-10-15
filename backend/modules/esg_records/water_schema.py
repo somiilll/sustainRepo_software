@@ -236,9 +236,13 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         return field_values
 
     out = dict(field_values)
+
+    def mixed_units(*keys):
+        return len({field_values.get(f"{k}_unit") for k in keys if values.get(k) is not None and field_values.get(f"{k}_unit")}) > 1
+
     for parent, children in rules["sums"]:
         entered = [values[c] for c in children if values[c] is not None]
-        if not entered:
+        if not entered or mixed_units(parent, *children):
             continue
         total = sum(entered)
         if values[parent] is None:
@@ -254,10 +258,12 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         if values[num] is not None and values[den]:
             values[key] = out[key] = round(values[num] * scale / values[den], 6)
 
-    if all(values[r] is None for r in roots):
+    if all(values[r] is None for r in roots) and not any(values[c] is not None for _p, ch in rules["sums"] for c in ch):
         raise ValueError("Enter the total, or at least one source/destination value")
 
     for small, big in rules["le"]:
+        if mixed_units(small, big):
+            continue
         if values[small] is not None and values[big] is not None and values[small] > values[big] + TOLERANCE:
             raise ValueError(f"{_label(small)} cannot exceed {_label(big)}")
 
@@ -267,7 +273,7 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
             raise ValueError(f"{' + '.join(_label(p) for p in parts)} ({_fmt(sum(entered))}) cannot exceed {_label(total)} ({_fmt(values[total])})")
 
     for parts, total in rules["quality"]:
-        if values[total] is None or any(values[p] is None for p in parts):
+        if values[total] is None or any(values[p] is None for p in parts) or mixed_units(total, *parts):
             continue
         part_sum = sum(values[p] for p in parts)
         if abs(part_sum - values[total]) > max(TOLERANCE, abs(part_sum) * 1e-6):

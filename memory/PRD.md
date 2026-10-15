@@ -608,3 +608,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Old per-topic/old type fields replaced without migration; archived KPIs left archived.
 - Verified via rule checks + seed run only; no UI/testing agent (user preference).
 - Backlog unchanged: P0 Retire & Replace KPIs; P2 UI-configurable auto-sum rules.
+
+## 2026-08 — Energy (Fuel / Electricity / Heating / Cooling / Steam / Outside / Reduction)
+- Specs in `env_schema.py` (`_carrier` helper for the four carriers). Existing keys kept (`quantity`, `renewable_energy_consumption`, `non_renewable_energy_consumption`, `renewable_heating_consumption`, ...) so `kpi_engine/energy_adapter.py` still reads them. Totals auto-sum; renewable + non-renewable must equal total (carriers); Fuel renewable / non-renewable are auto-summed from repeatable fuel-type tables (optional summary: manual entry allowed when no rows). Outside: Cat 1-8 / 9-15 -> upstream / downstream -> total. Reduction adds multi-select energy types, baseline text and base-year consumption.
+- Energy unit factors added to table summaries; sum/le/equality checks are skipped when the fields use different units (matches the form). Seed `old="!new"` forces a fresh KPI (no value_field fallback). Energy KPIs now carry J/kJ/MJ/GJ/TJ/kWh/MWh/GWh unit config.
+- Known: `energy_adapter` treats stored energy values as Joules regardless of the selected unit (pre-existing).
+- Not UI-tested (user preference).

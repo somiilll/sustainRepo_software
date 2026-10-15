@@ -87,11 +87,12 @@ async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
     slug = re.sub(r"[^A-Z0-9]+", "_", sub.upper()).strip("_")
     new_code = f"ENV_{category.upper()}_{slug}_{row['key'].upper()}"
     doc = None
-    for code in filter(None, [row["old_code"], new_code]):
+    fresh = row["old_code"] == "!new"
+    for code in ([new_code] if fresh else filter(None, [row["old_code"], new_code])):
         doc = await db.esg_kpi_definitions.find_one({"metric_code": code}, {"_id": 0, "id": 1, "metric_name": 1})
         if doc:
             break
-    if not doc:
+    if not doc and not fresh:
         doc = await db.esg_kpi_definitions.find_one(
             {"category_name": category, "subcategory": sub, "value_field": row["key"]}, {"_id": 0, "id": 1, "metric_name": 1})
     unit_config = row.get("unit_config") or (units if row["unit"] else COUNT_UNITS)
@@ -189,7 +190,7 @@ SECTIONS = {"Complaints": "social", "Employees/Worker": "social", "Health & Safe
 
 def env_field(spec, meta):
     table = spec["type"] == "table"
-    choice = spec["type"] == "dropdown"
+    choice = spec["type"] in ("dropdown", "checkbox_group", "text", "textarea")
     field = {
         "field_key": spec["key"], "label": spec["label"], "type": spec["type"] if (table or choice) else "number", "required": False,
         "placeholder": "", "options": spec["options"] or [], "default_value": None,
