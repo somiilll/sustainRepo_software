@@ -1,7 +1,8 @@
-"""Idempotent: add Water Withdrawal / Discharge / Recycle entry fields and KPI definitions with BRSR/GRI references."""
+"""Idempotent: Water (Consumption/Withdrawal/Discharge/Recycle) and Waste (Generated/Recovered/Disposal/Spills) entry fields and KPIs with BRSR/GRI references."""
 import asyncio
 import copy
 import os
+import re
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +17,9 @@ load_dotenv(os.path.join(ROOT, ".env"))
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from modules.esg_records.water_schema import ROWS, tree_meta
+from modules.esg_records.waste_schema import (
+    SPILL_COLUMNS, SPILL_COUNT_KEY, SPILL_TABLE_KEY, SPILL_TOTAL_KEY, STREAMS, waste_rows, waste_tree_meta,
+)
 
 UNITS = {"default_unit": "Litres", "supported_units": ["Litres", "KiloLitres", "MegaLitres"], "allow_unit_conversion": False}
 COUNT_UNITS = {"default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False}
@@ -34,8 +38,8 @@ CONSUMPTION_REFS = {
 }
 
 
-def apply_tree(fields, sub, refs):
-    meta = tree_meta(sub)
+def apply_tree(fields, sub, refs, meta_fn=tree_meta):
+    meta = meta_fn(sub)
     for f in fields:
         m = meta.get(f["field_key"])
         if not m:
@@ -47,8 +51,10 @@ def apply_tree(fields, sub, refs):
     return fields
 
 
-def build_fields(existing, rows, sub_name):
-    by_key = {f["field_key"]: f for f in existing}
+def build_fields(existing, rows, sub_name, meta_fn=tree_meta):
+    by_key = {}
+    for f in existing:
+        by_key.setdefault(f["field_key"], f)
     template = copy.deepcopy(by_key["quantity"])
     template["required"] = False
     template["validation"] = {"min": 0}
@@ -69,17 +75,21 @@ def build_fields(existing, rows, sub_name):
         fields.append(field)
     used = {f["field_key"] for f in fields}
     fields.extend(f for f in existing if f["field_key"] not in used)
-    return apply_tree(fields, sub_name, {r["key"]: (r["brsr"], r["gri"]) for r in rows})
+    return apply_tree(fields, sub_name, {r["key"]: (r["brsr"], r["gri"]) for r in rows}, meta_fn)
 
 
-async def sync_kpi(db, sub, row, now):
-    new_code = f"ENV_WATER_{sub.upper()}_{row['key'].upper()}"
+SPILL_UNITS = {"default_unit": "Litres", "supported_units": ["Litres", "KiloLitres"], "allow_unit_conversion": False}
+
+
+async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
+    slug = re.sub(r"[^A-Z0-9]+", "_", sub.upper()).strip("_")
+    new_code = f"ENV_{category.upper()}_{slug}_{row['key'].upper()}"
     doc = None
     for code in filter(None, [row["old_code"], new_code]):
         doc = await db.esg_kpi_definitions.find_one({"metric_code": code}, {"_id": 0, "id": 1, "metric_name": 1})
         if doc:
             break
-    unit_config = UNITS if row["unit"] else COUNT_UNITS
+    unit_config = units if row["unit"] else COUNT_UNITS
     common = {
         "value_field": row["key"],
         "source_config": {"records": {"value_field": row["key"]}},
@@ -90,7 +100,7 @@ async def sync_kpi(db, sub, row, now):
         "status": "active",
         "updated_at": now,
     }
-    meta = tree_meta(sub).get(row["key"])
+    meta = meta_fn(sub).get(row["key"])
     if meta:
         common.update({"tree_group": meta["group"], "tree_level": meta["level"],
                        "tree_parent_key": meta["parent_key"], "tree_order": meta["order"]})
@@ -101,13 +111,13 @@ async def sync_kpi(db, sub, row, now):
         return "updated"
     await db.esg_kpi_definitions.insert_one({
         "id": str(uuid.uuid4()), "metric_name": row["name"], "short_name": row["name"], "metric_code": new_code,
-        "description": "", "section": "environment", "category_name": "Water", "subcategory": sub,
+        "description": "", "section": "environment", "category_name": category, "subcategory": sub,
         "sub_subcategory": "", "aggregation_type": "sum", "source_type": "records", "dimensions": ["organization"],
         "supported_scopes": ["organization", "facility"], "output_type": "number", "formula_config": None,
         "validation_rules": [], "display_config": {"display_name": None, "short_name": None, "display_order": 0,
                                                     "category_order": 0, "icon": None, "color": None, "decimal_places": 2},
         "visibility": dict(VISIBILITY), "tags": [], "metadata": None, "version": 1,
-        "created_by": None, "created_by_name": "water seed script", "created_at": now,
+        "created_by": None, "created_by_name": "seed script", "created_at": now,
         "updated_by": None, "updated_by_name": None, **common,
     })
     return "created"
@@ -125,6 +135,46 @@ async def sync_consumption(db, now):
     print(f"Consumption: tree metadata on {len(fields)} fields")
 
 
+def spill_fields(existing_unit_field):
+    base = {"type": "number", "required": False, "placeholder": "", "options": [], "default_value": None,
+            "validation": {"min": 0}, "table_columns": [], "table_min_rows": 1, "table_max_rows": 10}
+    meta = waste_tree_meta("Spills")
+    gri = "306-3 (2016)-a"
+    fields = [
+        {**base, "field_key": SPILL_COUNT_KEY, "label": "Number of significant spills", "has_unit": False,
+         "allowed_units": [], "default_unit": None, "validation": {"min": 0, "step": 1},
+         "table_summary": {"source": SPILL_TABLE_KEY, "op": "count"}},
+        {**base, "field_key": SPILL_TOTAL_KEY, "label": "Total volume of significant spills", "has_unit": True,
+         "allowed_units": ["Litres", "KiloLitres"], "default_unit": "Litres",
+         "table_summary": {"source": SPILL_TABLE_KEY, "op": "sum", "column": "volume", "unit_column": "volume_unit"}},
+        {**base, "field_key": SPILL_TABLE_KEY, "type": "table", "label": "Spill records (one row per significant spill)",
+         "has_unit": False, "allowed_units": [], "default_unit": None, "validation": {},
+         "table_columns": SPILL_COLUMNS, "table_min_rows": 0, "table_max_rows": 50},
+    ]
+    for f in fields:
+        m = meta[f["field_key"]]
+        f.update({"group": m["group"], "level": m["level"], "parent_key": None, "sum_parents": [],
+                  "brsr_reference": None, "gri_disclosure": gri if f["field_key"] != SPILL_TABLE_KEY else None})
+    return fields
+
+
+async def sync_waste(db, now):
+    waste_units = None
+    ref = await db.esg_kpi_definitions.find_one({"metric_code": "ENV_WASTE_GENERATED_IN_METRIC_TONNES"}, {"unit_config": 1})
+    waste_units = (ref or {}).get("unit_config") or {"default_unit": "MT", "supported_units": ["MT", "kg"], "allow_unit_conversion": False}
+    for sub in [*STREAMS, "Spills"]:
+        cat = await db.esg_record_categories.find_one({"category": "Waste", "subcategory": sub})
+        rows = waste_rows(sub)
+        fields = spill_fields(None) if sub == "Spills" else build_fields(cat["fields"], rows, sub, waste_tree_meta)
+        await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
+        print(f"Waste/{sub}: {len(fields)} entry fields")
+        counts = {"created": 0, "updated": 0}
+        units = SPILL_UNITS if sub == "Spills" else waste_units
+        for row in rows:
+            counts[await sync_kpi(db, "Waste", sub, row, now, waste_tree_meta, units)] += 1
+        print(f"Waste/{sub}: KPIs {counts}")
+
+
 async def main():
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
     now = datetime.now(timezone.utc).isoformat()
@@ -139,8 +189,9 @@ async def main():
             print(f"{sub}: {len(fields)} entry fields")
         counts = {"created": 0, "updated": 0}
         for row in rows:
-            counts[await sync_kpi(db, sub, row, now)] += 1
+            counts[await sync_kpi(db, "Water", sub, row, now)] += 1
         print(f"{sub}: KPIs {counts}")
+    await sync_waste(db, now)
 
 
 if __name__ == "__main__":

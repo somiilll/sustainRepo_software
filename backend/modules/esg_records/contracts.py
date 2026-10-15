@@ -56,6 +56,7 @@ class ESGRecordFieldConfig(BaseModel):
     sum_parents: Optional[List[str]] = None
     brsr_reference: Optional[str] = None
     gri_disclosure: Optional[str] = None
+    table_summary: Optional[Dict[str, Any]] = None
 
 
 class ESGRecordCategoryConfig(BaseModel):

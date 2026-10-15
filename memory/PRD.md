@@ -569,3 +569,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Backlog
 - P0: Retire/replace support — mark an entry field or KPI "retired" (hidden from new entry, kept in history), `replaces` link so reports add old + new, move active targets to the replacement KPI, per-org overrides.
 - P2: Config-driven sum rules — read `sum_parents` from field config in the backend rule engine so new fields join auto-sum without code changes (currently rules live in `esg_records/water_schema.py`).
+
+## 2026-08 — Waste Generated / Recovered / Disposal / Spills
+- `esg_records/waste_schema.py`: Waste KPI rows, tree, sum/check rules (hazardous/non-hazardous × category × recovery/disposal operation, onsite/offsite, incineration energy-recovery split) and spill rules. `water_schema.apply_water_rules` now dispatches Water + Waste.
+- Seed script `scripts/seed_water_withdrawal_discharge_recycle.py` (idempotent) now also writes Waste: Generated 11, Recovered 42, Disposal 44 fields/KPIs, Spills 3 fields + 2 KPIs. Fixed duplicate `non_hazardous_waste_recovered` key (onsite is now `non_hazardous_waste_recovered_onsite`).
+- Spills: one record holds a repeatable `spill_records` table (new `RepeatableTable` in `HierarchicalFields.jsx`); count and total volume are auto-derived (live in the form, enforced on save). Old per-spill fields were dropped from the category with no migration (old data to be deleted by the user).
+- Not UI-tested; no testing agent run (user preference).
+- Known quirk (not changed): `shared/unit_registry` treats "MT" as Megatonne, so KPI unit conversion for waste MT/kg may be off; form auto-sums skip when units differ.

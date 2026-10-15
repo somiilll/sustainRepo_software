@@ -1,6 +1,8 @@
 """Water (Consumption / Withdrawal / Discharge / Recycle): field keys, KPI rows and entry rules."""
 from typing import Any, Dict, List, Optional
 
+from .waste_schema import WASTE_LABELS, WASTE_RULES, apply_spill_rules
+
 TOLERANCE = 0.01
 
 W_SOURCES = [
@@ -174,7 +176,7 @@ LABELS = _labels()
 
 
 def _label(key: str) -> str:
-    return LABELS.get(key) or key.replace("_", " ").capitalize()
+    return LABELS.get(key) or WASTE_LABELS.get(key) or key.replace("_", " ").capitalize()
 
 
 def _num(value: Any, key: str) -> Optional[float]:
@@ -193,7 +195,10 @@ def _fmt(value: float) -> str:
 def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                       field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Auto-fill totals from their parts, or validate typed totals against them."""
-    rules = RULES.get((subcategory or "").lower()) if (category or "").lower() == "water" else None
+    cat, sub = (category or "").lower(), (subcategory or "").lower()
+    if cat == "waste" and sub == "spills":
+        return apply_spill_rules(field_values, is_draft)
+    rules = RULES.get(sub) if cat == "water" else WASTE_RULES.get(sub) if cat == "waste" else None
     if not rules:
         return field_values
 

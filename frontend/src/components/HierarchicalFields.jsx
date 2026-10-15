@@ -3,7 +3,8 @@
  * Parent totals fill live from their parts until the user types a total directly.
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -11,6 +12,87 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 export const hasFieldTree = (fields) => (fields || []).some((f) => f.group || f.parent_key);
 
 const isEntered = (v) => v !== undefined && v !== null && v !== '';
+const VOLUME_FACTORS = { litres: 1, kilolitres: 1000 };
+const isRowFilled = (row) => Object.values(row || {}).some(isEntered);
+
+function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
+  const columns = field.table_columns || [];
+  const setCell = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
+  const emptyRow = () => Object.fromEntries(
+    columns.filter((c) => c.key === 'volume_unit').map((c) => [c.key, c.options?.[0]])
+  );
+  return (
+    <div className="space-y-2 w-full" data-testid={`${testIdPrefix}-${field.field_key}-table`}>
+      <div className="overflow-x-auto border rounded-md">
+        <table className="w-full text-sm">
+          <thead className="bg-stone-50">
+            <tr>
+              {columns.map((c) => (
+                <th key={c.key} className="px-2 py-1.5 text-left font-medium text-xs whitespace-nowrap">
+                  {c.label}
+                  {c.gri_disclosure && (
+                    <span className="ml-1 px-1 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200">
+                      GRI: {c.gri_disclosure}
+                    </span>
+                  )}
+                </th>
+              ))}
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={columns.length + 1} className="px-2 py-3 text-xs text-stone-500 italic">
+                No spills recorded. Use "Add spill" to add one.
+              </td></tr>
+            )}
+            {rows.map((row, i) => (
+              <tr key={i} className="border-t" data-testid={`${testIdPrefix}-${field.field_key}-row-${i}`}>
+                {columns.map((c) => (
+                  <td key={c.key} className="px-2 py-1.5 min-w-[130px]">
+                    {c.type === 'dropdown' ? (
+                      <Select value={row[c.key] || ''} onValueChange={(v) => setCell(i, c.key, v)}>
+                        <SelectTrigger className="h-9 border-stone-300"
+                                       data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(c.options || []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type={c.type === 'number' ? 'number' : 'text'}
+                        min={c.type === 'number' ? 0 : undefined}
+                        value={row[c.key] ?? ''}
+                        onChange={(e) => setCell(i, c.key,
+                          c.type === 'number' && e.target.value !== '' ? parseFloat(e.target.value) : e.target.value)}
+                        className="h-9 border-stone-300"
+                        data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}
+                      />
+                    )}
+                  </td>
+                ))}
+                <td className="px-1">
+                  <Button type="button" variant="ghost" size="icon"
+                          onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+                          data-testid={`${testIdPrefix}-${field.field_key}-remove-${i}`}>
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, emptyRow()])}
+              disabled={field.table_max_rows ? rows.length >= field.table_max_rows : false}
+              data-testid={`${testIdPrefix}-${field.field_key}-add-row`}>
+        <Plus className="w-4 h-4 mr-1" /> Add spill
+      </Button>
+    </div>
+  );
+}
 
 export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'metric-field' }) {
   const [collapsed, setCollapsed] = useState({});
@@ -52,6 +134,29 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     });
   };
 
+  const deriveSummaries = (vals) => {
+    fields.filter((f) => f.table_summary).forEach((f) => {
+      const { source, op, column } = f.table_summary;
+      const rows = (vals[source] || []).filter(isRowFilled);
+      if (op === 'count') {
+        vals[f.field_key] = rows.length;
+        return;
+      }
+      const target = VOLUME_FACTORS[String(unitOf(vals, f.field_key)).toLowerCase()] || 1;
+      const total = rows.reduce((sum, r) => sum + (Number(r[column]) || 0)
+        * (VOLUME_FACTORS[String(r[f.table_summary.unit_column] || 'Litres').toLowerCase()] || 1) / target, 0);
+      vals[f.field_key] = Math.round(total * 1e6) / 1e6;
+    });
+  };
+
+  const handleTable = (key, rows) => {
+    onChange((prev) => {
+      const next = { ...prev, [key]: rows };
+      deriveSummaries(next);
+      return next;
+    });
+  };
+
   const handleValue = (key, raw) => {
     const num = raw === '' ? undefined : parseFloat(raw);
     const cleared = num === undefined || Number.isNaN(num);
@@ -73,6 +178,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     onChange((prev) => {
       const next = { ...prev, [`${key}_unit`]: unit };
       propagate(next, key);
+      deriveSummaries(next);
       return next;
     });
   };
@@ -107,6 +213,15 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
         </p>
       );
     }
+    if (field.type === 'table') {
+      rows.push(
+        <div key={key} className="py-2" data-testid={`${testIdPrefix}-row-${key}`}>
+          <RepeatableTable field={field} rows={values?.[key] || []}
+                           onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+        </div>
+      );
+      return;
+    }
     rows.push(
       <div key={key} className="flex flex-wrap items-center gap-2 py-1.5 border-b border-stone-100"
            style={{ paddingLeft: (field.level || 0) * 20 }} data-testid={`${testIdPrefix}-row-${key}`}>
@@ -132,7 +247,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
                 GRI: {field.gri_disclosure}
               </span>
             )}
-            {isAuto && (
+            {(isAuto || field.table_summary) && (
               <span className="px-1.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Auto
               </span>
@@ -142,6 +257,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
         <Input
           type="number"
           value={values?.[key] ?? ''}
+          disabled={!!field.table_summary}
           onChange={(e) => handleValue(key, e.target.value)}
           min={field.validation?.min}
           step={field.validation?.step}
