@@ -183,6 +183,12 @@ class KPIDefinitionCreate(BaseModel):
     brsr_reference: Optional[str] = None  # e.g., "P6-E3"
     gri_disclosure: Optional[str] = None  # e.g., "303-5-a"
     
+    # Tree display (optional)
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
+    
     # Source
     source_type: SourceType = SourceType.RECORDS
     source_config: Optional[Dict[str, Any]] = None
@@ -240,6 +246,11 @@ class KPIDefinitionUpdate(BaseModel):
     brsr_reference: Optional[str] = None
     gri_disclosure: Optional[str] = None
     
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
+    
     source_type: Optional[SourceType] = None
     source_config: Optional[Dict[str, Any]] = None
     
@@ -281,6 +292,11 @@ class KPIDefinitionResponse(BaseModel):
     
     brsr_reference: Optional[str] = None
     gri_disclosure: Optional[str] = None
+    
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
     
     source_type: str
     source_config: Optional[Dict[str, Any]] = None

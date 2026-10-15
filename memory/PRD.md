@@ -559,3 +559,13 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `backend/scripts/seed_water_withdrawal_discharge_recycle.py` (idempotent): Withdrawal 16 fields/KPIs, Discharge 73 fields/KPIs, Recycle 1 KPI. Existing field keys unchanged; archived KPIs reactivated and remapped.
 - BRSR/GRI stored as plain codes (e.g. `P6-E4 (i)`, `303-4-a-i`); the (related)/(input)/(partial) relation text is not stored. Recycle has no references.
 - New KPIs are visible for targets only (same as Consumption KPIs). Not UI-tested, no testing agent run.
+
+## 2026-08 — Tree UI for Water KPIs / entry forms
+- Water field configs and KPIs carry `group`, `level`, `parent_key`, `sum_parents`, `brsr_reference`, `gri_disclosure` (KPIs: `tree_group/level/parent_key/order`). Written by `seed_water_withdrawal_discharge_recycle.py` (also covers Consumption).
+- `components/HierarchicalFields.jsx`: collapsible tree entry form with BRSR/GRI badges and live auto-totals (skips live sum if source units differ). Used in the 4 ESG record add/edit forms when a category has tree metadata.
+- KPI Definitions list: "Tree view" toggle (group headers + indent).
+- Not UI-tested (no testing agent run, per user preference).
+
+## Backlog
+- P0: Retire/replace support — mark an entry field or KPI "retired" (hidden from new entry, kept in history), `replaces` link so reports add old + new, move active targets to the replacement KPI, per-org overrides.
+- P2: Config-driven sum rules — read `sum_parents` from field config in the backend rule engine so new fields join auto-sum without code changes (currently rules live in `esg_records/water_schema.py`).

@@ -244,3 +244,76 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                 f"{' + '.join(_label(p) for p in parts)} ({_fmt(part_sum)}) must equal {_label(total)} ({_fmt(values[total])})"
             )
     return out
+
+
+# ----------------------------------------------------------------------------
+# Display tree (entry form + KPI list): group header, indent level, display parent
+# ----------------------------------------------------------------------------
+
+def _tree_consumption() -> List[Dict[str, Any]]:
+    out = [("quantity", "Total", 0, None)]
+    out += [(k, "By Source", 1, None) for k in (
+        "water_consumed_through_surface_water", "water_consumed_through_ground_water",
+        "water_consumed_through_seawater_desalinated_water", "water_consumed_through_third_party_water")]
+    out.append(("quantity_consumed_in_water_stress_area", "Water-stress Areas", 0, None))
+    out.append(("change_in_water_storage", "Change in Water Storage", 0, None))
+    return out
+
+
+def _tree_withdrawal() -> List[Dict[str, Any]]:
+    out = [("quantity", "Total", 0, None)]
+    out += [(k, "By Source", 1, None) for _c, _l, k, *_ in W_SOURCES]
+    out += [("freshwater_withdrawal", "By Quality", 1, None), ("other_water_withdrawal", "By Quality", 1, None)]
+    ws_total = "water_withdrawal_in_water_stress_area"
+    out.append((ws_total, "Water-stress Areas", 0, None))
+    out += [(ws_w_key(c), "Water-stress Areas", 1, ws_total) for c, *_ in W_SOURCES]
+    return out
+
+
+def _tree_discharge() -> List[Dict[str, Any]]:
+    out = [("quantity", "Total", 0, None)]
+    for code, _l, base, *_ in D_DESTS:
+        out.append((base, "By Destination & Treatment", 1, None))
+        out.append((d_key(code, "no_treatment", False), "By Destination & Treatment", 2, base))
+        wt = d_key(code, "with_treatment", False)
+        out.append((wt, "By Destination & Treatment", 2, base))
+        out += [(d_key(code, t, False), "By Destination & Treatment", 3, wt) for t in ("primary", "secondary", "tertiary")]
+    treated = OVERALL_TREATMENT_KEYS["with_treatment"][0]
+    out.append((OVERALL_TREATMENT_KEYS["no_treatment"][0], "By Treatment", 1, None))
+    out.append((treated, "By Treatment", 1, None))
+    out += [(OVERALL_TREATMENT_KEYS[t][0], "By Treatment", 2, treated) for t in ("primary", "secondary", "tertiary")]
+    out += [("freshwater_discharge", "By Quality", 1, None), ("other_water_discharge", "By Quality", 1, None)]
+    out.append(("water_sent_for_use_to_other_organization", "Of Which", 1, None))
+    ws_total = "quantity_discharged_to_water_stress_area"
+    out.append((ws_total, "Water-stress Areas", 0, None))
+    for code, _l, _b, *_ in D_DESTS:
+        ws_dest = d_total_key(code, None, True)
+        out.append((ws_dest, "Water-stress Areas", 1, ws_total))
+        out.append((d_key(code, "no_treatment", True), "Water-stress Areas", 2, ws_dest))
+        wt = d_key(code, "with_treatment", True)
+        out.append((wt, "Water-stress Areas", 2, ws_dest))
+        out += [(d_key(code, t, True), "Water-stress Areas", 3, wt) for t in ("primary", "secondary", "tertiary")]
+    out += [("ws_discharge_freshwater", "Water-stress Areas", 1, ws_total),
+            ("ws_discharge_other_water", "Water-stress Areas", 1, ws_total)]
+    out.append(("discharge_non_compliance_incidents", "Compliance", 0, None))
+    return out
+
+
+_TREES = {"Consumption": _tree_consumption, "Withdrawal": _tree_withdrawal, "Discharge": _tree_discharge}
+
+
+def tree_meta(subcategory: str) -> Dict[str, Dict[str, Any]]:
+    """key -> {group, level, parent_key, sum_parents, order} for a Water subcategory."""
+    build = _TREES.get(subcategory)
+    if not build:
+        return {}
+    rules = RULES[subcategory.lower()]
+    sum_parents: Dict[str, List[str]] = {}
+    for parent, children in rules["sums"]:
+        for child in children:
+            sum_parents.setdefault(child, []).append(parent)
+    return {
+        key: {"group": group, "level": level, "parent_key": parent,
+              "sum_parents": sum_parents.get(key, []), "order": i}
+        for i, (key, group, level, parent) in enumerate(build())
+    }

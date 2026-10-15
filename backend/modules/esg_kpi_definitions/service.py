@@ -62,6 +62,10 @@ class ESGKPIDefinitionsService:
             
             "brsr_reference": (data.brsr_reference or "").strip() or None,
             "gri_disclosure": (data.gri_disclosure or "").strip() or None,
+            "tree_group": data.tree_group,
+            "tree_level": data.tree_level,
+            "tree_parent_key": data.tree_parent_key,
+            "tree_order": data.tree_order,
             
             "source_type": data.source_type.value,
             "source_config": data.source_config,

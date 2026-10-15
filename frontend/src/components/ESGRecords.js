@@ -30,6 +30,7 @@ import {
   Trash2, Edit2, Eye, X, Lock, Link2, RefreshCw
 } from 'lucide-react';
 
+import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 // Months for monthly reporting
@@ -1039,7 +1040,14 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
             {selectedCategory?.fields?.length > 0 && (
               <div className="space-y-3 pt-3 border-t">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
-                {selectedCategory.fields.map(field => (
+                {hasFieldTree(selectedCategory.fields) ? (
+                  <HierarchicalFields
+                    fields={selectedCategory.fields}
+                    values={formData.field_values}
+                    onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="add-metric-field"
+                  />
+                ) : selectedCategory.fields.map(field => (
                   <DynamicFieldRenderer
                     key={field.field_key}
                     field={field}
@@ -1484,6 +1492,14 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
           {selectedCategory?.fields?.length > 0 && (
             <div className="space-y-4 pt-2 border-t">
               <p className="text-sm font-medium text-text-primary">Data Fields</p>
+              {hasFieldTree(selectedCategory.fields) ? (
+                <HierarchicalFields
+                  fields={selectedCategory.fields}
+                  values={formData.field_values}
+                  onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                  testIdPrefix="edit-metric-field"
+                />
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {selectedCategory.fields.map(field => (
                   <div key={field.field_key} className={field.type === 'textarea' || field.type === 'table' ? 'md:col-span-2' : ''}>
@@ -1495,6 +1511,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 

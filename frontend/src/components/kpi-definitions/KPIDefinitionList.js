@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ESG_SECTIONS, KPI_STATUSES } from './constants';
 import { 
   Search, MoreVertical, Edit2, Copy, Archive, Trash2, 
-  Filter, RefreshCw, ExternalLink 
+  Filter, RefreshCw, ExternalLink, ListTree 
 } from 'lucide-react';
 
 const KPIDefinitionList = ({
@@ -48,10 +48,20 @@ const KPIDefinitionList = ({
   );
   const activeSubcategory = subcategoryOptions.includes(subcategory) ? subcategory : '';
 
-  const filteredKpis = kpiDefinitions.filter(k =>
+  const [treeView, setTreeView] = useState(false);
+
+  const matchedKpis = kpiDefinitions.filter(k =>
     (!activeCategory || k.category_name === activeCategory) &&
     (!activeSubcategory || k.subcategory === activeSubcategory)
   );
+  const filteredKpis = treeView
+    ? [...matchedKpis].sort((a, b) =>
+        (a.section || '').localeCompare(b.section || '') ||
+        (a.category_name || '').localeCompare(b.category_name || '') ||
+        (a.subcategory || '').localeCompare(b.subcategory || '') ||
+        (a.tree_order ?? 100000) - (b.tree_order ?? 100000)
+      )
+    : matchedKpis;
 
   return (
     <div className="space-y-4">
@@ -152,6 +162,16 @@ const KPIDefinitionList = ({
           </SelectContent>
         </Select>
 
+        {/* Tree view toggle */}
+        <Button
+          variant={treeView ? 'default' : 'outline'}
+          onClick={() => setTreeView(v => !v)}
+          data-testid="kpi-tree-view-toggle"
+        >
+          <ListTree className="w-4 h-4 mr-2" />
+          Tree view
+        </Button>
+
         {/* Refresh */}
         <Button
           variant="outline"
@@ -194,19 +214,29 @@ const KPIDefinitionList = ({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredKpis.map((kpi) => {
+              filteredKpis.map((kpi, index) => {
+                const prev = filteredKpis[index - 1];
+                const showGroup = treeView && kpi.tree_group &&
+                  (!prev || prev.subcategory !== kpi.subcategory || prev.category_name !== kpi.category_name || prev.tree_group !== kpi.tree_group);
                 const sectionConfig = ESG_SECTIONS[kpi.section] || {};
                 const statusConfig = KPI_STATUSES[kpi.status] || {};
                 const hasRefs = (kpi.target_count || 0) > 0 || (kpi.dashboard_count || 0) > 0;
 
                 return (
+                  <React.Fragment key={kpi.id}>
+                  {showGroup && (
+                    <TableRow className="bg-slate-50/70" data-testid={`kpi-group-${kpi.id}`}>
+                      <TableCell colSpan={8} className="py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {kpi.category_name} / {kpi.subcategory} - {kpi.tree_group}
+                      </TableCell>
+                    </TableRow>
+                  )}
                   <TableRow 
-                    key={kpi.id} 
                     className="hover:bg-slate-50"
                     data-testid={`kpi-row-${kpi.id}`}
                   >
                     <TableCell>
-                      <div>
+                      <div style={treeView ? { paddingLeft: (kpi.tree_level || 0) * 20 } : undefined}>
                         <p className="font-medium text-gray-900">{kpi.metric_name}</p>
                         {kpi.short_name && kpi.short_name !== kpi.metric_name && (
                           <p className="text-xs text-gray-500">{kpi.short_name}</p>
@@ -304,6 +334,7 @@ const KPIDefinitionList = ({
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
+                  </React.Fragment>
                 );
               })
             )}

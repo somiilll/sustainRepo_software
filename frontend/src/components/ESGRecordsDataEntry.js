@@ -49,6 +49,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
+import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
 import {
   createDraftEvidence,
@@ -1275,6 +1276,14 @@ export default function ESGRecordsDataEntry({
                   <p className="text-sm font-medium text-stone-700">
                     {formData.subcategory || formData.category} Fields
                   </p>
+                  {hasFieldTree(addFormCategory.fields) ? (
+                    <HierarchicalFields
+                      fields={addFormCategory.fields}
+                      values={formData.field_values || {}}
+                      onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                      testIdPrefix="add-metric-field"
+                    />
+                  ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {addFormCategory.fields.map(field => (
                       <DynamicFieldRenderer
@@ -1294,6 +1303,7 @@ export default function ESGRecordsDataEntry({
                       />
                     ))}
                   </div>
+                  )}
                 </div>
               )}
 
@@ -2069,7 +2079,14 @@ export default function ESGRecordsDataEntry({
             ) : selectedCategory?.fields?.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
-                {selectedCategory.fields.map(field => (
+                {hasFieldTree(selectedCategory.fields) ? (
+                  <HierarchicalFields
+                    fields={selectedCategory.fields}
+                    values={editData.field_values || {}}
+                    onChange={(update) => setEditData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="edit-metric-field"
+                  />
+                ) : selectedCategory.fields.map(field => (
                   <DynamicFieldRenderer
                     key={field.field_key}
                     field={field}
