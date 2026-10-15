@@ -576,3 +576,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Spills: one record holds a repeatable `spill_records` table (new `RepeatableTable` in `HierarchicalFields.jsx`); count and total volume are auto-derived (live in the form, enforced on save). Old per-spill fields were dropped from the category with no migration (old data to be deleted by the user).
 - Not UI-tested; no testing agent run (user preference).
 - Known quirk (not changed): `shared/unit_registry` treats "MT" as Megatonne, so KPI unit conversion for waste MT/kg may be off; form auto-sums skip when units differ.
+
+## 2026-08 — Biodiversity / Climate Change / Material
+- `esg_records/env_schema.py`: declarative specs (fields, repeatable tables, summaries count/sum/avg, tree, BRSR/GRI refs) + `apply_table_rules` (row validation, derived summary fields). Material Consumption totals use the shared sum engine (`root` may now be a list).
+- Seed script `scripts/seed_water_withdrawal_discharge_recycle.py` also syncs these 8 subcategories (fields replaced, no migration; KPIs reused/created; % KPIs use avg + percentage output).
+- Ecological Sensitivity is now one repeatable site table that also holds area under restoration / area restored; summaries feed 3 KPIs. Restoration / Rehabilitation subcategory is kept (references added) but is now redundant — pending user decision to hide it.
+- Biodiversity Impacts: two tables (site water, pollutant entries). Material: totals auto-sum; recycled-input and reclaimed tables.
+- Not UI-tested (user preference).

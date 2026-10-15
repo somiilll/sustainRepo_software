@@ -17,6 +17,7 @@ load_dotenv(os.path.join(ROOT, ".env"))
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from modules.esg_records.water_schema import ROWS, tree_meta
+from modules.esg_records.env_schema import RESTORATION_REFS, SPECS, env_tree_meta
 from modules.esg_records.waste_schema import (
     SPILL_COLUMNS, SPILL_COUNT_KEY, SPILL_TABLE_KEY, SPILL_TOTAL_KEY, STREAMS, waste_rows, waste_tree_meta,
 )
@@ -89,8 +90,10 @@ async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
         doc = await db.esg_kpi_definitions.find_one({"metric_code": code}, {"_id": 0, "id": 1, "metric_name": 1})
         if doc:
             break
-    unit_config = units if row["unit"] else COUNT_UNITS
+    unit_config = row.get("unit_config") or (units if row["unit"] else COUNT_UNITS)
     common = {
+        "aggregation_type": row.get("agg", "sum"),
+        "output_type": "percentage" if row.get("percent") else "number",
         "value_field": row["key"],
         "source_config": {"records": {"value_field": row["key"]}},
         "filters": [],
@@ -175,6 +178,53 @@ async def sync_waste(db, now):
         print(f"Waste/{sub}: KPIs {counts}")
 
 
+def env_field(spec, meta):
+    table = spec["type"] == "table"
+    field = {
+        "field_key": spec["key"], "label": spec["label"], "type": "table" if table else "number", "required": False,
+        "placeholder": "", "options": [], "default_value": None,
+        "validation": {} if table else ({"min": 0, "max": 100} if spec["percent"] else {"min": 0}),
+        "has_unit": bool(spec["units"]), "allowed_units": spec["units"] or [], "default_unit": spec["default_unit"] if spec["units"] else None,
+        "table_columns": [{k: v for k, v in c.items() if v is not None} for c in spec["cols"]] if table else [],
+        "table_min_rows": 0, "table_max_rows": 50,
+        "group": spec["group"], "level": spec["level"], "parent_key": spec["parent"],
+        "sum_parents": meta["sum_parents"], "brsr_reference": None if table else spec["brsr"],
+        "gri_disclosure": None if table else spec["gri"],
+    }
+    if spec["summary"]:
+        field["table_summary"] = spec["summary"]
+    return field
+
+
+async def sync_env(db, now):
+    for (category, sub), specs in SPECS.items():
+        cat = await db.esg_record_categories.find_one({"category": category, "subcategory": sub})
+        meta = env_tree_meta(category, sub)
+        fields = [env_field(sp, meta[sp["key"]]) for sp in specs]
+        await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
+        counts = {"created": 0, "updated": 0}
+        for sp in specs:
+            if not sp["kpi"]:
+                continue
+            row = {"key": sp["key"], "name": sp["kpi"], "brsr": sp["brsr"], "gri": sp["gri"], "old_code": sp["old"],
+                   "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"]}
+            if sp["units"]:
+                row["unit_config"] = {"default_unit": sp["default_unit"], "supported_units": sp["units"], "allow_unit_conversion": False}
+            elif sp["percent"]:
+                row["unit_config"] = {"default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False}
+            counts[await sync_kpi(db, category, sub, row, now, lambda _s: env_tree_meta(category, sub), UNITS)] += 1
+        print(f"{category}/{sub}: {len(fields)} entry fields, KPIs {counts}")
+    rcat = await db.esg_record_categories.find_one({"category": "Biodiversity", "subcategory": "Restoration / Rehabilitation"})
+    for f in rcat["fields"]:
+        if f["field_key"] in RESTORATION_REFS:
+            f["brsr_reference"], f["gri_disclosure"] = RESTORATION_REFS[f["field_key"]]
+    await db.esg_record_categories.update_one({"_id": rcat["_id"]}, {"$set": {"fields": rcat["fields"], "updated_at": now}})
+    for key, (brsr, gri) in RESTORATION_REFS.items():
+        await db.esg_kpi_definitions.update_many({"category_name": "Biodiversity", "subcategory": "Restoration / Rehabilitation", "value_field": key},
+                                                 {"$set": {"brsr_reference": brsr, "gri_disclosure": gri}})
+    print("Biodiversity/Restoration / Rehabilitation: references added")
+
+
 async def main():
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
     now = datetime.now(timezone.utc).isoformat()
@@ -192,6 +242,7 @@ async def main():
             counts[await sync_kpi(db, "Water", sub, row, now)] += 1
         print(f"{sub}: KPIs {counts}")
     await sync_waste(db, now)
+    await sync_env(db, now)
 
 
 if __name__ == "__main__":

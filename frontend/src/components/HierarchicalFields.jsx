@@ -12,14 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 export const hasFieldTree = (fields) => (fields || []).some((f) => f.group || f.parent_key);
 
 const isEntered = (v) => v !== undefined && v !== null && v !== '';
-const VOLUME_FACTORS = { litres: 1, kilolitres: 1000 };
+const VOLUME_FACTORS = { litres: 1, kilolitres: 1000, megalitres: 1000000 };
 const isRowFilled = (row) => Object.values(row || {}).some(isEntered);
 
 function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
   const columns = field.table_columns || [];
   const setCell = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
   const emptyRow = () => Object.fromEntries(
-    columns.filter((c) => c.key === 'volume_unit').map((c) => [c.key, c.options?.[0]])
+    columns.filter((c) => c.key.endsWith('_unit')).map((c) => [c.key, c.options?.[0]])
   );
   return (
     <div className="space-y-2 w-full" data-testid={`${testIdPrefix}-${field.field_key}-table`}>
@@ -30,6 +30,11 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
               {columns.map((c) => (
                 <th key={c.key} className="px-2 py-1.5 text-left font-medium text-xs whitespace-nowrap">
                   {c.label}
+                  {c.brsr_reference && (
+                    <span className="ml-1 px-1 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200">
+                      BRSR: {c.brsr_reference}
+                    </span>
+                  )}
                   {c.gri_disclosure && (
                     <span className="ml-1 px-1 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200">
                       GRI: {c.gri_disclosure}
@@ -43,7 +48,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
           <tbody>
             {rows.length === 0 && (
               <tr><td colSpan={columns.length + 1} className="px-2 py-3 text-xs text-stone-500 italic">
-                No spills recorded. Use "Add spill" to add one.
+                No rows added yet. Use "Add row" to add one.
               </td></tr>
             )}
             {rows.map((row, i) => (
@@ -88,7 +93,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
       <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, emptyRow()])}
               disabled={field.table_max_rows ? rows.length >= field.table_max_rows : false}
               data-testid={`${testIdPrefix}-${field.field_key}-add-row`}>
-        <Plus className="w-4 h-4 mr-1" /> Add spill
+        <Plus className="w-4 h-4 mr-1" /> Add row
       </Button>
     </div>
   );
@@ -136,16 +141,18 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
 
   const deriveSummaries = (vals) => {
     fields.filter((f) => f.table_summary).forEach((f) => {
-      const { source, op, column } = f.table_summary;
+      const { source, op, column, unit_column: unitColumn } = f.table_summary;
       const rows = (vals[source] || []).filter(isRowFilled);
       if (op === 'count') {
         vals[f.field_key] = rows.length;
         return;
       }
       const target = VOLUME_FACTORS[String(unitOf(vals, f.field_key)).toLowerCase()] || 1;
-      const total = rows.reduce((sum, r) => sum + (Number(r[column]) || 0)
-        * (VOLUME_FACTORS[String(r[f.table_summary.unit_column] || 'Litres').toLowerCase()] || 1) / target, 0);
-      vals[f.field_key] = Math.round(total * 1e6) / 1e6;
+      const numbers = rows.filter((r) => isEntered(r[column])).map((r) => Number(r[column]) * (unitColumn
+        ? (VOLUME_FACTORS[String(r[unitColumn] || unitOf(vals, f.field_key)).toLowerCase()] || 1) / target : 1));
+      const total = numbers.reduce((sum, n) => sum + n, 0);
+      const result = op === 'avg' ? (numbers.length ? total / numbers.length : 0) : total;
+      vals[f.field_key] = Math.round(result * 1e6) / 1e6;
     });
   };
 
