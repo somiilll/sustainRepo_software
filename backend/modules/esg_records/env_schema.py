@@ -6,10 +6,11 @@ UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1000.0, "megalitres": 1_000_000.0}
 
 
 def F(key, label, type="number", units=None, default_unit=None, group="", level=0, parent=None, brsr=None, gri=None,
-      kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False):
+      kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None):
     return {"key": key, "label": label, "type": type, "units": units, "default_unit": default_unit or (units or [None])[0],
             "group": group, "level": level, "parent": parent, "brsr": brsr, "gri": gri, "kpi": kpi, "old": old,
-            "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent}
+            "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent,
+            "le": le, "eq_parts": eq_parts}
 
 
 def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None):
@@ -132,6 +133,113 @@ SPECS: Dict[tuple, List[Dict[str, Any]]] = {
     ],
 }
 
+INTERNAL = (COMPLAINT_CATEGORY := "Complaints", "Internal Complaints")
+CONSUMER = ("Complaints", "Consumer Complaints")
+EXTERNAL = ("Complaints", "External Complaints")
+GRI_TOTAL = "2-25 (related), 2-26 (related)"
+COMPLAINANTS = ["Board of Directors", "Key Management Personnel", "Employee", "Workers", "Contractors",
+                "Investors (other than shareholders)", "Shareholders"]
+EXT_GROUPS = [("communities", "Communities"), ("investors", "Investors (other than shareholders)"),
+              ("shareholders", "Shareholders"), ("value_chain", "Value chain partners"), ("other", "Other")]
+
+
+def _cnt(key, label, group, level=0, parent=None, brsr=None, gri=None, kpi=None, old=None, **kw):
+    return F(key, label, group=group, level=level, parent=parent, brsr=brsr, gri=gri, kpi=kpi, old=old, **kw)
+
+
+_I = "no_of_complaints_regarding_"
+_INTERNAL_PARTS = [_I + k for k in ("bribery", "corruption", "conflict_of_interest", "working_conditions", "health_safety",
+                                    "sexual_harassment", "discrimination_at_workplace", "child_labour",
+                                    "forced_labour_involuntary_labour", "wages", "other_human_rights_related_issues")]
+SPECS[INTERNAL] = [
+    _cnt("total_no_of_complaints_recieved", "Total number of complaints", "Total", brsr="A-25", gri=GRI_TOTAL,
+         kpi="Internal Complaints (Total)", old="SOC_NO_OF_COMPLAINTS", sum_of=_INTERNAL_PARTS),
+    _cnt(_I + "bribery", "Bribery", "Ethics & Integrity", 1, gri="205-3 (related)", kpi="Internal Complaints - Bribery", old="SOC_NO_OF_COMPLAINTS_ON_BRIBERY"),
+    _cnt(_I + "corruption", "Corruption", "Ethics & Integrity", 1, gri="205-3 (related)", kpi="Internal Complaints - Corruption", old="SOC_NO_OF_COMPLAINTS_ON_CORRUPTION"),
+    _cnt(_I + "conflict_of_interest", "Conflict of interest", "Ethics & Integrity", 1, brsr="P1-E6", gri="2-15 (related)",
+         kpi="Internal Complaints - Conflict of Interest", old="SOC_NO_OF_COMPLAINTS_ON_CONFLICT_OF_INTEREST"),
+    _cnt("conflict_of_interest_directors", "of which: Directors", "Ethics & Integrity", 2, _I + "conflict_of_interest", brsr="P1-E6",
+         gri="2-15 (related)", kpi="Internal Complaints - Conflict of Interest - Directors", le=_I + "conflict_of_interest"),
+    _cnt("conflict_of_interest_kmps", "of which: KMPs", "Ethics & Integrity", 2, _I + "conflict_of_interest", brsr="P1-E6",
+         gri="2-15 (related)", kpi="Internal Complaints - Conflict of Interest - KMPs", le=_I + "conflict_of_interest"),
+    _cnt(_I + "working_conditions", "Working conditions", "Workplace", 1, brsr="P3-E13", kpi="Internal Complaints - Working Conditions",
+         old="SOC_NO_OF_COMPLAINTS_ON_WORKING_CONDITIONS"),
+    _cnt(_I + "health_safety", "Health & safety", "Workplace", 1, brsr="P3-E13", gri="403-2 (related)",
+         kpi="Internal Complaints - Health & Safety", old="SOC_NO_OF_COMPLAINTS_ON_HEALTH"),
+    _cnt(_I + "sexual_harassment", "Sexual harassment", "Human Rights", 1, brsr="P5-E6", gri="406-1-a",
+         kpi="Internal Complaints - Sexual Harassment", old="SOC_NO_OF_COMPLAINTS_ON_SEXUAL_HARASSMENT"),
+    _cnt("no_of_posh_complaints", "of which: POSH complaints", "Human Rights", 2, _I + "sexual_harassment", brsr="P5-E7", gri="406-1-a",
+         kpi="Internal Complaints - POSH Complaints", old="SOC_NO_OF_POSH_COMPLAINTS", le=_I + "sexual_harassment"),
+    _cnt("no_of_posh_complaints_upheld", "of which: POSH complaints upheld", "Human Rights", 3, "no_of_posh_complaints", brsr="P5-E7",
+         gri="406-1-b (related)", kpi="Internal Complaints - POSH Complaints Upheld", le="no_of_posh_complaints"),
+    _cnt(_I + "discrimination_at_workplace", "Discrimination", "Human Rights", 1, brsr="P5-E6", gri="406-1-a",
+         kpi="Internal Complaints - Discrimination", old="SOC_NO_OF_COMPLAINTS_ON_DISCRIMINATION_AT_WO"),
+    _cnt(_I + "child_labour", "Child labour", "Human Rights", 1, brsr="P5-E6", gri="408-1 (related)",
+         kpi="Internal Complaints - Child Labour", old="SOC_NO_OF_COMPLAINTS_ON_CHILD_LABOUR"),
+    _cnt(_I + "forced_labour_involuntary_labour", "Forced labour", "Human Rights", 1, brsr="P5-E6", gri="409-1 (related)",
+         kpi="Internal Complaints - Forced Labour", old="SOC_NO_OF_COMPLAINTS_ON_FORCED_LABOURINVOLUN"),
+    _cnt(_I + "wages", "Wages", "Human Rights", 1, brsr="P5-E6", kpi="Internal Complaints - Wages", old="SOC_NO_OF_COMPLAINTS_ON_WAGES"),
+    _cnt(_I + "other_human_rights_related_issues", "Other human-rights issues", "Human Rights", 1, brsr="P5-E6", gri="2-25 (related)",
+         kpi="Internal Complaints - Other Human Rights Issues", old="SOC_NO_OF_COMPLAINTS_ON_OTHER_HUMAN_RIGHTS_R"),
+    _cnt("no_of_complaints_where_incident_was_reviewed_by_the_organization", "of which: Complaints reviewed", "By Status", 1,
+         gri="406-1-b", kpi="Internal Complaints - Reviewed", le="total_no_of_complaints_recieved"),
+    _cnt("no_of_complaints_resolved", "Resolved complaints", "By Status", 1, brsr="A-25", gri="406-1-b",
+         kpi="Internal Complaints - Resolved", old="SOC_NO_OF_COMPLAINTS_RESOLVED"),
+    _cnt("no_of_pending_complaints", "Pending complaints (at year end)", "By Status", 1, brsr="A-25; P3-E13; P5-E6",
+         kpi="Internal Complaints - Pending", old="SOC_NO_OF_PENDING_COMPLAINTS"),
+    _cnt("no_of_complaints_where_law_enforcement_agency_involved", "of which: Law-enforcement involvement / action", "Law Enforcement", 0,
+         brsr="P1-E5 (partial)", gri="205-3-b (related)", kpi="Internal Complaints - Law-enforcement Involvement",
+         old="SOC_NO_OF_COMPLAINTS_IN_WHICH_LAW_ENFORCEMEN", le="total_no_of_complaints_recieved"),
+    _cnt("no_of_complaints_where_law_enforcement_agency_took_a_disciplinary_action", "of which: Disciplinary action taken", "Law Enforcement", 1,
+         "no_of_complaints_where_law_enforcement_agency_involved", brsr="P1-E5 (partial)", gri="205-3-b (related)",
+         kpi="Internal Complaints - Law-enforcement Disciplinary Action", old="SOC_NO_OF_COMPLAINTS_WHERE_LAW_ENFORCEMENT_A",
+         le="no_of_complaints_where_law_enforcement_agency_involved"),
+    F("complaint_records", "Complaint records (one row per complaint)", type="table", group="Complaint Record Attributes", cols=[
+        C("complainant", "Complainant", "dropdown", COMPLAINANTS, brsr="P1-E5; P1-E6"),
+        C("person_complained_against", "Person complained against", "dropdown", ["Director", "KMP", "Employee", "Worker"], brsr="P1-E5; P1-E6"),
+    ]),
+]
+SPECS[INTERNAL][0]["eq_parts"] = ["no_of_complaints_resolved", "no_of_pending_complaints"]
+
+_C = "no_of_complaints_on_"
+SPECS[CONSUMER] = [
+    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Total", brsr="A-25; P9-E3", gri="2-25 (related)",
+         kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
+         sum_of=[_C + k for k in ("data_privacy", "advertising", "cyber_security", "delivery_of_essential_services",
+                                  "restrictive_unfair_trade_practices")] + ["no_of_other_consumer_complaints"]),
+    _cnt(_C + "data_privacy", "Data privacy", "By Category", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Data Privacy", old="SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
+    _cnt(_C + "advertising", "Advertising", "By Category", 1, brsr="P9-E3", gri="417-3 (related)", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
+    _cnt(_C + "cyber_security", "Cyber-security", "By Category", 1, brsr="P9-E3", gri="418-1 (related)", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
+    _cnt(_C + "delivery_of_essential_services", "Delivery of essential services", "By Category", 1, brsr="P9-E3",
+         kpi="Consumer Complaints - Delivery of Essential Services", old="SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
+    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "By Category", 1, brsr="P9-E3", gri="206-1 (related)",
+         kpi="Consumer Complaints - Restrictive / Unfair Trade Practices", old="SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
+    _cnt("no_of_other_consumer_complaints", "Other", "By Category", 1, brsr="P9-E3", kpi="Consumer Complaints - Other"),
+    _cnt("no_of_complaints_involving_sensitive_customer_data", "of which: Complaints involving sensitive customer data (across categories)",
+         "Of Which", 1, brsr="P9-E3 (partial)", gri="418-1-a", kpi="Consumer Complaints - Sensitive Customer Data",
+         old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS_WHERE_SE", le="total_no_of_complaints"),
+]
+
+_ext_filed = [f"ext_{g}_filed" for g, _l in EXT_GROUPS]
+_ext_pending = [f"ext_{g}_pending" for g, _l in EXT_GROUPS]
+_ext_resolved = [f"ext_{g}_resolved" for g, _l in EXT_GROUPS]
+SPECS[EXTERNAL] = [
+    _cnt("total_external_complaints", "Total external complaints (filed)", "Total", brsr="A-25", gri="2-25 (related)",
+         kpi="External Complaints (Total)", sum_of=_ext_filed),
+]
+for _g, _label in EXT_GROUPS:
+    for _suffix, _text, _brsr in (("filed", "Filed during the year", "A-25"), ("pending", "Pending at year end", "A-25"),
+                                  ("resolved", "Resolved", "A-25")):
+        SPECS[EXTERNAL].append(_cnt(f"ext_{_g}_{_suffix}", f"{_label} - {_text}", _label, 1, brsr=_brsr,
+                                    kpi=f"External Complaints - {_label} - {_text}"))
+SPECS[EXTERNAL] += [
+    _cnt("pending_complaints_total", "Pending (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Pending (Total)", sum_of=_ext_pending),
+    _cnt("resolved_complaints_total", "Resolved (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Resolved (Total)", sum_of=_ext_resolved),
+    F("complaint_records", "Complaint records (one row per complaint)", type="table", group="Complaint Record Attributes", cols=[
+        C("complainant", "Complainant", "dropdown", [label for _g, label in EXT_GROUPS]),
+    ]),
+]
+
 # Existing Restoration / Rehabilitation fields keep their data; only references are added.
 RESTORATION_REFS = {
     "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11 (partial)", "101-5-a"),
@@ -151,13 +259,17 @@ def env_tree_meta(cat: str, sub: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _sum_rules(cat: str, sub: str) -> Optional[Dict[str, Any]]:
-    sums = [(s["key"], s["sum_of"]) for s in SPECS.get((cat, sub), []) if s["sum_of"]]
+    specs = SPECS.get((cat, sub), [])
+    sums = [(s["key"], s["sum_of"]) for s in specs if s["sum_of"]]
     if not sums:
         return None
-    return {"root": [p for p, _c in sums], "sums": sums, "le": [], "quality": [], "other": []}
+    le = [(s["key"], s["le"]) for s in specs if s["le"]]
+    quality = [(s["eq_parts"], s["key"]) for s in specs if s["eq_parts"]]
+    return {"root": [p for p, _c in sums], "sums": sums, "le": le, "quality": quality, "other": []}
 
 
-ENV_SUM_RULES = {sub.lower(): r for (cat, sub) in SPECS if cat == "Material" and (r := _sum_rules(cat, sub))}
+COMPLAINT_CATEGORY = "Complaints"
+ENV_SUM_RULES = {sub.lower(): r for (cat, sub) in SPECS if cat in ("Material", COMPLAINT_CATEGORY) and (r := _sum_rules(cat, sub))}
 ENV_LABELS = {s["key"]: s["label"] for specs in SPECS.values() for s in specs}
 
 

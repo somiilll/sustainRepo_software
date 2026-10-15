@@ -114,7 +114,7 @@ async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
         return "updated"
     await db.esg_kpi_definitions.insert_one({
         "id": str(uuid.uuid4()), "metric_name": row["name"], "short_name": row["name"], "metric_code": new_code,
-        "description": "", "section": "environment", "category_name": category, "subcategory": sub,
+        "description": "", "section": row.get("section", "environment"), "category_name": category, "subcategory": sub,
         "sub_subcategory": "", "aggregation_type": "sum", "source_type": "records", "dimensions": ["organization"],
         "supported_scopes": ["organization", "facility"], "output_type": "number", "formula_config": None,
         "validation_rules": [], "display_config": {"display_name": None, "short_name": None, "display_order": 0,
@@ -207,7 +207,8 @@ async def sync_env(db, now):
             if not sp["kpi"]:
                 continue
             row = {"key": sp["key"], "name": sp["kpi"], "brsr": sp["brsr"], "gri": sp["gri"], "old_code": sp["old"],
-                   "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"]}
+                   "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"],
+                   "section": "social" if category == "Complaints" else "environment"}
             if sp["units"]:
                 row["unit_config"] = {"default_unit": sp["default_unit"], "supported_units": sp["units"], "allow_unit_conversion": False}
             elif sp["percent"]:

@@ -583,3 +583,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Ecological Sensitivity is now one repeatable site table that also holds area under restoration / area restored; summaries feed 3 KPIs. Restoration / Rehabilitation subcategory is kept (references added) but is now redundant — pending user decision to hide it.
 - Biodiversity Impacts: two tables (site water, pollutant entries). Material: totals auto-sum; recycled-input and reclaimed tables.
 - Not UI-tested (user preference).
+
+## 2026-08 — Complaints (Internal / Consumer / External)
+- Specs added to `esg_records/env_schema.py` (SPECS) with new `le` and `eq_parts` options; rules run through the shared engine (`water_schema.apply_water_rules`). Internal: category total auto-sum, of-which <= parent, resolved + pending = total, repeatable complaint-record table. Consumer: 6 categories sum, sensitive-data <= total. External: one record with Filed / Pending / Resolved for 5 stakeholder groups, totals auto-summed.
+- Seed script syncs these (KPIs reused where archived, 23 new; section = social). "Complaints on Principles" untouched. Old External per-group record fields replaced with no migration.
+- Not UI-tested (user preference).
