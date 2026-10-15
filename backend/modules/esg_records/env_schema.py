@@ -240,6 +240,117 @@ SPECS[EXTERNAL] += [
     ]),
 ]
 
+WF = "Employees/Worker"
+HS = "Health & Safety"
+NEW_HIRES = (WF, "New Employees/Worker")
+TERM_EMP = (WF, "Terminated Employees")
+TERM_WRK = (WF, "Terminated Workers")
+OHS_EMP = (HS, "Occupational Health & Safety Management System for Employees")
+OHS_WRK = (HS, "Occupational Health & Safety Management System for Workers")
+PRODUCT_HS = (HS, "Product & Service Health and Safety Assessment")
+INCIDENTS = (HS, "Health & Safety Incidents")
+REHAB = (HS, "Rehabilitation after Serious Injury/Fatality")
+_NH = "no_of_employees_worker_"
+_T = "G102-3"
+
+
+def _n(key, label, group, level=0, parent=None, **kw):
+    return F(key, label, group=group, level=level, parent=parent, **kw)
+
+
+SPECS[NEW_HIRES] = [
+    _n("total_no_of_people_hired", "New hires (Total)", "Total", gri="401-1-a; 102-3-a, 102-3-e", kpi="New Hires (Total)",
+       sum_of=["new_hires_employees", "new_hires_workers"], eq_parts=[["female", "male"], [_NH + "under_30", _NH + "30_50", _NH + "over_50"]]),
+    _n("new_hires_employees", "Employees", "By Type", 1, gri="401-1-a; 102-3-a", kpi="New Hires - Employees",
+       sum_of=["new_hires_employees_permanent", "new_hires_employees_other_than_permanent"]),
+    _n("new_hires_employees_permanent", "Employees - Permanent", "By Type", 2, "new_hires_employees", gri="102-3-a-ii", kpi="New Hires - Employees - Permanent"),
+    _n("new_hires_employees_other_than_permanent", "Employees - Other than permanent", "By Type", 2, "new_hires_employees",
+       gri="102-3-a-ii", kpi="New Hires - Employees - Other Than Permanent"),
+    _n("new_hires_workers", "Workers", "By Type", 1, gri="102-3-e", kpi="New Hires - Workers",
+       sum_of=["new_hires_workers_permanent", "new_hires_workers_other_than_permanent"]),
+    _n("new_hires_workers_permanent", "Workers - Permanent", "By Type", 2, "new_hires_workers", gri="102-3-e", kpi="New Hires - Workers - Permanent"),
+    _n("new_hires_workers_other_than_permanent", "Workers - Other than permanent", "By Type", 2, "new_hires_workers",
+       gri="102-3-e", kpi="New Hires - Workers - Other Than Permanent"),
+    _n("female", "Female", "By Gender", 1, gri="401-1-a; 102-3-a-i, 102-3-e", kpi="New Hires - Female"),
+    _n("male", "Male", "By Gender", 1, gri="401-1-a; 102-3-a-i, 102-3-e", kpi="New Hires - Male"),
+    _n(_NH + "under_30", "Under 30", "By Age Group", 1, gri="401-1-a", kpi="New Hires - Under 30"),
+    _n(_NH + "30_50", "30-50", "By Age Group", 1, gri="401-1-a", kpi="New Hires - 30-50"),
+    _n(_NH + "over_50", "Over 50", "By Age Group", 1, gri="401-1-a", kpi="New Hires - Over 50"),
+]
+SPECS[TERM_EMP] = [
+    _n("no_of_people_terminated", "Employees terminated (Total)", "Total", brsr="A-22", gri="102-3-b; 401-1-b",
+       kpi="Employees Terminated (Total)", sum_of=["no_of_permanent_employee_terminated", "no_of_temporary_employee_terminated",
+       "no_of_contract_employee_terminated", "no_of_part_time_employee_terminated", "no_of_intern_trainee_terminated"],
+       eq_parts=["female", "male"]),
+    _n("female", "Female", "By Gender", 1, gri="102-3-b-i; 401-1-b", kpi="Employees Terminated - Female"),
+    _n("male", "Male", "By Gender", 1, gri="102-3-b-i; 401-1-b", kpi="Employees Terminated - Male"),
+    _n("no_of_permanent_employee_terminated", "Permanent", "By Type", 1, brsr="A-22", gri="102-3-b-ii", kpi="Employees Terminated - Permanent"),
+    _n("no_of_temporary_employee_terminated", "Temporary", "By Type", 1, gri="102-3-b-ii", kpi="Employees Terminated - Temporary"),
+    _n("no_of_contract_employee_terminated", "Contract", "By Type", 1, gri="102-3-b-ii", kpi="Employees Terminated - Contract"),
+    _n("no_of_part_time_employee_terminated", "Part-time", "By Type", 1, gri="102-3-b-ii", kpi="Employees Terminated - Part-time"),
+    _n("no_of_intern_trainee_terminated", "Intern / trainee", "By Type", 1, gri="102-3-b-ii", kpi="Employees Terminated - Intern / Trainee"),
+]
+SPECS[TERM_WRK] = [
+    _n("no_of_workers_terminated", "Workers terminated (Total)", "Total", brsr="A-22", gri="102-3-f; 401-1-b", kpi="Workers Terminated (Total)",
+       sum_of=["no_of_female_terminated", "no_of_male_terminated"]),
+    _n("no_of_female_terminated", "Female", "By Gender", 1, brsr="A-22", gri="102-3-f; 401-1-b", kpi="Workers Terminated - Female"),
+    _n("no_of_male_terminated", "Male", "By Gender", 1, brsr="A-22", gri="102-3-f; 401-1-b", kpi="Workers Terminated - Male"),
+]
+
+
+def _ohs(who, total, internal, external):
+    return [
+        _n(total, f"{who} covered by OHS management system", "Coverage", brsr="P3-E10", gri="403-8-a-i", kpi=f"{who} Covered by OHS Management System"),
+        _n(internal, "of which: Covered by internally audited system", "Coverage", 1, total, gri="403-8-a-ii",
+           kpi=f"{who} Covered by Internally Audited OHS System", le=total),
+        _n(external, "of which: Covered by externally audited / certified system", "Coverage", 1, total, gri="403-8-a-iii",
+           kpi=f"{who} Covered by Externally Audited OHS System", le=total),
+    ]
+
+
+SPECS[OHS_EMP] = _ohs("Employees", "employees_covered", "employees_covered_that_has_been_internally_audited",
+                      "employees_covered_under_an_occupational_health_safety_management_system_that_has_been_externally_audited_or_certified")
+SPECS[OHS_WRK] = _ohs("Workers", "number_of_workers_covered",
+                      "number_of_workers_covered_under_an_occupational_health_safety_management_system_that_has_been_internally_audited",
+                      "number_of_workers_covered_under_an_occupational_health_safety_management_system_that_has_been_externally_audited_or_certified")
+SPECS[PRODUCT_HS] = [
+    _n("no_of_products_service_that_were_assessed_for_health_and_safety_impacts", "Products/services assessed for H&S impacts", "Assessment",
+       gri="416-1-a", kpi="Products/Services Assessed for H&S Impacts"),
+    _n("percentage_significant_product_and_service_categories_for_which_assessment_is_done",
+       "% significant product/service categories assessed", "Assessment", gri="416-1-a", percent=True, agg="avg",
+       kpi="% Significant Product/Service Categories Assessed"),
+]
+# stem, label, level, parent stem, brsr, gri(emp), gri(wrk), gri(all), le stem
+_INC = [
+    ("incidents", "Incidents", 0, None, "P3-E11 (input)", "403-9-a (related)", "403-9-b (related)", "403-9 (related), 403-10 (related)", None),
+    ("work_related", "of which: Work-related incidents", 1, "incidents", None, "403-2-d (related)", "403-2-d (related)", "403-2-d (related)", "incidents"),
+    ("persons", "Persons affected", 0, None, "P3-E11 (input)", "403-9-a", "403-9-b", "403-9-a, 403-9-b", None),
+    ("injuries", "Recordable work-related injuries", 0, None, "P3-E11", "403-9-a-iii", "403-9-b-iii", "403-9-a-iii, 403-9-b-iii", None),
+    ("high_consequence", "of which: High-consequence injuries (excl. fatalities)", 1, "injuries", "P3-E11", "403-9-a-ii", "403-9-b-ii", "403-9-a-ii, 403-9-b-ii", "injuries"),
+    ("lost_time", "of which: Lost-time injuries", 1, "injuries", "P3-E11 (input)", "403-9 (related)", "403-9 (related)", "403-9 (related)", "injuries"),
+    ("ill_health", "Recordable work-related ill-health cases", 0, None, "P3-E11 (partial)", "403-10-a-ii", "403-10-b-ii", "403-10-a-ii, 403-10-b-ii", None),
+    ("fatalities", "Fatalities", 0, None, "P3-E11", "403-9-a-i, 403-10-a-i", "403-9-b-i, 403-10-b-i", "403-9-a-i, 403-9-b-i, 403-10-a-i, 403-10-b-i", None),
+    ("fatal_injury", "From work-related injury", 1, "fatalities", None, "403-9-a-i", "403-9-b-i", "403-9-a-i, 403-9-b-i", None),
+    ("fatal_ill_health", "From work-related ill health", 1, "fatalities", None, "403-10-a-i", "403-10-b-i", "403-10-a-i, 403-10-b-i", None),
+    ("hours", "Hours worked", 0, None, "P3-E11 (input)", "403-9-a-v", "403-9-b-v", "403-9-a-v, 403-9-b-v", None),
+]
+SPECS[INCIDENTS] = []
+for _blk, _title, _idx in (("all", "All Persons (Employees + Workers)", 7), ("emp", "Employees", 5), ("wrk", "Workers (incl. contract workforce)", 6)):
+    for _st, _lb, _lv, _par, _br, *_gr, _le in _INC:
+        _gri = {"all": _gr[2], "emp": _gr[0], "wrk": _gr[1]}[_blk]
+        _sum = [f"emp_{_st}", f"wrk_{_st}"] if _blk == "all" else None
+        if _st == "fatalities" and _blk != "all":
+            _sum = [f"{_blk}_fatal_injury", f"{_blk}_fatal_ill_health"]
+        SPECS[INCIDENTS].append(_n(f"{_blk}_{_st}", _lb, _title, _lv, f"{_blk}_{_par}" if _par else None, brsr=_br, gri=_gri,
+                                   kpi=f"H&S - {_title.split(' (')[0]} - {_lb.replace('of which: ', '')}",
+                                   sum_of=_sum, le=f"{_blk}_{_le}" if _le else None))
+SPECS[REHAB] = [
+    _n("rehabilitated_total", "Rehabilitated or family member placed in suitable employment (Total)", "Total", brsr="P3-L3",
+       kpi="Rehabilitated / Placed in Suitable Employment (Total)", sum_of=["rehabilitated_employees", "rehabilitated_workers"]),
+    _n("rehabilitated_employees", "Employees", "By Group", 1, brsr="P3-L3", kpi="Rehabilitated / Placed - Employees"),
+    _n("rehabilitated_workers", "Workers", "By Group", 1, brsr="P3-L3", kpi="Rehabilitated / Placed - Workers"),
+]
+
 # Existing Restoration / Rehabilitation fields keep their data; only references are added.
 RESTORATION_REFS = {
     "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11 (partial)", "101-5-a"),
@@ -261,15 +372,25 @@ def env_tree_meta(cat: str, sub: str) -> Dict[str, Dict[str, Any]]:
 def _sum_rules(cat: str, sub: str) -> Optional[Dict[str, Any]]:
     specs = SPECS.get((cat, sub), [])
     sums = [(s["key"], s["sum_of"]) for s in specs if s["sum_of"]]
-    if not sums:
-        return None
     le = [(s["key"], s["le"]) for s in specs if s["le"]]
-    quality = [(s["eq_parts"], s["key"]) for s in specs if s["eq_parts"]]
-    return {"root": [p for p, _c in sums], "sums": sums, "le": le, "quality": quality, "other": []}
+    quality = []
+    for s in specs:
+        parts = s["eq_parts"]
+        for group in ([parts] if parts and not isinstance(parts[0], list) else parts or []):
+            quality.append((group, s["key"]))
+    if not (sums or le or quality):
+        return None
+    parents = dict(sums)
+
+    def depth(k):
+        return 1 + max((depth(c) for c in parents[k] if c in parents), default=-1) if k in parents else 0
+
+    sums.sort(key=lambda x: depth(x[0]))
+    numeric = [s["key"] for s in specs if s["type"] == "number"]
+    return {"root": [p for p, _c in sums] or numeric, "sums": sums, "le": le, "quality": quality, "other": []}
 
 
-COMPLAINT_CATEGORY = "Complaints"
-ENV_SUM_RULES = {sub.lower(): r for (cat, sub) in SPECS if cat in ("Material", COMPLAINT_CATEGORY) and (r := _sum_rules(cat, sub))}
+ENV_SUM_RULES = {(cat.lower(), sub.lower()): r for (cat, sub) in SPECS if (r := _sum_rules(cat, sub))}
 ENV_LABELS = {s["key"]: s["label"] for specs in SPECS.values() for s in specs}
 
 

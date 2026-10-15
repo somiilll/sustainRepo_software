@@ -595,3 +595,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Pending (pass 1 leftovers): New Employees/Workers, Terminated Employees, Terminated Workers; KMP "% senior management from local community" (exists under Senior Management); region leavers sum-check.
 - Pending (pass 2): Health & Safety (OHS system employees/workers, product assessment, incidents, rehabilitation).
 - Not UI-tested (user preference).
+
+## 2026-08 — Workforce pass 2 + Health & Safety
+- `env_schema.py` SPECS now also cover New Employees/Worker, Terminated Employees, Terminated Workers (category `Employees/Worker`) and Health & Safety: OHS Employees/Workers, Product & Service assessment, Health & Safety Incidents (33 fields: All persons / Employees / Workers x 11 metrics, auto-summed), Rehabilitation after Serious Injury/Fatality (new category doc created by the seed script).
+- `ENV_SUM_RULES` is now keyed by (category, subcategory) and sums are ordered children-first; `eq_parts` may be a list of groups.
+- Old H&S Incidents dropdown-based fields and old New Hires dropdown fields replaced (no migration). A duplicate "Health & Safety Incidents" subcategory exists under `Employees/Worker`; left untouched.
+- Not UI-tested (user preference).

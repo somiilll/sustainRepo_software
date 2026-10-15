@@ -203,6 +203,11 @@ def env_field(spec, meta):
 async def sync_env(db, now):
     for (category, sub), specs in SPECS.items():
         cat = await db.esg_record_categories.find_one({"category": category, "subcategory": sub})
+        if not cat:
+            template = await db.esg_record_categories.find_one({"category": category, "is_active": True}, {"_id": 0})
+            cat = {**template, "id": str(uuid.uuid4()), "subcategory": sub, "fields": [], "created_at": now, "updated_at": now}
+            await db.esg_record_categories.insert_one(cat)
+            cat = await db.esg_record_categories.find_one({"id": cat["id"]})
         meta = env_tree_meta(category, sub)
         fields = [env_field(sp, meta[sp["key"]]) for sp in specs]
         await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
@@ -212,7 +217,7 @@ async def sync_env(db, now):
                 continue
             row = {"key": sp["key"], "name": sp["kpi"], "brsr": sp["brsr"], "gri": sp["gri"], "old_code": sp["old"],
                    "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"],
-                   "section": "social" if category == "Complaints" else "environment"}
+                   "section": "social" if category in ("Complaints", "Employees/Worker", "Health & Safety") else "environment"}
             if sp["units"]:
                 row["unit_config"] = {"default_unit": sp["default_unit"], "supported_units": sp["units"], "allow_unit_conversion": False}
             elif sp["percent"]:
