@@ -2,7 +2,7 @@
  * KPI Definition List
  * Table view of all KPI definitions with actions
  */
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -29,7 +29,29 @@ const KPIDefinitionList = ({
     setFilters(prev => ({ ...prev, [key]: value === 'all' ? '' : value }));
   };
 
-  const filteredKpis = kpiDefinitions;
+  const [category, setCategory] = useState('');
+  const [subcategory, setSubcategory] = useState('');
+
+  const categoryOptions = useMemo(
+    () => [...new Set(kpiDefinitions.map(k => k.category_name).filter(Boolean))].sort(),
+    [kpiDefinitions]
+  );
+  const activeCategory = categoryOptions.includes(category) ? category : '';
+  const subcategoryOptions = useMemo(
+    () => [...new Set(
+      kpiDefinitions
+        .filter(k => !activeCategory || k.category_name === activeCategory)
+        .map(k => k.subcategory)
+        .filter(Boolean)
+    )].sort(),
+    [kpiDefinitions, activeCategory]
+  );
+  const activeSubcategory = subcategoryOptions.includes(subcategory) ? subcategory : '';
+
+  const filteredKpis = kpiDefinitions.filter(k =>
+    (!activeCategory || k.category_name === activeCategory) &&
+    (!activeSubcategory || k.subcategory === activeSubcategory)
+  );
 
   return (
     <div className="space-y-4">
@@ -59,6 +81,41 @@ const KPIDefinitionList = ({
             <SelectItem value="all">All Sections</SelectItem>
             {Object.entries(ESG_SECTIONS).map(([key, { label }]) => (
               <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Category Filter */}
+        <Select
+          value={activeCategory || 'all'}
+          onValueChange={(value) => {
+            setCategory(value === 'all' ? '' : value);
+            setSubcategory('');
+          }}
+        >
+          <SelectTrigger className="w-[160px]" data-testid="kpi-filter-category">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {categoryOptions.map(c => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Subcategory Filter */}
+        <Select
+          value={activeSubcategory || 'all'}
+          onValueChange={(value) => setSubcategory(value === 'all' ? '' : value)}
+        >
+          <SelectTrigger className="w-[170px]" data-testid="kpi-filter-subcategory">
+            <SelectValue placeholder="Subcategory" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Subcategories</SelectItem>
+            {subcategoryOptions.map(c => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
             ))}
           </SelectContent>
         </Select>
