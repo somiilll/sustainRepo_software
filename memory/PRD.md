@@ -588,3 +588,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Specs added to `esg_records/env_schema.py` (SPECS) with new `le` and `eq_parts` options; rules run through the shared engine (`water_schema.apply_water_rules`). Internal: category total auto-sum, of-which <= parent, resolved + pending = total, repeatable complaint-record table. Consumer: 6 categories sum, sensitive-data <= total. External: one record with Filed / Pending / Resolved for 5 stakeholder groups, totals auto-summed.
 - Seed script syncs these (KPIs reused where archived, 23 new; section = social). "Complaints on Principles" untouched. Old External per-group record fields replaced with no migration.
 - Not UI-tested (user preference).
+
+## 2026-08 — Workforce grids (pass 1)
+- `esg_records/workforce_schema.py` (source of truth) + `workforce_existing_keys.json`: Employee/Workers Diversity, BoD, KMP, Employee/Workers Turnover, Employees/Workers Parental Leave. Seed script writes entry fields, 3 KPIs per row (Female/Male/Total), and `frontend/src/config/workforceSpec.generated.js` (do not edit by hand).
+- `WorkforceDataTable.js` now shows group headers, indentation, BRSR/GRI badges and parent rows auto-summed from children; backend rules mirror the grid (sums, <=, age/working-hours checks, parental-leave funnel).
+- Pending (pass 1 leftovers): New Employees/Workers, Terminated Employees, Terminated Workers; KMP "% senior management from local community" (exists under Senior Management); region leavers sum-check.
+- Pending (pass 2): Health & Safety (OHS system employees/workers, product assessment, incidents, rehabilitation).
+- Not UI-tested (user preference).

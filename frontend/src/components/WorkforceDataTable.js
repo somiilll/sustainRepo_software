@@ -23,49 +23,57 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     return sourceCols.every(sc => fieldMap?.[rowKey]?.[sc]);
   }, [autoCalculate, fieldMap]);
 
-  // Build table data from fieldValues using fieldMap
+  const mapped = (rk, ck) => !!fieldMap?.[rk]?.[ck];
+  const childValues = (data, row, ck) => (row.sumOf || []).filter((c) => mapped(c, ck))
+    .map((c) => data[c]?.[ck]).filter((v) => v != null);
+  const isSumCell = (data, row, ck) => !!row.sumOf && mapped(row.key, ck) && childValues(data, row, ck).length > 0;
+
+  // Fill parent rows from their children, then row totals from female + male
+  const computeAuto = useCallback((data) => {
+    const next = {};
+    rows.forEach((r) => { next[r.key] = { ...data[r.key] }; });
+    (config.sumOrder || []).forEach((pk) => {
+      const prow = rows.find((r) => r.key === pk);
+      columns.forEach((col) => {
+        const vals = mapped(pk, col.key) ? childValues(next, prow, col.key) : [];
+        if (vals.length) next[pk][col.key] = vals.reduce((x, y) => x + y, 0);
+      });
+    });
+    Object.entries(autoCalculate || {}).forEach(([colKey, sourceCols]) => {
+      rows.forEach((row) => {
+        if (!isAutoCalcCell(row.key, colKey) || isSumCell(data, row, colKey)) return;
+        const sum = sourceCols.reduce((x, sc) => x + (next[row.key]?.[sc] || 0), 0);
+        next[row.key][colKey] = sourceCols.some((sc) => next[row.key]?.[sc] != null) ? sum : null;
+      });
+    });
+    return next;
+  }, [rows, columns, autoCalculate, fieldMap, config.sumOrder, isAutoCalcCell]);
+
   const buildData = useCallback(() => {
     const data = {};
-    rows.forEach(row => {
+    rows.forEach((row) => {
       data[row.key] = {};
-      columns.forEach(col => {
-        if (isAutoCalcCell(row.key, col.key)) {
-          data[row.key][col.key] = null; // Will be computed
-        } else {
-          const fk = fieldMap?.[row.key]?.[col.key];
-          data[row.key][col.key] = fk && fieldValues?.[fk] != null ? Number(fieldValues[fk]) : null;
-        }
+      columns.forEach((col) => {
+        const fk = fieldMap?.[row.key]?.[col.key];
+        data[row.key][col.key] = fk && fieldValues?.[fk] != null && fieldValues?.[fk] !== '' ? Number(fieldValues[fk]) : null;
       });
     });
-    // Compute auto-calculated cells
-    Object.entries(autoCalculate || {}).forEach(([colKey, sourceCols]) => {
-      rows.forEach(row => {
-        if (isAutoCalcCell(row.key, colKey)) {
-          const sum = sourceCols.reduce((s, sc) => s + (data[row.key]?.[sc] || 0), 0);
-          const hasInput = sourceCols.some(sc => data[row.key]?.[sc] != null);
-          data[row.key][colKey] = hasInput ? sum : null;
-        }
-      });
-    });
-    return data;
-  }, [fieldValues, rows, columns, autoCalculate, fieldMap, isAutoCalcCell]);
+    return computeAuto(data);
+  }, [fieldValues, rows, columns, fieldMap, computeAuto]);
 
   const [tableData, setTableData] = useState(buildData);
   useEffect(() => setTableData(buildData()), [buildData]);
 
   const handleChange = (rowKey, colKey, value) => {
     const num = value === '' ? null : Number(value);
-    const newData = { ...tableData };
-    newData[rowKey] = { ...newData[rowKey], [colKey]: num };
-
-    // Recompute auto-calculated columns for this row (only if row has source mappings)
-    Object.entries(autoCalculate || {}).forEach(([calcCol, sourceCols]) => {
-      if (isAutoCalcCell(rowKey, calcCol)) {
-        const sum = sourceCols.reduce((s, sc) => s + (newData[rowKey]?.[sc] || 0), 0);
-        const hasInput = sourceCols.some(sc => newData[rowKey]?.[sc] != null);
-        newData[rowKey][calcCol] = hasInput ? sum : null;
-      }
+    const base = {};
+    rows.forEach((r) => { base[r.key] = { ...tableData[r.key] }; });
+    (config.sumOrder || []).forEach((pk) => {
+      const prow = rows.find((r) => r.key === pk);
+      columns.forEach((col) => { if (isSumCell(base, prow, col.key)) base[pk][col.key] = null; });
     });
+    base[rowKey][colKey] = num;
+    const newData = computeAuto(base);
 
     setTableData(newData);
 
@@ -144,11 +152,27 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(row => (
-              <TableRow key={row.key} className="hover:bg-stone-50/50">
-                <TableCell className="text-sm font-medium sticky left-0 bg-white z-10">{row.label}</TableCell>
+            {rows.map((row, idx) => (
+              <React.Fragment key={row.key}>
+              {row.group && row.group !== rows[idx - 1]?.group && (
+                <TableRow className="bg-stone-50/70">
+                  <TableCell colSpan={columns.length + 1} className="py-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    {row.group}
+                  </TableCell>
+                </TableRow>
+              )}
+              <TableRow className="hover:bg-stone-50/50" data-testid={`workforce-row-${row.key}`}>
+                <TableCell className="text-sm font-medium sticky left-0 bg-white z-10" style={{ paddingLeft: 16 + (row.level || 0) * 16 }}>
+                  {row.label}
+                  {(row.brsr || row.gri) && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {row.brsr && <span className="px-1.5 rounded text-[10px] font-normal bg-orange-50 text-orange-700 border border-orange-200">BRSR: {row.brsr}</span>}
+                      {row.gri && <span className="px-1.5 rounded text-[10px] font-normal bg-sky-50 text-sky-700 border border-sky-200">GRI: {row.gri}</span>}
+                    </div>
+                  )}
+                </TableCell>
                 {columns.map(col => {
-                  const isAuto = isAutoCalcCell(row.key, col.key);
+                  const isAuto = isAutoCalcCell(row.key, col.key) || isSumCell(tableData, row, col.key);
                   const val = tableData[row.key]?.[col.key];
                   return (
                     <TableCell key={col.key} className={`text-center ${isAuto ? 'bg-stone-50' : ''}`}>
@@ -170,6 +194,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
                   );
                 })}
               </TableRow>
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>

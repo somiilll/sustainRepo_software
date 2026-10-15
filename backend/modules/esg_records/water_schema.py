@@ -2,6 +2,7 @@
 from typing import Any, Dict, List, Optional
 
 from .env_schema import ENV_LABELS, ENV_SUM_RULES, apply_table_rules
+from .workforce_schema import CATEGORY as WORKFORCE_CATEGORY, GRID_LABELS, GRID_RULES
 from .waste_schema import WASTE_LABELS, WASTE_RULES, apply_spill_rules
 
 TOLERANCE = 0.01
@@ -176,7 +177,12 @@ def _labels() -> Dict[str, str]:
 LABELS = _labels()
 
 
+_ACTIVE_LABELS: Dict[str, str] = {}
+
+
 def _label(key: str) -> str:
+    if key in _ACTIVE_LABELS:
+        return _ACTIVE_LABELS[key]
     return LABELS.get(key) or WASTE_LABELS.get(key) or ENV_LABELS.get(key) or key.replace("_", " ").capitalize()
 
 
@@ -197,11 +203,14 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                       field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Auto-fill totals from their parts, or validate typed totals against them."""
     cat, sub = (category or "").lower(), (subcategory or "").lower()
+    global _ACTIVE_LABELS
+    _ACTIVE_LABELS = GRID_LABELS.get(sub, {}) if cat == WORKFORCE_CATEGORY.lower() else {}
     field_values = apply_table_rules(category, subcategory, field_values, is_draft)
     if cat == "waste" and sub == "spills":
         return apply_spill_rules(field_values, is_draft)
     rules = (RULES.get(sub) if cat == "water" else WASTE_RULES.get(sub) if cat == "waste"
-             else ENV_SUM_RULES.get(sub) if cat in ("material", "complaints") else None)
+             else ENV_SUM_RULES.get(sub) if cat in ("material", "complaints")
+             else GRID_RULES.get(sub) if cat == WORKFORCE_CATEGORY.lower() else None)
     if not rules:
         return field_values
 

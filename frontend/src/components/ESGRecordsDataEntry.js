@@ -26,7 +26,9 @@ import {
   GENERAL_TRAINING_CONFIG,
 } from '../config/workforceTableConfigs';
 
-const WORKFORCE_TABLE_MAP = {
+import { WORKFORCE_GRID_CONFIGS } from '../config/workforceSpec.generated';
+
+const LEGACY_WORKFORCE_TABLE_MAP = {
   'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
   'Workers Diversity': WORKER_DIVERSITY_CONFIG,
   'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
@@ -37,6 +39,7 @@ const WORKFORCE_TABLE_MAP = {
   'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
   'General Training': GENERAL_TRAINING_CONFIG,
 };
+const WORKFORCE_TABLE_MAP = { ...LEGACY_WORKFORCE_TABLE_MAP, ...WORKFORCE_GRID_CONFIGS };
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -1265,12 +1268,22 @@ export default function ESGRecordsDataEntry({
             <Card className="p-5 space-y-5">
               {/* Dynamic Category Fields */}
               {WORKFORCE_TABLE_MAP[formData.subcategory] ? (
-                <WorkforceDataTable
-                  config={WORKFORCE_TABLE_MAP[formData.subcategory]}
-                  fieldValues={formData.field_values}
-                  onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
-                  isEditing={true}
-                />
+                <div className="space-y-4">
+                  <WorkforceDataTable
+                    config={WORKFORCE_TABLE_MAP[formData.subcategory]}
+                    fieldValues={formData.field_values}
+                    onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
+                    isEditing={true}
+                  />
+                  {(addFormCategory?.fields || []).some(f => !f.grid_row) && (addFormCategory?.fields || []).some(f => f.grid_row) && (
+                    <HierarchicalFields
+                      fields={addFormCategory.fields.filter(f => !f.grid_row)}
+                      values={formData.field_values || {}}
+                      onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                      testIdPrefix="add-workforce-extra"
+                    />
+                  )}
+                </div>
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-stone-700">
@@ -2070,12 +2083,22 @@ export default function ESGRecordsDataEntry({
             
             {/* Dynamic Category Fields — table for workforce, individual fields for others */}
             {WORKFORCE_TABLE_MAP[editData.subcategory] ? (
-              <WorkforceDataTable
-                config={WORKFORCE_TABLE_MAP[editData.subcategory]}
-                fieldValues={editData.field_values}
-                onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
-                isEditing={true}
-              />
+              <div className="space-y-4">
+                <WorkforceDataTable
+                  config={WORKFORCE_TABLE_MAP[editData.subcategory]}
+                  fieldValues={editData.field_values}
+                  onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
+                  isEditing={true}
+                />
+                {(selectedCategory?.fields || []).some(f => !f.grid_row) && (selectedCategory?.fields || []).some(f => f.grid_row) && (
+                  <HierarchicalFields
+                    fields={selectedCategory.fields.filter(f => !f.grid_row)}
+                    values={editData.field_values || {}}
+                    onChange={(update) => setEditData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="edit-workforce-extra"
+                  />
+                )}
+              </div>
             ) : selectedCategory?.fields?.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
