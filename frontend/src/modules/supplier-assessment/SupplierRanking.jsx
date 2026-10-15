@@ -108,7 +108,7 @@ export default function SupplierRanking() {
     { id: 'critical-score', label: 'Critical Score', value: `${distribution[3].value} supplier${distribution[3].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: TriangleAlert, accentColor: '#EF4444', iconSurface: '#FEE2E2' },
   ];
 
-  const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
+  const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); const esgItems = data?.esg_items || []; if (!esgItems.length) { setDetail(data); return; } const results = await Promise.allSettled(esgItems.map((item) => axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/questionnaires/${item.questionnaire_id}/responses`, { headers: getAuthHeader() }))); const enriched = esgItems.map((item, idx) => { const r = results[idx]; if (r.status === 'fulfilled' && r.value?.data?.has_unlocked_questions) return { ...item, has_unlocked_questions: true }; return item; }); setDetail({ ...data, esg_items: enriched }); } catch { toast.error('Could not load supplier assessment details'); } };
   const toggleRankingSort = (key) => { setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' })); setRankingPage(1); };
   const updateSearch = (value) => { setSearch(value); setRankingPage(1); };
 
