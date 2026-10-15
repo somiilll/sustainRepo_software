@@ -614,3 +614,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Energy unit factors added to table summaries; sum/le/equality checks are skipped when the fields use different units (matches the form). Seed `old="!new"` forces a fresh KPI (no value_field fallback). Energy KPIs now carry J/kJ/MJ/GJ/TJ/kWh/MWh/GWh unit config.
 - Known: `energy_adapter` treats stored energy values as Joules regardless of the selected unit (pre-existing).
 - Not UI-tested (user preference).
+
+## 2026-08 — Other Emissions (GHG Removals, Carbon Credits, ODS, Air Emissions)
+- Specs in `env_schema.py`: new subcategory "GHG Removals" (storage-pool table -> auto total, optional summary); Carbon Credits total = removal + reduction; ODS production/imports/exports (t CFC-11 eq); Air Emissions six pollutants with unit (tonnes/kg) + repeatable "Others" table. Existing subcategory names kept (internal_data_ai metric_resolver depends on them); no existing records. Old "GHG Emissions - Offsets" untouched. KPIs created under category_name "Other Emissions" (old archived KPIs under "Emissions" left archived).
+- Not UI-tested (user preference).

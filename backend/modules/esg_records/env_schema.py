@@ -698,6 +698,58 @@ SPECS[ENERGY_REDUCTION] = [
        old="ENV_TOTAL_REDUCTION_IN_ENERGY_REQUIREMENTS_O"),
 ]
 
+
+REMOVALS = ("Other Emissions", "GHG Removals")
+CARBON_CREDITS = ("Other Emissions", "GHG Emissions - Carbon Credits")
+ODS = ("Other Emissions", "Ozone-depleting substances (ODS)")
+AIR = ("Other Emissions", "Air Emissions")
+TCO2E = ["tCO2e"]
+AIR_UNITS = ["tonnes", "kg"]
+
+SPECS[REMOVALS] = [
+    F("total_scope1_ghg_removals", "Total Scope 1 GHG removals (tCO2e)", units=TCO2E, group="Total", gri="102-9-a",
+      kpi="Total Scope 1 GHG Removals (tCO2e)", old="!new",
+      summary={"source": "storage_pool_removals", "op": "sum", "column": "removals_tco2e", "optional": True}),
+    F("storage_pool_removals", "Removals by storage pool (e.g. land-based, geological) - one row per pool", type="table",
+      group="By Storage Pool", level=1, parent="total_scope1_ghg_removals", cols=[
+          C("storage_pool", "Storage pool", required=True, gri="102-9-a"),
+          C("removals_tco2e", "Removals (tCO2e)", "number", required=True, gri="102-9-a"),
+      ]),
+]
+
+_CC = "total_carbon_credits_canceled"
+SPECS[CARBON_CREDITS] = [
+    F(_CC, "Carbon credits cancelled - Total (tCO2e)", units=TCO2E, group="Total", gri="102-10-a",
+      kpi="Carbon Credits Cancelled - Total (tCO2e)", old="!new",
+      sum_of=["carbon_credits_cancelled_due_to_removal_projects", "carbon_credits_cancelled_due_to_reduction_projects"]),
+    F("carbon_credits_cancelled_due_to_removal_projects", "From removal projects", units=TCO2E, group="By Project Type", level=1,
+      parent=_CC, gri="102-10-a", kpi="Carbon Credits Cancelled - Removal Projects (tCO2e)", old="!new"),
+    F("carbon_credits_cancelled_due_to_reduction_projects", "From reduction projects", units=TCO2E, group="By Project Type", level=1,
+      parent=_CC, gri="102-10-a", kpi="Carbon Credits Cancelled - Reduction Projects (tCO2e)", old="!new"),
+]
+
+_ODS_G = "Ozone-Depleting Substances (t CFC-11 eq)"
+SPECS[ODS] = [
+    F(key, label, units=["t CFC-11 eq"], group=_ODS_G, gri="305-6-a", kpi=f"{label} (t CFC-11 eq)", old="!new")
+    for key, label in (("production_of_ods", "Production of ODS"), ("imports_of_ods", "Imports of ODS"), ("exports_of_ods", "Exports of ODS"))
+]
+
+_AIR_G = "Air Emissions (non-GHG)"
+SPECS[AIR] = [
+    F(key, label, units=AIR_UNITS, default_unit="tonnes", group=_AIR_G, brsr="P6-E6", gri=gri, kpi=f"Air Emissions - {label}", old="!new")
+    for key, label, gri in (("air_nox", "NOx", "305-7-a-i"), ("air_sox", "SOx", "305-7-a-ii"),
+                            ("air_particulate_matter", "Particulate matter (PM)", "305-7-a-vi"),
+                            ("air_pop", "Persistent organic pollutants (POP)", "305-7-a-iii"),
+                            ("air_voc", "Volatile organic compounds (VOC)", "305-7-a-iv"),
+                            ("air_hap", "Hazardous air pollutants (HAP)", "305-7-a-v"))
+] + [
+    F("other_air_pollutants", "Others - pollutant name, quantity, unit (one row per pollutant)", type="table", group=_AIR_G, cols=[
+        C("pollutant_name", "Pollutant name", required=True, gri="305-7-a-vii", brsr="P6-E6"),
+        C("quantity", "Quantity", "number", required=True, gri="305-7-a-vii", brsr="P6-E6"),
+        C("quantity_unit", "Unit", "dropdown", AIR_UNITS, gri="305-7-a-vii", brsr="P6-E6"),
+    ]),
+]
+
 # Existing Restoration / Rehabilitation fields keep their data; only references are added.
 RESTORATION_REFS = {
     "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11 (partial)", "101-5-a"),
