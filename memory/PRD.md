@@ -553,3 +553,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - 7 Water → Consumption KPIs aligned via `backend/scripts/seed_water_consumption_kpis.py` (Total, Ground, Surface, Third-party, Seawater, Water-stress, Change in storage); each points to its own record field and is active.
 - Record rules (`esg_records/water_consumption_rules.py`): total auto-fills from sources, a manual total must equal the sum of the sources, water-stress ≤ total, no negatives. `quantity` is no longer required in the category config.
 - Not tested via UI/testing agent (curl and service-level checks only). "(related)/(input)" relation text from the spec is not stored.
+
+## 2026-08 — Water Withdrawal / Discharge / Recycle KPIs + entry fields
+- `backend/modules/esg_records/water_schema.py`: field keys, KPI rows and entry rules (auto-total, sum check, quality check, subset <= total) for Consumption, Withdrawal and Discharge. Replaces `water_consumption_rules.py`.
+- `backend/scripts/seed_water_withdrawal_discharge_recycle.py` (idempotent): Withdrawal 16 fields/KPIs, Discharge 73 fields/KPIs, Recycle 1 KPI. Existing field keys unchanged; archived KPIs reactivated and remapped.
+- BRSR/GRI stored as plain codes (e.g. `P6-E4 (i)`, `303-4-a-i`); the (related)/(input)/(partial) relation text is not stored. Recycle has no references.
+- New KPIs are visible for targets only (same as Consumption KPIs). Not UI-tested, no testing agent run.

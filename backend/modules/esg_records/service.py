@@ -15,7 +15,7 @@ from .contracts import (
     ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
     UpdateRecordRequest, RecordListFilters
 )
-from .water_consumption_rules import apply_water_consumption_rules
+from .water_schema import apply_water_rules
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
@@ -144,7 +144,7 @@ class ESGRecordsService:
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
-        data.field_values = apply_water_consumption_rules(
+        data.field_values = apply_water_rules(
             data.category, data.subcategory, data.field_values, is_draft=data.status == "draft"
         )
         
@@ -1204,7 +1204,7 @@ class ESGRecordsService:
         
         if data.field_values is not None:
             try:
-                data.field_values = apply_water_consumption_rules(
+                data.field_values = apply_water_rules(
                     current.get("category"), current.get("subcategory"), data.field_values,
                     is_draft=data.status == "draft",
                 )
