@@ -413,6 +413,8 @@ SPECS[GEN_TRAINING] = [
       kpi="Training Attendees (Total) - Female", sum_of=[t[3] for t in _TOPICS]),
     F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8", gri="404-1-a",
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
+    F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
+      kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
     F("training_attendes_type", "Training audience (per training)", type="dropdown", group="Training Audience",
       brsr=_AUD_BRSR, gri="404-1-a",
       options=["Board of Directors", "Key Managerial Personnel", "Employees (permanent / other than permanent)",
@@ -429,17 +431,9 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
         F(_tk, "Number of trainings", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Number of Trainings"),
         F(_fk, "Attendees - Female", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Female Attendees"),
         F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
+        F(f"training_hours_{_slug}", "Training hours", units=["Hours"], group=_g, level=1,
+          parent="total_training_hours_by_topic", brsr=_br, gri=_gr, kpi=f"Training Hours - {_label}"),
     ]
-_TOPIC_HOURS_TOTAL = "total_training_hours_by_topic"
-SPECS[GEN_TRAINING] += [
-    F(_TOPIC_HOURS_TOTAL, "Training hours (Total)", units=["Hours"], group="Training Hours by Training Category",
-      gri="404-1", kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
-    *[
-        F(f"training_hours_{slug}", f"{label} training hours", units=["Hours"], group="Training Hours by Training Category",
-          level=1, parent=_TOPIC_HOURS_TOTAL, brsr=brsr, gri=gri, kpi=f"Training Hours - {label}")
-        for slug, label, _tk, _fk, _mk, brsr, gri in _TOPICS
-    ],
-]
 SPECS[GEN_TRAINING] += [
     F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
       kpi="Total Training Hours - Female", summary={"source": _HRS, "op": "sum", "column": "total_hours_female"}),

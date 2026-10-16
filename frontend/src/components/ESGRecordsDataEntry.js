@@ -1325,7 +1325,7 @@ export default function ESGRecordsDataEntry({
                     value={formData.source_of_information}
                     onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
                     placeholder="e.g., Utility Bill, Vendor Invoice..."
-                    className="rounded-lg"
+                    className="rounded-[10px]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1335,7 +1335,7 @@ export default function ESGRecordsDataEntry({
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     placeholder="Additional notes or comments..."
                     rows={3}
-                    className="rounded-lg"
+                    className="rounded-[10px]"
                   />
                 </div>
               </div>

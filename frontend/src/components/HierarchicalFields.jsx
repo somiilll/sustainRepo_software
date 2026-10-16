@@ -60,7 +60,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
                       </span>
                     ) : c.type === 'dropdown' ? (
                       <Select value={row[c.key] || ''} onValueChange={(v) => setCell(i, c.key, v)}>
-                        <SelectTrigger className="h-9 rounded-lg border-stone-300"
+                        <SelectTrigger className="h-9 rounded-[10px] border-stone-300"
                                        data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
@@ -75,7 +75,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
                         value={row[c.key] ?? ''}
                         onChange={(e) => setCell(i, c.key,
                           c.type === 'number' && e.target.value !== '' ? parseFloat(e.target.value) : e.target.value)}
-                        className="h-9 rounded-lg border-stone-300"
+                        className="h-9 rounded-[10px] border-stone-300"
                         data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}
                       />
                     )}
@@ -330,10 +330,10 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
           </div>
         ) : isText ? (
           <Input type="text" value={values?.[key] ?? ''} onChange={(e) => handleChoice(key, e.target.value)}
-            className="w-72 max-w-full rounded-lg border-stone-300" data-testid={`${testIdPrefix}-${key}-input`} />
+            className="w-72 max-w-full rounded-[10px] border-stone-300" data-testid={`${testIdPrefix}-${key}-input`} />
         ) : isChoice ? (
           <Select value={values?.[key] || ''} onValueChange={(v) => handleChoice(key, v)}>
-            <SelectTrigger className="w-72 max-w-full rounded-lg border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
+            <SelectTrigger className="w-72 max-w-full rounded-[10px] border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -348,13 +348,13 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
             onChange={(e) => handleValue(key, e.target.value)}
             min={field.validation?.min}
             step={field.validation?.step}
-            className="w-40 rounded-lg border-stone-300"
+            className="w-40 rounded-[10px] border-stone-300"
             data-testid={`${testIdPrefix}-${key}-input`}
           />
         )}
         {field.has_unit && field.allowed_units?.length > 0 && (
           <Select value={values?.[`${key}_unit`] || field.default_unit || ''} onValueChange={(u) => handleUnit(key, u)}>
-            <SelectTrigger className="w-[120px] shrink-0 rounded-lg border-stone-300" data-testid={`${testIdPrefix}-${key}-unit-select`}>
+            <SelectTrigger className="w-[120px] shrink-0 rounded-[10px] border-stone-300" data-testid={`${testIdPrefix}-${key}-unit-select`}>
               <SelectValue placeholder="Unit" />
             </SelectTrigger>
             <SelectContent>
