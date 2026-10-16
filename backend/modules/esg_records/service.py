@@ -94,29 +94,41 @@ class ESGRecordsService:
         
         cursor = self._categories.find(query, {"_id": 0}).sort("order", 1)
         categories = await cursor.to_list(None)
-        if section == "environment":
-            scope1_fuels = sorted({
-                fuel.get("fuel_name") for fuel in await db.fuel_database.find(
-                    {"scope": {"$in": ["scope1", "biogenic"]}, "category": "Stationary Combustion"},
-                    {"_id": 0, "fuel_name": 1},
-                ).to_list(None)
-                if fuel.get("fuel_name")
-            })
-            for category in categories:
-                if category.get("category") != "Energy" or category.get("subcategory") != "Fuel Within Organization":
-                    continue
-                for field in category.get("fields", []):
-                    for column in field.get("table_columns", []):
-                        if column.get("options_source") == "scope1_fuels":
-                            column["options"] = scope1_fuels
+        await self._hydrate_dynamic_field_options(categories)
         return categories
     
     async def get_category(self, category_id: str) -> Optional[Dict[str, Any]]:
         """Get a single category config."""
-        return await self._categories.find_one(
+        category = await self._categories.find_one(
             {"id": category_id}, 
             {"_id": 0}
         )
+        if category:
+            await self._hydrate_dynamic_field_options([category])
+        return category
+
+    @staticmethod
+    async def _hydrate_dynamic_field_options(categories: List[Dict[str, Any]]) -> None:
+        """Resolve database-backed select choices consistently for list and detail routes."""
+        fuel_columns = [
+            column
+            for category in categories
+            if category.get("section") == "environment"
+            for field in category.get("fields", [])
+            for column in field.get("table_columns", [])
+            if column.get("options_source") == "scope1_fuels"
+        ]
+        if not fuel_columns:
+            return
+        scope1_fuels = sorted({
+            fuel.get("fuel_name") for fuel in await db.fuel_database.find(
+                {"scope": {"$in": ["scope1", "biogenic"]}, "category": "Stationary Combustion"},
+                {"_id": 0, "fuel_name": 1},
+            ).to_list(None)
+            if fuel.get("fuel_name")
+        })
+        for column in fuel_columns:
+            column["options"] = scope1_fuels
     
     async def get_category_by_name(
         self, 
