@@ -618,3 +618,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## 2026-08 — Other Emissions (GHG Removals, Carbon Credits, ODS, Air Emissions)
 - Specs in `env_schema.py`: new subcategory "GHG Removals" (storage-pool table -> auto total, optional summary); Carbon Credits total = removal + reduction; ODS production/imports/exports (t CFC-11 eq); Air Emissions six pollutants with unit (tonnes/kg) + repeatable "Others" table. Existing subcategory names kept (internal_data_ai metric_resolver depends on them); no existing records. Old "GHG Emissions - Offsets" untouched. KPIs created under category_name "Other Emissions" (old archived KPIs under "Emissions" left archived).
 - Not UI-tested (user preference).
+
+## 2026-08 — Reference display + qualifiers
+- BRSR/GRI badges removed from data-entry forms (`HierarchicalFields`, `WorkforceDataTable`); KPI Definitions list still shows them. "<Subcategory> Fields" heading removed from the Add form.
+- References now store the code only: "(partial)/(related)/(input)" stripped from `env_schema.py`, `workforce_schema.py`, and the DB (seed script `strip_reference_qualifiers` keeps it clean on re-seed).

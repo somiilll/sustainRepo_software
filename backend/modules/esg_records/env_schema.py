@@ -33,7 +33,7 @@ MRECLAIMED = ("Material", "Reclaimed Products & Packaging")
 SPECS: Dict[tuple, List[Dict[str, Any]]] = {
     ECO: [
         F("number_of_sites", "Number of sites/facilities with significant biodiversity impacts", group="Summary",
-          brsr="P6-E11 (partial)", gri="101-5-a", kpi="Number of Sites with Significant Biodiversity Impacts",
+          brsr="P6-E11", gri="101-5-a", kpi="Number of Sites with Significant Biodiversity Impacts",
           summary={"source": "site_records", "op": "count"}),
         F("total_area_under_restoration", "Total area under restoration/rehabilitation (ha)", group="Summary",
           gri="101-2-b-i", kpi="Total Area Under Restoration / Rehabilitation (ha)",
@@ -50,43 +50,43 @@ SPECS: Dict[tuple, List[Dict[str, Any]]] = {
             C("area_of_biodiversity_importance", "Area of biodiversity importance", "dropdown", YN, gri="101-5-b-i"),
             C("area_of_high_ecosystem_integrity", "Area of high ecosystem integrity", "dropdown", YN, gri="101-5-b-ii"),
             C("area_of_rapid_decline_in_ecosystem_integrity", "Area of rapidly declining ecosystem integrity", "dropdown", YN, gri="101-5-b-iii"),
-            C("area_of_high_physical_water_risk", "Area of high physical water risk", "dropdown", YN, gri="101-5-b-iv; 303-1-a (related)"),
-            C("area_important_for_ecosystem_services", "Area important for ecosystem services to Indigenous Peoples / local communities / stakeholders", "dropdown", YN, gri="101-5-b-v, 101-8-a (related)"),
+            C("area_of_high_physical_water_risk", "Area of high physical water risk", "dropdown", YN, gri="101-5-b-iv; 303-1-a"),
+            C("area_important_for_ecosystem_services", "Area important for ecosystem services to Indigenous Peoples / local communities / stakeholders", "dropdown", YN, gri="101-5-b-v, 101-8-a"),
             C("area_under_restoration_ha", "Area under restoration/rehabilitation (ha)", "number", gri="101-2-b-i"),
             C("area_restored_ha", "Area restored/rehabilitated (ha)", "number", gri="101-2-b-ii"),
         ]),
     ],
     IMPACTS: [
         F("total_water_withdrawal", "Total water withdrawal (sites)", units=WATER_UNITS, default_unit="MegaLitres", group="Summary",
-          gri="101-6-b-ii, 303-3-a (related)", kpi="Water Withdrawal in Sites with Significant Biodiversity Impacts",
+          gri="101-6-b-ii, 303-3-a", kpi="Water Withdrawal in Sites with Significant Biodiversity Impacts",
           old="ENV_WATER_WITHDRAWAL_IN_MEGALITRES_IN_SITES_",
           summary={"source": "site_water_records", "op": "sum", "column": "water_withdrawal", "unit_column": "water_unit"}),
         F("total_water_consumption", "Total water consumption (sites)", units=WATER_UNITS, default_unit="MegaLitres", group="Summary",
-          gri="101-6-b-ii, 303-5-a (related)", kpi="Water Consumption in Sites with Significant Biodiversity Impacts",
+          gri="101-6-b-ii, 303-5-a", kpi="Water Consumption in Sites with Significant Biodiversity Impacts",
           old="ENV_WATER_CONSUMPTION_IN_MEGALITRES_IN_SITES",
           summary={"source": "site_water_records", "op": "sum", "column": "water_consumption", "unit_column": "water_unit"}),
-        F("total_quantity_of_pollutant", "Total quantity of pollutant", group="Summary", gri="101-6-c, 305-7-a (related)",
+        F("total_quantity_of_pollutant", "Total quantity of pollutant", group="Summary", gri="101-6-c, 305-7-a",
           kpi="Total Quantity of Pollutant", old="ENV_TOTAL_QUANTITY_OF_POLLUTANT",
           summary={"source": "pollutant_entries", "op": "sum", "column": "quantity"}),
         F("site_water_records", "Exploitation of natural resources - water (one row per site)", type="table",
           group="Exploitation of Natural Resources - Water", cols=[
             C("site_name", "Site/facility name", required=True, gri="101-6"),
-            C("water_withdrawal", "Water withdrawal (site)", "number", gri="101-6-b-ii, 303-3-a (related)"),
-            C("water_consumption", "Water consumption (site)", "number", gri="101-6-b-ii, 303-5-a (related)"),
+            C("water_withdrawal", "Water withdrawal (site)", "number", gri="101-6-b-ii, 303-3-a"),
+            C("water_consumption", "Water consumption (site)", "number", gri="101-6-b-ii, 303-5-a"),
             C("water_unit", "Unit", "dropdown", WATER_UNITS),
         ]),
         F("pollutant_entries", "Pollution - pollutant entries", type="table", group="Pollution", cols=[
             C("site_name", "Site/facility name", required=True, gri="101-6"),
             C("pollutant_type", "Type of pollutant", required=True, gri="101-6-c"),
-            C("quantity", "Quantity of pollutant", "number", required=True, gri="101-6-c, 305-7-a (related)"),
+            C("quantity", "Quantity of pollutant", "number", required=True, gri="101-6-c, 305-7-a"),
         ]),
     ],
     TRANSITION: [
         F("transition_plan_expenditure", "Transition plan expenditure", units=["INR", "Dollars"], group="Expenditure",
-          brsr="P2-E1 (partial)", gri="102-1-c", kpi="Transition Plan Expenditure",
+          brsr="P2-E1", gri="102-1-c", kpi="Transition Plan Expenditure",
           old="ENV_TRANSITION_PLAN_EXPENDITURE_MONETARY_VAL"),
         F("transition_plan_expenditure_percentage", "As % of total expenditure", group="Expenditure", level=1,
-          parent="transition_plan_expenditure", brsr="P2-E1 (partial)", gri="102-1-c", percent=True,
+          parent="transition_plan_expenditure", brsr="P2-E1", gri="102-1-c", percent=True,
           kpi="Transition Plan Expenditure (% of Total Expenditure)", old="ENV_TRANSITION_PLAN_EXPENDITURE_OF_TOTAL_EXP", agg="avg"),
     ],
     ADAPTATION: [
@@ -112,15 +112,15 @@ SPECS: Dict[tuple, List[Dict[str, Any]]] = {
     ],
     MRECYCLED: [
         F("percentage_recycled_input_materials_basis_total_weight_used", "% recycled input materials by total weight",
-          group="Overall", brsr="P2-L3 (partial)", gri="301-2-a", percent=True, agg="avg",
+          group="Overall", brsr="P2-L3", gri="301-2-a", percent=True, agg="avg",
           kpi="% Recycled Input Materials (by Weight)", old="ENV_OF_RECYCLED_INPUT_MATERIALS_BASIS_TOTAL_"),
         F("percentage_recycled_input_materials_basis_total_volume_used", "% recycled input materials by total volume",
-          group="Overall", brsr="P2-L3 (partial)", gri="301-2-a", percent=True, agg="avg",
+          group="Overall", brsr="P2-L3", gri="301-2-a", percent=True, agg="avg",
           kpi="% Recycled Input Materials (by Volume)", old="ENV_OF_RECYCLED_INPUT_MATERIALS_BASIS_TOTAL__1"),
         F("input_materials_by_value", "By input material (by value)", type="table", group="By Input Material (by value)", cols=[
             C("input_material_name", "Input material name", required=True, brsr="P2-L3"),
             C("percent_recycled_or_reused", "% recycled or re-used input to total material (by value)", "number",
-              required=True, gri="301-2-a (related)", brsr="P2-L3", max=100),
+              required=True, gri="301-2-a", brsr="P2-L3", max=100),
         ]),
     ],
     MRECLAIMED: [
@@ -139,7 +139,7 @@ SPECS: Dict[tuple, List[Dict[str, Any]]] = {
 INTERNAL = (COMPLAINT_CATEGORY := "Complaints", "Internal Complaints")
 CONSUMER = ("Complaints", "Consumer Complaints")
 EXTERNAL = ("Complaints", "External Complaints")
-GRI_TOTAL = "2-25 (related), 2-26 (related)"
+GRI_TOTAL = "2-25, 2-26"
 COMPLAINANTS = ["Board of Directors", "Key Management Personnel", "Employee", "Workers", "Contractors",
                 "Investors (other than shareholders)", "Shareholders"]
 EXT_GROUPS = [("communities", "Communities"), ("investors", "Investors (other than shareholders)"),
@@ -157,32 +157,32 @@ _INTERNAL_PARTS = [_I + k for k in ("bribery", "corruption", "conflict_of_intere
 SPECS[INTERNAL] = [
     _cnt("total_no_of_complaints_recieved", "Total number of complaints", "Total", brsr="A-25", gri=GRI_TOTAL,
          kpi="Internal Complaints (Total)", old="SOC_NO_OF_COMPLAINTS", sum_of=_INTERNAL_PARTS),
-    _cnt(_I + "bribery", "Bribery", "Ethics & Integrity", 1, gri="205-3 (related)", kpi="Internal Complaints - Bribery", old="SOC_NO_OF_COMPLAINTS_ON_BRIBERY"),
-    _cnt(_I + "corruption", "Corruption", "Ethics & Integrity", 1, gri="205-3 (related)", kpi="Internal Complaints - Corruption", old="SOC_NO_OF_COMPLAINTS_ON_CORRUPTION"),
-    _cnt(_I + "conflict_of_interest", "Conflict of interest", "Ethics & Integrity", 1, brsr="P1-E6", gri="2-15 (related)",
+    _cnt(_I + "bribery", "Bribery", "Ethics & Integrity", 1, gri="205-3", kpi="Internal Complaints - Bribery", old="SOC_NO_OF_COMPLAINTS_ON_BRIBERY"),
+    _cnt(_I + "corruption", "Corruption", "Ethics & Integrity", 1, gri="205-3", kpi="Internal Complaints - Corruption", old="SOC_NO_OF_COMPLAINTS_ON_CORRUPTION"),
+    _cnt(_I + "conflict_of_interest", "Conflict of interest", "Ethics & Integrity", 1, brsr="P1-E6", gri="2-15",
          kpi="Internal Complaints - Conflict of Interest", old="SOC_NO_OF_COMPLAINTS_ON_CONFLICT_OF_INTEREST"),
     _cnt("conflict_of_interest_directors", "of which: Directors", "Ethics & Integrity", 2, _I + "conflict_of_interest", brsr="P1-E6",
-         gri="2-15 (related)", kpi="Internal Complaints - Conflict of Interest - Directors", le=_I + "conflict_of_interest"),
+         gri="2-15", kpi="Internal Complaints - Conflict of Interest - Directors", le=_I + "conflict_of_interest"),
     _cnt("conflict_of_interest_kmps", "of which: KMPs", "Ethics & Integrity", 2, _I + "conflict_of_interest", brsr="P1-E6",
-         gri="2-15 (related)", kpi="Internal Complaints - Conflict of Interest - KMPs", le=_I + "conflict_of_interest"),
+         gri="2-15", kpi="Internal Complaints - Conflict of Interest - KMPs", le=_I + "conflict_of_interest"),
     _cnt(_I + "working_conditions", "Working conditions", "Workplace", 1, brsr="P3-E13", kpi="Internal Complaints - Working Conditions",
          old="SOC_NO_OF_COMPLAINTS_ON_WORKING_CONDITIONS"),
-    _cnt(_I + "health_safety", "Health & safety", "Workplace", 1, brsr="P3-E13", gri="403-2 (related)",
+    _cnt(_I + "health_safety", "Health & safety", "Workplace", 1, brsr="P3-E13", gri="403-2",
          kpi="Internal Complaints - Health & Safety", old="SOC_NO_OF_COMPLAINTS_ON_HEALTH"),
     _cnt(_I + "sexual_harassment", "Sexual harassment", "Human Rights", 1, brsr="P5-E6", gri="406-1-a",
          kpi="Internal Complaints - Sexual Harassment", old="SOC_NO_OF_COMPLAINTS_ON_SEXUAL_HARASSMENT"),
     _cnt("no_of_posh_complaints", "of which: POSH complaints", "Human Rights", 2, _I + "sexual_harassment", brsr="P5-E7", gri="406-1-a",
          kpi="Internal Complaints - POSH Complaints", old="SOC_NO_OF_POSH_COMPLAINTS", le=_I + "sexual_harassment"),
     _cnt("no_of_posh_complaints_upheld", "of which: POSH complaints upheld", "Human Rights", 3, "no_of_posh_complaints", brsr="P5-E7",
-         gri="406-1-b (related)", kpi="Internal Complaints - POSH Complaints Upheld", le="no_of_posh_complaints"),
+         gri="406-1-b", kpi="Internal Complaints - POSH Complaints Upheld", le="no_of_posh_complaints"),
     _cnt(_I + "discrimination_at_workplace", "Discrimination", "Human Rights", 1, brsr="P5-E6", gri="406-1-a",
          kpi="Internal Complaints - Discrimination", old="SOC_NO_OF_COMPLAINTS_ON_DISCRIMINATION_AT_WO"),
-    _cnt(_I + "child_labour", "Child labour", "Human Rights", 1, brsr="P5-E6", gri="408-1 (related)",
+    _cnt(_I + "child_labour", "Child labour", "Human Rights", 1, brsr="P5-E6", gri="408-1",
          kpi="Internal Complaints - Child Labour", old="SOC_NO_OF_COMPLAINTS_ON_CHILD_LABOUR"),
-    _cnt(_I + "forced_labour_involuntary_labour", "Forced labour", "Human Rights", 1, brsr="P5-E6", gri="409-1 (related)",
+    _cnt(_I + "forced_labour_involuntary_labour", "Forced labour", "Human Rights", 1, brsr="P5-E6", gri="409-1",
          kpi="Internal Complaints - Forced Labour", old="SOC_NO_OF_COMPLAINTS_ON_FORCED_LABOURINVOLUN"),
     _cnt(_I + "wages", "Wages", "Human Rights", 1, brsr="P5-E6", kpi="Internal Complaints - Wages", old="SOC_NO_OF_COMPLAINTS_ON_WAGES"),
-    _cnt(_I + "other_human_rights_related_issues", "Other human-rights issues", "Human Rights", 1, brsr="P5-E6", gri="2-25 (related)",
+    _cnt(_I + "other_human_rights_related_issues", "Other human-rights issues", "Human Rights", 1, brsr="P5-E6", gri="2-25",
          kpi="Internal Complaints - Other Human Rights Issues", old="SOC_NO_OF_COMPLAINTS_ON_OTHER_HUMAN_RIGHTS_R"),
     _cnt("no_of_complaints_where_incident_was_reviewed_by_the_organization", "of which: Complaints reviewed", "By Status", 1,
          gri="406-1-b", kpi="Internal Complaints - Reviewed", le="total_no_of_complaints_recieved"),
@@ -191,10 +191,10 @@ SPECS[INTERNAL] = [
     _cnt("no_of_pending_complaints", "Pending complaints (at year end)", "By Status", 1, brsr="A-25; P3-E13; P5-E6",
          kpi="Internal Complaints - Pending", old="SOC_NO_OF_PENDING_COMPLAINTS"),
     _cnt("no_of_complaints_where_law_enforcement_agency_involved", "of which: Law-enforcement involvement / action", "Law Enforcement", 0,
-         brsr="P1-E5 (partial)", gri="205-3-b (related)", kpi="Internal Complaints - Law-enforcement Involvement",
+         brsr="P1-E5", gri="205-3-b", kpi="Internal Complaints - Law-enforcement Involvement",
          old="SOC_NO_OF_COMPLAINTS_IN_WHICH_LAW_ENFORCEMEN", le="total_no_of_complaints_recieved"),
     _cnt("no_of_complaints_where_law_enforcement_agency_took_a_disciplinary_action", "of which: Disciplinary action taken", "Law Enforcement", 1,
-         "no_of_complaints_where_law_enforcement_agency_involved", brsr="P1-E5 (partial)", gri="205-3-b (related)",
+         "no_of_complaints_where_law_enforcement_agency_involved", brsr="P1-E5", gri="205-3-b",
          kpi="Internal Complaints - Law-enforcement Disciplinary Action", old="SOC_NO_OF_COMPLAINTS_WHERE_LAW_ENFORCEMENT_A",
          le="no_of_complaints_where_law_enforcement_agency_involved"),
     F("complaint_records", "Complaint records (one row per complaint)", type="table", group="Complaint Record Attributes", cols=[
@@ -206,20 +206,20 @@ SPECS[INTERNAL][0]["eq_parts"] = ["no_of_complaints_resolved", "no_of_pending_co
 
 _C = "no_of_complaints_on_"
 SPECS[CONSUMER] = [
-    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Total", brsr="A-25; P9-E3", gri="2-25 (related)",
+    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Total", brsr="A-25; P9-E3", gri="2-25",
          kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
          sum_of=[_C + k for k in ("data_privacy", "advertising", "cyber_security", "delivery_of_essential_services",
                                   "restrictive_unfair_trade_practices")] + ["no_of_other_consumer_complaints"]),
     _cnt(_C + "data_privacy", "Data privacy", "By Category", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Data Privacy", old="SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
-    _cnt(_C + "advertising", "Advertising", "By Category", 1, brsr="P9-E3", gri="417-3 (related)", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
-    _cnt(_C + "cyber_security", "Cyber-security", "By Category", 1, brsr="P9-E3", gri="418-1 (related)", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
+    _cnt(_C + "advertising", "Advertising", "By Category", 1, brsr="P9-E3", gri="417-3", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
+    _cnt(_C + "cyber_security", "Cyber-security", "By Category", 1, brsr="P9-E3", gri="418-1", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
     _cnt(_C + "delivery_of_essential_services", "Delivery of essential services", "By Category", 1, brsr="P9-E3",
          kpi="Consumer Complaints - Delivery of Essential Services", old="SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
-    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "By Category", 1, brsr="P9-E3", gri="206-1 (related)",
+    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "By Category", 1, brsr="P9-E3", gri="206-1",
          kpi="Consumer Complaints - Restrictive / Unfair Trade Practices", old="SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
     _cnt("no_of_other_consumer_complaints", "Other", "By Category", 1, brsr="P9-E3", kpi="Consumer Complaints - Other"),
     _cnt("no_of_complaints_involving_sensitive_customer_data", "of which: Complaints involving sensitive customer data (across categories)",
-         "Of Which", 1, brsr="P9-E3 (partial)", gri="418-1-a", kpi="Consumer Complaints - Sensitive Customer Data",
+         "Of Which", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Sensitive Customer Data",
          old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS_WHERE_SE", le="total_no_of_complaints"),
 ]
 
@@ -227,7 +227,7 @@ _ext_filed = [f"ext_{g}_filed" for g, _l in EXT_GROUPS]
 _ext_pending = [f"ext_{g}_pending" for g, _l in EXT_GROUPS]
 _ext_resolved = [f"ext_{g}_resolved" for g, _l in EXT_GROUPS]
 SPECS[EXTERNAL] = [
-    _cnt("total_external_complaints", "Total external complaints (filed)", "Total", brsr="A-25", gri="2-25 (related)",
+    _cnt("total_external_complaints", "Total external complaints (filed)", "Total", brsr="A-25", gri="2-25",
          kpi="External Complaints (Total)", sum_of=_ext_filed),
 ]
 for _g, _label in EXT_GROUPS:
@@ -325,17 +325,17 @@ SPECS[PRODUCT_HS] = [
 ]
 # stem, label, level, parent stem, brsr, gri(emp), gri(wrk), gri(all), le stem
 _INC = [
-    ("incidents", "Incidents", 0, None, "P3-E11 (input)", "403-9-a (related)", "403-9-b (related)", "403-9 (related), 403-10 (related)", None),
-    ("work_related", "of which: Work-related incidents", 1, "incidents", None, "403-2-d (related)", "403-2-d (related)", "403-2-d (related)", "incidents"),
-    ("persons", "Persons affected", 0, None, "P3-E11 (input)", "403-9-a", "403-9-b", "403-9-a, 403-9-b", None),
+    ("incidents", "Incidents", 0, None, "P3-E11", "403-9-a", "403-9-b", "403-9, 403-10", None),
+    ("work_related", "of which: Work-related incidents", 1, "incidents", None, "403-2-d", "403-2-d", "403-2-d", "incidents"),
+    ("persons", "Persons affected", 0, None, "P3-E11", "403-9-a", "403-9-b", "403-9-a, 403-9-b", None),
     ("injuries", "Recordable work-related injuries", 0, None, "P3-E11", "403-9-a-iii", "403-9-b-iii", "403-9-a-iii, 403-9-b-iii", None),
     ("high_consequence", "of which: High-consequence injuries (excl. fatalities)", 1, "injuries", "P3-E11", "403-9-a-ii", "403-9-b-ii", "403-9-a-ii, 403-9-b-ii", "injuries"),
-    ("lost_time", "of which: Lost-time injuries", 1, "injuries", "P3-E11 (input)", "403-9 (related)", "403-9 (related)", "403-9 (related)", "injuries"),
-    ("ill_health", "Recordable work-related ill-health cases", 0, None, "P3-E11 (partial)", "403-10-a-ii", "403-10-b-ii", "403-10-a-ii, 403-10-b-ii", None),
+    ("lost_time", "of which: Lost-time injuries", 1, "injuries", "P3-E11", "403-9", "403-9", "403-9", "injuries"),
+    ("ill_health", "Recordable work-related ill-health cases", 0, None, "P3-E11", "403-10-a-ii", "403-10-b-ii", "403-10-a-ii, 403-10-b-ii", None),
     ("fatalities", "Fatalities", 0, None, "P3-E11", "403-9-a-i, 403-10-a-i", "403-9-b-i, 403-10-b-i", "403-9-a-i, 403-9-b-i, 403-10-a-i, 403-10-b-i", None),
     ("fatal_injury", "From work-related injury", 1, "fatalities", None, "403-9-a-i", "403-9-b-i", "403-9-a-i, 403-9-b-i", None),
     ("fatal_ill_health", "From work-related ill health", 1, "fatalities", None, "403-10-a-i", "403-10-b-i", "403-10-a-i, 403-10-b-i", None),
-    ("hours", "Hours worked", 0, None, "P3-E11 (input)", "403-9-a-v", "403-9-b-v", "403-9-a-v, 403-9-b-v", None),
+    ("hours", "Hours worked", 0, None, "P3-E11", "403-9-a-v", "403-9-b-v", "403-9-a-v, 403-9-b-v", None),
 ]
 SPECS[INCIDENTS] = []
 for _blk, _title, _idx in (("all", "All Persons (Employees + Workers)", 7), ("emp", "Employees", 5), ("wrk", "Workers (incl. contract workforce)", 6)):
@@ -371,41 +371,41 @@ _TOPICS = [
     ("health_safety", "Health & Safety", "no_of_trainings_on_health_safety", "no_of_female_attendees_for_training_on_health_safety",
      "no_of_male_attendees_for_training_on_health_safety", "P3-E8", "403-5-a"),
     ("environment", "Environment", "no_of_trainings_on_environment", "no_of_female_attendees_for_training_on_environment",
-     "no_of_male_attendees_for_training_on_environment", "P1-E1 (input)", None),
+     "no_of_male_attendees_for_training_on_environment", "P1-E1", None),
     ("human_rights", "Human Rights", "no_of_trainings_on_human_right_issues", "no_of_female_attendees_for_trainings_on_human_right_issues",
      "no_of_male_attendees_trainings_on_human_right_issues", "P5-E1", None),
     ("org_policies", "Organisation Policies", "no_of_trainings_on_organization_policy_ies",
      "no_of_female_attendees_for_trainings_on_organization_policy_ies", "no_of_male_attendees_for_trainings_on_organization_policy_ies",
-     "P1-E1 (input)", None),
+     "P1-E1", None),
     ("skill_upgrading", "Skill Upgrading", "no_of_trainings_on_skill_upgrade_up_skilling",
      "no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling", "no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling",
      "P3-E8", "404-2-a"),
     ("re_skilling", "Re-skilling", "no_of_trainings_on_re_skilling", "no_of_female_attendees_for_trainings_on_re_skilling",
-     "no_of_male_attendees_for_trainings_on_re_skilling", "P3-E8 (input)", "404-2-a; 102-3-d"),
+     "no_of_male_attendees_for_trainings_on_re_skilling", "P3-E8", "404-2-a; 102-3-d"),
     ("anti_corruption", "Anti-corruption", "no_of_trainings_on_anti_corruption", "no_of_female_attendees_for_trainings_on_anti_corruption",
-     "no_of_male_attendees_for_trainings_on_anti_corruption", "P1-E1 (input)", "205-2-d, 205-2-e"),
+     "no_of_male_attendees_for_trainings_on_anti_corruption", "P1-E1", "205-2-d, 205-2-e"),
     ("ethical_principles", "Ethical Principles", "no_of_trainings_on_ethical_principles",
      "no_of_female_attendees_for_trainings_on_ethical_principles", "no_of_male_attendees_for_trainings_on_ethical_principles",
-     "P1-E1 (input)", "205-2 (related)"),
+     "P1-E1", "205-2"),
 ]
 _AUD_BRSR = "P1-E1; P3-E8; P5-E1"
 _HRS = "training_hours_by_category"
 SPECS[GEN_TRAINING] = [
-    F("no_of_trainings_done", "Trainings completed (Total)", group="Totals", brsr="P1-E1", gri="404-1 (related)",
+    F("no_of_trainings_done", "Trainings completed (Total)", group="Totals", brsr="P1-E1", gri="404-1",
       kpi="Trainings Completed (Total)", old="SOC_NO_OF_TRAININGS_DONE", sum_of=[t[2] for t in _TOPICS]),
-    F("no_of_female_attendees", "Attendees (Total) - Female", group="Totals", brsr="P3-E8 (input)", gri="404-1-a (related)",
+    F("no_of_female_attendees", "Attendees (Total) - Female", group="Totals", brsr="P3-E8", gri="404-1-a",
       kpi="Training Attendees (Total) - Female", sum_of=[t[3] for t in _TOPICS]),
-    F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8 (input)", gri="404-1-a (related)",
+    F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8", gri="404-1-a",
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
     F("training_attendes_type", "Training audience (per training)", type="dropdown", group="Training Audience",
-      brsr=_AUD_BRSR, gri="404-1-a (related)",
+      brsr=_AUD_BRSR, gri="404-1-a",
       options=["Board of Directors", "Key Managerial Personnel", "Employees (permanent / other than permanent)",
                "Workers (permanent / other than permanent)"],
       option_refs={"Board of Directors": {"brsr": "P1-E1"}, "Key Managerial Personnel": {"brsr": "P1-E1"},
                    "Employees (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"},
                    "Workers (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"}}),
     F("employee_worker_type", "Employee / worker type (per training)", type="dropdown", group="Training Audience", level=1,
-      parent="training_attendes_type", brsr=_AUD_BRSR, gri="404-1-a (related)", options=["Permanent", "Other than Permanent"]),
+      parent="training_attendes_type", brsr=_AUD_BRSR, gri="404-1-a", options=["Permanent", "Other than Permanent"]),
 ]
 for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
     _g = f"By Topic - {_label}"
@@ -439,7 +439,7 @@ SPECS[GEN_TRAINING] += [
 ]
 
 SPECS[SEC_TRAINING] = [
-    F("no_of_trainings_done", "Security trainings completed", group="Totals", gri="410-1 (related)",
+    F("no_of_trainings_done", "Security trainings completed", group="Totals", gri="410-1",
       kpi="Security Trainings Completed", old="SOC_NO_OF_SECURITY_TRAININGS_DONE"),
     F("security_personnel_who_received_training", "% security personnel trained", group="Totals", gri="410-1-a", percent=True,
       agg="avg", kpi="% Security Personnel Trained", old="SOC_OF_SECURITY_PERSONNEL_WHO_RECEIVED_TRAIN"),
@@ -467,12 +467,12 @@ SPECS[ACPC] = [
 
 _CT = "no_of_confirmed_corruption_incidents"
 SPECS[ACCI] = [
-    F(_CT, "Confirmed corruption incidents (Total)", group="Total", brsr="P1-E5 (partial)", gri="205-3-a",
+    F(_CT, "Confirmed corruption incidents (Total)", group="Total", brsr="P1-E5", gri="205-3-a",
       kpi="Confirmed Corruption Incidents (Total)"),
     F("no_of_employees_dismissed", "Employees dismissed", group="Actions - Employees", level=1, parent=_CT, gri="205-3-b",
       kpi="Corruption - Employees Dismissed"),
     F("no_of_employees_disciplined", "Employees disciplined", group="Actions - Employees", level=1, parent=_CT,
-      brsr="P1-E5 (partial)", gri="205-3-b", kpi="Corruption - Employees Disciplined"),
+      brsr="P1-E5", gri="205-3-b", kpi="Corruption - Employees Disciplined"),
     F("no_of_business_partner_contracts_terminated", "Contracts terminated", group="Actions - Business Partners", level=1, parent=_CT,
       gri="205-3-c", kpi="Corruption - Business Partner Contracts Terminated"),
     F("no_of_business_partner_contracts_not_renewed", "Contracts not renewed", group="Actions - Business Partners", level=1, parent=_CT,
@@ -483,7 +483,7 @@ SPECS[ACCI] = [
 
 _AC = "total_no_of_cases"
 SPECS[COMPETITIVE] = [
-    F(_AC, "Anti-competitive behaviour cases (Total)", group="Total", brsr="P7-E2 (partial)", gri="206-1-a",
+    F(_AC, "Anti-competitive behaviour cases (Total)", group="Total", brsr="P7-E2", gri="206-1-a",
       kpi="Anti-competitive Behaviour Cases (Total)"),
     F("no_of_public_legal_cases_regarding_anti_competitive_and_violations_of_anti_trust_and_monopoly_legislation",
       "of which: Public legal cases - anti-competitive behaviour, anti-trust, monopoly", group="Total", level=1, parent=_AC,
@@ -494,14 +494,14 @@ SPECS[AP_DAYS] = [
     F("accounts_payable_days", "Accounts Payable Days", units=["Days"], group="Accounts Payable Days", brsr="P1-E8", agg="avg",
       kpi="Accounts Payable Days", ratio=("accounts_payable", "cost_of_goods_services_procured", 365)),
     F("accounts_payable", "Accounts payable", group="Accounts Payable Days", level=1, parent="accounts_payable_days",
-      brsr="P1-E8 (input)", kpi="Accounts Payable"),
+      brsr="P1-E8", kpi="Accounts Payable"),
     F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable Days", level=1,
-      parent="accounts_payable_days", brsr="P1-E8 (input)", kpi="Cost of Goods/Services Procured"),
+      parent="accounts_payable_days", brsr="P1-E8", kpi="Cost of Goods/Services Procured"),
 ]
 
 _VT = "no_of_incidents_of_violations"
 SPECS[VIOLATIONS] = [
-    F(_VT, "Violation incidents (Total)", group="Total", gri="411-1-a (related); 406-1-a (related)", kpi="Violation Incidents (Total)"),
+    F(_VT, "Violation incidents (Total)", group="Total", gri="411-1-a; 406-1-a", kpi="Violation Incidents (Total)"),
     F("no_of_incidents_of_violations_related_to_indigenous_peoples_rights", "of which: Related to Indigenous Peoples' rights",
       group="Total", level=1, parent=_VT, gri="411-1-a", kpi="Violation Incidents - Indigenous Peoples' Rights", le=_VT),
     F("no_of_incidents_reviewed_by_the_organization", "of which: Reviewed by the organisation", group="Total", level=1, parent=_VT,
@@ -512,9 +512,9 @@ _BT = "no_of_incidents_of_data_breach"
 _BP = "no_of_data_breach_which_involved_personally_identifiable_information_of_customers"
 _PC = "total_substantiated_privacy_complaints"
 SPECS[BREACH] = [
-    F(_BT, "Data-breach incidents (Total)", group="Data Breaches", brsr="P9-E7 (a)", gri="418-1-b (related)",
+    F(_BT, "Data-breach incidents (Total)", group="Data Breaches", brsr="P9-E7 (a)", gri="418-1-b",
       kpi="Data-breach Incidents (Total)", old="GOV_NO_OF_DATA_BREACH_INCIDENTS"),
-    F(_BP, "of which: Involving customer PII", group="Data Breaches", level=1, parent=_BT, brsr="P9-E7 (b) (input)", gri="418-1-b",
+    F(_BP, "of which: Involving customer PII", group="Data Breaches", level=1, parent=_BT, brsr="P9-E7 (b)", gri="418-1-b",
       kpi="Data-breach Incidents - Involving Customer PII", old="GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_PERSONA", le=_BT),
     F("percentage_data_breach_involving_customer_pii", "% of breaches involving customer PII", group="Data Breaches", level=1,
       parent=_BT, brsr="P9-E7 (b)", percent=True, agg="avg", kpi="% Data Breaches Involving Customer PII", ratio=(_BP, _BT, 100)),
@@ -533,19 +533,19 @@ SPECS[BREACH] = [
 _NC = "no_of_cases"
 _NC_OUT = ["non_compliance_result_in_a_fine_or_penalty", "non_compliance_result_in_a_warning", "non_compliance_with_voluntary_codes"]
 _NC_TYPES = {
-    "Laws & regulations - general": {"gri": "2-27-a", "brsr": "P1-E2 (partial)"},
-    "Environmental laws": {"gri": "2-27-a", "brsr": "P6-E13 (partial)"},
+    "Laws & regulations - general": {"gri": "2-27-a", "brsr": "P1-E2"},
+    "Environmental laws": {"gri": "2-27-a", "brsr": "P6-E13"},
     "Product & service health and safety": {"gri": "416-2-a"},
     "Product & service information and labelling": {"gri": "417-2-a"},
     "Marketing communications": {"gri": "417-3-a"},
 }
 SPECS[NONCOMPLIANCE] = [
-    F(_NC, "Non-compliance cases (Total)", group="Total", brsr="P1-E2; P6-E13 (partial)",
+    F(_NC, "Non-compliance cases (Total)", group="Total", brsr="P1-E2; P6-E13",
       gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", kpi="Non-compliance Cases (Total)", old="GOV_NO_OF_NONCOMPLIANCE_INCIDENTS", sum_le=_NC_OUT),
     F("non_compliance_type", "Non-compliance type (select per case)", type="dropdown", group="Total", level=1, parent=_NC,
-      brsr="P1-E2; P6-E13 (partial)", gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", options=list(_NC_TYPES), option_refs=_NC_TYPES),
+      brsr="P1-E2; P6-E13", gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", options=list(_NC_TYPES), option_refs=_NC_TYPES),
     F("non_compliance_result_in_a_fine_or_penalty", "Resulting in fine / penalty", group="By Outcome", level=1, parent=_NC,
-      brsr="P1-E2 (partial)", gri="2-27-a-i; 416-2-a-i; 417-2-a-i, 417-3-a-i", kpi="Non-compliance - Resulting in Fine / Penalty",
+      brsr="P1-E2", gri="2-27-a-i; 416-2-a-i; 417-2-a-i, 417-3-a-i", kpi="Non-compliance - Resulting in Fine / Penalty",
       old="GOV_NO_OF_NONCOMPLIANCE_THAT_RESULTED_IN_A_F"),
     F("non_compliance_result_in_a_warning", "Resulting in warning", group="By Outcome", level=1, parent=_NC,
       gri="416-2-a-ii; 417-2-a-ii, 417-3-a-ii", kpi="Non-compliance - Resulting in Warning", old="GOV_NO_OF_NONCOMPLIANCE_THAT_RESULTED_IN_A_W"),
@@ -554,9 +554,9 @@ SPECS[NONCOMPLIANCE] = [
     F("non_compliance_fine_amount", "Fine / penalty amount", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2", gri="2-27-b",
       kpi="Non-compliance - Fine / Penalty Amount"),
     F("non_compliance_settlement_amount", "Settlement amount", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2",
-      gri="2-27-b (related)", kpi="Non-compliance - Settlement Amount"),
+      gri="2-27-b", kpi="Non-compliance - Settlement Amount"),
     F("non_compliance_compounding_fee", "Compounding fee", units=["INR"], group="Monetary Amounts (INR)", brsr="P1-E2",
-      gri="2-27-b (related)", kpi="Non-compliance - Compounding Fee"),
+      gri="2-27-b", kpi="Non-compliance - Compounding Fee"),
 ]
 
 
@@ -589,7 +589,7 @@ def _fuel_summary(table):
 
 
 SPECS[FUEL] = [
-    _e("quantity", "Fuel consumption (Total)", "Total", brsr="P6-E1 (B+E) (input)", gri="302-1-a, 302-1-b, 103-2-a",
+    _e("quantity", "Fuel consumption (Total)", "Total", brsr="P6-E1 (B+E)", gri="302-1-a, 302-1-b, 103-2-a",
        kpi="Total Energy Consumption - Fuel", old="ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
        sum_of=["renewable_energy_consumption", "non_renewable_energy_consumption"]),
     _e("renewable_energy_consumption", "Renewable fuel consumption", "Renewable Fuels", 1, "quantity", brsr="P6-E1 (B)",
@@ -624,14 +624,14 @@ def _carrier(noun, sub_gri, brsr_total, brsr_ren, brsr_non, keys, inp):
     """Within-organisation carrier: total = purchased + self-generated; renewable + non-renewable must equal total; sold."""
     purchased, own, sold, ren, non, rsold, nsold = keys
     t_old, r_old, n_old, p_old, o_old, s_old = _OLD_CODES[noun]
-    suffix = " (input)" if inp else ""
+    suffix = "" if inp else ""
     low = noun.lower()
     return [
-        _e("quantity", f"{noun} consumption (Total)", "Total", brsr=f"{brsr_total} (input)", gri=f"302-1-c-{sub_gri}, 103-2-b",
+        _e("quantity", f"{noun} consumption (Total)", "Total", brsr=f"{brsr_total}", gri=f"302-1-c-{sub_gri}, 103-2-b",
            kpi=f"Total Energy Consumption - {noun}", old=t_old, sum_of=[purchased, own], eq_parts=[ren, non]),
-        _e(purchased, f"Purchased {low}", "By Supply", 1, "quantity", brsr=f"{brsr_total} (input)", gri=f"302-1-c-{sub_gri}, 103-2-b",
+        _e(purchased, f"Purchased {low}", "By Supply", 1, "quantity", brsr=f"{brsr_total}", gri=f"302-1-c-{sub_gri}, 103-2-b",
            kpi=f"Energy Consumption through purchased {noun}", old=p_old),
-        _e(own, f"Self-generated {low}", "By Supply", 1, "quantity", brsr=f"{brsr_total} (input)", gri=f"302-1-c-{sub_gri}, 103-2-c",
+        _e(own, f"Self-generated {low}", "By Supply", 1, "quantity", brsr=f"{brsr_total}", gri=f"302-1-c-{sub_gri}, 103-2-c",
            kpi=f"Energy Consumption through self-generated {noun}", old=o_old),
         _e(ren, f"Renewable {low}", "By Source", 1, "quantity", brsr=f"{brsr_ren}{suffix}", gri="103-2-b-i, 103-2-c",
            kpi=f"Renewable Energy Consumption - {noun}", old=r_old),
@@ -752,7 +752,7 @@ SPECS[AIR] = [
 
 # Existing Restoration / Rehabilitation fields keep their data; only references are added.
 RESTORATION_REFS = {
-    "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11 (partial)", "101-5-a"),
+    "no_of_sites_facility_with_the_most_significant_impacts_on_biodiversity": ("P6-E11", "101-5-a"),
     "area_under_restoration_or_rehabilitation": (None, "101-2-b-i"),
     "area_restored_or_rehabilitated": (None, "101-2-b-ii"),
 }

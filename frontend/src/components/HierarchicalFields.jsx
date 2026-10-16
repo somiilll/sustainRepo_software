@@ -38,16 +38,6 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
               {columns.map((c) => (
                 <th key={c.key} className="px-2 py-1.5 text-left font-medium text-xs whitespace-nowrap">
                   {c.label}
-                  {c.brsr_reference && (
-                    <span className="ml-1 px-1 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200">
-                      BRSR: {c.brsr_reference}
-                    </span>
-                  )}
-                  {c.gri_disclosure && (
-                    <span className="ml-1 px-1 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200">
-                      GRI: {c.gri_disclosure}
-                    </span>
-                  )}
                 </th>
               ))}
               <th className="w-10" />
@@ -265,7 +255,6 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     const isChoice = ['dropdown', 'radio'].includes(field.type);
     const isMulti = field.type === 'checkbox_group';
     const isText = ['text', 'textarea'].includes(field.type);
-    const optionRef = isChoice ? field.option_refs?.[values?.[key]] : null;
     if (field.group && field.group !== lastGroup) {
       lastGroup = field.group;
       rows.push(
@@ -299,28 +288,6 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
         <div className="flex-1 min-w-[180px]">
           <Label className="text-sm leading-4">{field.label}</Label>
           <div className="flex flex-wrap gap-1 mt-0.5">
-            {field.brsr_reference && (
-              <span className="px-1.5 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200">
-                BRSR: {field.brsr_reference}
-              </span>
-            )}
-            {field.gri_disclosure && (
-              <span className="px-1.5 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200">
-                GRI: {field.gri_disclosure}
-              </span>
-            )}
-            {optionRef?.brsr && (
-              <span className="px-1.5 rounded text-[10px] bg-orange-50 text-orange-700 border border-orange-200"
-                    data-testid={`${testIdPrefix}-${key}-option-brsr`}>
-                Selected - BRSR: {optionRef.brsr}
-              </span>
-            )}
-            {optionRef?.gri && (
-              <span className="px-1.5 rounded text-[10px] bg-sky-50 text-sky-700 border border-sky-200"
-                    data-testid={`${testIdPrefix}-${key}-option-gri`}>
-                Selected - GRI: {optionRef.gri}
-              </span>
-            )}
             {(isAuto || summaryLocked(field) || field.ratio) && (
               <span className="px-1.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Auto

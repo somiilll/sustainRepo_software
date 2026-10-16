@@ -154,7 +154,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "label": "of which: Vulnerable-group employees",
     "group": "Diversity Groups (subsets)",
     "level": 1,
-    "brsr": "A-20b (partial)",
+    "brsr": "A-20b",
     "gri": "405-1-b-iii",
     "sumOf": null
    },
@@ -164,7 +164,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 1,
     "brsr": "A-20b (D+E)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": [
      "da_permanent",
      "da_other_than_permanent"
@@ -176,7 +176,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 2,
     "brsr": "A-20b (D)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": null
    },
    {
@@ -185,7 +185,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 2,
     "brsr": "A-20b (E)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": null
    }
   ],
@@ -411,7 +411,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "label": "of which: Vulnerable-group workers",
     "group": "Diversity Groups (subsets)",
     "level": 1,
-    "brsr": "A-20b (partial)",
+    "brsr": "A-20b",
     "gri": "405-1-b-iii",
     "sumOf": null
    },
@@ -421,7 +421,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 1,
     "brsr": "A-20b (F+G)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": [
      "da_permanent",
      "da_other_than_permanent"
@@ -433,7 +433,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 2,
     "brsr": "A-20b (F)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": null
    },
    {
@@ -442,7 +442,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "group": "Diversity Groups (subsets)",
     "level": 2,
     "brsr": "A-20b (G)",
-    "gri": "405-1-b-iii (related)",
+    "gri": "405-1-b-iii",
     "sumOf": null
    }
   ],

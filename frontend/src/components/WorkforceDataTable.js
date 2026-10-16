@@ -164,12 +164,6 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
               <TableRow className="hover:bg-stone-50/50" data-testid={`workforce-row-${row.key}`}>
                 <TableCell className="text-sm font-medium sticky left-0 bg-white z-10" style={{ paddingLeft: 16 + (row.level || 0) * 16 }}>
                   {row.label}
-                  {(row.brsr || row.gri) && (
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {row.brsr && <span className="px-1.5 rounded text-[10px] font-normal bg-orange-50 text-orange-700 border border-orange-200">BRSR: {row.brsr}</span>}
-                      {row.gri && <span className="px-1.5 rounded text-[10px] font-normal bg-sky-50 text-sky-700 border border-sky-200">GRI: {row.gri}</span>}
-                    </div>
-                  )}
                 </TableCell>
                 {columns.map(col => {
                   const isAuto = isAutoCalcCell(row.key, col.key) || isSumCell(tableData, row, col.key);

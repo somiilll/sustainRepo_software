@@ -282,6 +282,37 @@ async def sync_workforce(db, now):
         fh.write("export const WORKFORCE_GRID_CONFIGS = " + json.dumps(configs, indent=1) + ";\n")
 
 
+QUALIFIER = re.compile(r"\s\((?:partial|related|input)\)")
+
+
+def _clean(value):
+    return QUALIFIER.sub("", value) if isinstance(value, str) else value
+
+
+async def strip_reference_qualifiers(db):
+    """BRSR/GRI references hold the code only - no (partial)/(related)/(input) wording."""
+    for kpi in await db.esg_kpi_definitions.find({"$or": [{"brsr_reference": QUALIFIER}, {"gri_disclosure": QUALIFIER}]},
+                                                 {"id": 1, "brsr_reference": 1, "gri_disclosure": 1}).to_list(None):
+        await db.esg_kpi_definitions.update_one({"id": kpi["id"]}, {"$set": {
+            "brsr_reference": _clean(kpi.get("brsr_reference")), "gri_disclosure": _clean(kpi.get("gri_disclosure"))}})
+    for cat in await db.esg_record_categories.find({}, {"fields": 1}).to_list(None):
+        changed = False
+        for f in cat.get("fields", []):
+            for k in ("brsr_reference", "gri_disclosure"):
+                if isinstance(f.get(k), str) and QUALIFIER.search(f[k]):
+                    f[k], changed = _clean(f[k]), True
+            for c in f.get("table_columns") or []:
+                for k in ("brsr_reference", "gri_disclosure"):
+                    if isinstance(c.get(k), str) and QUALIFIER.search(c[k]):
+                        c[k], changed = _clean(c[k]), True
+            for ref in (f.get("option_refs") or {}).values():
+                for k in ("brsr", "gri"):
+                    if isinstance(ref.get(k), str) and QUALIFIER.search(ref[k]):
+                        ref[k], changed = _clean(ref[k]), True
+        if changed:
+            await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": cat["fields"]}})
+
+
 async def main():
     db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
     now = datetime.now(timezone.utc).isoformat()
@@ -301,6 +332,7 @@ async def main():
     await sync_waste(db, now)
     await sync_env(db, now)
     await sync_workforce(db, now)
+    await strip_reference_qualifiers(db)
 
 
 if __name__ == "__main__":

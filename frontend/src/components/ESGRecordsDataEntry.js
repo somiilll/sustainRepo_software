@@ -1286,9 +1286,6 @@ export default function ESGRecordsDataEntry({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm font-medium text-stone-700">
-                    {formData.subcategory || formData.category} Fields
-                  </p>
                   {hasFieldTree(addFormCategory.fields) ? (
                     <HierarchicalFields
                       fields={addFormCategory.fields}
