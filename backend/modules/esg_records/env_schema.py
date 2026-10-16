@@ -407,7 +407,6 @@ _TOPICS = [
      "P1-E1", "205-2"),
 ]
 _AUD_BRSR = "P1-E1; P3-E8; P5-E1"
-_HRS = "training_hours_by_category"
 SPECS[GEN_TRAINING] = [
     F("no_of_trainings_done", "Trainings completed (Total)", group="Totals", brsr="P1-E1", gri="404-1",
       kpi="Trainings Completed (Total)", old="SOC_NO_OF_TRAININGS_DONE", sum_of=[t[2] for t in _TOPICS]),
@@ -438,26 +437,13 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
     ]
 SPECS[GEN_TRAINING] += [
     F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Total Training Hours - Female", summary={"source": _HRS, "op": "sum", "column": "total_hours_female"}, show_with_legacy_ui=True),
+      kpi="Total Training Hours - Female", show_with_legacy_ui=True),
     F("total_training_hours_male", "Total training hours - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Total Training Hours - Male", summary={"source": _HRS, "op": "sum", "column": "total_hours_male"}, show_with_legacy_ui=True),
+      kpi="Total Training Hours - Male", show_with_legacy_ui=True),
     F("average_training_hours_female", "Average hours per employee - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Average Training Hours per Employee - Female", agg="avg",
-      summary={"source": _HRS, "op": "ratio", "num_column": "total_hours_female", "den_column": "employees_female"}, show_with_legacy_ui=True),
+      kpi="Average Training Hours per Employee - Female", agg="avg", show_with_legacy_ui=True),
     F("average_training_hours_male", "Average hours per employee - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Average Training Hours per Employee - Male", agg="avg",
-      summary={"source": _HRS, "op": "ratio", "num_column": "total_hours_male", "den_column": "employees_male"}, show_with_legacy_ui=True),
-    F(_HRS, "Training hours by employee category (one row per category)", type="table", group="Training Hours", cols=[
-        C("employee_category", "Employee category", required=True, gri="404-1-a"),
-        C("total_hours_female", "Total training hours - Female", "number", gri="404-1-a"),
-        C("total_hours_male", "Total training hours - Male", "number", gri="404-1-a"),
-        C("employees_female", "Number of employees - Female", "number", gri="404-1-a"),
-        C("employees_male", "Number of employees - Male", "number", gri="404-1-a"),
-        C("average_hours_female", "Average hours per employee - Female (auto)", "number", gri="404-1-a",
-          derived={"num": "total_hours_female", "den": "employees_female"}),
-        C("average_hours_male", "Average hours per employee - Male (auto)", "number", gri="404-1-a",
-          derived={"num": "total_hours_male", "den": "employees_male"}),
-    ]),
+      kpi="Average Training Hours per Employee - Male", agg="avg", show_with_legacy_ui=True),
 ]
 
 SPECS[SEC_TRAINING] = [
