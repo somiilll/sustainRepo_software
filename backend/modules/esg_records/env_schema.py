@@ -9,16 +9,18 @@ UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1000.0, "megalitres": 1_000_000.0,
 
 def F(key, label, type="number", units=None, default_unit=None, group="", level=0, parent=None, brsr=None, gri=None,
       kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None,
-      options=None, option_refs=None, ratio=None, sum_le=None):
+      options=None, option_refs=None, ratio=None, sum_le=None, legacy_only=False, hide_if_table_has_rows=None):
     return {"key": key, "label": label, "type": type, "units": units, "default_unit": default_unit or (units or [None])[0],
             "group": group, "level": level, "parent": parent, "brsr": brsr, "gri": gri, "kpi": kpi, "old": old,
             "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent,
-            "le": le, "eq_parts": eq_parts, "options": options, "option_refs": option_refs, "ratio": ratio, "sum_le": sum_le}
+            "le": le, "eq_parts": eq_parts, "options": options, "option_refs": option_refs, "ratio": ratio, "sum_le": sum_le,
+            "legacy_only": legacy_only, "hide_if_table_has_rows": hide_if_table_has_rows}
 
 
-def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None, derived=None):
+def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None, derived=None, options_source=None):
     return {"key": key, "label": label, "type": type, "options": options, "required": required,
-            "gri_disclosure": gri, "brsr_reference": brsr, "max": max, "derived": derived}
+            "gri_disclosure": gri, "brsr_reference": brsr, "max": max, "derived": derived,
+            "options_source": options_source}
 
 
 YN = ["Yes", "No"]
@@ -228,18 +230,24 @@ _ext_pending = [f"ext_{g}_pending" for g, _l in EXT_GROUPS]
 _ext_resolved = [f"ext_{g}_resolved" for g, _l in EXT_GROUPS]
 SPECS[EXTERNAL] = [
     _cnt("total_external_complaints", "Total external complaints (filed)", "Total", brsr="A-25", gri="2-25",
-         kpi="External Complaints (Total)", sum_of=_ext_filed),
+         kpi="External Complaints (Total)", summary={"source": "complaint_records", "op": "sum", "column": "filed", "optional": True}),
+    _cnt("pending_complaints_total", "Pending (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Pending (Total)",
+         summary={"source": "complaint_records", "op": "sum", "column": "pending", "optional": True}),
+    _cnt("resolved_complaints_total", "Resolved (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Resolved (Total)",
+         summary={"source": "complaint_records", "op": "sum", "column": "resolved", "optional": True}),
 ]
 for _g, _label in EXT_GROUPS:
     for _suffix, _text, _brsr in (("filed", "Filed during the year", "A-25"), ("pending", "Pending at year end", "A-25"),
                                   ("resolved", "Resolved", "A-25")):
         SPECS[EXTERNAL].append(_cnt(f"ext_{_g}_{_suffix}", f"{_label} - {_text}", _label, 1, brsr=_brsr,
-                                    kpi=f"External Complaints - {_label} - {_text}"))
+                                    kpi=f"External Complaints - {_label} - {_text}", legacy_only=True,
+                                    hide_if_table_has_rows="complaint_records"))
 SPECS[EXTERNAL] += [
-    _cnt("pending_complaints_total", "Pending (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Pending (Total)", sum_of=_ext_pending),
-    _cnt("resolved_complaints_total", "Resolved (Total)", "By Status", 0, brsr="A-25", kpi="External Complaints - Resolved (Total)", sum_of=_ext_resolved),
-    F("complaint_records", "Complaint records (one row per complaint)", type="table", group="Complaint Record Attributes", cols=[
-        C("complainant", "Complainant", "dropdown", [label for _g, label in EXT_GROUPS]),
+    F("complaint_records", "External complaints by stakeholder", type="table", group="External Complaints by Stakeholder", cols=[
+        C("complainant", "Complainant", "dropdown", [label for _g, label in EXT_GROUPS], required=True),
+        C("filed", "Filed during the year", "number", required=True),
+        C("pending", "Pending at year end", "number", required=True),
+        C("resolved", "Resolved", "number", required=True),
     ]),
 ]
 
@@ -346,7 +354,14 @@ for _blk, _title, _idx in (("all", "All Persons (Employees + Workers)", 7), ("em
             _sum = [f"{_blk}_fatal_injury", f"{_blk}_fatal_ill_health"]
         SPECS[INCIDENTS].append(_n(f"{_blk}_{_st}", _lb, _title, _lv, f"{_blk}_{_par}" if _par else None, brsr=_br, gri=_gri,
                                    kpi=f"H&S - {_title.split(' (')[0]} - {_lb.replace('of which: ', '')}",
-                                   sum_of=_sum, le=f"{_blk}_{_le}" if _le else None))
+                                   sum_of=_sum, le=f"{_blk}_{_le}" if _le else None, legacy_only=True,
+                                   hide_if_table_has_rows="incident_records_by_person_type"))
+SPECS[INCIDENTS].append(F(
+    "incident_records_by_person_type", "Health & safety incidents by person type", type="table", group="Incidents by Employee / Worker", cols=[
+        C("person_type", "Person type", "dropdown", ["Employee", "Worker"], required=True),
+        *[C(stem, label.replace("of which: ", ""), "number") for stem, label, *_rest in _INC if stem != "fatalities"],
+    ],
+))
 SPECS[REHAB] = [
     _n("rehabilitated_total", "Rehabilitated or family member placed in suitable employment (Total)", "Total", brsr="P3-L3",
        kpi="Rehabilitated / Placed in Suitable Employment (Total)", sum_of=["rehabilitated_employees", "rehabilitated_workers"]),
@@ -582,7 +597,7 @@ def _e(key, label, group, level=0, parent=None, **kw):
 
 def _fuel_table(key, label, gri):
     return F(key, label, type="table", group="By Fuel Type", level=2, cols=[
-        C("fuel_type", "Fuel type", required=True, gri=gri),
+        C("fuel_type", "Fuel type", "dropdown", required=True, gri=gri, options_source="scope1_fuels"),
         C("quantity", "Quantity", "number", gri=gri),
         C("quantity_unit", "Quantity unit", "dropdown", FUEL_QTY_UNITS),
         C("energy", "Energy", "number", required=True, gri=gri),
@@ -875,4 +890,25 @@ def apply_table_rules(category: str, subcategory: str, field_values: Dict[str, A
             out[spec["key"]] = round(total, 6)
         if spec["units"]:
             out[f"{spec['key']}_unit"] = unit
+    if key == EXTERNAL and out.get("complaint_records"):
+        group_codes = {label: code for code, label in EXT_GROUPS}
+        for code, _label in EXT_GROUPS:
+            matching_rows = [row for row in out["complaint_records"] if group_codes.get(row.get("complainant")) == code]
+            for status in ("filed", "pending", "resolved"):
+                out[f"ext_{code}_{status}"] = sum(_number(row.get(status), status) or 0 for row in matching_rows)
+    if key == INCIDENTS and out.get("incident_records_by_person_type"):
+        rows = out["incident_records_by_person_type"]
+        for prefix, person_type in (("emp", "Employee"), ("wrk", "Worker")):
+            selected_rows = [row for row in rows if row.get("person_type") == person_type]
+            for stem, _label, *_rest in _INC:
+                if stem == "fatalities":
+                    out[f"{prefix}_{stem}"] = sum(
+                        (_number(row.get("fatal_injury"), "fatal_injury") or 0) +
+                        (_number(row.get("fatal_ill_health"), "fatal_ill_health") or 0)
+                        for row in selected_rows
+                    )
+                else:
+                    out[f"{prefix}_{stem}"] = sum(_number(row.get(stem), stem) or 0 for row in selected_rows)
+        for stem, _label, *_rest in _INC:
+            out[f"all_{stem}"] = (out.get(f"emp_{stem}") or 0) + (out.get(f"wrk_{stem}") or 0)
     return out

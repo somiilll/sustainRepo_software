@@ -93,7 +93,23 @@ class ESGRecordsService:
             query["frameworks"] = framework
         
         cursor = self._categories.find(query, {"_id": 0}).sort("order", 1)
-        return await cursor.to_list(None)
+        categories = await cursor.to_list(None)
+        if section == "environment":
+            scope1_fuels = sorted({
+                fuel.get("fuel_name") for fuel in await db.fuel_database.find(
+                    {"scope": {"$in": ["scope1", "biogenic"]}, "category": "Stationary Combustion"},
+                    {"_id": 0, "fuel_name": 1},
+                ).to_list(None)
+                if fuel.get("fuel_name")
+            })
+            for category in categories:
+                if category.get("category") != "Energy" or category.get("subcategory") != "Fuel Within Organization":
+                    continue
+                for field in category.get("fields", []):
+                    for column in field.get("table_columns", []):
+                        if column.get("options_source") == "scope1_fuels":
+                            column["options"] = scope1_fuels
+        return categories
     
     async def get_category(self, category_id: str) -> Optional[Dict[str, Any]]:
         """Get a single category config."""

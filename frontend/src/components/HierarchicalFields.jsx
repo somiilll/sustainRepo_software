@@ -248,6 +248,9 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
   let lastGroup = null;
   const rows = [];
   fields.forEach((field) => {
+    const tableHasRows = field.hide_if_table_has_rows
+      && (values?.[field.hide_if_table_has_rows] || []).some(isRowFilled);
+    if ((field.legacy_only && !isEntered(values?.[field.field_key])) || tableHasRows) return;
     if (!isVisible(field)) return;
     const key = field.field_key;
     const kids = children[key] || [];

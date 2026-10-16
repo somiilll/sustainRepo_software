@@ -203,6 +203,7 @@ def env_field(spec, meta):
         "group": spec["group"], "level": spec["level"], "parent_key": spec["parent"],
         "sum_parents": meta["sum_parents"], "brsr_reference": None if table else spec["brsr"],
         "gri_disclosure": None if table else spec["gri"],
+        "legacy_only": spec["legacy_only"], "hide_if_table_has_rows": spec["hide_if_table_has_rows"],
     }
     if spec["summary"]:
         field["table_summary"] = spec["summary"]
