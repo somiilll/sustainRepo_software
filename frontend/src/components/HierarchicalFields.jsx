@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 export const hasFieldTree = (fields) => (fields || []).some((f) => f.group || f.parent_key);
 
 const isEntered = (v) => v !== undefined && v !== null && v !== '';
-const VOLUME_FACTORS = {
+const FALLBACK_UNIT_FACTORS = {
   litres: 1, kilolitres: 1000, megalitres: 1000000,
   j: 1, kj: 1e3, mj: 1e6, gj: 1e9, tj: 1e12, kwh: 3.6e6, mwh: 3.6e9, gwh: 3.6e12,
 };
@@ -121,6 +121,8 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
   }, [fields]);
 
   const unitOf = (vals, key) => vals[`${key}_unit`] || byKey[key]?.default_unit || '';
+  const unitFactor = (field, unit) => field?.unit_conversion?.factors?.[String(unit).toLowerCase()]
+    ?? FALLBACK_UNIT_FACTORS[String(unit).toLowerCase()];
 
   const updateAutoTotal = (vals, parent) => {
     if (manual.current.has(parent)) return;
@@ -133,9 +135,9 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
       return;
     }
     const targetUnit = unitOf(vals, parent) || unitOf(vals, entered[0]);
-    const targetFactor = VOLUME_FACTORS[String(targetUnit).toLowerCase()];
+    const targetFactor = unitFactor(byKey[parent], targetUnit);
     const converted = entered.map((child) => {
-      const sourceFactor = VOLUME_FACTORS[String(unitOf(vals, child)).toLowerCase()];
+      const sourceFactor = unitFactor(byKey[child], unitOf(vals, child));
       return sourceFactor && targetFactor ? Number(vals[child] || 0) * sourceFactor / targetFactor : null;
     });
     if (converted.some((value) => value === null)) {

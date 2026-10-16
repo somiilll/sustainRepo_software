@@ -16,6 +16,7 @@ from .contracts import (
     UpdateRecordRequest, RecordListFilters
 )
 from .water_schema import apply_water_rules
+from shared.unit_registry import get_conversion_metadata
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
@@ -110,6 +111,12 @@ class ESGRecordsService:
     @staticmethod
     async def _hydrate_dynamic_field_options(categories: List[Dict[str, Any]]) -> None:
         """Resolve database-backed select choices consistently for list and detail routes."""
+        for category in categories:
+            for field in category.get("fields", []):
+                if field.get("has_unit"):
+                    conversion = get_conversion_metadata(field.get("allowed_units") or [])
+                    if conversion:
+                        field["unit_conversion"] = conversion
         fuel_columns = [
             column
             for category in categories

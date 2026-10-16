@@ -81,6 +81,8 @@ def build_fields(existing, rows, sub_name, meta_fn=tree_meta):
 
 
 SPILL_UNITS = {"default_unit": "Litres", "supported_units": ["Litres", "KiloLitres"], "allow_unit_conversion": False}
+WASTE_MASS_UNITS = {"default_unit": "MT", "supported_units": ["MT", "kg"], "allow_unit_conversion": True,
+                    "unit_type": "mass"}
 
 
 async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
@@ -169,9 +171,6 @@ def spill_fields(existing_unit_field):
 
 
 async def sync_waste(db, now):
-    waste_units = None
-    ref = await db.esg_kpi_definitions.find_one({"metric_code": "ENV_WASTE_GENERATED_IN_METRIC_TONNES"}, {"unit_config": 1})
-    waste_units = (ref or {}).get("unit_config") or {"default_unit": "MT", "supported_units": ["MT", "kg"], "allow_unit_conversion": False}
     for sub in [*STREAMS, "Spills"]:
         cat = await db.esg_record_categories.find_one({"category": "Waste", "subcategory": sub})
         rows = waste_rows(sub)
@@ -179,7 +178,7 @@ async def sync_waste(db, now):
         await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
         print(f"Waste/{sub}: {len(fields)} entry fields")
         counts = {"created": 0, "updated": 0}
-        units = SPILL_UNITS if sub == "Spills" else waste_units
+        units = SPILL_UNITS if sub == "Spills" else WASTE_MASS_UNITS
         for row in rows:
             counts[await sync_kpi(db, "Waste", sub, row, now, waste_tree_meta, units)] += 1
         print(f"Waste/{sub}: KPIs {counts}")

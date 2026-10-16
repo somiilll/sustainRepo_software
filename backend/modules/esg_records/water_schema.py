@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional
 from .env_schema import ENV_LABELS, ENV_SUM_RULES, apply_table_rules
 from .workforce_schema import CATEGORY as WORKFORCE_CATEGORY, GRID_LABELS, GRID_RULES
 from .waste_schema import WASTE_LABELS, WASTE_RULES, apply_spill_rules
+from shared.unit_registry import can_convert, convert as unit_convert
 
 TOLERANCE = 0.01
-WATER_UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1_000.0, "megalitres": 1_000_000.0}
 
 W_SOURCES = [
     ("surface", "Surface Water", "water_withdrawal_through_surface_water", "i", "(i)", "ENV_QUANTITY_LITRES_FROM_SURFACE_WATER_WITHD"),
@@ -238,15 +238,16 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
 
     out = dict(field_values)
 
+    default_unit = "MT" if cat == "waste" else "Litres"
+
     def unit_of(key):
-        return str(field_values.get(f"{key}_unit") or out.get(f"{key}_unit") or "Litres")
+        return str(field_values.get(f"{key}_unit") or out.get(f"{key}_unit") or default_unit)
 
     def in_unit(value, key, target_key):
-        source_factor = WATER_UNIT_FACTORS.get(unit_of(key).lower())
-        target_factor = WATER_UNIT_FACTORS.get(unit_of(target_key).lower())
-        if source_factor is None or target_factor is None:
+        source_unit, target_unit = unit_of(key), unit_of(target_key)
+        if not can_convert(source_unit, target_unit):
             return None
-        return value * source_factor / target_factor
+        return unit_convert(value, source_unit, target_unit)
 
     def normalised_sum(keys, target_key):
         converted = [in_unit(values[key], key, target_key) for key in keys if values[key] is not None]
