@@ -1512,7 +1512,7 @@ Example for Decarbonization Priorities / Recommendations:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         
         message = client.messages.create(
-            model="claude-haiku-5-5",
+            model="claude-haiku-4-5",
             max_tokens=10000,
             temperature=0.3,
             system=system_prompt,

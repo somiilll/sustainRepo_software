@@ -143,7 +143,7 @@ If no page fetch is needed, provide your final response based ONLY on the contex
         loop_count += 1
         try:
             message = anthropic_client.messages.create(
-                model="claude-haiku-5-5",
+                model="claude-haiku-4-5",
                 max_tokens=1000,
                 system=current_system_prompt,
                 messages=[{"role": "user", "content": prompt}],
