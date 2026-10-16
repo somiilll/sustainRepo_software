@@ -119,6 +119,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 16, 2026 — Linked KPI-definition deletion to entry-category retirement. Deleting the final non-archived KPI for a category/subcategory now retires that global `esg_record_categories` entry, removes matching organization KPI overrides, blocks new records through stale/direct clients, and keeps historical ESG records untouched. Inactive entries are excluded from Add Metric, Org Config default modules, and KPI-definition category/field lookups. Reconciled the previously deleted **Biodiversity → Restoration / Rehabilitation** entry; it no longer appears in Add Metric and had zero existing records. Verified with an isolated lifecycle check and authenticated live category API.
 - October 14, 2026 — Frontend-only ESG Clarification Pending tag in Analysis → Detailed view: `SupplierRanking.jsx` enriches `esg_items` via existing per-questionnaire responses endpoint (`has_unlocked_questions`), `SupplierRankingDetailDialog.jsx` shows amber `Clarification pending` + `Awaiting supplier clarification` for ESG submitted items with open clarifications. Backend unchanged; GHG/Documents/Training untouched. ESLint passed. **NO TESTING RUN per user instruction.**
 - October 14, 2026 — Renamed supplier document ACCEPTANCE action from `Submit` to `Submit Acceptance` in `SupplierDocuments.jsx` (accept flow only; upload/status flows unchanged). ESLint passed. **NO TESTING RUN per user instruction.**
 - October 14, 2026 — Fixed GHG spend_basis stale exchange-rate bug: switching spent-value currency (e.g. INR→USD) now clears stale per-row `exchange_rate/ppp/inflation_rate` (+unit/override keys) so USD resolves to 1.0 instead of sticking at 93.32. Per-row tracking + grouped per-currency defaults fetch in `EmissionEntryForm.js` / `useSpendCurrencyDefaults.js`; fixed follow-up infinite-loop regression via string-key dep, ref reads, stable EMPTY sentinels, `useCallback` year helper. Verified by testing agent (iteration_3): all 4 monthly/yearly INR↔USD scenarios + dialog-open regression PASS, no retest needed.
@@ -568,6 +569,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## Backlog
 - P0: Retire/replace support — mark an entry field or KPI "retired" (hidden from new entry, kept in history), `replaces` link so reports add old + new, move active targets to the replacement KPI, per-org overrides.
+- P1: Extend Organization Config custom categories with hierarchical field metadata (parent/level/group) and configurable auto-sum rules, so custom entry forms can use the same collapsible tree and live totals as global ESG categories.
 - P2: Config-driven sum rules — read `sum_parents` from field config in the backend rule engine so new fields join auto-sum without code changes (currently rules live in `esg_records/water_schema.py`).
 
 ## 2026-08 — Waste Generated / Recovered / Disposal / Spills
@@ -580,7 +582,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## 2026-08 — Biodiversity / Climate Change / Material
 - `esg_records/env_schema.py`: declarative specs (fields, repeatable tables, summaries count/sum/avg, tree, BRSR/GRI refs) + `apply_table_rules` (row validation, derived summary fields). Material Consumption totals use the shared sum engine (`root` may now be a list).
 - Seed script `scripts/seed_water_withdrawal_discharge_recycle.py` also syncs these 8 subcategories (fields replaced, no migration; KPIs reused/created; % KPIs use avg + percentage output).
-- Ecological Sensitivity is now one repeatable site table that also holds area under restoration / area restored; summaries feed 3 KPIs. Restoration / Rehabilitation subcategory is kept (references added) but is now redundant — pending user decision to hide it.
+- Ecological Sensitivity is now one repeatable site table that also holds area under restoration / area restored; summaries feed 3 KPIs. The redundant Restoration / Rehabilitation entry was retired on October 16 after its linked KPI definitions were deleted; it is hidden from new selection while any historical records remain available.
 - Biodiversity Impacts: two tables (site water, pollutant entries). Material: totals auto-sum; recycled-input and reclaimed tables.
 - Not UI-tested (user preference).
 

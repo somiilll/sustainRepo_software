@@ -144,6 +144,24 @@ class ESGRecordsService:
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
+        # Retired global categories stay available for historical ledgers and
+        # edits, but cannot receive new records from stale clients or direct API
+        # calls. Organization custom categories are resolved separately.
+        if not str(data.category_id or "").startswith("custom_"):
+            selected_category = await self._categories.find_one(
+                {
+                    "section": section,
+                    "category": data.category,
+                    "subcategory": data.subcategory,
+                },
+                {"_id": 0, "is_active": 1},
+            )
+            if selected_category and selected_category.get("is_active") is False:
+                raise ValueError(
+                    "This KPI category has been retired and cannot receive new records. "
+                    "Existing records remain available in the metrics ledger."
+                )
+
         data.field_values = apply_water_rules(
             data.category, data.subcategory, data.field_values, is_draft=data.status == "draft"
         )
