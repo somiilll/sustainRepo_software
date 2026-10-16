@@ -64,6 +64,11 @@ SPECS: Dict[str, Dict[str, Any]] = {
         *_ages("405-1-a-ii", "By Age Band"),
         R("minority", "of which: Minority-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),
         R("vulnerable", "of which: Vulnerable-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),
+    ], "extra_fields": [
+        {"key": "percentage_senior_management_hired_from_local_community",
+         "label": "% senior management hired from local community",
+         "group": "Local Community Hiring", "gri": "202-2-a", "percent": True,
+         "kpi": "Senior Management Hired from Local Community (%)"},
     ]},
     "Employee Turnover": {"cfg": "EMPLOYEE_TURNOVER_CONFIG", "prefix": "emp_to", "cols": FMT, "rows": [
         R("start", "Employees at start of year", "Headcount", 0, "A-22", "401-1-b"),

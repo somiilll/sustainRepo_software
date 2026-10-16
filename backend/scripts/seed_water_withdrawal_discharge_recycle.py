@@ -273,6 +273,22 @@ async def sync_workforce(db, now):
                            "options": [], "default_value": None, "validation": {}, "has_unit": False, "allowed_units": [],
                            "default_unit": None, "table_columns": tcols, "table_min_rows": 0, "table_max_rows": 50,
                            "group": tgroup, "level": 0, "parent_key": None, "sum_parents": []})
+        for extra in spec.get("extra_fields", []):
+            is_percent = extra.get("percent", False)
+            fields.append({"field_key": extra["key"], "label": extra["label"], "type": "number", "required": False,
+                           "placeholder": "", "options": [], "default_value": None,
+                           "validation": {"min": 0, "max": 100} if is_percent else {"min": 0},
+                           "has_unit": is_percent, "allowed_units": ["%"] if is_percent else [],
+                           "default_unit": "%" if is_percent else None, "table_columns": [], "table_min_rows": 1,
+                           "table_max_rows": 10, "group": extra.get("group", "Additional Metrics"), "level": 0,
+                           "parent_key": None, "sum_parents": [], "brsr_reference": extra.get("brsr"),
+                           "gri_disclosure": extra.get("gri")})
+            meta[extra["key"]] = {"group": extra.get("group", "Additional Metrics"), "level": 0,
+                                  "parent_key": None, "order": len(fields)}
+            rows_kpi.append({"key": extra["key"], "name": extra["kpi"], "brsr": extra.get("brsr"),
+                             "gri": extra.get("gri"), "old_code": None, "unit": is_percent,
+                             "unit_config": {"default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False} if is_percent else None,
+                             "percent": is_percent, "section": "social"})
         await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
         counts = {"created": 0, "updated": 0}
         for row in rows_kpi:
