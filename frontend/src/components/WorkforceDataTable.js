@@ -127,7 +127,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
               <Label className="text-sm">{df.label}</Label>
               {isEditing ? (
                 <Select value={fieldValues?.[df.key] || ''} onValueChange={v => onChange({ ...fieldValues, [df.key]: v })}>
-                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="mt-1 rounded-lg"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {df.options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                   </SelectContent>
@@ -178,7 +178,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
                         <Input
                           type="number"
                           min="0"
-                          className="h-8 w-24 mx-auto rounded-xl text-center text-sm"
+                          className="h-8 w-24 mx-auto rounded-lg text-center text-sm"
                           value={val != null ? val : ''}
                           placeholder="—"
                           onChange={e => handleChange(row.key, col.key, e.target.value)}

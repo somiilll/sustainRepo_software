@@ -430,6 +430,16 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
         F(_fk, "Attendees - Female", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Female Attendees"),
         F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
     ]
+_TOPIC_HOURS_TOTAL = "total_training_hours_by_topic"
+SPECS[GEN_TRAINING] += [
+    F(_TOPIC_HOURS_TOTAL, "Training hours (Total)", units=["Hours"], group="Training Hours by Training Category",
+      gri="404-1", kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
+    *[
+        F(f"training_hours_{slug}", f"{label} training hours", units=["Hours"], group="Training Hours by Training Category",
+          level=1, parent=_TOPIC_HOURS_TOTAL, brsr=brsr, gri=gri, kpi=f"Training Hours - {label}")
+        for slug, label, _tk, _fk, _mk, brsr, gri in _TOPICS
+    ],
+]
 SPECS[GEN_TRAINING] += [
     F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
       kpi="Total Training Hours - Female", summary={"source": _HRS, "op": "sum", "column": "total_hours_female"}),
