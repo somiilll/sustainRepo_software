@@ -1611,7 +1611,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="mt-1"
+            className="mt-1 rounded-xl"
           />
         </div>
       );
@@ -1625,7 +1625,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             rows={2}
-            className="mt-1"
+            className="mt-1 rounded-xl"
           />
         </div>
       );
@@ -1640,13 +1640,13 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
                 type="number"
                 value={value ?? ''}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                className="flex-1 border-stone-300"
+                className="flex-1 rounded-xl border-stone-300"
                 min={field.validation?.min}
                 max={field.validation?.max}
                 data-testid={`${testIdPrefix}-${field_key}-input`}
               />
               <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
-                <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
+                <SelectTrigger className="w-[120px] shrink-0 rounded-xl border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
                   <SelectValue placeholder="Unit" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1661,7 +1661,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
               type="number"
               value={value ?? ''}
               onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-              className="mt-auto border-stone-300"
+              className="mt-auto rounded-xl border-stone-300"
               min={field.validation?.min}
               max={field.validation?.max}
               data-testid={`${testIdPrefix}-${field_key}-input`}
@@ -1675,7 +1675,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
         <div>
           <Label>{label}{required && ' *'}</Label>
           <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder={`Select ${label.toLowerCase()}...`} /></SelectTrigger>
+            <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder={`Select ${label.toLowerCase()}...`} /></SelectTrigger>
             <SelectContent>
               {(options || []).map(opt => (
                 <SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -1690,7 +1690,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
         <div>
           <Label>{label}{required && ' *'}</Label>
           <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Select..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="yes">Yes</SelectItem>
               <SelectItem value="no">No</SelectItem>
@@ -1707,7 +1707,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             type="date"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
-            className="mt-1"
+            className="mt-1 rounded-xl"
           />
         </div>
       );

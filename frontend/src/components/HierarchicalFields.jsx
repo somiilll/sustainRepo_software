@@ -60,7 +60,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
                       </span>
                     ) : c.type === 'dropdown' ? (
                       <Select value={row[c.key] || ''} onValueChange={(v) => setCell(i, c.key, v)}>
-                        <SelectTrigger className="h-9 border-stone-300"
+                        <SelectTrigger className="h-9 rounded-xl border-stone-300"
                                        data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
@@ -75,7 +75,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
                         value={row[c.key] ?? ''}
                         onChange={(e) => setCell(i, c.key,
                           c.type === 'number' && e.target.value !== '' ? parseFloat(e.target.value) : e.target.value)}
-                        className="h-9 border-stone-300"
+                        className="h-9 rounded-xl border-stone-300"
                         data-testid={`${testIdPrefix}-${field.field_key}-${c.key}-${i}`}
                       />
                     )}
@@ -104,6 +104,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
 
 export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'metric-field' }) {
   const [collapsed, setCollapsed] = useState({});
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const manual = useRef(new Set());
   const auto = useRef(new Set());
 
@@ -121,23 +122,36 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
 
   const unitOf = (vals, key) => vals[`${key}_unit`] || byKey[key]?.default_unit || '';
 
+  const updateAutoTotal = (vals, parent) => {
+    if (manual.current.has(parent)) return;
+    const entered = (sumChildren[parent] || []).filter((child) => isEntered(vals[child]));
+    if (entered.length === 0) {
+      if (auto.current.has(parent)) {
+        delete vals[parent];
+        auto.current.delete(parent);
+      }
+      return;
+    }
+    const targetUnit = unitOf(vals, parent) || unitOf(vals, entered[0]);
+    const targetFactor = VOLUME_FACTORS[String(targetUnit).toLowerCase()];
+    const converted = entered.map((child) => {
+      const sourceFactor = VOLUME_FACTORS[String(unitOf(vals, child)).toLowerCase()];
+      return sourceFactor && targetFactor ? Number(vals[child] || 0) * sourceFactor / targetFactor : null;
+    });
+    if (converted.some((value) => value === null)) {
+      const units = new Set(entered.map((child) => unitOf(vals, child)));
+      if (units.size > 1) return;
+      vals[parent] = Math.round(entered.reduce((sum, child) => sum + Number(vals[child] || 0), 0) * 1e6) / 1e6;
+    } else {
+      vals[parent] = Math.round(converted.reduce((sum, value) => sum + value, 0) * 1e6) / 1e6;
+    }
+    if (byKey[parent]?.has_unit) vals[`${parent}_unit`] = targetUnit;
+    auto.current.add(parent);
+  };
+
   const propagate = (vals, key) => {
     (byKey[key]?.sum_parents || []).forEach((parent) => {
-      if (manual.current.has(parent)) return;
-      const entered = (sumChildren[parent] || []).filter((c) => isEntered(vals[c]));
-      if (entered.length === 0) {
-        if (auto.current.has(parent)) {
-          delete vals[parent];
-          auto.current.delete(parent);
-          propagate(vals, parent);
-        }
-        return;
-      }
-      const units = new Set(entered.map((c) => unitOf(vals, c)));
-      if (units.size > 1) return;
-      vals[parent] = Math.round(entered.reduce((s, c) => s + Number(vals[c] || 0), 0) * 1e6) / 1e6;
-      if (byKey[parent]?.has_unit) vals[`${parent}_unit`] = [...units][0];
-      auto.current.add(parent);
+      updateAutoTotal(vals, parent);
       propagate(vals, parent);
     });
   };
@@ -225,6 +239,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
   const handleUnit = (key, unit) => {
     onChange((prev) => {
       const next = { ...prev, [`${key}_unit`]: unit };
+      updateAutoTotal(next, key);
       propagate(next, key);
       deriveSummaries(next);
       return next;
@@ -252,6 +267,7 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
       && (values?.[field.hide_if_table_has_rows] || []).some(isRowFilled);
     if ((field.legacy_only && !isEntered(values?.[field.field_key])) || tableHasRows) return;
     if (!isVisible(field)) return;
+    const groupCollapsed = field.group && collapsedGroups[field.group];
     const key = field.field_key;
     const kids = children[key] || [];
     const isAuto = !manual.current.has(key) && (sumChildren[key] || []).some((c) => isEntered(values?.[c]));
@@ -261,12 +277,15 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     if (field.group && field.group !== lastGroup) {
       lastGroup = field.group;
       rows.push(
-        <p key={`group-${key}`} className="pt-3 text-xs font-semibold uppercase tracking-wide text-stone-500"
-           data-testid={`${testIdPrefix}-group-${key}`}>
+        <button type="button" key={`group-${key}`} className="flex w-full items-center gap-1 pt-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 hover:text-stone-800"
+                onClick={() => setCollapsedGroups((groups) => ({ ...groups, [field.group]: !groups[field.group] }))}
+                data-testid={`${testIdPrefix}-group-${key}-toggle`}>
+          {groupCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           {field.group}
-        </p>
+        </button>
       );
     }
+    if (groupCollapsed) return;
     if (field.type === 'table') {
       rows.push(
         <div key={key} className="py-2" data-testid={`${testIdPrefix}-row-${key}`}>
@@ -311,10 +330,10 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
           </div>
         ) : isText ? (
           <Input type="text" value={values?.[key] ?? ''} onChange={(e) => handleChoice(key, e.target.value)}
-                 className="w-72 max-w-full border-stone-300" data-testid={`${testIdPrefix}-${key}-input`} />
+            className="w-72 max-w-full rounded-xl border-stone-300" data-testid={`${testIdPrefix}-${key}-input`} />
         ) : isChoice ? (
           <Select value={values?.[key] || ''} onValueChange={(v) => handleChoice(key, v)}>
-            <SelectTrigger className="w-72 max-w-full border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
+            <SelectTrigger className="w-72 max-w-full rounded-xl border-stone-300" data-testid={`${testIdPrefix}-${key}-select`}>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -329,13 +348,13 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
             onChange={(e) => handleValue(key, e.target.value)}
             min={field.validation?.min}
             step={field.validation?.step}
-            className="w-40 border-stone-300"
+            className="w-40 rounded-xl border-stone-300"
             data-testid={`${testIdPrefix}-${key}-input`}
           />
         )}
         {field.has_unit && field.allowed_units?.length > 0 && (
           <Select value={values?.[`${key}_unit`] || field.default_unit || ''} onValueChange={(u) => handleUnit(key, u)}>
-            <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${key}-unit-select`}>
+            <SelectTrigger className="w-[120px] shrink-0 rounded-xl border-stone-300" data-testid={`${testIdPrefix}-${key}-unit-select`}>
               <SelectValue placeholder="Unit" />
             </SelectTrigger>
             <SelectContent>

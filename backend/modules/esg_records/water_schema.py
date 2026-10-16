@@ -6,6 +6,7 @@ from .workforce_schema import CATEGORY as WORKFORCE_CATEGORY, GRID_LABELS, GRID_
 from .waste_schema import WASTE_LABELS, WASTE_RULES, apply_spill_rules
 
 TOLERANCE = 0.01
+WATER_UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1_000.0, "megalitres": 1_000_000.0}
 
 W_SOURCES = [
     ("surface", "Surface Water", "water_withdrawal_through_surface_water", "i", "(i)", "ENV_QUANTITY_LITRES_FROM_SURFACE_WATER_WITHD"),
@@ -237,17 +238,31 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
 
     out = dict(field_values)
 
-    def mixed_units(*keys):
-        return len({field_values.get(f"{k}_unit") for k in keys if values.get(k) is not None and field_values.get(f"{k}_unit")}) > 1
+    def unit_of(key):
+        return str(field_values.get(f"{key}_unit") or out.get(f"{key}_unit") or "Litres")
+
+    def in_unit(value, key, target_key):
+        source_factor = WATER_UNIT_FACTORS.get(unit_of(key).lower())
+        target_factor = WATER_UNIT_FACTORS.get(unit_of(target_key).lower())
+        if source_factor is None or target_factor is None:
+            return None
+        return value * source_factor / target_factor
+
+    def normalised_sum(keys, target_key):
+        converted = [in_unit(values[key], key, target_key) for key in keys if values[key] is not None]
+        return None if any(value is None for value in converted) else sum(converted)
 
     for parent, children in rules["sums"]:
-        entered = [values[c] for c in children if values[c] is not None]
-        if not entered or mixed_units(parent, *children):
+        entered = [child for child in children if values[child] is not None]
+        if not entered:
             continue
-        total = sum(entered)
+        total = normalised_sum(entered, parent)
+        if total is None:
+            continue
         if values[parent] is None:
             values[parent] = round(total, 6)
             out[parent] = values[parent]
+            out[f"{parent}_unit"] = unit_of(parent)
         elif abs(values[parent] - total) > max(TOLERANCE, abs(total) * 1e-6):
             raise ValueError(
                 f"{_label(parent)} ({_fmt(values[parent])}) must equal the sum of its parts ({_fmt(total)}). "
@@ -262,20 +277,22 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         raise ValueError("Enter the total, or at least one source/destination value")
 
     for small, big in rules["le"]:
-        if mixed_units(small, big):
-            continue
-        if values[small] is not None and values[big] is not None and values[small] > values[big] + TOLERANCE:
+        small_value = in_unit(values[small], small, big) if values[small] is not None else None
+        if small_value is not None and values[big] is not None and small_value > values[big] + TOLERANCE:
             raise ValueError(f"{_label(small)} cannot exceed {_label(big)}")
 
     for parts, total in rules.get("sum_le", []):
-        entered = [values[p] for p in parts if values[p] is not None]
-        if entered and values[total] is not None and sum(entered) > values[total] + TOLERANCE:
-            raise ValueError(f"{' + '.join(_label(p) for p in parts)} ({_fmt(sum(entered))}) cannot exceed {_label(total)} ({_fmt(values[total])})")
+        entered = [part for part in parts if values[part] is not None]
+        part_sum = normalised_sum(entered, total) if entered else None
+        if part_sum is not None and values[total] is not None and part_sum > values[total] + TOLERANCE:
+            raise ValueError(f"{' + '.join(_label(p) for p in parts)} ({_fmt(part_sum)}) cannot exceed {_label(total)} ({_fmt(values[total])})")
 
     for parts, total in rules["quality"]:
-        if values[total] is None or any(values[p] is None for p in parts) or mixed_units(total, *parts):
+        if values[total] is None or any(values[p] is None for p in parts):
             continue
-        part_sum = sum(values[p] for p in parts)
+        part_sum = normalised_sum(parts, total)
+        if part_sum is None:
+            continue
         if abs(part_sum - values[total]) > max(TOLERANCE, abs(part_sum) * 1e-6):
             raise ValueError(
                 f"{' + '.join(_label(p) for p in parts)} ({_fmt(part_sum)}) must equal {_label(total)} ({_fmt(values[total])})"
