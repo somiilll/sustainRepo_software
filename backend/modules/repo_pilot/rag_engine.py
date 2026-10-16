@@ -148,7 +148,7 @@ If no page fetch is needed, provide your final response based ONLY on the contex
                 system=current_system_prompt,
                 messages=[{"role": "user", "content": prompt}],
             )
-            answer_text = message.content[0].text
+            answer_text = "".join(b.text for b in message.content if getattr(b, "type", None) == "text")
 
             fetch_match = re.search(r'<FETCH_PAGE>(.*?)</FETCH_PAGE>', answer_text)
             if fetch_match:

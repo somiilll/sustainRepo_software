@@ -1524,7 +1524,7 @@ Example for Decarbonization Priorities / Recommendations:
             ]
         )
         
-        ai_response = message.content[0].text
+        ai_response = "".join(b.text for b in message.content if getattr(b, "type", None) == "text")
         
         # Unmask: Replace masked names with original names
         if mask_org_name:
