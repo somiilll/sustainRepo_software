@@ -361,6 +361,7 @@ ACPC = ("Anti-corruption", "Anti-Corruption Policy Communication")
 ACCI = ("Anti-corruption", "Confirmed Corruption Incidents")
 COMPETITIVE = ("Competitive Behaviour ", "Anti-Competitive Behaviour & Anti-Trust Cases")
 AP_DAYS = ("Financial & Procurement Metrics", "Accounts Payable Days")
+LOCAL_PROCUREMENT = ("Financial & Procurement Metrics", "Local Procurement")
 VIOLATIONS = ("Incidents", "Incidents of Violations")
 BREACH = ("Incidents", "Data Breach")
 NONCOMPLIANCE = ("Incidents", "Non-compliance")
@@ -497,6 +498,11 @@ SPECS[AP_DAYS] = [
       brsr="P1-E8", kpi="Accounts Payable"),
     F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable Days", level=1,
       parent="accounts_payable_days", brsr="P1-E8", kpi="Cost of Goods/Services Procured"),
+]
+
+SPECS[LOCAL_PROCUREMENT] = [
+    F("percentage_procurement_budget_spent_on_local_suppliers", "% of procurement budget spent on local suppliers",
+      group="Local Procurement", percent=True, agg="avg", kpi="Procurement Budget Spent on Local Suppliers (%)"),
 ]
 
 _VT = "no_of_incidents_of_violations"

@@ -85,7 +85,9 @@ SPILL_UNITS = {"default_unit": "Litres", "supported_units": ["Litres", "KiloLitr
 
 async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
     slug = re.sub(r"[^A-Z0-9]+", "_", sub.upper()).strip("_")
-    new_code = f"ENV_{category.upper()}_{slug}_{row['key'].upper()}"
+    category_slug = re.sub(r"[^A-Z0-9]+", "_", category.upper()).strip("_")
+    section_prefix = {"environment": "ENV", "social": "SOC", "governance": "GOV"}.get(row.get("section"), "ESG")
+    new_code = f"{section_prefix}_{category_slug}_{slug}_{row['key'].upper()}"
     doc = None
     fresh = row["old_code"] == "!new"
     for code in ([new_code] if fresh else filter(None, [row["old_code"], new_code])):
