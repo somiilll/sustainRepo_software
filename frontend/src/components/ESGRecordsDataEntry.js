@@ -40,6 +40,10 @@ const LEGACY_WORKFORCE_TABLE_MAP = {
   'General Training': GENERAL_TRAINING_CONFIG,
 };
 const WORKFORCE_TABLE_MAP = { ...LEGACY_WORKFORCE_TABLE_MAP, ...WORKFORCE_GRID_CONFIGS };
+const workforceSupplementaryFields = (fields = []) => {
+  const hasGridFields = fields.some((field) => field.grid_row);
+  return fields.filter((field) => !field.grid_row && (hasGridFields || field.show_with_legacy_ui));
+};
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -1275,9 +1279,9 @@ export default function ESGRecordsDataEntry({
                     onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
                     isEditing={true}
                   />
-                  {(addFormCategory?.fields || []).some(f => !f.grid_row) && (addFormCategory?.fields || []).some(f => f.grid_row) && (
+                  {workforceSupplementaryFields(addFormCategory?.fields).length > 0 && (
                     <HierarchicalFields
-                      fields={addFormCategory.fields.filter(f => !f.grid_row)}
+                      fields={workforceSupplementaryFields(addFormCategory.fields)}
                       values={formData.field_values || {}}
                       onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
                       testIdPrefix="add-workforce-extra"
@@ -2089,9 +2093,9 @@ export default function ESGRecordsDataEntry({
                   onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
                   isEditing={true}
                 />
-                {(selectedCategory?.fields || []).some(f => !f.grid_row) && (selectedCategory?.fields || []).some(f => f.grid_row) && (
+                {workforceSupplementaryFields(selectedCategory?.fields).length > 0 && (
                   <HierarchicalFields
-                    fields={selectedCategory.fields.filter(f => !f.grid_row)}
+                    fields={workforceSupplementaryFields(selectedCategory.fields)}
                     values={editData.field_values || {}}
                     onChange={(update) => setEditData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
                     testIdPrefix="edit-workforce-extra"

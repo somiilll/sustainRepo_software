@@ -9,12 +9,14 @@ UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1000.0, "megalitres": 1_000_000.0,
 
 def F(key, label, type="number", units=None, default_unit=None, group="", level=0, parent=None, brsr=None, gri=None,
       kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None,
-      options=None, option_refs=None, ratio=None, sum_le=None, legacy_only=False, hide_if_table_has_rows=None):
+      options=None, option_refs=None, ratio=None, sum_le=None, legacy_only=False, hide_if_table_has_rows=None,
+      show_with_legacy_ui=False):
     return {"key": key, "label": label, "type": type, "units": units, "default_unit": default_unit or (units or [None])[0],
             "group": group, "level": level, "parent": parent, "brsr": brsr, "gri": gri, "kpi": kpi, "old": old,
             "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent,
             "le": le, "eq_parts": eq_parts, "options": options, "option_refs": option_refs, "ratio": ratio, "sum_le": sum_le,
-            "legacy_only": legacy_only, "hide_if_table_has_rows": hide_if_table_has_rows}
+            "legacy_only": legacy_only, "hide_if_table_has_rows": hide_if_table_has_rows,
+            "show_with_legacy_ui": show_with_legacy_ui}
 
 
 def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None, derived=None, options_source=None):
@@ -414,7 +416,7 @@ SPECS[GEN_TRAINING] = [
     F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8", gri="404-1-a",
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
     F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
-      kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
+      kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS], show_with_legacy_ui=True),
     F("training_attendes_type", "Training audience (per training)", type="dropdown", group="Training Audience",
       brsr=_AUD_BRSR, gri="404-1-a",
       options=["Board of Directors", "Key Managerial Personnel", "Employees (permanent / other than permanent)",
@@ -432,7 +434,7 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
         F(_fk, "Attendees - Female", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Female Attendees"),
         F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
         F(f"training_hours_{_slug}", "Training hours", units=["Hours"], group=_g, level=1,
-          parent="total_training_hours_by_topic", brsr=_br, gri=_gr, kpi=f"Training Hours - {_label}"),
+          parent="total_training_hours_by_topic", brsr=_br, gri=_gr, kpi=f"Training Hours - {_label}", show_with_legacy_ui=True),
     ]
 SPECS[GEN_TRAINING] += [
     F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
