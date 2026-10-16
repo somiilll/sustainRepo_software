@@ -339,8 +339,10 @@ export default function ESGRecordsDataEntry({
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {
     // Skip fetching category config for "Others" since it's a virtual category
-    if (mode === 'add' && preFilterCategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
-      fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
+    if (mode === 'add' && preFilterCategory && preFilterSubcategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
+      fetchAddFormCategory(preFilterCategory, preFilterSubcategory);
+    } else if (mode === 'add' && preFilterCategory && !preFilterSubcategory) {
+      setAddFormCategory(null);
     }
   }, [preFilterCategory, preFilterSubcategory, categories, mode]);
 
@@ -528,7 +530,11 @@ export default function ESGRecordsDataEntry({
 
   // Fetch category config for add form when category+subcategory selected
   const fetchAddFormCategory = async (category, subcategory) => {
-    const cat = categories.find(c => c.category === category && (!subcategory || c.subcategory === subcategory));
+    if (!category || !subcategory) {
+      setAddFormCategory(null);
+      return;
+    }
+    const cat = categories.find(c => c.category === category && c.subcategory === subcategory);
     if (cat?.id) {
       try {
         const res = await axios.get(`${API}/api/esg-records/categories/${section}/${cat.id}`, { headers });
@@ -547,6 +553,7 @@ export default function ESGRecordsDataEntry({
     // Validate
     const errors = {};
     if (!formData.category) errors.category = 'Required';
+    if (!formData.subcategory) errors.subcategory = 'Required';
     if (!asDraft && formData.reporting_type === 'monthly' && !formData.reporting_month) errors.reporting_month = 'Month is required';
     if (!asDraft && formData.reporting_type === 'quarterly' && !formData.reporting_quarter) errors.reporting_quarter = 'Quarter is required';
     if (!asDraft && ['daily', 'weekly'].includes(formData.reporting_type) && !formData.reporting_date) errors.reporting_date = 'Date is required';
@@ -559,7 +566,7 @@ export default function ESGRecordsDataEntry({
     setSaving(prev => ({ ...prev, form: true }));
     try {
       // Find category_id
-      const cat = categories.find(c => c.category === formData.category && (!formData.subcategory || c.subcategory === formData.subcategory));
+      const cat = categories.find(c => c.category === formData.category && c.subcategory === formData.subcategory);
       
       // Build reporting_period object based on type
       const reportingPeriod = {
@@ -1128,7 +1135,7 @@ export default function ESGRecordsDataEntry({
               value={formData.category} 
               onValueChange={(v) => {
                 setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
-                fetchAddFormCategory(v, '');
+                setAddFormCategory(null);
               }}
               disabled={!!preFilterCategory && !isOthersCategory(preFilterCategory)}
             >
@@ -1155,11 +1162,12 @@ export default function ESGRecordsDataEntry({
               }}
               disabled={!formData.category}
             >
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select subcategory" /></SelectTrigger>
+              <SelectTrigger className={`h-9 ${formErrors.subcategory ? 'border-red-500' : ''}`} data-testid="add-metric-subcategory-select"><SelectValue placeholder="Select subcategory" /></SelectTrigger>
               <SelectContent>
                 {getSubcategories().map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
               </SelectContent>
             </Select>
+            {formErrors.subcategory && <p className="text-xs text-red-500" data-testid="add-metric-subcategory-error">{formErrors.subcategory}</p>}
           </div>
 
           <div className="space-y-2">
