@@ -21,6 +21,8 @@ import {
 import { CalendarClock, Target as TargetIcon } from 'lucide-react';
 import BaseYearEmissions from './BaseYearEmissions';
 import TargetSettingsPage from '../modules/targets/pages/TargetSettingsPage';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,6 +30,8 @@ const API = `${BACKEND_URL}/api`;
 export default function BaseYearAndTargets() {
   const { user, getAuthHeader } = useAuth();
   const [organization, setOrganization] = useState(null);
+  const [organizationError, setOrganizationError] = useState(null);
+  const [organizationRetryKey, setOrganizationRetryKey] = useState(0);
   const [activeTab, setActiveTab] = useState('base-year');
 
   useEffect(() => {
@@ -35,13 +39,33 @@ export default function BaseYearAndTargets() {
     (async () => {
       try {
         const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
-        if (!cancelled) setOrganization(data);
-      } catch {
-        /* ignore — Target tab will fall back to defaults */
+        if (!cancelled) {
+          setOrganization(data);
+          setOrganizationError(null);
+        }
+      } catch (error) {
+        if (!cancelled) setOrganizationError(getUserFriendlyError(error, 'We could not load your organization settings.'));
       }
     })();
     return () => { cancelled = true; };
-  }, [getAuthHeader]);
+  }, [getAuthHeader, organizationRetryKey]);
+
+  if (organizationError) {
+    return (
+      <div className="space-y-6" data-testid="base-year-and-targets-page">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Base Year Emissions and Target Setting</h1>
+          <p className="text-text-muted mt-1">Configure your reference baseline and reduction targets for tracking GHG progress.</p>
+        </div>
+        <LoadErrorState
+          title="Unable to load this workspace"
+          message={organizationError}
+          onRetry={() => setOrganizationRetryKey((value) => value + 1)}
+          testId="base-year-targets-organization-error"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="base-year-and-targets-page">

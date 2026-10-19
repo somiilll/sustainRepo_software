@@ -16,11 +16,9 @@ export default function EmissionsByScopeCard({ filteredData, hasScope3Access }) 
     { name: 'Scope 1', value: filteredData.totals.scope1, fill: '#10B981' },
     { name: 'Scope 2', value: filteredData.totals.scope2, fill: '#3B82F6' },
     ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, fill: '#8B5CF6' }] : []),
-    { name: 'Biogenic', value: filteredData.totals.biogenic, fill: '#F59E0B' },
   ].filter(d => d.value > 0);
 
   const bars = [
-    { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#F59E0B', bgColor: 'bg-amber-50' },
     { name: 'Scope 1', value: filteredData.totals.scope1, color: '#10B981', bgColor: 'bg-emerald-50' },
     { name: 'Scope 2', value: filteredData.totals.scope2, color: '#3B82F6', bgColor: 'bg-blue-50' },
     ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, color: '#8B5CF6', bgColor: 'bg-violet-50' }] : []),
@@ -36,7 +34,7 @@ export default function EmissionsByScopeCard({ filteredData, hasScope3Access }) 
             </div>
             <div>
               <h3 className="text-base font-heading font-semibold text-text-primary">Emissions by Scope</h3>
-              <p className="text-xs text-text-muted">GHG Protocol breakdown • {filteredData.totals.total.toFixed(1)} tCO₂e total</p>
+              <p className="text-xs text-text-muted">GHG Protocol breakdown • {filteredData.totals.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e total</p>
             </div>
           </div>
         </div>
@@ -62,7 +60,7 @@ export default function EmissionsByScopeCard({ filteredData, hasScope3Access }) 
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <p className="text-lg font-bold text-text-primary">
-                  {filteredData.totals.total >= 1000 ? `${(filteredData.totals.total / 1000).toFixed(1)}k` : filteredData.totals.total.toFixed(0)}
+                  {filteredData.totals.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className="text-[10px] text-text-muted">tCO₂e</p>
               </div>
@@ -82,7 +80,7 @@ export default function EmissionsByScopeCard({ filteredData, hasScope3Access }) 
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold" style={{ color: scope.color }}>{percentage.toFixed(1)}%</span>
-                      <span className="text-xs text-text-muted">{scope.value.toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</span>
+                      <span className="text-xs text-text-muted">{scope.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e</span>
                     </div>
                   </div>
                   <div className="h-2 bg-white/70 rounded-full overflow-hidden">
@@ -94,6 +92,12 @@ export default function EmissionsByScopeCard({ filteredData, hasScope3Access }) 
                 </div>
               );
             })}
+            {filteredData.totals.biogenic > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-amber-50 p-2.5" data-testid="biogenic-emissions-summary">
+                <span className="text-sm font-medium text-amber-800">Biogenic</span>
+                <span className="text-xs text-amber-700">{filteredData.totals.biogenic.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} tCO₂e</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

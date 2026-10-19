@@ -149,24 +149,26 @@ export default function SuperAdminDashboard() {
     }));
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      const res = await axios.get(`${API}/super-admin/dashboard`, { headers: getAuthHeader() });
+      setStats(res.data);
+    } catch (e) {
+      if (e.response?.status !== 404) console.error('Dashboard fetch error:', e);
+      setStats({
+        total_organizations: 0,
+        total_facilities: 0,
+        total_admins: 0,
+        total_users: 0,
+        organization_stats: [],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get(`${API}/super-admin/dashboard`, { headers: getAuthHeader() });
-        setStats(res.data);
-      } catch (e) {
-        if (e.response?.status !== 404) console.error('Dashboard fetch error:', e);
-        setStats({
-          total_organizations: 0,
-          total_facilities: 0,
-          total_admins: 0,
-          total_users: 0,
-          organization_stats: [],
-        });
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchDashboardData();
   }, [getAuthHeader]);
 
   // Only keep active (non-deactivated, non-deleted) orgs
@@ -379,6 +381,15 @@ export default function SuperAdminDashboard() {
                   {org.country && (
                     <Badge variant="outline" className="text-xs text-text-muted">{org.country}</Badge>
                   )}
+                  {/* ESG Frameworks Badges */}
+                  {org.esg_frameworks_enabled?.length > 0 && org.esg_frameworks_enabled.map(fw => (
+                    <Badge 
+                      key={fw} 
+                      className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                    >
+                      {fw}
+                    </Badge>
+                  ))}
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

@@ -19,20 +19,26 @@ export default function usePreviousYearData({
         const fromDate = new Date(dateRange.from);
         const toDate = new Date(dateRange.to);
 
-        // shift 1 year back
+        const isSingleMonth = fromDate.getFullYear() === toDate.getFullYear()
+          && fromDate.getMonth() === toDate.getMonth();
         const prevFrom = new Date(fromDate);
-        prevFrom.setFullYear(prevFrom.getFullYear() - 1);
-
         const prevTo = new Date(toDate);
-        prevTo.setFullYear(prevTo.getFullYear() - 1);
+
+        if (isSingleMonth) {
+          prevFrom.setMonth(prevFrom.getMonth() - 1);
+          prevTo.setMonth(prevTo.getMonth() - 1);
+        } else {
+          prevFrom.setFullYear(prevFrom.getFullYear() - 1);
+          prevTo.setFullYear(prevTo.getFullYear() - 1);
+        }
 
         const params = {
           start_period: format(prevFrom, 'yyyy-MM'),
           end_period: format(prevTo, 'yyyy-MM'),
         };
 
-        if (selectedFacilities.length > 0) {
-          params.facilities = selectedFacilities.join(',');
+        if (selectedFacilities?.length > 0) {
+          params.facility_id = selectedFacilities;
         }
 
         const res = await axios.get(`${API}/dashboard/stats`, {
@@ -48,7 +54,7 @@ export default function usePreviousYearData({
           scope3: res.data?.scope3_emissions || 0,
         });
       } catch (err) {
-        console.error('Failed to fetch previous FY totals', err);
+        console.error('Failed to fetch previous comparison totals', err);
       }
     };
 

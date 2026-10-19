@@ -1,0 +1,63 @@
+{
+  "created_at": "2026-09-25T07:46:09.844113+00:00",
+  "query": {
+    "category": "C6 - Business Travel",
+    "source": {
+      "$regex": "^DEFRA$",
+      "$options": "i"
+    },
+    "year_applicable": {
+      "$in": [
+        "2026",
+        2026
+      ]
+    },
+    "activity": {
+      "$in": [
+        "Flights, International - Business class",
+        "Flights, International - First class",
+        "Ferry - Foot passenger",
+        "Ferry - Car passenger",
+        "Ferry - Average (all passenger)",
+        "Cars - Small Size - Diesel",
+        "Cars - Medium Size - Diesel",
+        "Cars - Large Size - Diesel",
+        "Cars - Average Size - Diesel",
+        "Cars - Small Size - Petrol",
+        "Cars - Medium Size - Petrol",
+        "Cars - Large Size - Petrol",
+        "Cars - Average Size - Petrol",
+        "Cars - Small Size - Hybrid",
+        "Cars - Medium Size - Hybrid",
+        "Cars - Large Size - Hybrid",
+        "Cars - Average Size - Hybrid",
+        "Cars - Medium Size - CNG",
+        "Cars - Large Size - CNG",
+        "Cars - Average Size - CNG",
+        "Cars - Medium Size - LPG",
+        "Cars - Large Size - LPG",
+        "Cars - Average Size - LPG",
+        "Cars - Small Size - Unknown Fuel",
+        "Cars - Medium Size - Unknown Fuel",
+        "Cars - Large Size - Unknown Fuel",
+        "Cars - Average Size - Unknown Fuel",
+        "Cars - Small Size - Plug-in hybrid",
+        "Cars - Medium Size - Plug-in hybrid",
+        "Cars - Large Size - Plug-in hybrid",
+        "Cars - Average Size - Plug-in hybrid",
+        "Cars - Small Size - Battery EV",
+        "Cars - Medium Size - Battery EV",
+        "Cars - Large Size - Battery EV",
+        "Cars - Average Size - Battery EV",
+        "Motorbike - Small Size",
+        "Motorbike - Medium Size",
+        "Motorbike - Large Size",
+        "Motorbike - Average Size",
+        "Regular taxi",
+        "Local bus",
+        "Railways"
+      ]
+    }
+  },
+  "previous_records": []
+}

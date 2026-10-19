@@ -75,6 +75,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   let primaryUnit = ctx.defaultUnit || '';
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     if (value === undefined || value === null || value === '') return;
 
@@ -111,6 +112,7 @@ export function buildDynamicFieldValues(data, ctx) {
   const out = {};
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     const unit = resolveFieldUnit(field, data, ctx);
 
@@ -155,6 +157,8 @@ export function buildDecisionContext(data, ctx) {
     selectedFuel,
     biogenicScopeSelection,
     scope3Method,
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3CustomActivity,
     useCustomActivity,
@@ -190,6 +194,9 @@ export function buildDecisionContext(data, ctx) {
     reporting_period: reportingPeriod,
     ...(isScope3Like && {
       calculation_method_scope3: scope3Method,
+      ...(scope3Method === 'spend_basis' && {
+        spend_currency_conversion_method: spendCurrencyConversionMethod,
+      }),
       scope3_ef_id: scope3ActivityId,
       activity:
         scope3Method === 'supplier_basis' && useCustomActivity
@@ -215,13 +222,6 @@ export function validateCreateSubmission(ctx) {
   const { module, formData, processNames } = ctx;
 
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
   // Capability-aware: asset name (C8/C13/C14/C15)
   if (module?.hasCapability?.('asset-name')) {
@@ -255,6 +255,8 @@ export function buildCreatePayload(monthData, ctx) {
     category,
     biogenicScopeSelection,
     scope3Method,
+    spendCurrencyConversionMethod = 'standard',
+    allocationMethod,
     scope3ActivityId,
     scope3ActivityType,
     scope3Subcategory,
@@ -286,6 +288,8 @@ export function buildCreatePayload(monthData, ctx) {
     calculatedN2O,
     calculatedCO2e,
     resolvedFormulaId,
+    formulaVersionId,
+    decisionTreeVersionId,
   } = ctx;
 
   const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
@@ -313,6 +317,8 @@ export function buildCreatePayload(monthData, ctx) {
     fuel_database_id: isScope3Like ? null : useCustomFuel ? null : fuelId,
 
     formula_id: resolvedFormulaId,
+    formula_version_id: formulaVersionId || null,
+    decision_tree_version_id: decisionTreeVersionId || null,
 
     ...(scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,
@@ -334,6 +340,12 @@ export function buildCreatePayload(monthData, ctx) {
       ...dynamicFieldValues,
       ...(isScope3Like && {
         calculation_method_scope3: { value: scope3Method, unit: '' },
+        ...(scope3Method === 'spend_basis' && {
+          spend_currency_conversion_method: { value: spendCurrencyConversionMethod, unit: '' },
+        }),
+        ...(allocationMethod && {
+          allocation_method: { value: allocationMethod, unit: '' },
+        }),
         scope3_ef_id: {
           value: scope3Method === 'supplier_basis' && useCustomActivity ? '' : scope3ActivityId,
           unit: '',
@@ -349,6 +361,9 @@ export function buildCreatePayload(monthData, ctx) {
         scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
         ...(typeOfProduct && {
           type_of_product: { value: typeOfProduct, unit: '' },
+        }),
+        ...(useCustomActivity && {
+          use_custom_activity: { value: true, unit: '' },
         }),
       }),
       ...(scope === 'biogenic' && {
@@ -386,9 +401,25 @@ export function buildCreatePayload(monthData, ctx) {
 
       // Capability-aware: journey locations (C4/C6/C9)
       ...(module?.hasCapability?.('journey-locations') && {
-        from_location: fromLocation || null,
-        to_location: toLocation || null,
+        from_location: monthData?.from_location || fromLocation || null,
+        to_location: monthData?.to_location || toLocation || null,
       }),
+    }),
+
+    // Flight details (per-month airport data for C6 air_travel)
+    ...(monthData?.from_airport && {
+      from_airport: monthData.from_airport,
+    }),
+    ...(monthData?.to_airport && {
+      to_airport: monthData.to_airport,
+    }),
+    ...(monthData?.km_travelled != null && monthData?.from_airport && {
+      flight_distance: {
+        value: monthData.km_travelled,
+        unit: 'km',
+        method: monthData.flight_distance_method || (monthData.flight_distance_manual ? 'MANUAL' : 'HAVERSINE'),
+        overridden: !!monthData.flight_distance_overridden,
+      },
     }),
   };
 }

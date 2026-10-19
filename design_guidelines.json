@@ -1,193 +1,132 @@
 {
-  "identity": {
-    "name": "E1",
-    "role": "Creative Designer (Top 1%)",
-    "principles": [
-      "Fusion over Imitation",
-      "Emotion First",
-      "Content is King",
-      "Zoom In",
-      "Negative Space",
-      "Contrast"
-    ]
+  "project_title": "SustainRepo Review Response Workspace Redesign",
+  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST ESG ANALYTICS",
+  "typography": {
+    "heading_font": "Cabinet Grotesk, Outfit, sans-serif",
+    "body_font": "IBM Plex Sans, Inter, sans-serif",
+    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
+    "scales": {
+      "h1_page_title": "text-2xl font-bold tracking-tight text-slate-900 md:text-3xl",
+      "h2_question_title": "text-lg font-bold tracking-tight text-slate-950 md:text-xl leading-snug",
+      "h3_section_header": "text-sm font-semibold uppercase tracking-wider text-slate-700",
+      "body_main": "text-sm text-slate-800 leading-relaxed",
+      "body_secondary": "text-xs text-slate-500",
+      "badge_text": "text-xs font-semibold tracking-wide uppercase"
+    }
   },
-  "project_context": {
-    "app_name": "EcoTrack GHG Platform",
-    "app_type": "SaaS Dashboard",
-    "theme": "Light Mode (Organic & Earthy)",
-    "target_audience": "Environmental compliance officers, Sustainability managers",
-    "emotional_tone": "Professional, Trustworthy, Clean, Organic, Data-driven"
-  },
-  "design_system": {
-    "colors": {
-      "palette_name": "Organic & Earthy (Archetype 1)",
-      "primary": {
-        "DEFAULT": "#1A4D2E",
-        "foreground": "#FFFFFF",
-        "description": "Deep Forest Green - Trust, Nature, Authority"
+  "colors": {
+    "pillars": {
+      "environment": {
+        "bg": "bg-emerald-50/80",
+        "border": "border-emerald-200",
+        "text": "text-emerald-900",
+        "accent": "bg-emerald-600",
+        "badge": "bg-emerald-100 text-emerald-800 border-emerald-300"
       },
-      "secondary": {
-        "DEFAULT": "#4F6F52",
-        "foreground": "#FFFFFF",
-        "description": "Sage Green - Soft, approachable, secondary actions"
+      "social": {
+        "bg": "bg-sky-50/80",
+        "border": "border-sky-200",
+        "text": "text-sky-900",
+        "accent": "bg-sky-600",
+        "badge": "bg-sky-100 text-sky-800 border-sky-300"
       },
-      "accent": {
-        "DEFAULT": "#E85C0D",
-        "foreground": "#FFFFFF",
-        "description": "Earthy Terracotta - Alerts, High-priority actions"
-      },
-      "background": {
-        "DEFAULT": "#F5F7F5",
-        "description": "Off-white/Bone - Avoid pure white, feels like recycled paper"
-      },
-      "surface": {
-        "DEFAULT": "#FFFFFF",
-        "description": "Pure white for cards to create lift"
-      },
-      "text": {
-        "primary": "#1A1A1A",
-        "secondary": "#4A4A4A",
-        "muted": "#71717A"
-      },
-      "chart_colors": [
-        "#1A4D2E",
-        "#4F6F52",
-        "#E85C0D",
-        "#F5A623",
-        "#8D6F64"
-      ]
-    },
-    "typography": {
-      "strategy": "The Soft Utility",
-      "headings": {
-        "font_family": "Manrope, sans-serif",
-        "weights": ["600", "700", "800"],
-        "description": "Modern, clean, semi-geometric but friendly. Good for data and headers."
-      },
-      "body": {
-        "font_family": "Inter, sans-serif",
-        "weights": ["400", "500"],
-        "description": "Standard, highly legible for dense data tables."
-      },
-      "mono": {
-        "font_family": "JetBrains Mono, monospace",
-        "description": "For specific data values or IDs."
+      "governance": {
+        "bg": "bg-purple-50/80",
+        "border": "border-purple-200",
+        "text": "text-purple-900",
+        "accent": "bg-purple-600",
+        "badge": "bg-purple-100 text-purple-800 border-purple-300"
       }
     },
-    "spacing": {
-      "scale": "Tailwind Scale (p-1 to p-64)",
-      "philosophy": "Generous. Use p-6 or p-8 for card padding. p-12 for section gaps.",
-      "grid_gap": "gap-6 for dashboard, gap-12 for landing"
-    },
-    "visual_enhancers": {
-      "glassmorphism": {
-        "use_case": "Sidebar, Floating Headers, Toasts",
-        "classes": "bg-white/70 backdrop-blur-xl border border-white/20 shadow-sm"
+    "statuses": {
+      "accepted": {
+        "bg": "bg-emerald-500/10",
+        "active_bg": "bg-emerald-600",
+        "border": "border-emerald-500",
+        "text": "text-emerald-700",
+        "active_text": "text-white"
       },
-      "texture": {
-        "use_case": "Main Background",
-        "description": "Subtle noise overlay to reduce digital flatness (optional)"
+      "needs_clarification": {
+        "bg": "bg-amber-500/10",
+        "active_bg": "bg-amber-500",
+        "border": "border-amber-500",
+        "text": "text-amber-800",
+        "active_text": "text-white"
       },
-      "borders": {
-        "style": "Subtle, organic",
-        "radius": "rounded-xl",
-        "color": "border-stone-200"
+      "rejected": {
+        "bg": "bg-rose-500/10",
+        "active_bg": "bg-rose-600",
+        "border": "border-rose-500",
+        "text": "text-rose-700",
+        "active_text": "text-white"
       },
-      "shadows": {
-        "card": "shadow-[0_2px_8px_rgba(0,0,0,0.04)]",
-        "hover": "shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+      "submitted": {
+        "bg": "bg-teal-50",
+        "border": "border-teal-300",
+        "text": "text-teal-800"
       }
+    },
+    "scoring_guidance": {
+      "bg": "bg-gradient-to-r from-sky-50 via-indigo-50/50 to-blue-50",
+      "border": "border-sky-200",
+      "title_text": "text-sky-950 font-bold",
+      "badge": "bg-sky-100 text-sky-800 border-sky-300"
+    },
+    "surfaces": {
+      "card_bg": "bg-white",
+      "card_border": "border-slate-200",
+      "sidebar_bg": "bg-slate-50/60",
+      "timeline_line": "bg-slate-200",
+      "hover_bg": "hover:bg-slate-100/80"
     }
   },
-  "layout_strategies": {
-    "dashboard": {
-      "type": "High Density Grid (Mode B)",
-      "grid_cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
-      "gap": "gap-6",
-      "rules": [
-        "Summary cards: col-span-1",
-        "Main Chart: col-span-2 row-span-2 or col-span-3",
-        "Feed/List: col-span-1 row-span-2",
-        "Fill height: h-full for all children"
-      ]
-    },
-    "landing_page": {
-      "type": "Tetris Grid (Mode A)",
-      "grid_cols": "grid-cols-1 md:grid-cols-12",
-      "gap": "gap-8",
-      "rules": [
-        "Hero: col-span-full md:col-span-8",
-        "Feature: col-span-4",
-        "Asymmetry is key"
-      ]
-    }
+  "visual_enhancers": {
+    "borders_and_radius": "Rounded-xl for outer cards, rounded-lg for sub-elements, concentric inner padding p-4 to p-6.",
+    "shadows": "shadow-[0_4px_20px_rgba(0,0,0,0.03)] for cards, hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
+    "question_badge": "Inverted rounded-full circle icon with bold white number on vibrant pillar background or sky blue background",
+    "mcq_distribution_bar": "Animated percentage fill bars with supplier response highlighted using ring-2 ring-emerald-500 and distinct badge"
   },
-  "components": {
-    "buttons": {
-      "style": "Pill-shaped or Rounded-lg",
-      "animation": "transform transition-all active:scale-95 hover:shadow-md",
-      "primary_class": "bg-[#1A4D2E] hover:bg-[#143D24] text-white rounded-full px-8"
-    },
-    "cards": {
-      "style": "Flat with subtle border, no heavy shadow by default",
-      "class": "bg-white border border-stone-200 rounded-xl p-6"
-    },
-    "inputs": {
-      "style": "Shadcn default but with 'focus:ring-[#1A4D2E]' and 'bg-[#F5F7F5]'",
-      "class": "h-12 rounded-lg border-stone-200 bg-stone-50"
-    },
-    "charts": {
-      "library": "Recharts (via Shadcn)",
-      "style": "Minimalist, thin lines, custom tooltips",
-      "colors": "Use palette chart_colors"
-    }
+  "grids_and_layouts": {
+    "page_container": "max-w-[1600px] mx-auto px-4 py-6 space-y-6",
+    "top_summary_grid": "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6",
+    "workspace_layout": "grid grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] gap-6 items-start",
+    "main_panel_stack": "space-y-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6",
+    "sidebar_panel_stack": "space-y-6"
   },
-  "assets": {
-    "images": [
-      {
-        "category": "Hero/Login Background",
-        "url": "https://images.unsplash.com/photo-1748966006043-3df544d90770?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHx3aW5kJTIwdHVyYmluZXMlMjBncmVlbiUyMGdyYXNzfGVufDB8fHx8MTc3MDg3OTU0Mnww&ixlib=rb-4.1.0&q=85",
-        "description": "Wind turbines on green grass - Clean energy vibe"
-      },
-      {
-        "category": "Facility Placeholder",
-        "url": "https://images.unsplash.com/photo-1766246719951-0d21674dd9b2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBlY28lMjBmcmllbmRseSUyMGZhY3RvcnklMjBidWlsZGluZ3xlbnwwfHx8fDE3NzA4Nzk1NDZ8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Industrial plant - Use for facility thumbnails"
-      }
-    ],
-    "icons": {
-      "library": "Lucide React (Default)",
-      "style": "Stroke width 1.5px (Thin/Elegant)"
-    }
+  "component_structure": {
+    "SupplierResponseReviewPage": "/app/frontend/src/modules/supplier-assessment/SupplierResponseReviewPage.jsx",
+    "ResponseReviewSidebar": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewSidebar.jsx",
+    "ResponseReviewQuestionPanel": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewQuestionPanel.jsx",
+    "ResponseAnswerHistory": "/app/frontend/src/modules/supplier-assessment/components/ResponseAnswerHistory.jsx",
+    "OtherResponsesDistribution": "/app/frontend/src/modules/supplier-assessment/components/OtherResponsesDistribution.jsx"
   },
   "instructions_to_main_agent": [
-    "Implement the 'Organic & Earthy' color palette immediately in tailwind.config.js.",
-    "Use 'Manrope' for all headings. Import it from Google Fonts.",
-    "For the Dashboard, strictly follow the 'High Density Grid' layout.",
-    "Use the provided image URLs for the Login page background and Facility placeholders.",
-    "Ensure all charts use the custom green/earth tone colors, NOT the default blue/red.",
-    "Add 'data-testid' to all interactive elements.",
-    "Do NOT use gradients for backgrounds. Use solid colors or subtle noise textures.",
-    "Use 'sonner' for toasts."
+    "1. Redesign SupplierResponseReviewPage.jsx: Enhance top header with colorful ESG pillar stat blocks (Environment, Social, Governance) in vibrant cards, supplier and questionnaire metadata cards with clear icons, and responsive tab buttons.",
+    "2. Redesign ResponseReviewSidebar.jsx: Upgrade taxonomy navigation with pillar badges, progress pill counters for category reviewed ratios, active category state with left accent bar and colored icons.",
+    "3. Redesign ResponseReviewQuestionPanel.jsx to match screenshot density and color alignment:",
+    "   a) Question header with circular numbered badge (e.g. ①) and title, plus question type tags.",
+    "   b) Supplier Response card: Styled option choices or formatted text answer with vibrant 'Submitted' status badge.",
+    "   c) Evidence preview block: File container showing PDF icon, original filename, file size, upload timestamp, and bright Preview / Download buttons.",
+    "   d) Scoring Guidance block: High-visibility electric blue / sky gradient card displaying points criteria per option or rule.",
+    "   e) Full-width Reviewer Assessment panel:",
+    "      - Status choices for Accept (emerald), Needs Clarification (amber), Reject (rose) with radio-style button cards.",
+    "      - Reviewer Score input with '/ max_points' label.",
+    "      - Reviewer Comment textarea with character count indicator (e.g. 132/500).",
+    "      - CTAs: 'Save Review' (primary button) and 'Save & Next ->' (accent button that saves review and advances to next question).",
+    "   f) Footer and top navigation bar with Previous and Next question controls.",
+    "4. Redesign ResponseAnswerHistory.jsx: Vertical timeline with connected line, color-coded event icons (v1 submission, reviewer feedback, v2 supplier revision, final decision), author tags, answer snapshots, and timestamp details.",
+    "5. Implement OtherResponsesDistribution.jsx component (or include within sidebar/panel): Visual percentage distribution bars for MCQ questions showing peer supplier response proportions, clearly labeling '(Supplier's response)' on the supplier's selection.",
+    "6. Ensure all existing data hooks, API calls (save review, open evidence, fetch response), and test IDs (data-testid) are strictly maintained.",
+    "7. All components use JavaScript (.jsx files)."
   ],
-  "universal_guidelines": [
-    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients",
-    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
-    "Create depth through layered design elements with z-index hierarchy",
-    "Use glass-morphism effects with backdrop filters (12-24px blur)",
-    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements like button, input excluding transforms",
-    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text",
-    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style",
-    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚🎭🎬🎪🎉🎊🎁🎀🎂🍰🎈🎨🎰💰💵💳🏦💎🪙💸🤑📊📈📉💹🔢🏆🥇 etc for icons.",
-    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
-    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
-    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
-    "Main agent relies on these image URLs. Missing categories (especially sponsor logos) = main agent will use placeholder text which is FORBIDDEN",
-    "Prioritize using pre-existing components from src/components/ui when applicable",
-    "Create new components that match the style and conventions of existing components when needed",
-    "Examine existing components to understand the project's component patterns before creating new ones",
-    "Components MUST use named exports (export const ComponentName = ...)",
-    "Pages MUST use default exports (export default function PageName() {...})",
-    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.tsx"
-  ]
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
+    "data_testid_rule": "MUST add data-testid to every interactive button, input, tab, badge, and section container.",
+    "file_format": "Use JS / JSX components strictly. Do not create TS/TSX files.",
+    "toast_library": "Use sonner for notifications.",
+    "contrast_and_accessibility": "Ensure high text contrast against tinted card backgrounds. Interactive buttons must have clear focus rings.",
+    "micro_interactions": "Smooth transition-colors and hover effects on decision buttons, file download cards, and category items."
+  }
+},
+overwrite: true,
+path: "/app/design_guidelines.json"
 }

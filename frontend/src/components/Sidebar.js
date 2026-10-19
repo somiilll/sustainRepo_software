@@ -1,354 +1,328 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleAccess } from '../hooks/useModuleAccess';
+import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload, DollarSign, ClipboardCheck } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
+import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const LOGO_FALLBACK = '/sustainrepo-logo.png';
 
-export default function Sidebar() {
+const ENV_MODULE_ICONS = { power: 'Zap', water: 'Droplets', steam: 'Cloud', energy: 'Zap', waste: 'Trash2' };
+const SOCIAL_MODULE_ICONS = { workforce: 'Users2', health_safety: 'HeartPulse', community: 'Building2', human_rights: 'Scale' };
+const GOVERNANCE_MODULE_ICONS = { board: 'Shield', ethics: 'Scale', compliance: 'FileCheck', risk: 'AlertTriangle' };
+const SUPPLIER_ASSESSMENT_LABEL_KEYS = {
+  'supplier_assessment.esg': 'esg',
+  'supplier_assessment.ghg': 'ghg',
+  'supplier_assessment.documents': 'documents',
+  'supplier_assessment.trainings': 'training',
+};
+const SUPPLIER_PORTAL_MODULE_KEYS = {
+  'supplier_assessment.my_documents': 'documents',
+  'supplier_assessment.my_training': 'training',
+};
+const SUPPLIER_GHG_REQUIRED_MENU_KEYS = new Set(['facilities', 'environment', 'environment.ghg', 'supplier_assessment.my_ghg']);
+
+function _sectionIcons(section) {
+  if (section === 'social') return SOCIAL_MODULE_ICONS;
+  if (section === 'governance') return GOVERNANCE_MODULE_ICONS;
+  return ENV_MODULE_ICONS;
+}
+
+function getIcon(name) {
+  return LucideIcons[name] || null;
+}
+
+function withSupplierAssessmentLabels(items, resolvedConfig) {
+  const modules = resolvedConfig?.supplier_assessment?.modules || {};
+  return items.reduce((visibleItems, item) => {
+    const supplierModule = SUPPLIER_ASSESSMENT_LABEL_KEYS[item.key];
+    visibleItems.push({
+      ...item,
+      label: supplierModule ? modules[supplierModule]?.display_name || item.label : item.label,
+      orgDisabled: Boolean(item.adminOnly && supplierModule && modules[supplierModule]?.enabled === false),
+      children: item.children ? withSupplierAssessmentLabels(item.children, resolvedConfig) : item.children,
+    });
+    return visibleItems;
+  }, []);
+}
+
+function isActive(path, loc) {
+  if (!path) return false;
+  const isSupplierResponseReview = /^\/supplier-assessment\/suppliers\/[^/]+\/questionnaires\/[^/]+\/review$/.test(loc.pathname);
+  if (path === '/supplier-assessment/esg' && isSupplierResponseReview) return true;
+  if (path === '/supplier-assessment/suppliers' && isSupplierResponseReview) return false;
+  return loc.pathname === path || loc.pathname.startsWith(path + '/');
+}
+
+function isGroupActive(item, loc) {
+  if (item.path && isActive(item.path, loc)) return true;
+  if (item.children) return item.children.some(function(c) { return isGroupActive(c, loc); });
+  return false;
+}
+
+function MenuItem(props) {
+  var item = props.item;
+  var depth = props.depth;
+  var expanded = props.expanded;
+  var onToggle = props.onToggle;
+  var location = props.location;
+  var hasAccess = props.hasAccess;
+  var userRole = props.userRole;
+  var userType = props.userType;
+  var orgType = props.orgType;
+  var inheritedMuted = props.inheritedMuted;
+  var inheritedLocked = props.inheritedLocked;
+  var supplierModules = props.supplierModules;
+
+  // Check adminOnly
+  if (item.adminOnly && userRole !== 'admin' && userRole !== 'super_admin') return null;
+  // Check supplierOnly - only show to supplier users
+  if (item.supplierOnly && userType !== 'supplier' && orgType !== 'supplier') return null;
+  var supplierPortalModule = SUPPLIER_PORTAL_MODULE_KEYS[item.key];
+  if (item.supplierOnly && supplierPortalModule && (!Array.isArray(supplierModules) || !supplierModules.includes(supplierPortalModule))) return null;
+  // Hide admin supplier items from supplier users
+  if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
+  var isSupplier = userType === 'supplier' || orgType === 'supplier';
+  var hasAnyRequiredAccess = !item.anyAccess || item.anyAccess.some(function(accessKey) { return hasAccess(accessKey); });
+  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key) || !hasAnyRequiredAccess);
+  var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
+  var missingSupplierGhgAssignment = isSupplier && Array.isArray(supplierModules) && !supplierModules.includes('ghg') && SUPPLIER_GHG_REQUIRED_MENU_KEYS.has(item.key);
+  var lockedForSupplier = inheritedLocked || missingSupplierGhgAssignment;
+  var mutedForSupplier = lockedForSupplier || inheritedMuted || (isSupplier && (isSupplierMutedMenuItem(item.key) || !supplierAccessibleItem));
+  var muted = mutedForSupplier || lockedForOrganisation;
+
+  var hasChildren = item.children && item.children.length > 0;
+  var active = item.path ? isActive(item.path, location) : false;
+  var groupActive = hasChildren && isGroupActive(item, location);
+  var isOpen = expanded[item.key] || false;
+  var Icon = item.icon ? getIcon(item.icon) : null;
+  var padClass = depth === 0 ? 'pl-3' : depth === 1 ? 'pl-8' : 'pl-12';
+
+  if (hasChildren) {
+    var groupContent = React.createElement('div', null,
+      React.createElement('button', {
+        type: 'button',
+        onClick: function() { onToggle(item.key); },
+        className: 'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (muted ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : groupActive ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+        'data-testid': 'sidebar-' + item.key,
+      },
+        React.createElement('span', { className: 'flex items-center gap-2.5' },
+          Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
+          React.createElement('span', null, item.label)
+        ),
+        isOpen ? React.createElement(ChevronDown, { className: 'h-3.5 w-3.5' }) : React.createElement(ChevronRight, { className: 'h-3.5 w-3.5' })
+      ),
+      isOpen ? React.createElement('div', { className: 'mt-0.5 space-y-0.5' },
+        item.children.map(function(child) {
+          return React.createElement(MenuItem, {
+            key: child.key, item: child, depth: depth + 1, expanded: expanded,
+            onToggle: onToggle, location: location, hasAccess: hasAccess, userRole: userRole,
+            userType: userType, orgType: orgType, inheritedMuted: mutedForSupplier, inheritedLocked: lockedForSupplier, supplierModules: supplierModules
+          });
+        })
+      ) : null
+    );
+    return groupContent;
+  }
+
+  var linkContent = React.createElement(Link, {
+    to: item.path,
+    className: 'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ' + padClass + ' ' + (muted ? 'text-stone-400 opacity-55 hover:bg-stone-50 hover:text-stone-500' : active ? 'bg-emerald-100 text-emerald-900' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'),
+    'data-testid': 'sidebar-' + item.key,
+  },
+    Icon ? React.createElement(Icon, { className: 'h-4 w-4 shrink-0' }) : null,
+    React.createElement('span', null, item.label)
+  );
+  return linkContent;
+}
+
+export default function Sidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, getAuthHeader } = useAuth();
-  const [expandedMenus, setExpandedMenus] = useState({ ghgCalc: true, ghgData: true, ghg: true });
-  const [enabledAccess, setEnabledAccess] = useState([]);
-  const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const { user, token, logout } = useAuth();
+  const { hasAccess } = useModuleAccess();
+  const [logoUrl, setLogoUrl] = useState(LOGO_FALLBACK);
+  const [resolvedConfig, setResolvedConfig] = useState(null);
+  const [supplierModules, setSupplierModules] = useState(null);
 
-  // Pull the current org's scope-access + approval flag once on mount so
-  // the GHG sub-menu only shows scopes the org actually has.
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
+
+  // Fetch resolved org config for dynamic environment sidebar
   useEffect(() => {
-    let cancelled = false;
-    if (!user || user.role === 'super_admin' || !user.organization_id) return;
-    (async () => {
-      try {
-        const { data } = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
-        if (cancelled) return;
-        setEnabledAccess(data?.enabled_access || []);
-        setApprovalEnabled(!!data?.approval_workflow_enabled);
-      } catch {
-        /* ignore — fall back to no access */
+    if (!token || isSuperAdmin) return;
+    axios.get(`${API}/sustainability-config/resolved`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => setResolvedConfig(r.data)).catch(() => null);
+  }, [token, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!token || !isSupplier) {
+      setSupplierModules(null);
+      return;
+    }
+    axios.get(`${API}/supplier-assessment/my-assessment`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((response) => {
+      setSupplierModules((response.data.assessment_modules || []).map((module) => module.code));
+    }).catch(() => setSupplierModules(null));
+  }, [token, isSupplier]);
+
+  // Build the active sidebar config, replacing section children if org has custom config
+  const activeConfig = useMemo(() => {
+    if (isSuperAdmin) return superAdminSidebarConfig;
+    const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
+    if (!resolvedConfig?.has_org_config) return configuredSidebar;
+
+    const mode = resolvedConfig.modules_mode; // "default" | "default_custom" | "custom"
+
+    // Pure default → static sidebar as-is
+    if (mode === 'default' && !resolvedConfig.has_enabled_filter) return configuredSidebar;
+
+    // Build environment children based on mode
+    const buildEnvChildren = () => {
+      const icons = _sectionIcons('environment');
+      // GHG Module is always static
+      const ghg = {
+        key: 'environment.ghg', label: 'GHG Module', icon: 'Cloud', children: [
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
+          { key: 'environment.ghg.sinks', label: 'Sinks', icon: 'TreeDeciduous', path: '/sinks' },
+          { key: 'environment.ghg.base_year', label: 'Base Year', icon: 'CalendarDays', path: '/ghg/base-year' },
+          { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
+        ],
+      };
+
+      // Modules to never show as sidebar items (handled by static GHG Module)
+      const SIDEBAR_HIDDEN_MODULES = new Set(['ghg_emissions']);
+
+      if (mode === 'custom') {
+        // Custom only: GHG + custom modules
+        const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
+        const children = [ghg];
+        customs.forEach(mod => {
+          children.push({
+            key: `environment.${mod.module_code}`,
+            label: mod.module_name,
+            icon: icons[mod.module_code] || 'Leaf',
+            children: [
+              { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+              { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+            ],
+          });
+        });
+        return children;
       }
-    })();
-    return () => { cancelled = true; };
-  }, [user?.id, user?.organization_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggleMenu = (menu) => {
-    setExpandedMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
+      // default_custom: static defaults (filtered) + custom modules before Others
+      const defaultItems = configuredSidebar.find(s => s.key === 'environment')?.children || [];
+
+      // Filter out disabled defaults; separate Others and Analysis (they go last)
+      const filtered = [];
+      let othersItem = null;
+      let analysisItem = null;
+      for (const item of defaultItems) {
+        const code = item.key.replace('environment.', '');
+        if (code === 'others') { othersItem = item; continue; }
+        if (code === 'analysis') { analysisItem = item; continue; }
+        filtered.push(item);
+      }
+
+      // Insert custom modules before Others
+      const customs = (resolvedConfig.modules || []).filter(m => m.is_custom && !SIDEBAR_HIDDEN_MODULES.has(m.module_code));
+      customs.forEach(mod => {
+        filtered.push({
+          key: `environment.${mod.module_code}`,
+          label: mod.module_name,
+          icon: icons[mod.module_code] || 'Leaf',
+          children: [
+            { key: `environment.${mod.module_code}.kpi`, label: 'KPI', icon: 'FileText', path: `/environment/${mod.module_code}` },
+            { key: `environment.${mod.module_code}.analysis`, label: 'Analysis', icon: 'BarChart3', path: `/environment/${mod.module_code}/analysis` },
+          ],
+        });
+      });
+
+      if (othersItem) filtered.push(othersItem);
+      if (analysisItem) filtered.push(analysisItem);
+      return filtered;
+    };
+
+    // Social & Governance: never break into sub-modules, always use static config
+    return configuredSidebar.map(item => {
+      if (item.key === 'environment' && (mode === 'default_custom' || mode === 'custom')) {
+        return { ...item, children: buildEnvChildren() };
+      }
+      return item;
+    });
+  }, [isSuperAdmin, resolvedConfig]);
+
+  const buildExpanded = () => {
+    const result = {};
+    const check = (items) => {
+      items.forEach(item => {
+        if (item.children && isGroupActive(item, location)) result[item.key] = true;
+        if (item.children) check(item.children);
+      });
+    };
+    check(activeConfig);
+    return result;
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  const [expanded, setExpanded] = useState(buildExpanded);
 
-  // GHG Data sub-module items
-  const ghgDataItems = [
-    { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
-    { path: '/super-admin/scope3-ef', label: 'Scope 3 EF', icon: FileSpreadsheet },
-    { path: '/super-admin/units', label: 'Units', icon: Ruler },
-    { path: '/super-admin/calc-engine-units', label: 'Calc Engine Units', icon: Scale },
-    { path: '/super-admin/gwp-config', label: 'GWP Config', icon: Thermometer },
-    { path: '/super-admin/currency-conversion', label: 'Currency Conversion', icon: DollarSign },
-  ];
+  useEffect(() => {
+    setExpanded(prev => {
+      const updates = {};
+      const check = (items) => {
+        items.forEach(item => {
+          if (item.children && isGroupActive(item, location) && !prev[item.key]) updates[item.key] = true;
+          if (item.children) check(item.children);
+        });
+      };
+      check(activeConfig);
+      return Object.keys(updates).length ? { ...prev, ...updates } : prev;
+    });
+  }, [location.pathname, activeConfig]);
 
-  // GHG Emissions Calculations sub-module items
-  const ghgCalcItems = [
-    { path: '/super-admin/variable-registry', label: 'Variable Registry', icon: Variable },
-    { path: '/super-admin/property-sources', label: 'Property Sources', icon: Link2 },
-    { path: '/super-admin/formula-builder', label: 'Formula Builder', icon: Code2 },
-    { path: '/super-admin/decision-trees', label: 'Decision Trees', icon: GitFork },
-    { path: '/super-admin/input-field-mapping', label: 'Input Field Mapping', icon: FormInput },
-    { path: '/super-admin/calc-sandbox', label: 'Calculation Sandbox', icon: Beaker },
-  ];
+  useEffect(() => {
+    axios.get(`${API}/software-assets/logo`).then((r) => {
+      const url = r.data?.url;
+      if (url?.startsWith(BACKEND_URL)) setLogoUrl(url);
+      if (url?.startsWith('/')) setLogoUrl(`${BACKEND_URL}${url}`);
+    }).catch(() => null);
+  }, []);
 
-  // Check if any module item is active
-  const isGhgDataActive = ghgDataItems.some(item => location.pathname === item.path);
-  const isGhgCalcActive = ghgCalcItems.some(item => location.pathname === item.path);
+  const toggleMenu = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleLogout = () => { logout(); navigate('/login'); };
 
-  const superAdminItems = [
-    { path: '/super-admin', label: 'Super Dashboard', icon: Globe },
-    { path: '/super-admin/organizations', label: 'Organizations', icon: Building },
-    { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
-    { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
-    { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
-  ];
-
-  // Visibility flags driven by the org's enabled_access list.
-  const hasScope12 = enabledAccess.includes('scope1_2') || enabledAccess.includes('scope1_2_3');
-  const hasScope123 = enabledAccess.includes('scope1_2_3');
-
-  // GHG Emissions sub-menu items (per-org filtered).
-  const ghgEmissionsItems = [
-    hasScope12 && { path: '/ghg/scope1', label: 'Scope 1', icon: Gauge },
-    hasScope12 && { path: '/ghg/scope2', label: 'Scope 2', icon: Gauge },
-    hasScope123 && { path: '/ghg/scope3', label: 'Scope 3', icon: Gauge },
-    (hasScope12 || hasScope123) && { path: '/ghg/biogenic', label: 'Biogenic', icon: TreeDeciduous },
-    approvalEnabled && user?.role === 'admin' && {
-      path: '/ghg/approvals', label: 'Approvals', icon: ClipboardCheck,
-    },
-  ].filter(Boolean);
-
-  const isGhgActive = ghgEmissionsItems.some((i) => location.pathname.startsWith(i.path)) ||
-    location.pathname.startsWith('/ghg') || location.pathname === '/emissions';
-
-  const adminItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/organization', label: 'Organization', icon: Building },
-    { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
-    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
-    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
-    { path: '/reports', label: 'Reports', icon: FileText },
-    { path: '/users', label: 'Users', icon: Users },
-    { path: '/audit-trails', label: 'Audit Trails', icon: History },
-  ];
-
-  const userItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/organization', label: 'Organization', icon: Building },
-    { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { type: 'group', key: 'ghg', label: 'GHG Emissions', icon: Gauge, items: ghgEmissionsItems },
-    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
-    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
-    { path: '/base-year-emissions', label: 'Base Year Emissions and Target Setting', icon: CalendarClock },
-    { path: '/reports', label: 'Reports', icon: FileText },
-  ];
-
-  const navItems = user?.role === 'super_admin' ? superAdminItems : 
-                   user?.role === 'admin' ? adminItems : userItems;
+  if (!user) return null;
 
   return (
-    <aside className="w-64 bg-white border-r border-stone-200 flex flex-col h-screen sticky top-0">
-      <div className="p-6 border-b border-stone-200 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <img src={LOGO_URL} alt="SustainRepo Logo" className="w-10 h-10 rounded-lg" />
-          <div>
-            <h1 className="text-xl font-heading font-bold text-text-primary">SustainRepo</h1>
-            <p className="text-xs text-text-muted">GHG Platform</p>
-          </div>
-        </div>
+    <aside className={`fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="main-sidebar">
+      <div className="flex h-16 items-center justify-between border-b border-stone-200 px-4">
+        <Link to={isSuperAdmin ? '/super-admin' : isSupplier ? '/supplier-assessment/supplier' : '/dashboard'} className="flex items-center gap-2.5" data-testid="sidebar-logo-link">
+          <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
+          <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
+        </Link>
+        <Button type="button" variant="ghost" size="icon" className="lg:hidden" onClick={onMobileClose} aria-label="Close navigation menu" data-testid="mobile-sidebar-close-button"><X className="h-5 w-5" /></Button>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {user?.role === 'super_admin' && (
-          <>
-            {/* Regular super admin items */}
-            {superAdminItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-primary text-white'
-                      : 'text-text-secondary hover:bg-stone-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
-
-            {/* GHG Data Module - Collapsible */}
-            <div className="pt-2">
-              <button
-                onClick={() => toggleMenu('ghgData')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                  isGhgDataActive
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'text-text-secondary hover:bg-stone-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <HardDrive className="w-5 h-5" />
-                  <span className="font-medium">GHG Data</span>
-                </div>
-                {expandedMenus.ghgData ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              
-              {expandedMenus.ghgData && (
-                <div className="ml-4 mt-1 space-y-1 border-l-2 border-blue-200 pl-2">
-                  {ghgDataItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                          isActive
-                            ? 'bg-primary text-white'
-                            : 'text-text-secondary hover:bg-stone-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* GHG Emissions Calculations Module - Collapsible */}
-            <div className="pt-2">
-              <button
-                onClick={() => toggleMenu('ghgCalc')}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                  isGhgCalcActive
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'text-text-secondary hover:bg-stone-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <FlaskConical className="w-5 h-5" />
-                  <span className="font-medium">GHG Calculations</span>
-                </div>
-                {expandedMenus.ghgCalc ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-              
-              {expandedMenus.ghgCalc && (
-                <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
-                  {ghgCalcItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
-                    
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                          isActive
-                            ? 'bg-primary text-white'
-                            : 'text-text-secondary hover:bg-stone-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        <span className="font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Admin and User navigation */}
-        {user?.role !== 'super_admin' && navItems.map((item) => {
-          // Render expandable group (e.g. GHG Emissions sub-links).
-          if (item.type === 'group') {
-            const Icon = item.icon;
-            const expanded = expandedMenus[item.key];
-            const groupActive = item.items?.some((sub) => location.pathname.startsWith(sub.path));
-            return (
-              <div key={item.key}>
-                <button
-                  onClick={() => toggleMenu(item.key)}
-                  data-testid={`nav-group-${item.key}`}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                    groupActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-text-secondary hover:bg-stone-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="font-medium">{item.label}</span>
-                  </div>
-                  {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                </button>
-                {expanded && item.items?.length > 0 && (
-                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
-                    {item.items.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const isActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
-                      return (
-                        <Link
-                          key={sub.path}
-                          to={sub.path}
-                          data-testid={`nav-${sub.label.toLowerCase().replace(/\s+/g, '-')}`}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                            isActive ? 'bg-primary text-white' : 'text-text-secondary hover:bg-stone-50'
-                          }`}
-                        >
-                          <SubIcon className="w-4 h-4" />
-                          <span className="font-medium">{sub.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
-          
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                isActive
-                  ? 'bg-primary text-white'
-                  : 'text-text-secondary hover:bg-stone-50'
-              }`}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              <span className="font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
+        {activeConfig.map(item => (
+          <MenuItem key={item.key} item={item} depth={0} expanded={expanded} onToggle={toggleMenu} location={location} hasAccess={hasAccess} userRole={user.role} userType={user.user_type} orgType={user.org_type} inheritedMuted={false} inheritedLocked={false} supplierModules={supplierModules} />
+        ))}
       </nav>
 
-      <div className="p-4 border-t border-stone-200 flex-shrink-0 bg-white">
-        <div className="mb-3">
-          <Link
-            to="/profile"
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              location.pathname === '/profile'
-                ? 'bg-primary text-white'
-                : 'text-text-secondary hover:bg-stone-50'
-            }`}
-            data-testid="nav-profile"
-          >
-            <User className="w-5 h-5" />
-            <span className="font-medium">Profile</span>
-          </Link>
-        </div>
-        <div className="mb-4 p-4 bg-stone-50 rounded-lg">
-          <p className="text-sm font-medium text-text-primary truncate">{user?.full_name}</p>
-          <p className="text-xs text-text-muted break-all">{user?.email}</p>
-          <p className="text-xs text-primary font-medium mt-1 capitalize">{user?.role?.replace('_', ' ')}</p>
-        </div>
-        <Button
-          onClick={handleLogout}
-          variant="outline"
-          className="w-full justify-start gap-3"
-          data-testid="logout-button"
-        >
-          <LogOut className="w-4 h-4" />
+      <div className="border-t border-stone-200 p-3">
+        <div className="mb-2 truncate px-1 text-xs text-stone-500" data-testid="sidebar-user-email">{user.email}</div>
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-stone-600 hover:text-red-600" onClick={handleLogout} data-testid="sidebar-logout">
+          <LogOut className="h-4 w-4" />
           Logout
         </Button>
       </div>

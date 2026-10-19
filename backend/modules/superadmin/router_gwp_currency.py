@@ -32,10 +32,16 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
     UnitCreate, UnitResponse,
+)
+from calc_engine.currency_conversion import (
+    STANDARD_METHOD,
+    currency_record_period,
+    normalize_currency_method,
+    resolve_organization_reporting_settings,
+    resolve_currency_conversion,
 )
 from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
 from shared.database.mongo import db
@@ -264,6 +270,129 @@ async def get_gwp_values():
 # ============================================
 # CURRENCY CONVERSION CONFIGURATION
 # ============================================
+
+
+def _normalize_currency_period_fields(payload: dict) -> dict:
+    normalized = dict(payload)
+    applicability_type = normalized.get("applicability_type")
+    if not applicability_type:
+        applicability_type = "month" if normalized.get("month_applicable") else "calendar_year"
+    if applicability_type not in {"calendar_year", "financial_year", "month"}:
+        raise HTTPException(status_code=400, detail="applicability_type must be calendar_year, financial_year, or month")
+
+    if applicability_type == "financial_year":
+        start_year = normalized.get("financial_year_start")
+        end_year = normalized.get("financial_year_end")
+        if start_year is None and normalized.get("year_applicable") is not None:
+            start_year = int(normalized["year_applicable"]) - 1
+        if start_year is None:
+            raise HTTPException(status_code=400, detail="financial_year_start is required for a financial-year rate")
+        start_year = int(start_year)
+        end_year = int(end_year) if end_year is not None else start_year + 1
+        if end_year != start_year + 1:
+            raise HTTPException(status_code=400, detail="financial_year_end must be exactly one year after financial_year_start")
+        normalized.update({
+            "applicability_type": applicability_type,
+            "year_applicable": end_year,
+            "financial_year_start": start_year,
+            "financial_year_end": end_year,
+            "month_applicable": None,
+            "period_key": f"FY {start_year}-{str(end_year)[-2:]}",
+            "effective_from": f"FY {start_year}-{str(end_year)[-2:]}",
+        })
+        return normalized
+
+    year = normalized.get("year_applicable")
+    if year is None:
+        raise HTTPException(status_code=400, detail="year_applicable is required")
+    year = int(year)
+    normalized.update({
+        "applicability_type": applicability_type,
+        "year_applicable": year,
+        "financial_year_start": None,
+        "financial_year_end": None,
+    })
+    if applicability_type == "month":
+        month = normalized.get("month_applicable")
+        if month is None or not 1 <= int(month) <= 12:
+            raise HTTPException(status_code=400, detail="month_applicable must be between 1 and 12 for a monthly rate")
+        month = int(month)
+        normalized.update({
+            "month_applicable": month,
+            "period_key": f"{year}-{month:02d}",
+            "effective_from": f"{year}-{month:02d}",
+        })
+    else:
+        normalized.update({
+            "month_applicable": None,
+            "period_key": f"CY {year}",
+            "effective_from": f"CY {year}",
+        })
+    return normalized
+
+
+def _currency_rate_identity(fields: dict, *, exclude_id: Optional[str] = None) -> dict:
+    query: Dict[str, Any] = {
+        "source_currency": fields["source_currency"].upper(),
+        "target_currency": fields["target_currency"].upper(),
+    }
+    applicability_type = fields["applicability_type"]
+    if applicability_type == "financial_year":
+        query.update({
+            "applicability_type": "financial_year",
+            "financial_year_start": fields["financial_year_start"],
+            "financial_year_end": fields["financial_year_end"],
+        })
+    elif applicability_type == "month":
+        query.update({
+            "year_applicable": fields["year_applicable"],
+            "month_applicable": fields["month_applicable"],
+            "$or": [
+                {"applicability_type": "month"},
+                {"applicability_type": {"$exists": False}},
+                {"applicability_type": None},
+            ],
+        })
+    else:
+        query.update({
+            "year_applicable": fields["year_applicable"],
+            "$and": [
+                {"$or": [
+                    {"applicability_type": "calendar_year"},
+                    {"applicability_type": {"$exists": False}},
+                    {"applicability_type": None},
+                ]},
+                {"$or": [
+                    {"month_applicable": {"$exists": False}},
+                    {"month_applicable": None},
+                ]},
+            ],
+        })
+    if fields["conversion_method"] == "ppp_inflation":
+        existing_and = query.pop("$and", [])
+        query["$and"] = [
+            *existing_and,
+            {"$or": [
+                {"conversion_method": "ppp_inflation"},
+                {"conversion_method": {"$exists": False}},
+                {"conversion_method": None},
+            ]},
+        ]
+    else:
+        query["conversion_method"] = "standard"
+    if exclude_id:
+        query["id"] = {"$ne": exclude_id}
+    return query
+
+
+def _validate_currency_values(fields: dict) -> None:
+    method = fields.get("conversion_method")
+    if method not in {"ppp_inflation", "standard"}:
+        raise HTTPException(status_code=400, detail="conversion_method must be standard or ppp_inflation")
+    if method == "standard" and not fields.get("exchange_rate"):
+        raise HTTPException(status_code=400, detail="exchange_rate is required for standard currency conversion")
+
+
 # Get active currency conversion config for a specific currency pair and year
 
 # ============================================
@@ -273,7 +402,9 @@ async def get_gwp_values():
 @router.get("/currency-conversion")
 async def get_currency_conversions(
     source_currency: Optional[str] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    conversion_method: Optional[str] = None,
 ):
     """Get currency conversion configurations, optionally filtered by currency and year"""
     query = {}
@@ -281,9 +412,13 @@ async def get_currency_conversions(
         query["source_currency"] = source_currency.upper()
     if year:
         query["year_applicable"] = year
+    if month:
+        query["month_applicable"] = month
+    if conversion_method:
+        query["conversion_method"] = conversion_method
     
-    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(500)
-    return configs
+    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1), ("month_applicable", -1)]).to_list(500)
+    return [_normalize_currency_period_fields(config) for config in configs]
 
 # Get active currency conversion for a specific currency/year
 
@@ -300,14 +435,85 @@ async def get_active_currency_conversion(source_currency: str, year: Optional[in
         return {"message": "No active currency conversion found for this currency", "data": None}
     return config
 
+
+@router.get("/currency-conversion/resolved")
+async def get_resolved_currency_conversion_defaults(
+    source_currency: str,
+    reporting_periods: str,
+    conversion_method: Optional[str] = None,
+    reporting_year_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Resolve the same period-specific spend defaults used by the calculation engine."""
+    periods = list(dict.fromkeys(
+        period.strip() for period in reporting_periods.split(",") if period.strip()
+    ))
+    if not periods or len(periods) > 24:
+        raise HTTPException(status_code=400, detail="Provide between 1 and 24 reporting periods")
+
+    method = normalize_currency_method(conversion_method)
+    source = source_currency.strip().upper()
+    reporting_settings = await resolve_organization_reporting_settings(
+        db,
+        organization_id=current_user.get("organization_id"),
+        reporting_year_type=reporting_year_type,
+    )
+    defaults: Dict[str, Dict[str, Any]] = {}
+    for period in periods:
+        config = await resolve_currency_conversion(
+            db,
+            source_currency=source,
+            reporting_period=period,
+            reporting_year_type=reporting_settings["reporting_year_type"],
+            financial_year_start_month=reporting_settings["financial_year_start_month"],
+            method=method,
+        )
+        source_name = (config or {}).get("source") or "Unavailable"
+        period_label = currency_record_period(config)
+        resolution = ((config or {}).get("resolution_metadata") or {}).get("resolution")
+        fallback_suffix = " · fallback" if resolution and resolution != "exact" else ""
+        display_source = f"{source_name} ({period_label}{fallback_suffix})" if period_label else source_name
+
+        if method == STANDARD_METHOD:
+            rate = 1.0 if source == "USD" else (config or {}).get("exchange_rate")
+            values = {
+                "exchange_rate": {
+                    "value": float(rate) if rate is not None else None,
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                }
+            }
+        else:
+            ppp = 1.0 if source == "USD" else (config or {}).get("purchase_parity")
+            inflation = 1.0 if source == "USD" else (config or {}).get("inflation_factor")
+            values = {
+                "ppp": {
+                    "value": float(ppp) if ppp is not None else None,
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                },
+                "inflation_rate": {
+                    "value": float(inflation) if inflation is not None else None,
+                    "source_name": "Default (USD)" if source == "USD" else display_source,
+                },
+            }
+
+        defaults[period] = {
+            "conversion_method": method,
+            "source_currency": source,
+            "target_currency": "USD",
+            "values": values,
+            "resolution_metadata": (config or {}).get("resolution_metadata"),
+        }
+
+    return {"defaults": defaults, **reporting_settings}
+
 # Get all currency conversions (SuperAdmin)
 
 # Get all currency conversions (SuperAdmin)
 @router.get("/super-admin/currency-conversions")
 async def get_all_currency_conversions(current_user: dict = Depends(get_super_admin_user)):
     """Get all currency conversion configurations (SuperAdmin only)"""
-    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(1000)
-    return configs
+    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1), ("month_applicable", -1)]).to_list(1000)
+    return [_normalize_currency_period_fields(config) for config in configs]
 
 # Create new currency conversion
 
@@ -316,30 +522,21 @@ async def get_all_currency_conversions(current_user: dict = Depends(get_super_ad
 async def create_currency_conversion(config: CurrencyConversionCreate, current_user: dict = Depends(get_super_admin_user)):
     """Create a new currency conversion configuration (SuperAdmin only)"""
     
-    # Check if a config already exists for this currency pair and year
-    existing = await db.currency_conversion.find_one({
-        "source_currency": config.source_currency.upper(),
-        "target_currency": config.target_currency.upper(),
-        "year_applicable": config.year_applicable
-    })
+    config_data = _normalize_currency_period_fields(config.model_dump())
+    config_data["source_currency"] = config_data["source_currency"].upper()
+    config_data["target_currency"] = config_data["target_currency"].upper()
+    _validate_currency_values(config_data)
+    existing = await db.currency_conversion.find_one(_currency_rate_identity(config_data), {"_id": 0})
     
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail=f"Currency conversion for {config.source_currency}/{config.target_currency} for year {config.year_applicable} already exists"
+            detail=f"A {config.conversion_method} currency rate already exists for this currency period"
         )
     
     new_config = {
         "id": str(uuid.uuid4()),
-        "source_currency": config.source_currency.upper(),
-        "target_currency": config.target_currency.upper(),
-        "year_applicable": config.year_applicable,
-        "purchase_parity": config.purchase_parity,
-        "inflation_factor": config.inflation_factor,
-        "exchange_rate": config.exchange_rate,
-        "source": config.source,
-        "notes": config.notes,
-        "is_active": config.is_active,
+        **config_data,
         "created_by": current_user["id"],
         "created_by_email": current_user["email"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -363,13 +560,23 @@ async def update_currency_conversion(config_id: str, config: CurrencyConversionU
     if not existing:
         raise HTTPException(status_code=404, detail="Currency conversion configuration not found")
     
-    update_data = {k: v for k, v in config.dict().items() if v is not None}
-    
-    # Convert currencies to uppercase if provided
-    if "source_currency" in update_data:
-        update_data["source_currency"] = update_data["source_currency"].upper()
-    if "target_currency" in update_data:
-        update_data["target_currency"] = update_data["target_currency"].upper()
+    update_data = config.model_dump(exclude_unset=True)
+    merged = {**existing, **update_data}
+    merged.pop("_id", None)
+    normalized = _normalize_currency_period_fields(merged)
+    normalized["source_currency"] = normalized["source_currency"].upper()
+    normalized["target_currency"] = normalized["target_currency"].upper()
+    _validate_currency_values(normalized)
+    duplicate = await db.currency_conversion.find_one(
+        _currency_rate_identity(normalized, exclude_id=config_id),
+        {"_id": 0},
+    )
+    if duplicate:
+        raise HTTPException(status_code=400, detail="A currency rate already exists for this currency period")
+    update_data = {
+        key: value for key, value in normalized.items()
+        if key not in {"id", "created_at", "created_by", "created_by_email"}
+    }
     
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_data["updated_by"] = current_user["id"]
@@ -407,21 +614,16 @@ async def bulk_create_currency_conversions(
     updated_count = 0
     
     for config in configs:
-        existing = await db.currency_conversion.find_one({
-            "source_currency": config.source_currency.upper(),
-            "target_currency": config.target_currency.upper(),
-            "year_applicable": config.year_applicable
-        })
+        config_data = _normalize_currency_period_fields(config.model_dump())
+        config_data["source_currency"] = config_data["source_currency"].upper()
+        config_data["target_currency"] = config_data["target_currency"].upper()
+        _validate_currency_values(config_data)
+        existing = await db.currency_conversion.find_one(_currency_rate_identity(config_data))
         
         if existing:
             # Update existing
             update_data = {
-                "purchase_parity": config.purchase_parity,
-                "inflation_factor": config.inflation_factor,
-                "exchange_rate": config.exchange_rate,
-                "source": config.source,
-                "notes": config.notes,
-                "is_active": config.is_active,
+                **config_data,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "updated_by": current_user["id"]
             }
@@ -431,15 +633,7 @@ async def bulk_create_currency_conversions(
             # Create new
             new_config = {
                 "id": str(uuid.uuid4()),
-                "source_currency": config.source_currency.upper(),
-                "target_currency": config.target_currency.upper(),
-                "year_applicable": config.year_applicable,
-                "purchase_parity": config.purchase_parity,
-                "inflation_factor": config.inflation_factor,
-                "exchange_rate": config.exchange_rate,
-                "source": config.source,
-                "notes": config.notes,
-                "is_active": config.is_active,
+                **config_data,
                 "created_by": current_user["id"],
                 "created_by_email": current_user["email"],
                 "created_at": datetime.now(timezone.utc).isoformat(),

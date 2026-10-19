@@ -54,6 +54,7 @@ export function buildFacilitySeries(facilitiesData = []) {
     scope2: f.scope2_emissions || 0,
     scope3: f.scope3_emissions || 0,
     biogenic: f.biogenic_emissions || 0,
+    scopeCategories: f.scope_categories || {},
   }));
 }
 
@@ -129,6 +130,16 @@ export function buildCategoryBreakdown(categories = []) {
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 5);
+}
+
+export function buildScopedCategoryList(categories = []) {
+  return (categories || [])
+    .map((category) => ({
+      name: category.category || category.name,
+      scope: detectScopeForCategory(category),
+      value: Number(category.total_emissions || category.value || 0),
+    }))
+    .sort((a, b) => b.value - a.value);
 }
 
 export function buildBaseYearChartData(

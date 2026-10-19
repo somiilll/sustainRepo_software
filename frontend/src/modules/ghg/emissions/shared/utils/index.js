@@ -17,7 +17,6 @@ export {
   buildC7MonthlyPayload,
   buildC7YearlyPayload,
   buildScope3Payload,
-  buildProcessEmissionsPayload,
   buildFuelEmissionPayload,
   groupEmployeesByMonth,
 } from './payload-builders';

@@ -160,7 +160,7 @@ export default function DynamicEmissionForm({
     });
     
     setInputValues(newValues);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [selectedFuelObj, formConfig]);
   
   // Determine which formula will be used based on decision inputs

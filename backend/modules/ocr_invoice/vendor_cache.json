@@ -1,0 +1,52 @@
+{
+    "Bengaluru Electricity Supply Company (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Niyamitha (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Ltd (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Electricity Supply Company Limited (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Bengaluru Vidyuth Sarabaraju Company Limited (BESCOM)::electricity": {
+        "category": "Non-Renewable",
+        "scope": "Scope 2",
+        "mapped_fuel": "Electricity"
+    },
+    "Indian Oil - Shyamala & Company::petrol": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Motor Gasoline"
+    },
+    "Indian Oil - SHYAMALA & COMPANY::petrol": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Motor Gasoline"
+    },
+    "IndianOil - SHYAMALA & COMPANY::petrol": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Motor Gasoline"
+    },
+    "Ultra Corpotech Pvt. Ltd.::diesel": {
+        "category": "Mobile Combustion",
+        "scope": "Scope 1",
+        "mapped_fuel": "Gas/Diesel Oil"
+    }
+}

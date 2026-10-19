@@ -20,28 +20,28 @@ export default function Scope3Hotspots({ data = [], height = 320 }) {
   return (
     <div data-testid="scope3-hotspots">
       <ResponsiveContainer width="100%" height={height}>
-        <RadialBarChart 
-          innerRadius="40%" 
-          outerRadius="80%" 
-          data={chartData} 
-          startAngle={90} 
+        <RadialBarChart
+          innerRadius="40%"
+          outerRadius="80%"
+          data={chartData}
+          startAngle={90}
           endAngle={-270}
         >
           {/* CRITICAL: Define the scale as 0 to 100 */}
           <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-          
-          <RadialBar 
-            dataKey="percentage" 
-            clockWise 
-            cornerRadius={8} 
-            background={{ fill: '#F5F5F4' }} 
+
+          <RadialBar
+            dataKey="percentage"
+            clockWise
+            cornerRadius={8}
+            background={{ fill: '#F5F5F4' }}
           />
           <Tooltip
             formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Contribution']}
           />
         </RadialBarChart>
       </ResponsiveContainer>
-      
+
       <div className="flex flex-wrap justify-center gap-4 mt-2">
         {[...chartData].reverse().map((c) => (
           <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-stone-600">

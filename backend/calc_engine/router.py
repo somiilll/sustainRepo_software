@@ -10,6 +10,7 @@ expose them for the Superadmin sandbox + external tests).
 from __future__ import annotations
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -29,10 +30,26 @@ from .formulas import (
     update_formula,
     validate_decision_tree,
 )
+from .versioning import (
+    CalculationVersionError,
+    formula_snapshot,
+    get_decision_tree_for_execution,
+    get_formula_for_execution,
+    resolve_formula_version_for_tree,
+)
 from .fuel_import import import_from_fuel_database
 from .transformations import list_transformations
 from .units import resolve_unit
 import re
+from .currency_conversion import (
+    PPP_INFLATION_METHOD,
+    STANDARD_METHOD,
+    currency_conversion_source_name,
+    extract_currency_period,
+    normalize_currency_method,
+    resolve_organization_reporting_settings,
+    resolve_currency_conversion,
+)
 
 
 # ---------- Helper Functions ----------
@@ -48,39 +65,20 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     
     Returns None if unable to parse.
     """
-    if not reporting_period:
-        return None
-    
-    reporting_period = str(reporting_period).strip()
-    
-    # FY format: "FY 2025-2026" or "FY 2025-26" → use END year
-    fy_match = re.match(r'FY\s*(\d{4})\s*-\s*(\d{2,4})', reporting_period, re.IGNORECASE)
-    if fy_match:
-        start_year = int(fy_match.group(1))
-        end_part = fy_match.group(2)
-        if len(end_part) == 2:
-            # Convert "26" to "2026" based on start year
-            end_year = int(str(start_year)[:2] + end_part)
-        else:
-            end_year = int(end_part)
-        return end_year  # Use END year for FY
-    
-    # CY format: "CY 2025" → use that year
-    cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
-    if cy_match:
-        return int(cy_match.group(1))
-    
-    # Monthly format: "2025-04" or "2025-4" → use calendar year
-    monthly_match = re.match(r'(\d{4})-\d{1,2}', reporting_period)
-    if monthly_match:
-        return int(monthly_match.group(1))
-    
-    # Just a year: "2025"
-    year_match = re.match(r'^(\d{4})$', reporting_period)
-    if year_match:
-        return int(year_match.group(1))
-    
-    return None
+    return extract_currency_period(reporting_period)[0]
+
+
+def _formula_paths(node: Any, formula_id: str, path: str = "") -> List[str]:
+    paths: List[str] = []
+    if isinstance(node, dict):
+        if node.get("formula_id") == formula_id:
+            paths.append(path or "root")
+        for key, value in node.items():
+            paths.extend(_formula_paths(value, formula_id, f"{path}.{key}" if path else key))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            paths.extend(_formula_paths(value, formula_id, f"{path}[{index}]"))
+    return paths
 
 
 # ---------- Pydantic schemas ----------
@@ -139,6 +137,8 @@ class ExecuteByCategoryRequest(BaseModel):
     dry_run: bool = True
     emission_record_id: Optional[str] = None  # Link audit log to emission record
     scope3_ef_id: Optional[str] = None  # Reference to scope3_ef record for EF lookup
+    decision_tree_version_id: Optional[str] = None
+    formula_version_id: Optional[str] = None
 
 
 class ExecuteByFormulaRequest(BaseModel):
@@ -714,7 +714,26 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         logger.info(f"[FUGITIVE DEBUG - Backend] enriched_context.fuel_name: {enriched_context.get('fuel_name')}")
         logger.info(f"[FUGITIVE DEBUG - Backend] enriched_context.co2_gwp_fugitives: {enriched_context.get('co2_gwp_fugitives')}")
         
-        tree = await get_decision_tree_for_category(db, req.category_id)
+        decision_inputs = dict(req.decision_inputs)
+        if decision_inputs.get("calculation_method_scope3") == "spend_basis":
+            decision_inputs["spend_currency_conversion_method"] = normalize_currency_method(
+                decision_inputs.get("spend_currency_conversion_method")
+            )
+        try:
+            tree = await get_decision_tree_for_execution(
+                db,
+                req.category_id,
+                req.decision_tree_version_id,
+            )
+        except CalculationVersionError as error:
+            if req.dry_run:
+                # Edit previews must always follow the newly selected category.
+                # A stale browser request can still carry a historical version
+                # from the original record; never let that block an unsaved
+                # scope/category/method transition.
+                tree = await get_decision_tree_for_execution(db, req.category_id)
+            else:
+                raise HTTPException(status_code=409, detail=str(error))
         formula_id = None
         tree_path = []
         
@@ -723,7 +742,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if tree:
             # Decision tree exists - resolve formula via tree traversal
             try:
-                formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
+                formula_id, tree_path = resolve_formula_id(tree["tree"], decision_inputs)
                 logger.info(f"[FUGITIVE DEBUG - Backend] formula_id from tree: {formula_id}, tree_path: {tree_path}")
             except DecisionTreeError as e:
                 raise HTTPException(status_code=400, detail=str(e))
@@ -754,19 +773,32 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     detail=f"No decision tree or formula configured for category {req.category_id}",
                 )
 
-        formula_doc = await db.ce_formulas.find_one(
-            {"id": formula_id, "is_active": True}, {"_id": 0},
-        )
-        if not formula_doc:
-            raise HTTPException(status_code=404,
-                                detail=f"Formula '{formula_id}' not found or inactive")
+        try:
+            formula_doc = await resolve_formula_version_for_tree(
+                db,
+                tree,
+                formula_id,
+                req.formula_version_id,
+            )
+        except CalculationVersionError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
 
         # Merge any fugitive emissions properties from enriched_context into user_overrides
         # so the property resolver can find them
         merged_user_overrides = dict(req.user_overrides)
+        
+        # Extract property-like inputs (density, cv, etc.) and merge into user_overrides
+        # This ensures both properties.py (resolve_property) and units.py (_convert_component)
+        # can access user-provided values for property-based conversions
+        property_keys = ["density", "cv", "calorific_value"]
+        for prop_key in property_keys:
+            if prop_key in req.inputs and prop_key not in merged_user_overrides:
+                merged_user_overrides[prop_key] = req.inputs[prop_key]
+        
         if enriched_context.get("co2_gwp_fugitives"):
             merged_user_overrides["co2_gwp_fugitives"] = {
                 "value": enriched_context["co2_gwp_fugitives"],
@@ -776,7 +808,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         
         # For spend_basis formulas, resolve inflation_rate and ppp from currency_conversion table
         # if not provided in user_overrides
-        if req.decision_inputs.get("calculation_method_scope3") == "spend_basis":
+        if decision_inputs.get("calculation_method_scope3") == "spend_basis":
+            currency_method = decision_inputs["spend_currency_conversion_method"]
             # Get the currency from inputs (e.g., spent_value.unit = "INR")
             input_currency = None
             for input_key, input_val in req.inputs.items():
@@ -788,65 +821,65 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             
             # Fetch currency conversion data if we have a currency
             if input_currency and input_currency != "USD":
-                # Extract year from reporting period for year-specific currency conversion
                 reporting_period = enriched_context.get("reporting_period") or req.context.get("reporting_period")
-                target_year = extract_year_from_reporting_period(reporting_period)
-                
-                currency_conversion = None
-                
-                # First try to find exact year match
-                if target_year:
-                    currency_conversion = await db.currency_conversion.find_one(
-                        {"source_currency": input_currency, "year_applicable": target_year, "is_active": True}, {"_id": 0}
-                    )
-                    logger.info(f"[SPEND BASIS] Currency lookup for {input_currency}, year={target_year}: {currency_conversion is not None}")
-                
-                # Fallback: find latest available year if no exact match
-                if not currency_conversion:
-                    # Sort by year_applicable descending to get the latest
-                    fallback_cursor = db.currency_conversion.find(
-                        {"source_currency": input_currency, "is_active": True}, {"_id": 0}
-                    ).sort("year_applicable", -1).limit(1)
-                    fallback_list = await fallback_cursor.to_list(length=1)
-                    if fallback_list:
-                        currency_conversion = fallback_list[0]
-                        logger.info(f"[SPEND BASIS] Fallback to year {currency_conversion.get('year_applicable')} for {input_currency}")
+                reporting_settings = await resolve_organization_reporting_settings(
+                    db,
+                    organization_id=current_user.get("organization_id"),
+                    reporting_year_type=enriched_context.get("reporting_year_type") or req.context.get("reporting_year_type"),
+                    financial_year_start_month=enriched_context.get("financial_year_start_month") or req.context.get("financial_year_start_month"),
+                )
+                currency_conversion = await resolve_currency_conversion(
+                    db,
+                    source_currency=input_currency,
+                    reporting_period=reporting_period,
+                    reporting_year_type=reporting_settings["reporting_year_type"],
+                    financial_year_start_month=reporting_settings["financial_year_start_month"],
+                    method=currency_method,
+                )
                 
                 if currency_conversion:
                     logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
                 
-                # Get the source from currency_conversion record
-                currency_source = currency_conversion.get("source") if currency_conversion else "Default"
-                year_used = currency_conversion.get("year_applicable") if currency_conversion else None
-                
-                # Add inflation_rate if not in user_overrides
-                if "inflation_rate" not in merged_user_overrides:
+                if currency_method == PPP_INFLATION_METHOD and "inflation_rate" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("inflation_factor"):
                         merged_user_overrides["inflation_rate"] = {
                             "value": float(currency_conversion.get("inflation_factor")),
                             "unit": "",
-                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
+                            "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
-                        # Default to 1.0
-                        merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": "", "source_name": "Default"}
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No active PPP/Inflation configuration with an inflation factor was found for {input_currency} and {reporting_period or 'the requested period'}",
+                        )
                 
-                # Add ppp if not in user_overrides
-                if "ppp" not in merged_user_overrides:
+                if currency_method == PPP_INFLATION_METHOD and "ppp" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("purchase_parity"):
                         merged_user_overrides["ppp"] = {
                             "value": float(currency_conversion.get("purchase_parity")),
                             "unit": "",
-                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
+                            "source_name": currency_conversion_source_name(currency_conversion, currency_method),
                         }
                     else:
-                        # Default to 1.0
-                        merged_user_overrides["ppp"] = {"value": 1.0, "unit": "", "source_name": "Default"}
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"No active PPP/Inflation configuration with purchase parity was found for {input_currency} and {reporting_period or 'the requested period'}",
+                        )
+                if currency_method == STANDARD_METHOD and "exchange_rate" not in merged_user_overrides:
+                    if not currency_conversion or not currency_conversion.get("exchange_rate"):
+                        raise HTTPException(status_code=400, detail=f"No active standard currency rate found for {input_currency} and {reporting_period or 'the requested period'}")
+                    merged_user_overrides["exchange_rate"] = {
+                        "value": float(currency_conversion["exchange_rate"]),
+                        "unit": "",
+                        "source_name": currency_conversion_source_name(currency_conversion, currency_method),
+                    }
             else:
-                # USD or no currency - use defaults of 1.0
-                if "inflation_rate" not in merged_user_overrides:
+                # USD has a one-to-one standard rate; legacy PPP remains unchanged.
+                if currency_method == STANDARD_METHOD and "exchange_rate" not in merged_user_overrides:
+                    merged_user_overrides["exchange_rate"] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
+                if currency_method == PPP_INFLATION_METHOD and "inflation_rate" not in merged_user_overrides:
                     merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
-                if "ppp" not in merged_user_overrides:
+                if currency_method == PPP_INFLATION_METHOD and "ppp" not in merged_user_overrides:
                     merged_user_overrides["ppp"] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
 
         try:
@@ -861,10 +894,24 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             logger.error(f"[CALC ERROR] Formula: {formula_id}, Inputs: {req.inputs}")
             raise HTTPException(status_code=400, detail=str(e))
 
+        if result.get("audit_log_id"):
+            await db.ce_calculation_audit_logs.update_one(
+                {"id": result["audit_log_id"]},
+                {"$set": {
+                    "decision_tree_version_id": tree.get("version_id") if tree else None,
+                    "formula_snapshot": formula_snapshot(formula_doc),
+                }},
+            )
+
         return {
             "ok": True,
             "resolved_formula": {"id": formula_id, "name": formula_doc.get("name"),
                                   "version_id": formula_doc.get("version_id")},
+            "resolved_decision_tree": {
+                "id": tree.get("id"),
+                "version_id": tree.get("version_id"),
+            } if tree else None,
+            "formula_snapshot": formula_snapshot(formula_doc),
             "decision_path": tree_path,
             **result,
         }
@@ -873,6 +920,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
     async def get_form_config_for_category(
         category_id: str,
         scope: str = None,
+        decision_tree_version_id: Optional[str] = None,
+        formula_version_id: Optional[str] = None,
         current_user: dict = Depends(get_current_user),
     ):
         """
@@ -887,7 +936,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         based on what the formula actually needs.
         """
         # 1. Get the decision tree for this category
-        tree = await get_decision_tree_for_category(db, category_id)
+        try:
+            tree = await get_decision_tree_for_execution(
+                db,
+                category_id,
+                decision_tree_version_id,
+            )
+        except CalculationVersionError as error:
+            raise HTTPException(status_code=409, detail=str(error))
         
         # 2. Get the category details
         category_doc = await db.emission_categories.find_one(
@@ -906,13 +962,21 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             decision_fields = extract_decision_fields_from_tree(tree.get("tree", {}))
             
             for fid in formula_ids:
-                formula_doc = await db.ce_formulas.find_one(
-                    {"id": fid, "is_active": True}, {"_id": 0}
-                )
+                try:
+                    formula_doc = await resolve_formula_version_for_tree(
+                        db,
+                        tree,
+                        fid,
+                        formula_version_id,
+                    )
+                except CalculationVersionError:
+                    formula_doc = None
                 if formula_doc:
                     formulas_info.append({
                         "id": formula_doc["id"],
                         "name": formula_doc.get("name"),
+                        "version_id": formula_doc.get("version_id"),
+                        "activity_formula_group_id": formula_doc.get("activity_formula_group_id"),
                         "inputs": formula_doc.get("definition", {}).get("inputs", []),
                         "outputs": formula_doc.get("definition", {}).get("outputs", []),
                         "properties": formula_doc.get("definition", {}).get("properties", []),
@@ -935,6 +999,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 formulas_info.append({
                     "id": formula_doc["id"],
                     "name": formula_doc.get("name"),
+                    "activity_formula_group_id": formula_doc.get("activity_formula_group_id"),
                     "inputs": formula_doc.get("definition", {}).get("inputs", []),
                     "outputs": formula_doc.get("definition", {}).get("outputs", []),
                     "properties": formula_doc.get("definition", {}).get("properties", []),
@@ -954,7 +1019,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         # This mirrors how the Sandbox works - loads all applicable mappings for the scope+category
         
         # Get scope ID for filtering
-        scope_doc = await db.emission_scopes.find_one({"code": scope}, {"_id": 0}) if scope else None
+        scope_doc = await db.scopes.find_one({"code": scope}, {"_id": 0}) if scope else None
         scope_id = scope_doc.get("id") if scope_doc else None
         
         # Build query to get:
@@ -1020,6 +1085,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "category": category_doc,
             "has_decision_tree": tree is not None,
             "decision_tree_id": tree.get("id") if tree else None,
+            "decision_tree_version_id": tree.get("version_id") if tree else None,
             "decision_tree": tree.get("tree") if tree else None,  # Include actual tree structure
             "decision_fields": decision_fields,  # Fields user must answer to traverse tree
             "formulas": formulas_info,
@@ -1061,7 +1127,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         for step in definition.get("steps", []):
                             expr = step.get("expression", "")
                             # Simple check: variable appears as word in expression
-                            import re
                             if re.search(rf'\b{re.escape(var_key)}\b', expr):
                                 using_formulas.append({"id": f["id"], "name": f["name"], "usage": f"step '{step.get('name')}'"})
                                 break
@@ -1416,6 +1481,112 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         await db.ce_compound_units.delete_one({"id": unit_id})
         return {"message": f"Compound unit '{unit['key']}' deleted"}
 
+    # --- Scope 3 activity formula groups ---
+
+    async def _formula_impact(formula_id: str) -> dict:
+        formula = await db.ce_formulas.find_one({"id": formula_id}, {"_id": 0})
+        if not formula:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        categories = await db.emission_categories.find({}, {"_id": 0, "id": 1, "code": 1, "name": 1}).to_list(None)
+        category_by_id = {category["id"]: category for category in categories}
+        trees = await db.ce_decision_trees.find({"is_active": True}, {"_id": 0, "id": 1, "category_id": 1, "tree": 1}).to_list(None)
+        uses = []
+        for tree in trees:
+            for path in _formula_paths(tree.get("tree") or {}, formula_id):
+                category = category_by_id.get(tree.get("category_id"), {})
+                uses.append({
+                    "decision_tree_id": tree["id"],
+                    "category_id": tree.get("category_id"),
+                    "category_code": category.get("code"),
+                    "category_name": category.get("name"),
+                    "branch_path": path,
+                })
+        return {"formula": formula, "uses": uses, "usage_count": len(uses)}
+
+    @router.get("/super-admin/calc-engine/formulas/{formula_id}/impact")
+    async def formula_impact(formula_id: str, current_user: dict = Depends(get_super_admin_user)):
+        """Show every active decision-tree branch affected by a formula change."""
+        return await _formula_impact(formula_id)
+
+    @router.get("/super-admin/calc-engine/formula-groups")
+    async def list_formula_groups(current_user: dict = Depends(get_super_admin_user)):
+        """List activity-basis group ownership, formulas, mappings, and active tree impact."""
+        formulas = await db.ce_formulas.find({"activity_formula_group_id": {"$exists": True}}, {"_id": 0}).to_list(None)
+        mappings = await db.ce_input_field_mappings.find({"activity_formula_group_id": {"$exists": True}}, {"_id": 0}).to_list(None)
+        categories = await db.emission_categories.find({}, {"_id": 0, "id": 1, "code": 1, "name": 1}).to_list(None)
+        category_by_id = {category["id"]: category for category in categories}
+        group_ids = sorted({row.get("activity_formula_group_id") for row in formulas + mappings if row.get("activity_formula_group_id")})
+        result = []
+        for group_id in group_ids:
+            group_formulas = [row for row in formulas if row.get("activity_formula_group_id") == group_id and row.get("is_active", True)]
+            group_mappings = [row for row in mappings if row.get("activity_formula_group_id") == group_id and row.get("is_active", True)]
+            category_ids = sorted({category_id for row in group_formulas + group_mappings for category_id in (row.get("category_ids") or row.get("applies_to_categories") or [])})
+            impacts = []
+            for formula in group_formulas:
+                impact = await _formula_impact(formula["id"])
+                impacts.extend([{**use, "formula_id": formula["id"], "formula_name": formula.get("name")} for use in impact["uses"]])
+            result.append({
+                "id": group_id,
+                "categories": [category_by_id[category_id] for category_id in category_ids if category_id in category_by_id],
+                "formulas": group_formulas,
+                "mappings": group_mappings,
+                "impacts": impacts,
+            })
+        return result
+
+    @router.post("/super-admin/calc-engine/formula-groups/{group_id}/clone-formula")
+    async def clone_formula_to_group(group_id: str, payload: Dict[str, Any], current_user: dict = Depends(get_super_admin_user)):
+        """Clone a formula into a group without changing any decision-tree branch."""
+        source_id = payload.get("formula_id")
+        source = await db.ce_formulas.find_one({"id": source_id, "is_active": True}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Active source formula not found")
+        group_members = await db.ce_formulas.find_one({"activity_formula_group_id": group_id, "is_active": True}, {"_id": 0})
+        if not group_members:
+            raise HTTPException(status_code=404, detail="Formula group not found")
+        category_ids = group_members.get("category_ids") or []
+        clone = await create_formula(
+            db,
+            name=payload.get("name") or f"{group_id} — clone of {source.get('name', source_id)}",
+            description=payload.get("description") or f"Independent clone of {source_id} for {group_id}",
+            scope_ids=source.get("scope_ids") or [],
+            category_ids=category_ids,
+            category_id=None,
+            definition=deepcopy(source["definition"]),
+            created_by=current_user.get("id", "super_admin"),
+        )
+        await db.ce_formulas.update_one({"id": clone["id"]}, {"$set": {
+            "activity_formula_group_id": group_id,
+            "source_formula_id": source_id,
+        }})
+        return await db.ce_formulas.find_one({"id": clone["id"]}, {"_id": 0})
+
+    @router.post("/super-admin/calc-engine/formulas/{formula_id}/clone-to-category")
+    async def clone_formula_to_category(formula_id: str, payload: Dict[str, Any], current_user: dict = Depends(get_super_admin_user)):
+        """Clone a formula for a direct Scope 1 or Scope 2 category destination."""
+        target_category_id = payload.get("target_category_id")
+        source = await db.ce_formulas.find_one({"id": formula_id, "is_active": True}, {"_id": 0})
+        target = await db.emission_categories.find_one({"id": target_category_id, "is_active": {"$ne": False}}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Active source formula not found")
+        if not target:
+            raise HTTPException(status_code=404, detail="Active target category not found")
+        target_scope = await db.scopes.find_one({"id": target.get("scope_id")}, {"_id": 0, "id": 1, "code": 1})
+        if (target_scope or {}).get("code") not in {"scope1", "scope2"}:
+            raise HTTPException(status_code=400, detail="Direct cloning is limited to Scope 1 and Scope 2 categories. Use a Scope 3 formula group destination instead.")
+        clone = await create_formula(
+            db,
+            name=payload.get("name") or f"{target.get('code', target['id'])} — clone of {source.get('name', formula_id)}",
+            description=payload.get("description") or f"Independent clone of {formula_id} for {target.get('name', target['id'])}",
+            scope_ids=[target_scope["id"]],
+            category_ids=[target["id"]],
+            category_id=target["id"],
+            definition=deepcopy(source["definition"]),
+            created_by=current_user.get("id", "super_admin"),
+        )
+        await db.ce_formulas.update_one({"id": clone["id"]}, {"$set": {"source_formula_id": formula_id}})
+        return await db.ce_formulas.find_one({"id": clone["id"]}, {"_id": 0})
+
     # --- Input Field Mappings CRUD ---
 
     @router.post("/super-admin/calc-engine/input-field-mappings")
@@ -1666,7 +1837,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if derived_year is None and filter_value:
                     try:
                         query["year_applicable"] = int(filter_value)
-                    except:
+                    except (TypeError, ValueError):
                         query["year_applicable"] = filter_value
             
             elif filter_field == "is_active":
@@ -1914,6 +2085,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
 
         try:
             result = await engine.execute(
@@ -1945,6 +2117,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition = dict(formula_doc["definition"])
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
+        definition.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
         try:
             result = await engine.execute(
                 formula=definition, inputs=req.inputs, context=req.context,
@@ -1956,6 +2129,27 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         return {"ok": True, **result}
 
     # ----------------------------------------------------------------
+
+    # ----------------------------------------------------------------
+    # LINK AUDIT LOG TO EMISSION RECORD
+    # Called after Create to associate the calc-engine audit entry
+    # (written during dry_run=false) with the newly created emission.
+    # ----------------------------------------------------------------
+    @router.post("/calc-engine/audit-log/link-emission")
+    async def link_audit_log_to_emission(
+        body: dict,
+        current_user: dict = Depends(get_current_user),
+    ):
+        audit_log_id = body.get("audit_log_id")
+        emission_record_id = body.get("emission_record_id")
+        if not audit_log_id or not emission_record_id:
+            raise HTTPException(status_code=400, detail="audit_log_id and emission_record_id are required")
+        result = await db.ce_calculation_audit_logs.update_one(
+            {"id": audit_log_id},
+            {"$set": {"emission_record_id": emission_record_id}},
+        )
+        return {"ok": result.modified_count > 0}
+
     # GET AUDIT LOG BY EMISSION RECORD ID
     # Used by Edit Emission dialog to populate dynamic fields
     # ----------------------------------------------------------------

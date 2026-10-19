@@ -16,12 +16,18 @@
  * pure relative to its own scope — no external state ownership.
  */
 import axios from 'axios';
+import { useRef } from 'react';
 import { toast } from 'sonner';
 
-import { validateFileSize, getUploadErrorMessage } from '../../lib/uploadUtils';
+import { validateFileSize } from '../../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../../lib/secureFileAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const getUploadedFileId = (evidence) => (
+  evidence?.file_id || evidence?.url?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1]
+);
 
 const downloadFileHelper = async (url, filename) => {
   const link = document.createElement('a');
@@ -43,64 +49,30 @@ export function useEvidenceManagement({
   // Helpers
   getAuthHeader,
 }) {
-  const handleFileUpload = async (file) => {
+  const pendingDeletionIds = useRef(new Set());
+
+  const handleFileUpload = async (file, sha256Hash = null) => {
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       throw new Error(sizeErr);
     }
-    const formDataUpload = new FormData();
-    formDataUpload.append('file', file);
-
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formDataUpload, {
-        headers: {
-          ...getAuthHeader(),
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Don't set uploadedEvidence for multi-file uploads - it blocks the upload zone
-      // Instead, we track files in existingEvidences which are displayed separately
-
-      // Append new evidence URL to existing ones (don't replace)
-      setFormData(prev => {
-        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
-        const newUrls = [...existingUrls, response.data.url];
-        return {
-          ...prev,
-          evidence_url: newUrls.join(','),
-        };
-      });
-
-      // Add to existingEvidences for immediate display - use original filename from server response
-      setExistingEvidences(prev => [...prev, {
-        url: response.data.url,
-        filename: response.data.filename || file.name,  // Use original filename
-        file_id: response.data.file_id,
-      }]);
-
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error(getUploadErrorMessage(error, file));
-    }
+    setExistingEvidences(prev => [...prev, {
+      filename: file.name,
+      file,
+      size: file.size,
+      content_type: file.type,
+      is_draft: true,
+      sha256_hash: sha256Hash,
+    }]);
+    toast.success('File uploaded');
   };
 
   const handleDeleteExistingEvidence = async (index) => {
     const evidenceToDelete = existingEvidences[index];
 
-    // Try to delete from server if it's an uploaded file
-    if (evidenceToDelete.url.includes('/api/files/')) {
-      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
-        try {
-          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-            headers: getAuthHeader(),
-          });
-        } catch (error) {
-          console.error('Failed to delete file from server:', error);
-        }
-      }
+    const fileId = getUploadedFileId(evidenceToDelete);
+    if (!evidenceToDelete?.is_draft && fileId) {
+      pendingDeletionIds.current.add(fileId);
     }
 
     // Remove from existingEvidences state
@@ -110,27 +82,16 @@ export function useEvidenceManagement({
     // Update evidence_url in formData
     setFormData(prev => ({
       ...prev,
-      evidence_url: newEvidences.map(e => e.url).join(','),
+      evidence_url: newEvidences.map(e => e.url).filter(Boolean).join(','),
     }));
 
     toast.success('Evidence removed');
   };
 
   const handleDeleteAllEvidences = async () => {
-    // Try to delete all uploaded files from server
     for (const evidence of existingEvidences) {
-      if (evidence.url.includes('/api/files/')) {
-        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
-        if (fileIdMatch) {
-          try {
-            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-              headers: getAuthHeader(),
-            });
-          } catch (error) {
-            console.error('Failed to delete file from server:', error);
-          }
-        }
-      }
+      const fileId = getUploadedFileId(evidence);
+      if (!evidence.is_draft && fileId) pendingDeletionIds.current.add(fileId);
     }
 
     setExistingEvidences([]);
@@ -139,17 +100,34 @@ export function useEvidenceManagement({
   };
 
   const handleRemoveEvidence = async () => {
-    if (uploadedEvidence?.file_id) {
-      try {
-        await axios.delete(`${API}/files/${uploadedEvidence.file_id}`, {
-          headers: getAuthHeader(),
-        });
-      } catch (error) {
-        console.error('Failed to delete file:', error);
-      }
-    }
+    const fileId = getUploadedFileId(uploadedEvidence);
+    if (!uploadedEvidence?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
     setUploadedEvidence(null);
     setFormData(prev => ({ ...prev, evidence_url: '' }));
+  };
+
+  const commitEvidenceChanges = async (emissionId) => {
+    const drafts = existingEvidences.filter((evidence) => evidence?.is_draft && evidence?.file);
+    const uploadResults = await Promise.allSettled(drafts.map((evidence) => {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', evidence.file);
+      if (evidence.sha256_hash) formDataUpload.append('sha256_hash', evidence.sha256_hash);
+      return axios.post(`${API}/emissions/${emissionId}/evidence`, formDataUpload, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' },
+      });
+    }));
+    // The emission save already removes deleted URLs and performs reference-aware R2 cleanup.
+    // Calling the generic file-delete endpoint here would bypass that shared-evidence safeguard.
+    const deletionResults = [];
+    pendingDeletionIds.current.clear();
+    const failures = [...uploadResults, ...deletionResults].filter((result) => result.status === 'rejected').length;
+    if (failures) {
+      toast.error(`The record was saved, but ${failures} evidence change(s) could not be completed.`);
+    }
+  };
+
+  const discardEvidenceChanges = () => {
+    pendingDeletionIds.current.clear();
   };
 
   const handleViewEvidence = (evidenceUrl, e) => {
@@ -163,7 +141,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
+      void openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file'));
       return;
     }
 
@@ -188,8 +166,7 @@ export function useEvidenceManagement({
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
-      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
+      await downloadSecureFile(fileId);
       return;
     }
 
@@ -208,6 +185,8 @@ export function useEvidenceManagement({
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
     handleRemoveEvidence,
+    commitEvidenceChanges,
+    discardEvidenceChanges,
     handleViewEvidence,
     handleDownloadEvidence,
   };

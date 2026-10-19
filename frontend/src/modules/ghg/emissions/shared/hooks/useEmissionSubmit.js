@@ -13,7 +13,7 @@
  *  - Module dispatch via `categoryRegistry` (Scope 1/2 generic + per-category
  *    Scope 3 modules + biogenic + Stationary/Mobile/Fugitive)
  *  - `editingEmission` update path (PUT /emissions/{id})
- *  - Process Emissions branch (POST /emissions with template inputs)
+ *  - Process Emissions through the configuration-driven module dispatch
  *  - Final fallback toast for unsupported categories
  *
  * Behaviour byte-identical: validation gate, toast messages, axios endpoints,
@@ -23,37 +23,214 @@ import axios from 'axios';
 import { toast } from 'sonner';
 
 import { categoryRegistry } from '../../../../emissions';
+import { MONTHS } from '../constants/emission-form-constants';
+import { resolveDensityFieldState } from '../utils/unitHelpers';
+import { isMonthlyEntryStarted } from '../utils/monthlyCompletion';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const createSubmissionBatchId = () => (
+  globalThis.crypto?.randomUUID?.()
+  || `emission-batch-${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+
+const getApiErrorMessage = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg || item.message || JSON.stringify(item)).join(', ');
+  }
+  return typeof detail === 'string' ? detail : fallback;
+};
+
+const formatSavedMonths = (monthKeys) => {
+  const monthNames = monthKeys.map((monthKey) => (
+    MONTHS.find((month) => month.key === monthKey)?.name || String(monthKey)
+  ));
+  if (monthNames.length < 2) return monthNames[0] || 'the selected month';
+  if (monthNames.length === 2) return monthNames.join(' and ');
+  return `${monthNames.slice(0, -1).join(', ')}, and ${monthNames[monthNames.length - 1]}`;
+};
+
+const applyOcrEmissionMetadata = (payload, ocrPrefillData) => {
+  if (!ocrPrefillData) return payload;
+  const canonicalPayload = { ...payload };
+  ['naics_code', 'naics_label', 'naics_commodity', 'ef_database', 'accounting_rationale']
+    .forEach((field) => delete canonicalPayload[field]);
+  const invoiceNumber = String(ocrPrefillData.invoice_number || '').trim();
+  return {
+    ...canonicalPayload,
+    source_of_information: invoiceNumber ? `Invoice No. ${invoiceNumber}` : canonicalPayload.source_of_information,
+    record_source: 'OCR invoice upload',
+  };
+};
+
 export function useEmissionSubmit(ctx) {
   const submit = async () => {
     const {
-      facilityId, scope, category, fuelId,
+      facilityId, scope, category, categoryCode, fuelId,
       useCustomFuel, customFuelName, customEmissionFactor, customSource,
       recordSource,
-      isSaving, scope3Method, scope3ActivityId, scope3ActivityType,
+      isSaving, scope3Method, spendCurrencyConversionMethod = 'standard', allocationMethod, scope3ActivityId, scope3ActivityType,
       scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity, biogenicScopeSelection,
       employees, frequencyType, reportingYearType, reportingYear,
       monthlyData, yearlyData, processNames, responsiblePerson,
       responsiblePersonDesignation, responsiblePersonContact, notes, supplierName,
       supplierCode, employeeName, employeeId, assetName,
-      fromLocation, toLocation, selectedSubIndustry, selectedTemplate,
-      templateInputValues, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
-      isProcessEmissions, requiresSubcategory, selectedFuel, filteredScope3Activities,
+      fromLocation, toLocation, dynamicCategories, setIsSaving, isC7EmployeeCommuting,
+      isProcessEmissions = false, requiresSubcategory, selectedFuel, filteredScope3Activities,
       dynamicInputFields, centralizedUnits, defaultUnit, canProceedToStep, getAuthHeader,
-      onSuccess, getActualYearForMonth, evaluateFormula,
+      onSuccess, getActualYearForMonth,
       buildDecisionInputs, editingEmission,
+      decisionFieldValues,
+      capabilities,
+      calculateC7EmployeesForSave,
+      isC6MultiTrip = false,
+      c6Trips = { monthly: {}, yearly: [] },
+      // Optional supplier context
+      supplierContext = null,
+      assignedReportingPeriod = null,
+      // OCR context for finalize-import
+      ocrPrefillData = null,
+      // Evidence files are staged locally and only uploaded after record persistence.
+      commitDraftEvidence = null,
     } = ctx;
+    
+    // Helper to finalize OCR import after successful emission save
+    const finalizeOcrImport = async (emissionRecordIds) => {
+      if (!ocrPrefillData?.line_item_id) return;
+      
+      try {
+        console.log('[OCR Finalize] Calling finalize-import with:', {
+          line_item_id: ocrPrefillData.line_item_id,
+          emission_record_ids: emissionRecordIds
+        });
+        
+        await axios.post(`${API}/ocr-invoice/finalize-import`, {
+          line_item_id: ocrPrefillData.line_item_id,
+          emission_record_ids: emissionRecordIds
+        }, { headers: getAuthHeader() });
+        
+        console.log('[OCR Finalize] Successfully finalized OCR import');
+      } catch (err) {
+        console.error('[OCR Finalize] Failed to finalize import:', err);
+        toast.error('GHG entry was saved, but the invoice could not yet be attached as evidence. The OCR row remains available for retry.');
+      }
+    };
+    
+    // All emission creation uses the canonical endpoint so the calculated
+    // outputs, validation, audit history, and supplier safeguards share one
+    // persistence path. Supplier submission and period-lock actions remain in
+    // the supplier-assessment API.
+    const apiBase = `${API}/emissions`;
+
+    const rollbackSubmissionBatch = async (submissionBatchId) => {
+      try {
+        const response = await axios.post(`${API}/emissions/batch-rollback`, {
+          submission_batch_id: submissionBatchId,
+        }, { headers: getAuthHeader() });
+        return { rolledBackCount: response.data?.rolled_back_count || 0 };
+      } catch (error) {
+        return { error: getApiErrorMessage(error, 'Unable to reverse the saved months') };
+      }
+    };
+
+    // Link a calc-engine audit log entry to a newly created emission record.
+    // Best-effort: failures are logged but never block the save flow.
+    const linkAuditLog = async (auditLogId, emissionRecordId) => {
+      if (!auditLogId || !emissionRecordId) return;
+      try {
+        await axios.post(`${API}/calc-engine/audit-log/link-emission`, {
+          audit_log_id: auditLogId,
+          emission_record_id: emissionRecordId,
+        }, { headers: getAuthHeader() });
+      } catch (err) {
+        console.warn('[useEmissionSubmit] Failed to link audit log:', err);
+      }
+    };
+
+    const commitSavedEvidence = async (savedRecords) => {
+      if (!commitDraftEvidence || savedRecords.length === 0) return;
+      try {
+        await commitDraftEvidence(savedRecords);
+      } catch (error) {
+        console.error('[useEmissionSubmit] evidence commit failed:', error);
+        toast.error(`The emission was saved, but ${error.message || 'some evidence could not be uploaded'}.`);
+      }
+    };
 
     // Prevent duplicate submissions
     if (isSaving) return;
     
-    const validation = canProceedToStep(5); // Final validation
+    let submissionEmployees = employees;
+    if (isC7EmployeeCommuting && employees.length > 0 && calculateC7EmployeesForSave) {
+      setIsSaving(true);
+      const calculation = await calculateC7EmployeesForSave();
+      if (calculation?.error) {
+        toast.error(`Nothing was saved. ${calculation.error}`);
+        setIsSaving(false);
+        return;
+      }
+      submissionEmployees = calculation?.employees || employees;
+    }
+
+    const c6TripRows = isC6MultiTrip
+      ? (frequencyType === 'yearly'
+        ? (c6Trips.yearly || []).map((data, index) => ({
+          data,
+          periodKey: 'yearly',
+          tripNumber: index + 1,
+          frequency: 'yearly',
+        }))
+        : Object.entries(c6Trips.monthly || {}).flatMap(([periodKey, trips]) => (
+          (trips || []).map((data, index) => ({
+            data,
+            periodKey,
+            tripNumber: index + 1,
+            frequency: 'monthly',
+          }))
+        )))
+      : [];
+    const validation = canProceedToStep(4, {
+      employees: submissionEmployees,
+      multiTripRows: c6TripRows,
+    }); // Final validation
     if (!validation.valid) {
       toast.error(validation.message);
+      setIsSaving(false);
       return;
+    }
+
+    // Resolve Density from the actual quantity/reference unit pair at submit
+    // time. This is method- and unit-driven, so monthly/yearly, standard/custom
+    // fuels, and future categories share the same validation contract.
+    const isProcessCategory = isProcessEmissions || categoryCode === 'process_emissions';
+    if (dynamicInputFields.length > 0) {
+      const rowsToValidate = isC6MultiTrip
+        ? c6TripRows.map(({ periodKey, data }) => [periodKey, data])
+        : frequencyType === 'yearly'
+        ? [['yearly', yearlyData]]
+        : Object.entries(monthlyData || {});
+      for (const [periodKey, data] of rowsToValidate) {
+        const calculationMethodology = decisionFieldValues?.calculation_methodology
+          || data?.calculation_methodology
+          || buildDecisionInputs?.(data)?.calculation_methodology;
+        const densityState = resolveDensityFieldState({
+          calculationMethodology,
+          fields: dynamicInputFields,
+          data,
+          selectedFuel: useCustomFuel ? null : selectedFuel,
+          centralizedUnits,
+        });
+        if (!densityState.visible || densityState.effectiveDensity) continue;
+        {
+          const monthName = periodKey === 'yearly'
+            ? 'the annual entry'
+            : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+          toast.error(`Please enter Density (${densityState.densityUnit}) for ${monthName} because the quantity and factor units use different dimensions`);
+          return;
+        }
+      }
     }
 
     setIsSaving(true); // Disable button immediately
@@ -88,8 +265,204 @@ export function useEmissionSubmit(ctx) {
       return mod?.buildCreatePayload ? mod : null;
     };
 
+    // Config-driven Scope 1/2 submissions use this same calculation contract
+    // for a monthly row and the annual row. In particular, Custom Fuel EF
+    // overrides and Process Emissions decision inputs must not diverge by
+    // frequency before reaching the calculation engine.
+    const calculateModuleRow = async ({ activeModule, data, baseCtx }) => {
+      const {
+        inputs,
+        userOverrides,
+        decisionInputs: extractedDecisionInputs = {},
+        densityError,
+        isCustomFuelReady,
+        customFuelMissingFields = [],
+      } = activeModule.extractInputsForCalcEngine(data, baseCtx);
+      if (densityError) return { error: densityError };
+      if (useCustomFuel && !isCustomFuelReady) {
+        return { error: `Missing: ${customFuelMissingFields.join(', ') || 'Custom Fuel inputs'}` };
+      }
+
+      const { decisionInputs: moduleDecisionInputs, context, isScope3Like } = activeModule.buildDecisionContext(data, baseCtx);
+      const decisionInputs = { ...moduleDecisionInputs, ...extractedDecisionInputs };
+      const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
+      const categoryObj = dynamicCategories.find((item) => (
+        item.scope_code === effectiveScopeForLookup
+        && (item.code === categoryCode || (!categoryCode && item.name === category))
+      ));
+
+      if (isProcessCategory && !categoryObj?.id) {
+        return { error: 'Process Emissions calculation configuration is unavailable' };
+      }
+      if (useCustomFuel && !categoryObj?.id) {
+        return { error: 'Custom Fuel calculation category is unavailable' };
+      }
+
+      const result = {
+        inputs,
+        userOverrides,
+        calculatedCO2: 0,
+        calculatedCH4: 0,
+        calculatedN2O: 0,
+        calculatedCO2e: 0,
+        resolvedFormulaId: null,
+        formulaVersionId: null,
+        decisionTreeVersionId: null,
+        auditLogId: null,
+      };
+      if (!categoryObj?.id) return result;
+
+      const effectiveOverrides = { ...userOverrides };
+      if (useCustomFuel && inputs.ef_quantity) {
+        effectiveOverrides.ef_quantity = inputs.ef_quantity;
+        effectiveOverrides.emission_factor = inputs.ef_quantity;
+      }
+
+      try {
+        const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
+          category_id: categoryObj.id,
+          decision_inputs: decisionInputs,
+          inputs,
+          context,
+          user_overrides: effectiveOverrides,
+          dry_run: false,
+          ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
+        }, { headers: getAuthHeader() });
+        if (!calcResp.data?.ok) return { error: 'calculation returned no result' };
+
+        const calculated = calcResp.data;
+        return {
+          ...result,
+          calculatedCO2: calculated.outputs?.co2?.value || calculated.co2_emissions || 0,
+          calculatedCH4: calculated.outputs?.ch4?.value || calculated.ch4_emissions || 0,
+          calculatedN2O: calculated.outputs?.n2o?.value || calculated.n2o_emissions || 0,
+          calculatedCO2e: calculated.outputs?.co2e?.value || calculated.co2e_emissions || 0,
+          resolvedFormulaId: calculated.resolved_formula?.id || calculated.formula_id || null,
+          formulaVersionId: calculated.resolved_formula?.version_id || calculated.formula_version_id || null,
+          decisionTreeVersionId: calculated.resolved_decision_tree?.version_id || null,
+          auditLogId: calculated.audit_log_id || null,
+        };
+      } catch (error) {
+        const detail = error.response?.data?.detail;
+        return { error: typeof detail === 'string' ? detail : 'calculation failed' };
+      }
+    };
+
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
+
+      // C6 Business Travel: each trip uses the existing scoped calculation and
+      // payload contract, then persists as its own record. A shared batch ID
+      // preserves all-or-nothing behavior across every trip in this submission.
+      if (isC6MultiTrip) {
+        const c6Module = resolveDispatchModule();
+        if (!c6Module) {
+          toast.error('Business Travel is not available for direct submission. Please reload the page.');
+          setIsSaving(false);
+          return;
+        }
+
+        const startedTrips = c6TripRows.filter(({ data }) => (
+          isMonthlyEntryStarted(data, dynamicInputFields)
+        ));
+        if (startedTrips.length === 0) {
+          toast.error('Please enter data for at least one business travel trip');
+          setIsSaving(false);
+          return;
+        }
+
+        const submissionBatchId = createSubmissionBatchId();
+        const preparedTrips = [];
+        const errors = [];
+        for (const tripRow of startedTrips) {
+          const { data, periodKey, tripNumber, frequency } = tripRow;
+          const reportingPeriod = frequency === 'yearly'
+            ? (assignedReportingPeriod?.reporting_period || (reportingYearType === 'financial'
+              ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+              : `CY${reportingYear}`))
+            : `${getActualYearForMonth(periodKey)}-${periodKey}`;
+          const baseCtx = {
+            scope, category, categoryCode, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            recordSource, biogenicScopeSelection, scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId,
+            scope3ActivityType, scope3Subcategory, typeOfProduct, scope3CustomActivity, useCustomActivity,
+            supplierName, supplierCode, employeeName, employeeId, assetName,
+            fromLocation: data.from_location || fromLocation,
+            toLocation: data.to_location || toLocation,
+            notes, responsiblePerson, responsiblePersonDesignation, responsiblePersonContact,
+            validProcesses, dynamicInputFields, filteredScope3Activities, requiresSubcategory, centralizedUnits,
+            defaultUnit, buildDecisionInputs, frequencyType: frequency,
+            isOverrideCV: !!data.overrideCalorificValue,
+            isOverrideDensity: !!data.overrideDensity,
+            overrideEmissionFactorHeat: !!data.overrideEmissionFactorHeat,
+            overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
+            calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
+            resolvedFormulaId: null, formulaVersionId: null, decisionTreeVersionId: null, reportingPeriod,
+          };
+          const calculation = await calculateModuleRow({ activeModule: c6Module, data, baseCtx });
+          if (calculation.error) {
+            const periodLabel = frequency === 'yearly'
+              ? 'annual entry'
+              : (MONTHS.find((month) => month.key === periodKey)?.name || periodKey);
+            errors.push(`Trip ${tripNumber} in ${periodLabel}: ${calculation.error}`);
+            continue;
+          }
+          preparedTrips.push({
+            tripRow,
+            calculation,
+            payload: applyOcrEmissionMetadata({
+              ...c6Module.buildCreatePayload(data, { ...baseCtx, ...calculation }),
+              ...(frequency === 'yearly' && { frequency_type: 'yearly' }),
+              submission_batch_id: submissionBatchId,
+            }, ocrPrefillData),
+          });
+        }
+
+        if (errors.length > 0) {
+          toast.error(`Nothing was saved. ${errors.join(' • ')}. Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
+        let saveError = null;
+        for (const { tripRow, calculation, payload } of preparedTrips) {
+          try {
+            const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                evidences: tripRow.data?.evidences || [],
+              });
+              linkAuditLog(calculation.auditLogId, response.data.id);
+            }
+          } catch (error) {
+            const periodLabel = tripRow.frequency === 'yearly'
+              ? 'annual entry'
+              : (MONTHS.find((month) => month.key === tripRow.periodKey)?.name || tripRow.periodKey);
+            saveError = `Trip ${tripRow.tripNumber} in ${periodLabel}: ${getApiErrorMessage(error, 'Unable to save this record')}`;
+            break;
+          }
+        }
+
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved trip(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
+        await commitSavedEvidence(savedEvidenceRecords);
+        toast.success(`Created ${preparedTrips.length} business travel trip${preparedTrips.length === 1 ? '' : 's'}`);
+        onSuccess?.();
+        setIsSaving(false);
+        return;
+      }
       
       // ===========================================
       // C7 EMPLOYEE COMMUTING HANDLING (Phase F: module dispatch)
@@ -106,7 +479,7 @@ export function useEmissionSubmit(ctx) {
         }
 
         const c7Ctx = {
-          employees,
+          employees: submissionEmployees,
           frequencyType,
           facilityId,
           reportingYearType,
@@ -118,6 +491,9 @@ export function useEmissionSubmit(ctx) {
           useCustomActivity,
           filteredScope3Activities,
           notes,
+          recordSource,
+          supplierName,
+          supplierCode,
           responsiblePerson,
           responsiblePersonDesignation,
           responsiblePersonContact,
@@ -140,9 +516,23 @@ export function useEmissionSubmit(ctx) {
         // 3. POST + UI semantics (kept here — orchestration responsibility of the page/form)
         if (c7Built.mode === 'yearly') {
           try {
-            await axios.post(`${API}${c7Built.endpoint}`, c7Built.payload, {
+            const response = await axios.post(`${API}${c7Built.endpoint}`, applyOcrEmissionMetadata(c7Built.payload, ocrPrefillData), {
               headers: getAuthHeader(),
             });
+            if (response.data?.id) await finalizeOcrImport([response.data.id]);
+            if (response.data?.id) {
+              await commitSavedEvidence([{
+                id: response.data.id,
+                drafts: submissionEmployees.flatMap((employee) => (
+                  (employee.yearly_data?.evidences || []).map((evidence) => ({
+                    id: response.data.id,
+                    evidence,
+                    employeeId: employee.id,
+                    periodKey: 'yearly',
+                  }))
+                )),
+              }]);
+            }
             toast.success(`Created yearly C7 Employee Commuting record for ${c7Built.reportingPeriod}`);
             onSuccess?.();
           } catch (error) {
@@ -165,32 +555,56 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        let successCount = 0;
         let totalCo2e = 0;
-        const errors = [];
+        const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
+        const submissionBatchId = createSubmissionBatchId();
+        let saveError = null;
         for (const { monthKey, monthCo2e, payload } of c7Built.payloads) {
           totalCo2e += monthCo2e;
           try {
-            await axios.post(`${API}${c7Built.endpoint}`, payload, {
+            const response = await axios.post(`${API}${c7Built.endpoint}`, applyOcrEmissionMetadata({
+              ...payload,
+              submission_batch_id: submissionBatchId,
+            }, ocrPrefillData), {
               headers: getAuthHeader(),
             });
-            successCount++;
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                drafts: submissionEmployees.flatMap((employee) => (
+                  (employee.monthly_data?.[monthKey]?.evidences || []).map((evidence) => ({
+                    id: response.data.id,
+                    evidence,
+                    employeeId: employee.id,
+                    periodKey: monthKey,
+                  }))
+                )),
+              });
+            }
           } catch (err) {
             console.error(`[C7] Failed to save ${monthKey}:`, err);
-            errors.push(monthKey);
+            saveError = `${monthKey}: ${getApiErrorMessage(err, 'Unable to save this month')}`;
+            break;
           }
         }
 
-        if (successCount > 0) {
-          if (errors.length > 0) {
-            toast.warning(`Saved ${successCount}/${c7Built.payloads.length} months. Failed: ${errors.join(', ')}`);
-          } else {
-            toast.success(`Saved ${successCount} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
-          }
-          if (typeof onSuccess === 'function') onSuccess();
-        } else {
-          toast.error('Failed to save C7 emissions. Please try again.');
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
         }
+
+        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
+        await commitSavedEvidence(savedEvidenceRecords);
+
+        toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${submissionEmployees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+        if (typeof onSuccess === 'function') onSuccess();
 
         setIsSaving(false);
         return;
@@ -201,18 +615,14 @@ export function useEmissionSubmit(ctx) {
       // ===========================================
       if (frequencyType === 'yearly') {
         // Build reporting period string for yearly
-        const yearlyReportingPeriod = reportingYearType === 'financial' 
+        const yearlyReportingPeriod = assignedReportingPeriod?.reporting_period || (reportingYearType === 'financial' 
           ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
-          : `CY${reportingYear}`;
+          : `CY${reportingYear}`);
         
         // Validate yearly data has at least one value
         let hasYearlyData = false;
-        if (isProcessEmissions && selectedTemplate) {
-          hasYearlyData = selectedTemplate.input_fields?.some(f => 
-            yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
-          );
-        } else if (dynamicInputFields.length > 0) {
-          const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        if (dynamicInputFields.length > 0) {
+          const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
           hasYearlyData = requiredFields.some(f => {
             const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
             return value && parseFloat(value) > 0;
@@ -228,55 +638,7 @@ export function useEmissionSubmit(ctx) {
         }
         
         try {
-          // Build the yearly payload similar to monthly but with yearly-specific fields
-          const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
-          const effectiveScope = isScope3Like ? 'scope3' : scope;
-          
-          // Build inputs from yearlyData
-          const inputs = {};
-          const userOverrides = {};
-          let primaryQuantity = 0;
-          let primaryUnit = '';
-          
-          if (isProcessEmissions && selectedTemplate) {
-            // Process emissions yearly
-            const formulaValues = {};
-            selectedTemplate.input_fields?.forEach(field => {
-              formulaValues[field.key] = parseFloat(yearlyData[field.key]) || 0;
-              inputs[field.key] = { value: parseFloat(yearlyData[field.key]) || 0, unit: field.unit || '' };
-            });
-            selectedTemplate.predefined_inputs?.forEach(field => {
-              formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
-            });
-            
-            const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
-            const primaryInputField = selectedTemplate.input_fields?.[0];
-            primaryQuantity = primaryInputField ? (parseFloat(yearlyData[primaryInputField.key]) || 0) : 0;
-            primaryUnit = primaryInputField?.unit || 'unit';
-            
-            const payload = {
-              facility_id: facilityId,
-              reporting_period: yearlyReportingPeriod,
-              frequency_type: 'yearly',
-              scope: 'scope1',
-              category: 'Process Emissions',
-              sub_category: selectedSubIndustry,
-              fuel_type: selectedTemplate.name,
-              quantity: primaryQuantity,
-              quantity_unit: primaryUnit,
-              unit: primaryUnit,
-              calculated_co2e: calculatedEmission,
-              notes: notes,
-              responsible_person: responsiblePerson,
-              responsible_person_designation: responsiblePersonDesignation,
-              responsible_person_contact: responsiblePersonContact,
-              process_names: [selectedSubIndustry, selectedTemplate.name],
-            };
-            
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
-            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
-            onSuccess?.();
-          } else if (dynamicInputFields.length > 0) {
+          if (dynamicInputFields.length > 0) {
             // ============================================================
             // YEARLY DISPATCH (post-Phase F: module-driven, single record)
             // ============================================================
@@ -307,6 +669,9 @@ export function useEmissionSubmit(ctx) {
               overrideEmissionFactorHeat: false,
               overrideJustification: '',
               scope,
+              category,
+              capabilities,
+              buildDecisionInputs,
             });
             if (!yModValidation.valid) {
               toast.error(yModValidation.errorMessage);
@@ -315,10 +680,10 @@ export function useEmissionSubmit(ctx) {
             }
 
             const yBaseCtx = {
-              scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+              scope, category, categoryCode, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
               recordSource,
               biogenicScopeSelection,
-              scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+              scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId, scope3ActivityType, scope3Subcategory,
               typeOfProduct,
               scope3CustomActivity, useCustomActivity,
               supplierName, supplierCode, employeeName, employeeId,
@@ -329,6 +694,7 @@ export function useEmissionSubmit(ctx) {
               filteredScope3Activities, requiresSubcategory, centralizedUnits,
               defaultUnit,
               buildDecisionInputs,
+              frequencyType,
               // Per-row override flags read from yearlyData (yearly has a single row).
               isOverrideCV: !!yearlyData.overrideCalorificValue,
               isOverrideDensity: !!yearlyData.overrideDensity,
@@ -336,58 +702,40 @@ export function useEmissionSubmit(ctx) {
               overrideJustification: yearlyData.calorificValueJustification || yearlyData.densityJustification || yearlyData.emissionFactorHeatJustification || '',
               calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
               resolvedFormulaId: null,
+              formulaVersionId: null,
+              decisionTreeVersionId: null,
               reportingPeriod: yearlyReportingPeriod,
             };
 
-            const { inputs: yInputs, userOverrides: yOverrides } = yearlyMod.extractInputsForCalcEngine(yearlyData, yBaseCtx);
-            const { decisionInputs: yDecisionInputs, context: yContext, isScope3Like: yIsScope3Like } = yearlyMod.buildDecisionContext(yearlyData, yBaseCtx);
-
-            let yCalcCO2 = 0, yCalcCH4 = 0, yCalcN2O = 0, yCalcCO2e = 0;
-            let yResolvedFormulaId = null;
-
-            const yEffectiveScope = yIsScope3Like ? 'scope3' : scope;
-            const yCategoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === yEffectiveScope);
-
-            if (yCategoryObj?.id && !useCustomFuel) {
-              try {
-                const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
-                  category_id: yCategoryObj.id,
-                  decision_inputs: yDecisionInputs,
-                  inputs: yInputs,
-                  context: yContext,
-                  user_overrides: yOverrides,
-                  dry_run: false,
-                  ...(yIsScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-                }, { headers: getAuthHeader() });
-                if (calcResp.data?.ok) {
-                  const r = calcResp.data;
-                  yCalcCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
-                  yCalcCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
-                  yCalcN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
-                  yCalcCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
-                  yResolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
-                }
-              } catch (e) {
-                // Fall through with zeros — record persisted, can be recalculated later
-              }
-            } else if (useCustomFuel) {
-              const customEF = parseFloat(customEmissionFactor) || 0;
-              const primaryQty = parseFloat(yearlyData[dynamicInputFields[0]?.variable] || 0);
-              yCalcCO2 = primaryQty * customEF;
-              yCalcCO2e = yCalcCO2;
+            const yearlyCalculation = await calculateModuleRow({
+              activeModule: yearlyMod,
+              data: yearlyData,
+              baseCtx: yBaseCtx,
+            });
+            if (yearlyCalculation.error) {
+              toast.error(yearlyCalculation.error);
+              setIsSaving(false);
+              return;
             }
 
-            const yPayload = {
+            const yPayload = applyOcrEmissionMetadata({
               ...yearlyMod.buildCreatePayload(yearlyData, {
                 ...yBaseCtx,
-                calculatedCO2: yCalcCO2, calculatedCH4: yCalcCH4, calculatedN2O: yCalcN2O, calculatedCO2e: yCalcCO2e,
-                resolvedFormulaId: yResolvedFormulaId,
+                ...yearlyCalculation,
               }),
               // Yearly-only marker (legacy parity)
               frequency_type: 'yearly',
-            };
+          }, ocrPrefillData);
 
-            await axios.post(`${API}/emissions`, yPayload, { headers: getAuthHeader() });
+            const yResp = await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
+            if (yResp.data?.id) {
+              linkAuditLog(yearlyCalculation.auditLogId, yResp.data.id);
+              await finalizeOcrImport([yResp.data.id]);
+              await commitSavedEvidence([{
+                id: yResp.data.id,
+                evidences: yearlyData.evidences || [],
+              }]);
+            }
             toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
             onSuccess?.();
           }
@@ -407,17 +755,11 @@ export function useEmissionSubmit(ctx) {
       // ===========================================
       // MONTHLY FREQUENCY HANDLING (Existing)
       // ===========================================
-      // For process emissions, filter months that have template input data
-      // For regular emissions, filter months with dynamic field data
+      // Filter months with configuration-driven dynamic field data.
       let monthsWithData;
-      if (isProcessEmissions && selectedTemplate) {
-        const inputFields = selectedTemplate.input_fields || [];
-        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
-          return inputFields.some(field => data?.[field.key] && parseFloat(data[field.key]) > 0);
-        });
-      } else if (dynamicInputFields.length > 0) {
+      if (dynamicInputFields.length > 0) {
         // For dynamic form config, check if any required field (non-override) has value
-        const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        const requiredFields = dynamicInputFields.filter(f => !f.isOverride && !f.presentationOnly);
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
           return requiredFields.some(field => {
             const value = data?.[field.variable] || data?.[field.fieldKey];
@@ -431,96 +773,6 @@ export function useEmissionSubmit(ctx) {
 
       if (monthsWithData.length === 0) {
         toast.error('Please enter data for at least one month');
-        setIsSaving(false);
-        return;
-      }
-
-      // PROCESS EMISSIONS HANDLING
-      if (isProcessEmissions && selectedTemplate) {
-        let successCount = 0;
-        const errors = [];
-        
-        for (const [monthKey, data] of monthsWithData) {
-          const actualYear = getActualYearForMonth(monthKey);
-          const reportingPeriod = `${actualYear}-${monthKey}`;
-          
-          // Build formula values from monthly data (required inputs) and overridden predefined inputs
-          const formulaValues = {};
-          
-          // Add required input values from monthly data
-          selectedTemplate.input_fields?.forEach(field => {
-            formulaValues[field.key] = parseFloat(data[field.key]) || 0;
-          });
-          
-          // Add predefined values (use overridden values from templateInputValues)
-          selectedTemplate.predefined_inputs?.forEach(field => {
-            formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
-          });
-          
-          // Calculate emissions using template formula
-          const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
-          
-          // Get the primary input field info for display
-          const primaryInputField = selectedTemplate.input_fields?.[0];
-          const activityQuantity = primaryInputField ? (parseFloat(data[primaryInputField.key]) || 0) : 0;
-          const activityUnit = primaryInputField?.unit || 'unit';
-          
-          const payload = {
-            facility_id: facilityId,
-            reporting_period: reportingPeriod,
-            scope: 'scope1', // Process emissions are Scope 1
-            category: 'Process Emissions',
-            sub_category: selectedSubIndustry,
-            fuel_type: selectedTemplate.name,
-            quantity: activityQuantity,
-            quantity_unit: activityUnit,
-            unit: activityUnit,
-            emission_factor: 1,
-            emission_factor_ch4: null,
-            emission_factor_n2o: null,
-            is_custom_factor: false,
-            source_of_information: `Template: ${selectedTemplate.name}`,
-            record_source: recordSource ? String(recordSource).trim() : '',
-            notes: notes,
-            responsible_person: responsiblePerson,
-            responsible_person_designation: responsiblePersonDesignation,
-            responsible_person_contact: responsiblePersonContact,
-            process_names: [selectedSubIndustry, selectedTemplate.name],
-            evidence_url: data.evidences?.map(e => e.url).join(',') || '',
-            // Pre-calculated values
-            calculated_co2: calculatedEmission,
-            calculated_ch4: 0,
-            calculated_n2o: 0,
-            calculated_co2e: calculatedEmission,
-            co2_unit: 'tCO2',
-            ch4_unit: 'tCH4',
-            n2o_unit: 'tN2O',
-            co2e_unit: 'tCO2e',
-            // Template metadata
-            template_id: selectedTemplate.id,
-            template_inputs: formulaValues
-          };
-          
-          try {
-            await axios.post(`${API}/emissions`, payload, {
-              headers: getAuthHeader()
-            });
-            successCount++;
-          } catch (err) {
-            console.error(`Failed to save process emission for ${reportingPeriod}:`, err);
-            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
-          }
-        }
-        
-        if (successCount > 0) {
-          toast.success(`Created ${successCount} process emission record(s) successfully`);
-        }
-        if (errors.length > 0) {
-          toast.error(`Failed to save: ${errors.join(', ')}`);
-        }
-        if (successCount > 0) {
-          onSuccess?.();
-        }
         setIsSaving(false);
         return;
       }
@@ -552,6 +804,9 @@ export function useEmissionSubmit(ctx) {
           overrideEmissionFactorHeat: false,
           overrideJustification: '',
           scope,
+          category,
+          capabilities,
+          buildDecisionInputs,
         });
         if (!modValidation.valid) {
           toast.error(modValidation.errorMessage);
@@ -559,17 +814,18 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        let successCount = 0;
         const errors = [];
+        const preparedRows = [];
+        const submissionBatchId = createSubmissionBatchId();
         for (const [monthKey, data] of monthsWithData) {
           const actualYear = getActualYearForMonth(monthKey);
           const reportingPeriod = `${actualYear}-${monthKey}`;
 
           const baseCtx = {
-            scope, category, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
+            scope, category, categoryCode, capabilities, facilityId, fuelId, selectedFuel, useCustomFuel, customFuelName, customSource,
             recordSource,
             biogenicScopeSelection,
-            scope3Method, scope3ActivityId, scope3ActivityType, scope3Subcategory,
+            scope3Method, spendCurrencyConversionMethod, allocationMethod, scope3ActivityId, scope3ActivityType, scope3Subcategory,
             typeOfProduct,
             scope3CustomActivity, useCustomActivity,
             supplierName, supplierCode, employeeName, employeeId,
@@ -580,6 +836,7 @@ export function useEmissionSubmit(ctx) {
             filteredScope3Activities, requiresSubcategory, centralizedUnits,
             defaultUnit,
             buildDecisionInputs,
+            frequencyType,
             // Per-month CV/density override flags read from `data` (the row).
             // Pass row-level flags so Scope1Create payload sets override_justification correctly.
             isOverrideCV: !!data.overrideCalorificValue,
@@ -588,65 +845,78 @@ export function useEmissionSubmit(ctx) {
             overrideJustification: data.calorificValueJustification || data.densityJustification || data.emissionFactorHeatJustification || '',
             calculatedCO2: 0, calculatedCH4: 0, calculatedN2O: 0, calculatedCO2e: 0,
             resolvedFormulaId: null,
+            formulaVersionId: null,
+            decisionTreeVersionId: null,
             reportingPeriod,
           };
 
-          const { inputs, userOverrides } = dispatchActiveModule.extractInputsForCalcEngine(data, baseCtx);
-          const { decisionInputs, context, isScope3Like } = dispatchActiveModule.buildDecisionContext(data, baseCtx);
-
-          let calculatedCO2 = 0, calculatedCH4 = 0, calculatedN2O = 0, calculatedCO2e = 0;
-          let resolvedFormulaId = null;
-
-          // Calc-engine lookup uses scope-specific category code
-          const effectiveScopeForLookup = isScope3Like ? 'scope3' : scope;
-          const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScopeForLookup);
-
-          if (categoryObj?.id && !useCustomFuel) {
-            try {
-              const calcResp = await axios.post(`${API}/calc-engine/execute-by-category`, {
-                category_id: categoryObj.id,
-                decision_inputs: decisionInputs,
-                inputs,
-                context,
-                user_overrides: userOverrides,
-                dry_run: false,
-                ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
-              }, { headers: getAuthHeader() });
-              if (calcResp.data?.ok) {
-                const r = calcResp.data;
-                calculatedCO2 = r.outputs?.co2?.value || r.co2_emissions || 0;
-                calculatedCH4 = r.outputs?.ch4?.value || r.ch4_emissions || 0;
-                calculatedN2O = r.outputs?.n2o?.value || r.n2o_emissions || 0;
-                calculatedCO2e = r.outputs?.co2e?.value || r.co2e_emissions || 0;
-                resolvedFormulaId = r.resolved_formula?.id || r.formula_id || null;
-              }
-            } catch (e) {
-              // Fall through with zeros — record persisted, can be recalculated later
-            }
-          } else if (useCustomFuel) {
-            const customEF = parseFloat(customEmissionFactor) || 0;
-            const primaryQty = parseFloat(data[dynamicInputFields[0]?.variable] || 0);
-            calculatedCO2 = primaryQty * customEF;
-            calculatedCO2e = calculatedCO2;
+          const rowCalculation = await calculateModuleRow({
+            activeModule: dispatchActiveModule,
+            data,
+            baseCtx,
+          });
+          if (rowCalculation.error) {
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${rowCalculation.error}`);
+            continue;
           }
 
-          const payload = dispatchActiveModule.buildCreatePayload(data, {
-            ...baseCtx,
-            calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e,
-            resolvedFormulaId,
+          preparedRows.push({
+            monthKey,
+            data,
+            calculation: rowCalculation,
+            payload: applyOcrEmissionMetadata({
+              ...dispatchActiveModule.buildCreatePayload(data, {
+                ...baseCtx,
+                ...rowCalculation,
+              }),
+              submission_batch_id: submissionBatchId,
+            }, ocrPrefillData),
           });
+        }
 
+        if (errors.length > 0) {
+          toast.error(`Nothing was saved. ${errors.join(' • ')}. Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        const savedEmissionIds = [];
+        const savedEvidenceRecords = [];
+        let saveError = null;
+        for (const { monthKey, data, calculation, payload } of preparedRows) {
           try {
-            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
-            successCount++;
+            const response = await axios.post(apiBase, payload, { headers: getAuthHeader() });
+            if (response.data?.id) {
+              savedEmissionIds.push(response.data.id);
+              savedEvidenceRecords.push({
+                id: response.data.id,
+                evidences: data.evidences || [],
+              });
+              linkAuditLog(calculation.auditLogId, response.data.id);
+            }
           } catch (err) {
-            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            saveError = `${monthName}: ${getApiErrorMessage(err, 'Unable to save this record')}`;
+            break;
           }
         }
 
-        if (successCount > 0) toast.success(`Created ${successCount} emission record(s) successfully`);
-        if (errors.length > 0) toast.error(`Failed to save some records. Please try again.`);
-        if (successCount > 0) onSuccess?.();
+        if (saveError) {
+          const rollback = await rollbackSubmissionBatch(submissionBatchId);
+          const rollbackMessage = rollback.error
+            ? `Rollback issue: ${rollback.error}`
+            : `${rollback.rolledBackCount} saved month(s) were reverted.`;
+          toast.error(`Nothing was saved. ${saveError}. ${rollbackMessage} Fix the issue and try again.`, { duration: 10000 });
+          setIsSaving(false);
+          return;
+        }
+
+        if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
+          await finalizeOcrImport(savedEmissionIds);
+        }
+        await commitSavedEvidence(savedEvidenceRecords);
+        toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
+        onSuccess?.();
         setIsSaving(false);
         return;
       }

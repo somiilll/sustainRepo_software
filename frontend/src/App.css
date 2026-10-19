@@ -1,3 +1,20 @@
+[data-testid^="preview-training-"] { order: 1; }
+[data-testid^="manage-training-assignments-"] { order: 2; }
+[data-testid^="edit-training-due-date-"] { order: 3; }
+[data-testid^="training-overflow-menu-"] { order: 4; }
+[data-testid^="training-overflow-menu-content-"] { background-color: #ffffff !important; opacity: 1 !important; }
+[data-testid^="emission-row-"] > div[style] {
+  min-width: 0;
+  text-align: center !important;
+}
+[data-testid^="emission-row-"] > div[style].flex {
+  justify-content: center !important;
+}
+[data-testid^="emission-row-"] > div[style] > p {
+  width: 100%;
+  min-width: 0;
+  text-align: center !important;
+}
 .App {
   min-height: 100vh;
   background-color: #F5F7F5;
@@ -8,4 +25,30 @@
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .toaster.group {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    width: auto !important;
+  }
+
+  .toaster.group [data-sonner-toast] {
+    width: 100% !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end {
+    min-width: 39rem;
+  }
+
+  [data-testid^="published-supplier-agreement-"] .xl\:justify-end:not(:has([data-testid^="preview-supplier-agreement-"]))::before {
+    content: "";
+    display: inline-block;
+    width: 4.75rem;
+    height: 2rem;
+    flex: 0 0 auto;
+  }
 }

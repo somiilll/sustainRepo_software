@@ -238,12 +238,12 @@ export function verifyModuleContracts(registry, options = {}) {
 
   if (!silent) {
     if (issues.length === 0) {
-      // eslint-disable-next-line no-console
+       
       console.log(
         `[Emissions] Module contract verification PASSED — ${stats.checked} modules checked, EDIT+CREATE surfaces clean.`
       );
     } else {
-      // eslint-disable-next-line no-console
+       
       console.warn(
         `[Emissions] Module contract verification: ${issues.length} issue(s) across ${stats.checked} modules`,
         { stats, issues }

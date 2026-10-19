@@ -13,6 +13,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
+import { resolveEmissionQuantity } from '../../modules/ghg/emissions/shared/utils/emissionQuantity';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -85,9 +86,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
   // Process emissions state
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
   
   // Calculation results
   const [calculatedEmissions, setCalculatedEmissions] = useState(null);
@@ -164,9 +162,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setExistingEvidences([]);
     setUploadedEvidence(null);
     setIsFormDirty(false);
-    setSelectedSubIndustry('');
-    setSelectedTemplate(null);
-    setTemplateInputValues({});
   }, []);
   
   // Handle dialog open/close
@@ -209,6 +204,7 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     try {
       // Populate form data from emission
       const dfv = emission.dynamic_field_values || {};
+      const primaryQuantity = resolveEmissionQuantity(emission);
       
       setFormData({
         facility_id: emission.facility_id || '',
@@ -217,8 +213,8 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
         sub_category: emission.sub_category || emission.fuel_type || '',
         fuel_id: emission.fuel_database_id || '',
         fuel_type: emission.fuel_type || '',
-        quantity: dfv.qty?.value?.toString() || emission.quantity?.toString() || '',
-        quantity_unit: dfv.qty?.unit || emission.quantity_unit || 'kg',
+        quantity: primaryQuantity.value?.toString() || '',
+        quantity_unit: primaryQuantity.unit || 'kg',
         source_of_information: emission.source_of_information || '',
         record_source: emission.record_source || '',
         notes: emission.notes || '',
@@ -355,14 +351,6 @@ export function useEmissionEdit(getAuthHeader, fetchData) {
     setEditFormConfig,
     editFormConfigLoading,
     setEditFormConfigLoading,
-    
-    // Process emissions state
-    selectedSubIndustry,
-    setSelectedSubIndustry,
-    selectedTemplate,
-    setSelectedTemplate,
-    templateInputValues,
-    setTemplateInputValues,
     
     // Calculation results
     calculatedEmissions,

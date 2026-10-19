@@ -13,6 +13,17 @@
  * Calc-engine invocation stays in the host page.
  */
 
+import { buildCustomFuelCalculationPayload } from '../../../../pages/emissions/utils/customFuelCalcAdapter';
+import {
+  normalizeCustomFuelCalorificValueUnit,
+  normalizeCustomFuelCompoundUnit,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
+  normalizeDensityForCalcEngine,
+  prepareDensityAwareCalculationInputs,
+} from '../../../ghg/emissions/shared/utils/unitHelpers';
+import { resolveMonthlySelectableUnit } from '../../../ghg/emissions/shared/utils/monthlyFieldUnits';
+
 // ---------- field unit resolver (Scope 1/2: no scope3_ef branch) ----------
 
 function resolveFieldUnit(field, data, ctx) {
@@ -26,12 +37,61 @@ function resolveFieldUnit(field, data, ctx) {
   } else {
     fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
   }
-  return data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
+  const storedUnit = data[`${field.variable}_unit`]
+    || data[`${field.fieldKey}_unit`]
+    || (field.unitSource === 'fuel' ? data.unit : '')
+    || '';
+  const configuredUnit = field.defaultUnit
+    || field.default_unit
+    || field.expectedUnit
+    || '';
+  if (field.unitSource === 'fuel') {
+    return resolveMonthlySelectableUnit({
+      storedUnit,
+      configuredUnit,
+      allowedUnits: fieldUnits,
+    });
+  }
+  return storedUnit || configuredUnit || fieldUnits[0] || '';
 }
+
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
+
+const getDensityOverride = (data) => {
+  if (!hasNumericValue(data.density)) return null;
+  return {
+    value: Number.parseFloat(data.density),
+    unit: data.density_unit || 'kg/L',
+  };
+};
 
 // ---------- input + override extraction ----------
 
 export function extractInputsForCalcEngine(data, ctx) {
+  if (ctx.useCustomFuel) {
+    const customFuelCalculation = buildCustomFuelCalculationPayload({
+      dynamicFieldValues: data,
+      categoryCode: ctx.categoryCode,
+      categoryName: ctx.category,
+      calculationMethodology: ctx.buildDecisionInputs?.(data)?.calculation_methodology,
+      centralizedUnits: ctx.centralizedUnits,
+    });
+    const quantity = customFuelCalculation.inputs.qty;
+    return {
+      inputs: customFuelCalculation.inputs,
+      userOverrides: customFuelCalculation.userOverrides,
+      decisionInputs: customFuelCalculation.decisionInputs,
+      primaryQuantity: quantity?.value || 0,
+      primaryUnit: quantity?.unit || ctx.defaultUnit || '',
+      isCustomFuelReady: customFuelCalculation.isReady,
+      customFuelMissingFields: customFuelCalculation.missingFields,
+    };
+  }
   const { dynamicInputFields } = ctx;
   const inputs = {};
   const userOverrides = {};
@@ -39,6 +99,7 @@ export function extractInputsForCalcEngine(data, ctx) {
   let primaryUnit = ctx.defaultUnit || '';
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     if (value === undefined || value === null || value === '') return;
 
@@ -62,7 +123,44 @@ export function extractInputsForCalcEngine(data, ctx) {
     }
   });
 
-  return { inputs, userOverrides, primaryQuantity, primaryUnit };
+  // Scope 2 currently has a generic source configuration rather than an
+  // input-field mapping. Preserve its ledger quantity in the canonical input
+  // contract until that configuration is fully data-driven.
+  if (dynamicInputFields.length === 0 && hasNumericValue(data.quantity)) {
+    const unit = data.unit || ctx.selectedFuel?.allowed_units?.[0] || ctx.defaultUnit || '';
+    const value = parseFloat(data.quantity);
+    inputs.qty = { value, unit };
+    primaryQuantity = value;
+    primaryUnit = unit;
+  }
+
+  // Process Emissions creates Density at runtime when its selected units need
+  // a mass/volume conversion. That virtual field is not always part of the
+  // configured mapping list, but the calc engine must still receive it as a
+  // user override rather than resolving an IPCC default.
+  const densityOverride = getDensityOverride(data);
+  if (densityOverride) {
+    userOverrides.density = normalizeDensityForCalcEngine(densityOverride);
+  }
+
+  const calculationMethodology = ctx.buildDecisionInputs?.(data)?.calculation_methodology;
+  const preparedCalculation = prepareDensityAwareCalculationInputs({
+    inputs,
+    calculationMethodology,
+    fields: dynamicInputFields,
+    data,
+    selectedFuel: ctx.selectedFuel,
+    centralizedUnits: ctx.centralizedUnits,
+  });
+
+  return {
+    inputs: preparedCalculation.inputs,
+    userOverrides,
+    decisionInputs: preparedCalculation.decisionInputs,
+    primaryQuantity,
+    primaryUnit,
+    densityError: preparedCalculation.error,
+  };
 }
 
 export function buildDynamicFieldValues(data, ctx) {
@@ -70,6 +168,7 @@ export function buildDynamicFieldValues(data, ctx) {
   const out = {};
 
   dynamicInputFields.forEach((field) => {
+    if (field.presentationOnly) return;
     const value = data[field.variable] !== undefined ? data[field.variable] : data[field.fieldKey];
     const unit = resolveFieldUnit(field, data, ctx);
 
@@ -95,6 +194,79 @@ export function buildDynamicFieldValues(data, ctx) {
     }
   });
 
+  if (dynamicInputFields.length === 0 && hasNumericValue(data.quantity)) {
+    out.qty = {
+      value: parseFloat(data.quantity),
+      unit: data.unit || ctx.selectedFuel?.allowed_units?.[0] || ctx.defaultUnit || '',
+    };
+  }
+
+  // Persist runtime Density controls even when the process configuration has
+  // no density mapping. This keeps Edit hydration and the calculation audit
+  // aligned with the user-provided conversion factor.
+  const densityOverride = getDensityOverride(data);
+  if (densityOverride) {
+    out.density = {
+      ...densityOverride,
+      is_override: Boolean(data.override_density || data.overrideDensity),
+      ...(data.density_justification || data.densityJustification
+        ? { justification: data.density_justification || data.densityJustification }
+        : {}),
+    };
+  }
+
+  if (ctx.useCustomFuel) {
+    const hasValue = (value) => value !== undefined && value !== null && value !== '';
+    const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
+    const quantity = hasValue(data.qty) ? data.qty : data.quantity;
+    const quantityUnit = normalizeCustomFuelQuantityUnit(
+      data.custom_qty_unit || ctx.defaultUnit || data.qty_unit || data.quantity_unit || data.unit || 'kg',
+    );
+    const decisionInputs = ctx.buildDecisionInputs?.(data) || {};
+    const calculationMethodology = data.calculation_methodology
+      || decisionInputs.calculation_methodology
+      || 'using_heat_basis_ncv';
+    const customEmissionFactorFallback = calculationMethodology === 'using_qty_basis_ef'
+      ? 'kgCO2/kg'
+      : 'tCO2/TJ';
+
+    // CustomFuelMonthFields owns these per-period inputs, so they must not
+    // depend on the standard dynamic field list for persistence.
+    out.qty = { value: parseValue(quantity), unit: quantityUnit };
+    if (hasValue(data.custom_ef)) {
+      out.custom_ef = {
+        value: parseValue(data.custom_ef),
+        unit: normalizeCustomFuelCompoundUnit(data.custom_ef_unit || customEmissionFactorFallback),
+      };
+    }
+    if (hasValue(data.custom_cv)) {
+      out.custom_cv = {
+        value: parseValue(data.custom_cv),
+        unit: normalizeCustomFuelCalorificValueUnit(data.custom_cv_unit || ''),
+      };
+    }
+    if (hasValue(data.custom_carbon_content)) {
+      out.custom_carbon_content = { value: parseValue(data.custom_carbon_content), unit: '%' };
+    }
+    if (hasValue(data.custom_oxidation_factor)) {
+      out.custom_oxidation_factor = { value: parseValue(data.custom_oxidation_factor), unit: '' };
+    }
+    if (hasValue(data.density)) {
+      out.density = {
+        value: parseValue(data.density),
+        unit: normalizeCustomFuelDensityUnit(data.density_unit || 'kg/L'),
+      };
+    }
+    if (ctx.categoryCode === 'fugitive_emissions' && hasValue(data.co2_gwp_fugitives)) {
+      out.co2_gwp_fugitives = {
+        value: parseValue(data.co2_gwp_fugitives),
+        unit: '',
+        is_override: true,
+      };
+    }
+    out.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
+
   return out;
 }
 
@@ -102,12 +274,16 @@ export function buildDecisionContext(data, ctx) {
   const {
     scope,
     category,
+    categoryCode,
     facilityId,
     reportingPeriod,
     fuelId,
     selectedFuel,
     biogenicScopeSelection,
     buildDecisionInputs,
+    frequencyType,
+    useCustomFuel,
+    customFuelName,
   } = ctx;
 
   // For Scope 1/2: no scope3 fields; biogenic-scope1 keeps scope='biogenic' in record but
@@ -115,15 +291,28 @@ export function buildDecisionContext(data, ctx) {
   const effectiveScope =
     scope === 'biogenic' && biogenicScopeSelection === 'scope1' ? 'scope1' : scope;
 
-  const decisionInputs = buildDecisionInputs(data);
+  const customFuelDecisionInputs = useCustomFuel
+    ? buildCustomFuelCalculationPayload({
+      dynamicFieldValues: data,
+      categoryCode,
+      categoryName: category,
+      calculationMethodology: buildDecisionInputs(data)?.calculation_methodology,
+      centralizedUnits: ctx.centralizedUnits,
+    }).decisionInputs
+    : {};
+  const decisionInputs = {
+    ...buildDecisionInputs(data),
+    ...customFuelDecisionInputs,
+  };
 
   const context = {
-    fuel_name: selectedFuel?.fuel_name,
-    fuel_id: fuelId,
+    fuel_name: useCustomFuel ? customFuelName : selectedFuel?.fuel_name,
+    fuel_id: useCustomFuel ? null : fuelId,
     scope: effectiveScope,
     category,
     facility_id: facilityId,
     reporting_period: reportingPeriod,
+    is_custom_fuel: useCustomFuel || false,
   };
 
   return { decisionInputs, context, effectiveScope };
@@ -134,7 +323,7 @@ export function buildDecisionContext(data, ctx) {
 /**
  * Pre-loop validation for Scope 1/2 + biogenic-scope1 CREATE.
  *
- * Mirrors the legacy gating: process-name, override justification,
+ * Mirrors the legacy gating: override justification,
  * fuel selection, calc prerequisite. Per-month override value validity
  * is checked downstream during the per-month loop (caller iterates).
  */
@@ -150,24 +339,24 @@ export function validateCreateSubmission(ctx) {
     overrideEmissionFactorHeat,
     overrideJustification,
     scope,
+    buildDecisionInputs,
   } = ctx;
 
-  // Process names + descriptions
+  // Process details are optional metadata. Preserve any supplied values for
+  // payload construction without blocking a valid emission submission.
   const validProcessNames = (processNames || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
-  }
 
-  // Fuel selection
-  if (!fuelId && !useCustomFuel) {
-    return { valid: false, errorMessage: 'Please select a fuel from the database' };
-  }
-  if (useCustomFuel && !customFuelName?.trim()) {
-    return { valid: false, errorMessage: 'Please enter a custom fuel name' };
+  // Fuel selection — Process Emissions don't require fuel
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
+  if (!isProcessEmissions) {
+    if (!fuelId && !useCustomFuel) {
+      return { valid: false, errorMessage: 'Please select a fuel from the database' };
+    }
+    if (useCustomFuel && !customFuelName?.trim()) {
+      return { valid: false, errorMessage: 'Please enter a custom fuel name' };
+    }
+  } else if (!buildDecisionInputs?.({}).process_type) {
+    return { valid: false, errorMessage: 'Please select a process type' };
   }
 
   // Override justification (Scope 1/2 only)
@@ -204,6 +393,7 @@ export function buildCreatePayload(monthData, ctx) {
     reportingPeriod,
     scope,
     category,
+    categoryCode,
     biogenicScopeSelection,
     fuelId,
     selectedFuel,
@@ -220,15 +410,34 @@ export function buildCreatePayload(monthData, ctx) {
     isOverrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    buildDecisionInputs,
+    frequencyType,
     // calc-engine outputs
     calculatedCO2,
     calculatedCH4,
     calculatedN2O,
     calculatedCO2e,
     resolvedFormulaId,
+    formulaVersionId,
+    decisionTreeVersionId,
   } = ctx;
 
   const dynamicFieldValues = buildDynamicFieldValues(monthData, ctx);
+  const decisionInputs = buildDecisionInputs ? buildDecisionInputs(monthData) : {};
+  const isScope1Like = scope === 'scope1'
+    || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
+  const calculationMethodology = isScope1Like
+    ? (decisionInputs.calculation_methodology || 'using_heat_basis_ncv')
+    : null;
+  const processType = decisionInputs.process_type || null;
+
+  if (calculationMethodology) {
+    dynamicFieldValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+  }
+
+  if (processType) {
+    dynamicFieldValues.process_type = { value: processType, unit: '' };
+  }
 
   const outputs = {
     co2: { value: calculatedCO2 || 0, unit: 'tCO2' },
@@ -242,13 +451,21 @@ export function buildCreatePayload(monthData, ctx) {
   return {
     facility_id: facilityId,
     reporting_period: reportingPeriod,
+    frequency_type: frequencyType || 'monthly',
     scope, // Keep original scope (biogenic stays biogenic)
     category,
+    category_code: categoryCode || null,
     sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
     fuel_database_id: useCustomFuel ? null : fuelId,
+    is_custom_fuel: useCustomFuel || false,
+    custom_fuel_name: useCustomFuel ? customFuelName : null,
+    calculation_methodology: calculationMethodology,
+    process_type: processType,
 
     formula_id: resolvedFormulaId,
+    formula_version_id: formulaVersionId || null,
+    decision_tree_version_id: decisionTreeVersionId || null,
 
     ...(scope === 'biogenic' && {
       biogenic_scope_selection: biogenicScopeSelection,

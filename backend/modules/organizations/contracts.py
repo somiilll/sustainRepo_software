@@ -1,16 +1,22 @@
 """Organization Pydantic contracts."""
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+# Valid ESG frameworks
+VALID_ESG_FRAMEWORKS = ["BRSR", "GRI"]
 
 
 class OrganizationCreate(BaseModel):
     name: str
+    org_type: Optional[str] = "customer"  # customer, supplier, customer_supplier
     logo: Optional[str] = None
     corporate_address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = None  # IANA timezone (e.g., 'Asia/Kolkata', 'America/New_York')
     pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None
@@ -18,7 +24,8 @@ class OrganizationCreate(BaseModel):
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = "yearly"
     reporting_year_type: Optional[str] = None
-    org_boundaries_approach: Optional[str] = None
+    financial_year_start_month: Optional[int] = None
+    org_boundaries_approach: Optional[str] = "control"
     org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
     equity_share_reported_data_type: Optional[str] = None
@@ -58,7 +65,13 @@ class OrganizationCreate(BaseModel):
 
     # Approval workflow (per-org opt-in extension).
     approval_workflow_enabled: Optional[bool] = False
+    
+    # Multi-level approval chain (Manager → Director → VP style approval)
+    multi_level_approval_enabled: Optional[bool] = False
 
+    # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
+    esg_frameworks_enabled: List[str] = Field(default_factory=list)
+    
     @field_validator('pincode')
     @classmethod
     def validate_pincode(cls, v):
@@ -68,16 +81,35 @@ class OrganizationCreate(BaseModel):
                 raise ValueError('Pincode must be exactly 6 digits')
         return v
 
+    @field_validator('financial_year_start_month')
+    @classmethod
+    def validate_financial_year_start_month(cls, v):
+        if v is not None and not 1 <= v <= 12:
+            raise ValueError('Financial year start month must be between 1 and 12')
+        return v
+
+    @field_validator('esg_frameworks_enabled', mode='before')
+    @classmethod
+    def validate_esg_frameworks(cls, v):
+        if v is None:
+            return []
+        invalid = [f for f in v if f not in VALID_ESG_FRAMEWORKS]
+        if invalid:
+            raise ValueError(f'Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}')
+        return v
+
 
 class OrganizationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     name: str
+    org_type: Optional[str] = "customer"  # customer, supplier, customer_supplier
     logo: Optional[str] = None
     corporate_address: str
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = "Asia/Kolkata"  # IANA timezone - defaults to IST
     pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None
@@ -85,6 +117,7 @@ class OrganizationResponse(BaseModel):
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = None
     reporting_year_type: Optional[str] = None
+    financial_year_start_month: Optional[int] = None
     org_boundaries_approach: Optional[str] = None
     org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
@@ -129,4 +162,13 @@ class OrganizationResponse(BaseModel):
 
     # Approval workflow (per-org opt-in extension; super-admin controlled).
     approval_workflow_enabled: Optional[bool] = False
+    
+    # Multi-level approval chain (Manager → Director → VP style approval)
+    multi_level_approval_enabled: Optional[bool] = False
+
+    # ESG Frameworks enabled for this organization (BRSR, GRI, SBTi)
+    esg_frameworks_enabled: Optional[List[str]] = None
+    
+    entitlements: Dict[str, bool] = Field(default_factory=dict)
+    permissions: Dict[str, bool] = Field(default_factory=dict)
 

@@ -14,7 +14,7 @@ import { useState, useEffect } from 'react';
  * @param {Object} options.editingEmission - Emission being edited (if any)
  * @returns {Object} All state values and setters
  */
-export function useEmissionFormState({ organization = null, editingEmission = null } = {}) {
+export function useEmissionFormState({ organization = null, editingEmission = null, assignedReportingPeriod = null } = {}) {
   // ============================================================================
   // STEP STATE - Form navigation
   // ============================================================================
@@ -40,6 +40,8 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // SCOPE 3 SPECIFIC STATE
   // ============================================================================
   const [scope3Method, setScope3Method] = useState('');
+  const [spendCurrencyConversionMethod, setSpendCurrencyConversionMethod] = useState('standard');
+  const [allocationMethod, setAllocationMethod] = useState('');
   const [scope3EFData, setScope3EFData] = useState([]);
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3ActivityType, setScope3ActivityType] = useState('');
@@ -73,17 +75,15 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   const [c7FormulaId, setC7FormulaId] = useState(null);
   const [c7FormulaName, setC7FormulaName] = useState('');
 
+  // C6 Business Travel supports several independently saved trips in the
+  // same reporting period. Edit mode continues to hydrate the standard
+  // single-record monthly/yearly state.
+  const [c6Trips, setC6Trips] = useState({ monthly: {}, yearly: [] });
+
   // ============================================================================
   // DECISION TREE STATE
   // ============================================================================
   const [decisionFieldValues, setDecisionFieldValues] = useState({});
-
-  // ============================================================================
-  // PROCESS EMISSIONS STATE
-  // ============================================================================
-  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templateInputValues, setTemplateInputValues] = useState({});
 
   // ============================================================================
   // DYNAMIC FORM CONFIG STATE (Calc Engine Integration)
@@ -108,10 +108,13 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // Determine organization's reporting year type preference
   const orgReportingYearType = organization?.reporting_year_type;
   const hasOrgYearTypePreference = orgReportingYearType === 'financial_year' || orgReportingYearType === 'calendar_year';
-  const defaultYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
+  const defaultYearType = assignedReportingPeriod?.reporting_year_type
+    || (orgReportingYearType === 'financial_year' ? 'financial' : 'calendar');
+  const defaultReportingYear = assignedReportingPeriod?.reporting_year
+    || new Date().getFullYear().toString();
 
   const [reportingYearType, setReportingYearType] = useState(defaultYearType);
-  const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
+  const [reportingYear, setReportingYear] = useState(defaultReportingYear);
   const [frequencyType, setFrequencyType] = useState('monthly');
   const [monthlyData, setMonthlyData] = useState({});
   const [yearlyData, setYearlyData] = useState({});
@@ -145,10 +148,13 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
   // EFFECTS: Sync state with organization preferences
   // ============================================================================
   useEffect(() => {
-    if (hasOrgYearTypePreference) {
+    if (assignedReportingPeriod?.reporting_year_type && assignedReportingPeriod?.reporting_year) {
+      setReportingYearType(assignedReportingPeriod.reporting_year_type);
+      setReportingYear(assignedReportingPeriod.reporting_year);
+    } else if (hasOrgYearTypePreference) {
       setReportingYearType(defaultYearType);
     }
-  }, [hasOrgYearTypePreference, defaultYearType]);
+  }, [assignedReportingPeriod, hasOrgYearTypePreference, defaultYearType]);
 
   // Sync decision field values with scope3Method, scope3ActivityType,
   // scope3Subcategory and typeOfProduct (the keys must match decision-tree
@@ -159,18 +165,28 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
       if (scope3Method) {
         updated['calculation_method_scope3'] = scope3Method;
       }
+      if (scope3Method === 'spend_basis') {
+        updated['spend_currency_conversion_method'] = spendCurrencyConversionMethod || 'standard';
+      } else {
+        delete updated['spend_currency_conversion_method'];
+      }
       if (scope3ActivityType) {
         updated['activity_type'] = scope3ActivityType;
       }
       if (scope3Subcategory) {
         updated['subcategory_selection'] = scope3Subcategory;
       }
+      if (allocationMethod) {
+        updated['allocation_method'] = allocationMethod;
+      } else {
+        delete updated['allocation_method'];
+      }
       if (typeOfProduct) {
         updated['type_of_product'] = typeOfProduct;
       }
       return updated;
     });
-  }, [scope3Method, scope3ActivityType, scope3Subcategory, typeOfProduct]);
+  }, [scope3Method, spendCurrencyConversionMethod, scope3ActivityType, scope3Subcategory, typeOfProduct, allocationMethod]);
 
   // Auto-enable custom activity when "others" activity type is selected with supplier_basis
   useEffect(() => {
@@ -235,6 +251,8 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
 
     // Scope 3
     scope3Method, setScope3Method,
+    spendCurrencyConversionMethod, setSpendCurrencyConversionMethod,
+    allocationMethod, setAllocationMethod,
     scope3EFData, setScope3EFData,
     scope3ActivityId, setScope3ActivityId,
     scope3ActivityType, setScope3ActivityType,
@@ -260,14 +278,10 @@ export function useEmissionFormState({ organization = null, editingEmission = nu
     isCalculatingEmployee, setIsCalculatingEmployee,
     c7FormulaId, setC7FormulaId,
     c7FormulaName, setC7FormulaName,
+    c6Trips, setC6Trips,
 
     // Decision tree
     decisionFieldValues, setDecisionFieldValues,
-
-    // Process Emissions
-    selectedSubIndustry, setSelectedSubIndustry,
-    selectedTemplate, setSelectedTemplate,
-    templateInputValues, setTemplateInputValues,
 
     // Dynamic Form Config
     formConfig, setFormConfig,

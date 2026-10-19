@@ -5,15 +5,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SinkCreate(BaseModel):
-    facility_id: str
-    reporting_year: str
-    reporting_month: Optional[int] = None  # 0-11; null for yearly
+    facility_id: Optional[str] = None
+    reporting_period: str
     total_emissions_reduced: float
     description: Optional[str] = None
     evidence_urls: Optional[List[str]] = None
     evidence_files: Optional[List[Dict[str, str]]] = None
     frequency_type: Optional[str] = "monthly"  # "monthly" | "yearly"
-    # Legacy fields kept for backward compat.
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     evidence_url: Optional[str] = None
@@ -23,10 +21,8 @@ class SinkCreate(BaseModel):
 class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    facility_id: str
+    facility_id: Optional[str] = None
     organization_id: Optional[str] = None
-    reporting_year: Optional[str] = None
-    reporting_month: Optional[int] = None
     total_emissions_reduced: float
     description: Optional[str] = None
     evidence_urls: Optional[List[str]] = None

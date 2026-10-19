@@ -3,6 +3,11 @@
  * 
  * Constants used across the EmissionEntryForm and related components
  */
+import {
+  SUBCATEGORY_CATEGORIES,
+  ASSET_NAME_CATEGORIES,
+  LOCATION_CATEGORIES,
+} from '../../../../../constants/categories';
 
 // Calendar months (Jan-Dec). Canonical ordering used everywhere unless an
 // explicit financial-year layout is requested.
@@ -50,14 +55,7 @@ export const EMISSION_FACTOR_UNITS = [
   { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
 ];
 
-// Categories that require subcategory selection
-export const SUBCATEGORY_CATEGORIES = ['c8', 'c10', 'c11', 'c13', 'c14'];
-
-// Categories that require Asset Name field
-export const ASSET_NAME_CATEGORIES = ['c8', 'c13', 'c14', 'c15'];
-
-// Categories that show From/To Location fields (transportation/travel categories)
-export const LOCATION_CATEGORIES = ['c4', 'c6', 'c9'];
+export { SUBCATEGORY_CATEGORIES, ASSET_NAME_CATEGORIES, LOCATION_CATEGORIES };
 
 // Fields that must be whole numbers (integers)
 export const INTEGER_ONLY_FIELDS = [

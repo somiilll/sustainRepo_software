@@ -1,12 +1,130 @@
 """Organization "self" routes — Admin can edit, User views own org."""
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Dict, Optional, List
+from datetime import datetime, timezone
 
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
 from shared.database.mongo import db
+from shared.utils.timezone_utils import get_common_timezones, get_default_timezone_for_country
+from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config, resolve_entitlements
+from modules.organizations.presentation import enrich_organization_response
+from modules.sustainability_config.service import resolve_organization_settings
 
 router = APIRouter()
+
+# Software asset keys stored in R2 (software_images bucket)
+SOFTWARE_ASSETS = {
+    "logo": "logos/sustainrepo_logo.png",
+    "login-background": "images/login-sustainability.png",
+}
+
+
+@router.get("/software-assets/{asset_name}")
+async def get_software_asset(asset_name: str):
+    """Get presigned URL for a software asset (logo, etc.)."""
+    key = SOFTWARE_ASSETS.get(asset_name)
+    if not key:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        from r2_storage import get_r2_storage
+        url = get_r2_storage().generate_presigned_url(
+            bucket_type="software_images", key=key, expiration=86400
+        )
+        return {"url": url}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to generate URL")
+
+
+class TimezoneOption(BaseModel):
+    """Timezone option for dropdown selection."""
+    value: str
+    label: str
+    offset: str
+
+
+@router.get("/timezones", response_model=List[TimezoneOption])
+async def get_timezones():
+    """Get list of common timezones for dropdown selection."""
+    return get_common_timezones()
+
+
+@router.get("/timezones/default/{country}")
+async def get_default_timezone(country: str):
+    """Get default timezone for a country."""
+    tz = get_default_timezone_for_country(country)
+    return {"timezone": tz, "country": country}
+
+
+class YearlyDataCreate(BaseModel):
+    turnover: Optional[str] = None
+    turnover_frequency: Optional[str] = "yearly"  # "yearly" or "monthly"
+    turnover_monthly: Optional[dict] = None  # {"Apr": 100, "May": 200, ...}
+    turnover_currency: Optional[str] = "INR"
+    production_quantity: Optional[str] = None
+    production_quantity_frequency: Optional[str] = "yearly"
+    production_quantity_monthly: Optional[dict] = None
+    production_unit: Optional[str] = "MT"
+
+
+class OrgModuleConfig(BaseModel):
+    """Organization module configuration for frontend sidebar visibility."""
+    enabled_access: Optional[list] = None  # scope1_2 or scope1_2_3
+    esg_frameworks_enabled: Optional[list] = None
+    approval_workflow_enabled: bool = False  # Single-level approval workflow
+    multi_level_approval_enabled: bool = False  # Multi-level approval chain feature flag
+    timezone: str = "UTC"  # Organization's IANA timezone
+    entitlements: Dict[str, bool] = {}
+    permissions: Dict[str, bool] = {}
+
+
+@router.get("/organization/module-config")
+async def get_org_module_config(current_user: dict = Depends(get_current_user)):
+    """Get organization's module configuration for sidebar visibility."""
+    if current_user["role"] == "super_admin":
+        # Super admin sees all modules
+        return OrgModuleConfig(
+            enabled_access=["scope1_2_3"],
+            esg_frameworks_enabled=["BRSR", "GRI"],
+            approval_workflow_enabled=True,
+            multi_level_approval_enabled=True,  # Super admin can see all features
+            timezone="UTC",  # Super admin uses UTC
+            entitlements={},
+            permissions={}
+        )
+    
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        return OrgModuleConfig()
+    
+    org = await db.organizations.find_one(
+        {"id": org_id},
+        {"_id": 0, "enabled_access": 1, "esg_frameworks_enabled": 1, "approval_workflow_enabled": 1, "multi_level_approval_enabled": 1, "timezone": 1}
+    )
+    
+    if not org:
+        return OrgModuleConfig()
+    
+    detailed_entitlements = await resolve_entitlement_config(org_id, migrate=True)
+    organization_settings = await resolve_organization_settings(org_id, migrate=True)
+    entitlements = await resolve_entitlements(org_id, migrate=True)
+    permissions = entitlement_access_map(detailed_entitlements)
+    enabled_access = []
+    if permissions.get("environment.ghg.scope_1_2"):
+        enabled_access.append("scope1_2")
+    if permissions.get("environment.ghg.scope_3"):
+        enabled_access.extend(["scope3", "scope1_2_3"])
+    return OrgModuleConfig(
+        enabled_access=enabled_access,
+        esg_frameworks_enabled=organization_settings["esg_frameworks_enabled"],
+        approval_workflow_enabled=organization_settings["approval_workflow_enabled"],
+        multi_level_approval_enabled=organization_settings["multi_level_approval_enabled"],
+        timezone=org.get("timezone") or "Asia/Kolkata",  # Default to IST
+        entitlements=entitlements,
+        permissions=permissions,
+    )
 
 
 @router.get("/organizations/my", response_model=OrganizationResponse)
@@ -21,6 +139,14 @@ async def get_my_organization(current_user: dict = Depends(get_current_user)):
     org = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Apply defaults for existing orgs without these fields
+    if "org_type" not in org or not org.get("org_type"):
+        org["org_type"] = "customer"
+    if "timezone" not in org or not org.get("timezone"):
+        org["timezone"] = "Asia/Kolkata"  # IST
+    org = await enrich_organization_response(org)
+    
     return OrganizationResponse(**org)
 
 
@@ -38,7 +164,7 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     update_dict = org_data.model_dump(exclude_unset=True)
 
     # Fields that admin shouldn't be able to overwrite (super-admin only).
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at', 'approval_workflow_enabled', 'multi_level_approval_enabled']
     for field in fields_to_preserve:
         update_dict.pop(field, None)
 
@@ -65,4 +191,174 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
         new_values=update_dict,
     )
 
-    return OrganizationResponse(**updated)
+    return OrganizationResponse(**(await enrich_organization_response(updated)))
+
+
+def _normalize_org_year(reporting_year: str) -> tuple:
+    """Returns (fin_key, prod_period) in canonical format.
+    Detects CY vs FY from the input string.
+    """
+    from shared.utils.period_utils import normalize_period
+    normalized = normalize_period(reporting_year)
+    return normalized, normalized
+
+
+@router.get("/organization/yearly-data/{reporting_year}")
+async def get_yearly_data(
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get organization yearly data (turnover from financials, production from production_quantities)."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=404, detail="No organization assigned")
+    
+    fin_key, prod_period = _normalize_org_year(reporting_year)
+    from shared.utils.period_utils import extract_year, period_variants, detect_type
+    _year = extract_year(fin_key) or 0
+    _rtype = detect_type(fin_key)
+    legacy_variants = period_variants(_year, _rtype)
+    
+    financials = await db.organization_financials.find_one(
+        {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
+        {"_id": 0}
+    )
+    
+    production = await db.production_quantities.find_one(
+        {"organization_id": org_id, "facility_id": None, "reporting_period": {"$in": legacy_variants}, "is_deleted": {"$ne": True}},
+        {"_id": 0}
+    )
+    
+    return {
+        "turnover": financials.get("turnover") if financials else "",
+        "turnover_frequency": financials.get("frequency", "yearly") if financials else "yearly",
+        "turnover_monthly": financials.get("monthly_data") if financials else None,
+        "turnover_currency": financials.get("currency", "INR") if financials else "INR",
+        "production_quantity": str(production.get("quantity", "")) if production else "",
+        "production_quantity_frequency": production.get("frequency", "yearly") if production else "yearly",
+        "production_quantity_monthly": production.get("monthly_data") if production else None,
+        "production_unit": production.get("unit", "MT") if production else "MT"
+    }
+
+
+@router.post("/organization/yearly-data/{reporting_year}")
+async def save_yearly_data(
+    reporting_year: str,
+    data: YearlyDataCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save organization yearly data - turnover to financials, production to production_quantities."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=404, detail="No organization assigned")
+    
+    fin_key, prod_period = _normalize_org_year(reporting_year)
+    from shared.utils.period_utils import extract_year, period_variants, detect_type
+    _year2 = extract_year(fin_key) or 0
+    _rtype2 = detect_type(fin_key)
+    legacy_variants = period_variants(_year2, _rtype2)
+    
+    now = datetime.now(timezone.utc)
+    user_id = current_user.get("id")
+    
+    # A reporting period has one entry type. Ignore the inactive mode even if a
+    # legacy client submits both values.
+    turnover_frequency = data.turnover_frequency or "yearly"
+    turnover_value = data.turnover if turnover_frequency == "yearly" else None
+    turnover_monthly = data.turnover_monthly if turnover_frequency == "monthly" else None
+
+    # Handle turnover - save if provided, delete if empty/null
+    if turnover_value or turnover_monthly:
+        update_doc = {
+            "org_id": org_id,
+            "reporting_year": fin_key,
+            "frequency": turnover_frequency,
+            "currency": data.turnover_currency or "INR",
+            "updated_at": now,
+            "updated_by": user_id
+        }
+        if turnover_frequency == "monthly" and turnover_monthly:
+            update_doc["monthly_data"] = turnover_monthly
+            update_doc["turnover"] = str(sum(float(v) for v in turnover_monthly.values() if v))
+        else:
+            update_doc["turnover"] = turnover_value
+            update_doc["monthly_data"] = None
+        await db.organization_financials.update_one(
+            {"org_id": org_id, "reporting_year": {"$in": legacy_variants}},
+            {"$set": update_doc, "$setOnInsert": {"created_at": now}},
+            upsert=True
+        )
+    else:
+        # Delete turnover record if value is cleared
+        await db.organization_financials.delete_one({
+            "org_id": org_id, 
+            "reporting_year": {"$in": legacy_variants}
+        })
+    
+    production_frequency = data.production_quantity_frequency or "yearly"
+    production_value = data.production_quantity if production_frequency == "yearly" else None
+    production_monthly = data.production_quantity_monthly if production_frequency == "monthly" else None
+
+    # Handle production quantity - save if provided, delete if empty/null
+    if production_value or production_monthly:
+        import uuid
+        freq = production_frequency
+        qty = 0
+        monthly_data = None
+        if freq == "monthly" and production_monthly:
+            monthly_data = production_monthly
+            qty = sum(float(v) for v in monthly_data.values() if v)
+        elif production_value:
+            qty = float(production_value)
+
+        existing = await db.production_quantities.find_one({
+            "organization_id": org_id,
+            "facility_id": None,
+            "reporting_period": {"$in": legacy_variants},
+            "is_deleted": {"$ne": True}
+        })
+        
+        if existing:
+            await db.production_quantities.update_one(
+                {"id": existing["id"]},
+                {"$set": {
+                    "quantity": qty,
+                    "unit": data.production_unit or "MT",
+                    "frequency": freq,
+                    "monthly_data": monthly_data,
+                    "reporting_period": prod_period,
+                    "updated_at": now,
+                    "updated_by": user_id
+                }}
+            )
+        else:
+            new_record = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "facility_id": None,
+                "reporting_period": prod_period,
+                "quantity": qty,
+                "unit": data.production_unit or "MT",
+                "frequency": freq,
+                "monthly_data": monthly_data,
+                "notes": "Added from Organization module",
+                "created_at": now,
+                "created_by": user_id,
+                "updated_at": now,
+                "updated_by": user_id,
+                "is_deleted": False
+            }
+            await db.production_quantities.insert_one(new_record)
+    else:
+        # Delete production record if value is cleared (soft delete)
+        await db.production_quantities.update_one(
+            {
+                "organization_id": org_id,
+                "facility_id": None,
+                "reporting_period": {"$in": legacy_variants},
+                "is_deleted": {"$ne": True}
+            },
+            {"$set": {"is_deleted": True, "updated_at": now, "updated_by": user_id}}
+        )
+    
+    return {"success": True, "message": f"Saved data for {prod_period}"}

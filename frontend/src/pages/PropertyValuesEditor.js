@@ -41,7 +41,7 @@ export default function PropertyValuesEditor() {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, []);  // eslint-disable-line
+  useEffect(() => { load(); }, []);   
 
   const filtered = useMemo(
     () => (selectedKey ? values.filter((v) => v.property_key === selectedKey) : values),

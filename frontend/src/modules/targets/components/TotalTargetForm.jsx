@@ -37,7 +37,7 @@ export default function TotalTargetForm({ value, yearOptions, onFieldChange, dis
           </div>
         </div>
         <div>
-          <Label className="text-xs text-text-muted">Value</Label>
+          <Label className="text-xs text-text-muted">Target Value</Label>
           <Input
             type="number"
             step="any"

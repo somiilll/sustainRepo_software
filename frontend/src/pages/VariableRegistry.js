@@ -72,7 +72,7 @@ export default function VariableRegistry() {
     }
   };
 
-  useEffect(() => { load(); }, []);  // eslint-disable-line
+  useEffect(() => { load(); }, []);   
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();

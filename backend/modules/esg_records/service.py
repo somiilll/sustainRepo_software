@@ -1,0 +1,3127 @@
+"""
+ESG Records Module - Service Layer
+
+Handles business logic for ESG records with versioning support.
+"""
+
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone
+import re
+import uuid
+from fastapi import HTTPException
+from shared.database.mongo import db
+
+from .contracts import (
+    ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
+    UpdateRecordRequest, RecordListFilters
+)
+from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
+
+
+def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
+    """Return the previous applied snapshot, excluding display-only rejected proposals."""
+    for candidate in versions[index + 1:]:
+        if candidate.get("record_was_changed") is False:
+            continue
+        if isinstance(candidate.get("snapshot"), dict):
+            return candidate
+    return None
+
+
+def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
+    """Attach stored submitter/approver change stages for a proposal-backed ESG version event."""
+    snapshot = proposal.get("entity_snapshot") or {}
+    submitted = [
+        {
+            "field": item.get("field_key"),
+            "display_name": item.get("field_key", "").replace("_", " ").title(),
+            "old_value": item.get("old_value"),
+            "new_value": item.get("new_value"),
+        }
+        for item in snapshot.get("changes_summary", [])
+        if item.get("field_key")
+    ]
+    version["submitted_field_diffs"] = submitted
+    version["approver_edited"] = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    final_values = (version.get("snapshot") or {}).get("field_values") or {}
+    version["approver_field_diffs"] = [
+        {
+            "field": item["field"],
+            "display_name": item["display_name"],
+            "old_value": item["new_value"],
+            "new_value": final_values.get(item["field"]),
+        }
+        for item in submitted
+        if final_values.get(item["field"]) != item["new_value"]
+    ] if version["approver_edited"] else []
+    version["requested_by"] = version.get("requested_by") or proposal.get("submitted_by")
+    version["requested_by_name"] = version.get("requested_by_name") or proposal.get("submitted_by_name")
+    version["requested_by_email"] = version.get("requested_by_email") or proposal.get("submitted_by_email")
+
+
+class ESGRecordsService:
+    """Service for managing ESG records with versioning."""
+    
+    def __init__(self):
+        self._categories = db["esg_record_categories"]
+        self._field_configs = db["esg_record_field_configs"]
+    
+    def _get_records_collection(self, section: ESG_SECTION):
+        """Get the records collection for a section."""
+        return db[f"{section}_records"]
+    
+    def _get_versions_collection(self, section: ESG_SECTION):
+        """Get the versions collection for a section."""
+        return db[f"{section}_record_versions"]
+    
+    # =========================================================================
+    # Category Management
+    # =========================================================================
+    
+    async def list_categories(
+        self,
+        section: ESG_SECTION,
+        framework: Optional[str] = None,
+        include_inactive: bool = False
+    ) -> List[Dict[str, Any]]:
+        """List categories for a section."""
+        query = {"section": section}
+        if not include_inactive:
+            query["is_active"] = True
+        if framework:
+            query["frameworks"] = framework
+        
+        cursor = self._categories.find(query, {"_id": 0}).sort("order", 1)
+        return await cursor.to_list(None)
+    
+    async def get_category(self, category_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single category config."""
+        return await self._categories.find_one(
+            {"id": category_id}, 
+            {"_id": 0}
+        )
+    
+    async def get_category_by_name(
+        self, 
+        section: ESG_SECTION, 
+        category: str, 
+        subcategory: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Get category by name."""
+        query = {"section": section, "category": category}
+        if subcategory:
+            query["subcategory"] = subcategory
+        return await self._categories.find_one(query, {"_id": 0})
+    
+    # =========================================================================
+    # Record CRUD
+    # =========================================================================
+    
+    async def create_record(
+        self,
+        section: ESG_SECTION,
+        org_id: str,
+        user_id: str,
+        data: CreateRecordRequest,
+        skip_assignment_check: bool = False,  # For admin override
+        allow_without_assignment: bool = False,  # Allow if no assignment found (admin)
+        is_admin: bool = False,  # Admin bypasses approval requirement
+    ) -> Dict[str, Any]:
+        """
+        Create a new ESG record.
+        
+        Validates user has an active assignment for the category/subcategory
+        at the correct level (org vs facility).
+        
+        Args:
+            skip_assignment_check: If True, skip assignment lookup entirely
+            allow_without_assignment: If True, allow record creation even without assignment
+                                      (but still look up assignment to get requires_approval)
+            is_admin: If True, admin bypasses approval workflow (record saved directly as approved)
+        """
+        collection = self._get_records_collection(section)
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        
+        # ACCESS CONTROL: Check if user has valid assignment
+        assignment = None
+        requires_approval = False
+        
+        if not skip_assignment_check:
+            assignment = await self._validate_user_assignment(
+                org_id=org_id,
+                user_id=user_id,
+                category=data.category,
+                subcategory=data.subcategory,
+                sub_subcategory=data.sub_subcategory,
+                facility_id=data.facility_id,
+                record_level=data.record_level,
+            )
+            if not assignment and not allow_without_assignment:
+                # Get facility name if facility_id is provided
+                facility_name = None
+                if data.facility_id:
+                    facility = await db.facilities.find_one(
+                        {"id": data.facility_id},
+                        {"_id": 0, "name": 1}
+                    )
+                    facility_name = facility.get("name") if facility else data.facility_id
+                
+                location_str = f"at {facility_name}" if facility_name else "at organization level"
+                raise ValueError(
+                    f"No active assignment found for {data.category}/{data.subcategory or ''} "
+                    f"{location_str}"
+                )
+            # Check if this assignment requires approval
+            if assignment:
+                requires_approval = assignment.get("requires_approval", False)
+            
+            # PERIOD VALIDATION: Check if user has a task for this reporting period
+            if not allow_without_assignment and data.reporting_period:
+                period_valid = await self._validate_task_period(
+                    org_id=org_id,
+                    user_id=user_id,
+                    category=data.category,
+                    subcategory=data.subcategory,
+                    sub_subcategory=data.sub_subcategory,
+                    facility_id=data.facility_id,
+                    reporting_period=data.reporting_period,
+                    assignment=assignment,
+                )
+                if not period_valid:
+                    rp = data.reporting_period
+                    # Convert month number to name if needed
+                    month_display = rp.month
+                    if month_display:
+                        if isinstance(month_display, int) or (isinstance(month_display, str) and month_display.isdigit()):
+                            month_names = ["January", "February", "March", "April", "May", "June",
+                                          "July", "August", "September", "October", "November", "December"]
+                            month_idx = int(month_display) - 1
+                            if 0 <= month_idx < 12:
+                                month_display = month_names[month_idx]
+                    period_str = f"{month_display} {rp.year}" if month_display else str(rp.year)
+                    raise ValueError(
+                        f"No task assigned for period {period_str}. "
+                        f"You can only submit data for periods assigned to you."
+                    )
+        
+        # Determine record status using dual-status architecture
+        # status = operational completion
+        # approval_status = governance state
+        if data.status == 'draft':
+            # Draft: not completed yet, no approval needed
+            record_status = "draft"
+            record_approval_status = "not_required"
+        else:
+            # Completed: mark as completed, check if approval is required
+            record_status = "completed"
+            # Admin bypasses approval - record is directly approved/not_required
+            if is_admin:
+                record_approval_status = "not_required"
+                requires_approval = False  # Admin doesn't trigger approval workflow
+            else:
+                record_approval_status = "pending_approval" if requires_approval else "not_required"
+        
+        # =========================================================================
+        # DUPLICATE SUBMISSION PREVENTION
+        # Check if a record already exists for this exact period/facility/category
+        # Return warning (not error) to inform user but allow if they proceed
+        # =========================================================================
+        duplicate_warning = None
+        existing_record = await self._check_duplicate_submission(
+            collection=collection,
+            org_id=org_id,
+            category=data.category,
+            subcategory=data.subcategory,
+            sub_subcategory=data.sub_subcategory,
+            facility_id=data.facility_id,
+            reporting_period=data.reporting_period,
+        )
+        
+        if existing_record:
+            duplicate_warning = {
+                "type": "DUPLICATE_SUBMISSION_WARNING",
+                "message": f"A record already exists for this period. Creating a new submission will replace the previous one.",
+                "existing_record_id": existing_record.get("id"),
+                "existing_created_at": existing_record.get("created_at"),
+                "existing_status": existing_record.get("status"),
+                "existing_approval_status": existing_record.get("approval_status"),
+            }
+            # If existing record is approved, warn more strongly
+            if existing_record.get("approval_status") == "approved":
+                duplicate_warning["severity"] = "high"
+                duplicate_warning["message"] = "WARNING: An APPROVED record already exists for this period. Creating a new submission will mark the old record as superseded."
+        
+        record = {
+            "id": str(uuid.uuid4()),
+            "org_id": org_id,
+            "facility_id": data.facility_id,
+            "record_level": data.record_level,
+            "section": section,
+            "category_id": data.category_id,
+            "category": data.category,
+            "subcategory": data.subcategory,
+            "sub_subcategory": data.sub_subcategory,
+            "frameworks": data.frameworks,
+            "reporting_period": data.reporting_period.model_dump(),
+            "field_values": data.field_values,
+            "evidence_files": data.evidence_files,
+            "source_of_information": data.source_of_information,
+            "notes": data.notes,
+            "status": record_status,
+            "approval_status": record_approval_status,
+            "version": 1,
+            "is_current": True,
+            "created_by": user_id,
+            "created_at": now_iso,
+            "updated_by": None,
+            "updated_at": None
+        }
+        
+        await collection.insert_one(record)
+        
+        # Create initial version snapshot
+        await self._create_version_snapshot(
+            section=section,
+            record_id=record["id"],
+            version=1,
+            snapshot=record,
+            changed_fields=[],
+            user_id=user_id
+        )
+        
+        # LINK TASK TO RECORD: Mark corresponding task as completed (only if not draft)
+        if record_status != "draft":
+            await self._mark_task_completed(
+                org_id=org_id,
+                user_id=user_id,
+                category=data.category,
+                subcategory=data.subcategory,
+                sub_subcategory=data.sub_subcategory,
+                facility_id=data.facility_id,
+                reporting_period=data.reporting_period,
+                requires_approval=requires_approval,
+            )
+        
+        # CREATE APPROVAL REQUEST if requires approval
+        if record_status != "draft" and requires_approval and assignment:
+            await self._create_approval_request(
+                org_id=org_id,
+                record=record,
+                assignment=assignment,
+                user_id=user_id,
+                section=section,
+            )
+        
+        # Remove MongoDB _id before returning
+        record.pop("_id", None)
+        
+        # Include duplicate warning in response if applicable
+        if duplicate_warning:
+            record["_warning"] = duplicate_warning
+        
+        return record
+    
+    async def _check_duplicate_submission(
+        self,
+        collection,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if a record already exists for this exact period/facility/category.
+        
+        Returns the existing record if found, None otherwise.
+        """
+        if not reporting_period:
+            return None
+        
+        # Build query to find existing record
+        rp_dict = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else reporting_period
+        
+        query = {
+            "org_id": org_id,
+            "category": category,
+            "is_current": True,
+        }
+        
+        if subcategory:
+            query["subcategory"] = subcategory
+        if sub_subcategory:
+            query["sub_subcategory"] = sub_subcategory
+        
+        # Handle facility_id matching
+        facility_conditions = None
+        if facility_id:
+            query["facility_id"] = facility_id
+        else:
+            facility_conditions = [
+                {"facility_id": None},
+                {"facility_id": {"$exists": False}},
+                {"record_level": "organization"},
+            ]
+        
+        # Match reporting period
+        rp_year = rp_dict.get("year")
+        rp_month = rp_dict.get("month")
+        rp_type = rp_dict.get("reporting_type") or rp_dict.get("type")
+        
+        if rp_year:
+            query["reporting_period.year"] = rp_year
+        if rp_month:
+            # Handle multiple month formats
+            month_int = int(rp_month) if str(rp_month).isdigit() else None
+            if month_int:
+                query["reporting_period.month"] = {"$in": [month_int, rp_month, str(month_int)]}
+            else:
+                query["reporting_period.month"] = rp_month
+        
+        # Build $or conditions carefully to avoid overwriting
+        or_conditions = []
+        if facility_conditions:
+            or_conditions.extend(facility_conditions)
+        if rp_type:
+            # Add reporting_type conditions to all existing query conditions
+            type_conditions = [
+                {"reporting_period.reporting_type": rp_type},
+                {"reporting_period.type": rp_type},
+            ]
+            if or_conditions:
+                # Need $and to combine facility OR with type OR
+                query["$and"] = [
+                    {"$or": or_conditions},
+                    {"$or": type_conditions},
+                ]
+            else:
+                query["$or"] = type_conditions
+        elif or_conditions:
+            query["$or"] = or_conditions
+        
+        return await collection.find_one(
+            query,
+            {"_id": 0, "id": 1, "created_at": 1, "status": 1, "approval_status": 1}
+        )
+    
+    async def _validate_user_assignment(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        record_level: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if user has an active assignment for the category at the correct level.
+        
+        USES AssignmentResolver - the single source of truth for assignment resolution.
+        This ensures consistency with task generation, permissions, and approval workflows.
+        
+        Returns the MOST SPECIFIC matching assignment (prefers exact subcategory match).
+        This ensures we get the correct requires_approval setting.
+        """
+        from modules.esg_assignments.assignment_resolver import assignment_resolver
+        
+        return await assignment_resolver.resolve(
+            organization_id=org_id,
+            user_id=user_id,
+            category=category,
+            subcategory=subcategory,
+            sub_subcategory=sub_subcategory,
+            facility_id=facility_id,
+            record_level=record_level,
+            include_approval_info=True,
+        )
+
+    async def _validate_task_period(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+        assignment: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Check if user has an active task for the given reporting period.
+        Returns True if a matching task exists, False otherwise.
+        """
+        # Build period_key from reporting_period
+        if not reporting_period:
+            return True  # No period specified, allow
+        
+        rp = reporting_period
+        rp_type = getattr(rp, 'reporting_type', None) or getattr(rp, 'type', None)
+        year = getattr(rp, 'year', None)
+        month = getattr(rp, 'month', None)
+        quarter = getattr(rp, 'quarter', None)
+        
+        if not year:
+            return True  # Can't validate without year
+        
+        # Build period_key to match task's period_key
+        if rp_type == "monthly" and month:
+            # Convert month name to number
+            month_names = ["January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"]
+            if isinstance(month, str) and month.strip().isdigit():
+                month_num = int(month.strip())
+            elif isinstance(month, str) and month in month_names:
+                month_num = month_names.index(month) + 1
+            elif isinstance(month, int):
+                month_num = month
+            else:
+                return False
+            if not 1 <= month_num <= 12:
+                return False
+            period_key = f"{year}-{str(month_num).zfill(2)}"
+        elif rp_type == "quarterly" and quarter:
+            q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
+            period_key = f"{year}-Q{q}"
+        elif rp_type == "yearly":
+            period_key = str(year)
+        else:
+            # Default to yearly if type not specified
+            period_key = str(year)
+        
+        # Step 1: Find task IDs that match the period_key and category
+        task_query = {
+            "organization_id": org_id,
+            "category": category,
+            "period_key": period_key,
+        }
+        if subcategory:
+            task_query["subcategory"] = subcategory
+        if sub_subcategory:
+            task_query["sub_subcategory"] = sub_subcategory
+        matching_tasks = await db.esg_reporting_tasks.find(
+            task_query,
+            {"_id": 0, "id": 1, "facility_id": 1, "assignment_id": 1}
+        ).to_list(100)
+        
+        if not matching_tasks:
+            return False  # No tasks for this period
+        
+        async def has_active_task(task_ids: List[str]) -> bool:
+            if not task_ids:
+                return False
+            assignee = await db.esg_task_assignees.find_one({
+                "task_id": {"$in": task_ids},
+                "user_id": user_id,
+                "is_active": True,
+            })
+            return assignee is not None
+
+        if facility_id:
+            exact_facility_tasks = [task["id"] for task in matching_tasks if task.get("facility_id") == facility_id]
+            # A facility-specific task takes precedence and cannot be bypassed by an org task.
+            if exact_facility_tasks:
+                return await has_active_task(exact_facility_tasks)
+
+            snapshot_ids = ((assignment or {}).get("facility_snapshot") or {}).get("facility_ids") or []
+            is_covered_org_assignment = (
+                (assignment or {}).get("assignment_level") == "organization"
+                and facility_id in snapshot_ids
+            )
+            if not is_covered_org_assignment:
+                return False
+            org_task_ids = [
+                task["id"] for task in matching_tasks
+                if task.get("facility_id") is None and task.get("assignment_id") == (assignment or {}).get("id")
+            ]
+            return await has_active_task(org_task_ids)
+
+        org_task_ids = [task["id"] for task in matching_tasks if task.get("facility_id") is None]
+        return await has_active_task(org_task_ids)
+
+    def _calculate_field_changes(
+        self,
+        old_values: Dict[str, Any],
+        new_values: Dict[str, Any],
+        old_record: Optional[Dict[str, Any]] = None,
+        new_record: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Calculate the differences between old and new field values.
+        Also includes changes to reporting_period if records are provided.
+        Returns a list of changes with field_key, old_value, new_value.
+        """
+        changes = []
+        all_keys = set(old_values.keys()) | set(new_values.keys())
+        
+        for key in all_keys:
+            old_val = old_values.get(key)
+            new_val = new_values.get(key)
+            
+            # Check if values are different
+            if old_val != new_val:
+                changes.append({
+                    "field_key": key,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                })
+        
+        # Check reporting_period changes if records provided
+        if old_record and new_record:
+            old_rp = old_record.get("reporting_period", {})
+            new_rp = new_record.get("reporting_period", {})
+            
+            if old_rp != new_rp:
+                # Format period for display
+                def format_period(rp):
+                    if not rp:
+                        return None
+                    if isinstance(rp, dict):
+                        month = rp.get("month", "")
+                        year = rp.get("year", "")
+                        quarter = rp.get("quarter", "")
+                        if month and year:
+                            return f"{month} {year}"
+                        elif quarter and year:
+                            return f"{quarter} {year}"
+                        elif year:
+                            return str(year)
+                    return str(rp)
+                
+                changes.append({
+                    "field_key": "reporting_period",
+                    "old_value": format_period(old_rp),
+                    "new_value": format_period(new_rp),
+                })
+        
+        return changes
+
+    async def _create_approval_request(
+        self,
+        org_id: str,
+        record: Dict[str, Any],
+        assignment: Dict[str, Any],
+        user_id: str,
+        section: str,
+        is_edit: bool = False,
+        changes_summary: Optional[List[Dict[str, Any]]] = None,
+        previous_snapshot: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Create an approval request when a record is saved with requires_approval=True.
+        Uses the approver_id from the assignment or approval_chain if multi-level.
+        """
+        try:
+            approver_id = assignment.get("approver_id")
+            approval_chain = assignment.get("approval_chain", [])
+            
+            # Determine approvers - use approval_chain if available, otherwise single approver
+            # Handle both formats: list of strings (user IDs) or list of objects with approver_id
+            if approval_chain and len(approval_chain) > 0:
+                first_item = approval_chain[0]
+                # Check if it's a string (user ID directly) or object
+                if isinstance(first_item, str):
+                    current_approvers = [first_item]
+                else:
+                    current_approvers = [first_item.get("approver_id")] if first_item else []
+                total_levels = len(approval_chain)
+            elif approver_id:
+                current_approvers = [approver_id]
+                total_levels = 1
+            else:
+                print("Warning: Assignment requires approval but no approver_id set")
+                return
+            
+            # Get submitter info
+            submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+            submitter_email = submitter.get("email", "") if submitter else ""
+            submitter_name = submitter.get("full_name", "") if submitter else ""
+            
+            # Get category config to include field definitions
+            category_config = await self.get_category_by_name(
+                section, 
+                record.get("category"), 
+                record.get("subcategory")
+            )
+            field_definitions = category_config.get("fields", []) if category_config else []
+            
+            now = datetime.now(timezone.utc).isoformat()
+            
+            # Build entity_snapshot with edit info if applicable
+            entity_snapshot = {
+                "category": record.get("category"),
+                "subcategory": record.get("subcategory"),
+                "sub_subcategory": record.get("sub_subcategory"),
+                "field_values": record.get("field_values"),
+                "field_definitions": field_definitions,
+                "reporting_period": record.get("reporting_period"),
+                "facility_id": record.get("facility_id"),
+            }
+            
+            # Add edit-specific info if this is a re-approval
+            if is_edit:
+                entity_snapshot["is_edit"] = True
+                entity_snapshot["changes_summary"] = changes_summary or []
+                if previous_snapshot:
+                    entity_snapshot["previous_field_values"] = previous_snapshot.get("field_values", {})
+            
+            # Create approval request document
+            approval_request = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "workflow_id": f"assignment_{assignment.get('id')}",  # Link to assignment
+                "workflow_name": f"ESG Record {'Edit' if is_edit else ''} Approval - {record.get('category')}",
+                
+                # Entity being approved
+                "entity_type": "esg_record",
+                "entity_id": record.get("id"),
+                "entity_subtype": section,
+                "entity_snapshot": entity_snapshot,
+                
+                # Submission info
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "submission_comment": "Edited after approval" if is_edit else None,
+                
+                # Current state
+                "status": "pending",
+                "current_level": 1,
+                "current_approvers": current_approvers,
+                "total_levels": total_levels,
+                
+                # Progress tracking
+                "steps_completed": [],
+                
+                # Metadata
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db.approval_requests.insert_one(approval_request)
+            print(f"Created approval request {approval_request['id']} for record {record.get('id')} (is_edit={is_edit})")
+            
+            # Notify approvers via bell
+            try:
+                from shared.notifications import create_notification
+                category = record.get("category", "Record")
+                for aid in current_approvers:
+                    await create_notification(
+                        user_id=aid, org_id=org_id,
+                        title="Approval Required",
+                        message=f"{submitter_name or 'A user'} submitted {category} for approval",
+                        notification_type="approval",
+                        link="/workflow/approver-queue",
+                        metadata={"entity_id": record.get("id"), "category": category},
+                    )
+            except Exception as ne:
+                print(f"Warning: Failed to send approval notification: {ne}")
+        except Exception as e:
+            print(f"Warning: Failed to create approval request: {e}")
+
+
+    async def _create_edit_approval_request(
+        self,
+        org_id: str,
+        record_id: str,
+        current_record: Dict[str, Any],
+        proposed_changes: Dict[str, Any],
+        changes_summary: Optional[List[Dict[str, Any]]],
+        assignment: Dict[str, Any],
+        user_id: str,
+        section: str,
+    ):
+        """
+        Create an approval request for editing an approved record.
+        
+        IMMUTABLE APPROVED DATA PRINCIPLE:
+        - The live record is NOT mutated
+        - proposed_changes are stored in the approval request
+        - On approval: proposed_changes are applied to the record
+        - On rejection: approval request is discarded (no rollback needed)
+        
+        This ensures dashboards always show approved data until new approval.
+        """
+        from fastapi import HTTPException
+        
+        approver_id = assignment.get("approver_id")
+        approval_chain = assignment.get("approval_chain", [])
+        
+        # Determine approvers
+        if approval_chain and len(approval_chain) > 0:
+            first_item = approval_chain[0]
+            if isinstance(first_item, str):
+                current_approvers = [first_item]
+            else:
+                current_approvers = [first_item.get("approver_id")] if first_item else []
+            total_levels = len(approval_chain)
+        elif approver_id:
+            current_approvers = [approver_id]
+            total_levels = 1
+        else:
+            # No approver configured - this is a configuration error
+            # Raise an exception so the user sees a real error instead of false "pending approval"
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "NO_APPROVER_CONFIGURED",
+                    "message": "This assignment requires approval but no approver is configured. Please contact your admin to set up an approver.",
+                    "assignment_id": assignment.get("id"),
+                }
+            )
+        
+        try:
+            
+            # Get submitter info
+            submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+            submitter_email = submitter.get("email", "") if submitter else ""
+            submitter_name = submitter.get("full_name", "") if submitter else ""
+            
+            # Get category config for field definitions
+            category_config = await self.get_category_by_name(
+                section,
+                current_record.get("category"),
+                current_record.get("subcategory")
+            )
+            field_definitions = category_config.get("fields", []) if category_config else []
+            
+            now = datetime.now(timezone.utc).isoformat()
+            
+            # Build entity_snapshot with current values AND proposed changes
+            # For the approver UI: field_values should contain the PROPOSED values
+            # (what the approver is reviewing/approving), not the old values
+            proposed_field_values = proposed_changes.get("field_values", current_record.get("field_values", {}))
+            
+            entity_snapshot = {
+                "category": current_record.get("category"),
+                "subcategory": current_record.get("subcategory"),
+                "sub_subcategory": current_record.get("sub_subcategory"),
+                "field_values": proposed_field_values,  # NEW values for approver to review
+                "field_definitions": field_definitions,
+                "reporting_period": current_record.get("reporting_period"),
+                "facility_id": current_record.get("facility_id"),
+                # Edit-specific fields
+                "is_edit": True,
+                "edit_type": "immutable_edit",  # New type indicating record wasn't mutated
+                "current_field_values": current_record.get("field_values", {}),  # OLD values for comparison
+                "proposed_changes": proposed_changes,
+                "changes_summary": changes_summary or [],
+            }
+            
+            # Create approval request document
+            approval_request = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "workflow_id": f"assignment_{assignment.get('id')}",
+                "workflow_name": f"ESG Record Edit Approval - {current_record.get('category')}",
+                
+                # Entity being approved
+                "entity_type": "esg_record",
+                "entity_id": record_id,
+                "entity_subtype": section,
+                "entity_snapshot": entity_snapshot,
+                
+                # Submission info
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "submission_comment": "Edit of approved record (immutable until approval)",
+                
+                # Current state
+                "status": "pending",
+                "current_level": 1,
+                "current_approvers": current_approvers,
+                "total_levels": total_levels,
+                
+                # Progress tracking
+                "steps_completed": [],
+                
+                # Metadata
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            await db.approval_requests.insert_one(approval_request)
+            print(f"Created immutable edit approval request {approval_request['id']} for record {record_id}")
+            
+            # Notify approvers via bell
+            try:
+                from shared.notifications import create_notification
+                cat_name = current_record.get("category", "Record")
+                for aid in current_approvers:
+                    await create_notification(
+                        user_id=aid, org_id=org_id,
+                        title="Edit Approval Required",
+                        message=f"{submitter_name or 'A user'} edited {cat_name} — review needed",
+                        notification_type="approval",
+                        link="/workflow/approver-queue",
+                        metadata={"entity_id": record_id, "category": cat_name},
+                    )
+            except Exception as ne:
+                print(f"Warning: Failed to send edit approval notification: {ne}")
+            
+            # Update the record's approval_status to "pending_approval" 
+            # This shows the correct status in UI while keeping field_values unchanged
+            collection_map = {
+                "environment": "environment_records",
+                "social": "social_records", 
+                "governance": "governance_records",
+            }
+            collection_name = collection_map.get(section)
+            if collection_name:
+                await db[collection_name].update_one(
+                    {"id": record_id, "is_current": True},
+                    {"$set": {
+                        "approval_status": "pending_approval",
+                        "updated_at": now,
+                    }}
+                )
+                print(f"Updated record {record_id} approval_status to pending_approval")
+            
+        except Exception as e:
+            print(f"Warning: Failed to create edit approval request: {e}")
+            raise
+
+
+    async def _update_existing_esg_approval_request(
+        self,
+        request: Dict[str, Any],
+        record_id: str,
+        current_record: Dict[str, Any],
+        new_data: Any,
+        user_id: str,
+        section: str,
+    ):
+        """
+        Update an existing pending approval request with new data (in-place update).
+        This allows users to modify their submission while it's still pending review.
+        
+        For CREATE requests: The actual record is also updated by the caller.
+        For EDIT requests (immutable_edit): Only the snapshot is updated.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        request_id = request.get("id")
+        old_snapshot = request.get("entity_snapshot", {})
+        edit_type = old_snapshot.get("edit_type", "create")
+        
+        # Get submitter info
+        submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+        submitter_email = submitter.get("email", "") if submitter else ""
+        submitter_name = submitter.get("full_name", "") if submitter else ""
+        
+        # Build new field_values from new_data
+        new_field_values = new_data.field_values if new_data.field_values is not None else old_snapshot.get("field_values", {})
+        
+        # Get category config for field definitions
+        category_config = await self.get_category_by_name(
+            section,
+            current_record.get("category"),
+            current_record.get("subcategory")
+        )
+        field_definitions = category_config.get("fields", []) if category_config else []
+        
+        # Build updated snapshot
+        updated_snapshot = {
+            **old_snapshot,
+            "field_values": new_field_values,
+            "field_definitions": field_definitions,
+        }
+        
+        # Update other fields if provided
+        if new_data.evidence_files is not None:
+            updated_snapshot["evidence_files"] = new_data.evidence_files
+        if new_data.source_of_information is not None:
+            updated_snapshot["source_of_information"] = new_data.source_of_information
+        if new_data.notes is not None:
+            updated_snapshot["notes"] = new_data.notes
+        
+        # For immutable edits, update proposed_changes
+        if edit_type == "immutable_edit":
+            proposed_changes = old_snapshot.get("proposed_changes", {})
+            if new_data.field_values is not None:
+                proposed_changes["field_values"] = new_data.field_values
+            if new_data.evidence_files is not None:
+                proposed_changes["evidence_files"] = new_data.evidence_files
+            if new_data.source_of_information is not None:
+                proposed_changes["source_of_information"] = new_data.source_of_information
+            if new_data.notes is not None:
+                proposed_changes["notes"] = new_data.notes
+            updated_snapshot["proposed_changes"] = proposed_changes
+            
+            # Recalculate changes_summary
+            changes_summary = self._calculate_field_changes(
+                old_values=old_snapshot.get("current_field_values", {}),
+                new_values=new_field_values,
+                old_record=current_record,
+                new_record={**current_record, **proposed_changes},
+            )
+            updated_snapshot["changes_summary"] = changes_summary or []
+        
+        # Update the approval request in-place
+        await db.approval_requests.update_one(
+            {"id": request_id},
+            {"$set": {
+                "entity_snapshot": updated_snapshot,
+                "submitted_by": user_id,
+                "submitted_by_email": submitter_email,
+                "submitted_by_name": submitter_name,
+                "submitted_at": now,
+                "updated_at": now,
+            }}
+        )
+        print(f"Updated existing ESG approval request {request_id} with new data")
+
+    
+    async def _mark_task_completed(
+        self,
+        org_id: str,
+        user_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+        requires_approval: bool = False,
+    ):
+        """
+        Mark the corresponding reporting task as completed when a record is saved.
+        
+        New architecture:
+        - status = 'completed' (operational - user finished work)
+        - approval_status = 'pending_approval' if requires_approval else 'not_required'
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            if hasattr(reporting_period, 'model_dump'):
+                rp = reporting_period.model_dump()
+            else:
+                rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("reporting_type") or rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                # Month could be name like "January" or number
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    # Convert month name to number
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+            elif rp_type == "quarterly":
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
+            elif rp_type == "daily":
+                period_key = rp.get("date")  # Expected format: YYYY-MM-DD
+            elif rp_type == "weekly":
+                period_key = rp.get("date")  # Use date for weekly as well
+            
+            if not period_key:
+                return
+            
+            # Find matching task - use task_assignees for new architecture
+            # NOTE: We don't filter by status since status is computed from data
+            task_query = {
+                "organization_id": org_id,
+                "category": category,
+                "period_key": period_key,
+            }
+            if subcategory:
+                task_query["subcategory"] = subcategory
+            if sub_subcategory:
+                task_query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                task_query["facility_id"] = facility_id
+            
+            task = await db.esg_reporting_tasks.find_one(task_query, {"_id": 0, "id": 1})
+            if not task:
+                return
+            
+            # Verify user is assigned to this task
+            assignee = await db.esg_task_assignees.find_one({
+                "task_id": task["id"],
+                "user_id": user_id,
+                "is_active": True,
+            })
+            if not assignee:
+                # Fallback: check legacy assigned_to_user_id (for backwards compatibility)
+                legacy_task = await db.esg_reporting_tasks.find_one({
+                    **task_query,
+                    "assigned_to_user_id": user_id,
+                })
+                if not legacy_task:
+                    return
+            
+            # Update task - only approval_status and metadata
+            # NOTE: status is computed from data, not stored
+            # 
+            # TASK OWNERSHIP FIELDS:
+            # - submitted_by_user_id / submitted_at: Who submitted the data and when
+            # - completed_by_user_id / completed_at: Set when data is approved (or immediately if no approval)
+            # These provide clear audit trail even after reassignments
+            now = datetime.now(timezone.utc)
+            update_doc = {
+                "submitted_at": now,
+                "submitted_by_user_id": user_id,
+                "updated_at": now,
+            }
+            
+            # If no approval required, mark as completed immediately (audit trail)
+            if not requires_approval:
+                update_doc["completed_by_user_id"] = user_id
+                update_doc["completed_at"] = now
+            
+            # NOTE: We no longer store approval_status on tasks - computed from records
+            await db.esg_reporting_tasks.update_one(
+                {"id": task["id"]},
+                {"$set": update_doc}
+            )
+        except Exception as e:
+            # Don't fail record creation if task update fails
+            print(f"Warning: Failed to mark task as submitted: {e}")
+    
+
+    async def _revert_task_to_pending(
+        self,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Any,
+    ):
+        """
+        Revert a task back to pending when the associated record's reporting_period changes.
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            if hasattr(reporting_period, 'model_dump'):
+                rp = reporting_period.model_dump()
+            else:
+                rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("reporting_type") or rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+            elif rp_type == "quarterly":
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
+            
+            if not period_key:
+                return
+            
+            # Find and revert the task
+            task_query = {
+                "organization_id": org_id,
+                "category": category,
+                "period_key": period_key,
+            }
+            if subcategory:
+                task_query["subcategory"] = subcategory
+            if sub_subcategory:
+                task_query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                task_query["facility_id"] = facility_id
+            
+            now = datetime.now(timezone.utc).isoformat()
+            # NOTE: task.approval_status is now computed from RECORDS.
+            # When record's reporting_period changes, just update timestamp.
+            # Status will auto-compute correctly from the record.
+            result = await db.esg_reporting_tasks.update_one(
+                task_query,
+                {"$set": {
+                    "updated_at": now,
+                }}
+            )
+            
+            if result.modified_count > 0:
+                print(f"Updated task timestamp for {category}/{subcategory} period={period_key}")
+        except Exception as e:
+            print(f"Warning: Failed to revert task to pending: {e}")
+
+    async def update_record(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        user_id: str,
+        data: UpdateRecordRequest,
+        is_admin_override: bool = False,  # Set to True for admin bypassing approval workflow
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update a record (creates new version).
+        
+        Dual-status architecture:
+        - status: operational completion (completed, draft, reopened)
+        - approval_status: governance state (not_required, pending_approval, approved, rejected)
+        
+        CONCURRENCY SAFEGUARDS:
+        1. Rejected records cannot be edited (user must create new submission)
+        2. Records with pending approval cannot be edited by users (prevents race conditions)
+        3. Multiple pending edit requests are blocked for users (one approval at a time)
+        4. Admin override: Admin can edit anytime - deletes pending requests and saves directly
+        """
+        collection = self._get_records_collection(section)
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Get current record
+        current = await collection.find_one(
+            {"id": record_id, "is_current": True},
+            {"_id": 0}
+        )
+        if not current:
+            return None
+        
+        org_id = current.get("org_id")
+        
+        # =========================================================================
+        # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit
+        # =========================================================================
+        if is_admin_override:
+            # Delete any pending approval requests for this record
+            deleted_result = await db.approval_requests.delete_many({
+                "entity_id": record_id,
+                "entity_type": "esg_record",
+                "status": {"$in": ["pending", "in_review"]},
+            })
+            if deleted_result.deleted_count > 0:
+                print(f"Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
+        
+        # =========================================================================
+        # RESUBMISSION RULE: Rejected records cannot be edited
+        # User must create a brand-new submission after rejection
+        # =========================================================================
+        if current.get("approval_status") == "rejected" and not is_admin_override:
+            # Coerce datetime fields to isoformat string to avoid JSON serialization errors
+            rejected_at = current.get("rejected_at")
+            if rejected_at and hasattr(rejected_at, 'isoformat'):
+                rejected_at = rejected_at.isoformat()
+            
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "REJECTED_RECORD_EDIT_NOT_ALLOWED",
+                    "message": "This record was rejected. You cannot edit a rejected record. Please create a new submission instead.",
+                    "rejection_reason": current.get("rejection_reason"),
+                    "rejected_at": rejected_at,
+                    "suggestion": "Create a new record with the corrected data.",
+                }
+            )
+        
+        # =========================================================================
+        # PENDING APPROVAL EDIT RULE: Allow in-place update of approval request
+        # Instead of blocking, update the existing request with new data
+        # =========================================================================
+        if current.get("approval_status") == "pending_approval" and not is_admin_override:
+            # Check if there's an active approval request
+            pending_request = await db.approval_requests.find_one({
+                "entity_id": record_id,
+                "entity_type": "esg_record",
+                "status": {"$in": ["pending", "in_review"]},
+            }, {"_id": 0})
+            
+            if pending_request:
+                # In-place update: Update the existing approval request with new data
+                await self._update_existing_esg_approval_request(
+                    request=pending_request,
+                    record_id=record_id,
+                    current_record=current,
+                    new_data=data,
+                    user_id=user_id,
+                    section=section,
+                )
+                
+                # For CREATE requests, also update the actual record
+                request_type = pending_request.get("entity_snapshot", {}).get("edit_type", "create")
+                if request_type != "immutable_edit":
+                    # It's a create request - update the actual record too
+                    update_fields = {}
+                    if data.field_values is not None:
+                        update_fields["field_values"] = data.field_values
+                    if data.evidence_files is not None:
+                        update_fields["evidence_files"] = data.evidence_files
+                    if data.source_of_information is not None:
+                        update_fields["source_of_information"] = data.source_of_information
+                    if data.notes is not None:
+                        update_fields["notes"] = data.notes
+                    
+                    if update_fields:
+                        update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        update_fields["updated_by"] = user_id
+                        await collection.update_one(
+                            {"id": record_id, "is_current": True},
+                            {"$set": update_fields}
+                        )
+                
+                # Return the record with pending status indication
+                updated = await collection.find_one({"id": record_id, "is_current": True}, {"_id": 0})
+                return {
+                    **updated,
+                    "_pending_edit": {
+                        "status": "pending_approval",
+                        "message": "Your changes have been updated in the pending approval request.",
+                    }
+                }
+        
+        # =========================================================================
+        # MULTIPLE PENDING EDIT REQUESTS: Allow in-place update instead of blocking
+        # =========================================================================
+        # Check if there's already a pending EDIT approval request (not create/delete)
+        existing_edit_request = await db.approval_requests.find_one({
+            "entity_id": record_id,
+            "entity_type": "esg_record",
+            "status": {"$in": ["pending", "in_review"]},
+            "entity_snapshot.is_edit": True,  # Specifically check for edit requests
+        }, {"_id": 0})
+        
+        if existing_edit_request and not is_admin_override:
+            # In-place update: Update the existing edit approval request
+            await self._update_existing_esg_approval_request(
+                request=existing_edit_request,
+                record_id=record_id,
+                current_record=current,
+                new_data=data,
+                user_id=user_id,
+                section=section,
+            )
+            
+            # Return the record with pending status indication
+            return {
+                **current,
+                "_pending_edit": {
+                    "status": "pending_approval",
+                    "message": "Your changes have been updated in the pending edit approval request.",
+                }
+            }
+        
+        # Track changed fields
+        changed_fields = []
+        update_data = {}
+        
+        if data.record_level is not None:
+            update_data["record_level"] = data.record_level
+            changed_fields.append("record_level")
+        
+        if data.facility_id is not None:
+            update_data["facility_id"] = data.facility_id
+            changed_fields.append("facility_id")
+        
+        if data.reporting_period is not None:
+            update_data["reporting_period"] = data.reporting_period.model_dump()
+            changed_fields.append("reporting_period")
+        
+        if data.field_values is not None:
+            update_data["field_values"] = data.field_values
+            changed_fields.append("field_values")
+        
+        if data.evidence_files is not None:
+            update_data["evidence_files"] = data.evidence_files
+            changed_fields.append("evidence_files")
+        
+        if data.source_of_information is not None:
+            update_data["source_of_information"] = data.source_of_information
+            changed_fields.append("source_of_information")
+        
+        if data.notes is not None:
+            update_data["notes"] = data.notes
+            changed_fields.append("notes")
+        
+        # Check if this record's assignment requires approval
+        # USES AssignmentResolver for consistent lookup with create_record
+        from modules.esg_assignments.assignment_resolver import assignment_resolver
+        
+        requires_approval = False
+        assignment = await assignment_resolver.resolve(
+            organization_id=org_id,
+            user_id=user_id,
+            category=current.get("category"),
+            subcategory=current.get("subcategory"),
+            sub_subcategory=current.get("sub_subcategory"),
+            facility_id=current.get("facility_id"),
+            record_level="facility" if current.get("facility_id") else "organization",
+            include_approval_info=True,
+        )
+        
+        if assignment:
+            requires_approval = assignment.get("requires_approval", False)
+            print(f"Found assignment {assignment.get('id')} for {current.get('category')}/{current.get('subcategory')}, requires_approval={requires_approval}")
+        else:
+            print(f"No assignment found for {current.get('category')}/{current.get('subcategory')}, facility={current.get('facility_id')}")
+        
+        # Handle status updates with dual-status architecture
+        # Map incoming status values to the correct dual-status fields
+        if data.status is not None:
+            incoming_status = data.status
+            
+            if incoming_status == "draft":
+                # Draft: operational status is draft, no approval needed
+                update_data["status"] = "draft"
+                update_data["approval_status"] = "not_required"
+                changed_fields.append("status")
+                changed_fields.append("approval_status")
+            elif incoming_status in ["submitted", "completed"]:
+                # Completing the record: status = completed, approval_status based on workflow
+                update_data["status"] = "completed"
+                # Admin bypasses approval - record is directly saved without approval
+                if is_admin_override:
+                    update_data["approval_status"] = "not_required"
+                else:
+                    update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
+                changed_fields.append("status")
+                changed_fields.append("approval_status")
+            else:
+                # Pass through other statuses directly (reopened, etc.)
+                update_data["status"] = incoming_status
+                changed_fields.append("status")
+        
+        # =========================================================================
+        # IMMUTABLE APPROVED DATA PRINCIPLE
+        # If editing a record that requires approval:
+        #   - DO NOT mutate the live record
+        #   - Store proposed_changes in approval request (proposal)
+        #   - On approval: apply changes
+        #   - On rejection: discard request (no rollback needed)
+        # 
+        # This ensures dashboards always show approved/current data until new approval.
+        # 
+        # Applies to:
+        #   - Records with approval_status == "approved" (previously approved)
+        #   - Records with approval_status == "not_required" (admin-created, but 
+        #     assignment now requires approval for non-admin edits)
+        # =========================================================================
+        old_approval_status = current.get("approval_status")
+        is_editing_record_requiring_approval = (
+            old_approval_status in ["approved", "not_required"] and 
+            "field_values" in changed_fields and 
+            requires_approval and
+            not is_admin_override
+        )
+        
+        if is_editing_record_requiring_approval:
+            # DON'T MUTATE THE RECORD - create approval request with proposed changes
+            proposed_changes = {}
+            if data.field_values is not None:
+                proposed_changes["field_values"] = data.field_values
+            if data.reporting_period is not None:
+                proposed_changes["reporting_period"] = data.reporting_period.model_dump()
+            if data.evidence_files is not None:
+                proposed_changes["evidence_files"] = data.evidence_files
+            if data.source_of_information is not None:
+                proposed_changes["source_of_information"] = data.source_of_information
+            if data.notes is not None:
+                proposed_changes["notes"] = data.notes
+            
+            # Calculate what changed for the approval UI
+            changes_summary = self._calculate_field_changes(
+                old_values=current.get("field_values", {}),
+                new_values=data.field_values or {},
+                old_record=current,
+                new_record={**current, **proposed_changes},
+            )
+            
+            # Create approval request with proposed changes (record stays unchanged)
+            # Uses ProposalService to enforce one pending proposal per user per record
+            from modules.approval_workflow.proposal_service import proposal_service, NoApproverConfiguredError
+            
+            # Build the full proposed data
+            proposed_data = {
+                "category": current.get("category"),
+                "subcategory": current.get("subcategory"),
+                "sub_subcategory": current.get("sub_subcategory"),
+                "reporting_period": current.get("reporting_period"),
+                "facility_id": current.get("facility_id"),
+                "field_values": data.field_values or current.get("field_values", {}),
+                "evidence_files": data.evidence_files if data.evidence_files is not None else current.get("evidence_files"),
+                "source_of_information": data.source_of_information if data.source_of_information is not None else current.get("source_of_information"),
+                "notes": data.notes if data.notes is not None else current.get("notes"),
+            }
+            
+            try:
+                await proposal_service.create_or_update_proposal(
+                    record_id=record_id,
+                    entity_type="esg_record",
+                    entity_subtype=section,
+                    org_id=org_id,
+                    user_id=user_id,
+                    proposed_data=proposed_data,
+                    current_record=current,
+                    assignment=assignment,
+                    changes_summary=changes_summary,
+                )
+            except NoApproverConfiguredError as e:
+                raise ValueError(f"No approver configured for this assignment: {e.assignment_id}")
+            
+            print(f"Created edit proposal for record {record_id} (old_status={old_approval_status}). Record NOT mutated.")
+            
+            # Return the UNCHANGED record with a flag indicating pending edit
+            return {
+                **current,
+                "_pending_edit": {
+                    "status": "pending_approval",
+                    "proposed_changes": proposed_changes,
+                    "message": "Your edit is pending approval. The current data remains unchanged until approved.",
+                }
+            }
+        
+        # For records not requiring approval workflow or admin override: proceed with normal update
+        # Increment version
+        new_version = current["version"] + 1
+        update_data["version"] = new_version
+        update_data["updated_by"] = user_id
+        update_data["updated_at"] = now
+        
+        # OPTIMISTIC LOCKING: Check version hasn't changed since we read it
+        # This prevents race conditions during concurrent updates
+        expected_version = current.get("version", 0)
+        
+        result = await collection.update_one(
+            {
+                "id": record_id,
+                "is_current": True,
+                "version": expected_version  # Only update if version matches
+            },
+            {"$set": update_data}
+        )
+        
+        # If no document was updated, it means another process modified it
+        if result.modified_count == 0:
+            # Re-fetch to check if record still exists
+            current_record = await collection.find_one({"id": record_id, "is_current": True}, {"_id": 0, "version": 1})
+            if current_record and current_record.get("version") != expected_version:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "error": "CONCURRENT_UPDATE_CONFLICT",
+                        "message": "This record was modified by another user. Please refresh and try again.",
+                        "your_version": expected_version,
+                        "current_version": current_record.get("version"),
+                    }
+                )
+            elif not current_record:
+                return None  # Record was deleted
+        
+        # Get updated record
+        updated = await collection.find_one(
+            {"id": record_id, "is_current": True},
+            {"_id": 0}
+        )
+        
+        # Determine if approval request needs to be created
+        # Case 1: Status changed to completed from draft/rejected/reopened/pending (new submission)
+        # NOTE: Case 2 (edit of approved record) is now handled above via immutable edit path
+        new_status = update_data.get("status")
+        old_status = current.get("status")
+        old_approval_status = current.get("approval_status")
+        
+        should_create_approval = False
+        
+        print(f"Update record check: new_status={new_status}, old_status={old_status}, old_approval_status={old_approval_status}, changed_fields={changed_fields}")
+        
+        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+            # New submission
+            should_create_approval = requires_approval
+            print(f"Case 1: New submission, should_create_approval={should_create_approval}")
+        # NOTE: Edit of approved record is now handled in the immutable edit path above
+        # If we reach here with an approved record, it means either:
+        # 1. Admin override was used (is_admin_override=True)
+        # 2. No approval required for this assignment
+        # In either case, proceed with normal update flow
+        
+        # If status changed to completed, mark the task as completed
+        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+            await self._mark_task_completed(
+                org_id=current.get("org_id"),
+                user_id=user_id,
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=updated.get("reporting_period"),  # Use NEW period
+                requires_approval=requires_approval,
+            )
+        
+        # Handle reporting_period change on a completed record
+        # If user changes the period, revert OLD task to pending and mark NEW task as completed
+        if "reporting_period" in changed_fields and current.get("status") == "completed":
+            old_period = current.get("reporting_period")
+            new_period = updated.get("reporting_period")
+            
+            print(f"Reporting period changed from {old_period} to {new_period}")
+            
+            # Revert the old task back to pending
+            await self._revert_task_to_pending(
+                org_id=current.get("org_id"),
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=old_period,
+            )
+            
+            # Mark the new task as completed
+            await self._mark_task_completed(
+                org_id=current.get("org_id"),
+                user_id=user_id,
+                category=current.get("category"),
+                subcategory=current.get("subcategory"),
+                sub_subcategory=current.get("sub_subcategory"),
+                facility_id=current.get("facility_id"),
+                reporting_period=new_period,
+                requires_approval=requires_approval,
+            )
+        
+        # Create approval request if needed (for new submissions only)
+        # NOTE: Edit of approved records is handled in the immutable edit path above
+        if should_create_approval and assignment:
+            print(f"Creating approval request for new submission")
+            
+            await self._create_approval_request(
+                org_id=current.get("org_id"),
+                record=updated,
+                assignment=assignment,
+                user_id=user_id,
+                section=section,
+                is_edit=False,
+                changes_summary=None,
+                previous_snapshot=None,
+            )
+        elif should_create_approval and not assignment:
+            print("WARNING: should_create_approval=True but no assignment found!")
+        
+        # Create version snapshot with hierarchical field paths (paths only, not values)
+        field_changes = compare_versions(current, updated) if current else []
+        changed_field_paths = [c["field"] for c in field_changes]
+        await self._create_version_snapshot(
+            section=section,
+            record_id=record_id,
+            version=new_version,
+            snapshot=updated,
+            changed_fields=changed_field_paths,
+            change_reason=data.change_reason,
+            user_id=user_id
+        )
+        
+        return updated
+    
+    async def get_record(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        org_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get a single record."""
+        collection = self._get_records_collection(section)
+        return await collection.find_one(
+            {"id": record_id, "org_id": org_id, "is_current": True},
+            {"_id": 0}
+        )
+    
+    async def get_record_with_user_proposal(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        org_id: str,
+        user_id: str,
+        is_approver: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a record with the user's pending proposal (if any).
+        
+        For normal users: Returns approved record + their own pending proposal
+        For approvers: Returns approved record + all pending proposals
+        """
+        from modules.approval_workflow.proposal_service import proposal_service
+        
+        # Get the approved record
+        record = await self.get_record(section, record_id, org_id)
+        if not record:
+            return None
+        
+        if is_approver:
+            # Approvers see all pending proposals
+            proposals = await proposal_service.get_all_pending_proposals(
+                record_id=record_id,
+                entity_type="esg_record",
+            )
+            record["_pending_proposals"] = proposals
+            record["_pending_proposals_count"] = len(proposals)
+        else:
+            # Normal users see only their own pending proposal
+            user_proposal = await proposal_service.get_user_pending_proposal(
+                record_id=record_id,
+                user_id=user_id,
+                entity_type="esg_record",
+            )
+            if user_proposal:
+                record["_user_pending_proposal"] = user_proposal
+                # Return the proposed values for the user to see their edits
+                record["_display_values"] = user_proposal.get("entity_snapshot", {})
+        
+        return record
+    
+    async def list_records(
+        self,
+        section: ESG_SECTION,
+        org_id: str,
+        filters: RecordListFilters,
+        assigned_categories: Optional[List[tuple]] = None,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List records with filtering and pagination.
+        
+        If assigned_categories is provided, only returns records matching those categories.
+        assigned_categories is a list of (category, subcategory, sub_subcategory) tuples.
+        
+        If user_id is provided, each record is enriched with the user's pending proposal
+        (if any) so the frontend can display "Awaiting Approval" status.
+        """
+        collection = self._get_records_collection(section)
+        
+        # Build query
+        query = {"org_id": org_id, "is_current": True}
+
+        def period_key(period: str) -> int:
+            match = re.fullmatch(r"(\d{4})-(0[1-9]|1[0-2])", period or "")
+            if not match:
+                raise ValueError("Period filters must use YYYY-MM")
+            return int(match.group(1)) * 100 + int(match.group(2))
+
+        month_number = {
+            "$switch": {
+                "branches": [
+                    {"case": {"$isNumber": "$reporting_period.month"}, "then": "$reporting_period.month"},
+                    {"case": {"$in": ["$reporting_period.month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]]}, "then": {"$add": [{"$indexOfArray": [["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"], "$reporting_period.month"]}, 1]}},
+                ],
+                "default": {"$convert": {"input": "$reporting_period.month", "to": "int", "onError": 1, "onNull": 1}},
+            }
+        }
+        period_key_expression = {
+            "$add": [
+                {"$multiply": [{"$convert": {"input": "$reporting_period.year", "to": "int", "onError": 0, "onNull": 0}}, 100]},
+                month_number,
+            ]
+        }
+        period_conditions = []
+        if filters.period_start:
+            period_conditions.append({"$gte": [period_key_expression, period_key(filters.period_start)]})
+        if filters.period_end:
+            period_conditions.append({"$lte": [period_key_expression, period_key(filters.period_end)]})
+        if filters.period_start and filters.period_end and period_key(filters.period_start) > period_key(filters.period_end):
+            raise ValueError("Start Period cannot be after End Period")
+        if period_conditions:
+            query["$expr"] = period_conditions[0] if len(period_conditions) == 1 else {"$and": period_conditions}
+        
+        # Handle single category or multiple categories
+        if filters.categories and len(filters.categories) > 0:
+            query["category"] = {"$in": filters.categories}
+        elif filters.category:
+            query["category"] = filters.category
+        if filters.subcategory:
+            query["subcategory"] = filters.subcategory
+        if filters.reporting_type:
+            query["reporting_period.reporting_type"] = filters.reporting_type
+        if filters.status:
+            if filters.status == "completed":
+                query["status"] = {"$in": ["completed", "saved", "submitted"]}
+            elif filters.status == "awaiting_approval":
+                query["approval_status"] = "pending_approval"
+            elif filters.status == "approved":
+                query["approval_status"] = "approved"
+            else:
+                query["status"] = filters.status
+        if filters.facility_id:
+            query["facility_id"] = filters.facility_id
+        if filters.framework:
+            query["frameworks"] = filters.framework
+        if filters.year:
+            query["reporting_period.year"] = filters.year
+        if filters.month:
+            query["reporting_period.month"] = filters.month
+        if filters.search:
+            query["$or"] = [
+                {"category": {"$regex": filters.search, "$options": "i"}},
+                {"subcategory": {"$regex": filters.search, "$options": "i"}},
+                {"notes": {"$regex": filters.search, "$options": "i"}},
+                {"source_of_information": {"$regex": filters.search, "$options": "i"}}
+            ]
+        
+        # Filter by assigned categories for non-admin users
+        if assigned_categories:
+            # Build category filter conditions
+            category_conditions = []
+            for cat, subcat, sub_subcat in assigned_categories:
+                condition = {"category": cat}
+                # If subcategory is specified in assignment, filter by it
+                if subcat:
+                    condition["subcategory"] = subcat
+                # If sub_subcategory is specified, add it
+                if sub_subcat:
+                    condition["sub_subcategory"] = sub_subcat
+                category_conditions.append(condition)
+            
+            if category_conditions:
+                # If other $or conditions exist, wrap them together
+                if "$or" in query:
+                    existing_or = query.pop("$or")
+                    query["$and"] = [
+                        {"$or": existing_or},
+                        {"$or": category_conditions}
+                    ]
+                else:
+                    query["$or"] = category_conditions
+        
+        # Count total
+        total = await collection.count_documents(query)
+        
+        # Paginate
+        skip = (filters.page - 1) * filters.limit
+        cursor = collection.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(filters.limit)
+        records = await cursor.to_list(None)
+        
+        # Enrich records with user's pending proposals (if user_id provided)
+        if user_id and records:
+            from modules.approval_workflow.proposal_service import proposal_service
+            record_ids = [r["id"] for r in records]
+            
+            # Batch fetch user's pending proposals for all records
+            user_proposals = await db.approval_requests.find(
+                {
+                    "entity_id": {"$in": record_ids},
+                    "entity_type": "esg_record",
+                    "submitted_by": user_id,
+                    "status": {"$in": ["pending", "in_review"]},
+                },
+                {"_id": 0, "entity_id": 1, "entity_snapshot": 1, "submitted_at": 1, "id": 1}
+            ).to_list(500)
+            
+            # Create lookup map
+            proposal_map = {p["entity_id"]: p for p in user_proposals}
+            
+            # Enrich each record
+            for record in records:
+                if record["id"] in proposal_map:
+                    proposal = proposal_map[record["id"]]
+                    record["_user_pending_proposal"] = {
+                        "proposal_id": proposal["id"],
+                        "submitted_at": proposal["submitted_at"],
+                        "proposed_values": proposal.get("entity_snapshot", {}).get("field_values"),
+                    }
+        
+        return {
+            "records": records,
+            "total": total,
+            "page": filters.page,
+            "limit": filters.limit,
+            "total_pages": (total + filters.limit - 1) // filters.limit
+        }
+    
+    async def delete_record(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        org_id: str,
+        user_id: Optional[str] = None,
+        user_role: str = "user",
+        force_delete: bool = False,  # Legacy param - kept for backward compatibility
+    ) -> Dict[str, Any]:
+        """
+        Delete a record - with approval workflow support.
+        
+        DELETE APPROVAL WORKFLOW:
+        1. Admins always bypass approval (direct delete) - matching GHG behavior
+        2. For non-admins with approval workflow enabled, create DELETE approval request
+        3. Record is NOT deleted until approval is granted
+        4. Record is marked with `pending_deletion=True` while awaiting approval
+        5. If approved: Record is hard deleted
+        6. If rejected: pending_deletion flag is removed, record remains
+        
+        Args:
+            section: ESG section (environment, social, governance)
+            record_id: Record ID to delete
+            org_id: Organization ID
+            user_id: User requesting deletion
+            user_role: User's role (admin, super_admin, user)
+            force_delete: Legacy bypass parameter
+        
+        Returns:
+            Dict with status: 'deleted', 'pending_approval', or 'not_found'
+        """
+        collection = self._get_records_collection(section)
+        
+        # First, get the record details
+        record = await collection.find_one(
+            {"id": record_id, "org_id": org_id, "is_current": True},
+            {"_id": 0}
+        )
+        
+        if not record:
+            return {"status": "not_found", "message": "Record not found"}
+        
+        # Admins bypass approval workflow (matching GHG delete behavior)
+        if user_role in ("admin", "super_admin") or force_delete:
+            return await self._perform_hard_delete(collection, record, org_id)
+        
+        # Check if this record requires approval workflow for non-admins
+        requires_approval = False
+        assignment = None
+        
+        assignment = await self._find_assignment_for_record(record, org_id)
+        if assignment and assignment.get("requires_approval"):
+            requires_approval = True
+        
+        # If approval required and record is already approved, create DELETE approval request
+        if requires_approval and record.get("approval_status") == "approved":
+            return await self._create_delete_approval_request(
+                collection, record, assignment, org_id, user_id
+            )
+        
+        # Otherwise, perform immediate deletion
+        return await self._perform_hard_delete(collection, record, org_id)
+    
+    async def _create_delete_approval_request(
+        self,
+        collection,
+        record: Dict[str, Any],
+        assignment: Dict[str, Any],
+        org_id: str,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Create a DELETE approval request instead of deleting immediately.
+        
+        The record remains visible but marked as pending_deletion.
+        Dashboards/KPIs should continue including the record until deletion is approved.
+        """
+        record_id = record.get("id")
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Check if there's already a pending delete request
+        existing_delete_request = await db.approval_requests.find_one({
+            "entity_id": record_id,
+            "request_type": "delete",
+            "status": "pending",
+        })
+        
+        if existing_delete_request:
+            return {
+                "status": "already_pending",
+                "message": "A delete approval request is already pending for this record.",
+                "approval_request_id": existing_delete_request.get("id"),
+            }
+        
+        # Mark record as pending deletion
+        await collection.update_one(
+            {"id": record_id},
+            {"$set": {
+                "pending_deletion": True,
+                "deletion_requested_by": user_id,
+                "deletion_requested_at": now,
+            }}
+        )
+        
+        # Get approver info from assignment
+        approver_id = assignment.get("approver_id")
+        approval_chain = assignment.get("approval_chain", [])
+        
+        if approval_chain and len(approval_chain) > 0:
+            first_item = approval_chain[0]
+            current_approvers = [first_item] if isinstance(first_item, str) else [first_item.get("approver_id")]
+            total_levels = len(approval_chain)
+        elif approver_id:
+            current_approvers = [approver_id]
+            total_levels = 1
+        else:
+            # No approver configured - auto-approve deletion
+            return await self._perform_hard_delete(collection, record, org_id)
+        
+        # Get submitter info
+        submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
+        
+        # Create approval request
+        approval_request = {
+            "id": str(uuid.uuid4()),
+            "organization_id": org_id,
+            "workflow_id": f"delete_{assignment.get('id')}",
+            "workflow_name": f"ESG Record Delete Approval - {record.get('category')}",
+            
+            "entity_type": "esg_record",
+            "entity_id": record_id,
+            "entity_subtype": record.get("category"),
+            "request_type": "delete",  # Distinguish from create/edit requests
+            
+            "entity_snapshot": {
+                "category": record.get("category"),
+                "subcategory": record.get("subcategory"),
+                "facility_id": record.get("facility_id"),
+                "reporting_period": record.get("reporting_period"),
+                "field_values": record.get("field_values"),
+            },
+            
+            "submitted_by": user_id,
+            "submitted_by_email": submitter.get("email", "") if submitter else "",
+            "submitted_by_name": submitter.get("full_name", "") if submitter else "",
+            "submitted_at": now,
+            "submission_comment": "Deletion requested",
+            
+            "status": "pending",
+            "current_level": 1,
+            "current_approvers": current_approvers,
+            "total_levels": total_levels,
+            
+            "steps_completed": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        
+        await db.approval_requests.insert_one(approval_request)
+        
+        return {
+            "status": "pending_approval",
+            "message": "Delete request submitted for approval. Record will be deleted once approved.",
+            "approval_request_id": approval_request["id"],
+            "approvers": current_approvers,
+        }
+    
+    async def _perform_hard_delete(
+        self,
+        collection,
+        record: Dict[str, Any],
+        org_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Perform actual hard delete of a record.
+        """
+        record_id = record.get("id")
+        
+        # Hard delete the record
+        result = await collection.delete_one(
+            {"id": record_id, "org_id": org_id, "is_current": True}
+        )
+        
+        if result.deleted_count > 0:
+            # Revert the associated task status back to pending
+            await self._revert_task_to_pending(
+                org_id=org_id,
+                category=record.get("category"),
+                subcategory=record.get("subcategory"),
+                sub_subcategory=record.get("sub_subcategory"),
+                facility_id=record.get("facility_id"),
+                reporting_period=record.get("reporting_period"),
+            )
+            
+            # Cancel any pending approval requests for this record
+            await db.approval_requests.update_many(
+                {
+                    "entity_type": "esg_record",
+                    "entity_id": record_id,
+                    "status": "pending",
+                },
+                {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+            
+            return {"status": "deleted", "message": "Record deleted successfully"}
+        
+        return {"status": "error", "message": "Failed to delete record"}
+    
+    async def _find_assignment_for_record(
+        self,
+        record: Dict[str, Any],
+        org_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Find the assignment that governs this record."""
+        query = {
+            "organization_id": org_id,
+            "category": record.get("category"),
+            "subcategory": record.get("subcategory"),
+        }
+        
+        # Check facility-level first, then org-level
+        if record.get("facility_id"):
+            facility_assignment = await db.esg_assignments.find_one(
+                {**query, "facility_id": record.get("facility_id")},
+                {"_id": 0}
+            )
+            if facility_assignment:
+                return facility_assignment
+        
+        # Fall back to org-level
+        return await db.esg_assignments.find_one(
+            {**query, "facility_id": None},
+            {"_id": 0}
+        )
+    
+    async def _revert_task_to_pending(
+        self,
+        org_id: str,
+        category: str,
+        subcategory: Optional[str],
+        sub_subcategory: Optional[str],
+        facility_id: Optional[str],
+        reporting_period: Dict[str, Any],
+    ):
+        """
+        Revert a task back to pending when its associated record is deleted.
+        """
+        try:
+            # Determine period_key from reporting_period
+            period_key = None
+            rp = reporting_period if isinstance(reporting_period, dict) else {}
+            
+            rp_type = rp.get("reporting_type") or rp.get("type")
+            if rp_type == "yearly":
+                period_key = str(rp.get("year"))
+            elif rp_type == "monthly":
+                month = rp.get("month")
+                if isinstance(month, str) and not month.isdigit():
+                    month_names = ["January", "February", "March", "April", "May", "June",
+                                   "July", "August", "September", "October", "November", "December"]
+                    try:
+                        month_num = month_names.index(month) + 1
+                    except ValueError:
+                        month_num = 1
+                else:
+                    month_num = int(month) if month else 1
+                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
+            elif rp_type == "quarterly":
+                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
+                period_key = f"{rp.get('year')}-Q{quarter}"
+            elif rp_type == "daily":
+                period_key = rp.get("date")
+            elif rp_type == "weekly":
+                period_key = rp.get("date")
+            
+            if not period_key:
+                return
+            
+            # Find task that has submission data (completed_at is set)
+            # NOTE: task.status is computed from records now, not stored
+            task_query = {
+                "organization_id": org_id,
+                "category": category,
+                "period_key": period_key,
+                "completed_at": {"$ne": None},  # Has been submitted at some point
+            }
+            if subcategory:
+                task_query["subcategory"] = subcategory
+            if sub_subcategory:
+                task_query["sub_subcategory"] = sub_subcategory
+            if facility_id:
+                task_query["facility_id"] = facility_id
+            
+            task = await db.esg_reporting_tasks.find_one(task_query, {"_id": 0, "id": 1, "is_backfill": 1})
+            if not task:
+                return
+            
+            # NOTE: task.status and approval_status are now computed from RECORDS.
+            # When record is deleted, just clear the audit fields.
+            # Status will auto-compute correctly (no data = pending/backfill_pending).
+            now = datetime.now(timezone.utc)
+            update_doc = {
+                "completed_at": None,
+                "completed_by_user_id": None,
+                "updated_at": now,
+            }
+            
+            await db.esg_reporting_tasks.update_one(
+                {"id": task["id"]},
+                {"$set": update_doc}
+            )
+            
+            print(f"Cleared task {task['id']} audit fields after record deletion")
+        except Exception as e:
+            print(f"Warning: Failed to revert task status after record deletion: {e}")
+    
+    # =========================================================================
+    # Version Management
+    # =========================================================================
+    
+    async def _create_version_snapshot(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        version: int,
+        snapshot: Dict[str, Any],
+        changed_fields: List[str],
+        user_id: str,
+        change_reason: Optional[str] = None
+    ):
+        """Create a version snapshot."""
+        collection = self._get_versions_collection(section)
+        now = datetime.now(timezone.utc).isoformat()
+        
+        version_doc = {
+            "id": str(uuid.uuid4()),
+            "record_id": record_id,
+            "organization_id": snapshot.get("organization_id") or snapshot.get("org_id"),
+            "version": version,
+            "section": section,
+            "snapshot": snapshot,
+            "changed_fields": changed_fields,
+            "change_reason": change_reason,
+            "created_by": user_id,
+            "created_at": now
+        }
+        
+        await collection.insert_one(version_doc)
+    
+    async def get_record_versions(
+        self,
+        section: ESG_SECTION,
+        record_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get all versions of a record with user names and field changes."""
+        collection = self._get_versions_collection(section)
+        cursor = collection.find(
+            {"record_id": record_id},
+            {"_id": 0}
+        ).sort([("version", -1), ("created_at", -1)])
+        versions = await cursor.to_list(None)
+        proposal_ids = [version.get("proposal_id") for version in versions if version.get("proposal_id")]
+        proposals_by_id = {}
+        if proposal_ids:
+            proposals = await db.approval_requests.find(
+                {"id": {"$in": proposal_ids}},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "entity_snapshot": 1},
+            ).to_list(None)
+            proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
+        
+        # Resolve actor display names for both current and legacy version entries.
+        # Older entries can carry an email in a `*_by_name` field, while newer
+        # entries reference a user id. Prefer the user's full name in either case.
+        actor_values = [
+            version.get(field)
+            for version in versions
+            for field in ("created_by", "approved_by", "rejected_by", "changed_by_name", "approved_by_name", "rejected_by_name")
+            if version.get(field)
+        ]
+        user_ids = list({value for value in actor_values if "@" not in str(value)})
+        user_emails = list({str(value).lower() for value in actor_values if "@" in str(value)})
+        user_map = {}
+        email_map = {}
+        user_query = []
+        if user_ids:
+            user_query.append({"id": {"$in": user_ids}})
+        if user_emails:
+            user_query.append({"email": {"$in": user_emails}})
+        if user_query:
+            users = await db.users.find(
+                {"$or": user_query},
+                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
+            ).to_list(None)
+            user_map = {
+                user["id"]: user.get("full_name") or user.get("name") or user.get("email", "Unknown")
+                for user in users
+                if user.get("id")
+            }
+            email_map = {
+                user["email"].lower(): user.get("full_name") or user.get("name") or "Unknown"
+                for user in users
+                if user.get("email")
+            }
+
+        def resolve_actor_name(*values: Any) -> str:
+            for value in values:
+                if not value:
+                    continue
+                raw_value = str(value)
+                if "@" in raw_value:
+                    resolved_name = email_map.get(raw_value.lower())
+                    if resolved_name:
+                        return resolved_name
+                    continue
+                resolved_name = user_map.get(raw_value)
+                if resolved_name:
+                    return resolved_name
+                return raw_value
+            return "Unknown"
+        
+        # Process versions - compute field changes by comparing consecutive snapshots
+        for i, v in enumerate(versions):
+            if "snapshot" in v and isinstance(v["snapshot"], dict):
+                v["snapshot"].pop("_id", None)
+            
+            # Add user names without exposing stored email fallbacks.
+            v["changed_by_name"] = resolve_actor_name(v.get("changed_by_name"), v.get("created_by"))
+            if v.get("approved_by_name") or v.get("approved_by"):
+                v["approved_by_name"] = resolve_actor_name(v.get("approved_by_name"), v.get("approved_by"), v.get("created_by"))
+            if v.get("rejected_by_name") or v.get("rejected_by"):
+                v["rejected_by_name"] = resolve_actor_name(v.get("rejected_by_name"), v.get("rejected_by"), v.get("created_by"))
+            proposal = proposals_by_id.get(v.get("proposal_id"))
+            if proposal and v.get("submitted_field_diffs") is None:
+                enrich_proposal_diff_details(v, proposal)
+            
+            # Keep stored change_type (approved/rejected/etc), only default if not present
+            if not v.get("change_type"):
+                v["change_type"] = "created" if v.get("version") == 1 else "updated"
+            
+            # Use stored changed_fields paths to compute diffs from snapshots
+            if v.get("field_diffs") is not None:
+                continue
+            previous = previous_applied_version(versions, i)
+            if v.get("version", 1) > 1 and previous:
+                # Compute from snapshots using utility
+                prev_snapshot = previous.get("snapshot", {})
+                curr_snapshot = v.get("snapshot", {})
+                changes = compare_versions(prev_snapshot, curr_snapshot)
+                v["field_diffs"] = [
+                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
+                    for c in changes
+                ]
+            else:
+                v["field_diffs"] = []
+        
+        return versions
+    
+    async def get_version(
+        self,
+        section: ESG_SECTION,
+        record_id: str,
+        version: int
+    ) -> Optional[Dict[str, Any]]:
+        """Get a specific version of a record."""
+        collection = self._get_versions_collection(section)
+        return await collection.find_one(
+            {"record_id": record_id, "version": version},
+            {"_id": 0}
+        )
+    
+    # =========================================================================
+    # Statistics
+    # =========================================================================
+    
+    async def get_record_stats(
+        self,
+        section: ESG_SECTION,
+        org_id: str,
+        category: str = None,
+        subcategory: str = None,
+        category_list: List[str] = None,
+    ) -> Dict[str, Any]:
+        """Get record statistics for an organization.
+        
+        Args:
+            category_list: List of categories to filter by (for "Others" virtual category)
+        """
+        collection = self._get_records_collection(section)
+        base_filter = {"org_id": org_id, "is_current": True}
+        
+        # Handle category filtering
+        if category_list:
+            # Multiple categories (for "Others" virtual category)
+            base_filter["category"] = {"$in": category_list}
+        elif category:
+            base_filter["category"] = category
+        if subcategory:
+            base_filter["subcategory"] = subcategory
+        
+        # Total records
+        total = await collection.count_documents(base_filter)
+        
+        # By category
+        pipeline = [
+            {"$match": base_filter},
+            {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+        ]
+        by_category = {}
+        async for doc in collection.aggregate(pipeline):
+            by_category[doc["_id"]] = doc["count"]
+        
+        # By reporting type
+        pipeline = [
+            {"$match": base_filter},
+            {"$group": {"_id": "$reporting_period.reporting_type", "count": {"$sum": 1}}}
+        ]
+        by_reporting_type = {}
+        async for doc in collection.aggregate(pipeline):
+            by_reporting_type[doc["_id"]] = doc["count"]
+        
+        # By status
+        drafts = await collection.count_documents({**base_filter, "status": "draft"})
+        completed = await collection.count_documents({**base_filter, "status": "completed"})
+        
+        # By approval_status
+        approved = await collection.count_documents({**base_filter, "approval_status": "approved"})
+        pending = await collection.count_documents({**base_filter, "approval_status": "pending_approval"})
+        rejected = await collection.count_documents({**base_filter, "approval_status": "rejected"})
+        not_required = await collection.count_documents({
+            **base_filter,
+            "$or": [{"approval_status": "not_required"}, {"approval_status": None}, {"approval_status": {"$exists": False}}]
+        })
+        
+        # "submitted" = completed records (not draft) regardless of approval
+        submitted = completed
+        
+        return {
+            "total": total,
+            "by_category": by_category,
+            "by_reporting_type": by_reporting_type,
+            "drafts": drafts,
+            "submitted": submitted,
+            "approved": approved,
+            "pending_approval": pending,
+            "rejected": rejected,
+            "not_required": not_required,
+        }
+    
+    # =========================================================================
+    # Admin Methods (Super Admin Only)
+    # =========================================================================
+    
+    async def admin_list_categories(
+        self,
+        section: Optional[ESG_SECTION] = None,
+        framework: Optional[str] = None,
+        include_inactive: bool = False
+    ) -> List[Dict[str, Any]]:
+        """List all categories across sections (Super Admin)."""
+        query = {}
+        if section:
+            query["section"] = section
+        if not include_inactive:
+            query["is_active"] = True
+        if framework:
+            query["frameworks"] = framework
+        
+        cursor = self._categories.find(query, {"_id": 0}).sort([("section", 1), ("order", 1)])
+        return await cursor.to_list(None)
+    
+    async def create_category(self, category_doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new category (Super Admin)."""
+        await self._categories.insert_one(category_doc)
+        category_doc.pop("_id", None)
+        return category_doc
+    
+    async def update_category(
+        self, 
+        category_id: str, 
+        update_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Update a category (Super Admin)."""
+        await self._categories.update_one(
+            {"id": category_id},
+            {"$set": update_data}
+        )
+        return await self.get_category(category_id)
+    
+    async def delete_category(self, category_id: str) -> bool:
+        """Delete a category (Super Admin)."""
+        result = await self._categories.delete_one({"id": category_id})
+        return result.deleted_count > 0
+    
+    async def count_records_by_category(self, category_id: str) -> int:
+        """Count records using a specific category."""
+        total = 0
+        for section in ["environment", "social", "governance"]:
+            collection = self._get_records_collection(section)
+            count = await collection.count_documents({"category_id": category_id, "is_current": True})
+            total += count
+        return total
+    
+    async def get_admin_stats(self) -> Dict[str, Any]:
+        """Get ESG configuration statistics (Super Admin)."""
+        # Category counts by section
+        pipeline = [
+            {"$group": {"_id": "$section", "count": {"$sum": 1}, "active": {"$sum": {"$cond": ["$is_active", 1, 0]}}}}
+        ]
+        by_section = {}
+        async for doc in self._categories.aggregate(pipeline):
+            by_section[doc["_id"]] = {"total": doc["count"], "active": doc["active"]}
+        
+        # Total categories
+        total_categories = await self._categories.count_documents({})
+        active_categories = await self._categories.count_documents({"is_active": True})
+        
+        # Record counts per section
+        record_counts = {}
+        for section in ["environment", "social", "governance"]:
+            collection = self._get_records_collection(section)
+            record_counts[section] = await collection.count_documents({"is_current": True})
+        
+        return {
+            "categories": {
+                "total": total_categories,
+                "active": active_categories,
+                "by_section": by_section
+            },
+            "records": record_counts
+        }
+
+    # =========================================================================
+    # Tracker & Assignment Methods
+    # =========================================================================
+
+    async def get_tracker_assignments(
+        self,
+        org_id: str,
+        section: str,
+        reporting_period: Optional[str] = None,
+        framework: Optional[str] = None,
+        category: Optional[str] = None,
+        facility_id: Optional[str] = None,
+        assigned_to: Optional[str] = None,
+        status: Optional[str] = None,
+        staleness: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get tracker assignments for record categories.
+        Uses esg_assignments collection with entity_type='record_category'.
+        Now includes multi-assignee data from esg_task_assignees.
+        """
+        # Build query for assignments
+        query = {
+            "organization_id": org_id,
+            "entity_type": "record_category",
+        }
+        if reporting_period:
+            query["reporting_period"] = reporting_period
+        if category:
+            query["category"] = category
+        if facility_id:
+            query["facility_id"] = facility_id
+        if assigned_to:
+            query["assigned_to_user_id"] = assigned_to
+        if status:
+            query["status"] = status
+
+        assignments_cursor = db.esg_assignments.find(query, {"_id": 0})
+        assignments = await assignments_cursor.to_list(500)
+
+        # Group assignments by category/subcategory to aggregate assignees
+        # Key: (category, subcategory, sub_subcategory, facility_id)
+        grouped = {}
+        for assignment in assignments:
+            key = (
+                assignment.get("category"),
+                assignment.get("subcategory"),
+                assignment.get("sub_subcategory"),
+                assignment.get("facility_id"),
+            )
+            if key not in grouped:
+                grouped[key] = {
+                    **assignment,
+                    "assignees": [],  # New: list of all assignees
+                }
+            
+            # Fetch assignees from the new esg_assignment_assignees table
+            assignment_assignees = await db.esg_assignment_assignees.find(
+                {"assignment_id": assignment.get("id"), "removed_at": None},
+                {"_id": 0}
+            ).to_list(100)
+            
+            for assignee_record in assignment_assignees:
+                user_id = assignee_record.get("user_id")
+                if not user_id:
+                    continue
+                    
+                # Get user details
+                user = await db.users.find_one(
+                    {"id": user_id},
+                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
+                )
+                assignee_entry = {
+                    "user_id": user_id,
+                    "user_name": user.get("full_name") or user.get("name") if user else None,
+                    "user_email": user.get("email") if user else None,
+                    "role": assignee_record.get("role", "editor"),
+                    "assignment_id": assignment.get("id"),
+                    "assigned_at": assignee_record.get("assigned_at"),
+                }
+                
+                # Avoid duplicates
+                existing_ids = [a["user_id"] for a in grouped[key]["assignees"]]
+                if user_id not in existing_ids:
+                    grouped[key]["assignees"].append(assignee_entry)
+            
+            # Fallback: check legacy assigned_to_user_id for backwards compatibility
+            if not grouped[key]["assignees"] and assignment.get("assigned_to_user_id"):
+                user = await db.users.find_one(
+                    {"id": assignment["assigned_to_user_id"]},
+                    {"_id": 0, "full_name": 1, "name": 1, "email": 1}
+                )
+                assignee_entry = {
+                    "user_id": assignment["assigned_to_user_id"],
+                    "user_name": user.get("full_name") or user.get("name") if user else None,
+                    "user_email": user.get("email") if user else None,
+                    "role": "editor",
+                    "assignment_id": assignment.get("id"),
+                }
+                grouped[key]["assignees"].append(assignee_entry)
+
+        # Convert grouped dict back to list
+        aggregated_assignments = list(grouped.values())
+
+        # Enrich with facility names and staleness calculation
+        for assignment in aggregated_assignments:
+            # Set assigned_to_name from first assignee for backwards compatibility
+            if assignment["assignees"]:
+                assignment["assigned_to_name"] = assignment["assignees"][0].get("user_name")
+                assignment["assigned_to_email"] = assignment["assignees"][0].get("user_email")
+            
+            # Get facility name
+            if assignment.get("facility_id"):
+                facility = await db.facilities.find_one(
+                    {"id": assignment["facility_id"]},
+                    {"_id": 0, "name": 1}
+                )
+                if facility:
+                    assignment["facility_name"] = facility.get("name")
+            
+            # Calculate staleness based on last record entry
+            last_entry = await self._get_last_record_entry(
+                org_id, section, assignment.get("category"), assignment.get("facility_id")
+            )
+            if last_entry:
+                last_updated = last_entry.get("updated_at") or last_entry.get("created_at")
+                assignment["last_entry_at"] = last_updated
+                if last_updated:
+                    # Ensure timezone awareness
+                    if isinstance(last_updated, str):
+                        try:
+                            last_updated = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                        except (ValueError, TypeError):
+                            last_updated = None
+                    if last_updated and last_updated.tzinfo is None:
+                        last_updated = last_updated.replace(tzinfo=timezone.utc)
+                    if last_updated:
+                        days_since = (datetime.now(timezone.utc) - last_updated).days
+                        if days_since <= 30:
+                            assignment["staleness"] = "fresh"
+                        elif days_since <= 60:
+                            assignment["staleness"] = "aging"
+                        elif days_since <= 90:
+                            assignment["staleness"] = "stale"
+                        else:
+                            assignment["staleness"] = "critical"
+                    else:
+                        assignment["staleness"] = "critical"
+                else:
+                    assignment["staleness"] = "critical"
+            else:
+                assignment["staleness"] = "critical"
+                assignment["last_entry_at"] = None
+
+        # Filter by staleness if requested
+        if staleness:
+            aggregated_assignments = [a for a in aggregated_assignments if a.get("staleness") == staleness]
+
+        return aggregated_assignments
+
+    async def _get_last_record_entry(
+        self,
+        org_id: str,
+        section: str,
+        category: Optional[str],
+        facility_id: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
+        """Get the most recent record entry for a category."""
+        collection = self._get_records_collection(section)
+        query = {
+            "organization_id": org_id,
+            "is_current": True,
+        }
+        if category:
+            query["category"] = category
+        if facility_id:
+            query["facility_id"] = facility_id
+        
+        record = await collection.find_one(
+            query,
+            {"_id": 0, "updated_at": 1, "created_at": 1},
+            sort=[("updated_at", -1)]
+        )
+        return record
+
+    async def get_tracker_stats(
+        self,
+        org_id: str,
+        section: str,
+        reporting_period: Optional[str] = None,
+        framework: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get tracker statistics."""
+        # Get total categories
+        cat_query = {"section": section, "is_active": True}
+        if framework:
+            cat_query["frameworks"] = framework
+        total_categories = await self._categories.count_documents(cat_query)
+
+        # Get assignment counts
+        assign_query = {
+            "organization_id": org_id,
+            "entity_type": "record_category",
+        }
+        if reporting_period:
+            assign_query["reporting_period"] = reporting_period
+
+        assigned = await db.esg_assignments.count_documents(assign_query)
+        
+        # Status counts
+        completed = await db.esg_assignments.count_documents({**assign_query, "status": "completed"})
+        in_progress = await db.esg_assignments.count_documents({**assign_query, "status": "in_progress"})
+        
+        # Overdue count
+        now = datetime.now(timezone.utc)
+        overdue = await db.esg_assignments.count_documents({
+            **assign_query,
+            "due_date": {"$lt": now},
+            "status": {"$nin": ["completed", "approved"]}
+        })
+
+        return {
+            "total_categories": total_categories,
+            "assigned": assigned,
+            "unassigned": max(0, total_categories - assigned),
+            "completed": completed,
+            "in_progress": in_progress,
+            "overdue": overdue,
+            "stale": 0,  # Would need to calculate based on last entries
+        }
+
+    async def create_assignment(
+        self,
+        org_id: str,
+        assigned_by_user_id: str,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Create or update a record category assignment.
+        Uses esg_assignments collection.
+        
+        If `replace_existing` is True in data, deletes all existing assignments
+        for the same category/subcategory/facility/reporting_period before creating new ones.
+        """
+        now = datetime.now(timezone.utc)
+        assignment_id = str(uuid.uuid4())
+        
+        # Base query for finding existing assignments (without user_id - matches all users)
+        base_query = {
+            "organization_id": org_id,
+            "entity_type": "record_category",
+            "category": data.get("category"),
+            "subcategory": data.get("subcategory"),
+            "sub_subcategory": data.get("sub_subcategory"),
+            "facility_id": data.get("facility_id"),
+            "reporting_period": data.get("reporting_period"),
+        }
+        
+        # If replace_existing flag is set, delete all existing assignments for this category combo
+        if data.get("replace_existing"):
+            # Get assignment IDs before deleting (for cleanup)
+            old_assignments = await db.esg_assignments.find(base_query, {"_id": 0, "id": 1}).to_list(100)
+            old_assignment_ids = [a["id"] for a in old_assignments]
+            
+            deleted = await db.esg_assignments.delete_many(base_query)
+            
+            # Clean up task_assignees for deleted assignments
+            if old_assignment_ids:
+                await db.esg_task_assignees.delete_many({"assignment_id": {"$in": old_assignment_ids}})
+            
+            # Log deletion if any were removed
+            if deleted.deleted_count > 0:
+                history_doc = {
+                    "id": str(uuid.uuid4()),
+                    "assignment_id": None,
+                    "action": "bulk_replaced",
+                    "previous_value": {"deleted_count": deleted.deleted_count},
+                    "new_value": {"category": data.get("category"), "subcategory": data.get("subcategory")},
+                    "changed_by_user_id": assigned_by_user_id,
+                    "created_at": now,
+                }
+                await db.esg_record_assignment_history.insert_one(history_doc)
+
+        # Check for existing assignment with same params INCLUDING user_id
+        existing = await db.esg_assignments.find_one({
+            **base_query,
+            "assigned_to_user_id": data.get("assigned_to_user_id"),
+        })
+
+        if existing:
+            # Update existing assignment
+            await db.esg_assignments.update_one(
+                {"id": existing["id"]},
+                {
+                    "$set": {
+                        "assignment_level": data.get("assignment_level", existing.get("assignment_level")),
+                        "facility_id": data.get("facility_id"),
+                        "filling_frequency": data.get("filling_frequency"),
+                        "reminder_config": data.get("reminder_config"),
+                        "requires_approval": data.get("requires_approval", False),
+                        "approver_id": data.get("approver_id"),
+                        "approval_chain": data.get("approval_chain", []),
+                        "role": data.get("role"),
+                        # New scheduling fields
+                        "start_date": data.get("start_date"),
+                        "end_date": data.get("end_date"),
+                        "timezone": data.get("timezone", "UTC"),
+                        "due_config": data.get("due_config"),
+                        "updated_at": now,
+                    }
+                }
+            )
+            assignment_id = existing["id"]
+        else:
+            # Create new assignment
+            assignment_doc = {
+                "id": assignment_id,
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "entity_id": data.get("entity_id") or f"{data.get('category')}_{data.get('subcategory', '')}_{data.get('sub_subcategory', '')}".strip("_"),
+                "category": data.get("category"),
+                "subcategory": data.get("subcategory"),
+                "sub_subcategory": data.get("sub_subcategory"),
+                "assignment_level": data.get("assignment_level", "organization"),
+                "facility_id": data.get("facility_id"),
+                "assigned_to_user_id": data.get("assigned_to_user_id"),
+                "assigned_by_user_id": assigned_by_user_id,
+                "reporting_period": data.get("reporting_period"),
+                "role": data.get("role", "editor"),
+                "status": "pending",
+                "filling_frequency": data.get("filling_frequency"),
+                "reminder_config": data.get("reminder_config"),
+                "requires_approval": data.get("requires_approval", False),
+                "approver_id": data.get("approver_id"),
+                "approval_chain": data.get("approval_chain", []),
+                # New scheduling fields
+                "start_date": data.get("start_date"),
+                "end_date": data.get("end_date"),
+                "timezone": data.get("timezone", "UTC"),
+                "due_config": data.get("due_config"),
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.esg_assignments.insert_one(assignment_doc)
+
+            # Log to assignment history
+            history_doc = {
+                "id": str(uuid.uuid4()),
+                "assignment_id": assignment_id,
+                "action": "created",
+                "previous_value": None,
+                "new_value": {
+                    "assigned_to": data.get("assigned_to_user_id"),
+                    "role": data.get("role"),
+                },
+                "changed_by_user_id": assigned_by_user_id,
+                "created_at": now,
+            }
+            await db.esg_record_assignment_history.insert_one(history_doc)
+
+        # Auto-generate tasks if start_date and filling_frequency are provided
+        if data.get("start_date") and data.get("filling_frequency"):
+            try:
+                from .task_engine import generate_tasks_for_assignment as gen_tasks
+                # Fetch the created/updated assignment
+                assignment = await db.esg_assignments.find_one({"id": assignment_id}, {"_id": 0})
+                if assignment:
+                    task_result = await gen_tasks(db, assignment)
+                    print(f"Task generation result for assignment {assignment_id}: {task_result}")
+            except Exception as e:
+                import traceback
+                error_msg = f"Task generation failed: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                traceback.print_exc()
+                raise HTTPException(status_code=500, detail=error_msg)
+
+        # CASCADE: If assigning parent category (no subcategory), create child assignments
+        cascade_results = []
+        if data.get("assign_children") and not data.get("subcategory"):
+            cascade_results = await self._cascade_assignment_to_children(
+                org_id=org_id,
+                assigned_by_user_id=assigned_by_user_id,
+                parent_assignment_id=assignment_id,
+                data=data,
+            )
+
+        # PROPAGATE APPROVAL: When a category-level assignment has requires_approval,
+        # propagate approver settings to ALL subcategory assignments under that category
+        # Only triggers for category-level assignments (no subcategory specified)
+        propagated = 0
+        if data.get("requires_approval") and not data.get("subcategory") and data.get("approver_id"):
+            child_query = {
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "category": data.get("category"),
+                "subcategory": {"$ne": None},
+            }
+            result = await db.esg_assignments.update_many(
+                child_query,
+                {"$set": {
+                    "requires_approval": True,
+                    "approver_id": data.get("approver_id"),
+                    "approval_chain": data.get("approval_chain", []),
+                    "updated_at": now,
+                }}
+            )
+            propagated = result.modified_count
+            if propagated > 0:
+                print(f"Propagated approval config to {propagated} subcategory assignments under {data.get('category')}")
+
+        return {
+            "id": assignment_id, 
+            "status": "saved",
+            "cascaded_assignments": len(cascade_results),
+            "cascade_details": cascade_results,
+            "propagated_approval": propagated,
+        }
+
+    async def _cascade_assignment_to_children(
+        self,
+        org_id: str,
+        assigned_by_user_id: str,
+        parent_assignment_id: str,
+        data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """
+        Cascade a parent category assignment to all child subcategories.
+        
+        When assigning a parent category (e.g., "Emissions"), this creates individual
+        assignments for ALL subcategories defined in esg_record_categories by Super Admin.
+        
+        Source: esg_record_categories (Super Admin managed via /api/super-admin/esg-config/categories)
+        
+        Example: Assigning "Emissions" cascades to:
+        - Emissions / Air Emissions (if defined by Super Admin)
+        - Emissions / GHG Emissions (if defined by Super Admin)
+        
+        Each child gets its own task generation.
+        """
+        now = datetime.now(timezone.utc)
+        parent_category = data.get("category")
+        results = []
+        
+        # Find all child categories from Super Admin-managed esg_record_categories
+        # Only get active categories
+        child_categories = await db.esg_record_categories.find(
+            {
+                "category": parent_category,
+                "subcategory": {"$exists": True, "$nin": [None, ""]},
+                "is_active": {"$ne": False},  # Include active (default) categories
+            },
+            {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
+        ).to_list(100)
+        
+        if not child_categories:
+            return results
+        
+        # Group by subcategory to handle sub_subcategories
+        seen = set()
+        
+        for child in child_categories:
+            subcat = child.get("subcategory")
+            sub_subcat = child.get("sub_subcategory")
+            
+            # Create unique key to avoid duplicates
+            unique_key = f"{parent_category}|{subcat}|{sub_subcat or ''}"
+            if unique_key in seen:
+                continue
+            seen.add(unique_key)
+            
+            # Build child assignment data
+            child_data = {
+                **data,
+                "subcategory": subcat,
+                "sub_subcategory": sub_subcat if sub_subcat else None,
+                "entity_id": f"{parent_category}_{subcat}_{sub_subcat or ''}".strip("_"),
+                "parent_assignment_id": parent_assignment_id,
+                "assign_children": False,  # Don't cascade recursively
+                "replace_existing": False,  # Don't replace on cascade
+            }
+            
+            # Check if assignment already exists
+            existing = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_type": "record_category",
+                "category": parent_category,
+                "subcategory": subcat,
+                "sub_subcategory": sub_subcat if sub_subcat else None,
+                "facility_id": data.get("facility_id"),
+                "assigned_to_user_id": data.get("assigned_to_user_id"),
+                "reporting_period": data.get("reporting_period"),
+            })
+            
+            if existing:
+                # Update existing
+                await db.esg_assignments.update_one(
+                    {"id": existing["id"]},
+                    {"$set": {
+                        "start_date": data.get("start_date"),
+                        "end_date": data.get("end_date"),
+                        "timezone": data.get("timezone", "UTC"),
+                        "due_config": data.get("due_config"),
+                        "filling_frequency": data.get("filling_frequency"),
+                        "parent_assignment_id": parent_assignment_id,
+                        "updated_at": now,
+                    }}
+                )
+                child_assignment_id = existing["id"]
+                results.append({
+                    "id": child_assignment_id,
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat,
+                    "action": "updated",
+                })
+            else:
+                # Create new child assignment
+                child_assignment_id = str(uuid.uuid4())
+                child_doc = {
+                    "id": child_assignment_id,
+                    "organization_id": org_id,
+                    "entity_type": "record_category",
+                    "entity_id": child_data["entity_id"],
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat if sub_subcat else None,
+                    "parent_assignment_id": parent_assignment_id,
+                    "assignment_level": data.get("assignment_level", "organization"),
+                    "facility_id": data.get("facility_id"),
+                    "assigned_to_user_id": data.get("assigned_to_user_id"),
+                    "assigned_by_user_id": assigned_by_user_id,
+                    "reporting_period": data.get("reporting_period"),
+                    "role": data.get("role", "editor"),
+                    "status": "pending",
+                    "filling_frequency": data.get("filling_frequency"),
+                    "reminder_config": data.get("reminder_config"),
+                    "requires_approval": False,
+                    "start_date": data.get("start_date"),
+                    "end_date": data.get("end_date"),
+                    "timezone": data.get("timezone", "UTC"),
+                    "due_config": data.get("due_config"),
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                await db.esg_assignments.insert_one(child_doc)
+                
+                results.append({
+                    "id": child_assignment_id,
+                    "category": parent_category,
+                    "subcategory": subcat,
+                    "sub_subcategory": sub_subcat,
+                    "action": "created",
+                })
+            
+            # Generate tasks for child assignment
+            if data.get("start_date") and data.get("filling_frequency"):
+                try:
+                    from .task_engine import generate_tasks_for_assignment as gen_tasks
+                    assignment = await db.esg_assignments.find_one({"id": child_assignment_id}, {"_id": 0})
+                    if assignment:
+                        task_result = await gen_tasks(db, assignment)
+                        print(f"Task generation result for child assignment {child_assignment_id}: {task_result}")
+                except Exception as e:
+                    import traceback
+                    print(f"ERROR: Task generation failed for child {subcat}/{sub_subcat}: {e}")
+                    traceback.print_exc()
+                    # Don't fail cascade, but log the error
+        
+        return results
+
+    # =========================================================================
+    # Draft Methods
+    # =========================================================================
+
+    async def get_user_drafts(
+        self,
+        org_id: str,
+        section: str,
+        user_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Get user's drafts for a section."""
+        cursor = db.esg_record_drafts.find(
+            {
+                "organization_id": org_id,
+                "section": section,
+                "user_id": user_id,
+            },
+            {"_id": 0}
+        )
+        return await cursor.to_list(100)
+
+    async def save_as_draft(
+        self,
+        org_id: str,
+        section: str,
+        record_id: str,
+        user_id: str,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Save a record as draft for the current user."""
+        now = datetime.now(timezone.utc)
+        
+        # Check for existing draft
+        existing = await db.esg_record_drafts.find_one({
+            "organization_id": org_id,
+            "section": section,
+            "record_id": record_id,
+            "user_id": user_id,
+        })
+
+        if existing:
+            await db.esg_record_drafts.update_one(
+                {"id": existing["id"]},
+                {
+                    "$set": {
+                        "draft_data": data,
+                        "updated_at": now,
+                    }
+                }
+            )
+            return {"id": existing["id"], "status": "updated"}
+        else:
+            draft_doc = {
+                "id": str(uuid.uuid4()),
+                "organization_id": org_id,
+                "section": section,
+                "record_id": record_id,
+                "user_id": user_id,
+                "draft_data": data,
+                "status": "draft",
+                "created_at": now,
+                "updated_at": now,
+            }
+            await db.esg_record_drafts.insert_one(draft_doc)
+            return {"id": draft_doc["id"], "status": "created"}
+
+    async def discard_draft(
+        self,
+        org_id: str,
+        section: str,
+        record_id: str,
+        user_id: str,
+    ) -> bool:
+        """Discard a user's draft."""
+        result = await db.esg_record_drafts.delete_one({
+            "organization_id": org_id,
+            "section": section,
+            "record_id": record_id,
+            "user_id": user_id,
+        })
+        return result.deleted_count > 0
+
+
+# Singleton instance
+esg_records_service = ESGRecordsService()

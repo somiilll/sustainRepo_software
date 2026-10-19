@@ -13,6 +13,8 @@ from modules.emissions.contracts import EmissionRecordResponse
 class DashboardStats(BaseModel):
     total_facilities: int
     total_emissions: float
+    record_count: int = 0
+    annual_records_allocated: bool = False
     scope1_emissions: float
     scope2_emissions: float
     scope3_emissions: float = 0  # NEW: Scope 3 emissions

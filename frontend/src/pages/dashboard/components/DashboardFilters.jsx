@@ -19,7 +19,7 @@ export default function DashboardFilters({
   showFacilityDropdown,
   setShowFacilityDropdown,
   facilityDropdownRef,
-  getPreviousFinancialYear,
+  getCurrentFinancialYear,
 }) {
   return (
     <Card className="p-3 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
@@ -158,7 +158,7 @@ export default function DashboardFilters({
           <Button
             onClick={() => {
               setSelectedFacilities([]);
-              setDateRange(getPreviousFinancialYear());
+              setDateRange(getCurrentFinancialYear());
               setShowFacilityDropdown(false);
             }}
             variant="outline"

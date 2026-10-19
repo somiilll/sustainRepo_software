@@ -19,6 +19,62 @@ from shared.helpers.tokens import decode_access_token
 security = HTTPBearer()
 
 
+async def ensure_supplier_relationship_active(user: dict, organization: dict | None = None) -> None:
+    """Prevent supplier accounts with no active customer relationship from accessing the platform."""
+    if user.get("role") == "super_admin" or not user.get("organization_id"):
+        return
+    organization = organization or await db.organizations.find_one(
+        {"id": user["organization_id"]}, {"_id": 0, "org_type": 1}
+    )
+    is_supplier = user.get("user_type") == "supplier" or (organization or {}).get("org_type") == "supplier"
+    if not is_supplier:
+        return
+    relationship = await db.supplier_relationships.find_one(
+        {"supplier_org_id": user["organization_id"], "is_active": True},
+        {"_id": 0, "id": 1, "due_date": 1, "customer_org_id": 1},
+    )
+    if not relationship:
+        raise HTTPException(status_code=403, detail="Your supplier access has been deactivated by your customer.")
+    expiry_value = relationship.get("due_date")
+    expiry_label = "supplier assessment deadline"
+    if not expiry_value:
+        parent_org = await db.organizations.find_one({"id": relationship.get("customer_org_id")}, {"_id": 0, "subscription_expires_at": 1})
+        expiry_value = (parent_org or {}).get("subscription_expires_at")
+        expiry_label = "customer organization's subscription"
+    if expiry_value:
+        try:
+            now = datetime.now(timezone.utc)
+            if "T" in str(expiry_value):
+                expired = datetime.fromisoformat(str(expiry_value).replace("Z", "+00:00")) < now
+            else:
+                expired = datetime.strptime(str(expiry_value), "%Y-%m-%d").date() < now.date()
+            if expired:
+                raise HTTPException(status_code=403, detail=f"Your portal access is locked because the {expiry_label} has expired. Please contact your customer.")
+        except (ValueError, TypeError):
+            pass
+
+
+async def mark_supplier_invitation_accepted_on_login(user: dict, organization: dict | None = None) -> None:
+    """Record a supplier's first successful portal login on pending relationships."""
+    if user.get("role") == "super_admin" or not user.get("organization_id"):
+        return
+    organization = organization or await db.organizations.find_one(
+        {"id": user["organization_id"]}, {"_id": 0, "org_type": 1}
+    )
+    is_supplier = user.get("user_type") == "supplier" or (organization or {}).get("org_type") == "supplier"
+    if not is_supplier:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    await db.supplier_relationships.update_many(
+        {
+            "supplier_org_id": user["organization_id"],
+            "is_active": True,
+            "invitation_status": "pending",
+        },
+        {"$set": {"invitation_status": "accepted", "accepted_at": now, "updated_at": now}},
+    )
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """
     Resolve and validate the bearer token, returning the user document.
@@ -52,15 +108,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
 
+    organization = None
     if user.get("role") != "super_admin" and user.get("organization_id"):
-        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
+        organization = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
 
-        if org and (org.get("is_deleted") or not org.get("is_active", True)):
+        if organization and (organization.get("is_deleted") or not organization.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
 
-        if org and org.get("subscription_expires_at"):
+        if organization and organization.get("subscription_expires_at") and not (user.get("user_type") == "supplier" or organization.get("org_type") == "supplier"):
             try:
-                expires_str = org["subscription_expires_at"]
+                expires_str = organization["subscription_expires_at"]
                 now = datetime.now(timezone.utc)
                 if "T" in str(expires_str):
                     expires_at = datetime.fromisoformat(expires_str.replace("Z", "+00:00"))
@@ -75,6 +132,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 # date parse failures don't block login.
                 pass
 
+    await ensure_supplier_relationship_active(user, organization)
+    await mark_supplier_invitation_accepted_on_login(user, organization)
+
     return user
 
 
@@ -87,4 +147,26 @@ async def get_super_admin_user(current_user: dict = Depends(get_current_user)) -
 async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") not in ["super_admin", "admin"]:
         raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+async def get_approver_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Allow access for:
+    - Admins/Super Admins (can approve anything in their org)
+    - Users with approver role or is_approver flag
+    - Users who are assigned as approvers for specific questions/sections
+    """
+    role = current_user.get("role", "user")
+    
+    # Admins and super admins can always approve
+    if role in ["super_admin", "admin"]:
+        return current_user
+    
+    # Check if user has approver flag
+    if current_user.get("is_approver"):
+        return current_user
+    
+    # For regular users, we allow access - the service layer will filter
+    # to only show submissions where they are assigned as approver
     return current_user

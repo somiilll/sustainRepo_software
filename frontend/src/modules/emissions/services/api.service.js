@@ -6,6 +6,7 @@
  */
 
 import axios from 'axios';
+import { normalizeAxiosError } from '../../../lib/userFriendlyError';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -27,6 +28,10 @@ const createApiClient = (getAuthHeader) => {
     }
     return config;
   });
+  client.interceptors.response.use(
+    (response) => response,
+    (error) => Promise.reject(normalizeAxiosError(error)),
+  );
   
   return client;
 };
@@ -106,7 +111,6 @@ export const createEmissionsService = (getAuthHeader) => {
         scopes,
         categories,
         scope3EF,
-        processTemplates,
         formulas,
         organization,
       ] = await Promise.all([
@@ -117,7 +121,6 @@ export const createEmissionsService = (getAuthHeader) => {
         api.get('/scopes').catch(() => ({ data: [] })),
         api.get('/categories').catch(() => ({ data: [] })),
         api.get('/scope3-ef?limit=10000').catch(() => ({ data: [] })),
-        api.get('/process-templates').catch(() => ({ data: [] })),
         api.get('/formula-definitions').catch(() => ({ data: [] })),
         api.get('/organizations/my').catch(() => ({ data: null })),
       ]);
@@ -135,7 +138,6 @@ export const createEmissionsService = (getAuthHeader) => {
         scope3EFData: Array.isArray(scope3EF.data?.data) 
           ? scope3EF.data.data 
           : (Array.isArray(scope3EF.data) ? scope3EF.data : []),
-        processTemplates: processTemplates.data || [],
         formulaDefinitions: formulas.data || [],
         organization: organization.data,
       };

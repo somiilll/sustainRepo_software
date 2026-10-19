@@ -13,6 +13,7 @@
  * caller stay on a single audit-log code path.
  */
 import axios from 'axios';
+import { buildCustomFuelCalculationPayload } from './customFuelCalcAdapter';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -34,6 +35,10 @@ export async function persistCalcAuditLog(emissionId, ctx) {
     scope3CustomActivity,
     requiresSubcategory,
     selectedFuel,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editCalcMethodology,
+    editingEmission,
     getAuthHeader,
   } = ctx;
 
@@ -58,7 +63,9 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (value !== undefined && value !== '' && value !== null) {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           inputs[field.variable] = { value: numValue, unit };
         }
       }
@@ -71,11 +78,27 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       if (dynamicFieldValues[overrideKey]) {
         const value = dynamicFieldValues[field.variable];
         if (value !== undefined && value !== null && value !== '') {
-          const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+          const unit = field.unitSource === 'none'
+            ? ''
+            : dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
           userOverrides[field.variable] = { value: parseFloat(value), unit };
         }
       }
     });
+
+    const customFuelCalculation = editUseCustomFuel
+      ? buildCustomFuelCalculationPayload({
+        dynamicFieldValues,
+        formData,
+        categoryName: formData.category || selectedCategory,
+        calculationMethodology: editCalcMethodology,
+      })
+      : null;
+    if (customFuelCalculation) {
+      Object.assign(inputs, customFuelCalculation.inputs);
+      Object.assign(userOverrides, customFuelCalculation.userOverrides);
+      if (!customFuelCalculation.isReady) return;
+    }
 
     const decisionInputs = buildEditDecisionInputs();
 
@@ -89,7 +112,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
     } : {};
 
-    let fuelNameForContext = selectedFuel?.fuel_name;
+    let fuelNameForContext = editUseCustomFuel ? editCustomFuelName : selectedFuel?.fuel_name;
     if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
       fuelNameForContext = matchedEFForSave.activity;
     }
@@ -100,15 +123,22 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       inputs,
       context: {
         fuel_name: fuelNameForContext,
-        fuel_id: selectedFuel?.id,
+        fuel_id: editUseCustomFuel ? null : selectedFuel?.id,
         scope: formData.scope,
         category: formData.category || selectedCategory,
         reporting_period: formData.reporting_period_start,
+        is_custom_fuel: editUseCustomFuel || false,
         ...scope3Context,
       },
       user_overrides: userOverrides,
       dry_run: false,
       emission_record_id: emissionId,
+      ...(ctx.preserveOriginalVersion && editingEmission?.decision_tree_version_id && {
+        decision_tree_version_id: editingEmission.decision_tree_version_id,
+      }),
+      ...(ctx.preserveOriginalVersion && editingEmission?.formula_version_id && {
+        formula_version_id: editingEmission.formula_version_id,
+      }),
       ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
     };
 
@@ -116,7 +146,7 @@ export async function persistCalcAuditLog(emissionId, ctx) {
       headers: getAuthHeader(),
     });
   } catch (auditError) {
-    // eslint-disable-next-line no-console
+     
     console.warn('Failed to persist audit log:', auditError);
     // Don't fail the save flow on audit log error
   }

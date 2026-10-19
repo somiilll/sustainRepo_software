@@ -10,12 +10,14 @@
  * file validation, template/error filenames) lives in the per-scope module
  * files under `/modules/bulkUpload/scopes/`.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { History, Loader2 } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleAccess } from '../hooks/useModuleAccess';
 
 // Module system — importing the barrel boots all scope modules into the registry.
 import bulkUploadRegistry, { MODULE_STATUS } from '../modules/bulkUpload';
@@ -29,29 +31,34 @@ import ValidationResultsCard from '../modules/bulkUpload/components/ValidationRe
 import ValidationResultsTable from '../modules/bulkUpload/components/ValidationResultsTable';
 import EmptyState from '../modules/bulkUpload/components/EmptyState';
 import AccessDenied from '../modules/bulkUpload/components/AccessDenied';
+import { LoadErrorState } from '../components/LoadErrorState';
+import { getUserFriendlyError } from '../lib/userFriendlyError';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BulkUpload() {
   const { getAuthHeader } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
   const [organization, setOrganization] = useState(null);
+  const [organizationError, setOrganizationError] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
   const [activeScopeId, setActiveScopeId] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
 
-  useEffect(() => {
-    const fetchOrg = async () => {
-      try {
-        const res = await axios.get(`${API}/api/organizations/my`, { headers: getAuthHeader() });
-        setOrganization(res.data);
-      } catch (error) {
-        console.error('Failed to load organization:', error);
-      } finally {
-        setLoadingOrg(false);
-      }
-    };
-    fetchOrg();
+  const fetchOrganization = useCallback(async () => {
+    setLoadingOrg(true);
+    setOrganizationError(null);
+    try {
+      const res = await axios.get(`${API}/api/organizations/my`, { headers: getAuthHeader() });
+      setOrganization(res.data);
+    } catch (error) {
+      setOrganizationError(getUserFriendlyError(error, 'We could not load your bulk upload settings.'));
+    } finally {
+      setLoadingOrg(false);
+    }
   }, [getAuthHeader]);
+
+  useEffect(() => { fetchOrganization(); }, [fetchOrganization]);
 
   const allModules = useMemo(
     () => (organization ? bulkUploadRegistry.list(organization) : []),
@@ -74,7 +81,7 @@ export default function BulkUpload() {
 
   const bu = useBulkUpload(activeModule);
 
-  if (loadingOrg) {
+  if (loadingOrg || moduleAccessLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -82,33 +89,43 @@ export default function BulkUpload() {
     );
   }
 
+  if (organizationError) {
+    return (
+      <div className="space-y-6" data-testid="bulk-upload-page">
+        <ModulePageHeader title="Bulk Upload" icon={History} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="bulk-upload" />
+        <LoadErrorState title="Unable to load bulk upload" message={organizationError} onRetry={fetchOrganization} testId="bulk-upload-organization-error" />
+      </div>
+    );
+  }
+
+  if (!hasAccess('uploads.bulk_upload')) return <AccessDenied featureDisabled />;
+
   // No scope module is available for this org.
   const anyAvailable = allModules.some((m) => m.status === MODULE_STATUS.AVAILABLE);
   if (!anyAvailable) return <AccessDenied />;
 
   return (
-    <div className="space-y-6" data-testid="bulk-upload-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">Bulk Upload</h1>
-          <p className="text-text-muted mt-1">
-            {activeModule?.description || 'Upload GHG emissions data in bulk using Excel'}
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <div className="space-y-7" data-testid="bulk-upload-page">
+      <ModulePageHeader
+        title="Bulk Upload"
+        icon={History}
+        iconClassName="border-teal-200 bg-teal-50 text-teal-700"
+        testId="bulk-upload"
+        aside={<div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowHistory(!showHistory)} data-testid="toggle-history-btn">
             <History className="w-4 h-4 mr-2" />
             {showHistory ? 'Hide History' : 'Upload History'}
           </Button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {/* Scope Tabs */}
       <ScopeTabSelector modules={allModules} activeId={activeScopeId} onSelect={setActiveScopeId} />
 
       {/* Upload History */}
-      {showHistory && <UploadHistoryPanel sessions={bu.sessions} />}
+      {showHistory && (bu.sessionsError ? (
+        <LoadErrorState title="Unable to load upload history" message={bu.sessionsError} onRetry={bu.refreshSessions} testId="bulk-upload-history-error" />
+      ) : <UploadHistoryPanel sessions={bu.sessions} />)}
 
       {/* Upload */}
       <UploadDropzone

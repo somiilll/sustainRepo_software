@@ -23,8 +23,8 @@ export {
 } from './EditFormSections';
 
 // Hooks
-export { default as useEmissionsData, useEmissionsData } from './useEmissionsData';
-export { default as useEmissionEdit, useEmissionEdit } from './useEmissionEdit';
+export { useEmissionsData } from './useEmissionsData';
+export { useEmissionEdit } from './useEmissionEdit';
 
 // Future extractions:
 // export { default as EmissionHistoryDialog } from './EmissionHistoryDialog';

@@ -4,10 +4,55 @@
  * This is a large step component (~700 lines extracted from EmissionEntryForm.js)
  */
 
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Label } from '../../../../../../components/ui/label';
 import { Input } from '../../../../../../components/ui/input';
-import { Search, X } from 'lucide-react';
+import { SearchableSelect } from '../../../../../../components/ui/searchable-select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../../../../components/ui/select';
+import {
+  Building2,
+  Calculator,
+  Car,
+  Factory,
+  Flame,
+  Leaf,
+  Wind,
+  Workflow,
+  Zap,
+} from 'lucide-react';
+import { resolveGhgUiState } from '../../../../config/resolveGhgUiState';
+import {
+  getStandardActivityTypeLabel,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+} from '../../../../config/standardGhgFormConfig';
+import {
+  getWasteDisposalCategoryKey,
+  resolveWasteActivityFactors,
+} from '../../../../config/wasteActivityTaxonomy';
+import { selectClosestScope3Factors } from '../../utils/scope3FactorYear';
+
+const escapeOptionHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const getCategoryIcon = (category = '') => {
+  const normalized = category.toLowerCase();
+  if (normalized.includes('mobile')) return Car;
+  if (normalized.includes('stationary') || normalized.includes('process')) return Factory;
+  if (normalized.includes('fugitive')) return Wind;
+  if (normalized.includes('flaring')) return Flame;
+  if (normalized.includes('electric') || normalized.includes('energy')) return Zap;
+  return Leaf;
+};
 
 /**
  * Step 1 Basic Selection Component
@@ -23,8 +68,10 @@ export const Step1BasicSelection = ({
   scope,
   setScope,
   dynamicScopes,
+  disabledScopes = [],
   hasScope3Access,
   setCategory,
+  onCategoryChange,
   setFuelId,
   setScope3Method,
   setScope3ActivityType,
@@ -32,9 +79,6 @@ export const Step1BasicSelection = ({
   setUseCustomFuel,
   setBiogenicScopeSelection,
   setScope3Subcategory,
-  setSelectedSubIndustry,
-  setSelectedTemplate,
-  setTemplateInputValues,
   
   // Biogenic props
   biogenicScopeSelection,
@@ -43,9 +87,17 @@ export const Step1BasicSelection = ({
   // Category props
   category,
   categoriesForScope,
+  capabilities = {},
   
   // Scope 3 Method props
   scope3Method,
+  allocationMethod,
+  onC8AllocationMethodChange,
+  requiresAssetName,
+  assetName,
+  setAssetName,
+  spendCurrencyConversionMethod = 'standard',
+  setSpendCurrencyConversionMethod,
   availableScope3Methods,
   getMethodLabel,
   
@@ -64,6 +116,8 @@ export const Step1BasicSelection = ({
   
   // Activity props
   scope3ActivityId,
+  scope3EFData = [],
+  reportingYear,
   filteredScope3Activities,
   useCustomActivity,
   setUseCustomActivity,
@@ -89,70 +143,184 @@ export const Step1BasicSelection = ({
   getAvailableEFUnits,
   getQuantityUnitFromEFUnit,
   
-  // Process Emissions props
-  isProcessEmissions,
-  selectedSubIndustry,
-  availableSubIndustries,
-  selectedTemplate,
-  templatesForSubIndustry,
+  // KPI Access Control props
+  kpiCanAccessScope = null,
+  kpiAllowedScopes = null,
+  filterFacilitiesByScope = null,
+  hasFullKPIAccess = true,
   
-  // Supplier/Employee props (optional info)
-  supplierName,
-  setSupplierName,
-  supplierCode,
-  setSupplierCode,
-  employeeName,
-  setEmployeeName,
-  employeeId,
-  setEmployeeId,
+  // Decision field values (for calculation_methodology)
+  decisionFieldValues = {},
+  setDecisionFieldValues,
 }) => {
-  // Activity type display labels
-  const activityTypeLabels = {
-    'car_travel': 'Car Travel',
-    'bus_travel': 'Bus Travel',
-    'rail_travel': 'Rail Travel',
-    'air_travel': 'Air Travel',
-    'taxi_travel': 'Taxi Travel',
-    'bike_travel': 'Bike Travel',
-    'wfh': 'Work From Home',
-    'water_travel': 'Water Travel',
-    'hotel_stay': 'Hotel Stay',
-    'others': 'Others',
-  };
+  const ghgUiState = resolveGhgUiState({
+    capabilities,
+    scope,
+    biogenicScopeSelection,
+    processType: decisionFieldValues.process_type,
+    scope3ActivityType,
+    scope3Method,
+    requiresSubcategory,
+    scope3Subcategory,
+    hasCategory: Boolean(category),
+  });
+  const CategoryIcon = getCategoryIcon(category);
+  const isC8Category = scope === 'scope3' && /^c8\b/i.test(category || '');
+  const wasteCategoryKey = scope === 'scope3'
+    ? getWasteDisposalCategoryKey(category)
+    : null;
+  const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
+  const [wasteBaseActivity, setWasteBaseActivity] = useState('');
+  const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
+    selectClosestScope3Factors(scope3EFData.filter((activity) => (
+      usesWasteDisposalTaxonomy
+      && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
+      && activity.method === scope3Method
+      && activity.sub_scope !== 'biogenic'
+    )), reportingYear),
+  ), [reportingYear, scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
+  const wasteActivityOptions = useMemo(() => {
+    if (!usesWasteDisposalTaxonomy) return [];
+    const byName = new Map();
+    wasteCatalogActivities.forEach((activity) => {
+      const name = activity.activity_name;
+      if (!name) return;
+      if (!byName.has(name)) byName.set(name, activity);
+    });
+    return Array.from(byName.values());
+  }, [usesWasteDisposalTaxonomy, wasteCatalogActivities]);
+  useEffect(() => {
+    if (!usesWasteDisposalTaxonomy) {
+      setWasteBaseActivity('');
+      return;
+    }
+    const selected = wasteCatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) {
+      setWasteBaseActivity(selected.activity_name);
+      if (scope3ActivityType !== selected.activity_type) {
+        setScope3ActivityType(selected.activity_type);
+      }
+    } else if (!wasteActivityOptions.some((activity) => activity.activity_name === wasteBaseActivity)) {
+      setWasteBaseActivity('');
+    }
+  }, [scope3ActivityId, scope3ActivityType, setScope3ActivityType, usesWasteDisposalTaxonomy, wasteActivityOptions, wasteBaseActivity, wasteCatalogActivities]);
+  const wasteActivityTypes = useMemo(() => Array.from(new Set(
+    wasteCatalogActivities
+      .filter((activity) => activity.activity_name === wasteBaseActivity)
+      .map((activity) => activity.activity_type)
+      .filter((type) => type && type !== 'other'),
+  )), [wasteBaseActivity, wasteCatalogActivities]);
+  const isC8AllocationApplicable = isC8Category
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  const usesDirectFuelLayout = scope === 'scope1'
+    || (scope === 'biogenic' && biogenicScopeSelection === 'scope1');
+  const usesIndirectBiogenicLayout = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+  const sourceSelectionLayout = usesDirectFuelLayout
+    ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
+    : usesIndirectBiogenicLayout
+      ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-3'
+      : scope === 'scope3'
+        ? `grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 ${isC8Category || /^c11\b/i.test(category || '') ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`
+        : scope === 'scope2'
+          ? 'grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-2'
+          : 'min-w-0';
+
+  // Filter facilities based on selected scope (if KPI access is restricted)
+  const filteredFacilities = useMemo(() => {
+    let result = facilities.filter(f => f.is_active !== false);
+    
+    // Apply KPI-based facility filtering if not full access
+    if (!hasFullKPIAccess && filterFacilitiesByScope && scope) {
+      result = filterFacilitiesByScope(result, scope);
+    }
+    
+    return result;
+  }, [facilities, scope, hasFullKPIAccess, filterFacilitiesByScope]);
+
+  // Filter scopes based on KPI access
+  const filteredScopes = useMemo(() => {
+    const defaultScopes = dynamicScopes.length > 0 ? dynamicScopes : [
+      { code: 'scope1', name: 'Scope 1' },
+      { code: 'scope2', name: 'Scope 2' },
+      { code: 'biogenic', name: 'Biogenic' },
+    ];
+    
+    let result = defaultScopes
+      .filter(s => s.code !== 'scope3' || hasScope3Access)
+      .filter(s => !disabledScopes.includes(s.code));
+    
+    // Apply KPI-based scope filtering if not full access
+    if (!hasFullKPIAccess && kpiAllowedScopes && kpiAllowedScopes.length > 0) {
+      result = result.filter(s => kpiAllowedScopes.includes(s.code));
+    }
+    
+    return result;
+  }, [dynamicScopes, disabledScopes, hasScope3Access, hasFullKPIAccess, kpiAllowedScopes]);
+
+  const scope3MethodOptionsHtml = useMemo(() => (
+    `<option value="">Select Method</option>${availableScope3Methods.map((method) => (
+      `<option value="${escapeOptionHtml(method)}">${escapeOptionHtml(getMethodLabel(method))}</option>`
+    )).join('')}`
+  ), [availableScope3Methods, getMethodLabel]);
+
+  const biogenicActivityOptionsHtml = useMemo(() => (
+    `<option value="">Select Biogenic Activity (${filteredScope3Activities.length} available)</option>${filteredScope3Activities.map((activity) => (
+      `<option value="${escapeOptionHtml(activity.id)}">${escapeOptionHtml(activity.activity)}</option>`
+    )).join('')}`
+  ), [filteredScope3Activities]);
+
+  const activityTypeOptionsHtml = useMemo(() => (
+    `<option value="">Select activity type...</option>${availableScope3ActivityTypes.map((type) => (
+      `<option value="${escapeOptionHtml(type)}">${escapeOptionHtml(getStandardActivityTypeLabel(type))}</option>`
+    )).join('')}`
+  ), [availableScope3ActivityTypes]);
+
+  const subcategoryOptionsHtml = useMemo(() => (
+    `<option value="">Select sub-category...</option>${availableSubcategories.map((subcategory) => (
+      `<option value="${escapeOptionHtml(subcategory.value)}">${escapeOptionHtml(subcategory.label)}</option>`
+    )).join('')}`
+  ), [availableSubcategories]);
+
+  const typeOfProductOptionsHtml = useMemo(() => (
+    `<option value="">Select type of product...</option>${STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}">${escapeOptionHtml(option.label)}</option>`
+    )).join('')}`
+  ), []);
+
+  const processTypeOptionsHtml = useMemo(() => (
+    `<option value="">Select process type</option>${ghgUiState.renderableProcessTypeOptions.map((option) => (
+      `<option value="${escapeOptionHtml(option.value)}"${option.disabled ? ' disabled' : ''}>${escapeOptionHtml(option.label)}</option>`
+    )).join('')}`
+  ), [ghgUiState.renderableProcessTypeOptions]);
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Facility */}
         <div className="space-y-2">
-          <Label>Facility <span className="text-red-500">*</span></Label>
-          <select
-            value={facilityId}
-            onChange={(e) => setFacilityId(e.target.value)}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-facility-select"
-          >
-            <option value="">Select Facility</option>
-            {facilities.filter(f => f.is_active !== false).map(f => (
-              <option key={f.id} value={f.id}>
-                {f.name} {f.country ? `(${f.country})` : ''}
-              </option>
-            ))}
-          </select>
+          <Label htmlFor="emission-facility-select">Facility <span className="text-red-500">*</span></Label>
+          <SearchableSelect
+              id="emission-facility-select"
+              value={facilityId}
+              options={filteredFacilities.map((facility) => ({ value: facility.id, label: `${facility.name}${facility.country ? ` (${facility.country})` : ''}` }))}
+              onValueChange={setFacilityId}
+              placeholder={filteredFacilities.length ? 'Select Facility' : 'No facilities available for this scope'}
+              leadingIcon={<Building2 className="h-4 w-4" />}
+              testId="emission-facility-select"
+            />
+          {!hasFullKPIAccess && filteredFacilities.length === 0 && scope && (
+            <p className="text-xs text-amber-600">
+              You don&apos;t have access to any facilities for {scope}. Contact your admin.
+            </p>
+          )}
         </div>
 
         {/* Scope */}
         <div className="space-y-2">
           <Label>Scope <span className="text-red-500">*</span></Label>
-          <div className="flex gap-4 h-10 items-center flex-wrap">
-            {(dynamicScopes.length > 0 ? dynamicScopes : [
-              { code: 'scope1', name: 'Scope 1' },
-              { code: 'scope2', name: 'Scope 2' },
-              { code: 'biogenic', name: 'Biogenic' },
-            ])
-              .filter(s => s.code !== 'scope3' || hasScope3Access)
-              .map(s => (
-                <label key={s.code} className="flex items-center gap-2 cursor-pointer">
+          <div className="flex min-h-10 flex-wrap items-center gap-4">
+            {filteredScopes.map(s => (
+                <label key={s.code} className="flex cursor-pointer items-center gap-2 text-sm font-normal leading-5 text-stone-800">
                   <input
                     type="radio"
                     value={s.code}
@@ -168,22 +336,31 @@ export const Step1BasicSelection = ({
                       if (s.code !== 'biogenic') {
                         setBiogenicScopeSelection('');
                       }
+                      // Reset facility when scope changes (KPI access may differ)
+                      if (!hasFullKPIAccess) {
+                        setFacilityId('');
+                      }
                     }}
-                    className="text-primary"
+                    className="h-4 w-4 accent-emerald-600"
                     data-testid={`entry-scope-${s.code}`}
                   />
-                  <span className="text-sm">{s.name}</span>
+                  <span>{s.name}</span>
                 </label>
               ))}
           </div>
+          {!hasFullKPIAccess && filteredScopes.length === 0 && (
+            <p className="text-xs text-amber-600">
+              You don&apos;t have access to any scopes. Contact your admin.
+            </p>
+          )}
         </div>
         
         {/* Biogenic Scope Selection */}
         {scope === 'biogenic' && (
-          <div className="col-span-2 mt-4 space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-            <Label className="text-green-800">Select Biogenic Emission Type <span className="text-red-500">*</span></Label>
-            <div className="flex gap-6 h-10 items-center">
-              <label className="flex items-center gap-2 cursor-pointer">
+          <div className="flex min-h-10 flex-wrap items-center gap-6 sm:col-span-2">
+            <Label className="shrink-0" data-testid="biogenic-emission-type-label">Select Biogenic Emission Type <span className="text-red-500">*</span></Label>
+            <div className="flex min-h-10 flex-wrap items-center gap-6">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-normal leading-5 text-stone-800">
                 <input
                   type="radio"
                   value="scope1"
@@ -195,12 +372,12 @@ export const Step1BasicSelection = ({
                     setScope3Method('');
                     setScope3ActivityId('');
                   }}
-                  className="text-green-600"
+                  className="h-4 w-4 accent-emerald-600"
                   data-testid="biogenic-scope-radio-scope1"
                 />
-                <span className="text-green-800">Direct Biogenic</span>
+                <span>Direct Emissions</span>
               </label>
-              <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+              <label className={`flex items-center gap-2 text-sm font-normal leading-5 text-stone-800 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input
                   type="radio"
                   value="scope3"
@@ -213,10 +390,10 @@ export const Step1BasicSelection = ({
                     setScope3Method('');
                     setScope3ActivityId('');
                   }}
-                  className="text-green-600"
+                  className="h-4 w-4 accent-emerald-600"
                   data-testid="biogenic-scope-radio-scope3"
                 />
-                <span className="text-green-800">Indirect Biogenic</span>
+                <span>Indirect Emissions</span>
                 {!hasScope3Access && (
                   <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                     Not Available
@@ -225,59 +402,94 @@ export const Step1BasicSelection = ({
               </label>
             </div>
             {loadingBiogenicCategories && (
-              <p className="text-xs text-green-600">Loading biogenic categories...</p>
+              <p className="text-xs text-stone-500" data-testid="biogenic-categories-loading">Loading biogenic categories...</p>
             )}
           </div>
         )}
       </div>
 
+      <div className={sourceSelectionLayout} data-testid="create-source-selection-row">
       {/* Category */}
-      <div className="space-y-2">
-        <Label>Category <span className="text-red-500">*</span></Label>
-        <select
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
-            setFuelId('');
-            setScope3Method('');
-            setScope3ActivityType('');
-            setScope3Subcategory('');
-            setTypeOfProduct?.('');
-            setScope3ActivityId('');
-            setSelectedSubIndustry('');
-            setSelectedTemplate(null);
-            setTemplateInputValues({});
-          }}
-          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-          data-testid="emission-category-select"
-        >
-          <option value="">Select Category</option>
-          {categoriesForScope.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
+      <div className="min-w-0 space-y-2">
+        <Label htmlFor="emission-category-select">Category <span className="text-red-500">*</span></Label>
+        <SearchableSelect
+            id="emission-category-select"
+            value={category}
+            options={categoriesForScope.map((option) => ({ value: option, label: option }))}
+            onValueChange={(value) => {
+              if (onCategoryChange) {
+                onCategoryChange(value);
+                return;
+              }
+              setCategory(value);
+              setFuelId('');
+              setScope3Method('');
+              setScope3ActivityType('');
+              setScope3Subcategory('');
+              setTypeOfProduct?.('');
+              setScope3ActivityId('');
+            }}
+            placeholder={categoriesForScope.length ? 'Select Category' : 'No categories available'}
+            leadingIcon={<CategoryIcon className="h-4 w-4" />}
+            testId="emission-category-select"
+          />
       </div>
+
+      {/* Process Emissions: keep Category, Process Type, and Methodology aligned. */}
+      {ghgUiState.showProcessType && (
+        <div className="min-w-0 space-y-2" data-testid="process-type-section">
+          <Label>Process Type <span className="text-red-500">*</span></Label>
+          <div className="relative">
+            <Workflow className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-violet-600" aria-hidden="true" />
+            <select
+              value={decisionFieldValues.process_type || ''}
+              onChange={(event) => setDecisionFieldValues(prev => ({
+                ...prev,
+                process_type: event.target.value,
+                calculation_methodology: 'using_heat_basis_ncv',
+              }))}
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="process-type-select"
+              dangerouslySetInnerHTML={{ __html: processTypeOptionsHtml }}
+            />
+          </div>
+        </div>
+      )}
+
+      {ghgUiState.showProcessType && ghgUiState.showCalculationMethodology && (
+        <div className="min-w-0 space-y-2" data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <SearchableSelect
+              value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
+              onValueChange={(value) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: value }))}
+              options={[
+                { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
+                { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
+                { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
+              ]}
+              leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
+              testId="calculation-methodology-select"
+            />
+        </div>
+      )}
 
       {/* Biogenic Indirect: Calculation Method */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label>Calculation Method <span className="text-red-500">*</span></Label>
-          <select
-            value={scope3Method}
-            onChange={(e) => {
-              setScope3Method(e.target.value);
-              setScope3ActivityId('');
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="biogenic-scope3-method-select"
-          >
-            <option value="">Select Method</option>
-            {availableScope3Methods.map(method => (
-              <option key={method} value={method}>
-                {getMethodLabel(method)}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+            <select
+              value={scope3Method}
+              onChange={(e) => {
+                setScope3Method(e.target.value);
+                setScope3ActivityId('');
+              }}
+              className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              data-testid="biogenic-scope3-method-select"
+              dangerouslySetInnerHTML={{ __html: scope3MethodOptionsHtml }}
+            />
+          </div>
           {availableScope3Methods.length === 0 && (
             <p className="text-xs text-amber-600">No methods available for this category</p>
           )}
@@ -286,7 +498,7 @@ export const Step1BasicSelection = ({
 
       {/* Biogenic Indirect: Biogenic Activity */}
       {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
-        <div className="space-y-2 mt-4 mb-2">
+        <div className="min-w-0 space-y-2">
           <div className="flex items-center justify-between">
             <Label>Biogenic Activity <span className="text-red-500">*</span></Label>
             {scope3Method === 'supplier_basis' && (
@@ -324,21 +536,15 @@ export const Step1BasicSelection = ({
               </p>
             </div>
           ) : (
-            <select
-              value={scope3ActivityId}
-              onChange={(e) => setScope3ActivityId(e.target.value)}
-              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              data-testid="biogenic-scope3-activity-select"
-            >
-              <option value="">
-                Select Biogenic Activity ({filteredScope3Activities.length} available)
-              </option>
-              {filteredScope3Activities.map(ef => (
-                <option key={ef.id} value={ef.id}>
-                  {ef.activity}
-                </option>
-              ))}
-            </select>
+            <div className="relative mt-[18px]">
+              <select
+                value={scope3ActivityId}
+                onChange={(e) => setScope3ActivityId(e.target.value)}
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                data-testid="biogenic-scope3-activity-select"
+                dangerouslySetInnerHTML={{ __html: biogenicActivityOptionsHtml }}
+              />
+            </div>
           )}
           {filteredScope3Activities.length === 0 && !useCustomActivity && (
             <p className="text-xs text-amber-600">
@@ -348,100 +554,89 @@ export const Step1BasicSelection = ({
         </div>
       )}
 
-      {/* Process Emissions - Sub-industry Selection */}
-      {isProcessEmissions && (
-        <div className="space-y-2">
-          <Label>Sub-Industry <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedSubIndustry}
-            onChange={(e) => {
-              setSelectedSubIndustry(e.target.value);
-              setSelectedTemplate(null);
-              setTemplateInputValues({});
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-subindustry-select"
-          >
-            <option value="">Select Sub-Industry</option>
-            {availableSubIndustries.map(si => (
-              <option key={si} value={si}>{si}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Process Emissions - Approach/Template Selection */}
-      {isProcessEmissions && selectedSubIndustry && (
-        <div className="space-y-2">
-          <Label>Approach Used <span className="text-red-500">*</span></Label>
-          <select
-            value={selectedTemplate?.id || ''}
-            onChange={(e) => {
-              const template = templatesForSubIndustry.find(t => t.id === e.target.value);
-              setSelectedTemplate(template || null);
-              if (template) {
-                const initialValues = {};
-                template.predefined_inputs?.forEach(f => {
-                  initialValues[f.key] = f.value || '';
-                });
-                setTemplateInputValues(initialValues);
-              } else {
-                setTemplateInputValues({});
-              }
-            }}
-            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="emission-template-select"
-          >
-            <option value="">Select Approach</option>
-            {templatesForSubIndustry.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          {selectedTemplate?.description && (
-            <p className="text-xs text-text-muted mt-1">{selectedTemplate.description}</p>
-          )}
-          {selectedTemplate && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mt-2">
-              <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
-              <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Scope 3: Method and Activity Selection */}
-      {category && !isProcessEmissions && scope === 'scope3' && (
-        <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
+      {category && scope === 'scope3' && (
+        <div className="contents" data-testid="scope3-selection-section">
           {/* Method Selection */}
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label>Calculation Method <span className="text-red-500">*</span></Label>
-            <select
-              value={scope3Method}
-              onChange={(e) => {
-                setScope3Method(e.target.value);
+            <Select
+              value={scope3Method || undefined}
+              onValueChange={(value) => {
+                setScope3Method(value);
+                onC8AllocationMethodChange?.('');
                 setScope3ActivityType('');
                 setScope3Subcategory('');
                 setTypeOfProduct?.('');
                 setScope3ActivityId('');
               }}
-              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              data-testid="scope3-method-select"
             >
-              <option value="">Select Method</option>
-              {availableScope3Methods.map(method => (
-                <option key={method} value={method}>
-                  {getMethodLabel(method)}
-                </option>
-              ))}
-            </select>
+              <div className="relative min-w-0">
+                <Calculator className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                <SelectTrigger
+                  className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 pl-10 text-left"
+                  data-testid="scope3-method-select"
+                >
+                  <SelectValue placeholder="Select Method" />
+                </SelectTrigger>
+              </div>
+              <SelectContent
+                className="z-[100] max-w-[calc(100vw-2rem)]"
+                data-testid="scope3-method-options"
+                sideOffset={4}
+              >
+                {availableScope3Methods.map((method) => (
+                  <SelectItem
+                    key={method}
+                    value={method}
+                    data-testid={`scope3-method-option-${method}`}
+                  >
+                    {getMethodLabel(method)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {availableScope3Methods.length === 0 && category && (
               <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
             )}
           </div>
 
-          {/* Activity Type Filter (only for C6/C7) */}
-          {scope3Method && availableScope3ActivityTypes.length > 0 && (
-            <div className="space-y-2">
+          {scope3Method === 'spend_basis' && (
+            <div className="min-w-0 space-y-2" data-testid="scope3-currency-conversion-method-section">
+              <Label>Currency Conversion Method <span className="text-red-500">*</span></Label>
+              <Select
+                value={spendCurrencyConversionMethod}
+                onValueChange={setSpendCurrencyConversionMethod}
+              >
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 text-left" data-testid="scope3-currency-conversion-method-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent data-testid="scope3-currency-conversion-method-options">
+                  <SelectItem value="standard" data-testid="scope3-currency-conversion-method-option-standard">Standard Currency Conversion</SelectItem>
+                  <SelectItem value="ppp_inflation" data-testid="scope3-currency-conversion-method-option-ppp-inflation">Currency adjusted to Inflation Rate and Purchase Power</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {isC8AllocationApplicable && (
+            <div className="min-w-0 space-y-2" data-testid="c8-allocation-method-section">
+              <Label>Allocation Method <span className="text-red-500">*</span></Label>
+              <Select value={allocationMethod} onValueChange={onC8AllocationMethodChange}>
+                <SelectTrigger className="h-10 w-full min-w-0 rounded-lg border-stone-200 bg-stone-50 text-left" data-testid="c8-allocation-method-select">
+                  <SelectValue placeholder="Select allocation method" />
+                </SelectTrigger>
+                <SelectContent data-testid="c8-allocation-method-options">
+                  <SelectItem value="entire_quantity" data-testid="c8-allocation-method-option-entire-quantity">Entire Quantity</SelectItem>
+                  <SelectItem value="floor_area_share" data-testid="c8-allocation-method-option-floor-area-share">Floor Area Share</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Generic Activity Type filter; C5/C12 use Activity-first disposal taxonomy below. */}
+          {scope3Method && !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && (
+            <div className="min-w-0 space-y-2">
               <Label>Activity Type <span className="text-red-500">*</span></Label>
               <select
                 value={scope3ActivityType}
@@ -449,25 +644,16 @@ export const Step1BasicSelection = ({
                   setScope3ActivityType(e.target.value);
                   setScope3ActivityId('');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid="scope3-activity-type-filter"
-              >
-                <option value="">Select activity type...</option>
-                {availableScope3ActivityTypes.map(type => {
-                  const displayLabel = activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                  return (
-                    <option key={type} value={type}>
-                      {displayLabel}
-                    </option>
-                  );
-                })}
-              </select>
+                dangerouslySetInnerHTML={{ __html: activityTypeOptionsHtml }}
+              />
             </div>
           )}
 
           {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
-          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
-            <div className="space-y-2">
+          {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
+            <div className="min-w-0 space-y-2">
               <Label>Sub-category <span className="text-red-500">*</span></Label>
               <select
                 value={scope3Subcategory}
@@ -478,16 +664,10 @@ export const Step1BasicSelection = ({
                   // path through the decision tree — clear it.
                   setTypeOfProduct?.('');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 data-testid="scope3-subcategory-select"
-              >
-                <option value="">Select sub-category...</option>
-                {availableSubcategories.map(sub => (
-                  <option key={sub.value} value={sub.value}>
-                    {sub.label}
-                  </option>
-                ))}
-              </select>
+                dangerouslySetInnerHTML={{ __html: subcategoryOptionsHtml }}
+              />
             </div>
           )}
 
@@ -495,15 +675,9 @@ export const Step1BasicSelection = ({
               Categories C11 needs this to pick between continuous_usage and
               one_time_use formulas. Shown after subcategory selection. */}
           {(() => {
-            const catLower = (category || '').toLowerCase();
-            const isC11 = catLower.includes('c11');
-            const showTypeOfProduct = isC11
-              && scope3Method === 'activity_basis'
-              && requiresSubcategory
-              && !!scope3Subcategory;
-            if (!showTypeOfProduct) return null;
+            if (!ghgUiState.showTypeOfProduct) return null;
             return (
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <Label>Type of Product <span className="text-red-500">*</span></Label>
                 <select
                   value={typeOfProduct || ''}
@@ -511,44 +685,40 @@ export const Step1BasicSelection = ({
                     setTypeOfProduct?.(e.target.value);
                     setScope3ActivityId('');
                   }}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                   data-testid="scope3-type-of-product-select"
-                >
-                  <option value="">Select type of product...</option>
-                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
-                  <option value="one_time_use">One-time combustion</option>
-                </select>
+                  dangerouslySetInnerHTML={{ __html: typeOfProductOptionsHtml }}
+                />
               </div>
             );
           })()}
 
           {/* Activity Selection (from Scope 3 EF) */}
           {scope3Method && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Activity <span className="text-red-500">*</span></Label>
-                {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useCustomActivity}
-                      onChange={(e) => {
-                        setUseCustomActivity(e.target.checked);
-                        if (e.target.checked) {
-                          setScope3ActivityId('');
-                        } else {
-                          setScope3CustomActivity('');
-                        }
-                      }}
-                      className="rounded border-stone-300"
-                    />
-                    <span className="text-text-secondary">Use Custom Activity</span>
-                  </label>
-                )}
-              </div>
-              
+            <div className="relative min-w-0">
+              <Label>Activity <span className="text-red-500">*</span></Label>
+              {scope3Method === 'supplier_basis' && scope3ActivityType !== 'others' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                <label className="absolute right-0 top-0 flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCustomActivity}
+                    onChange={(e) => {
+                      setUseCustomActivity(e.target.checked);
+                      if (e.target.checked) {
+                        setScope3ActivityId('');
+                      } else {
+                        setScope3CustomActivity('');
+                      }
+                    }}
+                    className="rounded border-stone-300"
+                    data-testid="scope3-custom-activity-toggle"
+                  />
+                  <span className="text-text-secondary">Use Custom Activity</span>
+                </label>
+              )}
+
               {scope3Method === 'supplier_basis' && (useCustomActivity || scope3ActivityType === 'others') && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                <div className="space-y-2">
+                <div className="mt-2 space-y-2">
                   <Input
                     type="text"
                     value={scope3CustomActivity}
@@ -564,248 +734,166 @@ export const Step1BasicSelection = ({
                   </p>
                 </div>
               ) : (
-                <>
-                  {/* Activity search input */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                    <Input
-                      type="text"
-                      value={fuelSearchTerm}
-                      onChange={(e) => setFuelSearchTerm(e.target.value)}
-                      placeholder="Search activities..."
-                      className="pl-9 bg-stone-50 h-10"
-                      data-testid="activity-search-input"
-                      disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                    />
-                    {fuelSearchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setFuelSearchTerm('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Activity selection dropdown */}
-                  <select
-                    value={scope3ActivityId}
-                    onChange={(e) => {
-                      setScope3ActivityId(e.target.value);
+                <div className="mt-2 min-w-0">
+                  <SearchableSelect
+                    value={usesWasteDisposalTaxonomy ? wasteBaseActivity : scope3ActivityId}
+                    options={(usesWasteDisposalTaxonomy ? wasteActivityOptions : filteredScope3Activities).map((activity) => ({ value: usesWasteDisposalTaxonomy ? activity.activity_name : activity.id, label: activity.activity_name || activity.activity }))}
+                    onValueChange={(value) => {
+                      if (usesWasteDisposalTaxonomy) {
+                        setWasteBaseActivity(value);
+                        const matches = wasteCatalogActivities.filter((activity) => activity.activity_name === value);
+                        const untyped = matches.find((activity) => activity.activity_type === 'other');
+                        setScope3ActivityType(untyped?.activity_type || '');
+                        setScope3ActivityId(untyped?.id || '');
+                      } else {
+                        setScope3ActivityId(value);
+                      }
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)}
-                  >
-                    <option value="">
-                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType)
+                    placeholder={
+                      !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
                         ? 'Select activity type first'
-                        : (requiresSubcategory && !scope3Subcategory)
-                        ? 'Select sub-category first'
-                        : ((category || '').toLowerCase().includes('c11') && scope3Method === 'activity_basis' && requiresSubcategory && scope3Subcategory && !typeOfProduct)
-                        ? 'Select type of product first'
-                        : `Select Activity (${filteredScope3Activities.filter(a => 
-                            !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
-                          ).length} available)`}
-                    </option>
-                    {filteredScope3Activities
-                      .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
-                      .map(ef => (
-                        <option key={ef.id} value={ef.id}>
-                          {ef.activity}
-                        </option>
-                      ))}
-                  </select>
-                  {loadingScope3EF && (
-                    <p className="text-xs text-blue-600">Loading activities...</p>
-                  )}
-                </>
+                        : requiresSubcategory && !scope3Subcategory
+                          ? 'Select sub-category first'
+                          : ghgUiState.requiresTypeOfProduct && !typeOfProduct
+                            ? 'Select type of product first'
+                            : 'Search or select activity'
+                    }
+                    searchPlaceholder="Search activities..."
+                    disabled={(!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory) || (ghgUiState.requiresTypeOfProduct && !typeOfProduct)}
+                    testId="scope3-activity-select"
+                    menuAlign="end"
+                    menuClassName="max-w-[calc(100vw-2rem)]"
+                    autoSizeMenuToOptions
+                    wrapOptionLabels
+                    searchMatchMode="word-prefix"
+                  />
+                </div>
               )}
+              {loadingScope3EF && (
+                <p className="text-xs text-blue-600">Loading activities...</p>
+              )}
+            </div>
+          )}
+
+          {scope3Method && usesWasteDisposalTaxonomy && wasteBaseActivity && wasteActivityTypes.length > 0 && (
+            <div className="min-w-0 space-y-2" data-testid={`${wasteCategoryKey}-activity-type-section`}>
+              <Label htmlFor={`${wasteCategoryKey}-activity-type-select`}>Activity Type <span className="text-red-500">*</span></Label>
+              <select
+                id={`${wasteCategoryKey}-activity-type-select`}
+                value={scope3ActivityType}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  const matching = wasteCatalogActivities.find((activity) => (
+                    activity.activity_name === wasteBaseActivity
+                    && activity.activity_type === nextType
+                  ));
+                  setScope3ActivityType(nextType);
+                  setScope3ActivityId(matching?.id || '');
+                }}
+                className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                data-testid={`${wasteCategoryKey}-activity-type-select`}
+              >
+                <option value="">Select activity type...</option>
+                {wasteActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+              </select>
+            </div>
+          )}
+
+          {requiresAssetName && scope3Method && (scope3ActivityId || (scope3Method === 'supplier_basis' && scope3CustomActivity?.trim())) && (
+            <div className="min-w-0 space-y-2" data-testid="asset-name-selection-section">
+              <Label htmlFor="asset-name-input">Asset Name <span className="text-red-500">*</span></Label>
+              <Input
+                id="asset-name-input"
+                value={assetName}
+                onChange={(event) => setAssetName(event.target.value)}
+                placeholder="Enter asset name or identifier"
+                className="h-10 bg-stone-50"
+                data-testid="asset-name-input"
+              />
             </div>
           )}
         </div>
       )}
+      
+      {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
+      {ghgUiState.showCalculationMethodology && !ghgUiState.showProcessType && (
+        <div className={`space-y-2 ${usesDirectFuelLayout ? '' : 'mt-4 border-b border-stone-200 pb-6'}`} data-testid="calculation-methodology-section">
+          <Label>Calculation Methodology</Label>
+          <SearchableSelect
+              value={decisionFieldValues.calculation_methodology || 'using_heat_basis_ncv'}
+              onValueChange={(value) => setDecisionFieldValues(prev => ({ ...prev, calculation_methodology: value }))}
+              options={[
+                { value: 'using_heat_basis_ncv', label: 'Using Heat Basis (NCV)' },
+                { value: 'using_qty_basis_ef', label: 'Using Qty Basis EF' },
+                { value: 'using_carbon_composition', label: 'Using Composition of Carbon' },
+              ]}
+              leadingIcon={<Calculator className="h-4 w-4 text-blue-600" />}
+              testId="calculation-methodology-select"
+            />
+        </div>
+      )}
 
-      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, and non-process emissions */}
-      {category && !isProcessEmissions && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
-        <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
-          <div className="flex items-center justify-between">
+      {/* Fuel Type - Only show for non-Scope 3, non-biogenic-scope3, non-Process Emissions */}
+      {ghgUiState.showFuelSelection && (
+        <div className={`relative min-w-0 ${usesDirectFuelLayout || scope === 'scope2' ? '' : 'mt-4 border-b border-stone-200 pb-6'}`}>
             <Label>Fuel Type <span className="text-red-500">*</span></Label>
-          </div>
-
-          {!useCustomFuel ? (
-            <div className="space-y-2">
-              {/* Fuel search input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                <Input
-                  type="text"
-                  value={fuelSearchTerm}
-                  onChange={(e) => setFuelSearchTerm(e.target.value)}
-                  placeholder="Search fuel types..."
-                  className="pl-9 bg-stone-50 h-10"
-                  data-testid="fuel-search-input"
+            {/* Custom Fuel toggle - only for Stationary, Mobile, Fugitive, Flaring */}
+            {ghgUiState.showCustomFuel && (
+              <label className="absolute right-0 top-0 flex items-center gap-2 cursor-pointer">
+                <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                <input
+                  type="checkbox"
+                  checked={useCustomFuel}
+                  onChange={(e) => {
+                    setUseCustomFuel(e.target.checked);
+                    if (e.target.checked) {
+                      setFuelId('');
+                      setFuelSearchTerm('');
+                    } else {
+                      setCustomFuelName('');
+                      setCustomEmissionFactor('');
+                      setCustomSource('');
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  data-testid="use-custom-fuel-toggle"
                 />
-                {fuelSearchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setFuelSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              
-              {/* Fuel selection dropdown */}
-              <select
+                <span className="text-sm text-amber-700 font-medium">Use Custom Fuel</span>
+              </label>
+            )}
+          {!useCustomFuel ? (
+            <div className="mt-2 min-w-0">
+              <SearchableSelect
                 value={fuelId}
-                onChange={(e) => {
-                  setFuelId(e.target.value);
+                options={filteredFuelsForCategory.map((fuel) => ({ value: fuel.id, label: fuel.fuel_name }))}
+                onValueChange={(value) => {
+                  setFuelId(value);
                   setFuelSearchTerm('');
                 }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                data-testid="emission-fuel-select"
-              >
-                <option value="">Select Fuel Type ({filteredFuelsForCategory.length} available)</option>
-                {filteredFuelsForCategory.map(fuel => (
-                  <option key={fuel.id} value={fuel.id}>
-                    {fuel.fuel_name}
-                  </option>
-                ))}
-              </select>
-              {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
-                <p className="text-xs text-amber-600">No fuel types match "{fuelSearchTerm}"</p>
-              )}
+                placeholder="Search or select fuel type"
+                searchPlaceholder="Search fuel types..."
+                testId="emission-fuel-select"
+              />
             </div>
           ) : (
-            <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="space-y-2">
-                <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
+            <div className="mt-2" data-testid="custom-fuel-name-section">
+              <div>
                 <Input
+                  id="custom-fuel-name-input"
                   value={customFuelName}
                   onChange={(e) => setCustomFuelName(e.target.value)}
-                  placeholder="Enter fuel name"
+                  placeholder="Enter custom fuel name"
                   className="bg-white"
+                  data-testid="custom-fuel-name-input"
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Emission Factor <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={customEmissionFactor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '' || parseFloat(val) >= 0) {
-                        setCustomEmissionFactor(val);
-                      }
-                    }}
-                    onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                    placeholder="e.g., 2.5"
-                    className="bg-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF Unit <span className="text-red-500">*</span></Label>
-                  <select
-                    value={customEmissionFactorUnit}
-                    onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
-                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                  >
-                    {getAvailableEFUnits(scope).map(unit => (
-                      <option key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-amber-700">
-                    Quantity unit will be: <strong>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</strong>
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Source <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={customSource}
-                    onChange={(e) => setCustomSource(e.target.value)}
-                    placeholder="Source of info"
-                    className="bg-white"
-                  />
-                </div>
-              </div>
             </div>
           )}
 
-          {/* Show selected fuel info */}
-          {selectedFuel && !useCustomFuel && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
-              <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
-            </div>
-          )}
         </div>
       )}
-
-      {/* Scope 3 Supplier Information (optional) */}
-      {scope === 'scope3' && category && (
-        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="font-medium mb-3 text-blue-800">{category?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
-              <Input
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-                placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
-                className="bg-white"
-                data-testid="supplier-name-input"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
-              <Input
-                value={supplierCode}
-                onChange={(e) => setSupplierCode(e.target.value)}
-                placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
-                className="bg-white"
-                data-testid="supplier-code-input"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Employee Commuting specific fields (optional) */}
-      {scope === 'scope3' && category === 'Employee Commuting' && (
-        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-          <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Employee Name</Label>
-              <Input
-                value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
-                placeholder="Enter employee name..."
-                className="bg-white"
-                data-testid="employee-name-input"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Employee ID</Label>
-              <Input
-                value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                placeholder="Enter employee ID..."
-                className="bg-white"
-                data-testid="employee-id-input"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
     </div>
   );

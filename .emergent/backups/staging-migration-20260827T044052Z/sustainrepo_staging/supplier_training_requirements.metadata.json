@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"organization_id":{"$numberInt":"1"},"is_active":{"$numberInt":"1"}},"name":"organization_id_1_is_active_1"}],"uuid":"f1d0d4d300f9491ebbd5f86efbc1d976","collectionName":"supplier_training_requirements","type":"collection"}

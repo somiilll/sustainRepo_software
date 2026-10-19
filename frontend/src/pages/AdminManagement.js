@@ -1,291 +1,183 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, UserCog, Trash2, Search } from 'lucide-react';
+import { Plus, Search, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const EMPTY_FORM = { email: '', full_name: '', organization_id: '', role: 'user' };
+
+const roleMeta = {
+  admin: { label: 'Admin', icon: UserCog, className: 'bg-amber-100 text-amber-800' },
+  user: { label: 'User', icon: Users, className: 'bg-emerald-100 text-emerald-800' },
+};
 
 export default function AdminManagement() {
-  const [admins, setAdmins] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [organizations, setOrganizations] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [confirmDialog, setConfirmDialog] = useState({
-    open: false,
-    adminId: null,
-    adminEmail: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [accountToDelete, setAccountToDelete] = useState(null);
   const { getAuthHeader } = useAuth();
-
-  const [formData, setFormData] = useState({
-    email: '',
-    full_name: '',
-    organization_id: ''
-  });
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     try {
-      const [orgsRes, adminsRes] = await Promise.all([
+      const [orgsResponse, accountsResponse] = await Promise.all([
         axios.get(`${API}/super-admin/organizations`, { headers: getAuthHeader() }),
-        axios.get(`${API}/super-admin/admins`, { headers: getAuthHeader() })
+        axios.get(`${API}/super-admin/accounts`, { headers: getAuthHeader() }),
       ]);
-      setOrganizations(orgsRes.data);
-      setAdmins(adminsRes.data);
+      setOrganizations(orgsResponse.data);
+      setAccounts(accountsResponse.data);
     } catch (error) {
-      console.error('Admin management fetch error:', error);
-      setOrganizations([]);
-      setAdmins([]);
+      console.error('Team account management fetch error:', error);
+      toast.error(error.response?.data?.detail || 'Unable to load team accounts');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  useEffect(() => { fetchData(); }, []);
+
+  const getOrganizationName = (organizationId) => (
+    organizations.find((organization) => organization.id === organizationId)?.name || 'N/A'
+  );
+
+  const filteredAccounts = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return accounts;
+    return accounts.filter((account) => [
+      account.full_name,
+      account.email,
+      account.role,
+      getOrganizationName(account.organization_id),
+    ].some((value) => value?.toLowerCase().includes(query)));
+  }, [accounts, organizations, searchTerm]);
+
+  const resetForm = () => setFormData(EMPTY_FORM);
+
+  const handleCreate = async (event) => {
+    event.preventDefault();
     try {
-      const response = await axios.post(`${API}/super-admin/admins`, null, {
-        headers: getAuthHeader(),
-        params: formData
-      });
-      toast.success('Admin created! Login credentials have been sent to their email.', { duration: 5000 });
+      await axios.post(`${API}/super-admin/accounts`, formData, { headers: getAuthHeader() });
+      toast.success(`${roleMeta[formData.role].label} created and invitation email sent.`, { duration: 5000 });
       setDialogOpen(false);
       resetForm();
-      fetchData();
+      await fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create admin');
+      toast.error(error.response?.data?.detail || 'Failed to create account');
     }
-  };
-
-  const handleDelete = async (userId, email) => {
-    setConfirmDialog({
-      open: true,
-      adminId: userId,
-      adminEmail: email
-    });
   };
 
   const confirmDelete = async () => {
+    if (!accountToDelete) return;
     try {
-      await axios.delete(`${API}/super-admin/admins/${confirmDialog.adminId}`, {
-        headers: getAuthHeader()
-      });
-      toast.success('Admin deleted successfully');
-      fetchData();
+      await axios.delete(`${API}/super-admin/accounts/${accountToDelete.id}`, { headers: getAuthHeader() });
+      toast.success('Account deleted successfully');
+      await fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
+    } finally {
+      setAccountToDelete(null);
     }
-    setConfirmDialog({ open: false, adminId: null, adminEmail: '' });
   };
-
-  const resetForm = () => {
-    setFormData({
-      email: '',
-      full_name: '',
-      organization_id: ''
-    });
-  };
-
-  const getOrgName = (orgId) => {
-    const org = organizations.find(o => o.id === orgId);
-    return org ? org.name : 'N/A';
-  };
-
-  // Filter admins based on search
-  const filteredAdmins = useMemo(() => {
-    if (!searchTerm) return admins;
-    const term = searchTerm.toLowerCase();
-    return admins.filter(admin => 
-      admin.full_name?.toLowerCase().includes(term) ||
-      admin.email?.toLowerCase().includes(term) ||
-      getOrgName(admin.organization_id).toLowerCase().includes(term)
-    );
-  }, [admins, searchTerm, organizations]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <div className="flex h-96 items-center justify-center" data-testid="team-accounts-loading"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" /></div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-7" data-testid="team-accounts-page">
+      <div className="flex flex-wrap items-start justify-between gap-5 border-b border-emerald-100 pb-6">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Admin Management</h1>
-          <p className="text-text-secondary">Create and manage admins ({admins.length} total)</p>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700" data-testid="team-accounts-heading-icon"><ShieldCheck className="h-6 w-6" /></div>
+            <h1 className="text-4xl font-heading font-bold text-text-primary">Team Accounts</h1>
+          </div>
+          <p className="text-text-secondary" data-testid="team-accounts-summary">{accounts.length} active accounts across organizations</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-admin-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Admin
-            </Button>
+            <Button className="rounded-full bg-primary px-6 text-white hover:bg-primary/90" data-testid="create-team-account-button"><Plus className="mr-2 h-4 w-4" />Add account</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" data-testid="create-team-account-dialog">
             <DialogHeader>
-              <DialogTitle>Add New Admin</DialogTitle>
+              <DialogTitle data-testid="create-team-account-title">Add team account</DialogTitle>
+              <DialogDescription data-testid="create-team-account-description">Choose the account role and its organization.</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-4" data-testid="create-team-account-form">
               <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name *</Label>
-                <Input
-                  id="full_name"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  required
-                  className="bg-stone-50"
-                  data-testid="admin-name-input"
-                />
+                <Label htmlFor="account-full-name">Full name *</Label>
+                <Input id="account-full-name" value={formData.full_name} onChange={(event) => setFormData({ ...formData, full_name: event.target.value })} required className="bg-stone-50" data-testid="team-account-name-input" />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  className="bg-stone-50"
-                  data-testid="admin-email-input"
-                />
+                <Label htmlFor="account-email">Email *</Label>
+                <Input id="account-email" type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} required className="bg-stone-50" data-testid="team-account-email-input" />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="organization">Organization *</Label>
-                <select
-                  id="organization"
-                  value={formData.organization_id}
-                  onChange={(e) => setFormData({ ...formData, organization_id: e.target.value })}
-                  required
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                  data-testid="admin-org-select"
-                >
-                  <option value="">Select Organization</option>
-                  {organizations.map(org => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
-                  ))}
+                <Label htmlFor="account-role">Account role *</Label>
+                <select id="account-role" value={formData.role} onChange={(event) => setFormData({ ...formData, role: event.target.value })} className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-role-select">
+                  <option value="user" data-testid="team-account-role-user">User</option>
+                  <option value="admin" data-testid="team-account-role-admin">Admin</option>
                 </select>
               </div>
-
-              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-1">Note:</p>
-                <ul className="text-xs space-y-1 ml-4 list-disc">
-                  <li>Login credentials will be sent to their email</li>
-                  <li>Admin must change password on first login</li>
-                </ul>
+              <div className="space-y-2">
+                <Label htmlFor="account-organization">Organization *</Label>
+                <select id="account-organization" value={formData.organization_id} onChange={(event) => setFormData({ ...formData, organization_id: event.target.value })} required className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-organization-select">
+                  <option value="" data-testid="team-account-organization-placeholder">Select organization</option>
+                  {organizations.map((organization) => <option key={organization.id} value={organization.id} data-testid={`team-account-organization-${organization.id}`}>{organization.name}</option>)}
+                </select>
               </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="create-admin-btn">
-                  Create Admin
-                </Button>
+              <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800" data-testid="team-account-invitation-notice">An invitation with a temporary password will be sent by email. The account holder must change it when they first sign in.</div>
+              <div className="flex justify-end gap-3 pt-3">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} data-testid="cancel-team-account-button">Cancel</Button>
+                <Button type="submit" className="bg-primary text-white hover:bg-primary/90" data-testid="submit-team-account-button">Create {roleMeta[formData.role].label}</Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
-        <Input
-          placeholder="Search by name, email, or organization..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 bg-white"
-          data-testid="admin-search-input"
-        />
+      <div className="relative max-w-lg">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+        <Input placeholder="Search name, email, role, or organization..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="bg-white pl-10" data-testid="team-account-search-input" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAdmins.map((admin) => (
-          <Card key={admin.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`admin-card-${admin.id}`}>
-            <div className="flex items-start justify-between mb-4">
-              <div className="bg-primary/10 p-3 rounded-lg">
-                <UserCog className="w-6 h-6 text-primary" />
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleDelete(admin.id, admin.email)}
-                className="text-accent hover:text-accent"
-                data-testid={`delete-admin-${admin.id}`}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {filteredAccounts.map((account) => {
+          const meta = roleMeta[account.role] || roleMeta.user;
+          const RoleIcon = meta.icon;
+          return <Card key={account.id} className="border border-stone-200 bg-white p-5 transition-shadow hover:shadow-md" data-testid={`team-account-card-${account.id}`}>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-stone-100 text-stone-700" data-testid={`team-account-icon-${account.id}`}><RoleIcon className="h-5 w-5" /></div>
+              <Button size="icon" variant="ghost" onClick={() => setAccountToDelete(account)} className="text-red-600 hover:bg-red-50 hover:text-red-700" aria-label={`Delete ${account.full_name}`} data-testid={`delete-team-account-${account.id}`}><Trash2 className="h-4 w-4" /></Button>
             </div>
-            <h3 className="text-xl font-heading font-bold text-text-primary mb-1">{admin.full_name}</h3>
-            <p className="text-sm text-text-muted mb-2">{admin.email}</p>
-            <div className="space-y-2">
-              <div className="inline-block px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">
-                Admin
-              </div>
-              {admin.organization_id && (
-                <p className="text-xs text-text-secondary mt-2">
-                  <span className="font-medium">Organization:</span> {getOrgName(admin.organization_id)}
-                </p>
-              )}
-              {admin.requires_password_change && (
-                <div className="mt-2">
-                  <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                    Pending password change
-                  </span>
-                </div>
-              )}
+            <h2 className="truncate text-xl font-heading font-bold text-text-primary" data-testid={`team-account-name-${account.id}`}>{account.full_name}</h2>
+            <p className="mt-1 truncate text-sm text-text-muted" data-testid={`team-account-email-${account.id}`}>{account.email}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.className}`} data-testid={`team-account-role-${account.id}`}>{meta.label}</span>
+              {account.requires_password_change && <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800" data-testid={`team-account-password-change-${account.id}`}>Password change pending</span>}
             </div>
-          </Card>
-        ))}
+            <p className="mt-4 text-xs text-text-secondary" data-testid={`team-account-organization-name-${account.id}`}><span className="font-semibold">Organization:</span> {getOrganizationName(account.organization_id)}</p>
+          </Card>;
+        })}
       </div>
 
-      {filteredAdmins.length === 0 && admins.length > 0 && (
-        <div className="text-center py-12">
-          <Search className="w-16 h-16 mx-auto text-text-muted mb-4" />
-          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No results found</h3>
-          <p className="text-text-secondary">Try adjusting your search term</p>
-        </div>
-      )}
+      {filteredAccounts.length === 0 && <div className="py-12 text-center text-text-secondary" data-testid="team-accounts-empty-state">{accounts.length ? 'No accounts match your search.' : 'No organization accounts yet.'}</div>}
 
-      {admins.length === 0 && (
-        <div className="text-center py-12">
-          <UserCog className="w-16 h-16 mx-auto text-text-muted mb-4" />
-          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No admins yet</h3>
-          <p className="text-text-secondary mb-4">Create your first admin to get started</p>
-        </div>
-      )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Admin</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{confirmDialog.adminEmail}</strong>? They will no longer be able to log in to the portal.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+      <AlertDialog open={Boolean(accountToDelete)} onOpenChange={(open) => { if (!open) setAccountToDelete(null); }}>
+        <AlertDialogContent data-testid="delete-team-account-dialog">
+          <AlertDialogHeader><AlertDialogTitle data-testid="delete-team-account-title">Delete account</AlertDialogTitle><AlertDialogDescription data-testid="delete-team-account-description">Delete <strong>{accountToDelete?.email}</strong>? They will no longer be able to sign in.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Delete Admin
-            </AlertDialogAction>
+            <AlertDialogCancel data-testid="cancel-delete-team-account-button">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 text-white hover:bg-red-700" data-testid="confirm-delete-team-account-button">Delete account</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

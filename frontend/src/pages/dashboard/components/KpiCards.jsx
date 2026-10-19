@@ -19,7 +19,7 @@ export default function KpiCards({ filteredData }) {
           <div>
             <p className="text-text-muted text-xs font-medium uppercase tracking-wide">Total Emissions</p>
             <p className="text-2xl font-heading font-bold text-text-primary">
-              {filteredData.totals.total.toFixed(1)}
+              {filteredData.totals.total.toFixed(2)}
               <span className="text-sm font-normal text-text-muted ml-1">tCO₂e</span>
             </p>
           </div>
@@ -35,7 +35,7 @@ export default function KpiCards({ filteredData }) {
           <div>
             <p className="text-green-700 text-xs font-medium uppercase tracking-wide">Total Sinks</p>
             <p className="text-2xl font-heading font-bold text-green-600">
-              -{(filteredData.filteredSinks || 0).toFixed(1)}
+              -{(filteredData.filteredSinks || 0).toFixed(2)}
               <span className="text-sm font-normal text-green-600/60 ml-1">tCO₂e</span>
             </p>
           </div>
@@ -51,7 +51,7 @@ export default function KpiCards({ filteredData }) {
           <div>
             <p className="text-blue-700 text-xs font-medium uppercase tracking-wide">Net Emissions</p>
             <p className="text-2xl font-heading font-bold text-blue-600">
-              {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(1)}
+              {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}
               <span className="text-sm font-normal text-blue-600/60 ml-1">tCO₂e</span>
             </p>
           </div>

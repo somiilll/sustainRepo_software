@@ -1,0 +1,126 @@
+import React, { useMemo } from 'react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { Expand } from 'lucide-react';
+
+const scopes = [
+  { key: 'scope1', label: 'Scope 1', color: '#10B981' }, 
+  { key: 'scope2', label: 'Scope 2', color: '#3B82F6' }, 
+  { key: 'scope3', label: 'Scope 3', color: '#8B5CF6' },
+  { key: 'biogenic', label: 'Biogenic', color: '#F59E0B' },
+];
+
+const ScopeBreakdownTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0]?.payload;
+  if (!item) return null;
+  return (
+    <div className="rounded-md border border-stone-200 bg-white px-3 py-2 shadow-lg" data-testid="scope-breakdown-tooltip">
+      <p className="text-xs font-semibold text-stone-900">{item.label}</p>
+      <p className="mt-1 text-xs text-stone-600">{Number(item.value).toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</p>
+    </div>
+  );
+};
+
+export const ScopeBreakdownCard = ({ 
+  className = '', 
+  totals, 
+  activeScopes, 
+  onToggleScope, 
+  onFullscreen
+}) => {
+  const data = useMemo(() => scopes.map((scope) => ({ ...scope, value: totals[scope.key] || 0 })).filter((item) => item.value > 0), [totals]);
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+
+  return (
+    <section
+      className={`relative flex flex-col min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-stone-700 dark:bg-stone-900 ${className}`}
+      data-testid="scope-breakdown-card"
+    >
+      <div className="absolute inset-x-0 top-0 h-1 bg-[#2563EB]" />
+
+      <div className="mb-3 flex items-start justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Scope Breakdown</h3>
+        </div>
+        {onFullscreen && <button
+          type="button"
+          onClick={onFullscreen}
+          className="rounded-md p-1.5 text-stone-400 transition-colors duration-200 hover:bg-stone-100"
+          aria-label="Expand Scope Breakdown"
+          data-testid="scope-breakdown-fullscreen-button"
+        >
+          <Expand className="h-4 w-4" />
+        </button>}
+      </div>
+      
+      {total ? (
+        <div className="flex flex-1 flex-col justify-between min-h-0">
+          {/* Donut Chart Container */}
+          <div className="relative h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie 
+                  data={data} 
+                  dataKey="value" 
+                  nameKey="label"
+                  innerRadius={50} 
+                  outerRadius={73} 
+                  paddingAngle={0} 
+                  stroke="none"
+                >
+                  {data.map((item) => (
+                    <Cell key={item.key} fill={item.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ScopeBreakdownTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Center Total Text */}
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-[10px] uppercase text-stone-400">Total</span>
+              <span className="text-base font-bold text-stone-900 dark:text-stone-100">
+                {total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-[10px] text-stone-400">tCO₂e</span>
+            </div>
+          </div>
+          
+          {/* Interactive Legend */}
+          <div className="mt-3 grid gap-1.5">
+            {scopes.map((scope) => { 
+              const enabled = activeScopes.length === 0 || activeScopes.includes(scope.key); 
+              const value = totals[scope.key] || 0; 
+              
+              return (
+                <button 
+                  type="button" 
+                  key={scope.key} 
+                  onClick={() => onToggleScope(scope.key)} 
+                  className={`flex items-center justify-between rounded-md border px-2.5 py-2 text-left transition-colors duration-200 ${enabled ? 'border-stone-200 bg-stone-50' : 'border-stone-100 bg-white opacity-45'}`} 
+                  data-testid={`scope-filter-${scope.key}`}
+                >
+                  <span className="flex items-center gap-2 text-xs font-medium text-stone-700">
+                    <i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: scope.color }} />
+                    {scope.label}
+                  </span>
+                  <span className="text-xs font-semibold text-stone-900">
+                    {total ? ((value / total) * 100).toFixed(1) : '0.0'}%
+                  </span>
+                </button>
+              ); 
+            })}
+          </div>
+        </div>
+      ) : (
+        /* Empty State */
+        <div 
+          className="flex flex-1 items-center justify-center text-sm text-stone-400 min-h-[14rem]" 
+          data-testid="scope-breakdown-empty"
+        >
+          No emissions data for these filters
+        </div>
+      )}
+    </section>
+  );
+};

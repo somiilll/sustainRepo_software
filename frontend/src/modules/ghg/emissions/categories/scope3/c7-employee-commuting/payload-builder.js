@@ -28,6 +28,11 @@ const buildBasePayload = (formData) => {
     formulaId,
     formulaName,
   } = formData;
+  const firstCalculationDetails = (formData.employees || []).flatMap((employee) => [
+    employee.yearly_data?.calculation_details,
+    employee.calculation_details,
+    ...Object.values(employee.monthly_data || {}).map((month) => month?.calculation_details),
+  ]).find((details) => details?.formula_id) || {};
   
   return {
     facility_id: facilityId,
@@ -39,8 +44,10 @@ const buildBasePayload = (formData) => {
     scope3_activity: scope3Activity,
     scope3_activity_type: activityType,
     activity_type: activityType,
-    formula_id: formulaId || null,
-    formula_name: formulaName || '',
+    formula_id: firstCalculationDetails.formula_id || formulaId || null,
+    formula_version_id: firstCalculationDetails.formula_version_id || null,
+    decision_tree_version_id: firstCalculationDetails.decision_tree_version_id || null,
+    formula_name: firstCalculationDetails.formula_name || formulaName || '',
     notes: notes || '',
     responsible_person: responsiblePerson || '',
     responsible_person_designation: responsiblePersonDesignation || '',

@@ -13,6 +13,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { normalizeCustomFuelDensityUnit } from '../modules/ghg/emissions/shared/utils/unitHelpers';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -103,9 +104,15 @@ export function useCalcEngine(getAuthHeader) {
     unit,
     overrides = {},
     gwpConfig,
-    dryRun = true
+    dryRun = true,
+    calculationMethodology,
+    useCustomFuel = false,
+    customFuelName = '',
+    decisionTreeVersionId = null,
+    formulaVersionId = null,
   }) => {
-    if (!quantity || !fuel || !category) {
+    // For custom fuel, we don't need fuel object but we need quantity and category
+    if (!quantity || (!fuel && !useCustomFuel) || !category) {
       return null;
     }
 
@@ -151,14 +158,15 @@ export function useCalcEngine(getAuthHeader) {
         };
       }
 
-      // Build context from fuel data
+      // Build context from fuel data (or custom fuel)
       const context = {
-        fuel_name: fuel.fuel_name,
-        fuel_type: fuel.fuel_name,
-        fuel_id: fuel.id,
+        fuel_name: useCustomFuel ? customFuelName : fuel.fuel_name,
+        fuel_type: useCustomFuel ? customFuelName : fuel.fuel_name,
+        fuel_id: useCustomFuel ? null : fuel.id,
         scope: scope,
         category: category,
-        region: fuel.region || 'Global'
+        region: useCustomFuel ? 'Custom' : (fuel.region || 'Global'),
+        is_custom_fuel: useCustomFuel,
       };
 
       // Build user_overrides - these take priority over database values
@@ -168,13 +176,11 @@ export function useCalcEngine(getAuthHeader) {
       // Calorific value override
       if (overrides.override_calorific_value && overrides.calorific_value) {
         const cvValue = parseFloat(overrides.calorific_value);
-        userOverrides.ncv = { 
-          value: cvValue, 
-          unit: fuel.calorific_value_unit || 'MJ/kg' 
-        };
-        userOverrides.calorific_value = { value: cvValue, unit: fuel.calorific_value_unit || 'MJ/kg' };
-        userOverrides.cv = { value: cvValue, unit: fuel.calorific_value_unit || 'MJ/kg' };
-        userOverrides.net_calorific_value = { value: cvValue, unit: fuel.calorific_value_unit || 'MJ/kg' };
+        const cvUnit = fuel?.calorific_value_unit || 'MJ/kg';
+        userOverrides.ncv = { value: cvValue, unit: cvUnit };
+        userOverrides.calorific_value = { value: cvValue, unit: cvUnit };
+        userOverrides.cv = { value: cvValue, unit: cvUnit };
+        userOverrides.net_calorific_value = { value: cvValue, unit: cvUnit };
       }
 
       // Density override
@@ -182,11 +188,11 @@ export function useCalcEngine(getAuthHeader) {
         const densityValue = parseFloat(overrides.density);
         userOverrides.density = { 
           value: densityValue, 
-          unit: fuel.density_unit || 'kg/L' 
+          unit: normalizeCustomFuelDensityUnit(fuel?.density_unit || 'kg/L')
         };
       }
 
-      // Emission factor heat override
+      // Emission factor override (for custom fuel or manual EF entry)
       if (overrides.override_emission_factor_heat && overrides.emission_factor_heat) {
         const efValue = parseFloat(overrides.emission_factor_heat);
         userOverrides.ef_q_co2 = { value: efValue, unit: 'kgCO2/TJ' };
@@ -194,15 +200,21 @@ export function useCalcEngine(getAuthHeader) {
         userOverrides.ef = { value: efValue, unit: 'kgCO2/TJ' };
         userOverrides.ef_heat = { value: efValue, unit: 'kgCO2/TJ' };
       }
+      
+      // For custom fuel with ef_quantity field, add EF override
+      if (overrides.ef_quantity) {
+        const efValue = parseFloat(overrides.ef_quantity);
+        const efUnit = overrides.ef_quantity_unit || 'kgCO2e/kg';
+        userOverrides.ef_quantity = { value: efValue, unit: efUnit };
+        userOverrides.emission_factor = { value: efValue, unit: efUnit };
+      }
 
       // Determine decision inputs for the tree traversal
-      // The decision tree may branch on "ef_quantity_provided" which determines heat-based vs quantity-based
       const decisionInputs = {
         scope: scope,
-        fuel_type: fuel.fuel_name,
+        fuel_type: useCustomFuel ? customFuelName : fuel.fuel_name,
         category: category,
-        // Default to heat-based calculation (ef_quantity_provided = false) unless we're forcing quantity-based
-        ef_quantity_provided: 'false'
+        calculation_methodology: calculationMethodology || 'using_heat_basis_ncv',
       };
 
       // Call the backend calc engine execute-by-category endpoint
@@ -215,7 +227,9 @@ export function useCalcEngine(getAuthHeader) {
           inputs: inputs,
           context: context,
           user_overrides: userOverrides,
-          dry_run: dryRun
+          dry_run: dryRun,
+          ...(decisionTreeVersionId && { decision_tree_version_id: decisionTreeVersionId }),
+          ...(formulaVersionId && { formula_version_id: formulaVersionId }),
         },
         { headers: getAuthHeader() }
       );
@@ -248,6 +262,9 @@ export function useCalcEngine(getAuthHeader) {
           n2oEmissions: outputs.n2o?.value || 0,
           co2eEmissions: co2eEmissions,
           appliedFormulaName: response.data.resolved_formula?.name || 'Backend Calc Engine',
+          formulaId: response.data.resolved_formula?.id || null,
+          formulaVersionId: response.data.resolved_formula?.version_id || null,
+          decisionTreeVersionId: response.data.resolved_decision_tree?.version_id || null,
           calculationSteps: calculationSteps,
           co2OutputUnit: outputs.co2?.unit || 'tCO₂',
           ch4OutputUnit: outputs.ch4?.unit || 'tCH₄',

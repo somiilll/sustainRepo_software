@@ -1,0 +1,12 @@
+{
+  "created_at": "2026-09-25T07:13:14.187934+00:00",
+  "query": {
+    "category": "C4 - Upstream Transportation and Distribution",
+    "source": {
+      "$regex": "^DEFRA$",
+      "$options": "i"
+    },
+    "year_applicable": 2026
+  },
+  "previous_records": []
+}

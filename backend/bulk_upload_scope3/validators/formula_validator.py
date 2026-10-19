@@ -125,7 +125,8 @@ class FormulaValidator:
     
     def validate_formula_inputs(self, row_data: Dict, formula: Dict,
                                 method: CalculationMethod,
-                                row_num: int, sheet_name: str) -> FormulaValidation:
+                                row_num: int, sheet_name: str,
+                                ignored_input_variables: Optional[set] = None) -> FormulaValidation:
         """
         Validate that row data has all required formula inputs
         
@@ -180,6 +181,7 @@ class FormulaValidator:
         formula_inputs = definition.get("inputs", [])
         if not formula_inputs:
             formula_inputs = formula.get("inputs", [])
+        ignored_input_variables = ignored_input_variables or set()
         
         # Map row data keys to formula input variables
         key_mapping = {
@@ -197,6 +199,8 @@ class FormulaValidator:
         missing = []
         for inp in formula_inputs:
             var_name = inp.get("variable", "") if isinstance(inp, dict) else str(inp)
+            if var_name in ignored_input_variables:
+                continue
             
             # Check if this input is provided
             found = False

@@ -189,9 +189,6 @@ export const buildScope3Payload = ({
   monthlyData,
   monthKey,
 }) => {
-  const isYearly = frequencyType === 'yearly';
-  const data = isYearly ? yearlyData : (monthlyData?.[monthKey] || {});
-
   // Echo type_of_product into dynamic_field_values so the calc-engine
   // history / report layer can read it from the standard place. The
   // top-level `type_of_product` field is used by the decision tree.
@@ -217,41 +214,6 @@ export const buildScope3Payload = ({
     formula_name: formulaName,
     dynamic_field_values: dfv,
     calc_engine_result: calcEngineResult,
-    // Input values
-    quantity: data.qty || data.quantity || null,
-    unit: data.unit || data.qty_unit || null,
-  };
-};
-
-/**
- * Build Process Emissions payload
- */
-export const buildProcessEmissionsPayload = ({
-  basePayload,
-  reportingPeriod,
-  frequencyType,
-  selectedTemplate,
-  selectedSubIndustry,
-  templateInputValues,
-  yearlyData,
-  monthlyData,
-  monthKey,
-}) => {
-  const isYearly = frequencyType === 'yearly';
-  const data = isYearly ? yearlyData : (monthlyData?.[monthKey] || {});
-
-  return {
-    ...basePayload,
-    reporting_period: reportingPeriod,
-    frequency_type: frequencyType,
-    emission_type: 'process',
-    sub_industry: selectedSubIndustry,
-    template_id: selectedTemplate?.id,
-    template_name: selectedTemplate?.template_name,
-    approach: selectedTemplate?.approach,
-    formula: selectedTemplate?.formula,
-    input_fields: selectedTemplate?.input_fields,
-    input_values: templateInputValues || data,
   };
 };
 
@@ -296,9 +258,6 @@ export const buildFuelEmissionPayload = ({
     biogenic_scope: biogenicScopeSelection || null,
     dynamic_field_values: dynamicFieldValues,
     calc_engine_result: calcEngineResult,
-    // Input values
-    quantity: data.qty || data.quantity || null,
-    unit: data.unit || data.qty_unit || null,
     evidence: data.evidence || [],
   };
 };
@@ -342,7 +301,6 @@ export default {
   buildC7MonthlyPayload,
   buildC7YearlyPayload,
   buildScope3Payload,
-  buildProcessEmissionsPayload,
   buildFuelEmissionPayload,
   groupEmployeesByMonth,
 };

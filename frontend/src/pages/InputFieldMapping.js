@@ -65,6 +65,7 @@ export default function InputFieldMapping() {
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -101,13 +102,15 @@ export default function InputFieldMapping() {
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return mappings;
-    return mappings.filter((m) =>
-      m.field_key.toLowerCase().includes(term) ||
-      (m.field_label || '').toLowerCase().includes(term) ||
-      (m.maps_to_variable || '').toLowerCase().includes(term)
-    );
-  }, [mappings, search]);
+    return mappings.filter((m) => {
+      const matchesSearch = !term || m.field_key.toLowerCase().includes(term)
+        || (m.field_label || '').toLowerCase().includes(term)
+        || (m.maps_to_variable || '').toLowerCase().includes(term);
+      const mappingCategories = m.applies_to_categories || [];
+      const matchesCategory = filterCategory === 'all' || !mappingCategories.length || mappingCategories.includes(filterCategory);
+      return matchesSearch && matchesCategory;
+    });
+  }, [mappings, search, filterCategory]);
 
   // Variables that can be mapped to input fields:
   // - All input variables
@@ -259,6 +262,13 @@ export default function InputFieldMapping() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fields…" className="pl-9 bg-stone-50" />
         </div>
+        <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <SelectTrigger className="w-[240px]" data-testid="mapping-category-filter"><SelectValue placeholder="All categories" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((category) => <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <div className="ml-auto text-sm text-text-muted">{filtered.length} mappings</div>
       </Card>
 
@@ -278,9 +288,13 @@ export default function InputFieldMapping() {
           </thead>
           <tbody>
             {filtered.map((m, idx) => (
-              <tr key={m.id} className="border-t border-stone-100 hover:bg-stone-50/50" data-testid={`mapping-row-${m.field_key}`}>
+              <tr key={m.id} className="border-t border-stone-100 hover:bg-stone-50/50" data-testid={`mapping-row-${m.id}`}>
                 <td className="px-4 py-3 text-text-muted"><GripVertical className="w-4 h-4" /></td>
-                <td className="px-4 py-3 font-mono font-medium text-text-primary">{m.field_key}</td>
+                <td className="px-4 py-3">
+                  <div className="font-mono font-medium text-text-primary">{m.field_key}</div>
+                  {m.activity_formula_group_id && <Badge variant="outline" className="mt-1 border-emerald-300 bg-emerald-50 text-[10px] text-emerald-800" data-testid={`mapping-group-${m.id}`}>{m.activity_formula_group_id.replace('scope3_activity_', '').replaceAll('_', ' / ').toUpperCase()}</Badge>}
+                  {m.is_active === false && <Badge variant="secondary" className="mt-1 text-[10px]" data-testid={`mapping-inactive-${m.id}`}>Inactive history</Badge>}
+                </td>
                 <td className="px-4 py-3">
                   {m.field_label}
                   {m.is_required && <Badge className="ml-2 bg-red-100 text-red-700 hover:bg-red-100 text-xs">required</Badge>}
@@ -319,7 +333,7 @@ export default function InputFieldMapping() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(m)} data-testid={`edit-mapping-${m.field_key}`}><Edit className="w-4 h-4 text-blue-500" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(m)} data-testid={`edit-mapping-${m.id}`}><Edit className="w-4 h-4 text-blue-500" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => remove(m)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
                   </div>
                 </td>

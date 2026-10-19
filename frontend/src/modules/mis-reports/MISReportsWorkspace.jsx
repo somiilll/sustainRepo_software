@@ -1,0 +1,29 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { CalendarPlus, Loader2, BarChart3 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../../components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { useAuth } from '../../contexts/AuthContext';
+import MISReportWizard from './MISReportWizard';
+import MISSchedules from './MISSchedules';
+import MISDeliveryHistory from './MISDeliveryHistory';
+import { newSchedule } from './misConstants';
+import { ModulePageHeader } from '../../components/ModulePageHeader';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+export default function MISReportsWorkspace() {
+  const { getAuthHeader } = useAuth(); const requestConfig = useMemo(() => ({ headers: getAuthHeader() }), [getAuthHeader]);
+  const [schema, setSchema] = useState(null); const [schedules, setSchedules] = useState([]); const [deliveries, setDeliveries] = useState([]); const [loading, setLoading] = useState(true); const [wizardForm, setWizardForm] = useState(null); const [tab, setTab] = useState('schedules');
+  const refresh = useCallback(async () => { const [schemaResponse, schedulesResponse, deliveriesResponse] = await Promise.all([axios.get(`${API}/mis-reports/filter-schema`, requestConfig), axios.get(`${API}/mis-reports/schedules`, requestConfig), axios.get(`${API}/mis-reports/delivery-history`, requestConfig)]); setSchema(schemaResponse.data); setSchedules(schedulesResponse.data || []); setDeliveries(deliveriesResponse.data || []); }, [requestConfig]);
+  useEffect(() => { let active = true; refresh().catch((error) => active && toast.error(error.response?.data?.detail || 'MIS Reports could not be loaded.')).finally(() => active && setLoading(false)); return () => { active = false; }; }, [refresh]);
+  const saveSchedule = async (form) => { const payload = { ...form, recipient_emails: form.recipients.map((recipient) => recipient.email) }; if (form.id) await axios.patch(`${API}/mis-reports/schedules/${form.id}`, payload, requestConfig); else await axios.post(`${API}/mis-reports/schedules`, payload, requestConfig); await refresh(); setWizardForm(null); setTab('schedules'); toast.success(form.id ? 'Report configuration updated.' : 'Report schedule created.'); };
+  const sendNow = async (schedule) => { const response = await axios.post(`${API}/mis-reports/schedules/${schedule.id}/send-now`, {}, requestConfig); await refresh(); if (response.data.status === 'sent') toast.success(`Report generated and sent to ${schedule.recipients?.length || schedule.recipient_emails.length} recipients.`); else toast.error(response.data.failure_reason || 'Report generation or delivery could not be completed.'); };
+  const previewPeriod = async (schedule) => (await axios.get(`${API}/mis-reports/schedules/${schedule.id}/resolved-period`, requestConfig)).data;
+  const deleteSchedule = async (schedule) => { await axios.delete(`${API}/mis-reports/schedules/${schedule.id}`, requestConfig); await refresh(); toast.success('Schedule deleted. Historical deliveries remain available.'); };
+  const download = async (delivery, format) => { const response = await axios.get(`${API}/mis-reports/delivery-history/${delivery.id}/download/${format}`, { ...requestConfig, responseType: 'blob' }); const url = URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.download = delivery.artifacts.find((item) => item.format === format)?.filename || `MIS_Report.${format}`; link.click(); URL.revokeObjectURL(url); };
+  if (loading) return <div className="flex min-h-[360px] items-center justify-center" data-testid="mis-reports-loading"><Loader2 className="h-6 w-6 animate-spin text-emerald-800" /></div>;
+  if (wizardForm) return <div className="space-y-6" data-testid="mis-reports-wizard-view"><header className="flex items-center justify-between"><p className="text-sm text-stone-500" data-testid="mis-wizard-breadcrumb">MIS Reports / {wizardForm.id ? 'Edit schedule' : 'New schedule'}</p></header><MISReportWizard initialForm={wizardForm} facilities={schema?.facilities || []} onSave={saveSchedule} onCancel={() => setWizardForm(null)} /></div>;
+  return <div className="space-y-7" data-testid="mis-reports-workspace"><ModulePageHeader title="MIS Reports" icon={BarChart3} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="mis-reports" aside={<Button onClick={() => setWizardForm(newSchedule())} className="bg-emerald-900 text-white hover:bg-emerald-800" data-testid="mis-header-create-schedule-button"><CalendarPlus className="h-4 w-4" />Create schedule</Button>} /><Tabs value={tab} onValueChange={setTab} data-testid="mis-reports-tabs"><TabsList className="h-auto bg-emerald-50" data-testid="mis-reports-tabs-list"><TabsTrigger value="schedules" data-testid="mis-tab-schedules">Schedules</TabsTrigger><TabsTrigger value="history" data-testid="mis-tab-history">Delivery history</TabsTrigger></TabsList><TabsContent value="schedules" className="mt-7"><MISSchedules schedules={schedules} onCreate={() => setWizardForm(newSchedule())} onEdit={(schedule) => setWizardForm({ ...schedule, content: schedule.content || { sections: [] }, recipients: schedule.recipients || (schedule.recipient_emails || []).map((email) => ({ id: email, email })), facility_mode: schedule.facility_mode || (schedule.filters?.facility_ids?.length ? 'specific' : 'all'), run_time: schedule.run_time || '09:00', timezone: schedule.timezone || 'UTC' })} onDelete={deleteSchedule} onSend={sendNow} onPreview={previewPeriod} /></TabsContent><TabsContent value="history" className="mt-7" data-testid="mis-delivery-history-tab"><MISDeliveryHistory deliveries={deliveries} onDownload={download} /></TabsContent></Tabs></div>;
+}

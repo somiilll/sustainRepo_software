@@ -1,0 +1,1 @@
+"""MIS Reports domain — catalog, shared filters, run history, and automation."""

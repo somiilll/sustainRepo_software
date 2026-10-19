@@ -86,7 +86,7 @@ export default function ScopeCategoryManagement() {
 
   useEffect(() => {
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const visibleScopes = useMemo(

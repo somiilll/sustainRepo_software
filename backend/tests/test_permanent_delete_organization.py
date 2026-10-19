@@ -92,7 +92,7 @@ class TestPermanentDeleteOrganization:
                 f"{BASE_URL}/api/super-admin/organizations/{org_id}/permanent",
                 headers=superadmin_headers
             )
-        except:
+        except requests.RequestException:
             pass
     
     def test_permanent_delete_requires_superadmin_role(self):

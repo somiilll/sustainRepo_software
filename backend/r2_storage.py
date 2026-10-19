@@ -46,7 +46,14 @@ class R2Storage:
             'emission_evidence': os.environ.get('R2_BUCKET_EMISSION_EVIDENCE', 'ghg-emissions-evidence'),
             'sinks_evidence': os.environ.get('R2_BUCKET_SINKS_EVIDENCE', 'sinks-evidence'),
             'org_facility': os.environ.get('R2_BUCKET_ORG_FACILITY', 'organization-facility-data'),
-            'superadmin': os.environ.get('R2_BUCKET_SUPERADMIN', 'superadmin-data')
+            'superadmin': os.environ.get('R2_BUCKET_SUPERADMIN', 'superadmin-data'),
+            'esg_records_evidence': os.environ.get('R2_BUCKET_ESG_RECORDS_EVIDENCE', 'esg-evidences-dev'),
+            'esg_metrics': os.environ.get('R2_BUCKET_ESG_METRICS', 'esg-metrics-dev'),
+            'mis_reports': os.environ.get('R2_BUCKET_MIS_REPORTS'),
+            'repo_pilot': os.environ.get('R2_BUCKET_REPO_PILOT', 'repo-pilot-dev'),
+            'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev'),
+            'ocr_temp': os.environ.get('R2_BUCKET_OCR_TEMP', 'ocr-temp-invoices')
+            , 'supplier_assessment': os.environ.get('R2_BUCKET_SUPPLIER_ASSESSMENT')
         }
     
     def _get_bucket(self, bucket_type: str) -> str:
@@ -56,25 +63,85 @@ class R2Storage:
             raise ValueError(f"Invalid bucket type: {bucket_type}. Valid types: {list(self.buckets.keys())}")
         return bucket
     
-    def _generate_unique_key(self, filename: str, folder: str = None, org_name: str = None) -> str:
-        """Generate a unique key for the file"""
+    @staticmethod
+    def _sanitize_path(value: str | None) -> str:
+        """Return a traversal-safe R2 path while preserving intentional nesting."""
+        parts = []
+        for raw_part in str(value or "").strip("/").split("/"):
+            normalized = raw_part.strip()
+            if not normalized or normalized in {".", ".."}:
+                continue
+            safe_part = "".join(
+                char if char.isalnum() or char in "-_" else "_"
+                for char in normalized
+            ).strip("_")
+            if safe_part:
+                parts.append(safe_part)
+        return "/".join(parts)
+
+    def _generate_unique_key(
+        self,
+        filename: str,
+        folder: str = None,
+        organization_id: str = None,
+        subfolder: str = None,
+    ) -> str:
+        """Generate a unique key using the immutable organization ID."""
         file_ext = filename.split('.')[-1] if '.' in filename else ''
         unique_id = str(uuid.uuid4())
         timestamp = datetime.now().strftime('%Y%m%d')
         
-        # Build path: org_name/timestamp/file or folder/org_name/timestamp/file
         base_name = f"{unique_id}.{file_ext}" if file_ext else unique_id
-        
-        if org_name:
-            # Sanitize org_name for use in path
-            safe_org = ''.join(c if c.isalnum() or c in '-_' else '_' for c in org_name)
-            if folder:
-                return f"{folder}/{safe_org}/{timestamp}/{base_name}"
-            return f"{safe_org}/{timestamp}/{base_name}"
-        
-        if folder:
-            return f"{folder}/{timestamp}/{base_name}"
-        return f"{timestamp}/{base_name}"
+        path_parts = [
+            self._sanitize_path(folder),
+            self._sanitize_path(organization_id),
+            self._sanitize_path(subfolder),
+            timestamp,
+            base_name,
+        ]
+        return "/".join(part for part in path_parts if part)
+
+    def initiate_multipart_upload(
+        self,
+        filename: str,
+        bucket_type: str,
+        content_type: str,
+        folder: str = None,
+        organization_id: str = None,
+        subfolder: str = None,
+    ) -> dict:
+        bucket = self._get_bucket(bucket_type)
+        key = self._generate_unique_key(filename, folder, organization_id, subfolder)
+        result = self.client.create_multipart_upload(Bucket=bucket, Key=key, ContentType=content_type)
+        return {"bucket": bucket, "key": key, "upload_id": result["UploadId"]}
+
+    def sign_multipart_part(self, bucket_type: str, key: str, upload_id: str, part_number: int) -> str:
+        return self.client.generate_presigned_url(
+            "upload_part",
+            Params={"Bucket": self._get_bucket(bucket_type), "Key": key, "UploadId": upload_id, "PartNumber": part_number},
+            ExpiresIn=3600,
+            HttpMethod="PUT",
+        )
+
+    def complete_multipart_upload(self, bucket_type: str, key: str, upload_id: str, parts: list[dict]) -> dict:
+        bucket = self._get_bucket(bucket_type)
+        try:
+            result = self.client.complete_multipart_upload(
+                Bucket=bucket, Key=key, UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "NoSuchUpload":
+                raise
+            result = {}
+        head = self.client.head_object(Bucket=bucket, Key=key)
+        return {"etag": result.get("ETag"), "file_size": head.get("ContentLength", 0)}
+
+    def abort_multipart_upload(self, bucket_type: str, key: str, upload_id: str) -> None:
+        self.client.abort_multipart_upload(Bucket=self._get_bucket(bucket_type), Key=key, UploadId=upload_id)
+
+    def download_to_path(self, bucket_type: str, key: str, destination: str) -> None:
+        self.client.download_file(self._get_bucket(bucket_type), key, destination)
     
     async def upload_file(
         self, 
@@ -84,7 +151,9 @@ class R2Storage:
         content_type: str,
         folder: str = None,
         metadata: dict = None,
-        org_name: str = None
+        organization_id: str = None,
+        subfolder: str = None,
+        object_key: str = None,
     ) -> dict:
         """
         Upload file to appropriate R2 bucket
@@ -96,16 +165,43 @@ class R2Storage:
             content_type: MIME type of the file
             folder: Optional folder/prefix for organizing files
             metadata: Optional metadata to store with the file
-            org_name: Optional organization name for path prefix
+            organization_id: Immutable organization ID used as the path prefix
+            subfolder: Optional path placed after the organization ID
         
         Returns:
             dict with bucket, key, and file info
         """
         try:
+            # Validate file before upload
+            from shared.security import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, ALLOWED_MIME_PREFIXES
+            import os as _os
+            ext = _os.path.splitext(filename)[1].lower()
+            training_extensions = {'.mp3', '.mp4', '.wav', '.webm', '.m4a', '.aac', '.ogg', '.flac'}
+            is_training_upload = bucket_type == 'supplier_assessment'
+            if ext and ext not in ALLOWED_EXTENSIONS and not (is_training_upload and ext in training_extensions):
+                return {"error": f"File type '{ext}' not allowed"}
+            max_file_size = 500 * 1024 * 1024 if is_training_upload else MAX_FILE_SIZE
+            if len(file_content) > max_file_size:
+                return {"error": f"File too large. Max {max_file_size // (1024*1024)}MB"}
+            is_training_media = content_type.startswith(('audio/', 'video/')) if content_type else False
+            if content_type and not any(content_type.startswith(p) for p in ALLOWED_MIME_PREFIXES) and not (is_training_upload and is_training_media):
+                return {"error": f"Content type '{content_type}' not allowed"}
+
             bucket = self._get_bucket(bucket_type)
-            key = self._generate_unique_key(filename, folder, org_name)
+            if object_key:
+                key = object_key.strip("/")
+                if not key or ".." in key.split("/"):
+                    raise ValueError("Invalid object storage key")
+            else:
+                key = self._generate_unique_key(filename, folder, organization_id, subfolder)
             
-            logger.info(f"[R2_UPLOAD] Starting: bucket={bucket}, key={key}, size={len(file_content)}, org={org_name}")
+            logger.info(
+                "[R2_UPLOAD] Starting: bucket=%s, key=%s, size=%s, organization_id=%s",
+                bucket,
+                key,
+                len(file_content),
+                organization_id,
+            )
             
             # Prepare upload parameters
             upload_params = {
@@ -127,6 +223,13 @@ class R2Storage:
             # Upload to R2
             self.client.put_object(**upload_params)
             
+            # Generate a presigned URL for access
+            url = self.client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket, 'Key': key},
+                ExpiresIn=604800,  # 7 days
+            )
+            
             logger.info(f"[R2_UPLOAD] Success: {bucket}/{key}")
             
             return {
@@ -134,6 +237,7 @@ class R2Storage:
                 'bucket': bucket,
                 'bucket_type': bucket_type,
                 'key': key,
+                'url': url,
                 'original_filename': filename,
                 'content_type': content_type,
                 'file_size': len(file_content),

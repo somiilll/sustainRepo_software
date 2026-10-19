@@ -83,8 +83,8 @@ async def delete_r2_files_by_ids(db, r2, file_ids: List[str]) -> dict:
     """
     Delete R2 objects + uploaded_files records for the given file ids.
 
-    R2 failures are logged and swallowed; DB records are always removed so no
-    orphan metadata is left behind. Returns counts for audit logging.
+    Storage cleanup completes before metadata removal. A storage failure stops
+    the cascade so the organization remains available for a safe retry.
     """
     r2_deleted = 0
     r2_failed = 0
@@ -103,13 +103,16 @@ async def delete_r2_files_by_ids(db, r2, file_ids: List[str]) -> dict:
         r2_key = rec.get("r2_key")
         if bucket_type and r2_key:
             try:
-                await r2.delete_file(bucket_type=bucket_type, key=r2_key)
+                deleted = await r2.delete_file(bucket_type=bucket_type, key=r2_key)
+                if not deleted:
+                    raise RuntimeError("R2 did not confirm file deletion")
                 r2_deleted += 1
             except Exception as e:
                 r2_failed += 1
                 logger.error(
-                    f"R2 delete failed for bucket={bucket_type} key={r2_key}: {e}. Continuing DB cleanup."
+                    f"R2 delete failed for bucket={bucket_type} key={r2_key}: {e}. Stopping cascade cleanup."
                 )
+                raise RuntimeError("Could not complete storage cleanup") from e
 
     if records:
         result = await db.uploaded_files.delete_many({"id": {"$in": file_ids}})

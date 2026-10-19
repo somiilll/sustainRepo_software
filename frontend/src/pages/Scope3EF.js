@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+const getSubcategoryDisplayLabel = (value) => (value === 'energy' ? 'Grid Power' : value);
 
 // Regions (same as Fuel Database)
 const REGIONS = [
@@ -99,6 +100,7 @@ export default function Scope3EF() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
   const [pageSize] = useState(50);
+  const [availableYears, setAvailableYears] = useState([]);
   
   // Dynamic scopes and categories from backend
   const [scopes, setScopes] = useState([]);
@@ -135,7 +137,22 @@ export default function Scope3EF() {
     fetchEntries();
     fetchScopesAndCategories();
     fetchSectorsAndUnits();
+    fetchFilterOptions();
   }, []);
+
+  const fetchFilterOptions = async () => {
+    try {
+      const endpoint = isSuperAdmin
+        ? '/super-admin/scope3-ef/filter-options'
+        : '/scope3-ef/filter-options';
+      const response = await axios.get(`${API}${endpoint}`, {
+        headers: getAuthHeader()
+      });
+      setAvailableYears(response.data?.years || []);
+    } catch (error) {
+      console.error('Failed to fetch Scope 3 filter options:', error);
+    }
+  };
 
   const fetchSectorsAndUnits = async () => {
     try {
@@ -451,11 +468,6 @@ export default function Scope3EF() {
     return cats.sort();
   }, [entries]);
 
-  const uniqueYears = useMemo(() => {
-    const years = [...new Set(entries.map(e => e.year_applicable).filter(Boolean))];
-    return years.sort((a, b) => b - a); // Sort descending
-  }, [entries]);
-
   const uniqueSources = useMemo(() => {
     const sources = [...new Set(entries.map(e => e.source).filter(Boolean))];
     return sources.sort();
@@ -538,7 +550,7 @@ export default function Scope3EF() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Years</SelectItem>
-              {uniqueYears.map(year => (
+              {availableYears.map(year => (
                 <SelectItem key={year} value={String(year)}>{year}</SelectItem>
               ))}
             </SelectContent>
@@ -608,7 +620,7 @@ export default function Scope3EF() {
                     <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.activity_type || '-'}</td>
-                    <td className="p-4 text-sm text-text-secondary">{entry.subcategory || '-'}</td>
+                    <td className="p-4 text-sm text-text-secondary">{getSubcategoryDisplayLabel(entry.subcategory) || '-'}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.sub_scope || '-'}</td>
                     <td className="p-4 text-sm">
                       {entry.industry_sectors?.length > 0 ? (
@@ -743,7 +755,7 @@ export default function Scope3EF() {
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Subcategory</Label>
-                  <p className="font-medium">{viewEntry.subcategory || <span className="text-text-muted">-</span>}</p>
+                  <p className="font-medium">{getSubcategoryDisplayLabel(viewEntry.subcategory) || <span className="text-text-muted">-</span>}</p>
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Sub Scope</Label>
@@ -912,7 +924,7 @@ export default function Scope3EF() {
                     <SelectItem value="none">None (Stationary & Mobile only)</SelectItem>
                     <SelectItem value="stationary_combustion">Stationary Combustion</SelectItem>
                     <SelectItem value="mobile_combustion">Mobile Combustion</SelectItem>
-                    <SelectItem value="energy">Energy</SelectItem>
+                    <SelectItem value="energy">Grid Power</SelectItem>
                     <SelectItem value="process_emissions">Process Emissions</SelectItem>
                   </SelectContent>
                 </Select>

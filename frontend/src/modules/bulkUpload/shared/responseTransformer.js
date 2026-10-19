@@ -39,6 +39,7 @@ export function defaultTransformValidationResponse(rawData, { templateType = 'un
       ? rawData.results.map(normalizeRowResult)
       : [],
     total_emissions_tco2e: rawData?.total_emissions_tco2e,
+    preview: rawData?.preview ?? null,
     is_validated_only: true,
   };
 }

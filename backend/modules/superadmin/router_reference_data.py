@@ -32,7 +32,6 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
     UnitCreate, UnitResponse,
@@ -49,6 +48,37 @@ router = APIRouter()
 # ============================================
 # SCOPE 3 EMISSION FACTORS
 # ============================================
+
+async def get_scope3_ef_filter_options() -> dict:
+    raw_years = await db.scope3_ef.distinct(
+        "year_applicable",
+        {"year_applicable": {"$ne": None}},
+    )
+    years = sorted(
+        {
+            int(year)
+            for year in raw_years
+            if isinstance(year, (int, float, str)) and str(year).strip().isdigit()
+        },
+        reverse=True,
+    )
+    return {"years": years}
+
+
+@router.get("/super-admin/scope3-ef/filter-options")
+async def get_super_admin_scope3_ef_filter_options(
+    current_user: dict = Depends(get_super_admin_user),
+):
+    """Return complete filter metadata independent of table pagination."""
+    return await get_scope3_ef_filter_options()
+
+
+@router.get("/scope3-ef/filter-options")
+async def get_user_scope3_ef_filter_options(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return complete filter metadata independent of table pagination."""
+    return await get_scope3_ef_filter_options()
 
 @router.get("/super-admin/scope3-ef")
 async def get_all_scope3_ef(
@@ -69,14 +99,17 @@ async def get_all_scope3_ef(
     query = {}
     
     if search:
+        from shared.security import safe_regex
+        _s = safe_regex(search)
         query["$or"] = [
-            {"activity": {"$regex": search, "$options": "i"}},
-            {"category": {"$regex": search, "$options": "i"}},
-            {"source": {"$regex": search, "$options": "i"}}
+            {"activity": {"$regex": _s, "$options": "i"}},
+            {"category": {"$regex": _s, "$options": "i"}},
+            {"source": {"$regex": _s, "$options": "i"}}
         ]
     
     if category:
-        query["category"] = {"$regex": category, "$options": "i"}
+        from shared.security import safe_regex as _sr
+        query["category"] = {"$regex": _sr(category), "$options": "i"}
     
     if method:
         query["method"] = method
@@ -85,7 +118,7 @@ async def get_all_scope3_ef(
         query["region"] = region
     
     if year:
-        query["year_applicable"] = year
+        query["year_applicable"] = {"$in": [year, str(year)]}
     
     if source:
         query["source"] = {"$regex": source, "$options": "i"}
@@ -223,13 +256,16 @@ async def get_scope3_ef_for_users(
     query = {}
     
     if search:
+        from shared.security import safe_regex
+        _s = safe_regex(search)
         query["$or"] = [
-            {"activity": {"$regex": search, "$options": "i"}},
-            {"category": {"$regex": search, "$options": "i"}}
+            {"activity": {"$regex": _s, "$options": "i"}},
+            {"category": {"$regex": _s, "$options": "i"}}
         ]
     
     if category:
-        query["category"] = {"$regex": category, "$options": "i"}
+        from shared.security import safe_regex as _sr2
+        query["category"] = {"$regex": _sr2(category), "$options": "i"}
     
     if method:
         query["method"] = method
@@ -238,7 +274,7 @@ async def get_scope3_ef_for_users(
         query["region"] = region
     
     if year:
-        query["year_applicable"] = year
+        query["year_applicable"] = {"$in": [year, str(year)]}
     
     if sub_scope:
         query["sub_scope"] = sub_scope

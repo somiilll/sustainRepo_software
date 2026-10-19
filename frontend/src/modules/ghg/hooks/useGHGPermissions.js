@@ -45,7 +45,7 @@ export default function useGHGPermissions() {
     }
     load();
     return () => { cancelled = true; };
-  }, [user?.id, user?.organization_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.organization_id]);  
 
   const role = user?.role;
   const isSuperAdmin = role === 'super_admin';

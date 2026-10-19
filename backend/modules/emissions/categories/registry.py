@@ -72,7 +72,7 @@ _SEED: List[CategoryDescriptor] = [
     CategoryDescriptor(id="stationary_combustion", scope="scope1", name="Stationary Combustion"),
     CategoryDescriptor(id="mobile_combustion", scope="scope1", name="Mobile Combustion"),
     CategoryDescriptor(id="fugitive_emissions", scope="scope1", name="Fugitive Emissions"),
-    CategoryDescriptor(id="process_emissions", scope="scope1", name="Process Emissions"),
+    # NOTE: 'Process Emissions' removed per user request — do NOT re-add.
     # Scope 2
     CategoryDescriptor(id="purchased_electricity", scope="scope2", name="Purchased Electricity"),
     # NOTE: 'Purchased Steam', 'Purchased Heating', 'Purchased Cooling' removed
@@ -81,13 +81,21 @@ _SEED: List[CategoryDescriptor] = [
     # Scope 3 (C1–C15) — capabilities mirror frontend scope3-definitions.
     _s3("c1", "Purchased Goods and Services"),
     _s3("c2", "Capital Goods"),
-    _s3("c3", "Fuel and Energy Related Activities"),
-    _s3("c4", "Upstream Transportation and Distribution", CAP_JOURNEY_LOCATIONS),
+    _s3(
+        "c3",
+        "Fuel- and energy-related activities",
+        aliases=(
+            "C3 - Fuel and energy-related activities",
+            "C3 Fuel- and energy-related activities",
+            "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        ),
+    ),
+    _s3("c4", "Upstream Transportation and Distribution", CAP_ACTIVITY_TYPES, CAP_JOURNEY_LOCATIONS),
     _s3("c5", "Waste Generated in Operations"),
     _s3("c6", "Business Travel", CAP_JOURNEY_LOCATIONS),
     _s3("c7", "Employee Commuting", CAP_MULTI_EMPLOYEE, CAP_SUBCATEGORY),
     _s3("c8", "Upstream Leased Assets", CAP_ASSET_NAME),
-    _s3("c9", "Downstream Transportation and Distribution", CAP_JOURNEY_LOCATIONS),
+    _s3("c9", "Downstream Transportation and Distribution", CAP_ACTIVITY_TYPES, CAP_JOURNEY_LOCATIONS),
     _s3("c10", "Processing of Sold Products"),
     _s3("c11", "Use of Sold Products"),
     _s3("c12", "End of Life Treatment of Sold Products"),

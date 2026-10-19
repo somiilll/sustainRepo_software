@@ -73,7 +73,6 @@ export const defaultFormState = {
   
   // Process templates (Process Emissions)
   selectedProcesses: [],
-  processTemplateInputs: {},
   
   // UI state
   isSaving: false,

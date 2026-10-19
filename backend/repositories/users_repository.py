@@ -6,6 +6,8 @@ this repository so:
   - tests can mock a single dependency
   - field projections (excluding `_id`, `password_hash`) are consistent
   - "soft-delete + active" filtering rules are centralized
+
+ESG Platform: Uses users collection.
 """
 from typing import Any, Dict, List, Optional
 

@@ -29,8 +29,11 @@ DB_NAME: str = os.environ["DB_NAME"]
 # MUST set JWT_SECRET via .env. The default exists for local development.
 JWT_SECRET: str = os.environ.get("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM: str = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days
+ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
+REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
 RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
 SENDER_EMAIL: str = os.environ.get("SENDER_EMAIL", "noreply@sustainrepo.com")
+FRONTEND_URL: str = os.environ["FRONTEND_URL"]
+SUSTAINREPO_RESOURCES_URL: str = os.environ["SUSTAINREPO_RESOURCES_URL"]
 ANTHROPIC_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")

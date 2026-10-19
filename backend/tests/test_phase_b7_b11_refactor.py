@@ -6,7 +6,7 @@ B8: Reports module extraction (5 /reports/* routes)
 B9: Super-admin module extraction (~91 routes incl. /units, /fuel-database,
     /scope3-ef, /gwp-config, /currency-conversion, /formula-*,
     /emission-configurations, /custom-emission-factors, /calculation-formulas,
-    /sectors, /process-templates)
+    /sectors)
 B10: Backend Category Registry (modules/emissions/categories/registry.py)
 B11: In-process Event Bus (events/event_bus.py)
 
@@ -286,17 +286,6 @@ class TestB9PlatformConfig:
             data = data["data"]
         assert isinstance(data, list)
         assert len(data) >= 8
-
-    def test_process_templates(self, admin_headers):
-        r = requests.get(
-            f"{BASE_URL}/api/process-templates", headers=admin_headers, timeout=60
-        )
-        assert r.status_code == 200
-        data = r.json()
-        # May be empty list, may be dict-wrapping; just verify shape
-        if isinstance(data, dict) and "data" in data:
-            data = data["data"]
-        assert isinstance(data, list)
 
     def test_gwp_config(self, admin_headers):
         r = requests.get(

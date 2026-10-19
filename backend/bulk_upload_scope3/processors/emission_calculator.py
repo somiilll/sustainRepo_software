@@ -14,6 +14,14 @@ from ..models import CalculationMethod
 from calc_engine.execution import CalcEngine, CalculationError
 from calc_engine.formulas import get_decision_tree_for_category, resolve_formula_id, DecisionTreeError
 from calc_engine.units import convert
+from calc_engine.currency_conversion import (
+    PPP_INFLATION_METHOD,
+    STANDARD_METHOD,
+    currency_conversion_source_name,
+    extract_currency_period,
+    normalize_currency_method,
+    resolve_currency_conversion,
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -31,39 +39,42 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     
     Returns None if unable to parse.
     """
+    return extract_currency_period(reporting_period)[0]
+
+
+def normalize_reporting_period(reporting_period: Optional[str]) -> Optional[str]:
+    """Normalize template month labels before resolving an effective currency rate."""
     if not reporting_period:
         return None
-    
-    reporting_period = str(reporting_period).strip()
-    
-    # FY format: "FY 2025-2026" or "FY 2025-26" → use END year
-    fy_match = re.match(r'FY\s*(\d{4})\s*-\s*(\d{2,4})', reporting_period, re.IGNORECASE)
-    if fy_match:
-        start_year = int(fy_match.group(1))
-        end_part = fy_match.group(2)
-        if len(end_part) == 2:
-            # Convert "26" to "2026" based on start year
-            end_year = int(str(start_year)[:2] + end_part)
-        else:
-            end_year = int(end_part)
-        return end_year  # Use END year for FY
-    
-    # CY format: "CY 2025"
-    cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
-    if cy_match:
-        return int(cy_match.group(1))
-    
-    # Monthly format: "2025-04" or "2025-4"
-    monthly_match = re.match(r'(\d{4})-\d{1,2}', reporting_period)
-    if monthly_match:
-        return int(monthly_match.group(1))
-    
-    # Just a year: "2025"
-    year_match = re.match(r'^(\d{4})$', reporting_period)
-    if year_match:
-        return int(year_match.group(1))
-    
-    return None
+
+    value = str(reporting_period).strip()
+    monthly_match = re.match(r"^([A-Za-z]{3,9})-(\d{4})$", value)
+    if not monthly_match:
+        return value
+    month_names = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12",
+    }
+    month = month_names.get(monthly_match.group(1).lower()[:3])
+    return f"{monthly_match.group(2)}-{month}" if month else value
+
+
+def resolve_bulk_currency_method(row_data: Dict) -> str:
+    """Infer the Scope 3 Bulk Upload spend conversion method from row values."""
+    if row_data.get("exchange_rate") not in (None, ""):
+        return STANDARD_METHOD
+    has_ppp_override = row_data.get("ppp") not in (None, "")
+    has_inflation_override = row_data.get("inflation_rate") not in (None, "")
+    if has_ppp_override or has_inflation_override:
+        return PPP_INFLATION_METHOD
+
+    explicit_method = (
+        row_data.get("spend_currency_conversion_method")
+        or row_data.get("currency_conversion_method")
+    )
+    if explicit_method:
+        return normalize_currency_method(explicit_method)
+    return STANDARD_METHOD
 
 
 # Mapping from bulk upload category codes to emission_categories codes
@@ -133,6 +144,20 @@ class EmissionCalculator:
             return category["id"]
         
         return None
+
+    async def _get_version_binding(self, category_id: str, formula_id: str) -> Dict[str, Any]:
+        formula = await self.db.ce_formulas.find_one(
+            {"id": formula_id, "is_active": True},
+            {"_id": 0, "version_id": 1},
+        )
+        tree = await self.db.ce_decision_trees.find_one(
+            {"category_id": category_id, "is_active": True},
+            {"_id": 0, "version_id": 1},
+        )
+        return {
+            "formula_version_id": (formula or {}).get("version_id"),
+            "decision_tree_version_id": (tree or {}).get("version_id"),
+        }
     
     async def _get_decision_tree(self, category_id: str) -> Optional[Dict]:
         """Get decision tree for a category (with caching)"""
@@ -273,6 +298,7 @@ class EmissionCalculator:
                     if resolved_formula_id:
                         result["formula_id"] = resolved_formula_id
                         result["decision_path"] = tree_path
+                        result.update(await self._get_version_binding(cat_id, resolved_formula_id))
                         # Get formula name
                         formula_doc = await self.db.ce_formulas.find_one(
                             {"id": resolved_formula_id}, {"_id": 0, "name": 1}
@@ -443,6 +469,8 @@ class EmissionCalculator:
         decision_inputs = {
             "calculation_method_scope3": method.value,
         }
+        if method == CalculationMethod.SPEND_BASIS:
+            decision_inputs["spend_currency_conversion_method"] = resolve_bulk_currency_method(row_data)
         
         # Add activity_type for C6/C7 - NORMALIZE to lowercase with underscores for decision tree matching
         if row_data.get("activity_type"):
@@ -547,52 +575,49 @@ class EmissionCalculator:
         
         # For spend_basis, fetch currency conversion data for ppp and inflation_rate
         currency_conversion = None
+        currency_method = STANDARD_METHOD
         if method == CalculationMethod.SPEND_BASIS:
             spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
-            
-            # Extract year from reporting period for year-specific currency conversion
-            reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
-            target_year = extract_year_from_reporting_period(reporting_period)
-            
-            # First try to find exact year match
-            if target_year:
-                currency_conversion = await self.db.currency_conversion.find_one(
-                    {"source_currency": spent_currency, "year_applicable": target_year, "is_active": True},
-                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
-                )
-                logger.info(f"[BULK_CALC] Currency lookup for {spent_currency}, year={target_year}: {currency_conversion is not None}")
-            
-            # Fallback: find latest available year if no exact match
-            if not currency_conversion:
-                fallback_cursor = self.db.currency_conversion.find(
-                    {"source_currency": spent_currency, "is_active": True},
-                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
-                ).sort("year_applicable", -1).limit(1)
-                fallback_list = await fallback_cursor.to_list(length=1)
-                if fallback_list:
-                    currency_conversion = fallback_list[0]
-                    logger.info(f"[BULK_CALC] Fallback to year {currency_conversion.get('year_applicable')} for {spent_currency}")
-            
-            if currency_conversion:
-                logger.info(f"[BULK_CALC] Currency conversion: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
+            reporting_period = normalize_reporting_period(
+                row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+            )
+            currency_method = resolve_bulk_currency_method(row_data)
+            currency_conversion = await resolve_currency_conversion(
+                self.db,
+                source_currency=spent_currency,
+                reporting_period=reporting_period,
+                reporting_year_type=row_data.get("reporting_year_type"),
+                financial_year_start_month=row_data.get("financial_year_start_month"),
+                method=currency_method,
+            )
+            if (
+                currency_method == STANDARD_METHOD
+                and row_data.get("exchange_rate") in (None, "")
+                and not (currency_conversion or {}).get("exchange_rate")
+            ):
+                return {"co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0, "calculation_method": "error", "error": f"No active standard currency rate found for {spent_currency} and {reporting_period}"}
         
         # Build calc_engine inputs based on method and formula requirements
         # Map method to correct variable names based on ce_input_field_mappings and formula definitions
         calc_inputs = self._build_calc_inputs(
+            category_code=category_code,
             method=method,
             row_data=row_data,
             converted_quantity=converted_quantity,
             input_unit=default_unit or input_unit or "1",
             formula_doc=formula_doc,
             ef_data=ef_data,
-            currency_conversion=currency_conversion
+            currency_conversion=currency_conversion,
+            currency_method=currency_method,
         )
         
         logger.info(f"[BULK_CALC] calc_inputs={calc_inputs}")
         
         # Build context for property resolution
         # Include reporting_period for currency conversion year lookup in calc_engine
-        reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+        reporting_period = normalize_reporting_period(
+            row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+        )
         context = {
             "fuel_name": ef_data.get("activity"),
             "activity": ef_data.get("activity"),
@@ -603,6 +628,8 @@ class EmissionCalculator:
             "method": method.value,
             "reporting_period": reporting_period,  # For currency conversion year lookup
         }
+        if formula_doc.get("activity_formula_group_id"):
+            context["activity_formula_group_id"] = formula_doc["activity_formula_group_id"]
         
         # Build user_overrides for property values (inflation_rate, ppp)
         # These are properties in the formula, not inputs, so they go in user_overrides
@@ -611,6 +638,8 @@ class EmissionCalculator:
             user_overrides["inflation_rate"] = calc_inputs.pop("inflation_rate")
         if "ppp" in calc_inputs:
             user_overrides["ppp"] = calc_inputs.pop("ppp")
+        if "exchange_rate" in calc_inputs:
+            user_overrides["exchange_rate"] = calc_inputs.pop("exchange_rate")
         
         # For fugitive emissions, add co2_gwp_fugitives to user_overrides
         # The formula expects 'co2_gwp_fugitives' property which comes from fuel_database.gwp_fugitives
@@ -642,6 +671,7 @@ class EmissionCalculator:
             formula_def = dict(formula_doc.get("definition", {}))
             formula_def.setdefault("id", formula_doc["id"])
             formula_def.setdefault("version_id", formula_doc.get("version_id"))
+            formula_def.setdefault("activity_formula_group_id", formula_doc.get("activity_formula_group_id"))
             
             logger.info(f"[BULK_CALC] Executing formula={formula_doc.get('name')}, id={formula_doc['id']}")
             logger.info(f"[BULK_CALC] user_overrides={user_overrides}")
@@ -674,6 +704,7 @@ class EmissionCalculator:
                 "unit": output_unit,
                 "calculation_method": method.value,
                 "formula_id": formula_id,
+                **(await self._get_version_binding(category_id, formula_id)),
                 "formula_name": formula_doc.get("name"),
                 "decision_path": tree_path,
                 "inputs": {
@@ -684,9 +715,18 @@ class EmissionCalculator:
                     "activity_id": activity_id,
                     "emission_factor": ef_data.get("emission_factor")
                 },
+                "calculation_inputs": result.get("inputs", calc_inputs),
+                "calculation_context": result.get("context", context),
                 "audit_log": result.get("audit_log", []),
                 "applied_factors": result.get("applied_factors", {}),
-                "outputs": result.get("outputs", {})
+                "outputs": result.get("outputs", {}),
+                "resolved_exchange_rate": (
+                    float(row_data.get("exchange_rate"))
+                    if row_data.get("exchange_rate") not in (None, "")
+                    else float((currency_conversion or {}).get("exchange_rate"))
+                    if currency_method == STANDARD_METHOD and (currency_conversion or {}).get("exchange_rate")
+                    else None
+                ),
             }
             
         except (CalculationError, Exception) as e:
@@ -779,10 +819,11 @@ class EmissionCalculator:
         
         return 0.0, None
     
-    def _build_calc_inputs(self, method: CalculationMethod, row_data: Dict,
+    def _build_calc_inputs(self, category_code: str, method: CalculationMethod, row_data: Dict,
                            converted_quantity: float, input_unit: str,
                            formula_doc: Dict, ef_data: Dict,
-                           currency_conversion: Optional[Dict] = None) -> Dict[str, Any]:
+                           currency_conversion: Optional[Dict] = None,
+                           currency_method: str = STANDARD_METHOD) -> Dict[str, Any]:
         """
         Build calc_engine inputs with correct variable names based on method and formula requirements.
         
@@ -821,7 +862,24 @@ class EmissionCalculator:
                 "unit": spent_currency
             }
             
-            # Add ppp and inflation_rate from template (override) or currency_conversion table
+            if currency_method == STANDARD_METHOD:
+                if row_data.get("exchange_rate") not in (None, ""):
+                    calc_inputs["exchange_rate"] = {
+                        "value": float(row_data["exchange_rate"]),
+                        "unit": "",
+                        "is_override": True,
+                    }
+                elif (currency_conversion or {}).get("exchange_rate"):
+                    calc_inputs["exchange_rate"] = {
+                        "value": float(currency_conversion["exchange_rate"]),
+                        "unit": "",
+                        "source_name": currency_conversion_source_name(
+                            currency_conversion,
+                            currency_method,
+                        ),
+                    }
+                return calc_inputs
+
             # Priority: Template override > Currency conversion table > Default 1.0
             
             # Inflation rate
@@ -834,13 +892,18 @@ class EmissionCalculator:
             elif currency_conversion and currency_conversion.get("inflation_factor"):
                 calc_inputs["inflation_rate"] = {
                     "value": float(currency_conversion.get("inflation_factor")),
-                    "unit": ""
+                    "unit": "",
+                    "source_name": currency_conversion_source_name(
+                        currency_conversion,
+                        currency_method,
+                    ),
                 }
             else:
                 # Default to 1.0 to avoid division by zero
                 calc_inputs["inflation_rate"] = {
                     "value": 1.0,
-                    "unit": ""
+                    "unit": "",
+                    "source_name": "Default",
                 }
             
             # PPP (Purchase Power Parity)
@@ -853,13 +916,18 @@ class EmissionCalculator:
             elif currency_conversion and currency_conversion.get("purchase_parity"):
                 calc_inputs["ppp"] = {
                     "value": float(currency_conversion.get("purchase_parity")),
-                    "unit": ""
+                    "unit": "",
+                    "source_name": currency_conversion_source_name(
+                        currency_conversion,
+                        currency_method,
+                    ),
                 }
             else:
                 # Default to 1.0 to avoid division by zero
                 calc_inputs["ppp"] = {
                     "value": 1.0,
-                    "unit": ""
+                    "unit": "",
+                    "source_name": "Default",
                 }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
@@ -965,10 +1033,9 @@ class EmissionCalculator:
             
             # C6/C7 Passengers and distance (air, water, taxi, bus, rail travel)
             elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
-                # Template columns: passengers, distance_travelled, days_travelled
+                # Template columns: passengers, distance_travelled
                 passengers_raw = row_data.get("passengers") or row_data.get("qty_passenger")
                 distance_raw = row_data.get("distance_travelled")
-                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                 
                 if passengers_raw is not None and passengers_raw != "":
                     calc_inputs["qty_passenger"] = {"value": float(passengers_raw), "unit": ""}
@@ -977,23 +1044,24 @@ class EmissionCalculator:
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
                 
-                # C6 Business Travel formulas require qty_days_travelled
-                if "qty_days_travelled" in expected_variables:
+                # C7 retains its travel-day input; C6 deliberately excludes it.
+                if category_code == "C7" and "qty_days_travelled" in expected_variables:
+                    days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                     if days_raw is not None and days_raw != "":
                         calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
-            # C6/C7 Car/Bike travel - km only (+ days for C6)
+            # C6/C7 Car/Bike travel - km only
             elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables and "qty_travelled" not in expected_variables:
-                # Template columns: distance_travelled, days_travelled
+                # Template column: distance_travelled
                 distance_raw = row_data.get("distance_travelled")
-                days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                 
                 if distance_raw is not None and distance_raw != "":
                     km_unit = row_data.get("distance_unit") or "km"
                     calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
                 
-                # C6 Business Travel formulas require qty_days_travelled
-                if "qty_days_travelled" in expected_variables:
+                # C7 retains its travel-day input; C6 deliberately excludes it.
+                if category_code == "C7" and "qty_days_travelled" in expected_variables:
+                    days_raw = row_data.get("days_travelled") or row_data.get("qty_days_travelled")
                     if days_raw is not None and days_raw != "":
                         calc_inputs["qty_days_travelled"] = {"value": float(days_raw), "unit": ""}
             
@@ -1157,7 +1225,7 @@ class EmissionCalculator:
                     "unit": row_data.get("distance_unit", "km")
                 }
             
-            # C6/C7 with passengers: qty_passenger + km_travelled + qty_days_travelled (C6)
+            # C6/C7 with passengers: qty_passenger + km_travelled
             elif row_data.get("passengers") and row_data.get("distance_travelled"):
                 dynamic_field_values["qty_passenger"] = {
                     "value": float(row_data.get("passengers")),
@@ -1167,21 +1235,21 @@ class EmissionCalculator:
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
-                # C6 Business Travel requires qty_days_travelled
-                if row_data.get("days_travelled"):
+                # Travel days remain a C7-only bulk field.
+                if category_code == "C7" and row_data.get("days_travelled"):
                     dynamic_field_values["qty_days_travelled"] = {
                         "value": float(row_data.get("days_travelled")),
                         "unit": ""
                     }
             
-            # C6/C7 Car/Bike: km_travelled + qty_days_travelled (C6)
+            # C6/C7 Car/Bike: km_travelled
             elif row_data.get("distance_travelled") and not row_data.get("passengers") and not row_data.get("quantity_goods"):
                 dynamic_field_values["km_travelled"] = {
                     "value": float(row_data.get("distance_travelled")),
                     "unit": row_data.get("distance_unit", "km")
                 }
-                # C6 Business Travel requires qty_days_travelled
-                if row_data.get("days_travelled"):
+                # Travel days remain a C7-only bulk field.
+                if category_code == "C7" and row_data.get("days_travelled"):
                     dynamic_field_values["qty_days_travelled"] = {
                         "value": float(row_data.get("days_travelled")),
                         "unit": ""
@@ -1243,6 +1311,16 @@ class EmissionCalculator:
                     "unit": "",
                     "is_override": True
                 }
+            currency_method = resolve_bulk_currency_method(row_data)
+            dynamic_field_values["spend_currency_conversion_method"] = {"value": currency_method, "unit": ""}
+            if currency_method == STANDARD_METHOD:
+                has_exchange_rate_override = row_data.get("exchange_rate") not in (None, "")
+                dynamic_field_values["exchange_rate"] = {
+                    "value": float(row_data.get("exchange_rate")) if has_exchange_rate_override else None,
+                    "unit": "",
+                    "is_override": has_exchange_rate_override,
+                    "justification": "",
+                }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
             dynamic_field_values["activity_value_supplier_based"] = {
@@ -1256,9 +1334,11 @@ class EmissionCalculator:
         
         # Add scope3 metadata fields to dynamic_field_values for edit dialog restoration
         # This ensures consistency with manual entry records (especially for C8, C10, C11, C13, C14)
-        activity_type_normalized = row_data.get("activity_type", "")
-        if activity_type_normalized:
-            activity_type_normalized = activity_type_normalized.lower().replace(" ", "_")
+        uploaded_activity_type = row_data.get("activity_type", "")
+        matched_factor_activity_type = (calculated_emissions.get("calculation_context") or {}).get("activity_type", "")
+        activity_type_normalized = uploaded_activity_type or matched_factor_activity_type
+        if uploaded_activity_type:
+            activity_type_normalized = uploaded_activity_type.lower().replace(" ", "_")
             # Map display names to internal values
             activity_type_map = {"work_from_home": "wfh"}
             activity_type_normalized = activity_type_map.get(activity_type_normalized, activity_type_normalized)
@@ -1356,6 +1436,7 @@ class EmissionCalculator:
             # Scope 3 records have no fuel_database row; manual sends None.
             "fuel_database_id": None,
             "calculation_method_scope3": method.value,
+            "spend_currency_conversion_method": dynamic_field_values.get("spend_currency_conversion_method", {}).get("value"),
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
             "scope3_activity_type": activity_type_normalized,
@@ -1372,6 +1453,8 @@ class EmissionCalculator:
             "co2e_emissions": co2e_val,
             "total_emissions": co2e_val,  # Ensure total_emissions is always set
             "formula_id": formula_id,
+            "formula_version_id": calculated_emissions.get("formula_version_id"),
+            "decision_tree_version_id": calculated_emissions.get("decision_tree_version_id"),
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
             "asset_name": str(row_data.get("asset_name") or "") if row_data.get("asset_name") else None,
@@ -1415,8 +1498,14 @@ class EmissionCalculator:
             # Calc engine details for edit dialog display
             "audit_log": calculated_emissions.get("audit_log", []),
             "applied_factors": calculated_emissions.get("applied_factors", {}),
-            "outputs": calculated_emissions.get("outputs", {}),
             "formula_name": calculated_emissions.get("formula_name"),
+            "_calculation_audit": {
+                "inputs": calculated_emissions.get("calculation_inputs", {}),
+                "context": calculated_emissions.get("calculation_context", {}),
+                "outputs": calculated_emissions.get("outputs", {}),
+                "applied_factors": calculated_emissions.get("applied_factors", {}),
+                "audit_log": calculated_emissions.get("audit_log", []),
+            },
             # Version tracking - embedded in record like manual upload
             "version": 1,
             "version_history": [{
@@ -1737,6 +1826,8 @@ class EmissionCalculator:
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
             "formula_id": formula_id,
+            "formula_version_id": first_row.get("calculated_emissions", {}).get("formula_version_id"),
+            "decision_tree_version_id": first_row.get("calculated_emissions", {}).get("decision_tree_version_id"),
             # `formula_name` is set by manual C7 routes; bulk does not currently
             # surface a resolved name from the calc-engine response, so default
             # to None to keep the field present (parity over content).
@@ -1752,7 +1843,6 @@ class EmissionCalculator:
             "responsible_person_contact": str(first_row.get("row_data", {}).get("responsible_contact") or "") if first_row.get("row_data", {}).get("responsible_contact") else "",
             "process_names": [first_row.get("row_data", {}).get("process_name")] if first_row.get("row_data", {}).get("process_name") else [],
             "process_descriptions": [{"name": first_row.get("row_data", {}).get("process_name") or "", "description": first_row.get("row_data", {}).get("process_description") or ""}] if first_row.get("row_data", {}).get("process_name") else [],
-            "version": 1,
             "created_at": now.isoformat(),
             "created_by": user_id,
             "created_by_email": user_email,

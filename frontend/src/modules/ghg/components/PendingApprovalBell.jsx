@@ -4,7 +4,7 @@
  * Behaviour:
  *  - Visible only to admins / super-admins on orgs that have approval ON
  *  - Shows red badge with pending count when > 0
- *  - On click → tiny popover with message and a CTA linking to /ghg/approvals
+ *  - On click → tiny popover with message and a CTA linking to /workflow/approver-queue
  *  - No polling: refreshes when the dashboard reloads or when refetch is
  *    triggered externally.
  */
@@ -63,7 +63,7 @@ export default function PendingApprovalBell() {
           </p>
         )}
         <Link
-          to="/ghg/approvals"
+          to="/workflow/approver-queue"
           onClick={() => setOpen(false)}
           className="inline-flex items-center text-sm font-medium text-primary hover:underline"
           data-testid="bell-open-approvals-link"

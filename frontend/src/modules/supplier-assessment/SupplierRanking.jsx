@@ -1,0 +1,137 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { BarChart3, CalendarDays, CheckCircle2, CircleDot, Target, Trophy, TriangleAlert, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
+import { Card, CardContent } from '../../components/ui/card';
+import { Label } from '../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { TooltipProvider } from '../../components/ui/tooltip';
+import { DetailedRankingTab } from './components/ranking/DetailedRankingTab';
+import { RankingEmissionsTab } from './components/ranking/RankingEmissionsTab';
+import { RankingEsgTab } from './components/ranking/RankingEsgTab';
+import { RankingOverviewTab } from './components/ranking/RankingOverviewTab';
+import { SupplierRankingDetailDialog } from './components/ranking/SupplierRankingDetailDialog';
+import { averageCompletionValue, completionText, hasValue, moduleName, scoreText } from './components/ranking/rankingUtils';
+import { buildSupplierEmissionsAnalytics } from './utils/supplierEmissionsAnalytics';
+
+const buildRiskMatrix = (rankings, supplierTotals) => {
+  const intensityBySupplier = new Map(supplierTotals.map((row) => [row.supplier_id, { intensity: row.total_intensity, currency: row.revenue_currency }]));
+  const rows = rankings.filter((row) => hasValue(row.esg_score)).map((row) => ({ supplier_id: row.supplier_id, company_name: row.company_name, esg_score: Number(row.esg_score), emissions_intensity: intensityBySupplier.get(row.supplier_id)?.intensity, revenue_currency: intensityBySupplier.get(row.supplier_id)?.currency })).filter((row) => hasValue(row.emissions_intensity));
+  const values = rows.map((row) => Number(row.emissions_intensity)).sort((first, second) => first - second);
+  const intensityThreshold = values.length ? values[Math.floor(values.length / 2)] : 0;
+  const groupCounts = { critical: 0, strategic: 0, priority: 0, developing: 0 };
+  const categorized = rows.map((row) => { const highIntensity = row.emissions_intensity >= intensityThreshold && (intensityThreshold > 0 || row.emissions_intensity > 0); const group = highIntensity ? row.esg_score >= 60 ? 'priority' : 'critical' : row.esg_score >= 60 ? 'strategic' : 'developing'; groupCounts[group] += 1; return { ...row, group }; });
+  const highestIntensity = Math.max(0, ...values);
+  return { rows: categorized, intensityThreshold, maxIntensity: highestIntensity > 0 ? highestIntensity * 1.12 : 1, maxIntensityLabel: highestIntensity > 0 ? highestIntensity * 1.12 : null, groupCounts };
+};
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const EMPTY_SUBMITTED_EMISSIONS = { emissions: [], supplier_totals: [] };
+
+const RankingMetric = ({ accentColor, iconSurface, id, label, value, valueClassName = 'text-4xl', valueSecondary, valueSecondaryClassName = 'text-sm', detail, Icon }) => (
+  <Card className="group relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_14px_rgba(28,25,23,0.10)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(28,25,23,0.14)]" data-testid={`supplier-ranking-${id}-metric`}>
+    <span className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: accentColor }} aria-hidden="true" />
+    <CardContent className="flex min-h-[128px] flex-col justify-between p-5 pt-5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: iconSurface, color: accentColor }} data-testid={`supplier-ranking-${id}-icon`}><Icon className="h-6 w-6" aria-hidden="true" /></span>
+        <p className="text-xs font-semibold uppercase text-stone-600">{label}</p>
+      </div>
+      <div>
+        <p className={`flex min-w-0 items-baseline gap-2 font-semibold text-stone-950 ${valueClassName}`} data-testid={`supplier-ranking-${id}-value`}><span>{value}</span>{valueSecondary && <span className={`min-w-0 truncate font-medium text-stone-500 ${valueSecondaryClassName}`} data-testid={`supplier-ranking-${id}-value-secondary`}>{valueSecondary}</span>}</p>
+        {detail && <p className="mt-1 truncate text-xs text-stone-500" data-testid={`supplier-ranking-${id}-detail`}>{detail}</p>}
+      </div>
+    </CardContent>
+  </Card>
+);
+
+export default function SupplierRanking() {
+  const { getAuthHeader } = useAuth();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
+  const [rankings, setRankings] = useState([]);
+  const [stats, setStats] = useState({ total: 0, ranked: 0, averages: {}, score_distribution: {}, module_summary: {}, category_insights: [] });
+  const [submittedEmissions, setSubmittedEmissions] = useState(EMPTY_SUBMITTED_EMISSIONS);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('overview');
+  const [search, setSearch] = useState('');
+  const [rankingPage, setRankingPage] = useState(1);
+  const [rankingSort, setRankingSort] = useState({ key: 'esg_score', direction: 'desc' });
+  const [supplier, setSupplier] = useState(null);
+  const [detail, setDetail] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [rankingResult, emissionsResult] = await Promise.allSettled([
+        axios.get(`${API}/supplier-assessment/rankings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
+        axios.get(`${API}/supplier-assessment/emissions/all?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
+      ]);
+      if (rankingResult.status === 'rejected') throw rankingResult.reason;
+      const data = rankingResult.value.data;
+      setRankings(data.rankings || []);
+      setStats({ total: data.total_suppliers || 0, ranked: data.ranked_suppliers || 0, averages: data.averages || {}, score_distribution: data.score_distribution || {}, module_summary: data.module_summary || {}, category_insights: data.category_insights || [] });
+      if (emissionsResult.status === 'fulfilled') setSubmittedEmissions(emissionsResult.value.data || EMPTY_SUBMITTED_EMISSIONS);
+      else { setSubmittedEmissions(EMPTY_SUBMITTED_EMISSIONS); toast.error('Failed to load emissions analytics'); }
+    } catch { toast.error('Failed to load rankings'); } finally { setLoading(false); }
+  }, [getAuthHeader, reportingPeriod]);
+
+  useEffect(() => { load(); }, [load]);
+  const overall = useMemo(() => rankings.filter((row) => hasValue(row.overall_score)).sort((a, b) => b.overall_score - a.overall_score), [rankings]);
+  const esg = useMemo(() => rankings.filter((row) => hasValue(row.esg_score)).sort((a, b) => b.esg_score - a.esg_score), [rankings]);
+  const emissionsAnalytics = useMemo(() => buildSupplierEmissionsAnalytics(submittedEmissions, reportingPeriod), [submittedEmissions, reportingPeriod]);
+  const riskMatrix = useMemo(() => buildRiskMatrix(rankings, emissionsAnalytics.supplierTotals), [rankings, emissionsAnalytics.supplierTotals]);
+  const rows = useMemo(() => rankings.filter((row) => row.company_name.toLowerCase().includes(search.trim().toLowerCase())).sort((first, second) => { const firstValue = first[rankingSort.key]; const secondValue = second[rankingSort.key]; if (!hasValue(firstValue)) return hasValue(secondValue) ? 1 : 0; if (!hasValue(secondValue)) return -1; return (Number(firstValue) - Number(secondValue)) * (rankingSort.direction === 'asc' ? 1 : -1); }), [rankings, rankingSort, search]);
+  const overdueSuppliers = useMemo(() => rankings.filter((row) => (row.overdue_modules || []).length > 0), [rankings]);
+  const distribution = [{ name: 'Excellent', value: stats.score_distribution.excellent || 0, color: '#10B981' }, { name: 'Good', value: stats.score_distribution.good || 0, color: '#2563EB' }, { name: 'Needs improvement', value: stats.score_distribution.average || 0, color: '#F59E0B' }, { name: 'Critical', value: stats.score_distribution.poor || 0, color: '#E11D48' }];
+  const modules = Object.entries(stats.module_summary || {}).map(([code, item]) => ({ code, name: moduleName(code), completion: item.average_completion || 0, completedSuppliers: item.completed_suppliers || 0, configuredSuppliers: item.configured_suppliers || 0 }));
+  const rankingPageSize = 8;
+  const rankingPageCount = Math.max(1, Math.ceil(rows.length / rankingPageSize));
+  const visibleRankingRows = rows.slice((rankingPage - 1) * rankingPageSize, rankingPage * rankingPageSize);
+  const rankingStart = rows.length ? (rankingPage - 1) * rankingPageSize + 1 : 0;
+  const rankingEnd = Math.min(rankingPage * rankingPageSize, rows.length);
+  const top = overall[0];
+  const needCount = overdueSuppliers.length;
+  const avgOverallCompletion = averageCompletionValue(stats.averages, rankings);
+  const metrics = [
+    { id: 'assessed', label: 'Suppliers assessed', value: `${stats.ranked}/${stats.total}`, valueSecondary: 'assigned', Icon: Users, accentColor: '#2563EB', iconSurface: '#DBEAFE' },
+    { id: 'esg', label: 'Avg ESG score', value: scoreText(stats.averages.esg), Icon: Target, accentColor: '#10B981', iconSurface: '#D1FAE5' },
+    { id: 'overall-completion', label: 'Overall Completion', value: completionText(avgOverallCompletion), Icon: CheckCircle2, accentColor: '#F59E0B', iconSurface: '#FEF3C7' },
+    { id: 'top', label: 'Top performer', value: scoreText(top?.overall_score), valueSecondary: top?.company_name, valueSecondaryClassName: 'text-xs', Icon: Trophy, accentColor: '#8B5CF6', iconSurface: '#EDE9FE' },
+    { id: 'attention', label: 'Overdue follow-up', value: needCount, Icon: TriangleAlert, accentColor: '#EF4444', iconSurface: '#FEE2E2' },
+  ];
+  const esgScoreMetrics = [
+    { id: 'excellent-score', label: 'Excellent Score', value: `${distribution[0].value} supplier${distribution[0].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: CheckCircle2, accentColor: '#10B981', iconSurface: '#D1FAE5' },
+    { id: 'good-score', label: 'Good Score', value: `${distribution[1].value} supplier${distribution[1].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: CircleDot, accentColor: '#2563EB', iconSurface: '#DBEAFE' },
+    { id: 'improve-score', label: 'Improve Score', value: `${distribution[2].value} supplier${distribution[2].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: Target, accentColor: '#F59E0B', iconSurface: '#FEF3C7' },
+    { id: 'critical-score', label: 'Critical Score', value: `${distribution[3].value} supplier${distribution[3].value === 1 ? '' : 's'}`, valueClassName: 'text-xl leading-tight', Icon: TriangleAlert, accentColor: '#EF4444', iconSurface: '#FEE2E2' },
+  ];
+
+  const openDetail = async (row) => { setSupplier(row); setDetail(null); try { const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${row.supplier_id}/submission-status`, { headers: getAuthHeader() }); setDetail(data); } catch { toast.error('Could not load supplier assessment details'); } };
+  const toggleRankingSort = (key) => { setRankingSort((current) => ({ key, direction: current.key === key && current.direction === 'desc' ? 'asc' : 'desc' })); setRankingPage(1); };
+  const updateSearch = (value) => { setSearch(value); setRankingPage(1); };
+
+  return <TooltipProvider><div className="space-y-5" data-testid="supplier-ranking"><style>{`[data-testid="supplier-ranking-tabs"] { border-radius: 9999px !important; } [data-testid="supplier-ranking-tabs"] button { border-radius: 9999px !important; } [data-testid="supplier-ranking-tabs"] [data-state="active"] { background-color: #065F46 !important; color: #ffffff !important; box-shadow: 0 1px 2px rgba(6, 78, 59, 0.26) !important; }`}</style>
+    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid="supplier-ranking-header">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="supplier-ranking-heading-icon"><Trophy className="h-6 w-6" aria-hidden="true" /></div>
+        <h1 className="text-3xl font-bold text-emerald-950" data-testid="supplier-ranking-heading">Supplier Assessment</h1>
+      </div>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="supplier-ranking-period-control">
+        <Label htmlFor="supplier-ranking-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ranking-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label>
+        <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
+          <SelectTrigger id="supplier-ranking-reporting-period" className="h-10 w-full rounded-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="supplier-ranking-reporting-period-selector"><SelectValue /></SelectTrigger>
+          <SelectContent data-testid="supplier-ranking-reporting-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ranking-period-option-${period}`}>{period}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+    </header>
+    <Tabs value={tab} onValueChange={setTab} className="-mt-2 space-y-6"><TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 shadow-sm sm:inline-grid sm:w-auto sm:grid-cols-4" data-testid="supplier-ranking-tabs"><TabsTrigger value="overview" className="h-9 rounded-md px-3 text-sm font-semibold text-stone-600 transition-[background-color,color,box-shadow] hover:text-stone-900 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-sm" data-testid="supplier-ranking-overview-tab">Overview</TabsTrigger><TabsTrigger value="esg" className="h-9 rounded-md px-3 text-sm font-semibold text-stone-600 transition-[background-color,color,box-shadow] hover:text-stone-900 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-sm" data-testid="supplier-ranking-esg-tab">ESG</TabsTrigger><TabsTrigger value="emissions" className="h-9 rounded-md px-3 text-sm font-semibold text-stone-600 transition-[background-color,color,box-shadow] hover:text-stone-900 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-sm" data-testid="supplier-ranking-ghg-tab">GHG</TabsTrigger><TabsTrigger value="table" className="h-9 rounded-md px-3 text-sm font-semibold text-stone-600 transition-[background-color,color,box-shadow] hover:text-stone-900 data-[state=active]:bg-white data-[state=active]:text-stone-950 data-[state=active]:shadow-sm" data-testid="supplier-ranking-details-tab">Detailed Ranking</TabsTrigger></TabsList>
+      <TabsContent value="overview">{tab === 'overview' && <section className="space-y-6" data-testid="supplier-ranking-overview-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="Supplier ranking summary" data-testid="supplier-ranking-overview-metrics">{metrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingOverviewTab distribution={distribution} modules={modules} overall={overall} riskMatrix={riskMatrix} /></section>}</TabsContent>
+      <TabsContent value="esg">{tab === 'esg' && <section className="space-y-6" data-testid="supplier-ranking-esg-content"><section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="ESG score distribution summary" data-testid="supplier-ranking-esg-metrics">{esgScoreMetrics.map((item) => <RankingMetric key={item.id} {...item} />)}</section><RankingEsgTab averages={stats.averages} categoryInsights={stats.category_insights} distribution={distribution} esg={esg} overall={overall} /></section>}</TabsContent>
+      <TabsContent value="emissions">{tab === 'emissions' && <RankingEmissionsTab emissions={emissionsAnalytics.supplierTotals} emissionsAnalytics={emissionsAnalytics} scopeTotals={emissionsAnalytics.scopeTotals} />}</TabsContent>
+      <TabsContent value="table">{tab === 'table' && <DetailedRankingTab loading={loading} onPageChange={setRankingPage} onRefresh={load} onReview={openDetail} onSearchChange={updateSearch} onSort={toggleRankingSort} page={rankingPage} pageCount={rankingPageCount} rankingEnd={rankingEnd} rankingStart={rankingStart} rows={rows} search={search} sort={rankingSort} visibleRows={visibleRankingRows} />}</TabsContent>
+    </Tabs>
+    <SupplierRankingDetailDialog detail={detail} supplier={supplier} onClose={() => setSupplier(null)} />
+  </div></TooltipProvider>;
+}

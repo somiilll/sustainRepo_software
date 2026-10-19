@@ -26,6 +26,8 @@ from shared.helpers.audit_helpers import (
     get_input_label_map_from_db,
     DEFAULT_INPUT_LABEL_MAP,
 )
+from shared.helpers.uploaded_files import delete_unreferenced_emission_files, extract_uploaded_file_ids
+from shared.utils.emission_records import without_legacy_quantity_fields
 
 # Collection names
 PENDING_COLLECTION = "pending_records"
@@ -143,7 +145,7 @@ async def intercept_create(
     
     # User with approval enabled - create pending record
     record_id = payload.get("id") or _generate_id()
-    enriched = enrich_with_emissions(payload)
+    enriched = without_legacy_quantity_fields(enrich_with_emissions(payload))
     
     pending_record = {
         **enriched,
@@ -228,7 +230,9 @@ async def intercept_update(
     cur_status = existing.get("approval_status") or STATUS_APPROVED
     # Preserve tenant scope (organization_id / facility_id) from the
     # existing record so a PUT payload sending nulls can't wipe them.
-    enriched = _preserve_tenant_keys(enrich_with_emissions(payload), existing)
+    enriched = without_legacy_quantity_fields(
+        _preserve_tenant_keys(enrich_with_emissions(payload), existing)
+    )
     
     # Case 1: Record is already pending delete - block
     if cur_status == STATUS_PENDING_DELETE:
@@ -688,9 +692,9 @@ async def approve_request(
     if status == STATUS_PENDING_CREATE:
         # Create new record in emission_records — history fields are stripped
         # and flushed to db.emission_history instead.
-        approved_record = {
+        approved_record = without_legacy_quantity_fields({
             k: v for k, v in pending.items() if k not in _PENDING_ONLY_FIELDS
-        }
+        })
         approved_record["approval_status"] = STATUS_APPROVED
 
         await db[APPROVED_COLLECTION].insert_one(approved_record)
@@ -713,15 +717,20 @@ async def approve_request(
         
         # Build update data — strip pending-only fields. History fields are
         # NOT embedded on the approved record; they go to db.emission_history.
-        update_data = {
+        update_data = without_legacy_quantity_fields({
             k: v for k, v in pending.items()
             if k not in ("id",) + _PENDING_ONLY_FIELDS
-        }
+        })
         update_data["approval_status"] = STATUS_APPROVED
         update_data["updated_at"] = _now()
         update_data["updated_by"] = approver.get("id")
         update_data["updated_by_email"] = approver.get("email", "")
         update_data["updated_by_name"] = approver.get("full_name", "")
+        removed_file_ids = extract_uploaded_file_ids(existing) - extract_uploaded_file_ids(update_data)
+        try:
+            await delete_unreferenced_emission_files(db, removed_file_ids, original_id)
+        except Exception:
+            return (False, "Could not remove replaced evidence from storage. The record was not updated.")
         
         await db[APPROVED_COLLECTION].update_one(
             {"id": original_id},
@@ -744,6 +753,14 @@ async def approve_request(
         if not original_id:
             return (False, "Missing original_record_id for delete")
         
+        existing = await db[APPROVED_COLLECTION].find_one({"id": original_id}, {"_id": 0})
+        if not existing:
+            return (False, "Original record not found")
+        try:
+            await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), original_id)
+        except Exception:
+            return (False, "Could not remove emission evidence from storage. The record was not deleted.")
+
         # Record a final "deleted" event in db.emission_history with the
         # original submitter as the requester. Future history reads can
         # still surface the deletion (if the caller knows the deleted id).
@@ -858,34 +875,197 @@ async def fetch_emissions_for_user(
         facility_ids = [f["id"] for f in facilities]
         base_query = {**query, "facility_id": {"$in": facility_ids}}
     else:
-        assigned = current_user.get("assigned_facilities", [])
-        base_query = {**query, "facility_id": {"$in": assigned}}
+        # V2 Architecture: Get facilities from esg_assignment_assignees
+        # First, get all assignment IDs for this user
+        assignee_records = await db.esg_assignment_assignees.find(
+            {
+                "user_id": user_id,
+                "organization_id": org_id,
+                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
+            },
+            {"_id": 0, "assignment_id": 1}
+        ).to_list(500)
+        
+        assignment_ids = [a["assignment_id"] for a in assignee_records]
+        
+        if not assignment_ids:
+            # Fallback: check if any assignments exist for org
+            any_assignments = await db.esg_assignments.count_documents({
+                "organization_id": org_id,
+                "category": "GHG Emissions",
+            })
+            if any_assignments == 0:
+                # No GHG assignments configured - use org-level facility access
+                facilities = await db.facilities.find(
+                    {"organization_id": org_id},
+                    {"_id": 0, "id": 1}
+                ).to_list(1000)
+                facility_ids = [f["id"] for f in facilities]
+            else:
+                # Assignments exist but user has none
+                facility_ids = []
+        else:
+            # Get facility IDs from assignments
+            assignments = await db.esg_assignments.find(
+                {
+                    "id": {"$in": assignment_ids},
+                    "organization_id": org_id,
+                },
+                {"_id": 0, "facility_id": 1, "assignment_level": 1}
+            ).to_list(500)
+            
+            # Check for org-level assignments
+            has_org_level = any(a.get("assignment_level") == "organization" for a in assignments)
+            
+            if has_org_level:
+                # Org-level = access to all facilities
+                facilities = await db.facilities.find(
+                    {"organization_id": org_id},
+                    {"_id": 0, "id": 1}
+                ).to_list(1000)
+                facility_ids = [f["id"] for f in facilities]
+            else:
+                # Collect unique facility IDs from assignments
+                facility_ids = list(set(
+                    a["facility_id"] for a in assignments 
+                    if a.get("facility_id")
+                ))
+                
+                # If no facility-specific assignments, grant all facilities
+                # (this handles category-level assignments)
+                if not facility_ids:
+                    facilities = await db.facilities.find(
+                        {"organization_id": org_id},
+                        {"_id": 0, "id": 1}
+                    ).to_list(1000)
+                    facility_ids = [f["id"] for f in facilities]
+        
+        base_query = {**query, "facility_id": {"$in": facility_ids}}
 
     # Admin / super_admin path — scope tabs show approved data only.
     if user_role in ("admin", "super_admin"):
-        return await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+        records = await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
+        
+        # For admins, also check for pending proposals and add indicator
+        pending_records = await db[PENDING_COLLECTION].find({
+            **base_query,
+            "approval_status": {"$in": list(PENDING_STATUSES)},
+        }, {"_id": 0, "original_record_id": 1, "submitted_by_name": 1, "approval_status": 1}).to_list(10000)
+        
+        pending_by_original = {p["original_record_id"]: p for p in pending_records if p.get("original_record_id")}
+        
+        for rec in records:
+            if rec["id"] in pending_by_original:
+                pending_info = pending_by_original[rec["id"]]
+                rec["has_pending_proposal"] = True
+                rec["pending_proposal_by"] = pending_info.get("submitted_by_name")
+                rec["pending_proposal_status"] = pending_info.get("approval_status")
+        
+        return records
 
     # Regular-user path — merge approved + their own pending records,
-    # hiding any approved row that has a pending update/delete.
-    approved_query = {
-        **base_query,
-        "approval_status": {"$nin": [STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE]},
-    }
-    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
-
+    # hiding any approved row that has a pending update/delete FROM THIS USER.
+    # But show original records with pending edits from others (marked as "has_pending_proposal").
+    
+    # Step 1: Get user's own pending records from BOTH pending_records AND approval_requests
     pending_query = {
         **base_query,
         "approval_status": {"$in": list(PENDING_STATUSES)},
         "submitted_by": user_id,
     }
-    pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
-
-    pending_original_ids = {
-        p.get("original_record_id") for p in pending if p.get("original_record_id")
+    my_pending = await db[PENDING_COLLECTION].find(pending_query, {"_id": 0}).to_list(10000)
+    
+    # Also check approval_requests for user's pending proposals (emission edits go here)
+    my_approval_requests = await db.approval_requests.find({
+        "entity_type": "emission_record",
+        "submitted_by": user_id,
+        "status": {"$in": ["pending", "in_review"]},
+    }, {"_id": 0, "entity_id": 1, "entity_snapshot": 1}).to_list(10000)
+    
+    # Build a map of entity_id -> proposed values from approval_requests
+    my_proposals_by_entity = {}
+    for ar in my_approval_requests:
+        entity_id = ar.get("entity_id")
+        snapshot = ar.get("entity_snapshot", {})
+        proposed = snapshot.get("proposed_changes", {})
+        if entity_id and proposed:
+            my_proposals_by_entity[entity_id] = proposed
+    
+    my_pending_original_ids = {
+        p.get("original_record_id") for p in my_pending if p.get("original_record_id")
     }
-
-    result = [rec for rec in approved if rec["id"] not in pending_original_ids]
-    result.extend(pending)
+    
+    # Step 2: Get approved records
+    approved_query = {
+        **base_query,
+    }
+    approved = await db[APPROVED_COLLECTION].find(approved_query, {"_id": 0}).to_list(10000)
+    
+    # Step 3: Get all pending records (from others) to mark records with pending proposals
+    others_pending_query = {
+        **base_query,
+        "approval_status": {"$in": list(PENDING_STATUSES)},
+        "submitted_by": {"$ne": user_id},
+    }
+    others_pending = await db[PENDING_COLLECTION].find(others_pending_query, {"_id": 0, "original_record_id": 1, "submitted_by_name": 1, "approval_status": 1}).to_list(10000)
+    
+    others_pending_by_original = {p["original_record_id"]: p for p in others_pending if p.get("original_record_id")}
+    
+    # Also check approval_requests for others' pending proposals
+    others_approval_requests = await db.approval_requests.find({
+        "entity_type": "emission_record",
+        "submitted_by": {"$ne": user_id},
+        "status": {"$in": ["pending", "in_review"]},
+    }, {"_id": 0, "entity_id": 1, "submitted_by_name": 1, "status": 1}).to_list(10000)
+    
+    for ar in others_approval_requests:
+        entity_id = ar.get("entity_id")
+        if entity_id and entity_id not in others_pending_by_original:
+            others_pending_by_original[entity_id] = {
+                "submitted_by_name": ar.get("submitted_by_name"),
+                "approval_status": "pending_approval",
+            }
+    
+    # Step 4: Build result
+    result = []
+    for rec in approved:
+        # Skip if I have my own pending update for this record (from pending_records)
+        if rec["id"] in my_pending_original_ids:
+            continue
+        
+        # Check if I have a pending proposal in approval_requests
+        if rec["id"] in my_proposals_by_entity:
+            proposed = my_proposals_by_entity[rec["id"]]
+            # Overlay my proposed values onto the record
+            if "inputs" in proposed and proposed["inputs"]:
+                rec["dynamic_field_values"] = proposed["inputs"]
+            if "outputs" in proposed and proposed["outputs"]:
+                rec["outputs"] = proposed["outputs"]
+                outputs = proposed["outputs"]
+                rec["co2_emissions"] = (outputs.get("co2") or {}).get("value", 0) or 0
+                rec["ch4_emissions"] = (outputs.get("ch4") or {}).get("value", 0) or 0
+                rec["n2o_emissions"] = (outputs.get("n2o") or {}).get("value", 0) or 0
+                rec["co2e_emissions"] = (outputs.get("co2e") or {}).get("value", 0) or 0
+                rec["total_emissions"] = rec["co2e_emissions"]
+            rec["is_my_pending_proposal"] = True
+            rec["approval_status"] = "pending_approval"
+            result.append(rec)
+            continue
+        
+        # Mark if someone else has a pending proposal
+        if rec["id"] in others_pending_by_original:
+            pending_info = others_pending_by_original[rec["id"]]
+            rec["has_pending_proposal"] = True
+            rec["pending_proposal_by"] = pending_info.get("submitted_by_name")
+            rec["pending_proposal_status"] = pending_info.get("approval_status")
+        
+        result.append(rec)
+    
+    # Add my own pending records (they show my proposed values)
+    for p in my_pending:
+        p["is_my_pending_proposal"] = True
+    result.extend(my_pending)
+    
     return result
 
 

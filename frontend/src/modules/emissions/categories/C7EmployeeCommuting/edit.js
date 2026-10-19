@@ -67,7 +67,6 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
   });
 
   if (employeeErrors.length > 0) {
-    // eslint-disable-next-line no-console
     console.warn('Employee validation errors:', employeeErrors);
     return { valid: false, errorMessage: employeeErrors[0] };
   }
@@ -108,13 +107,10 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
     };
   }
 
-  // Process names
+  // Process details are optional metadata.
   const validProcessNames = (processNames || []).filter(
     (p) => p.name && p.name.trim() !== ''
   );
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
 
   return { valid: true, validProcessNames };
 }
@@ -125,7 +121,7 @@ export function validateEditSubmission({ editEmployees, editingEmission, process
  * @param {Array}   editEmployees
  * @param {boolean} isYearlyMode
  * @param {Object}  editingEmission     used for default formula_id fallback
- * @returns {{ totalCo2e: number, extractedFormulaId: string|null }}
+ * @returns {{ totalCo2e: number, extractedFormulaId: string|null, extractedFormulaVersionId: string|null }}
  */
 export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
   // total CO2e
@@ -144,13 +140,17 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
 
   // formula_id extraction
   let extractedFormulaId = editingEmission?.formula_id || null;
+  let extractedFormulaVersionId = editingEmission?.formula_version_id || null;
+  const applyCalculationDetails = (details) => {
+    if (!details?.formula_id) return false;
+    extractedFormulaId = details.formula_id;
+    extractedFormulaVersionId = details.formula_version_id || extractedFormulaVersionId;
+    return true;
+  };
   if (isYearlyMode) {
     for (const emp of editEmployees) {
-      const formulaId =
-        emp.yearly_data?.calculation_details?.formula_id ||
-        emp.calculation_details?.formula_id;
-      if (formulaId) {
-        extractedFormulaId = formulaId;
+      const details = emp.yearly_data?.calculation_details || emp.calculation_details;
+      if (applyCalculationDetails(details)) {
         break;
       }
     }
@@ -158,8 +158,7 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
     for (const emp of editEmployees) {
       for (const monthKey of Object.keys(emp.monthly_data || {})) {
         const monthData = emp.monthly_data[monthKey];
-        if (monthData?.calculation_details?.formula_id) {
-          extractedFormulaId = monthData.calculation_details.formula_id;
+        if (applyCalculationDetails(monthData?.calculation_details)) {
           break;
         }
       }
@@ -169,8 +168,18 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
     }
   }
 
-  return { totalCo2e, extractedFormulaId };
+  return { totalCo2e, extractedFormulaId, extractedFormulaVersionId };
 }
+
+const preserveCanonicalDynamicValues = (editingEmission) => Object.fromEntries(
+  Object.entries(editingEmission?.dynamic_field_values || {}).filter(
+    ([, value]) => value && typeof value === 'object' && !Array.isArray(value)
+  )
+);
+
+const sanitizeEvidences = (evidences = []) => evidences
+  .filter((evidence) => !evidence?.is_draft)
+  .map(({ file, is_draft, is_new, ...evidence }) => evidence);
 
 /**
  * Build the exact PUT payload that the C7 edit dialog used to send.
@@ -189,6 +198,7 @@ export function extractTotals(editEmployees, isYearlyMode, editingEmission) {
  * @param {Object} ctx.editEmployeeMonthlyTotals
  * @param {number} ctx.editEmployeeYearlyTotal
  * @param {Array}  ctx.validProcessNames
+ * @param {string} ctx.categoryId
  * @returns {Object} payload
  */
 export function buildEditPayload(ctx) {
@@ -205,10 +215,12 @@ export function buildEditPayload(ctx) {
     editEmployeeMonthlyTotals,
     editEmployeeYearlyTotal,
     validProcessNames,
+    preserveOriginalVersion,
+    categoryId,
   } = ctx;
 
   const isYearlyMode = editingEmission?.frequency_type === 'yearly';
-  const { totalCo2e, extractedFormulaId } = extractTotals(
+  const { totalCo2e, extractedFormulaId, extractedFormulaVersionId } = extractTotals(
     editEmployees,
     isYearlyMode,
     editingEmission
@@ -238,7 +250,9 @@ export function buildEditPayload(ctx) {
     reporting_period: c7ReportingPeriod,
     frequency_type: editingEmission?.frequency_type || 'monthly',
     scope: 'scope3',
-    category: formData.category,
+    category: 'C7 - Employee Commuting',
+    category_code: 'employee_commuting',
+    category_id: categoryId || null,
     sub_category: useCustomActivity
       ? scope3CustomActivity || ''
       : formData.sub_category || '',
@@ -249,6 +263,8 @@ export function buildEditPayload(ctx) {
     scope3_ef_id: useCustomActivity ? null : scope3ActivityId || null,
     use_custom_activity: useCustomActivity,
     formula_id: extractedFormulaId,
+    formula_version_id: extractedFormulaVersionId,
+    decision_tree_version_id: preserveOriginalVersion ? editingEmission?.decision_tree_version_id || null : null,
 
     employees: editEmployees.map((emp) => {
       const baseEmployee = {
@@ -268,15 +284,40 @@ export function buildEditPayload(ctx) {
           emissions: emp.yearly_data?.emissions || emp.emissions || {},
           calculation_details:
             emp.yearly_data?.calculation_details || emp.calculation_details,
+          evidences: sanitizeEvidences(emp.yearly_data?.evidences || emp.evidences || []),
         };
       }
       return {
         ...baseEmployee,
-        monthly_data: emp.monthly_data,
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([monthKey, monthData]) => [
+            monthKey,
+            { ...monthData, evidences: sanitizeEvidences(monthData?.evidences || []) },
+          ])
+        ),
       };
     }),
     monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
     yearly_total: editEmployeeYearlyTotal,
+    // C7 calculation inputs belong to each employee/month. The edit form's
+    // flat dynamic state contains display primitives and must never be sent as
+    // the record-level canonical dictionary. Preserve only existing canonical
+    // values for backwards compatibility.
+    dynamic_field_values: preserveOriginalVersion
+      ? preserveCanonicalDynamicValues(editingEmission)
+      : {},
+    evidence_url: formData.evidence_url || '',
+    supplier_name: formData.supplier_name || '',
+    supplier_code: formData.supplier_code || '',
+    employee_name: formData.employee_name || '',
+    employee_id: formData.employee_id || '',
+    asset_name: formData.asset_name || '',
+    from_location: formData.from_location || '',
+    to_location: formData.to_location || '',
+    customer_name: formData.customer_name || '',
+    customer_code: formData.customer_code || '',
+    nights_stayed: formData.nights_stayed ?? null,
+    rooms_taken: formData.rooms_taken ?? null,
 
     outputs: {
       co2e: { value: totalCo2e, unit: 'tCO2e' },

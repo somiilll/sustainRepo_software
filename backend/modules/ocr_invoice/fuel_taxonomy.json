@@ -1,0 +1,2908 @@
+[
+  {
+    "fuel_name": "Crude Oil",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Crude",
+      "Petroleum",
+      "Sweet Crude",
+      "Brent Crude",
+      "WTI"
+    ]
+  },
+  {
+    "fuel_name": "Orimulsion",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Orimulsion",
+      "Bitumen Emulsion",
+      "Orinoco Bitumen",
+      "Bitor"
+    ]
+  },
+  {
+    "fuel_name": "Natural Gas Liquids",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "NGL",
+      "NGLs",
+      "Condensate",
+      "Natural Gasoline",
+      "Y-Grade"
+    ]
+  },
+  {
+    "fuel_name": "Motor Gasoline",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Petrol",
+      "Gasoline",
+      "Unleaded",
+      "Premium Unleaded",
+      "Mogas"
+    ]
+  },
+  {
+    "fuel_name": "Aviation Gasoline",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Avgas",
+      "Aviation Fuel",
+      "100LL",
+      "Aviation Spirit"
+    ]
+  },
+  {
+    "fuel_name": "Jet Gasoline",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Jet-B",
+      "Wide-Cut Fuel",
+      "JP-4",
+      "Aviation Turbine Gasoline"
+    ]
+  },
+  {
+    "fuel_name": "Jet Kerosene",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Jet Fuel",
+      "Jet A-1",
+      "Jet A",
+      "JP-8",
+      "Aviation Turbine Fuel (ATF)"
+    ]
+  },
+  {
+    "fuel_name": "Other Kerosene",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Kerosene",
+      "Paraffin",
+      "Lamp Oil",
+      "Vaporizing Oil"
+    ]
+  },
+  {
+    "fuel_name": "Shale Oil",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Shale Oil",
+      "Oil Shale Derived Crude",
+      "Synthetic Crude",
+      "Kerogen Oil"
+    ]
+  },
+  {
+    "fuel_name": "Gas/Diesel Oil",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Diesel",
+      "Mineral Diesel",
+      "DERV",
+      "Gasoil",
+      "Heating Oil"
+    ]
+  },
+  {
+    "fuel_name": "Residual Fuel Oil",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Heavy Fuel Oil",
+      "HFO",
+      "Bunker Fuel",
+      "Bunker C",
+      "Marine Fuel Oil"
+    ]
+  },
+  {
+    "fuel_name": "Liquefied Petroleum Gases",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "LPG",
+      "Propane",
+      "Butane",
+      "Autogas",
+      "Cooking Gas"
+    ]
+  },
+  {
+    "fuel_name": "Ethane",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "C2H6",
+      "Ethane Gas",
+      "Ethane Feedstock"
+    ]
+  },
+  {
+    "fuel_name": "Naphtha",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Petroleum Naphtha",
+      "Solvent Naphtha",
+      "Light Naphtha",
+      "Heavy Naphtha"
+    ]
+  },
+  {
+    "fuel_name": "Bitumen",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Asphalt",
+      "Road Tar",
+      "Petroleum Bitumen",
+      "Paving Grade Bitumen"
+    ]
+  },
+  {
+    "fuel_name": "Lubricants",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Lube Oil",
+      "Motor Oil",
+      "Engine Oil",
+      "Base Oil",
+      "Lubricating Oil"
+    ]
+  },
+  {
+    "fuel_name": "Petroleum Coke",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Petcoke",
+      "Pet Coke",
+      "Green Coke",
+      "Calcined Coke"
+    ]
+  },
+  {
+    "fuel_name": "Refinery Feedstocks",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Refinery Feed",
+      "Feedstock",
+      "Straight Run Feed",
+      "Intermediate Feedstock"
+    ]
+  },
+  {
+    "fuel_name": "Refinery Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Still Gas",
+      "Refinery Fuel Gas",
+      "RFG",
+      "Off Gas"
+    ]
+  },
+  {
+    "fuel_name": "Paraffin Waxes",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Paraffin Wax",
+      "Wax",
+      "Slack Wax",
+      "Petroleum Wax"
+    ]
+  },
+  {
+    "fuel_name": "White Spirit and SBP",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "White Spirit",
+      "Mineral Spirits",
+      "Stoddard Solvent",
+      "SBP",
+      "Special Boiling Point Spirit"
+    ]
+  },
+  {
+    "fuel_name": "Other Petroleum Products",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Misc Petroleum Products",
+      "Petroleum By-products",
+      "Other Refined Products"
+    ]
+  },
+  {
+    "fuel_name": "Anthracite",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Hard Coal",
+      "Stone Coal",
+      "Anthracite Coal",
+      "Culm"
+    ]
+  },
+  {
+    "fuel_name": "Coking Coal",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Metallurgical Coal",
+      "Met Coal",
+      "Coke Coal",
+      "Hard Coking Coal"
+    ]
+  },
+  {
+    "fuel_name": "Other Bituminous Coal",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bituminous Coal",
+      "Steam Coal",
+      "Thermal Coal",
+      "Soft Coal"
+    ]
+  },
+  {
+    "fuel_name": "Sub-Bituminous Coal",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Sub-bituminous",
+      "Black Lignite",
+      "Sub-bit Coal"
+    ]
+  },
+  {
+    "fuel_name": "Lignite",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Brown Coal",
+      "Soft Brown Coal",
+      "Lignite Coal"
+    ]
+  },
+  {
+    "fuel_name": "Oil Shale and Tar Sands",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Oil Shale",
+      "Tar Sands",
+      "Bituminous Sands",
+      "Kerogen Rock"
+    ]
+  },
+  {
+    "fuel_name": "Brown Coal Briquettes",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "BCB",
+      "Lignite Briquettes",
+      "Compressed Brown Coal"
+    ]
+  },
+  {
+    "fuel_name": "Patent Fuel",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Coal Briquettes",
+      "Manufactured Solid Fuel",
+      "Smokeless Fuel"
+    ]
+  },
+  {
+    "fuel_name": "Coke Oven Coke and Lignite Coke",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Metallurgical Coke",
+      "Hard Coke",
+      "Foundry Coke",
+      "Lignite Coke"
+    ]
+  },
+  {
+    "fuel_name": "Gas Coke",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Coke Gas By-product",
+      "Retort Coke",
+      "Gas Works Coke"
+    ]
+  },
+  {
+    "fuel_name": "Coal Tar",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Coal Tar Pitch",
+      "Tar",
+      "Crude Tar",
+      "Coke Oven Tar"
+    ]
+  },
+  {
+    "fuel_name": "Gas Works Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Town Gas",
+      "Manufactured Gas",
+      "Coal Gas",
+      "City Gas"
+    ]
+  },
+  {
+    "fuel_name": "Coke Oven Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "COG",
+      "Coke Gas",
+      "By-product Coke Gas"
+    ]
+  },
+  {
+    "fuel_name": "Blast Furnace Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "BFG",
+      "Furnace Gas",
+      "Iron Furnace Gas"
+    ]
+  },
+  {
+    "fuel_name": "Oxygen Steel Furnace Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "OSFG",
+      "BOF Gas",
+      "Converter Gas",
+      "LD Gas"
+    ]
+  },
+  {
+    "fuel_name": "Natural Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "NG",
+      "Methane",
+      "Pipeline Gas",
+      "Fossil Gas"
+    ]
+  },
+  {
+    "fuel_name": "Municipal Wastes (non-biomass fraction)",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "MSW Non-biomass",
+      "Non-renewable Waste",
+      "Fossil Waste Fraction"
+    ]
+  },
+  {
+    "fuel_name": "Waste Oils",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Used Oil",
+      "Recycled Oil",
+      "Spent Lubricant",
+      "Reclaimed Oil"
+    ]
+  },
+  {
+    "fuel_name": "Peat",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Turf",
+      "Peat Moss",
+      "Bog Peat"
+    ]
+  },
+  {
+    "fuel_name": "Wood / Wood Waste",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Firewood",
+      "Wood Chips",
+      "Sawdust",
+      "Wood Pellets"
+    ]
+  },
+  {
+    "fuel_name": "Sulphite lyes (Black Liquor)a",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Black Liquor",
+      "Spent Liquor",
+      "Pulping Liquor",
+      "Sulfite Liquor"
+    ]
+  },
+  {
+    "fuel_name": "Other Primary Solid Biomass",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Agricultural Residue",
+      "Biomass Fuel",
+      "Straw",
+      "Bagasse"
+    ]
+  },
+  {
+    "fuel_name": "Charcoal",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Char",
+      "Wood Charcoal",
+      "Charcoal Briquettes"
+    ]
+  },
+  {
+    "fuel_name": "Biogasoline",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bio-Gasoline",
+      "Ethanol Blend",
+      "Bio-ETBE",
+      "Renewable Gasoline"
+    ]
+  },
+  {
+    "fuel_name": "Biodiesels",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "FAME",
+      "Bio-Diesel",
+      "B100",
+      "Renewable Diesel"
+    ]
+  },
+  {
+    "fuel_name": "Other Liquid Biofuels",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bio-oil",
+      "Biofuel Blend",
+      "Renewable Liquid Fuel"
+    ]
+  },
+  {
+    "fuel_name": "Landfill Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "LFG",
+      "Landfill Methane",
+      "Dump Gas"
+    ]
+  },
+  {
+    "fuel_name": "Sludge Gas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Digester Gas",
+      "Sewage Gas",
+      "Biogas from Sludge"
+    ]
+  },
+  {
+    "fuel_name": "Other Biogas",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Biogas",
+      "Landfill Gas",
+      "Digester Gas",
+      "Biomethane",
+      "Sewage Gas"
+    ]
+  },
+  {
+    "fuel_name": "Municipal Wastes (biomass fraction)",
+    "category": "Stationary Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "MSW Biomass",
+      "Biogenic Waste",
+      "Municipal Solid Waste (biomass)",
+      "Waste Biomass",
+      "Organic Municipal Waste"
+    ]
+  },
+  {
+    "fuel_name": "Motor Gasoline",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Petrol",
+      "Gasoline",
+      "Unleaded",
+      "Premium Unleaded",
+      "Mogas"
+    ]
+  },
+  {
+    "fuel_name": "Aviation Gasoline",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Avgas",
+      "Aviation Fuel",
+      "100LL",
+      "Aviation Spirit"
+    ]
+  },
+  {
+    "fuel_name": "Jet Gasoline",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Jet-B",
+      "Wide-Cut Fuel",
+      "JP-4",
+      "Aviation Turbine Gasoline"
+    ]
+  },
+  {
+    "fuel_name": "Gas/Diesel Oil",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Diesel",
+      "Mineral Diesel",
+      "DERV",
+      "Gasoil",
+      "Heating Oil"
+    ]
+  },
+  {
+    "fuel_name": "Residual Fuel Oil",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Heavy Fuel Oil",
+      "HFO",
+      "Bunker Fuel",
+      "Bunker C",
+      "Marine Fuel Oil"
+    ]
+  },
+  {
+    "fuel_name": "Liquefied Petroleum Gases",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "LPG",
+      "Propane",
+      "Butane",
+      "Autogas",
+      "Cooking Gas"
+    ]
+  },
+  {
+    "fuel_name": "Natural Gas",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "NG",
+      "Methane",
+      "Pipeline Gas",
+      "Fossil Gas"
+    ]
+  },
+  {
+    "fuel_name": "Biogasoline",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bio-Gasoline",
+      "Ethanol Blend",
+      "Bio-ETBE",
+      "Renewable Gasoline"
+    ]
+  },
+  {
+    "fuel_name": "Biodiesels",
+    "category": "Mobile Combustion",
+    "scope": "Scope 1",
+    "aliases": [
+      "FAME",
+      "Bio-Diesel",
+      "B100",
+      "Renewable Diesel"
+    ]
+  },
+  {
+    "fuel_name": "CO2 - Carbon dioxide",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "CO2",
+      "Carbon Dioxide",
+      "R-744",
+      "Carbonic Anhydride"
+    ]
+  },
+  {
+    "fuel_name": "CH4 - Methane \u2013 non-fossil",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Biomethane",
+      "Non-fossil Methane",
+      "Biogenic Methane",
+      "Renewable Natural Gas"
+    ]
+  },
+  {
+    "fuel_name": "CH4 - Methane \u2013 fossil",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Natural Gas",
+      "Fossil Methane",
+      "Methane",
+      "Marsh Gas"
+    ]
+  },
+  {
+    "fuel_name": "N2O - Nitrous oxide",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Nitrous Oxide",
+      "Laughing Gas",
+      "N2O",
+      "Dinitrogen Monoxide"
+    ]
+  },
+  {
+    "fuel_name": "NF3 - Nitrogen trifluoride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "NF3",
+      "Nitrogen Trifluoride",
+      "Nitrogen Fluoride"
+    ]
+  },
+  {
+    "fuel_name": "SF6 - Sulfur hexafluoride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "SF6",
+      "Sulphur Hexafluoride",
+      "Sulfur Hexafluoride Gas",
+      "Insulating Gas"
+    ]
+  },
+  {
+    "fuel_name": "HFC-23",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-23",
+      "Freon 23",
+      "Fluoroform",
+      "HFC-23",
+      "FE-23"
+    ]
+  },
+  {
+    "fuel_name": "HFC-32",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-32",
+      "Freon 32",
+      "Difluoromethane",
+      "HFC-32"
+    ]
+  },
+  {
+    "fuel_name": "HFC-41",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-41",
+      "Fluoromethane",
+      "Methyl Fluoride",
+      "HFC-41"
+    ]
+  },
+  {
+    "fuel_name": "HFC-125",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-125",
+      "Freon 125",
+      "Pentafluoroethane",
+      "HFC-125"
+    ]
+  },
+  {
+    "fuel_name": "HFC-134",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-134",
+      "Tetrafluoroethane",
+      "HFC-134"
+    ]
+  },
+  {
+    "fuel_name": "HFC-134a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-134a",
+      "Freon 134a",
+      "Norflurane",
+      "Suva 134a",
+      "Genetron 134a"
+    ]
+  },
+  {
+    "fuel_name": "HFC-143",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-143",
+      "Trifluoroethane",
+      "HFC-143"
+    ]
+  },
+  {
+    "fuel_name": "HFC-143a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-143a",
+      "Freon 143a",
+      "Genetron 143a",
+      "HFC-143a"
+    ]
+  },
+  {
+    "fuel_name": "HFC-152",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-152",
+      "Difluoroethane",
+      "HFC-152"
+    ]
+  },
+  {
+    "fuel_name": "HFC-152a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-152a",
+      "Freon 152a",
+      "Difluoroethane",
+      "HFC-152a"
+    ]
+  },
+  {
+    "fuel_name": "HFC-161",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-161",
+      "Fluoroethane",
+      "Ethyl Fluoride",
+      "HFC-161"
+    ]
+  },
+  {
+    "fuel_name": "HFC-227ca",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-227ca",
+      "HFC-227ca"
+    ]
+  },
+  {
+    "fuel_name": "HFC-227ea",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-227ea",
+      "Freon 227",
+      "FM-200",
+      "HFC-227ea"
+    ]
+  },
+  {
+    "fuel_name": "HFC-236cb",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-236cb",
+      "HFC-236cb"
+    ]
+  },
+  {
+    "fuel_name": "HFC-236ea",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-236ea",
+      "HFC-236ea"
+    ]
+  },
+  {
+    "fuel_name": "HFC-236fa",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-236fa",
+      "Freon 236fa",
+      "FE-36",
+      "HFC-236fa"
+    ]
+  },
+  {
+    "fuel_name": "HFC-245ca",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-245ca",
+      "HFC-245ca"
+    ]
+  },
+  {
+    "fuel_name": "HFC-245cb",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-245cb",
+      "HFC-245cb"
+    ]
+  },
+  {
+    "fuel_name": "HFC-245ea",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-245ea",
+      "HFC-245ea"
+    ]
+  },
+  {
+    "fuel_name": "HFC-245eb",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-245eb",
+      "HFC-245eb"
+    ]
+  },
+  {
+    "fuel_name": "HFC-245fa",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-245fa",
+      "Freon 245fa",
+      "Enovate 245fa",
+      "HFC-245fa"
+    ]
+  },
+  {
+    "fuel_name": "HFC-263fb",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-263fb",
+      "HFC-263fb"
+    ]
+  },
+  {
+    "fuel_name": "HFC-272ca",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-272ca",
+      "HFC-272ca"
+    ]
+  },
+  {
+    "fuel_name": "HFC-329p",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-329p",
+      "HFC-329p"
+    ]
+  },
+  {
+    "fuel_name": "HFC-365mfc",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-365mfc",
+      "Solkane 365mfc",
+      "HFC-365mfc"
+    ]
+  },
+  {
+    "fuel_name": "HFC-43-10mee",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-43-10mee",
+      "HFC-4310mee",
+      "Vertrel XF",
+      "HFC-43-10mee"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1123",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1123",
+      "Trifluoroethylene",
+      "HFO-1123"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1132a a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1132a",
+      "HFO-1132a",
+      "1",
+      "1-Difluoroethylene"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1141 a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1141",
+      "Vinyl Fluoride",
+      "HFO-1141"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1225ye(Z) a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1225ye(Z)",
+      "HFO-1225ye(Z)"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1225ye(E) a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1225ye(E)",
+      "HFO-1225ye(E)"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1234ze(Z) a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1234ze(Z)",
+      "HFO-1234ze(Z)"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1234ze(E) a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1234ze(E)",
+      "Solstice ze",
+      "HFO-1234ze(E)"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1234yf a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1234yf",
+      "Solstice yf",
+      "Opteon YF",
+      "HFO-1234yf"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1336mzz(E)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1336mzz(E)",
+      "HFO-1336mzz(E)",
+      "Opteon 1150"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1336mzz(Z)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1336mzz(Z)",
+      "Opteon 1100",
+      "HFO-1336mzz(Z)"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1243zf",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1243zf",
+      "HFO-1243zf"
+    ]
+  },
+  {
+    "fuel_name": "HFO-1345zfc a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1345zfc",
+      "HFO-1345zfc"
+    ]
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,6-nonafluorohex-1- ene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Nonafluorohexene",
+      "HFO C6",
+      "Nonafluoro-1-hexene"
+    ]
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,7,7,8,8,8-\ntridecafluorooct-1-ene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Tridecafluorooctene",
+      "HFO C8",
+      "Tridecafluoro-1-octene"
+    ]
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,10-\nheptadecafluorodec-1-ene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Heptadecafluorodecene",
+      "HFO C10",
+      "Heptadecafluoro-1-decene"
+    ]
+  },
+  {
+    "fuel_name": "3,3,3-trifluoro-2-(trifluoromethyl) prop-1-ene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "2",
+      "3",
+      "3",
+      "3-Tetrafluoropropene isomer",
+      "TFMP",
+      "HFO-1234yf isomer",
+      "Trifluoromethyl trifluoropropene"
+    ]
+  },
+  {
+    "fuel_name": "1,1,2,2,3,3-hexafluorocyclopentane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,2,3,3,4-\nheptafluorocyclopentane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,3,3,4,4,5,5-heptafluoro- cyclopentene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "(4s,5s)-1,1,2,2,3,3,4,5-\noctafluorocyclopentane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFO-1438ezy(E)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFO-1447fz",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,3,3,4,4-pentafluorocyclobutene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,4,4-tetrafluorocyclobutene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-14",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-116",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-218",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-c216",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-C-318 (PFC-318) b",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-31-10 c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-41-12 c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-51-14 c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-61-16",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-71-18",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-91-18 c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-1114",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFC-1216",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Pentadecafluorotriethylamine",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluorotripropylamine",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Heptacosafluorotributylamine",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluorotripentylamine",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Heptafluoroisobutyronitrile",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Trifluoromethylsulfur pentafluoride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Sulfuryl fluoride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Hexafluoro-cyclobutene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Octafluoro-cyclopentene (Perfluorocyclopentene)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,2,3,3,4,4,4a,5,5,6,6,7,7,8,8,8a-\noctadecafluoronaphthalene (Perfluorodecalin (cis))",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,2,3,3,4,4,4a,5,5,6,6,7,7,8,8,8a-\noctadecafluoronaphthalene (Perfluorodecalin (trans))",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,3,4,4-hexafluorobuta-1,3-diene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Octafluoro-1-butene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Octafluoro-2-butene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-11",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-12",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-13",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-112",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-112a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-113",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-113a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-114",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-114a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC-115",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "E-R316c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Z-R316c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC 1112",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "CFC 1112a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HCFC-21",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HCFC-22",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-22",
+      "Freon 22",
+      "Chlorodifluoromethane",
+      "Difluoromonochloromethane",
+      "R22"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-31",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-31",
+      "Chlorofluoromethane",
+      "Freon 31",
+      "R31"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-121",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-121",
+      "Tetrachlorofluoroethane",
+      "Freon 121",
+      "R121"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-122",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-122",
+      "Trichlorodifluoroethane",
+      "Freon 122",
+      "R122"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-122a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-122a",
+      "Trichlorodifluoroethane isomer a",
+      "Freon 122a",
+      "R122a"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-123",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-123",
+      "Freon 123",
+      "Dichlorotrifluoroethane",
+      "R123"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-123a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-123a",
+      "Dichlorotrifluoroethane isomer a",
+      "Freon 123a",
+      "R123a"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-124",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-124",
+      "Freon 124",
+      "Chlorotetrafluoroethane",
+      "R124"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-124a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-124a",
+      "Chlorotetrafluoroethane isomer a",
+      "Freon 124a",
+      "R124a"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-132",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-132",
+      "Dichlorodifluoroethane",
+      "Freon 132",
+      "R132"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-132a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-132a",
+      "Dichlorodifluoroethane isomer a",
+      "Freon 132a",
+      "R132a"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-132c",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-132c",
+      "Dichlorodifluoroethane isomer c",
+      "Freon 132c",
+      "R132c"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-133a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-133a",
+      "Chlorotrifluoroethane",
+      "Freon 133a",
+      "R133a"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-141",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-141",
+      "Dichlorofluoroethane",
+      "Freon 141",
+      "R141"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-141b",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-141b",
+      "Freon 141b",
+      "Dichlorofluoroethane isomer b",
+      "R141b"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-142b",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-142b",
+      "Freon 142b",
+      "Chlorodifluoroethane",
+      "R142b"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-225ca",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-225ca",
+      "Dichloropentafluoropropane isomer ca",
+      "Freon 225ca",
+      "R225ca"
+    ]
+  },
+  {
+    "fuel_name": "HCFC-225cb",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-225cb",
+      "Dichloropentafluoropropane isomer cb",
+      "Freon 225cb",
+      "R225cb"
+    ]
+  },
+  {
+    "fuel_name": "HCFO-1233zd(E)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1233zd(E)",
+      "Solstice ZD",
+      "trans-1-chloro-3",
+      "3",
+      "3-trifluoropropene",
+      "HCFO-1233zdE"
+    ]
+  },
+  {
+    "fuel_name": "HCFO-1233zd(Z)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "R-1233zd(Z)",
+      "cis-1-chloro-3",
+      "3",
+      "3-trifluoropropene",
+      "Solstice ZD cis isomer",
+      "HCFO-1233zdZ"
+    ]
+  },
+  {
+    "fuel_name": "(e)-1-chloro-2-fluoroethene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "trans-1-chloro-2-fluoroethylene",
+      "(E)-chlorofluoroethene",
+      "HCFO-1121E"
+    ]
+  },
+  {
+    "fuel_name": "(E)-1-chloro-3,3,3-trifluoroprop-1- ene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "HCFO-1233zd(E)",
+      "trans-1-chloro-3",
+      "3",
+      "3-trifluoropropene",
+      "Solstice ZD"
+    ]
+  },
+  {
+    "fuel_name": "Methyl chloroform",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "1",
+      "1",
+      "1-Trichloroethane",
+      "TCA",
+      "Chlorothene",
+      "R-140a"
+    ]
+  },
+  {
+    "fuel_name": "Carbon tetrachloride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Tetrachloromethane",
+      "CTC",
+      "R-10",
+      "Perchloromethane"
+    ]
+  },
+  {
+    "fuel_name": "Methyl chloride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Chloromethane",
+      "R-40",
+      "Monochloromethane"
+    ]
+  },
+  {
+    "fuel_name": "Methylene chloride",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Dichloromethane",
+      "DCM",
+      "R-30",
+      "Methylene dichloride"
+    ]
+  },
+  {
+    "fuel_name": "Chloroform",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Trichloromethane",
+      "R-20",
+      "Formyl trichloride"
+    ]
+  },
+  {
+    "fuel_name": "Chloroethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Ethyl chloride",
+      "Monochloroethane",
+      "R-160",
+      "Muriatic ether"
+    ]
+  },
+  {
+    "fuel_name": "1,2-dichloroethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Ethylene dichloride",
+      "EDC",
+      "Glycol dichloride",
+      "R-150"
+    ]
+  },
+  {
+    "fuel_name": "1,1,2-trichloroethene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Trichloroethylene",
+      "TCE",
+      "Trilene"
+    ]
+  },
+  {
+    "fuel_name": "1,1,2,2-tetrachloroethene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Tetrachloroethylene",
+      "Perchloroethylene",
+      "PCE",
+      "Perc"
+    ]
+  },
+  {
+    "fuel_name": "2-chloropropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Isopropyl chloride",
+      "2-Chloropropane",
+      "R-142"
+    ]
+  },
+  {
+    "fuel_name": "1-chlorobutane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "n-Butyl chloride",
+      "Butyl chloride",
+      "1-Chlorobutane"
+    ]
+  },
+  {
+    "fuel_name": "Methyl bromide",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromomethane",
+      "R-40B1",
+      "Monobromomethane"
+    ]
+  },
+  {
+    "fuel_name": "Methylene bromide",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Dibromomethane",
+      "Methylene dibromide",
+      "R-30B2"
+    ]
+  },
+  {
+    "fuel_name": "Halon-1201",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromodifluoromethane",
+      "H-1201",
+      "BDM"
+    ]
+  },
+  {
+    "fuel_name": "Halon-1202",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Dibromodifluoromethane",
+      "H-1202"
+    ]
+  },
+  {
+    "fuel_name": "Halon-1211",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromochlorodifluoromethane",
+      "BCF",
+      "H-1211",
+      "R-12B1"
+    ]
+  },
+  {
+    "fuel_name": "Halon-1301",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromotrifluoromethane",
+      "BTM",
+      "H-1301",
+      "R-13B1"
+    ]
+  },
+  {
+    "fuel_name": "Halon-2301",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromotrifluoroethane",
+      "H-2301"
+    ]
+  },
+  {
+    "fuel_name": "Halon-2311",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Chlorobromotetrafluoroethane",
+      "H-2311"
+    ]
+  },
+  {
+    "fuel_name": "Halon-2401",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromotetrafluoroethane",
+      "H-2401"
+    ]
+  },
+  {
+    "fuel_name": "Halon-2402",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Dibromotetrafluoroethane",
+      "H-2402",
+      "R-114B2"
+    ]
+  },
+  {
+    "fuel_name": "Tribromomethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Bromoform",
+      "CHBr3"
+    ]
+  },
+  {
+    "fuel_name": "Halon-1011",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Chlorobromomethane",
+      "CBM",
+      "H-1011"
+    ]
+  },
+  {
+    "fuel_name": "Bromoethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Ethyl bromide",
+      "Hydrobromic ether",
+      "R-160B1"
+    ]
+  },
+  {
+    "fuel_name": "1,2-dibromoethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Ethylene dibromide",
+      "EDB",
+      "Glycol dibromide"
+    ]
+  },
+  {
+    "fuel_name": "1-bromopropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "n-Propyl bromide",
+      "nPB",
+      "1-BP"
+    ]
+  },
+  {
+    "fuel_name": "2-bromopropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Isopropyl bromide",
+      "2-BP"
+    ]
+  },
+  {
+    "fuel_name": "HFE-125",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": [
+      "Pentafluoro(methoxy)ethane",
+      "HFE-125",
+      "R-125E"
+    ]
+  },
+  {
+    "fuel_name": "HFE-134",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-143a",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-227ea",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HCFE-235ca2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HCFE-235da2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-236ea2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-236fa",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-245cb2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-245fa1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-245fa2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,3,3,3-pentafluoropropan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-254cb1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-254cb2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-236ca",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-263mf (HFE-263fb2)",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-263m1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-365mcf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,3-trifluoropropan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-329mcc2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-338mmz1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-338mcf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-347mmz1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-347mcc3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-347mcf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-347pcf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-347mmy1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356mec3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356mff2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356pcf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356pcf3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356pcc3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-356mmz1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-365mcf3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-374pc2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "4,4,4-trifluorobutan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,3,3,4,4,5,5-\noctafluorocyclopentan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-43-10pccc124",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-449s1",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-449sl",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "n-HFE-7100",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "n-HFE-7200",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "i-HFE-7100",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-569sf2",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "i-HFE-7200",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-7300",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-7500",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-236ca12",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-338pcc13",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1,3,3,3-hexafluoropropan-2-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-02",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-03",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-20",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-21",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-30",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Fluroxene",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,2-tetrafluoro-1- (fluoromethoxy)ethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2-ethoxy-3,3,4,4,5- pentafluorotetrahydro-2,5- bis[1,2,2,2-tetrafluoro-1-\n(trifluoromethyl)ethyl]furan",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Difluoro(methoxy)methane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG\u2019-01",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG\u2019-02",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG\u2019-03",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-329me3",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,7,7,7-\nundecafluoroheptan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,7,7,8,8,9,9,9-\npentadecafluorononan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,\n11,11-nonadecafluoroundecan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2-chloro-1,1,2-trifluoro-1- methoxyethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "PFPMIE",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HFE-216",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluoroethyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,2-trifluoroethyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Formic acid;1,1,1,3,3,3-hexafluoro- propan-2-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Ethenyl 2,2,2-trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Ethyl 2,2,2-trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Prop-2-enyl-2,2,2-trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Methyl 2,2,2-trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,3,3,4,4,4-heptafluorobutan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2-trifluoro-2-(trifluoromethoxy)- ethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1-ethoxy-1,1,2,3,3,3-\nhexafluoropropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1,2,2,3,3-heptafluoro-3-(1,2,2,2-\ntetrafluoroethoxy)propane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,3,3-tetrafluoropropan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,3,4,4,4-hexafluorobutan-1-ol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,2,2-tetrafluoro-3- methoxypropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1,2,2,4,5,5,5-nonafluoro-4- (trifluoromethyl)pentan-3-one",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1-ethoxy-1,1,2,2,3,3,3-\nheptafluoropropane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Fluoro(methoxy)methane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Fluoro(fluoromethoxy)methane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Difluoro(fluoromethoxy)methane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Trifluoro(fluoromethoxy)methane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Trifluoromethyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluoropropyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluorobutyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,3-trifluoropropyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,2,2,2-tetrafluoroethyl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1,3,3,3-hexafluoropropan-2-yl formate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluorobutyl acetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluoropropyl acetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Perfluoroethyl acetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Trifluoromethyl acetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Methyl carbonofluoridate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1-difluoroethyl carbonofluoridate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1-difluoroethyl 2,2,2- trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,2-trifluoroethyl 2,2,2- trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Methyl 2,2-difluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Difluoromethyl 2,2,2-trifluoroacetate",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1\u2019-Oxybis[2-(difluoromethoxy)- 1,1,2,2-tetrafluoroethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,3,3,4,4,6,6,7,7,9,9,10,10,12,12-\nhexa-decafluoro-2,5,8,11- Tetraoxadodecane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,3,3,4,4,6,6,7,7,9,9,10,10,12,12,\n13,13,15,15-eicosafluoro- 2,5,8,11,14-pentaoxapentadecane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "3,3,3-trifluoropropanal",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2-fluoroethanol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2-difluoroethanol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "2,2,2-trifluoroethanol",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "HG-04",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Methyl-perfluoro-heptene-ethers",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1-trifluoro-propan-2-one",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1,1,1-trifluoro-butan-2-one",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "1-chloro-2-ethen-oxyethane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Octafluoro-oxolane",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-401A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-401B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-401C",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-402A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-402B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-403B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-404A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-406A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-407A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-407B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-407C",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-407D",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-408A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-409A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-410A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-410B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-411A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-411B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-414A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-414B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-417A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-422A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-422D",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-424A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-426A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-428A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-434A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-507A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-508A",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "R-508B",
+    "category": "Fugitive Emissions",
+    "scope": "Scope 1",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Electricity",
+    "category": "Renewable",
+    "scope": "Scope 2",
+    "aliases": [
+      "energy charges",
+      "units consumed",
+      "power consumption",
+      "grid power",
+      "grid electricity",
+      "electric power",
+      "kwh",
+      "utility power",
+      "mains electricity",
+      "power supply",
+      "electrical energy",
+      "eb charges",
+      "electricity charges"
+    ]
+  },
+  {
+    "fuel_name": "Electricity",
+    "category": "Non-Renewable",
+    "scope": "Scope 2",
+    "aliases": []
+  },
+  {
+    "fuel_name": "Steam/Heat",
+    "category": "Steam/Heat",
+    "scope": "Scope 2",
+    "aliases": []
+  }
+]

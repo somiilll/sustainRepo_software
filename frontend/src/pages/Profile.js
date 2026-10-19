@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { User, Lock, Mail, Phone, Calendar, AlertTriangle, Edit2, Check, X, Eye, EyeOff } from 'lucide-react';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -130,11 +131,8 @@ export default function Profile() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Profile</h1>
-        <p className="text-text-secondary">Manage your account settings</p>
-      </div>
+    <div className="space-y-7">
+      <ModulePageHeader title="Profile" icon={User} iconClassName="border-rose-200 bg-rose-50 text-rose-700" testId="profile" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">
@@ -202,8 +200,8 @@ export default function Profile() {
             <div>
               <Label className="text-xs text-text-muted">Role</Label>
               <div className="mt-1">
-                <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full capitalize">
-                  {user?.role?.replace('_', ' ')}
+                <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full capitalize" data-testid="profile-role-value">
+                  {user?.user_type === 'supplier' || user?.org_type === 'supplier' ? 'Supplier' : user?.role?.replace('_', ' ')}
                 </span>
               </div>
             </div>

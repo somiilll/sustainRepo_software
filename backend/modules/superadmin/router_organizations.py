@@ -21,9 +21,12 @@ from r2_storage import get_r2_storage
 
 from app.config.env import RESEND_API_KEY, SENDER_EMAIL
 from modules.auth.contracts import UserResponse
+from modules.auth.email_templates import user_invite_email
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
 from modules.emissions.contracts import EmissionRecordCreate
 from modules.organizations.contracts import OrganizationCreate, OrganizationResponse
+from modules.entitlements.service import resolve_entitlements
+from modules.organizations.presentation import enrich_organization_response
 from modules.superadmin.contracts import (
     CalculationFormulaCreate, CalculationFormulaResponse,
     CurrencyConversionCreate, CurrencyConversionUpdate,
@@ -33,15 +36,17 @@ from modules.superadmin.contracts import (
     FormulaParameterCreate, FormulaParameterResponse,
     FuelDatabaseCreate, FuelDatabaseResponse,
     GWPConfigCreate, GWPConfigUpdate,
-    ProcessTemplateCreate, ProcessTemplateResponse,
     Scope3EFCreate, Scope3EFResponse,
     SectorCreate, SectorResponse,
+    SuperAdminAccountCreate,
     UnitCreate, UnitResponse,
 )
 from shared.constants.gwp import GWP_VALUES, GWP_DEFAULT_SOURCE
 from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
+from modules.sustainability_config.service import resolve_organization_settings, upsert_org_config
+from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -60,7 +65,11 @@ async def create_organization(org_data: OrganizationCreate, current_user: dict =
     org_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.organizations.insert_one(org_dict)
-    return OrganizationResponse(**org_dict)
+    await upsert_org_config(org_dict["id"], {}, current_user["id"])
+    from modules.supplier_assessment.questionnaire_service import seed_bundled_questionnaire_banks, sync_questionnaire_banks_for_organization
+    await seed_bundled_questionnaire_banks()
+    await sync_questionnaire_banks_for_organization(org_dict["id"], current_user["id"])
+    return OrganizationResponse(**(await enrich_organization_response(org_dict)))
 
 @router.get("/super-admin/organizations", response_model=List[OrganizationResponse])
 async def get_all_organizations(
@@ -69,7 +78,7 @@ async def get_all_organizations(
 ):
     query = {} if include_deleted else {"is_deleted": False}
     orgs = await db.organizations.find(query, {"_id": 0}).to_list(1000)
-    return [OrganizationResponse(**org) for org in orgs]
+    return [OrganizationResponse(**(await enrich_organization_response(org))) for org in orgs]
 
 @router.put("/super-admin/organizations/{org_id}", response_model=OrganizationResponse)
 async def update_organization(
@@ -85,7 +94,7 @@ async def update_organization(
     update_dict = org_data.model_dump(exclude_unset=True)
     
     # Remove fields that shouldn't be overwritten during edit
-    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary']
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary', 'approval_workflow_enabled', 'multi_level_approval_enabled', 'esg_frameworks_enabled']
     for field in fields_to_preserve:
         if field in update_dict and field in existing:
             # Keep the existing value unless explicitly provided
@@ -94,7 +103,7 @@ async def update_organization(
     await db.organizations.update_one({"id": org_id}, {"$set": update_dict})
     
     updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    return OrganizationResponse(**updated)
+    return OrganizationResponse(**(await enrich_organization_response(updated)))
 
 @router.delete("/super-admin/organizations/{org_id}")
 async def soft_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
@@ -121,8 +130,6 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
 # Super Admin - Permanently delete organization and ALL related data (incl. R2 files)
 @router.delete("/super-admin/organizations/{org_id}/permanent")
 async def permanent_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
-    from cascade_delete import cascade_delete_organization
-    from r2_storage import get_r2_storage
     r2 = get_r2_storage()
     result = await cascade_delete_organization(db, r2, org_id)
     if not result.get("found"):
@@ -188,7 +195,7 @@ async def get_org_emissions_distribution(
         }
 
     emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Equity share adjustment (matches dashboard logic at lines 4344-4366)
@@ -281,7 +288,7 @@ async def get_org_scope3_biogenic_stats(
 
     # Fetch Scope 3 emissions
     scope3_emissions = await db.emission_records.find(
-        {"facility_id": {"$in": facility_ids}, "scope": "scope3"}, {"_id": 0}
+        {"facility_id": {"$in": facility_ids}, "scope": "scope3", **eligible_ghg_record_filter()}, {"_id": 0}
     ).to_list(100000)
 
     # Fetch Biogenic emissions
@@ -290,7 +297,8 @@ async def get_org_scope3_biogenic_stats(
     biogenic_emissions = await db.emission_records.find(
         {
             "facility_id": {"$in": facility_ids}, 
-            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]}
+            "biogenic_scope_selection": {"$in": ["scope1", "scope3"]},
+            **eligible_ghg_record_filter(),
         }, 
         {"_id": 0}
     ).to_list(100000)
@@ -413,6 +421,114 @@ async def get_org_scope3_biogenic_stats(
 
 # Super Admin - Admin management
 
+# Super Admin - Account management
+async def _create_organization_account(account_data: SuperAdminAccountCreate) -> dict:
+    email = str(account_data.email).strip().lower()
+    full_name = account_data.full_name.strip()
+    existing = await db.users.find_one(
+        {"email": email, "is_deleted": {"$ne": True}}, {"_id": 0, "id": 1}
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    organization = await db.organizations.find_one(
+        {
+            "id": account_data.organization_id,
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "id": 1, "name": 1, "max_admins": 1, "max_users": 1},
+    )
+    if not organization:
+        raise HTTPException(status_code=404, detail="Active organization not found")
+
+    limit_field = "max_admins" if account_data.role == "admin" else "max_users"
+    default_limit = 5 if account_data.role == "admin" else 20
+    account_limit = organization.get(limit_field, default_limit)
+    active_accounts = await db.users.count_documents(
+        {
+            "organization_id": account_data.organization_id,
+            "role": account_data.role,
+            "is_deleted": {"$ne": True},
+        }
+    )
+    if active_accounts >= account_limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {account_data.role} limit ({account_limit}) reached for this organization",
+        )
+
+    temporary_password = generate_random_password()
+    account = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "full_name": full_name,
+        "role": account_data.role,
+        "password_hash": get_password_hash(temporary_password),
+        "organization_id": account_data.organization_id,
+        "assigned_facilities": [],
+        "requires_password_change": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(account)
+
+    frontend_url = os.environ.get("FRONTEND_URL")
+    if not frontend_url:
+        await db.users.delete_one({"id": account["id"]})
+        raise HTTPException(status_code=500, detail="Frontend URL is not configured")
+    email_body = user_invite_email(
+        full_name=full_name,
+        email=email,
+        temp_password=temporary_password,
+        org_name=organization.get("name", "your organization"),
+        login_link=f"{frontend_url.rstrip('/')}/login",
+    )
+    email_sent = await send_email(email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
+    if not email_sent:
+        await db.users.delete_one({"id": account["id"]})
+        raise HTTPException(status_code=502, detail="Account invitation email could not be sent")
+    return account
+
+
+@router.post("/super-admin/accounts", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_organization_account(
+    account_data: SuperAdminAccountCreate,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    """Create an admin or standard user for an active organization."""
+    account = await _create_organization_account(account_data)
+    return UserResponse(**account)
+
+
+@router.get("/super-admin/accounts", response_model=List[UserResponse])
+async def get_all_organization_accounts(
+    current_user: dict = Depends(get_super_admin_user),
+):
+    accounts = await db.users.find(
+        {
+            "role": {"$in": ["admin", "user"]},
+            "is_deleted": {"$ne": True},
+            "is_active": {"$ne": False},
+        },
+        {"_id": 0, "password_hash": 0},
+    ).to_list(1000)
+    return [UserResponse(**account) for account in accounts]
+
+
+@router.delete("/super-admin/accounts/{account_id}")
+async def delete_organization_account(
+    account_id: str,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    account = await db.users.find_one(
+        {"id": account_id, "role": {"$in": ["admin", "user"]}}, {"_id": 0, "id": 1}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    await db.users.delete_one({"id": account_id})
+    return {"message": "Account deleted successfully"}
+
+
 # Super Admin - Admin management
 @router.post("/super-admin/admins")
 async def create_admin(
@@ -459,7 +575,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-workspace.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -550,7 +666,12 @@ async def create_admin(
 # Super Admin - Get all admins
 @router.get("/super-admin/admins")
 async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
-    admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    # Only return active (non-deleted) admins
+    admins = await db.users.find({
+        "role": "admin",
+        "is_deleted": {"$ne": True},
+        "is_active": {"$ne": False},
+    }, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**a) for a in admins]
 
 # Super Admin - Delete admin
@@ -568,5 +689,118 @@ async def delete_admin(admin_id: str, current_user: dict = Depends(get_super_adm
         raise HTTPException(status_code=404, detail="Admin not found")
     
     return {"message": "Admin deleted successfully"}
+
+
+# Super Admin - ESG Frameworks Management
+@router.put("/super-admin/organizations/{org_id}/esg-frameworks")
+async def update_org_esg_frameworks(
+    org_id: str,
+    frameworks: List[str],
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update ESG frameworks enabled for an organization"""
+    from modules.organizations.contracts import VALID_ESG_FRAMEWORKS
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Validate frameworks
+    invalid = [f for f in frameworks if f not in VALID_ESG_FRAMEWORKS]
+    if invalid:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid ESG frameworks: {invalid}. Valid values: {VALID_ESG_FRAMEWORKS}"
+        )
+    
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    settings["esg_frameworks_enabled"] = frameworks
+    await upsert_org_config(org_id, {"organization_settings": settings}, current_user["id"])
+    return {
+        "message": "ESG frameworks updated successfully",
+        "organization_id": org_id,
+        "esg_frameworks_enabled": settings["esg_frameworks_enabled"]
+    }
+
+
+@router.get("/super-admin/organizations/{org_id}/esg-frameworks")
+async def get_org_esg_frameworks(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Get ESG frameworks enabled for an organization"""
+    from modules.organizations.contracts import VALID_ESG_FRAMEWORKS
+    from modules.frameworks.registry import framework_registry
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    enabled = settings["esg_frameworks_enabled"]
+    
+    # Get all framework details from registry
+    all_frameworks = []
+    for fw in framework_registry.list_all():
+        all_frameworks.append({
+            "id": fw.id,
+            "name": fw.name,
+            "version": fw.version,
+            "description": fw.description,
+            "status": fw.status.value,
+            "enabled": fw.id in enabled
+        })
+    
+    return {
+        "organization_id": org_id,
+        "organization_name": org.get("name"),
+        "esg_frameworks_enabled": enabled,
+        "available_frameworks": all_frameworks
+    }
+
+
+# Super Admin - Multi-Level Approval Toggle
+@router.put("/super-admin/organizations/{org_id}/multi-level-approval")
+async def toggle_multi_level_approval(
+    org_id: str,
+    enabled: bool = Query(..., description="Enable or disable multi-level approval"),
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Enable or disable multi-level approval chain for an organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    settings = await resolve_organization_settings(org_id, migrate=True)
+    settings["multi_level_approval_enabled"] = enabled
+    await upsert_org_config(org_id, {"organization_settings": settings}, current_user["id"])
+    
+    return {
+        "message": f"Multi-level approval {'enabled' if enabled else 'disabled'} for organization",
+        "organization_id": org_id,
+        "multi_level_approval_enabled": enabled
+    }
+
+
+@router.get("/super-admin/organizations/{org_id}/feature-flags")
+async def get_org_feature_flags(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Get all feature flags for an organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    return {
+        "organization_id": org_id,
+        "organization_name": org.get("name"),
+        "feature_flags": {
+            "approval_workflow_enabled": (await resolve_organization_settings(org_id, migrate=True))["approval_workflow_enabled"],
+            "multi_level_approval_enabled": (await resolve_organization_settings(org_id, migrate=True))["multi_level_approval_enabled"],
+            "entitlements": await resolve_entitlements(org_id, migrate=True),
+        }
+    }
+
 
 # Super Admin - Emission Factors Management

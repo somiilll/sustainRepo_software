@@ -22,6 +22,13 @@
  * today; helpers are factored out for symmetry with Scope 3.
  */
 
+import {
+  normalizeCustomFuelCalorificValueUnit,
+  normalizeCustomFuelCompoundUnit,
+  normalizeCustomFuelDensityUnit,
+  normalizeCustomFuelQuantityUnit,
+} from '../../../ghg/emissions/shared/utils/unitHelpers';
+
 // ---------- field unit resolver (same logic as legacy inline) ----------
 
 const getFieldUnitForSave = (field, ctx) => {
@@ -40,12 +47,31 @@ const getFieldUnitForSave = (field, ctx) => {
   return fieldUnits[0] || field.expectedUnit || '';
 };
 
-const buildDynamicValues = (ctx) => {
-  const { dynamicInputFields, dynamicFieldValues } = ctx;
-  const dynamicValues = {};
-  if (!dynamicInputFields || dynamicInputFields.length === 0) return dynamicValues;
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
 
-  dynamicInputFields.forEach((field) => {
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /carbon.*(?:content|composition)|composition.*carbon/i.test(identity);
+};
+
+const resolveActiveCalculationMethodology = (ctx) => {
+  const savedMethodology = ctx.dynamicFieldValues?.calculation_methodology;
+  return ctx.editCalcMethodology
+    || (typeof savedMethodology === 'object' ? savedMethodology?.value : savedMethodology)
+    || 'using_heat_basis_ncv';
+};
+
+export function buildDynamicValues(ctx) {
+  const { dynamicInputFields, dynamicFieldValues, formData } = ctx;
+  // PUT replaces this object. Build it solely from the fields active in the
+  // current form so a prior fuel or methodology cannot retain hidden inputs.
+  const dynamicValues = {};
+
+  (dynamicInputFields || []).forEach((field) => {
+    if (field.presentationOnly) return;
     const variable = field.variable;
     const value = dynamicFieldValues[variable];
     const unit = getFieldUnitForSave(field, ctx);
@@ -72,8 +98,77 @@ const buildDynamicValues = (ctx) => {
     }
   });
 
+  const isScope1Like = formData?.scope === 'scope1'
+    || (formData?.scope === 'biogenic' && ctx.biogenicScopeSelection === 'scope1');
+  if (isScope1Like) {
+    const hasValue = (value) => value !== undefined && value !== null && value !== '';
+    const parseValue = (value) => (hasValue(value) ? parseFloat(value) : null);
+    const quantity = hasValue(dynamicFieldValues.qty)
+      ? dynamicFieldValues.qty
+      : (hasValue(dynamicFieldValues.quantity) ? dynamicFieldValues.quantity : ctx.formData?.quantity);
+    const quantityUnit = normalizeCustomFuelQuantityUnit(dynamicFieldValues.custom_qty_unit
+      || dynamicFieldValues.qty_unit
+      || dynamicFieldValues.quantity_unit
+      || ctx.formData?.quantity_unit
+      || 'kg');
+    const calculationMethodology = resolveActiveCalculationMethodology(ctx);
+    const customEmissionFactorFallback = calculationMethodology === 'using_qty_basis_ef'
+      ? 'kgCO2/kg'
+      : 'tCO2/TJ';
+
+    dynamicValues.calculation_methodology = { value: calculationMethodology, unit: '' };
+
+    // Process Emissions can require Density at runtime even where there is no
+    // configured Density mapping. Preserve that editable virtual field on PUT.
+    const hasConfiguredDensityField = (dynamicInputFields || []).some((field) => field.variable === 'density');
+    if (!hasConfiguredDensityField && hasValue(dynamicFieldValues.density)) {
+      dynamicValues.density = {
+        value: parseValue(dynamicFieldValues.density),
+        unit: dynamicFieldValues.density_unit || 'kg/L',
+        is_override: Boolean(dynamicFieldValues.override_density),
+      };
+    }
+
+    if (ctx.editUseCustomFuel) {
+      // These fields are rendered by CustomFuelMonthFields rather than the
+      // standard config-driven list, so merge them explicitly into the payload.
+      dynamicValues.qty = { value: parseValue(quantity), unit: quantityUnit };
+      if (hasValue(dynamicFieldValues.custom_ef)) {
+        dynamicValues.custom_ef = {
+          value: parseValue(dynamicFieldValues.custom_ef),
+          unit: normalizeCustomFuelCompoundUnit(dynamicFieldValues.custom_ef_unit || customEmissionFactorFallback),
+        };
+      }
+      if (hasValue(dynamicFieldValues.custom_cv)) {
+        dynamicValues.custom_cv = {
+          value: parseValue(dynamicFieldValues.custom_cv),
+          unit: normalizeCustomFuelCalorificValueUnit(dynamicFieldValues.custom_cv_unit || ''),
+        };
+      }
+      if (hasValue(dynamicFieldValues.custom_carbon_content)) {
+        dynamicValues.custom_carbon_content = { value: parseValue(dynamicFieldValues.custom_carbon_content), unit: '%' };
+      }
+      if (hasValue(dynamicFieldValues.custom_oxidation_factor)) {
+        dynamicValues.custom_oxidation_factor = { value: parseValue(dynamicFieldValues.custom_oxidation_factor), unit: '' };
+      }
+      if (hasValue(dynamicFieldValues.density)) {
+        dynamicValues.density = {
+          value: parseValue(dynamicFieldValues.density),
+          unit: normalizeCustomFuelDensityUnit(dynamicFieldValues.density_unit || 'kg/L'),
+        };
+      }
+      if (ctx.categoryCode === 'fugitive_emissions' && hasValue(dynamicFieldValues.co2_gwp_fugitives)) {
+        dynamicValues.co2_gwp_fugitives = {
+          value: parseValue(dynamicFieldValues.co2_gwp_fugitives),
+          unit: '',
+          is_override: true,
+        };
+      }
+    }
+  }
+
   return dynamicValues;
-};
+}
 
 // ---------- validation ----------
 
@@ -105,7 +200,16 @@ export function validateEditSubmission(ctx) {
     overrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editProcessType,
+    categoryCode,
+    preserveOriginalVersion,
   } = ctx;
+  const isCustomFugitiveFuel = editUseCustomFuel && (
+    categoryCode === 'fugitive_emissions'
+    || String(formData.category || '').toLowerCase().includes('fugitive')
+  );
 
   // 1. Override CV/density justifications (DOM-read)
   if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
@@ -126,33 +230,136 @@ export function validateEditSubmission(ctx) {
     }
   }
 
-  // 3. Required numeric input fields (isOverrideExplicitlyFalse)
-  if (dynamicInputFields?.length > 0) {
+  // 3. Every required field currently rendered by the configured form must
+  // have a usable value. This prevents an earlier successful calculation from
+  // allowing an incomplete edit to be saved.
+  if (dynamicInputFields?.length > 0 && !editUseCustomFuel) {
     for (const field of dynamicInputFields) {
-      if (!field.isOverrideExplicitlyFalse) continue;
+      if (field.presentationOnly) continue;
+      const isOxidationFactor = isOxidationFactorField(field);
+      const isCarbonContent = isCarbonContentField(field);
+      if ((!field.required || field.isOverride) && !isOxidationFactor) continue;
+      const value = dynamicFieldValues[field.variable];
       if (field.fieldType === 'number' || !field.fieldType) {
-        const value = dynamicFieldValues[field.variable];
         const numValue = parseFloat(value);
-        if (!value || isNaN(numValue) || numValue <= 0) {
+        const isBlank = value === '' || value === undefined || value === null;
+        if (isOxidationFactor && isBlank) {
+          return { valid: false, errorMessage: 'Oxidation Factor is missing' };
+        }
+        if (isCarbonContent && field.required && isBlank) {
+          return { valid: false, errorMessage: 'Carbon Composition is missing' };
+        }
+        if (isOxidationFactor && (
+          !Number.isFinite(numValue) || numValue < 0 || numValue > 1
+        )) {
+          return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
+        }
+        if (isCarbonContent && (
+          !Number.isFinite(numValue) || numValue < 0 || numValue > 100
+        )) {
+          return { valid: false, errorMessage: 'Carbon Composition must be between 0 and 100' };
+        }
+        if (!field.required || field.isOverride) continue;
+        if (
+          value === '' || value === undefined || value === null || isNaN(numValue)
+          || (!isOxidationFactor && !isCarbonContent && numValue <= 0)
+        ) {
           return { valid: false, errorMessage: `${field.label || field.variable} must be greater than 0` };
         }
+      } else if (value === '' || value === undefined || value === null) {
+        return { valid: false, errorMessage: `${field.label || field.variable} is required` };
       }
     }
   }
 
-  // 4. Process names + descriptions
-  const validProcessNames = (formData.process_names || []).filter((p) => p.name && p.name.trim() !== '');
-  if (validProcessNames.length === 0) {
-    return { valid: false, errorMessage: 'At least one Name of Process is required' };
-  }
-  const missingDesc = validProcessNames.find((p) => !p.description || p.description.trim() === '');
-  if (missingDesc) {
-    return { valid: false, errorMessage: `Please add description for process: "${missingDesc.name}"` };
+  // Custom fuel inputs are intentionally rendered outside the configurable
+  // field list, so validate their methodology-specific required values here.
+  if (editUseCustomFuel) {
+    const numericValue = (value) => Number.parseFloat(value);
+    const isPositive = (value) => Number.isFinite(numericValue(value)) && numericValue(value) > 0;
+    const quantity = dynamicFieldValues.qty ?? dynamicFieldValues.quantity ?? formData.quantity;
+    if (!isPositive(quantity)) {
+      return { valid: false, errorMessage: 'Quantity Used must be greater than 0' };
+    }
+
+    if (isCustomFugitiveFuel) {
+      const fugitiveGwp = dynamicFieldValues.co2_gwp_fugitives ?? dynamicFieldValues.gwp_fugitives;
+      if (!isPositive(fugitiveGwp)) {
+        return { valid: false, errorMessage: 'GWP Fugitives must be greater than 0' };
+      }
+    } else {
+
+      const methodology = resolveActiveCalculationMethodology(ctx);
+      if (methodology === 'using_heat_basis_ncv') {
+        if (dynamicFieldValues.custom_ef === '' || dynamicFieldValues.custom_ef === null || dynamicFieldValues.custom_ef === undefined) {
+          return { valid: false, errorMessage: 'Emission Factor is missing' };
+        }
+        if (!isPositive(dynamicFieldValues.custom_ef)) {
+          return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+        }
+        if (dynamicFieldValues.custom_cv === '' || dynamicFieldValues.custom_cv === null || dynamicFieldValues.custom_cv === undefined) {
+          return { valid: false, errorMessage: 'Calorific Value is missing' };
+        }
+        if (!isPositive(dynamicFieldValues.custom_cv)) {
+          return { valid: false, errorMessage: 'Calorific Value must be greater than 0' };
+        }
+      } else if (methodology === 'using_qty_basis_ef') {
+        if (dynamicFieldValues.custom_ef === '' || dynamicFieldValues.custom_ef === null || dynamicFieldValues.custom_ef === undefined) {
+          return { valid: false, errorMessage: 'Emission Factor is missing' };
+        }
+        if (!isPositive(dynamicFieldValues.custom_ef)) {
+          return { valid: false, errorMessage: 'Emission Factor must be greater than 0' };
+        }
+      } else if (methodology === 'using_carbon_composition') {
+        const carbonContent = numericValue(dynamicFieldValues.custom_carbon_content);
+        const oxidationFactor = numericValue(dynamicFieldValues.custom_oxidation_factor);
+        if (dynamicFieldValues.custom_carbon_content === '' || dynamicFieldValues.custom_carbon_content === null || dynamicFieldValues.custom_carbon_content === undefined) {
+          return { valid: false, errorMessage: 'Carbon Composition is missing' };
+        }
+        if (!Number.isFinite(carbonContent) || carbonContent < 0 || carbonContent > 100) {
+          return { valid: false, errorMessage: 'Carbon Content must be between 0 and 100' };
+        }
+        if (dynamicFieldValues.custom_oxidation_factor === '' || dynamicFieldValues.custom_oxidation_factor === null || dynamicFieldValues.custom_oxidation_factor === undefined) {
+          return { valid: false, errorMessage: 'Oxidation Factor is missing' };
+        }
+        if (!Number.isFinite(oxidationFactor) || oxidationFactor < 0 || oxidationFactor > 1) {
+          return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
+        }
+      }
+      if (dynamicFieldValues.density_unit
+        && (dynamicFieldValues.density === '' || dynamicFieldValues.density === null || dynamicFieldValues.density === undefined)) {
+        return { valid: false, errorMessage: 'Density is missing' };
+      }
+    }
   }
 
-  // 5. Fuel selection
-  if (!formData.fuel_id) {
-    return { valid: false, errorMessage: 'Please select a fuel from the database' };
+  // 4. Process details are optional metadata.
+  const validProcessNames = (formData.process_names || []).filter((p) => p.name && p.name.trim() !== '');
+
+  // 5. Fuel selection — Process Emissions don't require fuel
+  const isProcessEmissions = Boolean(ctx.capabilities?.processType);
+  if (isProcessEmissions && !editProcessType) {
+    return { valid: false, errorMessage: 'Please select a process type' };
+  }
+  if (!isProcessEmissions) {
+    if (!editUseCustomFuel && !formData.fuel_id) {
+      return { valid: false, errorMessage: 'Please select a fuel from the database' };
+    }
+    if (editUseCustomFuel && !editCustomFuelName?.trim()) {
+      return { valid: false, errorMessage: 'Please enter custom fuel name' };
+    }
+  }
+
+  if (overrideCalorificValue
+    && (formData.calorific_value === '' || formData.calorific_value === null || formData.calorific_value === undefined)) {
+    return { valid: false, errorMessage: 'Calorific Value is missing' };
+  }
+  if (overrideDensity && (formData.density === '' || formData.density === null || formData.density === undefined)) {
+    return { valid: false, errorMessage: 'Density is missing' };
+  }
+  if (overrideEmissionFactorHeat
+    && (formData.emission_factor_heat === '' || formData.emission_factor_heat === null || formData.emission_factor_heat === undefined)) {
+    return { valid: false, errorMessage: 'Custom CO₂ Emission Factor (Heat Basis) is missing' };
   }
 
   // 6. Calc engine must have produced a result
@@ -185,19 +392,30 @@ export function validateEditSubmission(ctx) {
   }
 
   // 8. Dynamic override/optional fields — value required when checkbox enabled
-  const overrideAndOptionalFields = (dynamicInputFields || []).filter(
-    (f) => f.isOverride || (!f.required && !f.isOverride)
-  );
+  const overrideAndOptionalFields = editUseCustomFuel
+    ? []
+    : (dynamicInputFields || []).filter(
+      (f) => f.isOverride || (!f.required && !f.isOverride)
+    );
   for (const field of overrideAndOptionalFields) {
     const isCheckboxChecked = dynamicFieldValues[`override_${field.variable}`];
     const value = dynamicFieldValues[field.variable];
-    const hasValue = value !== '' && value !== null && value !== undefined && parseFloat(value) > 0;
+    const parsedValue = parseFloat(value);
+    const hasValue = value !== '' && value !== null && value !== undefined
+      && Number.isFinite(parsedValue)
+      && (isOxidationFactorField(field) || isCarbonContentField(field) ? parsedValue >= 0 : parsedValue > 0);
     if (isCheckboxChecked && !hasValue) {
       const fieldLabel = typeof field.label === 'object' ? field.label.value : field.label || field.variable;
       return {
         valid: false,
-        errorMessage: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox`,
+        errorMessage: `${fieldLabel} is missing`,
       };
+    }
+    if (isCheckboxChecked && isCarbonContentField(field) && (parsedValue < 0 || parsedValue > 100)) {
+      return { valid: false, errorMessage: 'Carbon Composition must be between 0 and 100' };
+    }
+    if (isCheckboxChecked && isOxidationFactorField(field) && (parsedValue < 0 || parsedValue > 1)) {
+      return { valid: false, errorMessage: 'Oxidation Factor must be between 0 and 1' };
     }
   }
 
@@ -227,6 +445,11 @@ export function buildEditPayload(ctx) {
     isOverrideDensity,
     overrideEmissionFactorHeat,
     overrideJustification,
+    editUseCustomFuel,
+    editCustomFuelName,
+    editProcessType,
+    categoryCode,
+    preserveOriginalVersion = false,
   } = ctx;
 
   const reportingPeriod =
@@ -236,6 +459,14 @@ export function buildEditPayload(ctx) {
 
   // Dynamic values
   const dynamicValues = buildDynamicValues(ctx);
+  const isProcessEmissions = categoryCode === 'process_emissions';
+  const savedCalculationMethodology = dynamicValues.calculation_methodology;
+  const calculationMethodology = typeof savedCalculationMethodology === 'object'
+    ? savedCalculationMethodology?.value || null
+    : savedCalculationMethodology || null;
+  if (isProcessEmissions && editProcessType) {
+    dynamicValues.process_type = { value: editProcessType, unit: '' };
+  }
 
   // Outputs
   const outputs = {};
@@ -252,11 +483,21 @@ export function buildEditPayload(ctx) {
     frequency_type: editingEmission?.frequency_type || 'monthly',
     scope: formData.scope,
     category: formData.category,
+    category_code: categoryCode || null,
     sub_category: formData.sub_category,
-    fuel_type: formData.fuel_type,
-    fuel_database_id: formData.fuel_id,
+    fuel_type: editUseCustomFuel ? editCustomFuelName : formData.fuel_type,
+    fuel_database_id: editUseCustomFuel ? null : formData.fuel_id,
+    is_custom_fuel: editUseCustomFuel || false,
+    custom_fuel_name: editUseCustomFuel ? editCustomFuelName : null,
+    calculation_methodology: calculationMethodology,
+    process_type: isProcessEmissions ? editProcessType || null : null,
 
-    formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
+    formula_id: effectiveCalculatedEmissions?.formulaId
+      || (preserveOriginalVersion ? editingEmission?.formula_id : null),
+    formula_version_id: effectiveCalculatedEmissions?.formulaVersionId
+      || (preserveOriginalVersion ? editingEmission?.formula_version_id : null),
+    decision_tree_version_id: effectiveCalculatedEmissions?.decisionTreeVersionId
+      || (preserveOriginalVersion ? editingEmission?.decision_tree_version_id : null),
 
     // (Biogenic spread retained — kept by Scope1Edit only when scope==='biogenic',
     // which only happens for biogenic-scope1 since biogenic-scope3 takes the

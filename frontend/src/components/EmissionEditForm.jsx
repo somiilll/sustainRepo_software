@@ -1,32 +1,74 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import { SearchableSelect } from './ui/searchable-select';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { MonthYearPicker } from './ui/month-year-picker';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { FileUpload } from './ui/file-upload';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from './ui/select';
 import MultiEmployeeInput from './MultiEmployeeInput';
 import {
   FacilityScopeSection,
   BiogenicScopeSection,
-  NotesSection,
   SubmitButtonSection,
 } from '../pages/emissions/EditFormSections';
+import { EditOptionalFields } from '../pages/emissions/EditOptionalFields';
+import CustomFuelMonthFields from '../modules/ghg/emissions/shared/components/CustomFuelMonthFields';
+import { resolveGhgUiState } from '../modules/ghg/config/resolveGhgUiState';
 import {
-  Plus,
+  getStandardActivityTypeLabel,
+  GHG_FIELD_OPTION_KEYS,
+  STANDARD_TYPE_OF_PRODUCT_OPTIONS,
+} from '../modules/ghg/config/standardGhgFormConfig';
+import {
+  getWasteDisposalCategoryKey,
+  resolveWasteActivityFactors,
+} from '../modules/ghg/config/wasteActivityTaxonomy';
+import FlightDetailsSection from './FlightDetailsSection';
+import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
+import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
+import { downloadSecureFile, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
+import {
   Trash2,
   Calendar as CalendarIcon,
   Eye,
   Download,
-  Search,
   AlertTriangle,
-  Calculator,
   X,
   Info,
   FileText,
+  Car,
+  Factory,
+  Wind,
+  Flame,
+  Plane,
+  Truck,
+  Zap,
+  Calculator,
+  Leaf,
+  ListFilter,
 } from 'lucide-react';
 import { isVolumeUnit as isVolumeUnitShared } from '../pages/emissions/utils/units';
+import {
+  getUnitDenominator,
+  isQuantityField,
+  resolveDensityRequirement,
+  resolveDensityFieldState,
+} from '../modules/ghg/emissions/shared/utils/unitHelpers';
+import {
+  getAnnualReportingPeriodDayLimit,
+  getMonthlyReportingPeriodDayLimit,
+  isAnnualDayCountField,
+} from '../modules/ghg/emissions/shared/utils/reportingPeriodDays';
+import { getCategoryFuelAllowedUnits } from '../modules/ghg/emissions/shared/utils/fuelUnits';
+import { selectClosestScope3Factors } from '../modules/ghg/emissions/shared/utils/scope3FactorYear';
+import { toast } from 'sonner';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './ui/alert-dialog';
+import { calculateFileSha256 } from '../lib/evidenceHash';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -49,6 +91,64 @@ const downloadFileHelper = (url, filename) => {
 // Local alias used in the JSX below (matches the legacy inline reference).
 const isVolumeUnit = isVolumeUnitShared;
 
+const isCvField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(cv|calorific|ncv)(_|$)/i.test(identity)
+    || /calorific|\bcv\b|\bncv\b/i.test(field.label || '');
+};
+
+const isEfField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /(^|_)(ef|emission_factor)(_|$)/i.test(identity)
+    || /emission factor|\bef\b/i.test(field.label || '');
+};
+
+const isCarbonContentField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''}`;
+  return /carbon.*content|composition.*carbon/i.test(identity)
+    || /carbon.*content|composition.*carbon/i.test(field.label || '');
+};
+
+const isOxidationFactorField = (field = {}) => {
+  const identity = `${field.variable || ''} ${field.fieldKey || ''} ${field.label || ''}`;
+  return /oxidation.*factor|factor.*oxidation/i.test(identity);
+};
+
+const getDayLimitFromReportingPeriod = (reportingPeriod, frequencyType) => {
+  if (frequencyType === 'yearly') {
+    const calendarMatch = String(reportingPeriod || '').match(/^CY\s?(\d{4})$/i);
+    if (calendarMatch) return getAnnualReportingPeriodDayLimit(calendarMatch[1], 'calendar');
+
+    const financialMatch = String(reportingPeriod || '').match(/^FY\s?(\d{4})-(\d{4})$/i);
+    if (financialMatch) return getAnnualReportingPeriodDayLimit(financialMatch[1], 'financial');
+
+    return undefined;
+  }
+
+  const match = String(reportingPeriod || '').match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (!match) return undefined;
+  return getMonthlyReportingPeriodDayLimit(Number(match[2]), Number(match[1]));
+};
+
+const hasNumericValue = (value) => (
+  value !== undefined
+  && value !== null
+  && value !== ''
+  && Number.isFinite(Number.parseFloat(value))
+);
+
+const getCategoryIcon = (category = '') => {
+  const normalized = category.toLowerCase();
+  if (normalized.includes('mobile')) return Car;
+  if (normalized.includes('stationary') || normalized.includes('process')) return Factory;
+  if (normalized.includes('fugitive')) return Wind;
+  if (normalized.includes('flaring')) return Flame;
+  if (normalized.includes('electric') || normalized.includes('energy')) return Zap;
+  if (normalized.includes('flight') || normalized.includes('travel')) return Plane;
+  if (normalized.includes('transport') || normalized.includes('distribution')) return Truck;
+  return Leaf;
+};
+
 /**
  * EmissionEditForm — pure view/rendering component for the Edit Emission
  * dialog. All state, refs, effects, memos, and handlers continue to live in
@@ -60,55 +160,24 @@ const isVolumeUnit = isVolumeUnitShared;
  */
 export default function EmissionEditForm(props) {
   const {
-    // ---------- form state (read) ----------
-    formData,
+    // ---------- shared edit-domain boundary ----------
+    draft,
+    onDraftChange,
     editingEmission,
-    editFrequencyType,
-    biogenicScopeSelection,
-    selectedCategory,
-    scope3Method,
-    scope3ActivityType,
-    scope3Subcategory,
-    scope3ActivityId,
-    scope3CustomActivity,
-    useCustomActivity,
-    typeOfProduct,
-    activitySearchTerm,
+    useHistoricalEditValues = true,
     loadingScope3EF,
     loadingBiogenicCategories,
-    editEmployees,
-    editEmployeeMonthlyTotals,
-    editEmployeeYearlyTotal,
     isCalculatingEditEmployee,
     isEditLoading,
     editFormConfigLoading,
     dynamicInputFields,
-    dynamicFieldValues,
-    existingEvidences,
-    overrideCalorificValue,
-    overrideDensity,
-    overrideEmissionFactorHeat,
-    overrideJustification,
     effectiveCalculatedEmissions,
+    liveCalculationValidationError,
     isCalculating,
     isSaving,
+    onC8AllocationMethodChange,
 
-    // ---------- setters ----------
-    setFormData,
-    setBiogenicScopeSelection,
-    setScope3Method,
-    setScope3ActivityType,
-    setScope3ActivityId,
-    setScope3Subcategory,
-    setScope3CustomActivity,
-    setUseCustomActivity,
-    setTypeOfProduct,
     setActivitySearchTerm,
-    setDynamicFieldValues,
-    setEditEmployees,
-    setOverrideCalorificValue,
-    setOverrideDensity,
-    setOverrideJustification,
 
     // ---------- core data ----------
     facilities,
@@ -119,7 +188,6 @@ export default function EmissionEditForm(props) {
 
     // ---------- computed/derived ----------
     selectedFuel,
-    activeCategoryModule,
     isEditC7EmployeeCommuting,
     editActiveMonths,
     ModuleDynamicFieldsRenderer,
@@ -127,8 +195,11 @@ export default function EmissionEditForm(props) {
     getFuelsForCategory,
     availableScope3Methods,
     availableScope3ActivityTypes,
+    capabilities = {},
+    fieldOptions = {},
     requiresSubcategory,
     availableSubcategories,
+    scope3EFData = [],
     filteredScope3Activities,
     availableQuantityUnits,
 
@@ -136,6 +207,9 @@ export default function EmissionEditForm(props) {
     handleSubmit,
     handleFuelSelect,
     handleCategorySelect,
+    handleScopeChange,
+    handleScope3MethodChange,
+    handleBiogenicScopeChange,
     markFormDirty,
     updateDynamicFieldValue,
     getMethodLabel,
@@ -144,27 +218,236 @@ export default function EmissionEditForm(props) {
     handleRemoveEvidence,
     handleDeleteExistingEvidence,
     handleDeleteAllEvidences,
+    handleC7EvidenceUpload,
+    handleC7EvidenceRemove,
+    handleC7EvidenceDownload,
     handleDialogChange,
 
-    // ---------- dead-reference fallback (never invoked at runtime) ----------
-    getQuantityUnitFromEFUnit,
+    // Optional props for approval mode
+    hideSubmitButton = false,
+    assignedReportingPeriod = null,
+    showAssignedReportingPeriodMessage = true,
+    readOnly = false,
+    readOnlyEvidenceContent = null,
   } = props;
+
+  const setDraftField = useCallback((field, valueOrUpdater) => {
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      [field]: typeof valueOrUpdater === 'function'
+        ? valueOrUpdater(currentDraft[field])
+        : valueOrUpdater,
+    }));
+  }, [onDraftChange]);
+  const setFormData = useCallback((valuesOrUpdater) => {
+    onDraftChange((currentDraft) => ({
+      ...currentDraft,
+      values: typeof valuesOrUpdater === 'function'
+        ? valuesOrUpdater(currentDraft.values)
+        : valuesOrUpdater,
+    }));
+  }, [onDraftChange]);
+
+  const formData = draft.values;
+  const reportingYearForFactorSelection = useMemo(() => {
+    const period = formData.reporting_period_start || editingEmission?.reporting_period || '';
+    const match = String(period).match(/(\d{4})/);
+    return match ? Number.parseInt(match[1], 10) : new Date().getFullYear();
+  }, [editingEmission?.reporting_period, formData.reporting_period_start]);
+  const editFrequencyType = draft.frequencyType;
+  const biogenicScopeSelection = draft.biogenicScopeSelection;
+  const selectedCategory = draft.selectedCategory;
+  const scope3Method = draft.scope3Method;
+  const spendCurrencyConversionMethod = draft.spendCurrencyConversionMethod || 'standard';
+  const scope3ActivityType = draft.scope3ActivityType;
+  const scope3Subcategory = draft.scope3Subcategory;
+  const scope3ActivityId = draft.scope3ActivityId;
+  const scope3CustomActivity = draft.scope3CustomActivity;
+  const wasteCategoryKey = formData.scope === 'scope3'
+    ? getWasteDisposalCategoryKey(selectedCategory?.code, selectedCategory?.name, formData.category)
+    : null;
+  const usesWasteDisposalTaxonomy = Boolean(wasteCategoryKey);
+  const [wasteBaseActivity, setWasteBaseActivity] = useState('');
+  const wasteCatalogActivities = useMemo(() => resolveWasteActivityFactors(
+    selectClosestScope3Factors(scope3EFData.filter((activity) => (
+      usesWasteDisposalTaxonomy
+      && getWasteDisposalCategoryKey(activity.category, activity.category_code) === wasteCategoryKey
+      && activity.method === scope3Method
+      && activity.sub_scope !== 'biogenic'
+    )), reportingYearForFactorSelection),
+  ), [reportingYearForFactorSelection, scope3EFData, scope3Method, usesWasteDisposalTaxonomy, wasteCategoryKey]);
+  const wasteActivityOptions = useMemo(() => (
+    usesWasteDisposalTaxonomy
+      ? Array.from(new Map(wasteCatalogActivities.map((activity) => [activity.activity_name, activity])).values())
+      : []
+  ), [usesWasteDisposalTaxonomy, wasteCatalogActivities]);
+  useEffect(() => {
+    if (!usesWasteDisposalTaxonomy) {
+      setWasteBaseActivity('');
+      return;
+    }
+    const selected = wasteCatalogActivities.find((activity) => activity.id === scope3ActivityId);
+    if (selected) {
+      setWasteBaseActivity(selected.activity_name);
+      if (scope3ActivityType !== selected.activity_type) {
+        setDraftField('scope3ActivityType', selected.activity_type);
+      }
+    } else if (!wasteActivityOptions.some((activity) => activity.activity_name === wasteBaseActivity)) {
+      setWasteBaseActivity('');
+    }
+  }, [scope3ActivityId, scope3ActivityType, setDraftField, usesWasteDisposalTaxonomy, wasteActivityOptions, wasteBaseActivity, wasteCatalogActivities]);
+  const wasteActivityTypes = useMemo(() => Array.from(new Set(
+    wasteCatalogActivities
+      .filter((activity) => activity.activity_name === wasteBaseActivity)
+      .map((activity) => activity.activity_type)
+      .filter((type) => type && type !== 'other'),
+  )), [wasteBaseActivity, wasteCatalogActivities]);
+  const useCustomActivity = draft.useCustomActivity;
+  const typeOfProduct = draft.typeOfProduct;
+  const editCalcMethodology = draft.calculationMethodology;
+  const editProcessType = draft.processType;
+  const editUseCustomFuel = draft.useCustomFuel;
+  const editCustomFuelName = draft.customFuelName;
+  const editEmployees = draft.employees;
+  const editEmployeeMonthlyTotals = draft.employeeMonthlyTotals;
+  const editEmployeeYearlyTotal = draft.employeeYearlyTotal;
+  const dynamicFieldValues = draft.dynamicFieldValues;
+  const existingEvidences = draft.existingEvidences;
+  const [duplicateEvidencePrompt, setDuplicateEvidencePrompt] = useState(null);
+  const confirmDuplicateEvidence = useCallback(async (file, evidences, context) => {
+    let sha256Hash = null;
+    try {
+      sha256Hash = await calculateFileSha256(file);
+    } catch (error) {
+      console.warn('[Evidence] Unable to calculate duplicate-check hash', error);
+    }
+    const duplicate = sha256Hash && evidences.some((evidence) => evidence?.filename === file.name && evidence?.sha256_hash === sha256Hash);
+    if (!duplicate) return { shouldUpload: true, sha256Hash };
+    setDuplicateEvidencePrompt({ file, sha256Hash, ...context });
+    return { shouldUpload: false, sha256Hash };
+  }, []);
+  const handleEditEvidenceUpload = useCallback(async (file) => {
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, existingEvidences, { type: 'standard' });
+    if (shouldUpload) await handleFileUpload(file, sha256Hash);
+  }, [confirmDuplicateEvidence, existingEvidences, handleFileUpload]);
+  const handleEditC7EvidenceUpload = useCallback(async (employeeId, periodKey, file) => {
+    const employee = editEmployees.find((entry) => entry.id === employeeId);
+    const evidences = periodKey === 'yearly' ? employee?.yearly_data?.evidences || [] : employee?.monthly_data?.[periodKey]?.evidences || [];
+    const { shouldUpload, sha256Hash } = await confirmDuplicateEvidence(file, evidences, { type: 'c7', employeeId, periodKey });
+    if (shouldUpload) await handleC7EvidenceUpload(employeeId, periodKey, file, sha256Hash);
+  }, [confirmDuplicateEvidence, editEmployees, handleC7EvidenceUpload]);
+  const resolveDuplicateEvidence = useCallback((shouldUpload) => {
+    const prompt = duplicateEvidencePrompt;
+    setDuplicateEvidencePrompt(null);
+    if (!shouldUpload || !prompt) return;
+    const upload = prompt.type === 'c7'
+      ? handleC7EvidenceUpload(prompt.employeeId, prompt.periodKey, prompt.file, prompt.sha256Hash)
+      : handleFileUpload(prompt.file, prompt.sha256Hash);
+    void upload.catch((error) => toast.error(error?.message || 'Unable to stage evidence file'));
+  }, [duplicateEvidencePrompt, handleC7EvidenceUpload, handleFileUpload]);
+  const overrideCalorificValue = draft.overrideCalorificValue;
+  const overrideDensity = draft.overrideDensity;
+  const overrideEmissionFactorHeat = draft.overrideEmissionFactorHeat;
+  const overrideJustification = draft.overrideJustification;
+  const setBiogenicScopeSelection = (value) => setDraftField('biogenicScopeSelection', value);
+  const setScope3Method = (value) => setDraftField('scope3Method', value);
+  const setSpendCurrencyConversionMethod = (value) => setDraftField('spendCurrencyConversionMethod', value);
+  const allocationMethod = draft.allocationMethod || '';
+  const setScope3ActivityType = (value) => setDraftField('scope3ActivityType', value);
+  const setScope3ActivityId = (value) => setDraftField('scope3ActivityId', value);
+  const setScope3Subcategory = (value) => setDraftField('scope3Subcategory', value);
+  const setScope3CustomActivity = (value) => setDraftField('scope3CustomActivity', value);
+  const setUseCustomActivity = (value) => setDraftField('useCustomActivity', value);
+  const setEditUseCustomFuel = (value) => setDraftField('useCustomFuel', value);
+  const setEditCustomFuelName = (value) => setDraftField('customFuelName', value);
+  const setTypeOfProduct = (value) => setDraftField('typeOfProduct', value);
+  const setEditCalcMethodology = (value) => setDraftField('calculationMethodology', value);
+  const setEditProcessType = (value) => setDraftField('processType', value);
+  const setDynamicFieldValues = (value) => setDraftField('dynamicFieldValues', value);
+  const setEditEmployees = (value) => setDraftField('employees', value);
+  const setOverrideCalorificValue = (value) => setDraftField('overrideCalorificValue', value);
+  const setOverrideDensity = (value) => setDraftField('overrideDensity', value);
+  const editSelectClass = 'h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800';
+  const editSelectWithIconClass = `${editSelectClass} pl-10`;
+  const setOverrideJustification = (value) => setDraftField('overrideJustification', value);
+
+  const ghgUiState = resolveGhgUiState({
+    capabilities,
+    scope: formData.scope,
+    biogenicScopeSelection,
+    processType: editProcessType,
+    scope3ActivityType,
+    scope3Method,
+    requiresSubcategory,
+    scope3Subcategory,
+    frequencyType: editFrequencyType,
+    hasCategory: Boolean(selectedCategory || formData.category),
+  });
+  const CategoryIcon = getCategoryIcon(selectedCategory || formData.category);
+  const isC8Category = formData.scope === 'scope3'
+    && /^c8\b/i.test(selectedCategory || formData.category || '');
+  const isC8AllocationApplicable = isC8Category
+    && ['activity_basis', 'supplier_basis'].includes(scope3Method);
+  const showsAssetName = formData.scope === 'scope3' && capabilities.assetName;
+  const isProcessEmission = Boolean(capabilities.processType)
+    || (formData.category || selectedCategory || '').toLowerCase().includes('process');
+  const hasConfiguredDensityField = dynamicInputFields.some((field) => field.variable === 'density');
+  const virtualDensityQuantityField = dynamicInputFields.find(isQuantityField);
+  const virtualDensityReferenceField = editCalcMethodology === 'using_heat_basis_ncv'
+    ? dynamicInputFields.find(isCvField)
+    : editCalcMethodology === 'using_qty_basis_ef'
+      ? dynamicInputFields.find(isEfField)
+      : dynamicInputFields.find(isCarbonContentField);
+  const getSavedFieldValue = (field) => (
+    dynamicFieldValues[field?.variable]
+    ?? (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.[field?.variable]?.value : undefined)
+  );
+  const getSavedFieldUnit = (field) => (
+    dynamicFieldValues[`${field?.variable}_unit`]
+    || (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.[field?.variable]?.unit : '')
+    || field?.expectedUnit
+    || ''
+  );
+  const virtualDensityRequirement = resolveDensityRequirement({
+    quantityUnit: getSavedFieldUnit(virtualDensityQuantityField),
+    referenceUnit: editCalcMethodology === 'using_carbon_composition'
+      ? 'kg'
+      : getUnitDenominator(getSavedFieldUnit(virtualDensityReferenceField)),
+    centralizedUnits,
+  });
+  // A configured Density field renders in the standard grid. For formulas
+  // that resolve Carbon Composition from a volume quantity, expose the same
+  // runtime conversion input for Process, Stationary, and Mobile Combustion.
+  // Custom Fuel owns this input through CustomFuelMonthFields.
+  const showVirtualProcessDensity = !editUseCustomFuel
+    && (isProcessEmission || editCalcMethodology === 'using_carbon_composition')
+    && !hasConfiguredDensityField
+    && hasNumericValue(getSavedFieldValue(virtualDensityQuantityField))
+    && hasNumericValue(getSavedFieldValue(virtualDensityReferenceField))
+    && virtualDensityRequirement.required;
+  const savedVirtualDensity = dynamicFieldValues.density
+    ?? (useHistoricalEditValues ? editingEmission?.dynamic_field_values?.density?.value : undefined)
+    ?? '';
+  const customFuelQuantityUnits = fieldOptions[GHG_FIELD_OPTION_KEYS.CUSTOM_FUEL_QUANTITY_UNIT] || [];
+  const isFugitiveCustomFuel = editUseCustomFuel
+    && (formData.category || selectedCategory || '').toLowerCase().includes('fugitive');
+  const customFugitiveQuantityUnits = isFugitiveCustomFuel
+    ? getCategoryFuelAllowedUnits({
+      fuelDatabase,
+      scope: formData.scope,
+      categoryName: formData.category || selectedCategory,
+    })
+    : [];
 
   // ─────────────────────────────────────────────────────────────────────
   // Data-based loading gate for C7 Employee Commuting (has deeply nested
   // employee data). Lifted verbatim from the legacy inline IIFE in
   // pages/Emissions.js.
   // ─────────────────────────────────────────────────────────────────────
-  const isC7Category =
-    formData.category?.toLowerCase()?.includes('c7') ||
-    formData.category?.toLowerCase()?.includes('employee commuting');
-
-  // For C7, check that employees are populated with valid data
-  const isC7DataReady =
-    !isC7Category || (editEmployees.length > 0 && editEmployees[0]?.id);
-
-  // Show loading if explicitly loading OR if C7 data isn't ready yet
-  if (isEditLoading || !isC7DataReady) {
+  // `isEditLoading` represents only real record hydration. An empty employee
+  // list is a valid local C7 draft after converting another category, where
+  // MultiEmployeeInput provides the Add Employee action.
+  if (isEditLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -174,7 +457,22 @@ export default function EmissionEditForm(props) {
   }
 
   return (
-                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                <form onSubmit={readOnly ? (event) => event.preventDefault() : handleSubmit} className="space-y-5" data-testid="emission-form">
+                  <AlertDialog open={Boolean(duplicateEvidencePrompt)} onOpenChange={(open) => { if (!open) resolveDuplicateEvidence(false); }}>
+                    <AlertDialogContent data-testid="edit-duplicate-evidence-dialog">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle data-testid="edit-duplicate-evidence-dialog-title">Duplicate evidence detected</AlertDialogTitle>
+                        <AlertDialogDescription data-testid="edit-duplicate-evidence-dialog-description">“{duplicateEvidencePrompt?.file?.name}” has the same filename and SHA-256 content hash as evidence already staged for this emission period. Do you want to upload it again?</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => resolveDuplicateEvidence(false)} data-testid="edit-duplicate-evidence-cancel-button">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => resolveDuplicateEvidence(true)} className="bg-emerald-700 hover:bg-emerald-800" data-testid="edit-duplicate-evidence-confirm-button">Upload anyway</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                {readOnly && <p className="sr-only" data-testid="emission-form-read-only-status">This emission record is read-only.</p>}
+                <fieldset disabled={readOnly} className="min-w-0 space-y-5 disabled:opacity-100" data-testid={readOnly ? "emission-form-read-only-fields" : undefined}>
+                <section className="space-y-5 rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="edit-form-inputs-section">
                 {/* Facility and Scope Selection - Extracted Component */}
                 <FacilityScopeSection
                   formData={formData}
@@ -183,8 +481,43 @@ export default function EmissionEditForm(props) {
                   dynamicScopes={dynamicScopes}
                   hasScope3Access={hasScope3Access}
                   handleFuelSelect={handleFuelSelect}
+                  onScopeChange={handleScopeChange}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
+                  readOnly={readOnly}
+                  reportingPeriod={(
+                    <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
+                      {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
+                        <>
+                          <Label>{editFrequencyType === 'yearly' ? 'Reporting Year' : 'Reporting Month'}</Label>
+                          <div className="flex items-center h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-stone-800 font-medium" data-testid="edit-reporting-year-display">
+                            <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                            {editingEmission.reporting_period || 'N/A'}
+                          </div>
+                          {assignedReportingPeriod && showAssignedReportingPeriodMessage && <p className="text-xs text-emerald-700" data-testid="supplier-edit-assigned-reporting-period-message">Assigned by your customer: {assignedReportingPeriod.reporting_period}</p>}
+                        </>
+                      ) : (
+                        <>
+                          <Label htmlFor="reporting_period_start">Reporting Month *</Label>
+                          <MonthYearPicker
+                            id="reporting_period_start"
+                            value={formData.reporting_period_start}
+                            disableFuture={true}
+                            onChange={(val) => {
+                              setFormData((previous) => ({
+                                ...previous,
+                                reporting_period_start: val,
+                                reporting_period_end: val,
+                              }));
+                            }}
+                            placeholder="Select month"
+                            className="bg-stone-50 [&>svg]:text-emerald-600"
+                            data-testid="edit-reporting-month-picker"
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                 />
                 
                 {/* Biogenic Scope Selection - Extracted Component */}
@@ -195,183 +528,11 @@ export default function EmissionEditForm(props) {
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   hasScope3Access={hasScope3Access}
                   handleFuelSelect={handleFuelSelect}
+                  onBiogenicScopeChange={handleBiogenicScopeChange}
                   loadingBiogenicCategories={loadingBiogenicCategories}
                 />
 
                 
-                {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
-                {editingEmission ? (
-                  <div className="space-y-2">
-                    {/* Frequency Type Badge */}
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        editFrequencyType === 'yearly' 
-                          ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                          : 'bg-blue-100 text-blue-700 border border-blue-200'
-                      }`}>
-                        {editFrequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-                      </span>
-                    </div>
-                    
-                    {/* Yearly Record - Show read-only year display */}
-                    {editFrequencyType === 'yearly' ? (
-                      <div className="space-y-1.5">
-                        <Label>
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Year
-                        </Label>
-                        <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium">
-                          {editingEmission.reporting_period || 'N/A'}
-                        </div>
-                        <p className="text-xs text-purple-600">
-                          Annual entry - reporting period cannot be changed
-                        </p>
-                      </div>
-                    ) : (
-                      /* Monthly Record - Show month/year picker */
-                      <div className="space-y-1.5">
-                        <Label htmlFor="reporting_period_start">
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Month *
-                        </Label>
-                        <MonthYearPicker
-                          id="reporting_period_start"
-                          value={formData.reporting_period_start}
-                          disableFuture={true}
-                          onChange={(val) => {
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reporting_period_start: val,
-                              reporting_period_end: val
-                            }));
-                          }}
-                          placeholder="Select month"
-                          className="bg-stone-50"
-                        />
-                        <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* For new emissions, show period type selection */
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                      <Label>Reporting Period Type *</Label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
-                            onChange={() => {
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_end: prev.reporting_period_start
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Single Month
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="period_type"
-                            checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
-                            onChange={() => {
-                              // Set to full year (12 months) starting from current start month or current month
-                              const currentDate = new Date();
-                              const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            className="text-primary"
-                          />
-                          Full Year (12 months)
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
-                        /* Single Month Mode */
-                        <div className="space-y-1.5 col-span-2">
-                          <Label htmlFor="reporting_period_start">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Reporting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="reporting_period_start"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              setFormData(prev => ({ 
-                                ...prev, 
-                                reporting_period_start: val,
-                                reporting_period_end: val // Keep them synced in single month mode
-                              }));
-                            }}
-                            placeholder="Select month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                      ) : (
-                      /* Full Year Mode - Select starting month */
-                      <>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="year_start_month">
-                            <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Starting Month *
-                          </Label>
-                          <MonthYearPicker
-                            id="year_start_month"
-                            value={formData.reporting_period_start}
-                            disableFuture={true}
-                            onChange={(val) => {
-                              const startMonth = val;
-                              const [year, month] = startMonth.split('-').map(Number);
-                              // Calculate end month (11 months later = 12 month period)
-                              let endYear = year;
-                              let endMonth = month + 11;
-                              if (endMonth > 12) {
-                                endYear += 1;
-                                endMonth -= 12;
-                              }
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: startMonth,
-                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                              }));
-                            }}
-                            placeholder="Select starting month"
-                            className="bg-stone-50"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-text-muted">Period (12 months)</Label>
-                          <p className="text-sm text-text-secondary h-10 flex items-center bg-stone-100 px-3 rounded-md">
-                            {formData.reporting_period_start && formData.reporting_period_end 
-                              ? `${formData.reporting_period_start} to ${formData.reporting_period_end}`
-                              : 'Select a starting month'}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                )}
-
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-3">
                   {/* Show prompt for facility selection */}
@@ -383,143 +544,210 @@ export default function EmissionEditForm(props) {
                     </div>
                   ) : (
                     <>
-                      {/* Category and Fuel Selection - Always visible */}
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* Category and Fuel Selection */}
+                      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {/* Step 1: Category Selection */}
-                        <div className="space-y-1.5">
-                          <Label htmlFor="category_select">Step 1: Select Category *</Label>
-                          <select
-                            id="category_select"
-                            value={selectedCategory}
-                            onChange={(e) => handleCategorySelect(e.target.value)}
-                            required
-                            className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                            data-testid="category-select"
-                          >
-                            <option value="">Select category...</option>
-                            {getCategoriesForScope.map(category => (
-                              <option key={category} value={category}>{category}</option>
-                            ))}
-                          </select>
+                        <div className="min-w-0">
+                          <Label htmlFor="category_select">Select Category *</Label>
+                          <div className="mt-1.5 min-w-0">
+                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <div className="relative"><CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="category_select" value={selectedCategory} onChange={(event) => handleCategorySelect(event.target.value)} className={editSelectWithIconClass} data-testid="category-select"><option value="">Select category...</option>{getCategoriesForScope.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>}
+                          </div>
                         </div>
                         
-                        {/* Step 2: For Scope 3 - Method and Activity; For others - Fuel Type */}
+                        {/* Step 2: For Scope 3 - Method and Activity; for Process Emissions no fuel is needed. */}
                         {/* Also handle Biogenic with Scope 3 selection */}
                         {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
                             {/* Scope 3: Calculation Method */}
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_method_select">Step 2: Calculation Method *</Label>
-                              <select
-                                id="scope3_method_select"
-                                value={scope3Method}
-                                onChange={(e) => {
-                                  const newMethod = e.target.value;
-                                  setScope3Method(newMethod);
-                                  setScope3ActivityType(''); // Reset activity type when method changes
-                                  setScope3Subcategory('');
-                                  setTypeOfProduct('');
-                                  setScope3ActivityId('');
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
-                                  markFormDirty(); // Mark form as dirty when method changes
-                                }}
-                                required
-                                disabled={!selectedCategory}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                data-testid="scope3-method-select"
-                              >
-                                <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
-                                {availableScope3Methods.map(method => (
-                                  <option key={method} value={method}>
-                                    {getMethodLabel(method)}
-                                  </option>
-                                ))}
-                              </select>
+                              <Label htmlFor="scope3_method_select">Calculation Method *</Label>
+                              <div className="relative">
+                                <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
+                                <select
+                                  id="scope3_method_select"
+                                  value={scope3Method}
+                                  onChange={(e) => {
+                                    handleScope3MethodChange(e.target.value);
+                                  }}
+                                  required
+                                  disabled={!selectedCategory}
+                                  className={`${editSelectWithIconClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`}
+                                  data-testid="scope3-method-select"
+                                >
+                                  <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
+                                  {availableScope3Methods.map(method => (
+                                    <option key={method} value={method}>
+                                      {getMethodLabel(method)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                               {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
+                            {scope3Method === 'spend_basis' && (
+                              <div className="space-y-1.5" data-testid="edit-scope3-currency-conversion-method-section">
+                                <Label htmlFor="edit-scope3-currency-conversion-method-select">Currency Conversion Method *</Label>
+                                <select
+                                  id="edit-scope3-currency-conversion-method-select"
+                                  value={spendCurrencyConversionMethod}
+                                  onChange={(event) => {
+                                    setSpendCurrencyConversionMethod(event.target.value);
+                                    setDynamicFieldValues({});
+                                    markFormDirty();
+                                  }}
+                                  className={editSelectClass}
+                                  data-testid="edit-scope3-currency-conversion-method-select"
+                                >
+                                  <option value="standard">Standard Currency Conversion</option>
+                                  <option value="ppp_inflation">Currency adjusted to Inflation Rate and Purchase Power</option>
+                                </select>
+                              </div>
+                            )}
+                            {isC8AllocationApplicable && (
+                              <div className="space-y-1.5" data-testid="edit-c8-allocation-method-section">
+                                <Label htmlFor="edit-c8-allocation-method-select">Allocation Method *</Label>
+                                <select
+                                  id="edit-c8-allocation-method-select"
+                                  value={allocationMethod}
+                                  onChange={(event) => onC8AllocationMethodChange(event.target.value)}
+                                  className={editSelectClass}
+                                  data-testid="edit-c8-allocation-method-select"
+                                >
+                                  <option value="" data-testid="edit-c8-allocation-method-option-placeholder">Select allocation method...</option>
+                                  <option value="entire_quantity" data-testid="edit-c8-allocation-method-option-entire-quantity">Entire Quantity</option>
+                                  <option value="floor_area_share" data-testid="edit-c8-allocation-method-option-floor-area-share">Floor Area Share</option>
+                                </select>
+                              </div>
+                            )}
+                            {!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && (
+                              <div className="space-y-1.5" data-testid="scope3-activity-type-section">
+                                <Label htmlFor="scope3_activity_type_filter">Activity Type *</Label>
+                                <div className="relative">
+                                  <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" />
+                                  <select
+                                    id="scope3_activity_type_filter"
+                                    value={scope3ActivityType}
+                                    onChange={(e) => {
+                                      const newActivityType = e.target.value;
+                                      setScope3ActivityType(newActivityType);
+                                      setScope3ActivityId('');
+                                      setActivitySearchTerm('');
+                                      setDynamicFieldValues({});
+                                    }}
+                                    required
+                                    className={editSelectWithIconClass}
+                                    data-testid="scope3-activity-type-filter"
+                                  >
+                                    <option value="">Select activity type...</option>
+                                    {(() => {
+                                      const allTypes = new Set(availableScope3ActivityTypes);
+                                      if (scope3ActivityType && !allTypes.has(scope3ActivityType)) allTypes.add(scope3ActivityType);
+                                      return Array.from(allTypes).sort();
+                                    })().map(type => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
                           </>
-                        ) : (
-                          <div className="space-y-1.5">
-                            <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                            <select
-                              id="fuel_select"
-                              value={formData.fuel_id}
-                              onChange={(e) => handleFuelSelect(e.target.value)}
-                              required
-                              disabled={!selectedCategory}
-                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              data-testid="fuel-select"
-                            >
-                              <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                              {getFuelsForCategory.map(fuel => (
-                                <option key={fuel.id} value={fuel.id}>
-                                  {fuel.fuel_name}
-                                </option>
-                              ))}
-                            </select>
+                        ) : !ghgUiState.showFuelSelection ? null : (
+                          <div className="relative min-w-0">
+                            <Label htmlFor="fuel_select">Select Fuel Type *</Label>
+                            {ghgUiState.showCustomFuel && (
+                              <label className="absolute right-0 top-0 flex items-center gap-1.5 cursor-pointer">
+                                <Flame className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                                <input
+                                  type="checkbox"
+                                  checked={editUseCustomFuel}
+                                  onChange={(e) => {
+                                    setEditUseCustomFuel(e.target.checked);
+                                    if (e.target.checked) {
+                                      setFormData(prev => ({ ...prev, fuel_id: '' }));
+                                    } else {
+                                      setEditCustomFuelName('');
+                                    }
+                                    markFormDirty();
+                                  }}
+                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  data-testid="edit-use-custom-fuel-toggle"
+                                />
+                                <span className="text-xs text-amber-700 font-medium">Use Custom Fuel</span>
+                              </label>
+                            )}
+
+                            {!editUseCustomFuel ? (
+                              <div className="mt-1.5 min-w-0">
+                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select value={formData.fuel_id} onChange={(event) => handleFuelSelect(event.target.value)} disabled={!selectedCategory} className={`${editSelectClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`} data-testid="fuel-select"><option value="">{selectedCategory ? 'Select fuel type' : 'Select category first'}</option>{getFuelsForCategory.map((fuel) => <option key={fuel.id} value={fuel.id}>{fuel.fuel_name}</option>)}</select>}
+                              </div>
+                            ) : (
+                              <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
+                                <div>
+                                  <Input
+                                    id="edit-custom-fuel-name-input"
+                                    value={editCustomFuelName}
+                                    onChange={(e) => {
+                                      setEditCustomFuelName(e.target.value);
+                                      markFormDirty();
+                                    }}
+                                    placeholder="Enter fuel name"
+                                    className="bg-white"
+                                    data-testid="edit-custom-fuel-name-input"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
+
+                      {/* Process Type - For Process Emissions (Scope 1) */}
+                      {ghgUiState.showProcessType && (
+                        <div className="space-y-1.5" data-testid="edit-process-type-section">
+                          <Label>Process Type <span className="text-red-500">*</span></Label>
+                          <Select
+                            value={editProcessType || ''}
+                            onValueChange={(v) => {
+                              setEditProcessType(v);
+                              setEditCalcMethodology('using_heat_basis_ncv');
+                              markFormDirty();
+                            }}
+                          >
+                                <SelectTrigger className="h-10 bg-stone-50 text-sm text-stone-800" data-testid="edit-process-type-select">
+                              <SelectValue placeholder="Select process type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ghgUiState.renderableProcessTypeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
+                      {ghgUiState.showCalculationMethodology && (
+                        <div className="min-w-0" data-testid="edit-calculation-methodology-section">
+                          <Label>Calculation Methodology</Label>
+                          <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
+                            value={editCalcMethodology || 'using_heat_basis_ncv'}
+                            onChange={(event) => {
+                              setEditCalcMethodology(event.target.value);
+                              markFormDirty();
+                            }}
+                            className={editSelectWithIconClass}
+                            data-testid="edit-calculation-methodology-select"
+                          ><option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option><option value="using_qty_basis_ef">Using Qty Basis EF</option><option value="using_carbon_composition">Using Composition of Carbon</option></select></div>
+                        </div>
+                      )}
                       </div>
-                      
+
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
-                        <div className="space-y-3">
-                          {/* Activity Type Filter (only for C6/C7) */}
-                          {availableScope3ActivityTypes.length > 0 && (
-                            <div className="space-y-1.5">
-                              <Label htmlFor="scope3_activity_type_filter">Step 3: Activity Type *</Label>
-                              <select
-                                id="scope3_activity_type_filter"
-                                value={scope3ActivityType}
-                                onChange={(e) => {
-                                  const newActivityType = e.target.value;
-                                  setScope3ActivityType(newActivityType);
-                                  setScope3ActivityId(''); // Reset activity when type changes
-                                  setActivitySearchTerm(''); // Clear activity search
-                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
-                                }}
-                                required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                                data-testid="scope3-activity-type-filter"
-                              >
-                                <option value="">Select activity type...</option>
-                                {(() => {
-                                  // Ensure saved activity type is included in options
-                                  const allTypes = new Set(availableScope3ActivityTypes);
-                                  if (scope3ActivityType && !allTypes.has(scope3ActivityType)) {
-                                    allTypes.add(scope3ActivityType);
-                                  }
-                                  return Array.from(allTypes).sort();
-                                })().map(type => {
-                                  // Display friendly labels for activity types (#9)
-                                  const activityTypeLabels = {
-                                    'car_travel': 'Car Travel',
-                                    'bus_travel': 'Bus Travel',
-                                    'rail_travel': 'Rail Travel',
-                                    'air_travel': 'Air Travel',
-                                    'taxi_travel': 'Taxi Travel',
-                                    'bike_travel': 'Bike Travel',
-                                    'wfh': 'Work From Home',
-                                    'hotel_stay': 'Hotel Stay',
-                                    'water_travel': 'Water Travel',
-                                    'others': 'Others',
-                                  };
-                                  return (
-                                    <option key={type} value={type}>
-                                      {activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </div>
-                          )}
-                          
+                        <div className={showsAssetName ? 'grid grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
-                          {requiresSubcategory && availableSubcategories.length > 0 && (
+                          {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
                             <div className="space-y-1.5">
-                              <Label htmlFor="scope3_subcategory_filter">Step 3: Subcategory *</Label>
+                              <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select
                                 id="scope3_subcategory_filter"
                                 value={scope3Subcategory}
@@ -530,7 +758,7 @@ export default function EmissionEditForm(props) {
                                   setTypeOfProduct(''); // Reset C11 type_of_product
                                 }}
                                 required
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                className={editSelectClass}
                                 data-testid="scope3-subcategory-filter"
                               >
                                 <option value="">Select subcategory...</option>
@@ -545,16 +773,10 @@ export default function EmissionEditForm(props) {
 
                           {/* C11 Type of Product (only for activity_basis) */}
                           {(() => {
-                            const catLower = (formData.category || '').toLowerCase();
-                            const isC11 = catLower.includes('c11');
-                            const showTypeOfProduct = isC11
-                              && scope3Method === 'activity_basis'
-                              && requiresSubcategory
-                              && !!scope3Subcategory;
-                            if (!showTypeOfProduct) return null;
+                            if (!ghgUiState.showTypeOfProduct) return null;
                             return (
                               <div className="space-y-1.5">
-                                <Label htmlFor="scope3_type_of_product_filter">Step 4: Type of Product *</Label>
+                                <Label htmlFor="scope3_type_of_product_filter">Type of Product *</Label>
                                 <select
                                   id="scope3_type_of_product_filter"
                                   value={typeOfProduct || ''}
@@ -564,45 +786,43 @@ export default function EmissionEditForm(props) {
                                     setActivitySearchTerm('');
                                   }}
                                   required
-                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                  className={editSelectClass}
                                   data-testid="scope3-type-of-product-filter"
                                 >
                                   <option value="">Select type of product...</option>
-                                  <option value="continuous_usage">Energy-consuming product over lifetime</option>
-                                  <option value="one_time_use">One-time combustion</option>
+                                  {STANDARD_TYPE_OF_PRODUCT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
                                 </select>
                               </div>
                             );
                           })()}
                           
                           {/* Activity Selection */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="scope3_activity_select">
-                                {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
-                              </Label>
-                              {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
-                              {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={useCustomActivity}
-                                    onChange={(e) => {
-                                      setUseCustomActivity(e.target.checked);
-                                      setActivitySearchTerm(''); // Clear activity search
-                                      if (e.target.checked) {
-                                        setScope3ActivityId('');
-                                      } else {
-                                        setScope3CustomActivity('');
-                                      }
-                                    }}
-                                    className="rounded border-stone-300"
-                                  />
-                                  <span className="text-text-secondary">Use Custom Activity</span>
-                                </label>
-                              )}
-                            </div>
-                          
+                          <div className={usesWasteDisposalTaxonomy ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={usesWasteDisposalTaxonomy ? `edit-${wasteCategoryKey}-activity-row` : undefined}>
+                          <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
+                            <Label htmlFor="scope3_activity_select">Activity *</Label>
+                            {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                            {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                              <label className="absolute right-0 top-0 flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={useCustomActivity}
+                                  onChange={(e) => {
+                                    setUseCustomActivity(e.target.checked);
+                                    setActivitySearchTerm(''); // Clear activity search
+                                    if (e.target.checked) {
+                                      setScope3ActivityId('');
+                                    } else {
+                                      setScope3CustomActivity('');
+                                    }
+                                  }}
+                                  className="rounded border-stone-300"
+                                />
+                                <span className="text-text-secondary">Use Custom Activity</span>
+                              </label>
+                            )}
+
                             {/* For supplier_basis with custom activity toggle ON: Show text field */}
                             {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                               <div className="space-y-1.5">
@@ -619,64 +839,41 @@ export default function EmissionEditForm(props) {
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {/* Activity search input */}
-                                <div className="relative">
-                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                                  <Input
-                                    type="text"
-                                    value={activitySearchTerm}
-                                    onChange={(e) => setActivitySearchTerm(e.target.value)}
-                                    placeholder="Search activities..."
-                                    className="pl-9 bg-stone-50 h-10"
-                                    data-testid="edit-activity-search-input"
-                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  />
-                                  {activitySearchTerm && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setActivitySearchTerm('')}
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                                
-                                {/* Activity selection dropdown */}
-                                <select
-                                  id="scope3_activity_select"
-                                  value={scope3ActivityId}
-                                  onChange={(e) => { 
-                                    setScope3ActivityId(e.target.value); 
-                                    setActivitySearchTerm(''); // Clear search after selection
-                                    markFormDirty(); 
+                              <div className="mt-1.5 min-w-0">
+                                <SearchableSelect
+                                  value={usesWasteDisposalTaxonomy ? wasteBaseActivity : scope3ActivityId}
+                                  options={(usesWasteDisposalTaxonomy ? wasteActivityOptions : filteredScope3Activities).map((activity) => ({ value: usesWasteDisposalTaxonomy ? activity.activity_name : activity.id, label: activity.activity_name || activity.activity }))}
+                                  onValueChange={(value) => {
+                                    if (usesWasteDisposalTaxonomy) {
+                                      setWasteBaseActivity(value);
+                                      const matches = wasteCatalogActivities.filter((activity) => activity.activity_name === value);
+                                      const untyped = matches.find((activity) => activity.activity_type === 'other');
+                                      setScope3ActivityType(untyped?.activity_type || '');
+                                      setScope3ActivityId(untyped?.id || '');
+                                    } else {
+                                      setScope3ActivityId(value);
+                                    }
+                                    setActivitySearchTerm('');
+                                    markFormDirty();
                                   }}
-                                  required
-                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                  data-testid="scope3-activity-select"
-                                >
-                                  <option value="">
-                                    {!scope3Method ? 'Select method first' : 
-                                     (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                     (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                     `Select activity (${filteredScope3Activities.filter(a => 
-                                       !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())
-                                     ).length} available)...`}
-                                  </option>
-                                  {filteredScope3Activities
-                                    .filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase()))
-                                    .map(ef => (
-                                      <option key={ef.id} value={ef.id}>
-                                        {ef.activity}
-                                      </option>
-                                    ))}
-                                </select>
-                                {/* No match indicator */}
-                                {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
-                                  <p className="text-xs text-amber-600">No activities match "{activitySearchTerm}"</p>
-                                )}
+                                  placeholder={
+                                    !scope3Method
+                                      ? 'Select method first'
+                                      : !usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType
+                                        ? 'Select activity type first'
+                                        : requiresSubcategory && !scope3Subcategory
+                                          ? 'Select subcategory first'
+                                          : 'Search or select activity'
+                                  }
+                                  searchPlaceholder="Search activities..."
+                                  disabled={!scope3Method || (!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  testId="scope3-activity-select"
+                                  menuAlign="end"
+                                  menuClassName="max-w-[calc(100vw-2rem)]"
+                                  autoSizeMenuToOptions
+                                  wrapOptionLabels
+                                  searchMatchMode="word-prefix"
+                                />
                               </div>
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
@@ -684,217 +881,62 @@ export default function EmissionEditForm(props) {
                               <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
                             )}
                           </div>
+                          {usesWasteDisposalTaxonomy && wasteBaseActivity && wasteActivityTypes.length > 0 && (
+                            <div className="space-y-1.5" data-testid={`edit-${wasteCategoryKey}-activity-type-section`}>
+                              <Label htmlFor={`edit-${wasteCategoryKey}-activity-type-select`}>Activity Type *</Label>
+                              <select
+                                id={`edit-${wasteCategoryKey}-activity-type-select`}
+                                value={scope3ActivityType}
+                                onChange={(e) => {
+                                  const nextType = e.target.value;
+                                  const matching = wasteCatalogActivities.find((activity) => (
+                                    activity.activity_name === wasteBaseActivity
+                                    && activity.activity_type === nextType
+                                  ));
+                                  setScope3ActivityType(nextType);
+                                  setScope3ActivityId(matching?.id || '');
+                                  markFormDirty();
+                                }}
+                                required
+                                className={editSelectClass}
+                                data-testid={`edit-${wasteCategoryKey}-activity-type-select`}
+                              >
+                                <option value="">Select activity type...</option>
+                                {wasteActivityTypes.map((type) => <option key={type} value={type}>{getStandardActivityTypeLabel(type)}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          </div>
+                          {showsAssetName && (
+                            <div className="min-w-0 space-y-1.5" data-testid="edit-asset-name-section">
+                              <Label htmlFor="asset_name">Asset Name *</Label>
+                              <Input
+                                id="asset_name"
+                                value={formData.asset_name}
+                                onChange={(event) => setFormData({ ...formData, asset_name: event.target.value })}
+                                placeholder="Enter asset name or identifier..."
+                                className="h-10 bg-stone-50"
+                                data-testid="edit-asset-name-input"
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
-                      {formData.scope === 'scope3' && selectedCategory && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
-                              <Input
-                                id="supplier_name"
-                                value={formData.supplier_name}
-                                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-name-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
-                              <Input
-                                id="supplier_code"
-                                value={formData.supplier_code}
-                                onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
-                                className="bg-white h-9"
-                                data-testid="edit-supplier-code-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Employee Commuting specific fields (optional) */}
-                      {formData.scope === 'scope3' && formData.category === 'Employee Commuting' && (
-                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                          <h4 className="font-medium mb-2 text-purple-800 text-sm">Employee Information (Optional)</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_name">Employee Name</Label>
-                              <Input
-                                id="employee_name"
-                                value={formData.employee_name}
-                                onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
-                                placeholder="Enter employee name..."
-                                className="bg-white"
-                                data-testid="edit-employee-name-input"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="employee_id">Employee ID</Label>
-                              <Input
-                                id="employee_id"
-                                value={formData.employee_id}
-                                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
-                                placeholder="Enter employee ID..."
-                                className="bg-white"
-                                data-testid="edit-employee-id-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
-                      {/* Asset Name section — driven by module capability 'asset-name' (C8/C13/C14/C15) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('asset-name') && (
-                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="asset_name" className="text-xs">Asset Name *</Label>
-                            <Input
-                              id="asset_name"
-                              value={formData.asset_name}
-                              onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })}
-                              placeholder="Enter asset name or identifier..."
-                              className="bg-white h-9"
-                              data-testid="edit-asset-name-input"
-                            />
-                            <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
-                      {/* Journey Details — driven by module capability 'journey-locations' (C4/C6/C9) */}
-                      {formData.scope === 'scope3' && activeCategoryModule?.hasCapability?.('journey-locations') && !isEditC7EmployeeCommuting && (
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="from_location" className="text-xs">From Location</Label>
-                              <Input
-                                id="from_location"
-                                value={formData.from_location}
-                                onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
-                                placeholder="E.g., City A, Warehouse"
-                                className="bg-white h-9"
-                                data-testid="edit-from-location-input"
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="to_location" className="text-xs">To Location</Label>
-                              <Input
-                                id="to_location"
-                                value={formData.to_location}
-                                onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
-                                placeholder="E.g., City B, Distribution Center"
-                                className="bg-white h-9"
-                                data-testid="edit-to-location-input"
-                              />
-                            </div>
-                          </div>
-                        </div>
+                      {ghgUiState.showFlightDetails && (
+                        <FlightDetailsSection
+                          monthKey={editFrequencyType === 'yearly' ? 'yearly' : (formData.reporting_period_start || 'edit')}
+                          data={formData}
+                          updateMonthData={(_, field, value) => {
+                            setFormData((previous) => ({ ...previous, [field]: value }));
+                            if (field === 'km_travelled') updateDynamicFieldValue('km_travelled', value);
+                            markFormDirty?.();
+                          }}
+                        />
                       )}
                   
                     </>
                   )}
-                </div>
-
-                {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) *</Label>
-                    <TooltipProvider delayDuration={200}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help">
-                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                          <p>Process in which the fuel is being used</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <div className="space-y-2">
-                    {formData.process_names.map((process, index) => (
-                      <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
-                        <div className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-1.5">
-                            <Input
-                              value={typeof process === 'string' ? process : (process.name || '')}
-                              onChange={(e) => {
-                                const newProcessNames = [...formData.process_names];
-                                if (typeof newProcessNames[index] === 'string') {
-                                  newProcessNames[index] = { name: e.target.value, description: '' };
-                                } else {
-                                  newProcessNames[index] = { ...newProcessNames[index], name: e.target.value };
-                                }
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              placeholder={`Process name ${index + 1}`}
-                              className="bg-white h-9"
-                            />
-                            <div className="space-y-1">
-                              <label className="text-xs text-stone-500">
-                                Description {(typeof process === 'string' ? process : process.name)?.trim() && <span className="text-red-500">*</span>}
-                              </label>
-                              <textarea
-                                value={typeof process === 'string' ? '' : (process.description || '')}
-                                onChange={(e) => {
-                                  const newProcessNames = [...formData.process_names];
-                                  if (typeof newProcessNames[index] === 'string') {
-                                    newProcessNames[index] = { name: newProcessNames[index], description: e.target.value };
-                                  } else {
-                                    newProcessNames[index] = { ...newProcessNames[index], description: e.target.value };
-                                  }
-                                  setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                                }}
-                                placeholder="Process Description (required if name is provided)"
-                                className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
-                                  (typeof process === 'string' ? process : process.name)?.trim() && 
-                                  !(typeof process === 'string' ? '' : process.description)?.trim()
-                                    ? 'border-red-300 focus:border-red-500'
-                                    : 'border-stone-200'
-                                }`}
-                                rows={2}
-                              />
-                            </div>
-                          </div>
-                          {formData.process_names.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const newProcessNames = formData.process_names.filter((_, i) => i !== index);
-                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                              }}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, { name: '', description: '' }] }))}
-                      className="mt-2"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Process
-                    </Button>
-                  </div>
                 </div>
 
                 {/* Quantity Input and Person Responsible - Same Row */}
@@ -929,22 +971,11 @@ export default function EmissionEditForm(props) {
                       disabled={false}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
+                      onEvidenceUpload={handleEditC7EvidenceUpload}
+                      onEvidenceRemove={handleC7EvidenceRemove}
+                      onEvidenceDownload={handleC7EvidenceDownload}
+                      evidenceBackendUrl={BACKEND_URL}
                     />
-                    {/* Record Source (Optional) — tracked in version
-                        history. Available for C7 edit flow too. */}
-                    <div className="space-y-2">
-                      <Label htmlFor="record_source_c7">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source_c7"
-                        value={formData.record_source || ''}
-                        onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Survey #2024-Q1, HR commute records"
-                        data-testid="edit-record-source-input-c7"
-                      />
-                    </div>
                   </div>
                 )}
                 
@@ -960,7 +991,7 @@ export default function EmissionEditForm(props) {
                       <span>Loading form configuration...</span>
                     </div>
                   </div>
-                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
+                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 ? (
                   /* Pluggable category renderer (PoC: C1 routes through registry). */
                   ModuleDynamicFieldsRenderer ? (
                     <ModuleDynamicFieldsRenderer
@@ -979,25 +1010,60 @@ export default function EmissionEditForm(props) {
                     />
                   ) : (
                   <div className="space-y-4">
-                    <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
-                      Input Fields (from calculation engine configuration)
-                    </div>
-                    
                     {/* Supplier Method Disclaimer - Only for Scope 3 with supplier_basis */}
                     {formData.scope === 'scope3' && scope3Method === 'supplier_basis' && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                         <p className="text-sm text-amber-800">
-                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the &quot;Quantity Used&quot; field.
                         </p>
                       </div>
                     )}
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {dynamicInputFields.map(field => {
-                        const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+                        const isQtyField = isQuantityField(field);
+                        const reportingPeriodDayLimit = isAnnualDayCountField(field)
+                          ? getDayLimitFromReportingPeriod(
+                            formData.reporting_period || formData.reporting_period_start,
+                            editFrequencyType,
+                          )
+                          : undefined;
+                        const reportingPeriodLabel = editFrequencyType === 'yearly' ? 'reporting year' : 'reporting month';
+                        const isFugitiveGwpField = isFugitiveCustomFuel && field.variable === 'co2_gwp_fugitives';
+                        const showCustomFuelQuantityUnit = editUseCustomFuel && isQtyField;
+                        const hideStandardQuantityUnit = false;
                         
                         // Get the currently saved unit for this field
-                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`] || '';
+                        const savedUnit = (showCustomFuelQuantityUnit && dynamicFieldValues.custom_qty_unit)
+                          || dynamicFieldValues[`${field.variable}_unit`]
+                          || (field.variable === 'density' ? formData.density_unit : '')
+                          || '';
+                        const savedDensityValue = field.variable === 'density'
+                          ? dynamicFieldValues.density ?? formData.density ?? editingEmission?.dynamic_field_values?.density?.value
+                          : undefined;
+                        const densityState = field.variable === 'density'
+                          ? resolveDensityFieldState({
+                            calculationMethodology: dynamicFieldValues.calculation_methodology
+                              || formData.calculation_methodology
+                              || 'using_heat_basis_ncv',
+                            fields: dynamicInputFields,
+                            data: { ...formData, ...dynamicFieldValues },
+                            selectedFuel,
+                            centralizedUnits,
+                          })
+                          : null;
+                        const overrideKey = `override_${field.variable}`;
+                        const isOverrideEnabled = isFugitiveGwpField
+                          || dynamicFieldValues[overrideKey] === true
+                          || (
+                            !readOnly
+                            &&
+                            field.variable === 'density'
+                            && dynamicFieldValues[overrideKey] === undefined
+                            && savedDensityValue !== undefined
+                            && savedDensityValue !== null
+                            && savedDensityValue !== ''
+                          );
                         
                         // Determine field units based on unit_source
                         let fieldUnits = [];
@@ -1046,7 +1112,7 @@ export default function EmissionEditForm(props) {
                         if (field.compoundWithVariable) {
                           const linkedVar = field.compoundWithVariable;
                           let linkedUnitRaw = dynamicFieldValues[`${linkedVar}_unit`];
-                          if (!linkedUnitRaw && editingEmission?.dynamic_field_values?.[linkedVar]) {
+                          if (!linkedUnitRaw && useHistoricalEditValues && editingEmission?.dynamic_field_values?.[linkedVar]) {
                             linkedUnitRaw = editingEmission.dynamic_field_values[linkedVar]?.unit;
                           }
                           const linkedUnit = (typeof linkedUnitRaw === 'object' ? linkedUnitRaw?.value : linkedUnitRaw) || '';
@@ -1062,27 +1128,43 @@ export default function EmissionEditForm(props) {
                           fieldUnits = [savedUnit, ...fieldUnits];
                         }
 
+                        if (densityState?.visible) {
+                          fieldUnits = [
+                            savedUnit,
+                            densityState.defaultDensity?.unit,
+                            densityState.densityUnit,
+                          ].filter((unit, index, units) => unit && units.indexOf(unit) === index).slice(0, 1);
+                        }
+
                         // Unitless count fields - admin-driven via unit_source === 'none'.
                         const isUnitlessCountField = field.unitSource === 'none';
 
-                        const showUnitSelector = !isUnitlessCountField && field.unitSource !== 'text' && fieldUnits.length > 0;
+                        const unitSelectorOptions = showCustomFuelQuantityUnit
+                          ? (isFugitiveCustomFuel && customFugitiveQuantityUnits.length > 0
+                            ? customFugitiveQuantityUnits
+                            : customFuelQuantityUnits)
+                          : fieldUnits;
+                        const showUnitSelector = !isUnitlessCountField
+                          && field.unitSource !== 'text'
+                          && unitSelectorOptions.length > 0;
                         // Freeform text unit input — admin set unit_source = 'text'
-                        const showUnitTextInput = !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
+                        const showUnitTextInput = !hideStandardQuantityUnit && !isUnitlessCountField && field.unitSource === 'text' && !field.variable?.endsWith('_unit');
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
                         // Show checkbox for override fields OR optional fields (not required and not override)
-                        const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+                        const showOverrideCheckbox = !readOnly && !isFugitiveGwpField
+                          && (field.isOverride || (!field.required && !field.isOverride));
 
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label className="font-medium flex items-center gap-1.5">
+                            <div className="flex min-h-10 items-start justify-between gap-2">
+                              <Label className="flex min-h-10 items-start gap-1.5 pt-0.5 font-medium leading-5">
                                 {field.label}
-                                {field.required && <span className="text-red-500 ml-1">*</span>}
-                                {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
+                                {(field.required || isFugitiveGwpField) && <span className="text-red-500 ml-1">*</span>}
+                                {!hideStandardQuantityUnit && !showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
                                 )}
                                 {FIELD_HELP[field.variable] && (
@@ -1111,10 +1193,31 @@ export default function EmissionEditForm(props) {
                                   <input
                                     type="checkbox"
                                     id={`edit-override-${field.variable}`}
-                                    checked={dynamicFieldValues[`override_${field.variable}`] || false}
+                                    checked={isOverrideEnabled}
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       updateDynamicFieldValue(`override_${field.variable}`, isChecked);
+
+                                      // Switching Density back to its default removes the
+                                      // custom value; enabling it starts a new deliberate override.
+                                      if (field.variable === 'density') {
+                                        if (isChecked) {
+                                          updateDynamicFieldValue(field.variable, '');
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        } else {
+                                          updateDynamicFieldValue(
+                                            field.variable,
+                                            selectedFuel?.density !== undefined && selectedFuel?.density !== null
+                                              ? String(selectedFuel.density)
+                                              : '',
+                                          );
+                                          updateDynamicFieldValue(
+                                            `${field.variable}_unit`,
+                                            selectedFuel?.density_unit || field.expectedUnit || '',
+                                          );
+                                          updateDynamicFieldValue(`${field.variable}_justification`, '');
+                                        }
+                                      }
                                       
                                       // When enabling override, initialize the unit to the first allowed unit
                                       // This ensures the displayed unit matches what will be sent to backend
@@ -1132,6 +1235,9 @@ export default function EmissionEditForm(props) {
                                           overrideUnits = centralizedUnits.map(u => u.symbol);
                                         } else {
                                           overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                        }
+                                        if (field.variable === 'density' && densityState?.visible) {
+                                          overrideUnits = fieldUnits;
                                         }
                                         if (overrideUnits.length > 0) {
                                           updateDynamicFieldValue(`${field.variable}_unit`, overrideUnits[0]);
@@ -1153,10 +1259,10 @@ export default function EmissionEditForm(props) {
                             {/* Render based on field_type */}
                             {field.fieldType === 'select' && field.options?.length > 0 ? (
                               <select
-                                value={dynamicFieldValues[field.variable] || ''}
+                                value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
-                                disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                className={`${editSelectClass} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
@@ -1167,16 +1273,28 @@ export default function EmissionEditForm(props) {
                                 ))}
                               </select>
                             ) : (
-                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2" : ""}>
+                              <div className={(showUnitSelector || showUnitTextInput) ? "flex gap-2 min-w-0" : ""}>
                                 <Input
                                   type={field.fieldType === 'text' ? 'text' : 'number'}
                                   step={field.fieldType === 'number' ? 'any' : undefined}
                                   min={field.fieldType === 'number' ? '0' : undefined}
-                                  placeholder={field.placeholder}
-                                  value={dynamicFieldValues[field.variable] || ''}
+                                  max={reportingPeriodDayLimit
+                                    ?? (isOxidationFactorField(field) ? 1 : undefined)
+                                    ?? (isCarbonContentField(field) ? 100 : undefined)}
+                                  placeholder={reportingPeriodDayLimit ? `≤${reportingPeriodDayLimit}` : field.placeholder}
+                                  value={field.variable === 'density' ? (savedDensityValue ?? '') : (dynamicFieldValues[field.variable] || '')}
                                   onChange={(e) => {
                                     const val = e.target.value;
-                                    if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                                    const parsedValue = parseFloat(val);
+                                    if (reportingPeriodDayLimit !== undefined && Number.isFinite(parsedValue) && parsedValue > reportingPeriodDayLimit) {
+                                      toast.error(`${field.label} cannot exceed ${reportingPeriodDayLimit} days for this ${reportingPeriodLabel}`);
+                                      return;
+                                    }
+                                    const isValidOxidationFactor = !isOxidationFactorField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1);
+                                    const isValidCarbonContent = !isCarbonContentField(field)
+                                      || (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 100);
+                                    if (field.fieldType === 'text' || val === '' || (parsedValue >= 0 && isValidOxidationFactor && isValidCarbonContent)) {
                                       updateDynamicFieldValue(field.variable, val);
                                       // Also sync to formData for legacy compatibility
                                       if (isQtyField) {
@@ -1185,8 +1303,8 @@ export default function EmissionEditForm(props) {
                                     }
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                                  disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                  className={`bg-stone-50 ${(showUnitSelector || showUnitTextInput) ? 'flex-1 min-w-0' : ''} ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
 
@@ -1194,10 +1312,10 @@ export default function EmissionEditForm(props) {
                                 {showUnitTextInput && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit"
                                     data-testid={`edit-unit-text-${field.fieldKey}`}
                                   />
@@ -1207,10 +1325,10 @@ export default function EmissionEditForm(props) {
                                 {isSupplierBasisUnitField && (
                                   <Input
                                     type="text"
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || savedUnit}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -1218,20 +1336,25 @@ export default function EmissionEditForm(props) {
                                 
                                 {/* Non-supplier basis - use dropdown for units */}
                                 {!isSupplierBasisUnitField && showUnitSelector && (
-                                  <select
-                                    value={dynamicFieldValues[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                  readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-24 shrink-0 items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}>{showCustomFuelQuantityUnit ? (dynamicFieldValues.custom_qty_unit || savedUnit || field.expectedUnit || '—') : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || (isQtyField ? formData.quantity_unit : '') || field.expectedUnit || '—')}</div> : <select
+                                    value={showCustomFuelQuantityUnit
+                                      ? (dynamicFieldValues.custom_qty_unit || savedUnit || unitSelectorOptions[0] || '')
+                                      : (dynamicFieldValues[`${field.variable}_unit`] || savedUnit || unitSelectorOptions[0] || '')}
                                     onChange={(e) => {
+                                      if (showCustomFuelQuantityUnit) {
+                                        updateDynamicFieldValue('custom_qty_unit', e.target.value);
+                                      }
                                       updateDynamicFieldValue(`${field.variable}_unit`, e.target.value);
                                       if (isQtyField) {
                                         setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
                                       }
                                     }}
-                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
-                                    data-testid={`edit-unit-${field.fieldKey}`}
+                                    disabled={showOverrideCheckbox && !isOverrideEnabled}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-24 shrink-0 h-10 ${showOverrideCheckbox && !isOverrideEnabled ? 'opacity-50' : ''}`}
+                                    data-testid={showCustomFuelQuantityUnit ? 'edit-custom-fuel-quantity-unit' : `edit-unit-${field.fieldKey}`}
                                   >
                                     {/* savedUnit already included in fieldUnits at line ~4084; no duplicate injection needed */}
-                                    {fieldUnits.map(u => (
+                                    {unitSelectorOptions.map(u => (
                                       <option key={u} value={u}>{u}</option>
                                     ))}
                                   </select>
@@ -1242,56 +1365,35 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
+
+                    {showVirtualProcessDensity && (
+                      <div className="grid max-w-md grid-cols-[1fr_auto] items-end gap-2" data-testid="edit-process-density-field">
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-process-density-input" className="text-sm font-medium">
+                            Density <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id="edit-process-density-input"
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            value={savedVirtualDensity}
+                            onChange={(event) => {
+                              updateDynamicFieldValue('density', event.target.value);
+                              updateDynamicFieldValue('density_unit', virtualDensityRequirement.densityUnit);
+                              updateDynamicFieldValue('override_density', true);
+                            }}
+                            className="bg-stone-50"
+                            data-testid="edit-process-density-input"
+                          />
+                        </div>
+                        <span className="mb-2 text-sm text-stone-600" data-testid="edit-process-density-unit">
+                          {virtualDensityRequirement.densityUnit}
+                        </span>
+                      </div>
+                    )}
                     
-                    {/* Person Responsible fields below dynamic inputs */}
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person">Person Responsible</Label>
-                        <Input
-                          id="responsible_person"
-                          value={formData.responsible_person}
-                          onChange={(e) => { setFormData({ ...formData, responsible_person: e.target.value }); markFormDirty(); }}
-                          className="bg-stone-50 h-10"
-                          placeholder="Name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_designation">Designation</Label>
-                        <Input
-                          id="responsible_person_designation"
-                          value={formData.responsible_person_designation}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="e.g., Environmental Manager"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="responsible_person_contact">Contact</Label>
-                        <Input
-                          id="responsible_person_contact"
-                          value={formData.responsible_person_contact}
-                          onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                          className="bg-stone-50 h-10"
-                          placeholder="Email / Phone"
-                        />
-                      </div>
-                    </div>
-                    {/* Record Source (Optional) — tracked in version
-                        history. Visible/editable for all scopes/categories.
-                        Independent of auto-derived `source_of_information`. */}
-                    <div className="space-y-2 pt-2">
-                      <Label htmlFor="record_source">
-                        Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                      </Label>
-                      <Input
-                        id="record_source"
-                        value={formData.record_source || ''}
-                        onChange={(e) => { setFormData({ ...formData, record_source: e.target.value }); markFormDirty(); }}
-                        className="bg-stone-50 h-10"
-                        placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                        data-testid="edit-record-source-input"
-                      />
-                    </div>
                   </div>
                   )
                 ) : !isEditC7EmployeeCommuting ? (
@@ -1299,7 +1401,7 @@ export default function EmissionEditForm(props) {
                   <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
-                      Quantity * {false && <span className="text-xs text-amber-600">(unit locked)</span>}
+                      Quantity *
                     </Label>
                     <div className="flex gap-2">
                       <Input
@@ -1320,94 +1422,43 @@ export default function EmissionEditForm(props) {
                         className="bg-stone-50 flex-1"
                         data-testid="quantity-input"
                       />
-                      {false ? (
-                        <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 w-40 text-stone-600">
-                          <span>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</span>
-                        </div>
-                      ) : (
+                      {!editUseCustomFuel ? (
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40 h-10"
+                          className="h-10 w-24 shrink-0 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm font-normal leading-5 text-stone-800"
                           data-testid="quantity-unit-select"
                         >
                           {availableQuantityUnits.map(unit => (
                             <option key={unit.value} value={unit.value}>{unit.label}</option>
                           ))}
                         </select>
-                      )}
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="responsible_person">Person Responsible</Label>
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help">
-                              <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                            <p>Person who is maintaining this data</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <Input
-                      id="responsible_person"
-                      value={formData.responsible_person}
-                      onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_designation">Designation</Label>
-                    <Input
-                      id="responsible_person_designation"
-                      value={formData.responsible_person_designation}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="e.g., Environmental Manager"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person_contact">Contact Details</Label>
-                    <Input
-                      id="responsible_person_contact"
-                      value={formData.responsible_person_contact}
-                      onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
-                      className="bg-stone-50 h-10"
-                      placeholder="Email or phone number"
-                    />
                   </div>
                 </div>
                 ) : null}
 
-                {/* Record Source (Optional) — legacy edit branch only.
-                    Dynamic branch (above) already renders its own field, so
-                    we gate this on the absence of dynamic input fields to
-                    avoid showing the input twice. */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && !isEditC7EmployeeCommuting && (
-                <div className="space-y-2">
-                  <Label htmlFor="record_source_legacy">
-                    Source of Information <span className="text-xs text-stone-500">(Optional)</span>
-                  </Label>
-                  <Input
-                    id="record_source_legacy"
-                    value={formData.record_source || ''}
-                    onChange={(e) => setFormData({ ...formData, record_source: e.target.value })}
-                    className="bg-stone-50 h-10"
-                    placeholder="e.g., Invoice #4521, meter reading from supplier portal"
-                    data-testid="edit-record-source-input-legacy"
+                {/* Custom fuel per-month fields in edit mode */}
+                {editUseCustomFuel && (
+                  <CustomFuelMonthFields
+                    monthKey="edit"
+                    data={dynamicFieldValues}
+                    updateMonthData={(_, field, value) => {
+                      setDynamicFieldValues(prev => ({ ...prev, [field]: value }));
+                      markFormDirty?.();
+                    }}
+                    calculationMethodology={editCalcMethodology || 'using_heat_basis_ncv'}
+                    fieldOptions={fieldOptions}
+                    centralizedUnits={centralizedUnits}
+                    showMethodIndicator={false}
+                    isFugitiveCustomFuel={isFugitiveCustomFuel}
                   />
-                </div>
                 )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
-                {!editFormConfigLoading && dynamicInputFields.length === 0 && true && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
+                {!editFormConfigLoading && dynamicInputFields.length === 0 && formData.fuel_id && formData.scope !== 'scope2' && ghgUiState.showManualFactorOverrides && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
                     <div>
@@ -1586,192 +1637,46 @@ export default function EmissionEditForm(props) {
                   </div>
                 )}
 
-                {/* Calculated Emissions Display - Shows only final values */}
-                {effectiveCalculatedEmissions && true && (
-                  <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-                    {/* Header */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <Calculator className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
-                      {isCalculating && (
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Updating...
-                        </span>
-                      )}
-                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 4 decimal places)</span>
-                    </div>
-                    
-                    {/* For Scope 3 and Biogenic Scope 3, show full-width CO2e Summary Banner (#18) */}
-                    {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                      <div className="w-full p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20">
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                          {/* Main Emission Value */}
-                          <div className="flex items-center gap-6">
-                            <div>
-                              <p className="text-xs font-medium text-primary/70 uppercase tracking-wide mb-1">Total CO₂e Emissions</p>
-                              <p className="text-3xl font-bold text-primary">
-                                {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(4)}
-                                <span className="text-lg font-normal ml-2 text-primary/80">
-                                  {effectiveCalculatedEmissions.co2eOutputUnit || 'tCO₂e'}
-                                </span>
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-4 gap-3">
-                        {/* CO2 Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-red-100">
-                          <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
-                          <p className="text-lg font-bold text-red-700">
-                            {(effectiveCalculatedEmissions.co2Emissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
-                        </div>
-                        
-                        {/* CH4 Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
-                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                          <p className="text-lg font-bold text-orange-700">
-                            {(effectiveCalculatedEmissions.ch4Emissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
-                        </div>
-                        
-                        {/* N2O Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-amber-100">
-                          <p className="text-xs text-amber-600 font-medium mb-1">N₂O Emissions</p>
-                          <p className="text-lg font-bold text-amber-700">
-                            {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-amber-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
-                        </div>
-                        
-                        {/* CO2e Total */}
-                        <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
-                          <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
-                          <p className="text-lg font-bold text-primary">
-                            {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Detailed Formula Breakdown */}
-                    {effectiveCalculatedEmissions && (
-                      <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
-                        
-                        {/* Backend Calc Engine Audit Log (new format with labels) */}
-                        {effectiveCalculatedEmissions.auditLog && effectiveCalculatedEmissions.auditLog.length > 0 ? (
-                          <div className="bg-white/50 p-3 rounded text-xs space-y-2">
-                            {effectiveCalculatedEmissions.auditLog.map((entry, i) => {
-                              if (entry.step === 'input') {
-                                // Only show conversion for quantity fields (qty, qty_energy), not for emission factors
-                                const isQuantityInput = entry.variable === 'qty' || entry.variable === 'qty_energy';
-                                let hasTransformation = false;
-                                let finalConvert = null;
-                                
-                                if (isQuantityInput) {
-                                  // Find the final converted value - look for the last convert step that outputs to kg
-                                  const convertEntries = effectiveCalculatedEmissions.auditLog.filter(e => e.step === 'convert');
-                                  // Find the convert step that has the final mass value (in kg)
-                                  finalConvert = convertEntries.find(e => 
-                                    e.output?.unit === 'kg' && e.output?.value !== entry.value
-                                  );
-                                  hasTransformation = finalConvert && 
-                                    (finalConvert.output.value !== entry.value || finalConvert.output.unit !== entry.unit);
-                                }
-                                
-                                return (
-                                  <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
-                                    <span className="font-medium text-stone-700">Input:</span>{' '}
-                                    <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
-                                    {' = '}{entry.value}{(() => {
-                                      const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 
-                                        'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days',
-                                        'units_produced', 'products_expected_usage', 'no_of_employees'].includes(entry.variable);
-                                      const displayUnit = isUnitlessCountField ? '' : (entry.unit || '');
-                                      return displayUnit ? ` ${displayUnit}` : '';
-                                    })()}
-                                    {hasTransformation && finalConvert && (
-                                      <span className="text-emerald-600 ml-2">
-                                        → {finalConvert.output.value.toFixed(2)} {finalConvert.output.unit}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              if (entry.step === 'resolve_property') {
-                                // Hide unit "1" for unitless properties (like GWP)
-                                const displayUnit = entry.unit === '1' ? '' : entry.unit;
-                                const sourceName = entry.source_name || entry.source || '';
-                                return (
-                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200 flex justify-between items-center">
-                                    <span>
-                                      <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
-                                      {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
-                                    </span>
-                                    {sourceName && (
-                                      <span className="text-amber-600 text-xs ml-4 whitespace-nowrap">(Source - {sourceName})</span>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              // Skip transformation.apply, convert, and validate_formula steps - they're internal details
-                              if (entry.step === 'transformation.apply' || entry.step === 'convert' || entry.step === 'validate_formula') {
-                                return null;
-                              }
-                              if (entry.step === 'formula_step') {
-                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
-                                return (
-                                  <div key={i} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
-                                    <span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
-                                      {entry.name?.toUpperCase()}:
-                                    </span>{' '}
-                                    <span className={isOutput ? 'text-emerald-800' : 'text-blue-800'}>
-                                      {entry.expression_readable || entry.expression}
-                                    </span>
-                                    <div className={`font-semibold mt-1 ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
-                                      = {typeof entry.output === 'number' ? entry.output.toFixed(6) : entry.output}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              if (entry.step === 'outputs') {
-                                return (
-                                  <div key={i} className="p-2 bg-emerald-100 rounded border border-emerald-300">
-                                    <span className="font-bold text-emerald-800">Final Outputs:</span>
-                                    <div className="grid grid-cols-2 gap-2 mt-1">
-                                      {Object.entries(entry.outputs || {}).map(([key, val]) => (
-                                        <div key={key} className="text-emerald-700">
-                                          <span className="font-medium">{key.toUpperCase()}:</span>{' '}
-                                          {val.value?.toFixed(6)} {val.unit}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
+                </section>
+
+                {liveCalculationValidationError && (
+                  <div role="alert" className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="edit-live-calculation-validation-error">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                    {liveCalculationValidationError}
                   </div>
                 )}
+                {effectiveCalculatedEmissions && !liveCalculationValidationError && (
+                  editUseCustomFuel ? (
+                    <CustomFuelLiveCalculation
+                      result={effectiveCalculatedEmissions}
+                      methodology={editCalcMethodology}
+                      isCalculating={isCalculating}
+                    />
+                  ) : (
+                    <ColourfulEmissionSummary
+                      calculation={effectiveCalculatedEmissions}
+                      isCalculating={isCalculating}
+                      isScope3Like={formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')}
+                    />
+                  )
+                )}
+
+                </fieldset>
+
+                <EditOptionalFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  markFormDirty={markFormDirty}
+                  capabilities={capabilities}
+                  selectedCategory={selectedCategory}
+                  isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
+                  readOnly={readOnly}
+                />
 
                 {/* Evidence Management Section */}
-                <div className="space-y-3">
+                {readOnly ? readOnlyEvidenceContent : (!isEditC7EmployeeCommuting || existingEvidences.length > 0) && <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
-                    <Label>Evidence Documents</Label>
+                    <Label>{isEditC7EmployeeCommuting ? 'Legacy Record Evidence' : 'Evidence Documents'}</Label>
                     {existingEvidences.length > 0 && (
                       <Button
                         type="button"
@@ -1787,7 +1692,7 @@ export default function EmissionEditForm(props) {
                   </div>
                   
                   {/* Existing Evidences List */}
-                  {existingEvidences.length > 0 && (
+                  {existingEvidences.length > 0 ? (
                     <div className="space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
                       <p className="text-xs text-stone-500 font-medium mb-2">
                         {existingEvidences.length} evidence file(s) attached
@@ -1795,7 +1700,8 @@ export default function EmissionEditForm(props) {
                       {existingEvidences.map((evidence, idx) => {
                         const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
                         const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                        const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                        const viewUrl = fileId ? '#' : evidence.url;
+                        const canPreview = isPreviewableFile(evidence);
                         
                         return (
                           <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
@@ -1804,26 +1710,28 @@ export default function EmissionEditForm(props) {
                               {evidence.filename || `Evidence ${idx + 1}`}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <a
+                              {canPreview && <a
                                 href={viewUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={fileId ? (event) => { event.preventDefault(); void openSecureFile(fileId).catch(console.error); } : undefined}
                                 className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
                                 title="View file"
+                                data-testid={`emission-evidence-view-${idx}`}
                               >
                                 <Eye className="w-3 h-3" />
                                 View
-                              </a>
+                              </a>}
                               {fileId && (
                                 <button
                                   type="button"
                                   onClick={async (e) => {
                                     e.preventDefault();
-                                    // Use fetch + blob for proper download
-                                    await downloadFileHelper(`${BACKEND_URL}/api/files/${fileId}/download`, evidence.filename || `Evidence-${idx + 1}`);
+                                    await downloadSecureFile(fileId);
                                   }}
                                   className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
                                   title="Download file"
+                                data-testid={`emission-evidence-download-${idx}`}
                                 >
                                   <Download className="w-3 h-3" />
                                   Download
@@ -1844,30 +1752,26 @@ export default function EmissionEditForm(props) {
                         );
                       })}
                     </div>
-                  )}
+                  ) : <div className="pt-2"><div className="flex items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-500" data-testid="emission-edit-no-evidence"><FileText className="h-4 w-4" />No Evidence</div></div>}
                   
                   {/* Upload New Evidence */}
                   <FileUpload
                     label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
-                    onUpload={handleFileUpload}
+                    onUpload={handleEditEvidenceUpload}
                     onRemove={handleRemoveEvidence}
                     multiple={true}
                   />
-                </div>
-
-                {/* Notes - Extracted Component */}
-                <NotesSection
-                  formData={formData}
-                  setFormData={(newData) => { setFormData(newData); markFormDirty(); }}
-                />
+                </div>}
 
                 {/* Submit Buttons - Extracted Component */}
-                <SubmitButtonSection
-                  editingEmission={editingEmission}
-                  isSaving={isSaving}
-                  isCalculating={isCalculating}
-                  handleDialogChange={handleDialogChange}
-                />
+                {!hideSubmitButton && (
+                  <SubmitButtonSection
+                    editingEmission={editingEmission}
+                    isSaving={isSaving}
+                    isCalculating={isCalculating}
+                    handleDialogChange={handleDialogChange}
+                  />
+                )}
               </form>
   );
 }

@@ -1,0 +1,30 @@
+import React, { useState } from 'react';
+import { FileUp, Mail, Plus, Trash2 } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const newRecipient = (email) => ({ id: crypto.randomUUID(), email, name: email.split('@', 1)[0] });
+const parseBulkEmails = (text) => text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => line.split(',').map((item) => item.trim()).find((item) => item.includes('@')) || line).filter((item) => !/^email(address)?$/i.test(item));
+
+export default function MISRecipientsEditor({ recipients, onChange }) {
+  const [email, setEmail] = useState(''); const [bulkText, setBulkText] = useState(''); const [error, setError] = useState(''); const [importResult, setImportResult] = useState('');
+  const addEmails = (candidates, source = 'manual') => {
+    const existing = new Set(recipients.map((recipient) => recipient.email.toLowerCase())); const invalid = []; const additions = [];
+    candidates.forEach((candidate) => { const normalized = candidate.trim().toLowerCase(); if (!emailPattern.test(normalized)) invalid.push(candidate); else if (!existing.has(normalized)) { existing.add(normalized); additions.push(newRecipient(normalized)); } });
+    if (additions.length) onChange([...recipients, ...additions]);
+    setError(invalid.length ? `Invalid email${invalid.length === 1 ? '' : 's'}: ${invalid.slice(0, 4).join(', ')}` : '');
+    setImportResult(additions.length ? `${additions.length} email${additions.length === 1 ? '' : 's'} added${source === 'csv' ? ' from CSV' : ''}.` : 'No new valid email addresses were found.');
+    return additions.length > 0;
+  };
+  const addRecipient = () => { if (addEmails([email])) setEmail(''); };
+  const importPasted = () => { if (addEmails(parseBulkEmails(bulkText), 'paste')) setBulkText(''); };
+  const importCsv = async (event) => { const file = event.target.files?.[0]; if (!file) return; const text = await file.text(); addEmails(parseBulkEmails(text), 'csv'); event.target.value = ''; };
+  return <section data-testid="mis-recipients-editor"><div className="flex flex-col justify-between gap-2 border-b border-emerald-950/10 pb-4 sm:flex-row sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Recipients</p><h2 className="mt-1 text-lg font-semibold text-stone-950">Add delivery email addresses</h2></div><span className="text-sm text-stone-500" data-testid="mis-recipients-count">{recipients.length} recipient{recipients.length === 1 ? '' : 's'}</span></div>
+    <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]" data-testid="mis-recipient-add-form"><Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@company.com" type="email" aria-label="Recipient email" data-testid="mis-recipient-email-input" /><Button type="button" onClick={addRecipient} className="bg-emerald-900 text-white hover:bg-emerald-800" data-testid="mis-recipient-add-button"><Plus className="h-4 w-4" />Add email</Button></div>
+    <div className="mt-5 border border-emerald-950/10 bg-emerald-50/40 p-4" data-testid="mis-recipient-bulk-import"><div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center"><div><p className="font-semibold text-stone-950">Add emails in bulk</p><p className="mt-1 text-sm text-stone-500">Paste one email per line, or upload a CSV with an Email column.</p></div><label className="inline-flex cursor-pointer items-center gap-2 border border-emerald-900 bg-white px-3 py-2 text-sm font-medium text-emerald-950 transition-colors hover:bg-emerald-50" data-testid="mis-recipient-csv-upload-label"><FileUp className="h-4 w-4" />Upload CSV<Input type="file" accept=".csv,text/csv" className="sr-only" onChange={importCsv} data-testid="mis-recipient-csv-upload-input" /></label></div><Textarea value={bulkText} onChange={(event) => setBulkText(event.target.value)} placeholder={'cfo@company.com\nceo@company.com\nsustainability@company.com'} className="mt-4 min-h-24 bg-white" data-testid="mis-recipient-bulk-textarea" /><Button type="button" variant="outline" onClick={importPasted} disabled={!bulkText.trim()} className="mt-3" data-testid="mis-recipient-import-paste-button"><Mail className="h-4 w-4" />Add pasted emails</Button></div>
+    {error && <p className="mt-3 text-sm text-red-700" role="alert" data-testid="mis-recipient-validation-error">{error}</p>}{importResult && <p className="mt-3 text-sm text-emerald-800" role="status" data-testid="mis-recipient-import-result">{importResult}</p>}
+    <div className="mt-5 space-y-2" data-testid="mis-recipient-list">{recipients.length ? recipients.map((recipient) => <div key={recipient.id || recipient.email} className="flex items-center justify-between gap-3 border border-emerald-950/10 bg-white p-3 shadow-sm" data-testid={`mis-recipient-row-${recipient.id || recipient.email}`}><p className="flex min-w-0 items-center gap-2 truncate text-sm font-semibold text-stone-900" data-testid={`mis-recipient-email-${recipient.id || recipient.email}`}><Mail className="h-4 w-4 shrink-0 text-emerald-800" />{recipient.email}</p><Button type="button" variant="ghost" size="icon" onClick={() => onChange(recipients.filter((item) => item !== recipient))} className="text-stone-500 hover:bg-red-50 hover:text-red-700" aria-label={`Remove ${recipient.email}`} data-testid={`mis-recipient-remove-${recipient.id || recipient.email}`}><Trash2 className="h-4 w-4" /></Button></div>) : <div className="border border-dashed border-emerald-950/20 px-4 py-6 text-sm text-stone-500" data-testid="mis-recipients-empty">Add one or more email addresses for this report.</div>}</div>
+  </section>;
+}

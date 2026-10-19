@@ -14,7 +14,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://carbon-workspace.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://supplier-ghg-preview.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil@hotmail.com"
 ADMIN_PASSWORD = "Test123!"
 
@@ -177,6 +177,7 @@ class TestC7VersionHistory:
         """A second POST for the same facility/year/month must update and produce field_changes."""
         # Modify employees + notes + activity_type to trigger field_changes
         new_payload = {
+            "entry_id": created_entry["id"],
             "facility_id": facility_id,
             "reporting_year": TEST_YEAR,
             "reporting_month": TEST_MONTH,

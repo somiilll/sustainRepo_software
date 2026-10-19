@@ -6,14 +6,18 @@
  *   - whether to show selection checkboxes (selectable prop)
  *   - empty state copy
  *
- * Designed to be reused for future enhancements (multi-stage chains, etc.).
+ * Multi-Proposal Support:
+ *   - Rows with _isGrouped=true show multiple proposals side-by-side
+ *   - Each proposal displays its own qty/emissions and actions
+ *   - Grouped rows show a badge indicating "X proposals"
  */
 import React, { useMemo } from 'react';
 import { format } from 'date-fns';
 import { Card } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
 import { Button } from '../../../components/ui/button';
-import { Search, ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import { Badge } from '../../../components/ui/badge';
+import { Search, ChevronLeft, ChevronRight, Inbox, Users } from 'lucide-react';
 import {
   getRequestType,
   getScope,
@@ -24,6 +28,48 @@ import {
 } from '../utils/approvalSchema';
 
 const PAGE_SIZE = 20;
+
+/**
+ * Extract the proposed quantity value from a pending record.
+ * GHG emissions store different quantity fields depending on scope/category:
+ * - Scope 1: qty, fuel_qty
+ * - Scope 2: qty_energy
+ * - Scope 3: activity_value
+ * - Biogenic: activity_value
+ */
+function getProposedQty(record) {
+  const dfv = record?.dynamic_field_values || {};
+  
+  // Try common field names for quantity in priority order
+  const candidates = [
+    dfv.qty,
+    dfv.quantity,
+    dfv.fuel_qty,
+    dfv.qty_energy,
+    dfv.activity_value,
+    dfv.electricity_consumption,
+  ];
+  
+  for (const candidate of candidates) {
+    if (candidate !== undefined && candidate !== null) {
+      if (typeof candidate === 'object' && candidate.value !== undefined) {
+        return { value: candidate.value, unit: candidate.unit || '' };
+      }
+      if (typeof candidate === 'number' || typeof candidate === 'string') {
+        return { value: candidate, unit: '' };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract the emissions value (tCO2e) from a pending record.
+ */
+function getProposedEmissions(record) {
+  const snap = getSnapshot(record);
+  return snap.total_emissions ?? snap.co2e_emissions ?? 0;
+}
 
 
 export default function ApprovalTable({
@@ -75,9 +121,12 @@ export default function ApprovalTable({
       if (!q) return true;
 
       const snap = getSnapshot(r);
+      // For grouped rows, also search in submitter names
+      const submitters = r._submitters ? r._submitters.join(' ') : '';
       const haystack = [
         r.submitted_by_email,
         r.submitted_by_name,
+        submitters,
         getScope(r),
         getCategory(r),
         snap?.reporting_period,
@@ -107,10 +156,16 @@ export default function ApprovalTable({
     Math.ceil(filtered.length / PAGE_SIZE)
   );
 
+  // For grouped rows, check if all proposals within the group are selected
   const allSelected =
     selectable &&
     pageRows.length > 0 &&
-    pageRows.every((r) => selectedIds.includes(r.id));
+    pageRows.every((r) => {
+      if (r._proposals && r._proposals.length > 0) {
+        return r._proposals.every(p => selectedIds.includes(p.id));
+      }
+      return selectedIds.includes(r.id);
+    });
 
   return (
     <Card className="p-0 overflow-hidden border-stone-200">
@@ -178,24 +233,17 @@ export default function ApprovalTable({
           />
         )}
 
-        <div className="w-40">Submitter</div>
         <div className="w-36">Facility</div>
         <div className="w-20">Scope</div>
-        <div className="flex-1 min-w-[140px]">Category</div>
-        <div className="w-28">Period</div>
-        <div className="w-24 text-right">tCO₂e</div>
+        <div className="flex-1 min-w-[120px]">Category</div>
+        <div className="w-24">Period</div>
+        <div className="w-auto min-w-[280px]">Proposals</div>
 
         {activeTab === 'rejected' && (
-          <div className="w-72">
+          <div className="w-48">
             Rejection Reason
           </div>
         )}
-
-        <div className="w-28">Submitted</div>
-
-         {activeTab === 'pending' && (
-         <div className="w-32 text-right">Actions</div>
-         )}
 
       </div>
 
@@ -215,102 +263,126 @@ export default function ApprovalTable({
             const scope = getScope(r);
             const category = getCategory(r);
             const facilityId = getFacilityId(r);
-            const requestType = getRequestType(r);
-
-            const total =
-              snap.total_emissions ??
-              snap.co2e_emissions ??
-              0;
+            const isGrouped = r._isGrouped && r._proposals && r._proposals.length > 1;
+            const proposals = r._proposals || [r];
             const rejectionReason = getRejectionReason(r) || '—';
 
             return (
               <div
-                key={r.id}
-                className="px-4 py-3 flex items-center gap-3 hover:bg-stone-50 transition-colors"
+                key={r._groupKey || r.id}
+                className={`px-4 py-3 hover:bg-stone-50 transition-colors ${isGrouped ? 'bg-blue-50/30' : ''}`}
+                data-testid={`approval-row-${r._groupKey || r.id}`}
               >
-                {selectable && (
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(r.id)}
-                    onChange={(e) =>
-                      onToggleSelect?.(
-                        r.id,
-                        e.target.checked
-                      )
-                    }
-                    className="w-4 h-4"
-                  />
-                )}
+                <div className="flex items-start gap-3">
+                  {selectable && (
+                    <div className="pt-1">
+                      <input
+                        type="checkbox"
+                        checked={proposals.every(p => selectedIds.includes(p.id))}
+                        onChange={(e) => {
+                          proposals.forEach(p => onToggleSelect?.(p.id, e.target.checked));
+                        }}
+                        className="w-4 h-4"
+                      />
+                    </div>
+                  )}
 
-                {/* SUBMITTER */}
-                <div className="w-40">
-                  <p className="text-sm font-medium text-text-primary truncate">
-                    {r.submitted_by_name ||
-                      r.submitted_by_email ||
-                      '—'}
-                  </p>
-
-                  <p className="text-xs text-text-muted truncate">
-                    {requestType}
-                  </p>
-                </div>
-
-                {/* FACILITY */}
-                <div className="w-36 text-sm text-text-secondary truncate">
-                  {facilityMap[facilityId] || '—'}
-                </div>
-
-                {/* SCOPE */}
-                <div className="w-20 text-sm capitalize">
-                  {scope || '—'}
-                </div>
-
-                {/* CATEGORY */}
-                <div className="flex-1 min-w-[140px] text-sm text-text-primary truncate">
-                  {category || '—'}
-                </div>
-
-                {/* PERIOD */}
-                <div className="w-28 text-sm text-text-secondary truncate">
-                  {snap.reporting_period || '—'}
-                </div>
-
-                {/* EMISSIONS */}
-                <div className="w-24 text-sm font-semibold text-primary text-right">
-                  {Number(total).toFixed(2)}
-                </div>
-
-                {/* REJECTION REASON */}
-                {activeTab === 'rejected' && (
-                  <div className="w-72 text-sm text-red-700 whitespace-pre-wrap break-words">
-                    {rejectionReason}
+                  {/* FACILITY */}
+                  <div className="w-36 text-sm text-text-secondary truncate pt-1">
+                    {facilityMap[facilityId] || '—'}
                   </div>
-                )}
 
-                {/* SUBMITTED */}
-                <div className="w-28 text-xs text-text-secondary truncate">
-                  {(() => {
-                    const t =
-                      r.last_edited_at ||
-                      r.submitted_at;
+                  {/* SCOPE */}
+                  <div className="w-20 text-sm capitalize pt-1">
+                    {scope || '—'}
+                  </div>
 
-                    return t
-                      ? format(
-                          new Date(t),
-                          'd MMM, HH:mm'
-                        )
-                      : '—';
-                  })()}
+                  {/* CATEGORY */}
+                  <div className="flex-1 min-w-[120px] pt-1">
+                    <p className="text-sm text-text-primary truncate">
+                      {category || '—'}
+                    </p>
+                    {isGrouped && (
+                      <Badge className="mt-1 bg-blue-100 text-blue-800 text-xs">
+                        <Users className="w-3 h-3 mr-1" />
+                        {proposals.length} proposals
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* PERIOD */}
+                  <div className="w-24 text-sm text-text-secondary truncate pt-1">
+                    {snap.reporting_period || '—'}
+                  </div>
+
+                  {/* PROPOSALS SECTION - Side by side display */}
+                  <div className="w-auto min-w-[280px] flex-shrink-0">
+                    {proposals.map((proposal, idx) => {
+                      const proposalQty = getProposedQty(proposal);
+                      const proposalEmissions = getProposedEmissions(proposal);
+                      const proposalRequestType = getRequestType(proposal);
+                      
+                      return (
+                        <div 
+                          key={proposal.id}
+                          className={`flex items-center gap-2 p-2 rounded-md ${idx > 0 ? 'mt-2 border-t border-stone-200 pt-3' : ''} ${isGrouped ? 'bg-white shadow-sm border border-stone-200' : ''}`}
+                          data-testid={`proposal-${proposal.id}`}
+                        >
+                          {/* Submitter Info */}
+                          <div className="w-28 flex-shrink-0">
+                            <p className="text-sm font-medium text-text-primary truncate">
+                              {proposal.submitted_by_name || proposal.submitted_by_email || '—'}
+                            </p>
+                            <p className="text-xs text-text-muted truncate">
+                              {proposalRequestType}
+                            </p>
+                          </div>
+
+                          {/* Qty Value */}
+                          <div className="w-24 flex-shrink-0 text-center">
+                            <p className="text-xs text-text-muted">Qty</p>
+                            <p className="text-sm font-medium text-text-primary">
+                              {proposalQty !== null 
+                                ? `${Number(proposalQty.value).toLocaleString()}${proposalQty.unit ? ` ${proposalQty.unit}` : ''}`
+                                : '—'}
+                            </p>
+                          </div>
+
+                          {/* Emissions */}
+                          <div className="w-20 flex-shrink-0 text-center">
+                            <p className="text-xs text-text-muted">tCO₂e</p>
+                            <p className="text-sm font-semibold text-primary">
+                              {Number(proposalEmissions).toFixed(2)}
+                            </p>
+                          </div>
+
+                          {/* Submitted Time */}
+                          <div className="w-20 flex-shrink-0 text-center">
+                            <p className="text-xs text-text-muted">
+                              {proposal.submitted_at
+                                ? format(new Date(proposal.submitted_at), 'd MMM')
+                                : '—'}
+                            </p>
+                          </div>
+
+                          {/* Actions for this proposal */}
+                          {activeTab === 'pending' && (
+                            <div className="flex items-center gap-1 ml-auto">
+                              {perRowActions ? perRowActions(r, proposal) : null}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* REJECTION REASON */}
+                  {activeTab === 'rejected' && (
+                    <div className="w-48 text-sm text-red-700 whitespace-pre-wrap break-words pt-1">
+                      {rejectionReason}
+                    </div>
+                  )}
                 </div>
-
-                {/* ACTIONS */}
-                {activeTab === 'pending' && (
-                <div className="w-32 flex items-center justify-end gap-1">
-                  {perRowActions
-                    ? perRowActions(r)
-                    : null}
-                </div>
-                )}
               </div>
             );
           })}

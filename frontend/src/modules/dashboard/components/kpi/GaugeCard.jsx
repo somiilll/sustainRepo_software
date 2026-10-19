@@ -4,7 +4,7 @@
  * Pure SVG arc (no chart lib needed). Supports a target-selector when
  * multiple targets exist; empty-state CTA when none configured.
  */
-import React, {useState} from 'react';
+import React from 'react';
 import { Target as TargetIcon, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../../components/ui/button';
@@ -41,25 +41,23 @@ export default function GaugeCard({
   selectedTarget,
   selectedTargetId,
   setSelectedTargetId,
-  baseYearTotal = 0,
-  currentTotal = 0,
-  targetReduction = 0,
-  reductionAchievedPct = 0,
+  progressPercentage,
 }) {
   const navigate = useNavigate();
+  const targetLabel = (target) => target?.name || target?.kpi_name || target?.subcategory || 'Untitled target';
   // No targets configured → empty state CTA.
   if (!targets.length) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-stone-200/70 bg-white/60 backdrop-blur-xl shadow-sm p-4 flex flex-col" data-testid="kpi-card-reduction-target-achieved">
         <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-200 via-amber-400 to-amber-200 opacity-70" />
         <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500 mb-2">Reduction Target Achieved</p>
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-3">
-          <TargetIcon className="w-7 h-7 text-amber-500" />
+        <div className="flex flex-col items-center justify-center gap-1.5 py-1 text-center">
+          <TargetIcon className="h-5 w-5 text-amber-500" />
           <p className="text-xs text-stone-600">No reduction targets configured</p>
           <Button
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-            onClick={() => navigate('/base-year-emissions')}
+            className="bg-primary text-xs text-white hover:bg-primary/90"
+            onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-add-target-btn"
           >
             <Plus className="w-3.5 h-3.5 mr-1" />
@@ -70,10 +68,10 @@ export default function GaugeCard({
     );
   }
 
-  const canComputeProgress = baseYearTotal > 0;
+  const canComputeProgress = Number.isFinite(Number(progressPercentage));
   const clamped = Math.min(
     100,
-    Math.max(0, reductionAchievedPct || 0)
+    Math.max(0, Number(progressPercentage))
   );
 
   if (!canComputeProgress) {
@@ -86,24 +84,24 @@ export default function GaugeCard({
             <select
               value={selectedTarget?.id}
               onChange={(e) => setSelectedTargetId(e.target.value)}
-              className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
+              className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-1 py-0.5 bg-white max-w-[110px]"
               data-testid="kpi-target-selector"
             >
-              {targets.map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
+              {targets.map((t) => (<option key={t.id} value={t.id}>{targetLabel(t)}</option>))}
             </select>
           )}
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-2">
-          <TargetIcon className="w-7 h-7 text-amber-500" />
-          <p className="text-xs text-stone-600 leading-snug">Configure a <span className="font-semibold">Base Year</span> to compute target progress.</p>
+        <div className="flex flex-col items-center justify-center gap-1.5 py-1 text-center">
+          <TargetIcon className="h-5 w-5 text-amber-500" />
+          <p className="text-xs text-stone-600 leading-snug">Target progress is not available for this reporting period.</p>
           <Button
             size="sm"
             variant="outline"
             className="text-xs"
-            onClick={() => navigate('/base-year-emissions')}
+            onClick={() => navigate('/targets/voluntary/environment')}
             data-testid="kpi-set-base-year-btn"
           >
-            Set Base Year
+            View Target
           </Button>
         </div>
       </div>
@@ -119,12 +117,12 @@ export default function GaugeCard({
           <select
             value={selectedTarget?.id}
             onChange={(e) => setSelectedTargetId(e.target.value)}
-            className="text-[10px] border border-stone-200 rounded-md px-1.5 py-0.5 bg-white max-w-[110px]"
+            className="text-[10px] border border-stone-200 rounded-md pr-1.5 pl-0 py-0.5 bg-white max-w-[110px]"
             title="Switch target"
             data-testid="kpi-target-selector"
           >
             {targets.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={t.id}>{targetLabel(t)}</option>
             ))}
           </select>
         )}
@@ -132,7 +130,6 @@ export default function GaugeCard({
       <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums">
         <AnimatedNumber value={clamped} decimals={1} suffix="%" />
       </div>
-      {/* <div className="text-[11px] text-stone-500 mt-0.5 truncate" title={selectedTarget?.name}>{selectedTarget?.name}</div> */}
       <div className="mt-3">
         <GaugeArc pct={clamped} />
       </div>

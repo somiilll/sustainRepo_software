@@ -1,0 +1,405 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
+import { toast } from 'sonner';
+import { Button } from '../../components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
+import { Input } from '../../components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../../components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
+import { CalendarDays, ChevronLeft, ChevronRight, Search, Cloud, Download, Eye, Factory, FileText, Filter, LockOpen, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import SupplierEmissionReadOnlyDialog from './components/SupplierEmissionReadOnlyDialog';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const displayValue = (value, digits = 2) => value === null || value === undefined ? '—' : Number(value).toFixed(digits);
+const supplierInitials = (name = '') => name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || '—';
+
+const SupplierEvidenceIndicator = ({ emissionId, count }) => (
+  <TooltipProvider delayDuration={150}>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 cursor-help" tabIndex={0} data-testid={`supplier-emission-evidence-icon-${emissionId}`}>
+          <FileText className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent data-testid={`supplier-emission-evidence-tooltip-${emissionId}`}>
+        <p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p>
+        <p>View more in View.</p>
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
+const EmissionValue = ({ value, testId, emphasized = false }) => (
+  <span className={`whitespace-nowrap text-sm ${emphasized ? 'font-semibold text-stone-950' : 'text-stone-700'}`} data-testid={testId}>
+    {displayValue(value)}
+  </span>
+);
+
+export default function SupplierGHGView() {
+  const { getAuthHeader } = useAuth();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
+  const [emissions, setEmissions] = useState([]);
+  const [supplierTotals, setSupplierTotals] = useState([]);
+  const [grandTotal, setGrandTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('all');
+  const [supplierFilter, setSupplierFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortField, setSortField] = useState('reporting_period');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [emissionPage, setEmissionPage] = useState(1);
+  const [unlockTarget, setUnlockTarget] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockPeriodKey, setUnlockPeriodKey] = useState('');
+  const [openingEvidenceKey, setOpeningEvidenceKey] = useState('');
+  const [viewingEmission, setViewingEmission] = useState(null);
+  const [viewingEmissionLoading, setViewingEmissionLoading] = useState(false);
+
+  const fetchEmissions = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/supplier-assessment/emissions/all?reporting_period=${encodeURIComponent(reportingPeriod)}`, {
+        headers: getAuthHeader(),
+      });
+      setEmissions(res.data.emissions || []);
+      setSupplierTotals(res.data.supplier_totals || []);
+      setGrandTotal(res.data.grand_total || 0);
+    } catch (err) {
+      toast.error('Failed to load emissions');
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeader, reportingPeriod]);
+
+  useEffect(() => {
+    fetchEmissions();
+  }, [fetchEmissions]);
+
+  const openUnlock = async (supplier) => {
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/suppliers/${supplier.supplier_relationship_id}/emissions/submission-periods`, { headers: getAuthHeader() });
+      const submittedPeriods = (data.periods || []).filter((period) => period.status === 'submitted');
+      if (!submittedPeriods.length) { toast.error('This supplier has no submitted GHG periods to unlock'); return; }
+      setUnlockTarget({ ...supplier, periods: submittedPeriods });
+      setUnlockPeriodKey(submittedPeriods[0].period_key);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not load submitted GHG periods');
+    }
+  };
+
+  const unlockSupplierGhg = async () => {
+    if (!unlockTarget || !unlockPeriodKey) return;
+    setUnlocking(true);
+    try {
+      const period = unlockTarget.periods.find((item) => item.period_key === unlockPeriodKey);
+      await axios.post(`${API}/supplier-assessment/suppliers/${unlockTarget.supplier_relationship_id}/emissions/submission-periods/${encodeURIComponent(unlockPeriodKey)}/unlock`, {}, { headers: getAuthHeader() });
+      toast.success(`${unlockTarget.supplier_name} can now revise and resubmit ${period?.label || 'this period'}`);
+      setUnlockTarget(null);
+      await fetchEmissions();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not unlock GHG data');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const openEmissionEvidence = async (emission, file, download = false) => {
+    const key = `${emission.id}-${file.id}-${download ? 'download' : 'view'}`;
+    setOpeningEvidenceKey(key);
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/emissions/${emission.id}/evidence/${file.id}`, {
+        params: { download }, headers: getAuthHeader(),
+      });
+      window.open(data.url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not open evidence');
+    } finally {
+      setOpeningEvidenceKey('');
+    }
+  };
+
+  const openEmissionDetail = async (emission) => {
+    setViewingEmission(emission);
+    setViewingEmissionLoading(true);
+    try {
+      const { data } = await axios.get(`${API}/supplier-assessment/emissions/${emission.id}`, { headers: getAuthHeader() });
+      setViewingEmission(data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not open emission record');
+      setViewingEmission(null);
+    } finally {
+      setViewingEmissionLoading(false);
+    }
+  };
+
+  const filteredEmissions = emissions.filter((e) => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const matchesSearch = !normalizedSearch || [e.supplier_name, e.category, e.sub_category, e.fuel_type]
+      .some((value) => value?.toLowerCase().includes(normalizedSearch));
+    const matchesScope = scopeFilter === 'all' || e.scope === scopeFilter;
+    const matchesSupplier = supplierFilter === 'all' || e.supplier_name === supplierFilter;
+    const matchesCategory = categoryFilter === 'all' || e.category === categoryFilter;
+    return matchesSearch && matchesScope && matchesSupplier && matchesCategory;
+  });
+  const sortedEmissions = useMemo(() => {
+    return [...filteredEmissions].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (sortField === 'subcategory') {
+        aVal = a.fuel_type || a.sub_category || '';
+        bVal = b.fuel_type || b.sub_category || '';
+      } else if (sortField === 'attributed_emissions') {
+        aVal = Number(a.attributed_emissions) || 0;
+        bVal = Number(b.attributed_emissions) || 0;
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+
+      const strA = String(aVal || '').toLowerCase();
+      const strB = String(bVal || '').toLowerCase();
+      const cmp = strA.localeCompare(strB);
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredEmissions, sortField, sortDirection]);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const emissionPageSize = 20;
+  const emissionPageCount = Math.max(1, Math.ceil(sortedEmissions.length / emissionPageSize));
+  const visibleEmissions = sortedEmissions.slice((emissionPage - 1) * emissionPageSize, emissionPage * emissionPageSize);
+  const emissionStart = sortedEmissions.length ? (emissionPage - 1) * emissionPageSize + 1 : 0;
+  const emissionEnd = Math.min(emissionPage * emissionPageSize, sortedEmissions.length);
+
+  useEffect(() => {
+    setEmissionPage(1);
+  }, [search, scopeFilter, supplierFilter, categoryFilter, reportingPeriod, sortField, sortDirection]);
+  const supplierOptions = [...new Set(emissions.map((emission) => emission.supplier_name).filter(Boolean))].sort();
+  const categoryOptions = [...new Set(emissions.map((emission) => emission.category).filter(Boolean))].sort();
+  return (
+    <div className="space-y-6" data-testid="supplier-ghg-view">
+      <Tabs defaultValue="supplier-summary" className="space-y-7" data-testid="supplier-ghg-tabs">
+      {/* Header */}
+      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 xl:flex-row xl:items-center xl:justify-start" data-testid="supplier-ghg-header">
+        <div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 shadow-sm" data-testid="supplier-ghg-heading-icon"><Cloud className="h-6 w-6" aria-hidden="true" /></div><h1 className="whitespace-nowrap text-3xl font-bold text-emerald-950" data-testid="supplier-ghg-heading">Supplier GHG Emissions</h1></div>
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:ml-auto xl:w-auto xl:flex-nowrap" data-testid="supplier-ghg-controls">
+          <div className="relative w-full sm:w-56 sm:flex-none" data-testid="supplier-ghg-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input placeholder="Search emissions..." value={search} onChange={(event) => setSearch(event.target.value)} className="h-10 rounded-full border-stone-200 bg-stone-50 pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label="Search emissions" data-testid="supplier-ghg-search-input" /></div>
+          <TabsList className="h-10 shrink-0 rounded-full border border-stone-200 bg-stone-50 p-1" data-testid="supplier-ghg-tab-list"><TabsTrigger value="supplier-summary" className="h-8 rounded-full px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-summary-tab">Emissions by Supplier</TabsTrigger><TabsTrigger value="logs" className="h-8 rounded-full px-3 text-stone-600 shadow-none transition-[background-color,color] hover:bg-white hover:text-stone-900 data-[state=active]:bg-emerald-800 data-[state=active]:text-white data-[state=active]:shadow-sm" data-testid="supplier-ghg-logs-tab">Logs</TabsTrigger></TabsList>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="supplier-ghg-period-control"><label htmlFor="supplier-ghg-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="supplier-ghg-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" /><span className="sr-only 2xl:not-sr-only">Reporting period</span></label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="supplier-ghg-reporting-period" className="h-10 w-full rounded-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="supplier-ghg-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`supplier-ghg-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+        </div>
+      </div>
+
+        <TabsContent value="supplier-summary" className="mt-5 space-y-6" data-testid="supplier-ghg-summary-panel">
+      {/* Summary Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Cloud className="h-4 w-4" />
+              <span className="text-sm">Total Emissions</span>
+            </div>
+            <div className="text-2xl font-bold text-stone-900">
+              {displayValue(grandTotal)} <span className="text-sm font-normal text-stone-500">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Scope 1</span>
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              {supplierTotals.reduce((sum, s) => sum + (s.scope1 || 0), 0).toFixed(2)}
+              <span className="text-sm font-normal text-stone-500 ml-1">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Scope 2</span>
+            </div>
+            <div className="text-2xl font-bold text-emerald-600">
+              {supplierTotals.reduce((sum, s) => sum + (s.scope2 || 0), 0).toFixed(2)}
+              <span className="text-sm font-normal text-stone-500 ml-1">tCO2e</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl border-stone-200 bg-white shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-stone-500 mb-2">
+              <Factory className="h-4 w-4" />
+              <span className="text-sm">Suppliers Reporting</span>
+            </div>
+            <div className="text-2xl font-bold text-purple-600">
+              {supplierTotals.length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Supplier Totals */}
+      {supplierTotals.length > 0 && (
+        <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-sm" data-testid="supplier-emissions-by-supplier-card">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[1180px]" data-testid="supplier-emissions-by-supplier-table">
+              <TableHeader>
+                <TableRow className="border-stone-100 bg-stone-50 hover:bg-stone-50"><TableHead rowSpan={2} className="min-w-[220px] pl-6 text-[11px] font-semibold uppercase text-stone-500">Supplier</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700">Total emissions (tCO₂e)</TableHead><TableHead colSpan={3} className="border-r border-stone-200 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-700">Attributed emissions (tCO₂e)</TableHead><TableHead rowSpan={2} className="text-right text-[11px] font-semibold uppercase text-stone-500">Intensity</TableHead><TableHead rowSpan={2} className="pr-6 text-right text-[11px] font-semibold uppercase text-stone-500">Actions</TableHead></TableRow>
+                <TableRow className="border-stone-100 bg-stone-50 hover:bg-stone-50"><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 1</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Total</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 1</TableHead><TableHead className="text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Scope 2</TableHead><TableHead className="border-r border-stone-200 text-right text-[10px] font-medium uppercase tracking-wide text-stone-400">Total</TableHead></TableRow>
+              </TableHeader>
+              <TableBody>
+                {supplierTotals.map((supplier) => (
+                  <TableRow key={supplier.supplier_relationship_id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-emissions-row-${supplier.supplier_relationship_id}`}>
+                    <TableCell className="py-4 pl-6">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-[11px] font-semibold text-stone-700" aria-hidden="true">{supplierInitials(supplier.supplier_name)}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-stone-950" data-testid={`supplier-emissions-name-${supplier.supplier_relationship_id}`}>{supplier.supplier_name}</p>
+                          <p className="mt-1 text-xs text-stone-500" data-testid={`supplier-emissions-revenue-share-${supplier.supplier_relationship_id}`}>{supplier.revenue_submitted ? `Revenue share ${displayValue(supplier.revenue_percentage, 1)}%` : 'Revenue not submitted'}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope1} testId={`supplier-raw-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.raw_scope2} testId={`supplier-raw-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.raw_total} emphasized testId={`supplier-raw-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope1} testId={`supplier-attributed-scope1-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right"><EmissionValue value={supplier.scope2} testId={`supplier-attributed-scope2-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="border-r border-stone-100 text-right"><EmissionValue value={supplier.total} emphasized testId={`supplier-attributed-total-${supplier.supplier_relationship_id}`} /></TableCell>
+                    <TableCell className="text-right">
+                      {supplier.total_intensity === null || supplier.total_intensity === undefined
+                        ? <span className="whitespace-nowrap text-xs text-stone-400" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>Not available</span>
+                        : <span className="whitespace-nowrap text-base font-bold text-stone-950" data-testid={`supplier-total-intensity-${supplier.supplier_relationship_id}`}>{displayValue(supplier.total_intensity, 6)} <span className="mt-0.5 block text-[10px] font-normal text-stone-400">tCO₂e / {supplier.revenue_currency || 'currency not set'}</span></span>}
+                    </TableCell>
+                    <TableCell className="pr-6 text-right"><Button variant="outline" size="sm" className="h-8 border-stone-200 bg-white px-2.5 text-stone-600 shadow-none transition-[background-color,border-color,color] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900" onClick={() => openUnlock(supplier)} data-testid={`unlock-supplier-ghg-${supplier.supplier_relationship_id}`}><LockOpen className="h-3.5 w-3.5" />Unlock</Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+        </TabsContent>
+
+        <TabsContent value="logs" className="mt-5 space-y-5" data-testid="supplier-ghg-logs-panel">
+      <div className="flex flex-wrap items-center gap-4" data-testid="supplier-ghg-log-filters">
+        <Select value={scopeFilter} onValueChange={setScopeFilter}>
+          <SelectTrigger className="w-40" data-testid="supplier-ghg-scope-filter">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter scope" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Scopes</SelectItem>
+            <SelectItem value="scope1">Scope 1</SelectItem>
+            <SelectItem value="scope2">Scope 2</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-supplier-filter"><SelectValue placeholder="Filter supplier" /></SelectTrigger><SelectContent><SelectItem value="all">All Suppliers</SelectItem>{supplierOptions.map((supplier) => <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>)}</SelectContent></Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="w-44" data-testid="supplier-ghg-category-filter"><SelectValue placeholder="Filter category" /></SelectTrigger><SelectContent><SelectItem value="all">All Categories</SelectItem>{categoryOptions.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent></Select>
+      </div>
+
+      {/* Emissions Table */}
+      <Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="all-supplier-emission-records-card">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table className="w-full min-w-[1080px]" data-testid="supplier-ghg-logs-table">
+              <TableHeader className="bg-emerald-50/60">
+                <TableRow className="border-stone-100 bg-emerald-50/60 hover:bg-emerald-50/60" data-testid="supplier-ghg-logs-table-header">
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('supplier_name')} data-testid="supplier-ghg-logs-supplier-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Supplier Org
+                      {sortField === 'supplier_name' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('reporting_period')} data-testid="supplier-ghg-logs-period-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Reporting Period
+                      {sortField === 'reporting_period' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('scope')} data-testid="supplier-ghg-logs-scope-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Scope
+                      {sortField === 'scope' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('category')} data-testid="supplier-ghg-logs-category-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Category
+                      {sortField === 'category' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('subcategory')} data-testid="supplier-ghg-logs-subcategory-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Subcategory
+                      {sortField === 'subcategory' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600 hover:text-stone-900 transition-colors" onClick={() => handleSort('attributed_emissions')} data-testid="supplier-ghg-logs-attributed-header">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      Attributed emissions (tCO₂e)
+                      {sortField === 'attributed_emissions' ? (sortDirection === 'asc' ? <ArrowUp className="h-3 w-3 text-emerald-700" /> : <ArrowDown className="h-3 w-3 text-emerald-700" />) : <ArrowUpDown className="h-3 w-3 text-stone-400" />}
+                    </span>
+                  </TableHead>
+                  <TableHead className="bg-emerald-50/60 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-stone-600" data-testid="supplier-ghg-logs-actions-header">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-loading">Loading emissions...</TableCell></TableRow> : filteredEmissions.length === 0 ? <TableRow><TableCell colSpan={7} className="py-8 text-center text-stone-500" data-testid="supplier-ghg-logs-empty">No emission records found.</TableCell></TableRow> : visibleEmissions.map((emission) => (
+                  <TableRow key={emission.id} className="border-stone-100 hover:bg-emerald-50/50" data-testid={`supplier-ghg-log-row-${emission.id}`}>
+                    <TableCell className="text-center font-medium text-stone-900" data-testid={`supplier-ghg-log-supplier-${emission.id}`}>{emission.supplier_name}</TableCell>
+                    <TableCell className="text-center">{emission.reporting_period}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className={emission.scope === 'scope1' ? 'border-blue-200 bg-blue-50 text-blue-700' : emission.scope === 'scope2' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-stone-200 bg-stone-50 text-stone-700'} data-testid={`supplier-emission-scope-${emission.id}`}>
+                        {emission.scope === 'scope1' ? 'Scope 1' : emission.scope === 'scope2' ? 'Scope 2' : emission.scope}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center"><span className="inline-flex items-center justify-center gap-1.5" data-testid={`supplier-emission-category-${emission.id}`}><span>{emission.category || '-'}</span>{(emission.evidence_files || []).length > 0 && <SupplierEvidenceIndicator emissionId={emission.id} count={emission.evidence_files.length} />}</span></TableCell>
+                    <TableCell className="text-center">{emission.fuel_type || emission.sub_category || '-'}</TableCell>
+                    <TableCell className="text-center font-mono">
+                      {displayValue(emission.attributed_emissions, 4)}
+                    </TableCell>
+                    <TableCell className="text-center"><Button variant="outline" size="sm" className="h-8 border-stone-200 bg-white px-2.5 text-stone-700 shadow-none transition-[background-color,border-color,color] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-950" onClick={() => openEmissionDetail(emission)} data-testid={`view-supplier-emission-${emission.id}`}><Eye className="h-3.5 w-3.5" />View</Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+        {filteredEmissions.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-100 px-6 py-4" data-testid="supplier-emissions-pagination"><p className="text-xs text-stone-500" data-testid="supplier-emissions-pagination-count">Showing {emissionStart} to {emissionEnd} of {filteredEmissions.length} records</p><div className="flex items-center gap-1"><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === 1} onClick={() => setEmissionPage((page) => Math.max(1, page - 1))} data-testid="supplier-emissions-previous-page"><ChevronLeft className="h-4 w-4" /></Button><span className="flex h-8 min-w-8 items-center justify-center text-xs font-semibold text-stone-700" data-testid="supplier-emissions-current-page">{emissionPage}</span><Button variant="outline" size="icon" className="h-8 w-8" disabled={emissionPage === emissionPageCount} onClick={() => setEmissionPage((page) => Math.min(emissionPageCount, page + 1))} data-testid="supplier-emissions-next-page"><ChevronRight className="h-4 w-4" /></Button></div></div>}
+      </Card>
+        </TabsContent>
+      </Tabs>
+      <Dialog open={Boolean(unlockTarget)} onOpenChange={(open) => !open && setUnlockTarget(null)}><DialogContent data-testid="unlock-supplier-ghg-dialog"><DialogHeader><DialogTitle data-testid="unlock-supplier-ghg-title">Unlock GHG reporting period</DialogTitle><DialogDescription data-testid="unlock-supplier-ghg-description">Choose the submitted month, quarter, or year to reopen for this supplier.</DialogDescription></DialogHeader><div className="space-y-2"><label className="text-sm font-medium" htmlFor="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-label">Submitted period</label><Select value={unlockPeriodKey} onValueChange={setUnlockPeriodKey}><SelectTrigger id="unlock-supplier-ghg-period" data-testid="unlock-supplier-ghg-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="unlock-supplier-ghg-period-menu">{(unlockTarget?.periods || []).map((period) => <SelectItem key={period.period_key} value={period.period_key} data-testid={`unlock-supplier-ghg-period-option-${period.period_key}`}>{period.label}</SelectItem>)}</SelectContent></Select></div><DialogFooter><Button variant="outline" onClick={() => setUnlockTarget(null)} data-testid="cancel-unlock-supplier-ghg-button">Cancel</Button><Button disabled={unlocking || !unlockPeriodKey} onClick={unlockSupplierGhg} data-testid="submit-unlock-supplier-ghg-button">{unlocking ? 'Unlocking…' : 'Unlock period'}</Button></DialogFooter></DialogContent></Dialog>
+      <SupplierEmissionReadOnlyDialog open={Boolean(viewingEmission)} onOpenChange={(open) => !open && setViewingEmission(null)} emission={viewingEmission} loading={viewingEmissionLoading} onOpenEvidence={openEmissionEvidence} openingEvidenceKey={openingEvidenceKey} />
+    </div>
+  );
+}

@@ -82,12 +82,12 @@ export function useDashboardData() {
     fetchOrganization();
     fetchBaseYearData();
     fetchLatestReportingPeriod();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   useEffect(() => {
     if (dateRange.from && dateRange.to) fetchStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [selectedFacilities, dateRange]);
 
   const fetchOrganization = async () => {
@@ -139,17 +139,17 @@ export function useDashboardData() {
           const latestMonth = parseInt(latestPeriod.split('-')[1]);
           const dataFYYear = latestMonth >= 4 ? latestYear : latestYear - 1;
           const currentFYStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
-          const fyYear = dataFYYear >= currentFYStart ? currentFYStart - 1 : dataFYYear;
+          const fyYear = dataFYYear >= currentFYStart ? currentFYStart : dataFYYear;
           setDateRange({ from: new Date(`${fyYear}-04-01`), to: new Date(`${fyYear + 1}-03-01`) });
         } else {
-          setDateRange(getPreviousFinancialYear());
+          setDateRange(getCurrentFinancialYear());
         }
       } else {
-        setDateRange(getPreviousFinancialYear());
+        setDateRange(getCurrentFinancialYear());
       }
     } catch (error) {
       console.error('Error fetching latest period:', error);
-      setDateRange(getPreviousFinancialYear());
+      setDateRange(getCurrentFinancialYear());
     }
   };
 
@@ -205,7 +205,7 @@ export function useDashboardData() {
       biogenicIndirect: stats.biogenic_indirect || 0,
       total: 0,
     };
-    totals.total = totals.scope1 + totals.scope2 + totals.biogenic + (hasScope3Access ? totals.scope3 : 0);
+    totals.total = totals.scope1 + totals.scope2 + (hasScope3Access ? totals.scope3 : 0);
     const filteredSinks = stats.sinks_total || 0;
     return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
   }, [stats, hasScope3Access]);
@@ -283,6 +283,6 @@ export function useDashboardData() {
     // live cockpit
     isLive, lastLiveUpdateAt,
     // helpers
-    getPreviousFinancialYear,
+    getCurrentFinancialYear,
   };
 }

@@ -6,9 +6,11 @@ import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { FileText, FileSpreadsheet, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
+import MISReportsFoundation from '../modules/mis-reports/MISReportsFoundation';
+import { ModulePageHeader } from '../components/ModulePageHeader';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -29,7 +31,7 @@ const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
   return fallbackMessage;
 };
 
-export default function Reports() {
+export default function Reports({ showMISFoundation = false }) {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,6 @@ export default function Reports() {
   const [ghgDialogOpen, setGhgDialogOpen] = useState(false);
   const [ghgReportConfig, setGhgReportConfig] = useState({
     facility_ids: [],
-    facility_production: {}, // {facility_id: {quantity: number, unit: string}}
     reporting_period_start: '',
     reporting_period_end: '',
     include_previous_years: false,
@@ -64,6 +65,7 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => {
     fetchFacilities();
@@ -89,6 +91,9 @@ export default function Reports() {
   
   // Check if organization has scope 3 access (for report type selection)
   const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
+  
+  // Check if organization has GHG module enabled (hides GHG reports if disabled)
+  const hasGhgEnabled = organization?.entitlements?.environment !== false;
 
   const fetchFacilities = async () => {
     try {
@@ -214,31 +219,11 @@ export default function Reports() {
         ? prev.facility_ids.filter(id => id !== facilityId)
         : [...prev.facility_ids, facilityId];
       
-      // Remove production data if facility is deselected
-      const newFacilityProduction = { ...prev.facility_production };
-      if (isSelected) {
-        delete newFacilityProduction[facilityId];
-      }
-      
       return {
         ...prev,
-        facility_ids: newFacilityIds,
-        facility_production: newFacilityProduction
+        facility_ids: newFacilityIds
       };
     });
-  };
-
-  const handleProductionChange = (facilityId, field, value) => {
-    setGhgReportConfig(prev => ({
-      ...prev,
-      facility_production: {
-        ...prev.facility_production,
-        [facilityId]: {
-          ...prev.facility_production[facilityId],
-          [field]: value
-        }
-      }
-    }));
   };
 
   const handleGhgSelectAll = () => {
@@ -246,10 +231,26 @@ export default function Reports() {
       const allSelected = prev.facility_ids.length === facilities.length;
       return {
         ...prev,
-        facility_ids: allSelected ? [] : facilities.map(f => f.id),
-        facility_production: allSelected ? {} : prev.facility_production
+        facility_ids: allSelected ? [] : facilities.map(f => f.id)
       };
     });
+  };
+
+  const downloadAuthenticatedReport = async (downloadToken, filename) => {
+    const response = await axios.get(`${API}/reports/download/${downloadToken}`, {
+      headers: getAuthHeader(),
+      responseType: 'blob',
+    });
+    const objectUrl = window.URL.createObjectURL(new Blob([response.data], {
+      type: response.headers['content-type'],
+    }));
+    const downloadLink = document.createElement('a');
+    downloadLink.href = objectUrl;
+    downloadLink.download = filename || 'GHG_Inventory_Report.docx';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 0);
   };
 
   const handleGenerateGhgReport = async () => {
@@ -266,38 +267,12 @@ export default function Reports() {
       return;
     }
 
-    // Validate production quantity and unit - both must be filled or both must be empty
-    // Also check for negative values
-    for (const facilityId of ghgReportConfig.facility_ids) {
-      const production = ghgReportConfig.facility_production[facilityId];
-      if (production) {
-        const quantityValue = production.quantity;
-        const hasQuantity = quantityValue !== undefined && quantityValue !== null && quantityValue.toString().trim() !== '';
-        const hasUnit = production.unit && production.unit.trim() !== '';
-        
-        // Check for negative quantity
-        if (hasQuantity && parseFloat(quantityValue) < 0) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Quantity cannot be negative for "${facility?.name || 'facility'}". Please enter a positive value.`);
-          return;
-        }
-        
-        // Check quantity + unit pairing
-        if (hasQuantity && !hasUnit) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Unit is required when Quantity is specified for "${facility?.name || 'facility'}". Please enter the unit (e.g., kg, tonnes).`);
-          return;
-        }
-        if (!hasQuantity && hasUnit) {
-          const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Production Quantity is required when Unit is specified for "${facility?.name || 'facility'}". Please enter the quantity value.`);
-          return;
-        }
-      }
-    }
-
     // If all facilities are selected, show confirmation dialog
     const allFacilitiesSelected = ghgReportConfig.facility_ids.length === facilities.length && facilities.length > 0;
+    if (ghgReportConfig.output_format === 'xlsx') {
+      await proceedWithReportGeneration(allFacilitiesSelected);
+      return;
+    }
     if (allFacilitiesSelected) {
       setShowAllFacilitiesConfirm(true);
       return;
@@ -330,11 +305,10 @@ export default function Reports() {
         }
       );
       
-      // Get download token and trigger download
+      // Download through Axios so the current bearer token is included.
       const { download_token, filename } = response.data;
-      const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.location.href = downloadUrl;
-      toast.success('GHG Inventory Report download started!');
+      await downloadAuthenticatedReport(download_token, filename);
+      toast.success(ghgReportConfig.output_format === 'xlsx' ? 'GHG Emissions Summary download started!' : 'GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
       toast.error(getErrorMessage(error, 'Failed to generate report'));
@@ -346,13 +320,26 @@ export default function Reports() {
   const resetGhgForm = () => {
     setGhgReportConfig({
       facility_ids: [],
-      facility_production: {},
       reporting_period_start: '',
       reporting_period_end: '',
       include_previous_years: false,
       output_format: 'docx',
-      report_type: 'scope1_2'
+      report_type: 'scope_1_2',
+      is_complete_organization: true
     });
+  };
+
+  const openGhgReportDialog = (outputFormat = 'docx') => {
+    setGhgReportConfig({
+      facility_ids: [],
+      reporting_period_start: '',
+      reporting_period_end: '',
+      include_previous_years: false,
+      output_format: outputFormat,
+      report_type: outputFormat === 'xlsx' ? 'scope_1_2_3' : 'scope_1_2',
+      is_complete_organization: true
+    });
+    setGhgDialogOpen(true);
   };
 
   const setFinancialYear = () => {
@@ -503,6 +490,17 @@ export default function Reports() {
     }
   };
 
+  const handleConfigureMISReport = (templateId) => {
+    if (templateId === 'ghg_inventory') {
+      resetGhgForm();
+      setGhgDialogOpen(true);
+    }
+    if (templateId === 'ai_executive_summary') {
+      resetAiForm();
+      setAiDialogOpen(true);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -512,40 +510,42 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6" data-testid="reports-page">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
-        <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
-      </div>
+    <div className="space-y-7" data-testid="reports-page">
+      {showMISFoundation ? (
+        <MISReportsFoundation onConfigureReport={handleConfigureMISReport} />
+      ) : (
+        <ModulePageHeader title="Reports" icon={FileText} iconClassName="border-teal-200 bg-teal-50 text-teal-700" testId="reports" />
+      )}
 
-      {/* GHG Inventory Report Card */}
-      {hasScope12Access && (
-        <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-green-100 rounded-xl">
-              <FileText className="w-10 h-10 text-green-600" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
-                <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Available</span>
+      {/* Reporting actions */}
+      {hasScope12Access && hasGhgEnabled && (
+        <div className={`${showMISFoundation ? 'hidden' : ''} grid grid-cols-1 items-stretch gap-5 md:grid-cols-3`} data-testid="report-action-cards">
+        <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-1 flex-col">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
+                <FileText className="w-7 h-7 text-teal-700" />
               </div>
-              <p className="text-sm text-text-secondary mb-4">
+              <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
+            </div>
+            <div className="mt-4 flex flex-1 flex-col">
+              <p className="text-sm text-text-secondary">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
-                Includes organization details, facility information, emissions inventory, and analysis.
-                {hasScope3Access ? ' Supports Scope 1, 2, 3 & Biogenic emissions.' : ' Covers Scope 1, 2 & Biogenic emissions.'}
               </p>
+              <div className="mt-auto pt-2 flex justify-center">
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    data-testid="generate-ghg-inventory-btn"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Generate Report
-                  </Button>
-                </DialogTrigger>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <DialogTrigger asChild>
+                    <Button 
+                      onClick={() => openGhgReportDialog('docx')}
+                      className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+                      data-testid="generate-ghg-inventory-btn"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </DialogTrigger>
+                </div>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
@@ -666,31 +666,6 @@ export default function Reports() {
                               <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
                             </div>
                           </label>
-                          
-                          {/* Production Quantity Input - shown when facility is selected */}
-                          {ghgReportConfig.facility_ids.includes(facility.id) && (
-                            <div className="ml-8 p-3 bg-white rounded-lg border border-green-200 space-y-2">
-                              <p className="text-xs font-medium text-text-muted">Production Quantity (for Carbon Intensity calculation)</p>
-                              <div className="flex gap-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="Quantity"
-                                  value={ghgReportConfig.facility_production[facility.id]?.quantity || ''}
-                                  onChange={(e) => handleProductionChange(facility.id, 'quantity', e.target.value)}
-                                  className="flex-1 bg-stone-50 h-9 text-sm"
-                                />
-                                <Input
-                                  type="text"
-                                  placeholder="Unit (e.g., kg, tonnes, units)"
-                                  value={ghgReportConfig.facility_production[facility.id]?.unit || ''}
-                                  onChange={(e) => handleProductionChange(facility.id, 'unit', e.target.value)}
-                                  className="w-40 bg-stone-50 h-9 text-sm"
-                                />
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -699,60 +674,21 @@ export default function Reports() {
                     </p>
                   </div>
 
-                  {/* Additional Options */}
-                  <div className="space-y-4">
-                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                  {ghgReportConfig.output_format === 'docx' && (
+                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer" data-testid="include-previous-years-option">
                       <input
                         type="checkbox"
                         checked={ghgReportConfig.include_previous_years}
                         onChange={(e) => setGhgReportConfig(prev => ({ ...prev, include_previous_years: e.target.checked }))}
                         className="rounded text-green-600"
+                        data-testid="include-previous-years-checkbox"
                       />
                       <div>
                         <p className="font-medium text-text-primary">Include Previous Years Data</p>
                         <p className="text-xs text-text-muted">Add historical emissions comparison section</p>
                       </div>
                     </label>
-                  </div>
-
-                  {/* Output Format Selection */}
-                  <div className="space-y-4">
-                    <Label className="text-base font-semibold">Output Format</Label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
-                        style={{ borderColor: ghgReportConfig.output_format === 'docx' ? '#16a34a' : 'transparent' }}>
-                        <input
-                          type="radio"
-                          name="output_format"
-                          value="docx"
-                          checked={ghgReportConfig.output_format === 'docx'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
-                          className="text-green-600"
-                        />
-                        <div>
-                          <p className="font-medium text-text-primary">Word Document (.docx)</p>
-                          <p className="text-xs text-text-muted">Editable format</p>
-                        </div>
-                      </label>
-                      {/* PDF option temporarily hidden
-                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
-                        style={{ borderColor: ghgReportConfig.output_format === 'pdf' ? '#16a34a' : 'transparent' }}>
-                        <input
-                          type="radio"
-                          name="output_format"
-                          value="pdf"
-                          checked={ghgReportConfig.output_format === 'pdf'}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
-                          className="text-green-600"
-                        />
-                        <div>
-                          <p className="font-medium text-text-primary">PDF Document (.pdf)</p>
-                          <p className="text-xs text-text-muted">Fixed format for sharing</p>
-                        </div>
-                      </label>
-                      */}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Generate Button */}
                   <div className="flex gap-3 pt-4 border-t">
@@ -781,10 +717,35 @@ export default function Reports() {
                 </div>
               </DialogContent>
             </Dialog>
+              </div>
           </div>
         </div>
       </Card>
-      )}
+
+      <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="ghg-excel-card">
+        <div className="flex flex-1 flex-col">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex w-fit rounded-lg bg-teal-50 p-2">
+              <FileSpreadsheet className="w-7 h-7 text-teal-700" />
+            </div>
+            <h3 className="text-xl font-heading font-bold text-text-primary">GHG Excel</h3>
+          </div>
+          <div className="mt-4 flex flex-1 flex-col">
+            <p className="text-sm text-text-secondary">Download a structured Excel summary of your GHG emissions data.</p>
+            <div className="mt-auto pt-2 flex justify-center">
+              <Button
+                type="button"
+                onClick={() => openGhgReportDialog('xlsx')}
+                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+                data-testid="open-ghg-excel-summary-button"
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Download Excel
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* All Facilities Confirmation Dialog */}
       <Dialog open={showAllFacilitiesConfirm} onOpenChange={setShowAllFacilitiesConfirm}>
@@ -816,27 +777,24 @@ export default function Reports() {
         </DialogContent>
       </Dialog>
 
-      {/* AI Report Card */}
-      {hasScope12Access && (
-        <Card className="p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-purple-100 rounded-xl">
-              <Sparkles className="w-10 h-10 text-purple-600" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
-                <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">AI-Powered</span>
+      <Card className="flex min-h-[190px] flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-1 flex-col">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex w-fit rounded-lg bg-stone-100 p-2">
+                <Sparkles className="w-7 h-7 text-stone-700" />
               </div>
-              <p className="text-sm text-text-secondary mb-4">
-                Generate an AI-powered executive summary of your emissions data. Perfect for board presentations, 
-                stakeholder reports, and quick insights.
+              <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
+            </div>
+            <div className="mt-4 flex flex-1 flex-col">
+              <p className="text-sm text-text-secondary">
+                Generate an AI-powered executive summary of your emissions data.
               </p>
+              <div className="mt-auto pt-2 flex justify-center">
               <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
                 <DialogTrigger asChild>
                   <Button 
                     onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
                     data-testid="generate-ai-report-btn"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
@@ -980,12 +938,14 @@ export default function Reports() {
                   </div>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
           </div>
         </Card>
+        </div>
       )}
 
-      {facilities.length === 0 && (
+      {!showMISFoundation && facilities.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No facilities available</h3>
@@ -993,35 +953,6 @@ export default function Reports() {
         </div>
       )}
 
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-        <h3 className="text-lg font-heading font-bold text-text-primary mb-3">Report Contents</h3>
-        <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Facility information and details</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Visual charts and graphs showing emissions breakdown</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Year-wise emission data breakdown</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Detailed emission records table with all parameters</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary mt-0.5">•</span>
-            <span>Historical tracking and trend analysis</span>
-          </li>
-        </ul>
-      </Card>
     </div>
   );
 }

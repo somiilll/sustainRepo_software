@@ -75,6 +75,7 @@ class UploadSummary(BaseModel):
     warnings: List[ValidationError] = []
     results: List[RowResult] = []
     created_emission_ids: List[str] = []
+    preview: Optional[Dict[str, Any]] = None
 
 
 class BulkUploadJob(BaseModel):
@@ -199,7 +200,8 @@ CATEGORY_COLUMNS = {
     },
     "C3": {
         "code": "C3",
-        "name": "Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        "name": "Fuel- and energy-related activities",
+        "record_category_name": "C3 - Fuel and energy-related activities",
         "sheet_name": "C3", "sheet_name_aliases": ["C3-FuelEnergy", "C3 - Fuel and Energy", "C3 - Fuel and Energy Related Activities"],
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
@@ -324,7 +326,6 @@ CATEGORY_COLUMNS = {
             {"name": "From Location", "key": "from_location", "mandatory": False, "type": "text"},
             {"name": "To Location", "key": "to_location", "mandatory": False, "type": "text"},
             {"name": "Passengers Travelled", "key": "passengers", "mandatory": False, "type": "number"},
-            {"name": "No. of Days Travelled", "key": "days_travelled", "mandatory": False, "type": "number", "aliases": ["No. of Days Travelled", "Days Travelled", "No of Days Travelled", "Number of Days Travelled", "No. of days Travelled"]},
             {"name": "No. of Rooms Taken", "key": "rooms", "mandatory": False, "type": "number"},
             {"name": "No. of Nights Stayed", "key": "nights", "mandatory": False, "type": "number"},
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
@@ -707,7 +708,8 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
-            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"]},
+            {"name": "Category", "key": "category", "mandatory": True, "type": "dropdown", "allowed_values": ["Stationary Combustion", "Mobile Combustion", "Fugitive Emissions", "Flaring", "Process Emissions"]},
+            {"name": "Process Type", "key": "process_type", "mandatory": False, "type": "dropdown", "allowed_values": ["Venting", "N2O from Overall Combustion", "CH4 from Overall Combustion"]},
             {"name": "Fuel/Gas Used", "key": "fuel_gas", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "qty", "mandatory": True, "type": "number"},
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
@@ -716,21 +718,26 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Calorific Value", "key": "cv_unit", "mandatory": False, "type": "text"},
             {"name": "Density", "key": "density", "mandatory": False, "type": "number"},
             {"name": "Unit of Density", "key": "density_unit", "mandatory": False, "type": "text"},
-            {"name": "Emission Factor (kgCO2/kg)", "key": "ef_quantity", "mandatory": False, "type": "number"},
-            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Emission Factor", "key": "ef_quantity", "mandatory": False, "type": "number"},
+            {"name": "Emission Factor Unit", "key": "ef_quantity_unit", "mandatory": False, "type": "text"},
+            {"name": "Carbon Content (%)", "key": "carbon_content", "mandatory": False, "type": "number"},
+            {"name": "Oxidation Factor", "key": "oxidation_factor", "mandatory": False, "type": "number"},
+            {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
-            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty", "process_name", "process_description", "responsible_person"],
+            "default": ["facility_name", "category", "fuel_gas", "qty", "unit_qty"],
         },
         "conditional_mandatory": {
             "cv": ["cv_unit"],  # If cv is provided, cv_unit is mandatory
             "density": ["density_unit"],  # If density is provided, density_unit is mandatory
+            "ef_quantity": ["ef_quantity_unit"],  # If ef is provided, ef_unit is mandatory
+            "carbon_content": ["oxidation_factor"],  # If carbon_content is provided, oxidation_factor is required
         }
     },
     "Scope2": {
@@ -749,22 +756,46 @@ CATEGORY_COLUMNS = {
             {"name": "Unit of Quantity Used", "key": "unit_qty", "mandatory": True, "type": "dropdown"},
             {"name": "Emission Factor", "key": "ef_quantity_electricity_co2", "mandatory": False, "type": "number"},
             {"name": "Unit of Emission Factor", "key": "ef_unit", "mandatory": False, "type": "text"},
-            {"name": "Process Name", "key": "process_name", "mandatory": True, "type": "text"},
-            {"name": "Process Description", "key": "process_description", "mandatory": True, "type": "text"},
+            {"name": "Process Name", "key": "process_name", "mandatory": False, "type": "text"},
+            {"name": "Process Description", "key": "process_description", "mandatory": False, "type": "text"},
             {"name": "Source of Information", "key": "record_source", "mandatory": False, "type": "text"},
-            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": True, "type": "text"},
+            {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty", "process_name", "process_description", "responsible_person"],
+            "default": ["facility_name", "category", "energy_used", "qty_energy", "unit_qty"],
         },
         "conditional_mandatory": {
             "ef_quantity_electricity_co2": ["ef_unit"],  # If emission factor is provided, ef_unit is mandatory
         }
     },
 }
+
+# Spend-basis rows infer the standard method when only spend is given and the
+# PPP/Inflation method when either corresponding value is supplied. The optional
+# Standard Currency Conversion column contains the numeric exchange rate itself.
+# Its former override label remains accepted when importing older workbooks.
+for _category_config in CATEGORY_COLUMNS.values():
+    if CalculationMethod.SPEND_BASIS not in _category_config.get("supported_methods", []):
+        continue
+    _columns = _category_config.get("columns", [])
+    _spent_index = next((index for index, column in enumerate(_columns) if column["key"] == "spent_amount"), None)
+    if _spent_index is None:
+        continue
+    _spent_column = _columns[_spent_index]
+    _legacy_spent_amount_header = _spent_column["name"]
+    _spent_column["name"] = "Spent Amount"
+    _spent_amount_aliases = _spent_column.setdefault("aliases", [])
+    if _legacy_spent_amount_header not in _spent_amount_aliases:
+        _spent_amount_aliases.append(_legacy_spent_amount_header)
+    _new_columns = [
+        {"name": "Spent Currency", "key": "spent_currency", "mandatory": False, "type": "dropdown"},
+        {"name": "Standard Currency Conversion", "key": "exchange_rate", "mandatory": False, "type": "number", "aliases": ["Exchange Rate (Override)"]},
+    ]
+    if not any(column["key"] == "exchange_rate" for column in _columns):
+        _columns[_spent_index + 1:_spent_index + 1] = _new_columns
 
 
 # Activity type mappings for C6 and C7
@@ -786,11 +817,13 @@ ACTIVITY_TYPES = {
     ]
 }
 
-# Scope 1 categories
+# Scope 1 categories (canonical list — template generator filters by org config)
 SCOPE1_CATEGORIES = [
     {"key": "stationary_combustion", "name": "Stationary Combustion"},
     {"key": "mobile_combustion", "name": "Mobile Combustion"},
     {"key": "fugitive_emissions", "name": "Fugitive Emissions"},
+    {"key": "flaring", "name": "Flaring"},
+    {"key": "process_emissions", "name": "Process Emissions"},
 ]
 
 # Scope 2 categories

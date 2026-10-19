@@ -1,0 +1,249 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
+import { toast } from 'sonner';
+import { Archive, CalendarDays, CircleCheck, Eye, GraduationCap, Loader2, MoreHorizontal, RotateCcw, Search, Trash2, Upload, Users } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSupplierAssessmentPeriod } from '../../contexts/SupplierAssessmentPeriodContext';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { SupplierAssignmentPicker } from './components/SupplierAssignmentPicker';
+import { ReadOnlyTrainingViewer } from './components/ReadOnlyTrainingViewer';
+import { SupplierAssignmentManagerDialog } from './components/SupplierAssignmentManagerDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const trainingProgress = (training) => {
+  const status = training.status || [];
+  const completed = status.filter((item) => item.status === 'completed').length;
+  const percentage = status.length ? Math.round((completed / status.length) * 1000) / 10 : 0;
+  return { completed, total: status.length, percentage };
+};
+const formattedDueDate = (value) => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString('en-GB') : 'Not set';
+
+export default function SupplierTrainingAdmin() {
+  const { getAuthHeader } = useAuth();
+  const { reportingPeriod, periods, setReportingPeriod } = useSupplierAssessmentPeriod();
+  const [trainings, setTrainings] = useState([]);
+  const [trainingSearch, setTrainingSearch] = useState('');
+  const [file, setFile] = useState(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [selected, setSelected] = useState([]);
+  const [trainingLabel, setTrainingLabel] = useState('Training');
+  const [isCreating, setIsCreating] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [showTrainingForm, setShowTrainingForm] = useState(false);
+  const [isUpdating, setIsUpdating] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [previewTraining, setPreviewTraining] = useState(null);
+  const [previewViewer, setPreviewViewer] = useState(null);
+  const [openingPreviewId, setOpeningPreviewId] = useState('');
+  const [supplierDialog, setSupplierDialog] = useState(null);
+  const [assignmentRows, setAssignmentRows] = useState([]);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [assignmentUpdatingId, setAssignmentUpdatingId] = useState('');
+  const [dueDateDialog, setDueDateDialog] = useState(null);
+  const [dueDateDraft, setDueDateDraft] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const [trainingResponse, configResponse] = await Promise.all([
+        axios.get(`${API}/supplier-assessment/trainings?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() }),
+        axios.get(`${API}/sustainability-config/resolved`, { headers: getAuthHeader() }),
+      ]);
+      const trainingItems = trainingResponse.data;
+      const statusResults = await Promise.allSettled(trainingItems.map((training) => (
+        axios.get(`${API}/supplier-assessment/trainings/${training.id}/status?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() })
+      )));
+      setTrainings(trainingItems.map((training, index) => ({
+        ...training,
+        status: statusResults[index].status === 'fulfilled' ? statusResults[index].value.data : [],
+      })));
+      setTrainingLabel(configResponse.data?.supplier_assessment?.modules?.training?.display_name || 'Training');
+    } catch (error) {
+      toast.error('Could not load training management');
+    }
+  }, [getAuthHeader, reportingPeriod]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    if (!file || !title) {
+      toast.error('Add a title and file');
+      return;
+    }
+    setIsCreating(true);
+    setUploadProgress(0);
+    let multipartSessionId = null;
+    try {
+      if (file.type.startsWith('video/')) {
+        const initiated = await axios.post(`${API}/supplier-assessment/training-uploads/initiate`, { filename: file.name, content_type: file.type, file_size: file.size, title, description, due_date: dueDate || null, supplier_relationship_ids: selected }, { headers: getAuthHeader() });
+        const { session_id: sessionId, part_size: partSize, part_count: partCount } = initiated.data;
+        multipartSessionId = sessionId;
+        const completedParts = []; let nextPart = 1;
+        const uploadPart = async (partNumber) => {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const signed = await axios.post(`${API}/supplier-assessment/training-uploads/${sessionId}/parts/${partNumber}`, {}, { headers: getAuthHeader() });
+            const start = (partNumber - 1) * partSize;
+            const response = await fetch(signed.data.url, { method: 'PUT', body: file.slice(start, Math.min(start + partSize, file.size)) });
+            const etag = response.headers.get('ETag');
+            if (response.ok && etag) return { PartNumber: partNumber, ETag: etag };
+            if (attempt === 2) throw new Error(`Part ${partNumber} could not upload`);
+          }
+          return null;
+        };
+        const worker = async () => { while (nextPart <= partCount) { const partNumber = nextPart; nextPart += 1; completedParts.push(await uploadPart(partNumber)); setUploadProgress(Math.round((completedParts.length / partCount) * 100)); } };
+        await Promise.all(Array.from({ length: Math.min(4, partCount) }, worker));
+        await axios.post(`${API}/supplier-assessment/training-uploads/${sessionId}/complete`, { parts: completedParts.sort((a, b) => a.PartNumber - b.PartNumber) }, { headers: getAuthHeader() });
+        multipartSessionId = null;
+      } else {
+        const data = new FormData(); data.append('file', file); data.append('title', title); data.append('description', description); data.append('due_date', dueDate); data.append('completion_threshold', '100'); data.append('supplier_relationship_ids', JSON.stringify(selected));
+        await axios.post(`${API}/supplier-assessment/trainings`, data, { headers: getAuthHeader() });
+      }
+      toast.success(selected.length ? `${trainingLabel} assigned` : `${trainingLabel} created — assign suppliers when ready`);
+      setTitle(''); setDescription(''); setDueDate(''); setFile(null); setSelected([]); setShowTrainingForm(false);
+      await load();
+    } catch (error) {
+      if (multipartSessionId) await axios.delete(`${API}/supplier-assessment/training-uploads/${multipartSessionId}`, { headers: getAuthHeader() }).catch(() => null);
+      toast.error(error.response?.data?.detail || `Could not create ${trainingLabel.toLowerCase()}`);
+    } finally {
+      setIsCreating(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const updateTraining = async (trainingId, updates, successMessage) => {
+    setIsUpdating(trainingId);
+    try {
+      await axios.patch(`${API}/supplier-assessment/trainings/${trainingId}`, updates, { headers: getAuthHeader() });
+      toast.success(successMessage);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not update training');
+    } finally {
+      setIsUpdating('');
+    }
+  };
+
+  const openTrainingAssignments = async (training) => {
+    setSupplierDialog(training); setAssignmentRows([]); setAssignmentLoading(true);
+    try { setAssignmentRows((await axios.get(`${API}/supplier-assessment/trainings/${training.id}/assignments?reporting_period=${encodeURIComponent(reportingPeriod)}`, { headers: getAuthHeader() })).data.assignments || []); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Could not load training assignments'); setSupplierDialog(null); }
+    finally { setAssignmentLoading(false); }
+  };
+
+  const toggleTrainingAssignment = async (row, assigned) => {
+    if (!supplierDialog) return;
+    setAssignmentUpdatingId(row.supplier_relationship_id);
+    try {
+      if (assigned) await axios.post(`${API}/supplier-assessment/trainings/${supplierDialog.id}/assignments/${row.supplier_relationship_id}`, {}, { headers: getAuthHeader() });
+      else await axios.delete(`${API}/supplier-assessment/trainings/${supplierDialog.id}/assignments/${row.supplier_relationship_id}`, { headers: getAuthHeader() });
+      setAssignmentRows((current) => current.map((item) => item.supplier_relationship_id === row.supplier_relationship_id ? { ...item, is_assigned: assigned, can_unassign: assigned, status: assigned ? 'not_started' : 'not_assigned' } : item));
+      toast.success(assigned ? 'Training assigned' : 'Training unassigned'); await load();
+    } catch (error) { toast.error(error.response?.data?.detail || 'Could not update training assignment'); }
+    finally { setAssignmentUpdatingId(''); }
+  };
+
+  const deleteTraining = async () => {
+    if (!pendingDelete) return;
+    setIsUpdating(pendingDelete.id);
+    try {
+      await axios.delete(`${API}/supplier-assessment/trainings/${pendingDelete.id}`, { headers: getAuthHeader() });
+      toast.success(`${trainingLabel} deleted`);
+      setPendingDelete(null);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not delete training');
+    } finally {
+      setIsUpdating('');
+    }
+  };
+
+  const openPreview = async (training) => {
+    setPreviewTraining(training); setPreviewViewer(null); setOpeningPreviewId(training.id);
+    try { const { data } = await axios.get(`${API}/supplier-assessment/trainings/${training.id}/viewer`, { headers: getAuthHeader() }); setPreviewViewer(data); }
+    catch (error) { toast.error(error.response?.data?.detail || 'Could not preview training'); setPreviewTraining(null); }
+    finally { setOpeningPreviewId(''); }
+  };
+
+  const filteredTrainings = trainings.filter((training) => {
+    const query = trainingSearch.trim().toLowerCase();
+    return !query || [training.title, training.description]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
+  const trainingSummary = {
+    total: trainings.length,
+    assigned: trainings.reduce((total, training) => total + (training.status || []).length, 0),
+    completed: trainings.reduce((total, training) => total + (training.status || []).filter((item) => item.status === 'completed').length, 0),
+  };
+
+  return <div className="space-y-7" data-testid="training-admin-page">
+    <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 xl:flex-row xl:items-center xl:justify-between" data-testid="training-admin-header"><div className="flex items-center gap-3"><div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 shadow-sm" data-testid="training-admin-heading-icon"><GraduationCap className="h-6 w-6" aria-hidden="true" /></div><h1 className="text-3xl font-bold text-emerald-950" data-testid="training-admin-heading">Supplier {trainingLabel}</h1></div><div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:flex-nowrap" data-testid="training-admin-controls">
+      <div className="relative w-full sm:w-64 sm:flex-none" data-testid="training-admin-search-control"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden="true" /><Input value={trainingSearch} onChange={(event) => setTrainingSearch(event.target.value)} placeholder={`Search ${trainingLabel.toLowerCase()}...`} className="h-10 rounded-full border-stone-200 bg-stone-50 pl-10 shadow-none transition-[border-color,box-shadow] focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100" aria-label={`Search ${trainingLabel}`} data-testid="training-admin-search-input" /></div>
+      <Button className="h-10 shrink-0 rounded-full bg-emerald-800 px-6 text-white shadow-sm transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-emerald-900 hover:shadow-md" onClick={() => setShowTrainingForm(true)} data-testid="open-add-training-button"><Upload className="mr-2 h-4 w-4" />Add {trainingLabel}</Button>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2" data-testid="training-admin-period-control"><Label htmlFor="training-admin-reporting-period" className="flex shrink-0 items-center gap-2 text-sm font-medium text-stone-600" data-testid="training-admin-period-label"><CalendarDays className="h-4 w-4 text-emerald-700" aria-hidden="true" />Reporting period</Label><Select value={reportingPeriod} onValueChange={setReportingPeriod}><SelectTrigger id="training-admin-reporting-period" className="h-10 w-full rounded-full border-stone-200 bg-stone-50 font-medium text-stone-800 shadow-none transition-[border-color,box-shadow] focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 sm:w-44" data-testid="training-admin-period-selector"><SelectValue /></SelectTrigger><SelectContent data-testid="training-admin-period-menu">{periods.map((period) => <SelectItem key={period} value={period} data-testid={`training-admin-period-option-${period}`}>{period}</SelectItem>)}</SelectContent></Select></div>
+    </div></div>
+    <div className="grid gap-4 sm:grid-cols-3" data-testid="training-admin-summary-cards"><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-total-card"><CardContent className="flex items-center gap-3 p-5"><GraduationCap className="h-5 w-5 text-amber-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">{trainingLabel} published</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-total-value">{trainingSummary.total}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-assigned-card"><CardContent className="flex items-center gap-3 p-5"><Users className="h-5 w-5 text-stone-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Supplier assignments</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-assigned-value">{trainingSummary.assigned}</p></div></CardContent></Card><Card className="rounded-xl border-stone-200 bg-white shadow-sm" data-testid="training-admin-completed-card"><CardContent className="flex items-center gap-3 p-5"><CircleCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-medium text-stone-500">Completed</p><p className="mt-1 text-2xl font-bold text-stone-950" data-testid="training-admin-completed-value">{trainingSummary.completed}</p></div></CardContent></Card></div>
+
+    <Dialog open={showTrainingForm} onOpenChange={setShowTrainingForm}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto bg-white" data-testid="create-training-card">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold text-emerald-950" data-testid="create-training-heading">
+            <Upload className="h-5 w-5 text-emerald-700" />
+            Create {trainingLabel}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 md:grid-cols-2 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="training-title">Title</Label>
+            <Input id="training-title" value={title} onChange={(event) => setTitle(event.target.value)} data-testid="training-title-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-description">Description</Label>
+            <Input id="training-description" value={description} onChange={(event) => setDescription(event.target.value)} data-testid="training-description-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-due-date">Due date</Label>
+            <Input id="training-due-date" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDate} onChange={(event) => setDueDate(event.target.value)} data-testid="training-due-date-input" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="training-file">Content file</Label>
+            <Input id="training-file" type="file" accept=".pdf,.ppt,.pptx,audio/*,video/*" onChange={(event) => setFile(event.target.files?.[0])} data-testid="training-file-input" />
+          </div>
+          <div className="md:col-span-2">
+            <SupplierAssignmentPicker selectedIds={selected} onChange={setSelected} getAuthHeader={getAuthHeader} testIdPrefix="training" reportingPeriod={reportingPeriod} label="Assign suppliers now" />
+          </div>
+          <div className="md:col-span-2 flex justify-end gap-2 pt-2">
+            {isCreating && file?.type.startsWith('video/') && <span className="mr-auto self-center text-xs font-medium text-emerald-800" data-testid="training-upload-progress">Uploading video {uploadProgress}%</span>}
+            <Button variant="outline" onClick={() => setShowTrainingForm(false)} data-testid="cancel-create-training-button">Cancel</Button>
+            <Button onClick={create} disabled={isCreating} data-testid="create-training-button">
+              {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isCreating ? 'Creating…' : 'Create and assign'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <div className="space-y-4" data-testid="training-admin-list">
+      {filteredTrainings.length === 0 ? <p className="py-8 text-center text-sm text-stone-500" data-testid="training-admin-empty-state">{trainingSearch ? `No ${trainingLabel.toLowerCase()} items match your search.` : `No ${trainingLabel.toLowerCase()} items have been published.`}</p> : filteredTrainings.map((training) => {
+        const progress = trainingProgress(training);
+        const isDisabled = !training.is_active;
+        return <Card key={training.id} className={`rounded-xl border ${isDisabled ? 'border-stone-300 bg-stone-100/80 opacity-70 shadow-none' : 'border-stone-200 bg-white shadow-[0_4px_18px_rgba(28,55,43,0.05)]'}`} data-testid={`training-admin-${training.id}`}><CardContent className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(16rem,1fr)_20rem_8.5rem_7rem] xl:items-center"><div className="min-w-0"><p className="text-base font-semibold text-stone-950" data-testid={`training-title-${training.id}`}>{training.title}</p><div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-stone-500"><span data-testid={`training-completion-count-${training.id}`}>{progress.completed} / {progress.total} completed</span>{isDisabled && <span className="rounded-full bg-stone-200 px-2 py-0.5 font-medium text-stone-600" data-testid={`training-disabled-status-${training.id}`}>Disabled</span>}</div></div><div className="min-w-0 sm:col-span-2 xl:col-span-1"><div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs"><span className="font-medium text-stone-600">Completion</span><span className="font-semibold text-stone-800" data-testid={`training-completion-percentage-${training.id}`}>{progress.percentage}%</span></div><div className="h-2 w-full overflow-hidden rounded-full bg-stone-100" data-testid={`training-completion-progress-track-${training.id}`}><div className={`h-full rounded-full transition-[width,background-color] duration-300 ${isDisabled ? 'bg-stone-400' : 'bg-emerald-600'}`} style={{ width: `${progress.percentage}%` }} data-testid={`training-completion-progress-bar-${training.id}`} /></div></div><div className="flex shrink-0 items-center justify-end gap-2 sm:col-start-2 sm:row-start-1 xl:col-start-auto xl:row-start-auto xl:border-l xl:border-stone-200 xl:pl-5"><CalendarDays className="h-4 w-4 text-stone-500" aria-hidden="true" /><div className="text-right"><p className="text-[11px] font-medium uppercase tracking-wide text-stone-500">Due date</p><p className="mt-0.5 whitespace-nowrap text-sm font-semibold text-stone-800" data-testid={`training-due-date-display-${training.id}`}>{formattedDueDate(training.due_date)}</p></div></div><div className="flex justify-end sm:col-start-2 xl:col-start-auto"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="gap-2" aria-label={`Actions for ${training.title}`} data-testid={`training-actions-menu-${training.id}`}><span>Actions</span><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-56 !border-stone-200 !bg-white !text-stone-900 shadow-xl" data-testid={`training-actions-menu-content-${training.id}`}><DropdownMenuLabel className="text-xs font-medium text-stone-500">Training actions</DropdownMenuLabel><DropdownMenuItem disabled={isDisabled} onSelect={() => openTrainingAssignments(training)} data-testid={`manage-training-assignments-${training.id}`}><Users className="mr-2 h-4 w-4" />Manage suppliers</DropdownMenuItem><DropdownMenuItem onSelect={() => { setDueDateDialog(training); setDueDateDraft(training.due_date?.slice(0, 10) || ''); }} data-testid={`edit-training-due-date-${training.id}`}><CalendarDays className="mr-2 h-4 w-4" />Edit due date</DropdownMenuItem><DropdownMenuItem disabled={openingPreviewId === training.id} onSelect={() => openPreview(training)} data-testid={`preview-training-${training.id}`}>{openingPreviewId === training.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}Preview</DropdownMenuItem><DropdownMenuItem disabled={isUpdating === training.id} onSelect={() => updateTraining(training.id, { is_active: !training.is_active }, training.is_active ? 'Training disabled' : 'Training enabled')} data-testid={`toggle-training-${training.id}`}>{training.is_active ? <Archive className="mr-2 h-4 w-4" /> : <RotateCcw className="mr-2 h-4 w-4" />}{training.is_active ? 'Disable' : 'Enable'}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem className="text-rose-600 focus:bg-rose-50 focus:text-rose-700" disabled={isUpdating === training.id} onSelect={() => setPendingDelete(training)} data-testid={`delete-training-${training.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></CardContent></Card>;
+      })}
+    </div>
+    <SupplierAssignmentManagerDialog open={Boolean(supplierDialog)} onOpenChange={(open) => !open && setSupplierDialog(null)} title={supplierDialog?.title || ''} rows={assignmentRows} loading={assignmentLoading} updatingId={assignmentUpdatingId} onToggle={toggleTrainingAssignment} testIdPrefix="training" />
+    <Dialog open={Boolean(dueDateDialog)} onOpenChange={(open) => !open && setDueDateDialog(null)}><DialogContent data-testid="training-due-date-dialog"><DialogHeader><DialogTitle>Set training due date</DialogTitle></DialogHeader><div className="space-y-2"><Label htmlFor="training-due-date-editor">Due date</Label><Input id="training-due-date-editor" type="date" min={new Date().toISOString().slice(0, 10)} value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} data-testid="training-due-date-editor" /></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setDueDateDialog(null)} data-testid="cancel-training-due-date-button">Cancel</Button><Button disabled={isUpdating === dueDateDialog?.id} onClick={() => { updateTraining(dueDateDialog.id, { due_date: dueDateDraft || null }, 'Due date saved'); setDueDateDialog(null); }} data-testid="save-training-due-date-button">Save due date</Button></div></DialogContent></Dialog>
+    <Dialog open={Boolean(previewTraining)} onOpenChange={(open) => { if (!open) { setPreviewTraining(null); setPreviewViewer(null); } }}><DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl overflow-y-auto" data-testid="admin-training-preview-dialog"><DialogHeader><DialogTitle data-testid="admin-training-preview-dialog-title">Training preview — {previewTraining?.title}</DialogTitle></DialogHeader>{!previewViewer ? <p className="py-16 text-center text-sm text-stone-500" data-testid="admin-training-preview-loading">Preparing preview…</p> : <ReadOnlyTrainingViewer viewer={previewViewer} />}</DialogContent></Dialog>
+    <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialogContent data-testid="delete-training-dialog"><AlertDialogHeader><AlertDialogTitle>Delete {pendingDelete?.title}?</AlertDialogTitle><AlertDialogDescription>This removes it from supplier access and assignment lists. Historical completion records are retained for audit purposes.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel data-testid="cancel-delete-training-button">Cancel</AlertDialogCancel><AlertDialogAction onClick={deleteTraining} data-testid="confirm-delete-training-button">Delete training</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+    </AlertDialog>
+  </div>;
+}

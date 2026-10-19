@@ -13,7 +13,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { MonthYearPicker } from '../../components/ui/month-year-picker';
-import { Calendar as CalendarIcon, Info, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Building2, Calendar as CalendarIcon, Info, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 
 /**
  * FacilityScopeSection - Facility and Scope selection
@@ -25,47 +25,37 @@ export const FacilityScopeSection = ({
   dynamicScopes,
   hasScope3Access,
   handleFuelSelect,
+  onScopeChange,
   setBiogenicScopeSelection,
   markFormDirty,
+  reportingPeriod,
+  readOnly = false,
 }) => (
-  <div className="grid grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-[minmax(15rem,1fr)_minmax(25rem,1.45fr)_minmax(15rem,1fr)]">
     <div className="space-y-1.5">
       <Label htmlFor="facility">Facility *</Label>
-      <select
-        id="facility"
-        value={formData.facility_id}
-        onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
-        required
-        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-        data-testid="emission-facility-select"
-      >
-        <option value="">Select Facility</option>
-        {facilities.filter(f => f.is_active !== false).map(f => (
-          <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
-        ))}
-      </select>
+      {readOnly ? <div
+          role="textbox"
+          aria-readonly="true"
+          className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800"
+          data-testid="emission-facility-select"
+        >{facilities.find((facility) => facility.id === formData.facility_id)?.name || '—'}</div> : <div className="relative"><Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="facility" value={formData.facility_id} onChange={(event) => { setFormData({ ...formData, facility_id: event.target.value }); markFormDirty(); }} className="h-10 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm font-normal leading-5 text-stone-800 outline-none transition-colors focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" data-testid="emission-facility-select"><option value="">Select Facility</option>{facilities.filter((facility) => facility.is_active !== false).map((facility) => <option key={facility.id} value={facility.id}>{facility.name}{facility.country ? ` (${facility.country})` : ''}</option>)}</select></div>}
     </div>
     <div className="space-y-1.5">
       <Label>Scope *</Label>
-      <div className="flex gap-4 h-10 items-center flex-wrap">
+      <div className="flex h-10 items-center gap-3 whitespace-nowrap">
         {dynamicScopes.map(scope => {
           const isScope3 = scope.code === 'scope3';
           const isDisabled = isScope3 && !hasScope3Access;
           return (
-            <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
+            <label key={scope.code} className={`relative flex shrink-0 items-center gap-2 text-sm font-normal leading-5 text-stone-800 ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
               <input
                 type="radio"
                 value={scope.code}
                 checked={formData.scope === scope.code}
                 disabled={isDisabled}
-                onChange={(e) => {
-                  setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
-                  handleFuelSelect('');
-                  if (e.target.value !== 'biogenic') {
-                    setBiogenicScopeSelection('');
-                  }
-                }}
-                className="text-primary"
+                onChange={(e) => onScopeChange(e.target.value)}
+                className="h-4 w-4 accent-emerald-600"
                 data-testid={`scope-radio-${scope.code}`}
               />
               <span>{scope.name}</span>
@@ -79,6 +69,7 @@ export const FacilityScopeSection = ({
         })}
       </div>
     </div>
+    {reportingPeriod}
   </div>
 );
 
@@ -92,28 +83,25 @@ export const BiogenicScopeSection = ({
   setBiogenicScopeSelection,
   hasScope3Access,
   handleFuelSelect,
+  onBiogenicScopeChange,
   loadingBiogenicCategories,
 }) => {
   if (formData.scope !== 'biogenic') return null;
   
   return (
-    <div className="space-y-1.5 p-3 bg-green-50 rounded-lg border border-green-200">
-      <Label className="text-green-800">Select Biogenic Emission Type *</Label>
-      <div className="flex gap-4 h-10 items-center">
+    <div className="flex min-h-10 flex-wrap items-center gap-6">
+      <Label className="shrink-0" data-testid="biogenic-emission-type-label">Select Biogenic Emission Type *</Label>
+      <div className="flex min-h-10 flex-wrap items-center gap-6">
         <label className="flex items-center gap-2">
           <input
             type="radio"
             value="scope1"
             checked={biogenicScopeSelection === 'scope1'}
-            onChange={(e) => {
-              setBiogenicScopeSelection(e.target.value);
-              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-              handleFuelSelect('');
-            }}
-            className="text-green-600"
+            onChange={(e) => onBiogenicScopeChange(e.target.value)}
+            className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope1"
           />
-          <span className="text-green-800">Direct Biogenic</span>
+          <span className="text-sm">Direct Emissions</span>
         </label>
         <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
           <input
@@ -121,15 +109,11 @@ export const BiogenicScopeSection = ({
             value="scope3"
             checked={biogenicScopeSelection === 'scope3'}
             disabled={!hasScope3Access}
-            onChange={(e) => {
-              setBiogenicScopeSelection(e.target.value);
-              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-              handleFuelSelect('');
-            }}
-            className="text-green-600"
+            onChange={(e) => onBiogenicScopeChange(e.target.value)}
+            className="h-4 w-4 accent-emerald-600"
             data-testid="biogenic-scope-radio-scope3"
           />
-          <span className="text-green-800">Indirect Biogenic</span>
+          <span className="text-sm">Indirect Emissions</span>
           {!hasScope3Access && (
             <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
               Not Available
@@ -138,7 +122,7 @@ export const BiogenicScopeSection = ({
         </label>
       </div>
       {loadingBiogenicCategories && (
-        <p className="text-xs text-green-600">Loading biogenic categories...</p>
+        <p className="text-xs text-stone-500" data-testid="biogenic-categories-loading">Loading biogenic categories...</p>
       )}
     </div>
   );

@@ -67,11 +67,62 @@ class CalculationError(RuntimeError):
     pass
 
 
+def _add_conversion_audit(
+    audit: AuditTrail,
+    conversion_audit: Dict[str, Any],
+    *,
+    variable: Optional[str] = None,
+    property_key: Optional[str] = None,
+) -> None:
+    """Record property resolution separately without changing conversion behaviour."""
+    property_resolutions = list(conversion_audit.get("property_resolutions") or [])
+    if conversion_audit.get("property_resolution"):
+        property_resolutions.append(conversion_audit["property_resolution"])
+    for resolution in property_resolutions:
+        audit.add(resolution)
+    conversion_entry = {
+        key: value
+        for key, value in conversion_audit.items()
+        if key not in {"property_resolution", "property_resolutions"}
+    }
+    if variable:
+        conversion_entry["variable"] = variable
+    if property_key:
+        conversion_entry["property"] = property_key
+    audit.add(conversion_entry)
+
+
 class CalcEngine:
     def __init__(self, db):
         self.db = db
 
     # ---------- Unit validation ----------
+
+    async def _input_mapping_for_context(
+        self,
+        variable_key: str,
+        context: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        group_id = context.get("activity_formula_group_id")
+        if group_id:
+            scoped = await self.db.ce_input_field_mappings.find_one(
+                {
+                    "maps_to_variable": variable_key,
+                    "activity_formula_group_id": group_id,
+                    "is_active": True,
+                },
+                {"_id": 0},
+            )
+            if scoped:
+                return scoped
+        return await self.db.ce_input_field_mappings.find_one(
+            {
+                "maps_to_variable": variable_key,
+                "activity_formula_group_id": {"$exists": False},
+                "is_active": True,
+            },
+            {"_id": 0},
+        )
 
     async def validate_input_unit(
         self,
@@ -92,10 +143,7 @@ class CalcEngine:
             return  # No unit to validate
         
         # Find input field mapping for this variable
-        mapping = await self.db.ce_input_field_mappings.find_one(
-            {"maps_to_variable": variable_key, "is_active": True},
-            {"_id": 0}
-        )
+        mapping = await self._input_mapping_for_context(variable_key, context)
         
         if not mapping:
             return  # No mapping = no validation (allow any unit)
@@ -232,7 +280,9 @@ class CalcEngine:
         org_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run a formula end-to-end and return outputs + audit trail."""
-        context = context or {}
+        context = {**(context or {})}
+        if formula.get("activity_formula_group_id"):
+            context["activity_formula_group_id"] = formula["activity_formula_group_id"]
         user_overrides = user_overrides or {}
         audit = AuditTrail()
 
@@ -333,7 +383,7 @@ class CalcEngine:
                                     {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
                                 )
                                 if ef_row:
-                                    target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                                    target_base = ef_row.get("default_unit")
                     elif fm and fm.get("unit_source") == "fuel":
                         # For fuel-based fields (e.g., fugitive emissions in C11)
                         # Try to get target_base from fuel document first
@@ -363,16 +413,20 @@ class CalcEngine:
                                         {"id": ef_id_val}, {"_id": 0, "unit": 1, "default_unit": 1}
                                     )
                                     if ef_row:
-                                        target_base = ef_row.get("default_unit") or ef_row.get("unit")
+                                        target_base = ef_row.get("default_unit")
                 if not target_base:
                     target_base = base_in  # no conversion possible
 
                 try:
                     if base_in != target_base:
                         converted_value, base_audit = await convert(
-                            self.db, raw_value, base_in, target_base
+                            self.db, raw_value, base_in, target_base, context
                         )
                         raw_value = converted_value
+                        for resolution in base_audit.get("property_resolutions") or []:
+                            audit.add(resolution)
+                        if base_audit.get("property_resolution"):
+                            audit.add(base_audit["property_resolution"])
                         audit.add({
                             "step": "compound_base_conversion",
                             "variable": var,
@@ -406,9 +460,9 @@ class CalcEngine:
 
             # Try direct conversion if dimensions match
             try:
-                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit)
+                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit, context, user_overrides)
                 env[var] = value
-                audit.add(c_audit)
+                _add_conversion_audit(audit, c_audit, variable=var)
                 continue
             except ValueError as conv_err:
                 # Dimension mismatch — attempt a transformation
@@ -464,8 +518,8 @@ class CalcEngine:
                         for a in t_audit:
                             audit.add(a)
                         # Now convert to target_unit (same dim post-transformation)
-                        final_val, final_audit = await convert(self.db, val, new_unit, target_unit)
-                        audit.add(final_audit)
+                        final_val, final_audit = await convert(self.db, val, new_unit, target_unit, context)
+                        _add_conversion_audit(audit, final_audit, variable=var)
                         env[var] = final_val
                         transformation_applied = True
                         break
@@ -480,6 +534,7 @@ class CalcEngine:
 
         # 2. Resolve properties
         applied_factors = {}  # Track all resolved property values (emission factors, etc.)
+        is_custom_fuel = context.get("is_custom_fuel", False)
         for prop_decl in formula.get("properties", []):
             var = prop_decl["variable"]
             expected_unit = prop_decl.get("expected_unit")
@@ -490,9 +545,22 @@ class CalcEngine:
                 if var_def:
                     expected_unit = var_def.get("default_unit")
             
-            value, unit, res_audit = await resolve_property(
-                self.db, var, context, user_overrides, org_id=org_id,
-            )
+            try:
+                value, unit, res_audit = await resolve_property(
+                    self.db, var, context, user_overrides, org_id=org_id,
+                )
+            except ValueError:
+                # For custom fuel, skip unresolvable properties (no fuel DB entry)
+                # The formula may still succeed if user_overrides cover the needed values
+                if is_custom_fuel:
+                    audit.add({
+                        "step": "resolve_property",
+                        "property": var,
+                        "source": "skipped_custom_fuel",
+                        "note": f"Property '{var}' skipped — custom fuel has no DB entry",
+                    })
+                    continue
+                raise
             audit.add(res_audit)
             
             # Store the applied factor for response
@@ -505,8 +573,15 @@ class CalcEngine:
             
             # Only convert if we have both units and they differ
             if expected_unit and unit and unit != expected_unit:
-                value, c_audit = await convert(self.db, value, unit, expected_unit)
-                audit.add(c_audit)
+                value, c_audit = await convert(
+                    self.db,
+                    value,
+                    unit,
+                    expected_unit,
+                    context,
+                    user_overrides,
+                )
+                _add_conversion_audit(audit, c_audit, property_key=var)
                 applied_factors[var]["converted_to"] = expected_unit
                 applied_factors[var]["converted_value"] = value
             env[var] = value
@@ -579,10 +654,11 @@ class CalcEngine:
         }
 
         if not dry_run:
+            audit_log_id = str(uuid.uuid4())
             await self.db.ce_calculation_audit_logs.insert_one({
-                "id": str(uuid.uuid4()),
+                "id": audit_log_id,
                 "emission_record_id": emission_record_id,
-                "org_id": org_id,
+                "organization_id": org_id,
                 "formula_id": formula.get("id"),
                 "formula_version_id": formula.get("version_id"),
                 "inputs": inputs,
@@ -593,5 +669,6 @@ class CalcEngine:
                 "created_at": result["generated_at"],
             })
             result["persisted"] = True
+            result["audit_log_id"] = audit_log_id
 
         return result

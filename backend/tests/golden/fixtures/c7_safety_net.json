@@ -1,0 +1,36 @@
+{
+  "fixture_version": 1,
+  "source": "Sanitized read-only capture from 98 production-shaped C7 records",
+  "category_identity": {
+    "category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919",
+    "category_code": "C7",
+    "category": "C7 - Employee Commuting",
+    "scope": "scope3"
+  },
+  "replay_fixtures": [
+    {
+      "fixture_id": "monthly-activity-car",
+      "record_shape": {"c7_data_model_version": 2, "frequency_type": "monthly", "reporting_period": "2025-04", "employee_count": 1, "method": "activity_basis", "activity_type": "car_travel", "emission_factor_unit": "kgCO2e/km", "emission_factor_value": 0.17304},
+      "request": {"category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919", "decision_inputs": {"calculation_method_scope3": "activity_basis", "activity_type": "car_travel"}, "inputs": {"km_travelled": {"value": 42, "unit": "km"}, "qty_days_travelled": {"value": 20, "unit": ""}}, "context": {"calculation_method_scope3": "activity_basis", "activity_type": "car_travel", "reporting_period": "2025-04", "activity": "Cars - Average Size - Diesel", "fuel_name": "Cars - Average Size - Diesel", "scope3_ef_id": "12f047a2-1c94-431a-ae83-2059899cc727", "use_custom_activity": false}, "scope3_ef_id": "12f047a2-1c94-431a-ae83-2059899cc727", "dry_run": true},
+      "expected": {"formula_id": "64e49c6b-c3ef-4e79-8dc6-335f90775c9f", "decision_path": [{"field": "calculation_method_scope3", "value": "activity_basis"}, {"field": "activity_type", "value": "car_travel"}], "co2e": 0.1453536, "unit": "tCO2e"}
+    },
+    {
+      "fixture_id": "monthly-supplier-bike",
+      "record_shape": {"c7_data_model_version": 2, "frequency_type": "monthly", "reporting_period": "2025-01", "employee_count": 1, "method": "supplier_basis", "activity_type": "bike_travel", "emission_factor_unit": null, "emission_factor_value": null},
+      "request": {"category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919", "decision_inputs": {"calculation_method_scope3": "supplier_basis", "activity_type": "bike_travel"}, "inputs": {"activity_value_supplier_based": {"value": 8, "unit": ""}, "emission_factor_supplier_based": {"value": 0.2, "unit": ""}}, "context": {"calculation_method_scope3": "supplier_basis", "activity_type": "bike_travel", "reporting_period": "2025-01", "activity": "Motorbike - Average Size", "fuel_name": "Motorbike - Average Size", "scope3_ef_id": "4d086137-1b01-43bd-bb9b-40a444990234", "use_custom_activity": false}, "scope3_ef_id": "4d086137-1b01-43bd-bb9b-40a444990234", "dry_run": true},
+      "expected": {"formula_id": "ca7973df-2daa-4f8b-bb46-6ae5ebce31ea", "decision_path": [{"field": "calculation_method_scope3", "value": "supplier_basis"}], "co2e": 1.6, "unit": "tCO2e"}
+    },
+    {
+      "fixture_id": "yearly-activity-wfh",
+      "record_shape": {"c7_data_model_version": 2, "frequency_type": "yearly", "reporting_period": "CY2025", "employee_count": 1, "method": "activity_basis", "activity_type": "wfh", "emission_factor_unit": "kgCO2e/Working Hour", "emission_factor_value": 0.03144},
+      "request": {"category_id": "e805180d-d3cc-4a7f-a71e-bf1d920d8919", "decision_inputs": {"calculation_method_scope3": "activity_basis", "activity_type": "wfh"}, "inputs": {"working_days": {"value": 300, "unit": ""}, "working_hour_per_day": {"value": 8, "unit": ""}}, "context": {"calculation_method_scope3": "activity_basis", "activity_type": "wfh", "reporting_period": "CY2025", "activity": "Work From Home Employee - Office Equipment", "fuel_name": "Work From Home Employee - Office Equipment", "scope3_ef_id": "2892a089-2055-4c09-8a3e-4529db5bf828", "use_custom_activity": false}, "scope3_ef_id": "2892a089-2055-4c09-8a3e-4529db5bf828", "dry_run": true},
+      "expected": {"formula_id": "5389f946-6b62-461e-b229-3a0d142885eb", "decision_path": [{"field": "calculation_method_scope3", "value": "activity_basis"}, {"field": "activity_type", "value": "wfh"}], "co2e": 0.07545600000000001, "unit": "tCO2e"}
+    }
+  ],
+  "aggregate_contract_fixtures": [
+    {"fixture_id": "monthly-two-employee-air", "model": "v2-monthly", "employee_count": 2, "employee_co2e": [0.46815, 0.46815], "monthly_total": {"co2e": 0.9363, "employee_count": 2}, "yearly_total": null, "total_emissions": 0.9363, "category": "C7 - Employee Commuting", "scope": "scope3", "reporting_period": "2026-04", "method": "activity_basis", "activity_type": "air_travel", "employee_fields": ["activity_type", "calculation_details", "department", "emissions", "employee_id", "id", "inputs", "name"]},
+    {"fixture_id": "yearly-two-employee-taxi", "model": "v2-yearly", "employee_count": 2, "employee_co2e": [0.7835462249999999, 0.7835462249999999], "monthly_total": null, "yearly_total": {"co2e": 1.5670924499999999, "employee_count": 2}, "total_emissions": 1.5670924499999999, "category": "C7 - Employee Commuting", "scope": "scope3", "reporting_period": "FY 2025-2026", "method": "activity_basis", "activity_type": "taxi_travel", "employee_fields": ["activity_type", "calculation_details", "department", "emissions", "employee_id", "id", "inputs", "name"]},
+    {"fixture_id": "legacy-full-year-two-employee", "model": "legacy", "employee_count": 2, "months_with_employee_data": ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], "monthly_totals": {"jan": 0.38965000000000005, "feb": 0.38965000000000005, "mar": 0.38965000000000005, "apr": 0.7403350000000001, "may": 0.45978700000000006, "jun": 1.2157080000000002, "aug": 0.763714, "nov": 0.49095900000000003}, "yearly_total": {"co2e": 4.839453000000001}, "total_emissions": 4.839453000000001, "category": "C7 - Employee Commuting", "scope": "scope3", "reporting_period": "2025-04 to 2025-03", "method": "activity_basis", "activity_type": "car_travel", "employee_fields": ["activity_type", "department", "employee_id", "id", "monthly_data", "name"]},
+    {"fixture_id": "legacy-zero-activity", "model": "legacy", "employee_count": 0, "monthly_totals": null, "yearly_total": null, "total_emissions": null, "category": "Employee Commuting", "scope": "scope3", "reporting_period": "2024-02-15", "method": "spend_based", "activity_type": null, "employee_fields": []}
+  ]
+}

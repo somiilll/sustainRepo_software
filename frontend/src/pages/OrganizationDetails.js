@@ -1,15 +1,34 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info, Target, BarChart3, Leaf, Users, Mail, Phone, ChevronDown, ChevronUp, Briefcase, Eye, Shield, Zap } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
+import { useModuleAccess } from '../hooks/useModuleAccess';
+import { ModulePageHeader } from '../components/ModulePageHeader';
+import { OrganizationOperationalData } from '../components/organization/OrganizationOperationalData';
+import { SecureFileImage } from '../components/SecureFileImage';
+import {
+  createDraftEvidence,
+  deleteEvidenceFiles,
+  draftEvidence,
+  getEvidenceFileId,
+  persistedEvidence,
+  revokeDraftEvidence,
+  revokeDraftEvidences,
+  toEvidencePayload,
+  uploadDraftEvidences,
+} from '../lib/draftEvidence';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -30,31 +49,40 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to delete file from R2 storage
-const deleteFileFromR2 = async (fileUrl, authHeader) => {
-  const fileIdMatch = fileUrl?.match(/\/api\/files\/([a-f0-9-]+)/i);
-  if (fileIdMatch) {
-    try {
-      await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
-        headers: authHeader
-      });
-      return true;
-    } catch (error) {
-      console.error('Failed to delete file from storage:', error);
-      return false;
-    }
-  }
-  return false;
-};
-
 export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
+  const [activeTab, setActiveTab] = useState('basic');
+  const [facilityCount, setFacilityCount] = useState(0);
+  const [pendingLogo, setPendingLogo] = useState(null);
+  const pendingDeletionIds = useRef(new Set());
+  
+  // Collapsible text states
+  const [expandedSections, setExpandedSections] = useState({});
+  const toggleSection = (section) => setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
+
+  const showGhgDetails = !moduleAccessLoading && hasAccess('environment.ghg');
+  const showOperationalData = !moduleAccessLoading && [
+    'environment',
+    'social',
+    'governance'
+  ].some(hasAccess);
+
+  useEffect(() => {
+    const activeTabIsAvailable = activeTab === 'basic'
+      || (activeTab === 'ghg' && showGhgDetails)
+      || (['production', 'revenue'].includes(activeTab) && showOperationalData);
+
+    if (!activeTabIsAvailable) {
+      setActiveTab('basic');
+    }
+  }, [activeTab, showGhgDetails, showOperationalData]);
 
   // Check if user is Admin (can edit) or User (read-only)
   // Also block editing if subscription is expired
@@ -76,26 +104,20 @@ export default function OrganizationDetails() {
     else setPincodeError('');
   };
 
-  // Helper to get full logo URL
-  const getFullLogoUrl = (logoPath) => {
-    if (!logoPath) return null;
-    if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
-    return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
-  };
-
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
     city: '',
     state: '',
     country: '',
+    timezone: '',  // IANA timezone string
     pincode: '',
     logo: '',
     general_description: '',
     mission: '',
     vision: '',
     process_description: '',
-    org_boundaries_approach: '',
+    org_boundaries_approach: 'control',
     org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
     equity_share_reported_data_type: '',  // "org_share" or "total_facility"
@@ -113,6 +135,8 @@ export default function OrganizationDetails() {
     ghg_reduction_initiatives: '',
     internal_performance_tracking: ''
   });
+  
+  const [timezones, setTimezones] = useState([]);  // Available timezone options
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
@@ -130,14 +154,8 @@ export default function OrganizationDetails() {
     if (!data.country || data.country.trim() === '') return false;
     if (!data.pincode || data.pincode.trim() === '') return false;
     if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
-    if (!data.org_boundaries_approach || data.org_boundaries_approach.trim() === '') return false;
     if (!data.person_responsible || data.person_responsible.trim() === '') return false;
     if (!data.reporting_year_type) return false;
-    
-    // If control approach selected, must specify at least one control type
-    if (data.org_boundaries_approach === 'control' && (!data.control_types || data.control_types.length === 0)) {
-      return false;
-    }
     
     return true;
   }, []);
@@ -171,19 +189,18 @@ export default function OrganizationDetails() {
       city: data.city || null,
       state: data.state || null,
       country: data.country || null,
+      timezone: data.timezone || null,
       pincode: data.pincode || null,
-      logo: data.logo || null
+      logo: organization?.logo || null,
+      attachments: organization?.attachments || [],
     };
     
     await axios.put(`${API}/organizations/my`, submitData, {
       headers: getAuthHeader()
     });
     
-    // Silently refresh
-    fetchOrganization();
-    
     return { id: organization?.id };
-  }, [getAuthHeader, organization?.id]);
+  }, [getAuthHeader, organization?.attachments, organization?.id, organization?.logo]);
 
   // Auto-save hook
   const { 
@@ -206,6 +223,36 @@ export default function OrganizationDetails() {
     fetchOrganization();
   }, []);
 
+  // Fetch available timezones on component mount
+  useEffect(() => {
+    const fetchTimezones = async () => {
+      try {
+        const response = await axios.get(`${API}/timezones`, { headers: getAuthHeader() });
+        setTimezones(response.data || []);
+      } catch (error) {
+        console.error('Failed to fetch timezones:', error);
+      }
+    };
+    fetchTimezones();
+  }, [getAuthHeader]);
+
+  // Update timezone when country changes (suggest default)
+  const handleCountryChange = async (country) => {
+    setFormData(prev => ({ ...prev, country }));
+    
+    // If no timezone set yet, fetch the default for this country
+    if (country && !formData.timezone) {
+      try {
+        const response = await axios.get(`${API}/timezones/default/${encodeURIComponent(country)}`, { headers: getAuthHeader() });
+        if (response.data?.timezone) {
+          setFormData(prev => ({ ...prev, timezone: response.data.timezone }));
+        }
+      } catch (error) {
+        console.error('Failed to get default timezone:', error);
+      }
+    }
+  };
+
   const fetchOrganization = async () => {
     try {
       const response = await axios.get(`${API}/organizations/my`, {
@@ -225,11 +272,8 @@ export default function OrganizationDetails() {
         }
       }
       
-      // Handle logo URL - ensure it has the full URL if it's a relative path
-      let logoUrl = response.data.logo || '';
-      if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
-        logoUrl = `${BACKEND_URL}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
-      }
+      // Keep the protected file route; SecureFileImage resolves it through an authenticated request.
+      const logoUrl = response.data.logo || '';
       
       setFormData({
         name: response.data.name,
@@ -237,13 +281,14 @@ export default function OrganizationDetails() {
         city: response.data.city || '',
         state: response.data.state || '',
         country: response.data.country || '',
+        timezone: response.data.timezone || '',
         pincode: response.data.pincode || '',
         logo: logoUrl,
         general_description: response.data.general_description || '',
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
-        org_boundaries_approach: response.data.org_boundaries_approach || '',
+        org_boundaries_approach: response.data.org_boundaries_approach || 'control',
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
         equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
@@ -271,6 +316,27 @@ export default function OrganizationDetails() {
     }
   };
 
+  const fetchFacilityCount = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/facilities`, {
+        headers: getAuthHeader(),
+      });
+      const facilities = Array.isArray(response.data)
+        ? response.data
+        : response.data?.facilities || [];
+      setFacilityCount(facilities.length);
+    } catch (error) {
+      console.error('Failed to load facility count:', error);
+      setFacilityCount(0);
+    }
+  }, [getAuthHeader]);
+
+  useEffect(() => {
+    if (organization && !editing) {
+      fetchFacilityCount();
+    }
+  }, [editing, fetchFacilityCount, organization]);
+
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -288,7 +354,6 @@ export default function OrganizationDetails() {
     }
 
     setUploadingLogo(true);
-    
     const sizeErr = validateFileSize(file);
     if (sizeErr) {
       toast.error(sizeErr);
@@ -296,29 +361,27 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Delete old logo from R2 if it exists (before uploading new one)
-    if (formData.logo) {
-      await deleteFileFromR2(formData.logo, getAuthHeader());
-    }
-    
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', file);
-
     try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      });
-      
-      // Use /view endpoint for public access (for img tags)
-      const logoUrl = `${BACKEND_URL}${response.data.url}/view`;
-      setFormData({ ...formData, logo: logoUrl });
-      setLogoError(false);
-      toast.success('Logo uploaded successfully');
+      revokeDraftEvidence(pendingLogo);
+      setPendingLogo(createDraftEvidence(file, { type: 'logo' }));
+      toast.success('Logo uploaded');
     } catch (error) {
       toast.error(getUploadErrorMessage(error, file));
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
     }
+  };
+
+  const handleRemoveLogo = () => {
+    if (pendingLogo) {
+      revokeDraftEvidence(pendingLogo);
+      setPendingLogo(null);
+      return;
+    }
+    const fileId = getEvidenceFileId({ url: formData.logo });
+    if (fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({ ...prev, logo: '' }));
   };
 
   const addAttachment = () => {
@@ -337,7 +400,6 @@ export default function OrganizationDetails() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    let uploadedCount = 0;
     const newAttachments = [];
 
     for (const file of files) {
@@ -347,35 +409,15 @@ export default function OrganizationDetails() {
         continue;
       }
 
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-
-      try {
-        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-        });
-        
-        // Use /view endpoint for images, regular for other files
-        const fileUrl = file.type.startsWith('image/') 
-          ? `${BACKEND_URL}${response.data.url}/view`
-          : `${BACKEND_URL}${response.data.url}`;
-        
-        newAttachments.push({ 
-          name: file.name, 
-          url: fileUrl 
-        });
-        uploadedCount++;
-      } catch (error) {
-        toast.error(getUploadErrorMessage(error, file));
-      }
+      newAttachments.push(createDraftEvidence(file, { type: 'file' }));
     }
 
     if (newAttachments.length > 0) {
-      setFormData({
-        ...formData,
-        attachments: [...formData.attachments, ...newAttachments]
-      });
-      toast.success(`${uploadedCount} file(s) uploaded successfully`);
+      setFormData(prev => ({
+        ...prev,
+        attachments: [...prev.attachments, ...newAttachments]
+      }));
+      toast.success(`${newAttachments.length} file(s) uploaded`);
     }
     
     e.target.value = '';
@@ -383,17 +425,21 @@ export default function OrganizationDetails() {
 
   const removeAttachment = async (index) => {
     const attachment = formData.attachments[index];
-    
-    // Delete from R2 storage if it's an uploaded file
-    if (attachment?.url) {
-      await deleteFileFromR2(attachment.url, getAuthHeader());
-    }
-    
-    setFormData({
-      ...formData,
-      attachments: formData.attachments.filter((_, i) => i !== index)
-    });
+    if (attachment?.is_draft) revokeDraftEvidence(attachment);
+    const fileId = getEvidenceFileId(attachment);
+    if (!attachment?.is_draft && fileId) pendingDeletionIds.current.add(fileId);
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
     toast.success('Attachment removed');
+  };
+
+  const discardFileChanges = () => {
+    revokeDraftEvidence(pendingLogo);
+    revokeDraftEvidences(draftEvidence(formData.attachments));
+    setPendingLogo(null);
+    pendingDeletionIds.current.clear();
   };
 
   const handleSubmit = async (e) => {
@@ -421,21 +467,9 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: Organizational Boundary is mandatory
-    if (!formData.org_boundaries_approach || formData.org_boundaries_approach.trim() === '') {
-      toast.error('Organizational Boundary Approach is mandatory');
-      return;
-    }
-    
     // Validation: Person Responsible is mandatory
     if (!formData.person_responsible || formData.person_responsible.trim() === '') {
       toast.error('Person Responsible is mandatory');
-      return;
-    }
-    
-    // Validation: If control approach selected, must specify at least one control type
-    if (formData.org_boundaries_approach === 'control' && (!formData.control_types || formData.control_types.length === 0)) {
-      toast.error('Please select at least one control type (Operational or Financial)');
       return;
     }
     
@@ -447,8 +481,10 @@ export default function OrganizationDetails() {
     
     try {
       // Prepare data, converting empty strings to null for optional fields
+      const persistedAttachments = persistedEvidence(formData.attachments).map(toEvidencePayload);
       const submitData = {
         ...formData,
+        attachments: persistedAttachments,
         reporting_frequency: formData.reporting_frequency || 'yearly',
         reporting_year_type: formData.reporting_year_type,
         // Convert empty strings to null for optional numeric fields
@@ -482,6 +518,53 @@ export default function OrganizationDetails() {
       await axios.put(`${API}/organizations/my`, submitData, {
         headers: getAuthHeader()
       });
+
+      const stagedAttachments = draftEvidence(formData.attachments);
+      const attachmentsResult = await uploadDraftEvidences({
+        items: stagedAttachments,
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded, draft) => ({
+          type: 'file',
+          name: draft.name,
+          url: draft.content_type?.startsWith('image/') ? `${uploaded.url}/view` : uploaded.url,
+          file_id: uploaded.file_id,
+        }),
+      });
+      const logoResult = pendingLogo ? await uploadDraftEvidences({
+        items: [pendingLogo],
+        uploadUrl: `${API}/upload/evidence?bucket_type=org_facility&organization_id=${organization?.id || ''}`,
+        headers: getAuthHeader(),
+        mapUploaded: (uploaded) => ({ url: `${uploaded.url}/view`, file_id: uploaded.file_id }),
+      }) : { uploaded: [], failed: [] };
+
+      const uploadedFiles = [...attachmentsResult.uploaded, ...logoResult.uploaded];
+      const finalAttachments = [...persistedAttachments, ...attachmentsResult.uploaded];
+      const finalLogo = logoResult.uploaded[0]?.url || submitData.logo;
+      if (uploadedFiles.length > 0) {
+        try {
+          await axios.put(`${API}/organizations/my`, {
+            ...submitData,
+            attachments: finalAttachments,
+            logo: finalLogo,
+          }, { headers: getAuthHeader() });
+        } catch (error) {
+          await deleteEvidenceFiles(uploadedFiles.map(getEvidenceFileId), API, getAuthHeader());
+          throw error;
+        }
+      }
+
+      if (logoResult.uploaded.length > 0) {
+        const previousLogoId = getEvidenceFileId({ url: organization?.logo });
+        if (previousLogoId) pendingDeletionIds.current.add(previousLogoId);
+      }
+      const deletionFailures = await deleteEvidenceFiles(pendingDeletionIds.current, API, getAuthHeader());
+      pendingDeletionIds.current.clear();
+      const uploadFailures = attachmentsResult.failed.length + logoResult.failed.length;
+      if (uploadFailures || deletionFailures) {
+        toast.error(`Organization saved, but ${uploadFailures + deletionFailures} file change(s) could not be completed.`);
+      }
+      discardFileChanges();
       toast.success('Organization updated successfully');
       setEditing(false);
       fetchOrganization();
@@ -506,25 +589,20 @@ export default function OrganizationDetails() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization Details</h1>
-          <p className="text-text-secondary">
-            {subscriptionExpired 
-              ? 'Your subscription has expired. Editing is disabled.' 
-              : (canEdit ? 'Manage your organization information' : 'View organization information (read-only)')
-            }
-          </p>
-        </div>
-        {user?.role === 'admin' && !editing && (
+    <div className="space-y-7">
+      <ModulePageHeader
+        title="Organization"
+        icon={Building}
+        iconClassName="border-blue-200 bg-blue-50 text-blue-700"
+        testId="organization"
+        aside={user?.role === 'admin' && !editing && (
           <Button 
             onClick={() => {
               if (subscriptionExpired) {
                 toast.error('Your subscription has expired. Please contact your administrator to renew.');
                 return;
               }
-              setLogoError(false); // Reset logo error when entering edit mode
+              setActiveTab('basic');
               setEditing(true);
             }} 
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
@@ -534,11 +612,81 @@ export default function OrganizationDetails() {
             Edit Details
           </Button>
         )}
-      </div>
+      />
 
-      {editing ? (
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-          <form onSubmit={handleSubmit} className="space-y-4">
+      {/* ========== PERSISTENT ORGANIZATION SUMMARY HEADER ========== */}
+      {!editing && (
+        <Card className="p-0 border border-stone-200 rounded-xl bg-white overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-primary via-emerald-500 to-teal-500" />
+          <div className="p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-4">
+              <SecureFileImage source={organization?.logo} alt={`${organization?.name || 'Organization'} logo`} className="h-20 w-20 rounded-xl border-2 border-stone-100 bg-white object-contain shadow-sm" testId="organization-summary-logo" fallback={<div className="flex h-20 w-20 items-center justify-center rounded-xl border border-stone-100 bg-gradient-to-br from-primary/10 to-emerald-50" data-testid="organization-summary-logo-fallback">
+                  <Building className="h-10 w-10 text-primary" />
+                </div>} />
+              <div className="min-w-0 flex-1 self-center">
+                <h1 className="break-words font-heading text-2xl font-bold text-text-primary lg:text-3xl" data-testid="organization-summary-name">
+                  {organization?.name}
+                </h1>
+              </div>
+              </div>
+              <div className="self-start rounded-lg bg-stone-50 px-4 py-2 text-center sm:self-auto" data-testid="organization-facility-count">
+                <div className="text-2xl font-bold text-primary">{facilityCount}</div>
+                <div className="text-xs text-text-muted">No. of Facilities</div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Framework Tabs - with increased top spacing */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="relative flex h-auto w-full max-w-full justify-start overflow-hidden rounded-full bg-stone-100 p-1 sm:w-auto sm:overflow-x-auto">
+          <TabsTrigger 
+            value="basic" 
+            className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
+            data-testid="organization-tab-basic"
+          >
+            {activeTab === 'basic' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+            <span className="relative z-10 whitespace-nowrap">Basic Details</span>
+          </TabsTrigger>
+          {showGhgDetails && (
+            <TabsTrigger
+              value="ghg"
+              className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
+              data-testid="organization-tab-ghg"
+            >
+              {activeTab === 'ghg' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+              <span className="relative z-10 whitespace-nowrap">GHG Details</span>
+            </TabsTrigger>
+          )}
+          {showOperationalData && (
+            <>
+              <TabsTrigger
+                value="production"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
+                data-testid="organization-tab-production"
+              >
+                {activeTab === 'production' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Production Data</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="revenue"
+                className="relative z-0 min-w-0 flex-1 overflow-hidden rounded-full px-2 text-[10px] text-stone-600 transition-colors duration-200 hover:text-emerald-900 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none sm:flex-none sm:px-6 sm:text-sm"
+                data-testid="organization-tab-revenue"
+              >
+                {activeTab === 'revenue' && <motion.span layoutId="organization-details-tab-indicator" className="pointer-events-none absolute inset-0 rounded-full bg-emerald-800 shadow-sm" transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.55 }} aria-hidden="true" />}
+                <span className="relative z-10 whitespace-nowrap">Revenue Data</span>
+              </TabsTrigger>
+            </>
+          )}
+        </TabsList>
+
+        <div className="mt-2">
+          {editing ? (
+            <Card className={`p-6 border border-stone-200 rounded-xl bg-white ${['production', 'revenue'].includes(activeTab) ? 'hidden' : ''}`}>
+              <form onSubmit={handleSubmit} className="space-y-4">
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Organization Name (Read-only)</Label>
@@ -547,19 +695,9 @@ export default function OrganizationDetails() {
               <div className="space-y-2">
                 <Label>Logo (Upload)</Label>
                 <div className="flex items-center gap-4">
-                  {formData.logo && !logoError ? (
-                    <img 
-                      src={formData.logo} 
-                      alt="Logo preview" 
-                      className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
-                      onError={() => setLogoError(true)}
-                      onLoad={() => setLogoError(false)}
-                    />
-                  ) : (
-                    <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                  <SecureFileImage source={pendingLogo?.preview_url || formData.logo} alt="Logo preview" className="w-16 h-16 object-contain border border-stone-200 rounded-lg" testId="organization-logo-preview" fallback={<div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100" data-testid="organization-logo-preview-fallback">
                       <ImageOff className="w-6 h-6 text-stone-400" />
-                    </div>
-                  )}
+                    </div>} />
                   <div className="flex-1">
                     <input
                       id="logo-upload"
@@ -573,17 +711,19 @@ export default function OrganizationDetails() {
                       variant="outline" 
                       onClick={() => document.getElementById('logo-upload')?.click()}
                       disabled={uploadingLogo}
+                      data-testid="organization-logo-upload-button"
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                      {uploadingLogo ? 'Staging...' : 'Upload Logo'}
                     </Button>
-                    {formData.logo && (
+                    {(pendingLogo || formData.logo) && (
                       <Button 
                         type="button" 
                         variant="ghost" 
                         size="sm"
                         className="ml-2 text-accent"
-                        onClick={() => setFormData({ ...formData, logo: '' })}
+                        onClick={handleRemoveLogo}
+                        data-testid="organization-logo-remove-button"
                       >
                         Remove
                       </Button>
@@ -597,7 +737,7 @@ export default function OrganizationDetails() {
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <MapPin className="w-4 h-4" />
-                Address Details <span className="text-red-500">*</span>
+                Corporate Address Details <span className="text-red-500">*</span>
               </div>
               <div className="space-y-2">
                 <Label>Street Address <span className="text-red-500">*</span></Label>
@@ -622,11 +762,26 @@ export default function OrganizationDetails() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Country <span className="text-red-500">*</span></Label>
-                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
+                  <select value={formData.country} onChange={(e) => handleCountryChange(e.target.value)} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <select 
+                    value={formData.timezone} 
+                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })} 
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  >
+                    <option value="">Select Timezone</option>
+                    {timezones.map(tz => (
+                      <option key={tz.value} value={tz.value}>{tz.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>PIN/ZIP Code <span className="text-red-500">*</span></Label>
                   <Input 
@@ -664,18 +819,18 @@ export default function OrganizationDetails() {
             </div>
 
             {/* Person Responsible */}
-            <div className="space-y-2">
-              <Label>Person Responsible <span className="text-red-500">*</span></Label>
-              <Input 
-                value={formData.person_responsible} 
-                onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
-                className="bg-stone-50"
-                placeholder="Name of person responsible for GHG reporting"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Person Responsible <span className="text-red-500">*</span></Label>
+                <Input 
+                  value={formData.person_responsible} 
+                  onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
+                  className="bg-stone-50"
+                  placeholder="Name of person responsible for GHG reporting"
+                  required
+                  data-testid="organization-person-responsible-input"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Designation</Label>
                 <Input 
@@ -683,6 +838,7 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_designation: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="e.g., Sustainability Director"
+                  data-testid="organization-person-responsible-designation-input"
                 />
               </div>
               <div className="space-y-2">
@@ -692,13 +848,16 @@ export default function OrganizationDetails() {
                   onChange={(e) => setFormData({ ...formData, person_responsible_contact: e.target.value })} 
                   className="bg-stone-50"
                   placeholder="Email or phone number"
+                  data-testid="organization-person-responsible-contact-input"
                 />
               </div>
             </div>
+            </div>
 
-            {/* Purpose of the Report */}
+            <div className={activeTab === 'ghg' ? 'space-y-4' : 'hidden'}>
+            {/* Purpose of the GHG Report */}
             <div className="space-y-2">
-              <Label>Purpose of the Report</Label>
+              <Label>Purpose of the GHG Report</Label>
               <textarea 
                 value={formData.report_purpose} 
                 onChange={(e) => setFormData({ ...formData, report_purpose: e.target.value })} 
@@ -708,10 +867,24 @@ export default function OrganizationDetails() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Reporting Frequency</Label>
+              <select
+                value={formData.reporting_frequency}
+                onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="organization-reporting-frequency-select"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-red-500">*</span></Label>
+                <Label className="text-base font-semibold">Organizational Boundaries</Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -746,7 +919,7 @@ export default function OrganizationDetails() {
                 {/* Sub-options for Control Approach - Now allows multiple selection */}
                 {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both') && (
                   <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
-                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-red-500">*</span></Label>
+                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-text-muted font-normal">(Optional)</span></Label>
                     <p className="text-xs text-text-muted mb-2">You can select one or both options</p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -798,9 +971,6 @@ export default function OrganizationDetails() {
                         </label>
                       </div>
                     </div>
-                    {(formData.control_types?.length === 0 || !formData.control_types) && formData.org_boundaries_approach?.startsWith('control') && (
-                      <p className="text-xs text-amber-600 mt-2">Please select at least one control type</p>
-                    )}
                   </div>
                 )}
                 
@@ -821,11 +991,11 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-800">
+                  <div className="ml-6 border-l-2 border-stone-300 pl-4" data-testid="organization-equity-share-disclaimer">
+                    <p className="text-sm text-text-secondary">
                       <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
                     </p>
-                    <p className="text-xs text-amber-700 mt-2">
+                    <p className="mt-2 text-xs text-text-muted">
                       You can specify the equity share percentage for each facility in the Facilities page.
                     </p>
                   </div>
@@ -984,22 +1154,16 @@ export default function OrganizationDetails() {
                 placeholder="Describe how internal GHG performance is tracked and monitored"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label>Reporting Frequency</Label>
-              <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-              </select>
             </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             <div className="space-y-2">
               <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
               <select 
                 value={formData.reporting_year_type} 
                 onChange={(e) => setFormData({ ...formData, reporting_year_type: e.target.value })} 
                 className={`w-full h-10 bg-stone-50 border rounded-lg px-3 ${!formData.reporting_year_type ? 'border-red-300' : 'border-stone-200'}`}
+                data-testid="organization-reporting-year-type-select"
               >
                 <option value="">Select Year Type</option>
                 <option value="financial_year">Financial Year</option>
@@ -1009,7 +1173,9 @@ export default function OrganizationDetails() {
                 <p className="text-xs text-red-500">This field is required</p>
               )}
             </div>
+            </div>
 
+            <div className={activeTab === 'basic' ? 'space-y-4' : 'hidden'}>
             {/* Attachments Section */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
@@ -1033,33 +1199,35 @@ export default function OrganizationDetails() {
                 <div className="space-y-2">
                   {formData.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
-                    const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
+                    const isUploadedFile = att.is_draft || (att.url && (att.url.includes('/api/files/') || att.type === 'file'));
+                    let viewUrl = att.is_draft ? att.preview_url : (isUploadedFile ? att.url : ensureProtocol(att.url));
                     let downloadUrl = att.url;
-                    if (isUploadedFile) {
+                    let uploadedFileId = null;
+                    if (isUploadedFile && !att.is_draft) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
-                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+                        uploadedFileId = fileIdMatch[1];
+                        viewUrl = '#';
                       }
                     }
                     return (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm truncate">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-blue-600 hover:underline" data-testid={`organization-attachment-view-${idx}`}>View</a>
                         {/* Only show Download for uploaded files, not external links */}
-                        {isUploadedFile && (
+                        {isUploadedFile && !att.is_draft && (
                           <button 
                             type="button"
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
                             className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                            data-testid={`organization-attachment-download-${idx}`}
                           >
                             <Download className="w-3 h-3" /> 
                             Download
                           </button>
                         )}
-                        <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)} data-testid={`organization-attachment-remove-${idx}`}>
                           <X className="w-3 h-3" />
                         </Button>
                       </div>
@@ -1103,6 +1271,7 @@ export default function OrganizationDetails() {
                     className="hidden"
                     onChange={handleFileUpload}
                     multiple
+                    data-testid="organization-attachments-file-input"
                   />
                   <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                   <p className="text-sm text-text-muted">Drop files here or click to upload</p>
@@ -1122,7 +1291,9 @@ export default function OrganizationDetails() {
                 placeholder="Add any additional information about this organization..."
               />
             </div>
+            </div>
 
+            {!['production', 'revenue'].includes(activeTab) && (
             <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
               <AutoSaveStatus 
                 status={saveStatus} 
@@ -1130,239 +1301,376 @@ export default function OrganizationDetails() {
                 errorMessage={errorMessage}
               />
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { discardFileChanges(); setEditing(false); resetAutoSave(); fetchOrganization(); }} data-testid="cancel-org-btn">Cancel</Button>
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
               </div>
             </div>
+            )}
           </form>
         </Card>
       ) : (
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-          <div className="space-y-6">
-            <div className="flex items-start gap-4 mb-4">
-              {organization?.logo && !logoError ? (
-                <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
-              ) : (
-                <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
-              )}
-              <div>
-                <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                <div className="flex items-start gap-1 text-sm text-text-muted">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    {organization?.corporate_address}
-                    {organization?.city && `, ${organization.city}`}
-                    {organization?.state && `, ${organization.state}`}
-                    {organization?.country && ` - ${organization.country}`}
-                    {organization?.pincode && ` (${organization.pincode})`}
-                  </span>
-                </div>
-              </div>
-            </div>
+        /* ========== PREMIUM VIEW-ONLY ORGANIZATION PROFILE ========== */
+        <div className="flex flex-col gap-4" data-testid="org-view-mode">
 
-            {organization?.general_description && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Organization Description</h3>
-                <p className="text-text-primary">{organization.general_description}</p>
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
+          {/* === QUICK INFO GRID - 2 columns === */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            {/* Corporate Address Card */}
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 rounded-lg bg-blue-50">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Corporate Address</h3>
               </div>
+              <p className="text-sm leading-6 text-text-primary" data-testid="organization-corporate-address">
+                {[
+                  organization?.corporate_address,
+                  organization?.city,
+                  organization?.state,
+                  organization?.country,
+                  organization?.pincode,
+                ].filter(Boolean).join(', ') || '—'}
+              </p>
+            </Card>
+
+            {/* Person Responsible Card */}
+            {organization?.person_responsible && (
+              <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="p-2 rounded-lg bg-purple-50">
+                    <Users className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <h3 className="font-semibold text-text-primary">Person Responsible</h3>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-lg font-medium text-text-primary">{organization.person_responsible}</p>
+                    {organization.person_responsible_designation && (
+                      <p className="text-sm text-text-muted flex items-center gap-1 mt-1">
+                        <Briefcase className="w-3 h-3" />
+                        {organization.person_responsible_designation}
+                      </p>
+                    )}
+                  </div>
+                  {organization.person_responsible_contact && (
+                    <p className="text-sm text-text-muted flex items-center gap-1">
+                      <Mail className="w-3 h-3" />
+                      {organization.person_responsible_contact}
+                    </p>
+                  )}
+                </div>
+              </Card>
             )}
+          </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              {organization?.mission && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Mission</h3>
-                  <p className="text-text-primary">{organization.mission}</p>
+          {/* === ORGANIZATION OVERVIEW === */}
+          {organization?.general_description && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Building className="w-5 h-5 text-stone-600" />
                 </div>
+                <h3 className="font-semibold text-text-primary">Organization Overview</h3>
+              </div>
+              <div className="text-text-secondary leading-relaxed">
+                {organization.general_description.length > 400 && !expandedSections.description ? (
+                  <>
+                    <p>{organization.general_description.slice(0, 400)}...</p>
+                    <button 
+                      onClick={() => toggleSection('description')} 
+                      className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                    >
+                      Read More <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>{organization.general_description}</p>
+                    {organization.general_description.length > 400 && (
+                      <button 
+                        onClick={() => toggleSection('description')} 
+                        className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                      >
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* === MISSION & VISION SIDE BY SIDE === */}
+          {(organization?.mission || organization?.vision) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {organization?.mission && (
+                <Card className="p-6 border border-stone-200 rounded-xl bg-gradient-to-br from-white to-emerald-50/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-emerald-100">
+                      <Target className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">Mission</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed">{organization.mission}</p>
+                </Card>
               )}
               {organization?.vision && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Vision</h3>
-                  <p className="text-text-primary">{organization.vision}</p>
-                </div>
+                <Card className="p-6 border border-stone-200 rounded-xl bg-gradient-to-br from-white to-blue-50/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-100">
+                      <Eye className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold text-text-primary">Vision</h3>
+                  </div>
+                  <p className="text-text-secondary leading-relaxed">{organization.vision}</p>
+                </Card>
               )}
             </div>
+          )}
 
-            {organization?.process_description && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Process Description</h3>
-                <p className="text-text-primary">{organization.process_description}</p>
-              </div>
-            )}
-
-            {organization?.person_responsible && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Person Responsible</h3>
-                <p className="text-text-primary">{organization.person_responsible}</p>
-                {organization.person_responsible_designation && (
-                  <p className="text-sm text-text-muted">{organization.person_responsible_designation}</p>
-                )}
-                {organization.person_responsible_contact && (
-                  <p className="text-sm text-text-muted">{organization.person_responsible_contact}</p>
-                )}
-              </div>
-            )}
-
-            {organization?.report_purpose && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Purpose of the Report</h3>
-                <p className="text-text-primary">{organization.report_purpose}</p>
-              </div>
-            )}
-
-            {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">Organizational Boundaries</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+          {/* === PROCESS DESCRIPTION === */}
+          {organization?.process_description && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-orange-50">
+                  <Zap className="w-5 h-5 text-orange-600" />
                 </div>
+                <h3 className="font-semibold text-text-primary">Operations & Process</h3>
+              </div>
+              <div className="text-text-secondary leading-relaxed">
+                {organization.process_description.length > 400 && !expandedSections.process ? (
+                  <>
+                    <p>{organization.process_description.slice(0, 400)}...</p>
+                    <button 
+                      onClick={() => toggleSection('process')} 
+                      className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                    >
+                      Read More <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p>{organization.process_description}</p>
+                    {organization.process_description.length > 400 && (
+                      <button 
+                        onClick={() => toggleSection('process')} 
+                        className="mt-2 text-primary text-sm font-medium flex items-center gap-1 hover:underline"
+                      >
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </Card>
+          )}
+          </div>
+
+          <div className={activeTab === 'ghg' ? 'flex flex-col gap-4' : 'hidden'}>
+          {/* === PURPOSE OF GHG REPORT === */}
+          {organization?.report_purpose && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-indigo-50">
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Purpose of the GHG Report</h3>
+              </div>
+              <p className="text-text-secondary leading-relaxed">{organization.report_purpose}</p>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {/* === ORGANIZATIONAL BOUNDARIES === */}
+          {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-boundaries">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-teal-50">
+                  <Shield className="w-5 h-5 text-teal-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Organizational Boundaries</h3>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>Defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="space-y-3">
                 {organization.org_boundaries_approach === 'control_operational' && (
-                  <p className="text-text-primary"><strong>Operational Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control_financial' && (
-                  <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Financial Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control_both' && (
-                  <p className="text-text-primary"><strong>Operational & Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Operational & Financial Control</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'control' && (
-                  <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
+                  <div className="rounded-lg border border-stone-200 p-3">
+                    <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Control Approach</Badge>
+                    <p className="text-sm text-text-secondary">The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
+                  </div>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
                   <div className="space-y-2">
-                    <p className="text-text-primary">
-                      <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share in each facility.
-                    </p>
-                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
-                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
-                    </p>
+                    <div className="rounded-lg border border-stone-200 p-3">
+                      <Badge variant="outline" className="mb-2 border-stone-300 bg-transparent text-stone-700">Equity Share Approach</Badge>
+                      <p className="text-sm text-text-secondary">The organization accounts for GHG emissions according to its equity share in each facility.</p>
+                    </div>
+                    {/* <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded flex items-start gap-2">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span><strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.</span>
+                    </p> */}
                   </div>
                 )}
                 {organization.org_boundaries && (
-                  <p className="text-text-primary mt-2">{organization.org_boundaries}</p>
+                  <p className="text-sm text-text-secondary mt-2 pt-2 border-t border-stone-100">{organization.org_boundaries}</p>
                 )}
               </div>
-            )}
+            </Card>
+          )}
 
-            {organization?.ghg_reduction_initiatives && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">GHG Reduction Initiatives</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+          {organization?.uncertainty_assessment?.length > 0 && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="organization-ghg-uncertainty">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <Info className="w-5 h-5 text-amber-600" />
                 </div>
-                <p className="text-text-primary">{organization.ghg_reduction_initiatives}</p>
+                <h3 className="font-semibold text-text-primary">Uncertainty Assessment</h3>
               </div>
-            )}
+              <ul className="space-y-2 text-sm text-text-secondary list-disc pl-5">
+                {organization.uncertainty_assessment.map((assessment) => (
+                  <li key={assessment}>{assessment.replaceAll('_', ' ')}</li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          </div>
 
-            {organization?.internal_performance_tracking && (
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-medium text-text-muted">Internal Performance Tracking</h3>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">
-                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                        <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+          {/* === GHG REDUCTION INITIATIVES - FULL WIDTH === */}
+          {organization?.ghg_reduction_initiatives && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-green-50">
+                  <Leaf className="w-5 h-5 text-green-600" />
                 </div>
-                <p className="text-text-primary">{organization.internal_performance_tracking}</p>
+                <h3 className="font-semibold text-text-primary">GHG Reduction Initiatives</h3>
               </div>
-            )}
+              <p className="text-text-secondary leading-relaxed">{organization.ghg_reduction_initiatives}</p>
+            </Card>
+          )}
 
-            <div className="grid grid-cols-2 gap-6">
-              {organization?.reporting_frequency && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Frequency</h3>
-                  <p className="text-text-primary capitalize">{organization.reporting_frequency}</p>
+          {/* === INTERNAL PERFORMANCE TRACKING - FULL WIDTH === */}
+          {organization?.internal_performance_tracking && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-cyan-50">
+                  <BarChart3 className="w-5 h-5 text-cyan-600" />
                 </div>
-              )}
-              {organization?.reporting_year_type && (
-                <div>
-                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Year Type</h3>
-                  <p className="text-text-primary">
-                    {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
-                  </p>
-                </div>
-              )}
-            </div>
+                <h3 className="font-semibold text-text-primary">Internal Performance Tracking</h3>
+              </div>
+              <p className="text-text-secondary leading-relaxed">{organization.internal_performance_tracking}</p>
+            </Card>
+          )}
+          </div>
 
-            {organization?.attachments?.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-2 flex items-center gap-1">
-                  <Paperclip className="w-4 h-4" /> Attachments
-                </h3>
-                <div className="space-y-2">
-                  {organization.attachments.map((att, idx) => {
-                    // Construct proper view and download URLs for uploaded files
-                    const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
-                    let downloadUrl = att.url;
-                    let fileId = null;
-                    if (isUploadedFile) {
-                      const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
-                      if (fileIdMatch) {
-                        fileId = fileIdMatch[1];
-                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileId}/view`;
-                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileId}/download`;
-                      }
+          <div className={activeTab === 'basic' ? 'flex flex-col gap-4' : 'hidden'}>
+          {/* === ATTACHMENTS === */}
+          {organization?.attachments?.length > 0 && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Paperclip className="w-5 h-5 text-stone-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Attachments</h3>
+                <Badge variant="outline" className="ml-auto">{organization.attachments.length} files</Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {organization.attachments.map((att, idx) => {
+                  const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
+                  let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
+                  let downloadUrl = att.url;
+                  let uploadedFileId = null;
+                  if (isUploadedFile) {
+                    const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
+                    if (fileIdMatch) {
+                      uploadedFileId = fileIdMatch[1];
+                      viewUrl = '#';
                     }
-                    return (
-                      <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
-                        <Link className="w-4 h-4 text-blue-500" />
-                        <span className="flex-1 text-sm">{att.name}</span>
-                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                        {/* Only show Download for uploaded files, not external links */}
+                  }
+                  return (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors group">
+                      <div className="p-2 rounded bg-white border border-stone-200">
+                        <FileText className="w-4 h-4 text-stone-500" />
+                      </div>
+                      <span className="flex-1 text-sm font-medium text-text-primary truncate">{att.name}</span>
+                      <div className="flex gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={uploadedFileId ? (event) => { event.preventDefault(); void openSecureFile(uploadedFileId).catch(() => toast.error('Unable to open attachment')); } : undefined} className="text-xs text-primary hover:underline" data-testid={`organization-profile-attachment-view-${idx}`}>View</a>
                         {isUploadedFile && (
                           <button 
-                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
-                            className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                            onClick={async (e) => { e.preventDefault(); if (uploadedFileId) { await downloadSecureFile(uploadedFileId); } else { downloadFile(downloadUrl, att.name); } }}
+                            className="text-xs text-emerald-600 hover:underline"
+                            data-testid={`organization-profile-attachment-download-${idx}`}
                           >
-                            <Download className="w-3 h-3" /> Download
+                            Download
                           </button>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </Card>
+          )}
 
-            {(organization?.other_information || organization?.remarks) && (
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Other Information</h3>
-                <p className="text-text-primary">{organization.other_information || organization.remarks}</p>
+          {/* === OTHER INFORMATION === */}
+          {(organization?.other_information || organization?.remarks) && (
+            <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-stone-100">
+                  <Info className="w-5 h-5 text-stone-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Other Information</h3>
               </div>
-            )}
+              <p className="text-text-secondary leading-relaxed">{organization.other_information || organization.remarks}</p>
+            </Card>
+          )}
           </div>
-        </Card>
+        </div>
       )}
+
+        {showOperationalData && (
+          <OrganizationOperationalData
+            activeTab={activeTab}
+            canEdit={canEdit}
+            getAuthHeader={getAuthHeader}
+            isEditing={editing}
+            onCancel={() => { setEditing(false); resetAutoSave(); }}
+            organization={organization}
+            subscriptionExpired={subscriptionExpired}
+          />
+        )}
+        </div>
+
+      </Tabs>
     </div>
   );
 }

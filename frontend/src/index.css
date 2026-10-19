@@ -30,4 +30,21 @@ h1, h2, h3, h4, h5, h6 {
     .glass-effect {
         @apply bg-white/70 backdrop-blur-xl border border-white/20;
     }
+
+    [data-testid="detailed-rankings-card"] {
+        border-radius: 0.75rem;
+    }
+
+    [data-testid="published-supplier-agreements-list"],
+    [data-testid="training-admin-list"] {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    [data-testid="published-supplier-agreements-list"] > :not([hidden]) ~ :not([hidden]),
+    [data-testid="training-admin-list"] > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
 }

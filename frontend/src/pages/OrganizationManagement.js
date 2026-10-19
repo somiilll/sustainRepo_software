@@ -12,9 +12,17 @@ import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, 
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
+import { downloadSecureFile, getUploadedFileId, openSecureFile } from '../lib/secureFileAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Helper to get full logo URL (handles relative paths stored in DB)
+const getFullLogoUrl = (logoPath) => {
+  if (!logoPath) return null;
+  if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
+  return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+};
 
 // Helper function to download files
 const downloadFileHelper = (url, filename) => {
@@ -36,7 +44,7 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
       <div className="flex items-start justify-between mb-4">
         {org.logo && !imgError ? (
           <img 
-            src={org.logo} 
+            src={getFullLogoUrl(org.logo)} 
             alt={`${org.name} logo`}
             className="w-12 h-12 object-contain rounded-lg border border-stone-100"
             onError={() => setImgError(true)}
@@ -93,6 +101,16 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
       </div>
       {/* Report Access Badges */}
       <div className="flex flex-wrap gap-1 mt-2">
+        {/* Org Type Badge */}
+        <span className={`text-xs px-2 py-0.5 rounded ${
+          org.org_type === 'supplier' ? 'bg-purple-100 text-purple-700' :
+          org.org_type === 'customer_supplier' ? 'bg-indigo-100 text-indigo-700' :
+          'bg-emerald-100 text-emerald-700'
+        }`}>
+          {org.org_type === 'supplier' ? 'Supplier' :
+           org.org_type === 'customer_supplier' ? 'Customer & Supplier' :
+           'Customer'}
+        </span>
         {(org.enabled_access || ['scope1_2']).map(access => (
           <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
             {access === 'scope1_2' ? 'Scope 1 & 2' : 
@@ -127,7 +145,6 @@ export default function OrganizationManagement() {
     max_users: 20,
     subscription_expires_at: '',
     enabled_access: ['scope1_2'],
-    approval_workflow_enabled: false,
     // SuperAdmin Internal Fields
     date_of_joining: '',
     selected_plan: '',
@@ -215,17 +232,12 @@ export default function OrganizationManagement() {
 
   // Download file with authentication
   const handleDownloadFile = async (fileUrl, filename) => {
-    // If URL doesn't already have /download suffix, add it
-    let downloadUrl = fileUrl;
-    if (!downloadUrl.endsWith('/download')) {
-      // Extract file ID from URL like /api/files/{file_id}
-      const fileIdMatch = fileUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-      if (fileIdMatch) {
-        downloadUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
-      }
+    const fileId = getUploadedFileId(fileUrl);
+    if (fileId) {
+      await downloadSecureFile(fileId);
+      return;
     }
-    // Use fetch + blob for proper download
-    await downloadFileHelper(downloadUrl, filename || 'file');
+    await downloadFileHelper(fileUrl, filename || 'file');
   };
   
   // Delete file from R2 storage
@@ -315,6 +327,7 @@ export default function OrganizationManagement() {
     setEditingOrg(org);
     setFormData({
       name: org.name,
+      org_type: org.org_type || 'customer',
       corporate_address: org.corporate_address,
       city: org.city || '',
       state: org.state || '',
@@ -326,7 +339,6 @@ export default function OrganizationManagement() {
       max_users: org.max_users || 20,
       subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
       enabled_access: org.enabled_access || ['scope1_2'],
-      approval_workflow_enabled: !!org.approval_workflow_enabled,
       // SuperAdmin Internal Fields
       date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
       selected_plan: org.selected_plan || '',
@@ -354,6 +366,7 @@ export default function OrganizationManagement() {
     setEditingOrg(null);
     setFormData({
       name: '',
+      org_type: 'customer',
       corporate_address: '',
       city: '',
       state: '',
@@ -365,7 +378,6 @@ export default function OrganizationManagement() {
       max_users: 20,
       subscription_expires_at: '',
       enabled_access: ['scope1_2'],
-      approval_workflow_enabled: false,
       // SuperAdmin Internal Fields
       date_of_joining: '',
       selected_plan: '',
@@ -407,6 +419,22 @@ export default function OrganizationManagement() {
   const handleLogoChange = (url) => {
     setFormData({ ...formData, logo: url });
     setLogoPreviewError(false);
+  };
+
+  const deleteLogoFromStorage = async (logoUrl) => {
+    const fileId = logoUrl?.match(/\/api\/files\/([a-f0-9-]+)/i)?.[1];
+    if (!fileId) return true;
+    await axios.delete(`${API}/files/${fileId}`, { headers: getAuthHeader() });
+    return true;
+  };
+
+  const removeLogo = async () => {
+    try {
+      await deleteLogoFromStorage(formData.logo);
+      handleLogoChange('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not remove logo from storage');
+    }
   };
 
   // Filter organizations based on search
@@ -459,12 +487,31 @@ export default function OrganizationManagement() {
                   data-testid="org-name-input"
                 />
               </div>
+              
+              {/* Organization Type */}
+              <div className="space-y-2">
+                <Label htmlFor="org_type">Organization Type</Label>
+                <select
+                  id="org_type"
+                  value={formData.org_type || 'customer'}
+                  onChange={(e) => setFormData({ ...formData, org_type: e.target.value })}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="org-type-select"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="supplier">Supplier</option>
+                  <option value="customer_supplier">Customer & Supplier</option>
+                </select>
+                <p className="text-xs text-stone-500">
+                  Customer: Full platform access | Supplier: Only Supplier Assessment module | Customer & Supplier: Both
+                </p>
+              </div>
 
               {/* Address Section */}
               <div className="p-4 border border-stone-200 rounded-lg space-y-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                   <MapPin className="w-4 h-4" />
-                  Address Details
+                  Corporate Address Details
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="corporate_address">Street Address *</Label>
@@ -590,70 +637,6 @@ export default function OrganizationManagement() {
                     />
                   </div>
                   
-                  {/* Report Access Control */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Report Access</Label>
-                    <p className="text-xs text-text-muted mb-3">Select which report templates this organization can access</p>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('scope1_2')}
-                          onChange={(e) => {
-                            const newAccess = e.target.checked
-                              ? [...(formData.enabled_access || []), 'scope1_2']
-                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
-                            setFormData({ ...formData, enabled_access: newAccess });
-                          }}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="access-scope1-2"
-                        />
-                        <span className="text-sm font-medium">Scope 1 & 2 Report</span>
-                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('scope1_2_3')}
-                          onChange={(e) => {
-                            const newAccess = e.target.checked
-                              ? [...(formData.enabled_access || []), 'scope1_2_3']
-                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
-                            setFormData({ ...formData, enabled_access: newAccess });
-                          }}
-                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                          data-testid="access-scope1-2-3"
-                        />
-                        <span className="text-sm font-medium">Scope 1, 2 & 3 Report</span>
-                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Approval Workflow Toggle */}
-                  <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Approval Workflow</Label>
-                    <p className="text-xs text-text-muted mb-3">
-                      When enabled, every emission record submitted by a user (create, edit, delete) is held for admin review before it appears in dashboards or reports.
-                    </p>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!formData.approval_workflow_enabled}
-                        onChange={(e) => setFormData({ ...formData, approval_workflow_enabled: e.target.checked })}
-                        className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
-                        data-testid="approval-workflow-toggle"
-                      />
-                      <span className="text-sm font-medium">Enable Approval Workflow</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded ${formData.approval_workflow_enabled
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-stone-100 text-stone-600'}`}
-                      >
-                        {formData.approval_workflow_enabled ? 'On' : 'Off'}
-                      </span>
-                    </label>
-                  </div>
                 </div>
               </div>
 
@@ -679,11 +662,20 @@ export default function OrganizationManagement() {
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
-                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+                              // Pass organization_id for proper file path structure
+                              const orgId = editingOrg?.id || '';
+                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility&organization_id=${orgId}`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
-                              // Use /view endpoint for public access (for img tags)
-                              handleLogoChange(`${BACKEND_URL}${response.data.url}/view`);
+                              const nextLogo = `${response.data.url}/view`;
+                              try {
+                                await deleteLogoFromStorage(formData.logo);
+                              } catch (deleteError) {
+                                await deleteLogoFromStorage(nextLogo);
+                                throw deleteError;
+                              }
+                              // Store relative path (like evidences) - frontend will prepend BACKEND_URL at display time
+                              handleLogoChange(nextLogo);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
                               toast.error(getUploadErrorMessage(error, file));
@@ -699,7 +691,7 @@ export default function OrganizationManagement() {
                           variant="ghost" 
                           size="sm"
                           className="text-accent"
-                          onClick={() => handleLogoChange('')}
+                          onClick={removeLogo}
                         >
                           Remove
                         </Button>
@@ -718,7 +710,7 @@ export default function OrganizationManagement() {
                         </div>
                       ) : (
                         <img 
-                          src={formData.logo} 
+                          src={getFullLogoUrl(formData.logo)} 
                           alt="Logo preview" 
                           className="w-24 h-24 object-contain border border-stone-200 rounded-lg bg-white"
                           onError={() => setLogoPreviewError(true)}
@@ -994,7 +986,7 @@ export default function OrganizationManagement() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-stone-500 italic">No payment entries. Click "Add Entry" to start tracking payments.</p>
+                          <p className="text-sm text-stone-500 italic">No payment entries. Click &quot;Add Entry&quot; to start tracking payments.</p>
                         )}
                       </div>
 
@@ -1022,7 +1014,9 @@ export default function OrganizationManagement() {
                                 const uploadFormData = new FormData();
                                 uploadFormData.append('file', file);
                                 try {
-                                  const response = await axios.post(`${API}/upload/evidence?bucket_type=superadmin`, uploadFormData, {
+                                  // Pass organization_id for proper file path structure
+                                  const orgId = editingOrg?.id || '';
+                                  const response = await axios.post(`${API}/upload/evidence?bucket_type=superadmin&organization_id=${orgId}`, uploadFormData, {
                                     headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                                   });
                                   setFormData(prev => ({
@@ -1030,7 +1024,7 @@ export default function OrganizationManagement() {
                                     invoice_history: [...(prev.invoice_history || []), {
                                       date: new Date().toISOString().split('T')[0],
                                       filename: file.name,
-                                      url: `${BACKEND_URL}${response.data.url}`,
+                                      url: response.data.url,
                                       amount: ''
                                     }]
                                   }));
@@ -1045,7 +1039,9 @@ export default function OrganizationManagement() {
                           />
                           {formData.invoice_history?.length > 0 && (
                             <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
-                              {formData.invoice_history.map((invoice, idx) => (
+                              {formData.invoice_history.map((invoice, idx) => {
+                                const invoiceFileId = getUploadedFileId(invoice.url);
+                                return (
                                 <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-stone-200">
                                   <div className="flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-purple-600" />
@@ -1054,16 +1050,19 @@ export default function OrganizationManagement() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <a
-                                      href={`${invoice.url}/view`}
+                                      href={invoiceFileId ? '#' : `${BACKEND_URL}${invoice.url.startsWith('/') ? '' : '/'}${invoice.url}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
+                                      onClick={invoiceFileId ? (event) => { event.preventDefault(); void openSecureFile(invoiceFileId).catch(() => toast.error('Unable to open invoice')); } : undefined}
                                       className="text-xs text-purple-600 hover:underline"
+                                      data-testid={`organization-invoice-view-${idx}`}
                                     >
                                       View
                                     </a>
                                     <button
                                       onClick={() => handleDownloadFile(invoice.url, invoice.filename)}
                                       className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                                      data-testid={`organization-invoice-download-${idx}`}
                                     >
                                       <Download className="w-3 h-3" />
                                       Download
@@ -1086,7 +1085,8 @@ export default function OrganizationManagement() {
                                     </Button>
                                   </div>
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
