@@ -150,6 +150,14 @@ class FormulaConfig(BaseModel):
     dependencies: List[str] = []  # List of metric_codes this KPI depends on
 
 
+class FrameworkReference(BaseModel):
+    """Exact, framework-specific answer target for a KPI."""
+    framework: str
+    reference: str
+    question_key: Optional[str] = None
+    answer_path: Optional[str] = None
+
+
 # =============================================================================
 # Validation Rules (Future)
 # =============================================================================
@@ -182,6 +190,7 @@ class KPIDefinitionCreate(BaseModel):
     # Framework references (used for future framework-based fetching)
     brsr_reference: Optional[str] = None  # e.g., "P6-E3"
     gri_disclosure: Optional[str] = None  # e.g., "303-5-a"
+    framework_references: List[FrameworkReference] = []
     
     # Tree display (optional)
     tree_group: Optional[str] = None
@@ -245,6 +254,7 @@ class KPIDefinitionUpdate(BaseModel):
     
     brsr_reference: Optional[str] = None
     gri_disclosure: Optional[str] = None
+    framework_references: Optional[List[FrameworkReference]] = None
     
     tree_group: Optional[str] = None
     tree_level: Optional[int] = None

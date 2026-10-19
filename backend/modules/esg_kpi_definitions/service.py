@@ -47,6 +47,12 @@ class ESGKPIDefinitionsService:
             if existing:
                 raise ValueError(f"metric_code '{metric_code}' already exists")
         
+        framework_references = [reference.dict() for reference in data.framework_references]
+        if data.brsr_reference and not any(reference["framework"].upper() == "BRSR" for reference in framework_references):
+            framework_references.append({"framework": "BRSR", "reference": data.brsr_reference.strip()})
+        if data.gri_disclosure and not any(reference["framework"].upper() == "GRI" for reference in framework_references):
+            framework_references.append({"framework": "GRI", "reference": data.gri_disclosure.strip()})
+
         kpi_def = {
             "id": str(uuid.uuid4()),
             
@@ -62,6 +68,7 @@ class ESGKPIDefinitionsService:
             
             "brsr_reference": (data.brsr_reference or "").strip() or None,
             "gri_disclosure": (data.gri_disclosure or "").strip() or None,
+            "framework_references": framework_references,
             "tree_group": data.tree_group,
             "tree_level": data.tree_level,
             "tree_parent_key": data.tree_parent_key,
