@@ -49,7 +49,7 @@ class ESGKPIDefinitionsService:
         
         framework_references = [reference.dict() for reference in data.framework_references]
         if data.brsr_reference and not any(reference["framework"].upper() == "BRSR" for reference in framework_references):
-            framework_references.append({"framework": "BRSR", "reference": data.brsr_reference.strip()})
+            framework_references.append({"framework": "BRSR", "reference": data.brsr_reference.strip(), "reference_type": "disclosure"})
         if data.gri_disclosure and not any(reference["framework"].upper() == "GRI" for reference in framework_references):
             framework_references.append({"framework": "GRI", "reference": data.gri_disclosure.strip()})
 

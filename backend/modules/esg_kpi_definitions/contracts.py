@@ -156,6 +156,7 @@ class FrameworkReference(BaseModel):
     reference: str
     question_key: Optional[str] = None
     answer_path: Optional[str] = None
+    reference_type: str = "exact"  # exact answer target or broad disclosure
 
 
 # =============================================================================
