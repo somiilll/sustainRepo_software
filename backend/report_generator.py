@@ -5359,6 +5359,25 @@ class GHGReportGenerator:
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         scope3_total = org_totals.get('scope3', 0)
+
+         # Scope 3 category display names
+        scope3_display_names = {
+            'c1': 'C1 - Purchased Goods & Services',
+            'c2': 'C2 - Capital Goods',
+            'c3': 'C3 - Fuel & Energy Related Activities',
+            'c4': 'C4 - Upstream Transportation & Distribution',
+            'c5': 'C5 - Waste Generated in Operations',
+            'c6': 'C6 - Business Travel',
+            'c7': 'C7 - Employee Commuting',
+            'c8': 'C8 - Upstream Leased Assets',
+            'c9': 'C9 - Downstream Transportation & Distribution',
+            'c10': 'C10 - Processing of Sold Products',
+            'c11': 'C11 - Use of Sold Products',
+            'c12': 'C12 - End-of-Life Treatment of Sold Products',
+            'c13': 'C13 - Downstream Leased Assets',
+            'c14': 'C14 - Franchises',
+            'c15': 'C15 - Investments',
+        }
         
         # Scope 3 category display names
         scope3_display_names = {
