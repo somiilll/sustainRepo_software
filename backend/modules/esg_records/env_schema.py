@@ -499,12 +499,10 @@ SPECS[COMPETITIVE] = [
 ]
 
 SPECS[AP_DAYS] = [
-    F("accounts_payable_days", "Accounts Payable Days", units=["Days"], group="Accounts Payable Days", brsr="P1-E8", agg="avg",
-      kpi="Accounts Payable Days", ratio=("accounts_payable", "cost_of_goods_services_procured", 365)),
-    F("accounts_payable", "Accounts payable", group="Accounts Payable Days", level=1, parent="accounts_payable_days",
+    F("accounts_payable", "Accounts payable", group="Accounts Payable",
       brsr="P1-E8", kpi="Accounts Payable"),
-    F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable Days", level=1,
-      parent="accounts_payable_days", brsr="P1-E8", kpi="Cost of Goods/Services Procured"),
+    F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable",
+      brsr="P1-E8", kpi="Cost of Goods/Services Procured"),
 ]
 
 SPECS[LOCAL_PROCUREMENT] = [
@@ -555,7 +553,7 @@ _NC_TYPES = {
 SPECS[NONCOMPLIANCE] = [
     F(_NC, "Non-compliance cases (Total)", group="Total", brsr="P1-E2; P6-E13",
       gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", kpi="Non-compliance Cases (Total)", old="GOV_NO_OF_NONCOMPLIANCE_INCIDENTS", sum_le=_NC_OUT),
-    F("non_compliance_type", "Non-compliance type (select per case)", type="dropdown", group="Total", level=1, parent=_NC,
+    F("non_compliance_type", "Non-compliance type", type="dropdown", group="Total", level=1, parent=_NC,
       brsr="P1-E2; P6-E13", gri="2-27-a; 416-2-a; 417-2-a, 417-3-a", options=list(_NC_TYPES), option_refs=_NC_TYPES),
     F("non_compliance_result_in_a_fine_or_penalty", "Resulting in fine / penalty", group="By Outcome", level=1, parent=_NC,
       brsr="P1-E2", gri="2-27-a-i; 416-2-a-i; 417-2-a-i, 417-3-a-i", kpi="Non-compliance - Resulting in Fine / Penalty",
@@ -757,7 +755,7 @@ SPECS[AIR] = [
                             ("air_hap", "Hazardous air pollutants (HAP)", "305-7-a-v"))
 ] + [
     F("other_air_pollutants", "Others - pollutant name, quantity, unit (one row per pollutant)", type="table", group=_AIR_G, cols=[
-        C("pollutant_name", "Pollutant name", required=True, gri="305-7-a-vii", brsr="P6-E6"),
+        C("pollutant_name", "Other Pollutant name", required=True, gri="305-7-a-vii", brsr="P6-E6"),
         C("quantity", "Quantity", "number", required=True, gri="305-7-a-vii", brsr="P6-E6"),
         C("quantity_unit", "Unit", "dropdown", AIR_UNITS, gri="305-7-a-vii", brsr="P6-E6"),
     ]),

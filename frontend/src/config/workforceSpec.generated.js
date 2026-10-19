@@ -55,8 +55,7 @@ export const WORKFORCE_GRID_CONFIGS = {
     "sumOf": [
      "temporary",
      "contract",
-     "intern",
-     "non_guaranteed"
+     "intern"
     ]
    },
    {
@@ -84,15 +83,6 @@ export const WORKFORCE_GRID_CONFIGS = {
     "level": 2,
     "brsr": "A-20a (E)",
     "gri": "2-7-b-ii, 2-8-a",
-    "sumOf": null
-   },
-   {
-    "key": "non_guaranteed",
-    "label": "Non-guaranteed-hours",
-    "group": "By Contract Type",
-    "level": 2,
-    "brsr": "A-20a (E)",
-    "gri": "2-7-b-iii",
     "sumOf": null
    },
    {
@@ -224,11 +214,6 @@ export const WORKFORCE_GRID_CONFIGS = {
     "female": "no_of_female_intern_trainee",
     "male": "no_of_male_intern_trainee",
     "total": "no_of_intern_trainee"
-   },
-   "non_guaranteed": {
-    "female": "emp_div_non_guaranteed_female",
-    "male": "emp_div_non_guaranteed_male",
-    "total": "emp_div_non_guaranteed_total"
    },
    "full_time": {
     "female": "emp_div_full_time_female",
