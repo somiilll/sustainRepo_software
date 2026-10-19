@@ -109,24 +109,24 @@ def _build_stream(sub: str) -> Dict[str, Any]:
         (True, gri_haz, "Hazardous Waste", haz_total, f"Hazardous Waste {title} (Total)"),
         (False, gri_non, "Non-hazardous Waste", non_total, f"Non-hazardous Waste {title} (Total)"),
     ):
-        add(total_key, total_name, "P6-E9", gri_x, group, 1, label=total_name)
+        add(total_key, total_name, "P6-E9", gri_x, group, 1, "quantity", label="Hazardous Waste" if is_haz else "Non-hazardous Waste")
         cats = [c for c in CATS if c[3] == is_haz]
         for code, label, rom, _h, stem in cats:
             ckey = f"{stem}_{verb}"
-            add(ckey, f"{label} {title}", f"P6-E9 {rom}", f"{gri_x}, {gri_total}", group, 2, total_key)
+            add(ckey, f"{label} {title}", f"P6-E9 {rom}", f"{gri_x}, {gri_total}", group, 2, total_key, label=label)
             op_keys = []
             for ocode, olabel, orom, sfx, _ok in ops:
                 okey = f"{stem}_{verb}_{ocode}"
                 op_keys.append(okey)
                 add(okey, f"{label} {title} - {olabel}", f"P6-E9 {orom}", ", ".join(f"{gri_x}-{s}" for s in sfx),
-                    group, 3, ckey)
+                    group, 3, ckey, label=olabel)
             if op_keys:
                 sums.append((ckey, op_keys))
         sums.append((total_key, [f"{stem}_{verb}" for _c, _l, _r, _h, stem in cats]))
         if cfg["loc"]:
             on_key, off_key = f"{total_key}_onsite", f"{total_key}_offsite"
-            add(on_key, f"{total_name.replace(' (Total)', '')} - Onsite", None, cfg["loc"][0], group, 2, total_key)
-            add(off_key, f"{total_name.replace(' (Total)', '')} - Offsite", None, cfg["loc"][1], group, 2, total_key)
+            add(on_key, f"{total_name.replace(' (Total)', '')} - Onsite", None, cfg["loc"][0], group, 2, total_key, label="Onsite")
+            add(off_key, f"{total_name.replace(' (Total)', '')} - Offsite", None, cfg["loc"][1], group, 2, total_key, label="Offsite")
             quality.append(([on_key, off_key], total_key))
 
     sums.append(("quantity", [haz_total, non_total]))

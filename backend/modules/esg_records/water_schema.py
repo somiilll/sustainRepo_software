@@ -63,14 +63,14 @@ def withdrawal_rows() -> List[Dict[str, Any]]:
     rows = [_row("quantity", "Water Withdrawal (Total)", "P6-E3", "303-3-a", "ENV_QUANTITY_LITRES_WITHDRAWN")]
     for code, label, key, sfx, rom, old in W_SOURCES:
         rows.append(_row(key, f"Water Withdrawal - {label}", f"P6-E3 {rom}", f"303-3-a-{sfx}" if sfx else None, old,
-                         new_field=f"Water withdrawal through {label}" if old is None or code == "produced" else None))
+                         new_field=f"Through {label}"))
     rows.append(_row("freshwater_withdrawal", None, None, "303-3-c-i", "ENV_FRESHWATER_WITHDRAWAL_1000_MGL_TOTAL_DIS"))
     rows.append(_row("other_water_withdrawal", None, None, "303-3-c-ii", "ENV_OTHER_WATER_WITHDRAWAL_1000_MGL_TOTAL_DI"))
     rows.append(_row("water_withdrawal_in_water_stress_area", "Water Withdrawal in Water-stress Areas (Total)",
                      "P6-L1", "303-3-b", "ENV_QUANTITY_FROM_WATER_STRESS_AREA"))
     for code, label, _k, _s, rom, _o in W_SOURCES:
         rows.append(_row(ws_w_key(code), f"Water Withdrawal in Water-stress Areas - {label}", f"P6-L1 {rom}", "303-3-b",
-                         new_field=f"Water withdrawal in water stress area - {label}"))
+                         new_field=f"Through {label}"))
     return rows
 
 
@@ -78,10 +78,10 @@ def discharge_rows() -> List[Dict[str, Any]]:
     rows = [_row("quantity", "Water Discharge (Total)", "P6-E4", "303-4-a", "ENV_QUANTITY_LITRES_DISCHARGED")]
     for code, label, base, sfx, rom, old in D_DESTS:
         rows.append(_row(base, f"Water Discharge to {label}", f"P6-E4 {rom}", f"303-4-a-{sfx}" if sfx else None, old,
-                         new_field=None if old else f"Water discharged to {label}"))
+                         new_field=f"To {label}"))
         for t, tlabel in TREATMENTS:
             rows.append(_row(d_key(code, t, False), f"Water Discharge to {label} - {tlabel}", f"P6-E4 {rom}", "303-2-a",
-                             new_field=f"Discharge to {label} - {tlabel}"))
+                             new_field=tlabel))
     for t, _tl in TREATMENTS:
         key, label = OVERALL_TREATMENT_KEYS[t]
         rows.append(_row(key, f"Water Discharge - {label}", "P6-E4", "303-2-a"))
@@ -92,10 +92,10 @@ def discharge_rows() -> List[Dict[str, Any]]:
                      "P6-L1", "303-4-c", "ENV_QUANTITY_IN_WATER_STRESS_AREA"))
     for code, label, _b, _s, rom, _o in D_DESTS:
         rows.append(_row(d_total_key(code, None, True), f"Water-stress Discharge to {label}", f"P6-L1 {rom}", "303-4-c",
-                         new_field=f"Water stress discharge to {label}"))
+                         new_field=f"To {label}"))
         for t, tlabel in TREATMENTS:
             rows.append(_row(d_key(code, t, True), f"Water-stress Discharge to {label} - {tlabel}", f"P6-L1 {rom}", "303-2-a",
-                             new_field=f"Water stress discharge to {label} - {tlabel}"))
+                             new_field=tlabel))
     rows.append(_row("ws_discharge_freshwater", "Water-stress Discharge - Freshwater", None, "303-4-c",
                      new_field="Water stress discharge - Freshwater (≤1,000 mg/L TDS)"))
     rows.append(_row("ws_discharge_other_water", "Water-stress Discharge - Other Water", None, "303-4-c",
@@ -172,6 +172,23 @@ def _labels() -> Dict[str, str]:
     labels["quantity"] = "Total"
     labels.update({"freshwater_withdrawal": "Freshwater withdrawal", "other_water_withdrawal": "Other water withdrawal",
                    "freshwater_discharge": "Freshwater discharge", "other_water_discharge": "Other water discharge"})
+    labels.update({
+        "water_consumed_through_surface_water": "Through Surface Water",
+        "water_consumed_through_ground_water": "Through Ground Water",
+        "water_consumed_through_seawater_desalinated_water": "Through Seawater / Desalinated Water",
+        "water_consumed_through_third_party_water": "Through Third-party Water",
+    })
+    for code, label, key, *_ in W_SOURCES:
+        labels[key] = f"Through {label}"
+        labels[ws_w_key(code)] = f"Through {label}"
+    for code, label, base, *_ in D_DESTS:
+        labels[base] = f"To {label}"
+        labels[d_total_key(code, None, True)] = f"To {label}"
+        for stress in (False, True):
+            labels[d_key(code, "no_treatment", stress)] = "No treatment"
+            labels[d_key(code, "with_treatment", stress)] = "With treatment"
+            for treatment in ("primary", "secondary", "tertiary"):
+                labels[d_key(code, treatment, stress)] = f"{treatment.capitalize()} treatment"
     return labels
 
 
@@ -307,7 +324,7 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
 
 def _tree_consumption() -> List[Dict[str, Any]]:
     out = [("quantity", "Total", 0, None)]
-    out += [(k, "By Source", 1, None) for k in (
+    out += [(k, "Total", 1, "quantity") for k in (
         "water_consumed_through_surface_water", "water_consumed_through_ground_water",
         "water_consumed_through_seawater_desalinated_water", "water_consumed_through_third_party_water")]
     out.append(("quantity_consumed_in_water_stress_area", "Water-stress Areas", 0, None))
@@ -317,7 +334,7 @@ def _tree_consumption() -> List[Dict[str, Any]]:
 
 def _tree_withdrawal() -> List[Dict[str, Any]]:
     out = [("quantity", "Total", 0, None)]
-    out += [(k, "By Source", 1, None) for _c, _l, k, *_ in W_SOURCES]
+    out += [(k, "Total", 1, "quantity") for _c, _l, k, *_ in W_SOURCES]
     out += [("freshwater_withdrawal", "By Quality", 1, None), ("other_water_withdrawal", "By Quality", 1, None)]
     ws_total = "water_withdrawal_in_water_stress_area"
     out.append((ws_total, "Water-stress Areas", 0, None))
@@ -328,11 +345,11 @@ def _tree_withdrawal() -> List[Dict[str, Any]]:
 def _tree_discharge() -> List[Dict[str, Any]]:
     out = [("quantity", "Total", 0, None)]
     for code, _l, base, *_ in D_DESTS:
-        out.append((base, "By Destination & Treatment", 1, None))
-        out.append((d_key(code, "no_treatment", False), "By Destination & Treatment", 2, base))
+        out.append((base, "Total", 1, "quantity"))
+        out.append((d_key(code, "no_treatment", False), "Total", 2, base))
         wt = d_key(code, "with_treatment", False)
-        out.append((wt, "By Destination & Treatment", 2, base))
-        out += [(d_key(code, t, False), "By Destination & Treatment", 3, wt) for t in ("primary", "secondary", "tertiary")]
+        out.append((wt, "Total", 2, base))
+        out += [(d_key(code, t, False), "Total", 3, wt) for t in ("primary", "secondary", "tertiary")]
     treated = OVERALL_TREATMENT_KEYS["with_treatment"][0]
     out.append((OVERALL_TREATMENT_KEYS["no_treatment"][0], "By Treatment", 1, None))
     out.append((treated, "By Treatment", 1, None))

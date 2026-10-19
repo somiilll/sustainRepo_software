@@ -38,6 +38,12 @@ CONSUMPTION_REFS = {
     "quantity_consumed_in_water_stress_area": ("P6-L1", "303-5-b"),
     "change_in_water_storage": (None, "303-5-c"),
 }
+CONSUMPTION_SHORT_LABELS = {
+    "water_consumed_through_surface_water": "Through Surface Water",
+    "water_consumed_through_ground_water": "Through Ground Water",
+    "water_consumed_through_seawater_desalinated_water": "Through Seawater / Desalinated Water",
+    "water_consumed_through_third_party_water": "Through Third-party Water",
+}
 
 
 def apply_tree(fields, sub, refs, meta_fn=tree_meta):
@@ -138,6 +144,9 @@ async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
 async def sync_consumption(db, now):
     cat = await db.esg_record_categories.find_one({"category": "Water", "subcategory": "Consumption"})
     fields = apply_tree(cat["fields"], "Consumption", CONSUMPTION_REFS)
+    for field in fields:
+        if field["field_key"] in CONSUMPTION_SHORT_LABELS:
+            field["label"] = CONSUMPTION_SHORT_LABELS[field["field_key"]]
     await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
     for key, m in tree_meta("Consumption").items():
         await db.esg_kpi_definitions.update_many(
