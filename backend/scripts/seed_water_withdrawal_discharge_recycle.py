@@ -73,6 +73,8 @@ def build_fields(existing, rows, sub_name, meta_fn=tree_meta):
             field = by_key[key]
             if key == "quantity":
                 field["required"] = False
+            if row.get("new_field"):
+                field["label"] = row["new_field"]
         else:
             field = copy.deepcopy(template)
             field["field_key"] = key

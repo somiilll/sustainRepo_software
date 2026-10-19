@@ -75,7 +75,8 @@ def withdrawal_rows() -> List[Dict[str, Any]]:
 
 
 def discharge_rows() -> List[Dict[str, Any]]:
-    rows = [_row("quantity", "Water Discharge (Total)", "P6-E4", "303-4-a", "ENV_QUANTITY_LITRES_DISCHARGED")]
+    rows = [_row("quantity", "Water Discharge (Total)", "P6-E4", "303-4-a", "ENV_QUANTITY_LITRES_DISCHARGED",
+                 new_field="Water Discharged (Total)")]
     for code, label, base, sfx, rom, old in D_DESTS:
         rows.append(_row(base, f"Water Discharge to {label}", f"P6-E4 {rom}", f"303-4-a-{sfx}" if sfx else None, old,
                          new_field=f"To {label}"))
