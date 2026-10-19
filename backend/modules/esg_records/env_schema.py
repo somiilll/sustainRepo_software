@@ -702,7 +702,7 @@ SPECS[ENERGY_REDUCTION] = [
        old="ENV_TOTAL_ENERGY_REDUCTION"),
     F("energy_types_included", "Types of energy included in the reduction", type="checkbox_group", group="Reduction", level=1,
       parent="total_reduction", gri="302-4-b, 103-5-b", options=["Fuel", "Electricity", "Heating", "Cooling", "Steam"]),
-    F("base_year_baseline", "Base year / baseline (and rationale)", type="text", group="Baseline", level=1, parent="total_reduction",
+    F("base_year_baseline", "Base year / baseline", type="text", group="Baseline", level=1, parent="total_reduction",
       gri="302-4-c, 103-5-e"),
     _e("base_year_energy_consumption", "Base-year energy consumption", "Baseline", 1, "total_reduction", gri="103-5-e",
        kpi="Base-year Energy Consumption", old="!new"),
