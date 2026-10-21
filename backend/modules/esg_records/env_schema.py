@@ -370,6 +370,9 @@ SPECS[REHAB] = [
     _n("rehabilitated_employees", "Employees", "By Group", 1, brsr="P3-L3", kpi="Rehabilitated / Placed - Employees"),
     _n("rehabilitated_workers", "Workers", "By Group", 1, brsr="P3-L3", kpi="Rehabilitated / Placed - Workers"),
 ]
+# Rehabilitation is collected in the Health & Safety Incidents form, not as a
+# separate entry choice. Keep its field keys/KPI references intact for record history.
+SPECS[INCIDENTS] += SPECS.pop(REHAB)
 
 
 GEN_TRAINING = ("Training", "General Training")
@@ -457,6 +460,12 @@ SPECS[SEC_TRAINING] = [
       group="By Content", gri="410-1-a", kpi="Security Trainings - Procedures and Their Application",
       old="SOC_NO_OF_SPECIFIC_PROCEDURES_THEIR_APPLICAT"),
 ]
+
+# These entry flows have been retired. Their existing data is handled by the
+# one-time removal migration; keeping them out of SPECS prevents seed syncs
+# from recreating them.
+for _retired_entry in (EXTERNAL, OHS_EMP, OHS_WRK, PRODUCT_HS, SEC_TRAINING):
+    SPECS.pop(_retired_entry, None)
 
 SPECS[ACPC] = [
     F("number_communicated", "People communicated (Total)", group="Total", gri="205-2", kpi="Anti-corruption Policy - People Communicated (Total)",
