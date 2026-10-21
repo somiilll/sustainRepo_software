@@ -557,10 +557,8 @@ SPECS[COMPETITIVE] = [
 ]
 
 SPECS[AP_DAYS] = [
-    F("accounts_payable", "Accounts payable", group="Accounts Payable",
-      brsr="P1-E8", kpi="Accounts Payable"),
-    F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable",
-      brsr="P1-E8", kpi="Cost of Goods/Services Procured"),
+    F("accounts_payable", "Accounts payable", group="Accounts Payable", kpi="Accounts Payable"),
+    F("cost_of_goods_services_procured", "Cost of goods/services procured", group="Accounts Payable", kpi="Cost of Goods/Services Procured"),
 ]
 
 SPECS[LOCAL_PROCUREMENT] = [
