@@ -871,6 +871,18 @@ def _norm(value: Optional[str]) -> str:
     return (value or "").strip().lower()
 
 
+_BRSR_INPUT_ONLY_KPIS = {
+    "Anti-corruption Policy - People Communicated (Total)", "Corruption - Employees Disciplined",
+    "Confirmed Corruption Incidents (Total)", "Anti-competitive Behaviour Cases (Total)",
+    "Internal Complaints (Total)", "Internal Complaints - Pending (Total)",
+    "Internal Complaints - Conflict of Interest (Total)", "Consumer Complaints (Total)",
+    "Consumer Complaints Pending Resolution (Total)",
+}
+for _specs in SPECS.values():
+    for _field in _specs:
+        if _field.get("kpi") in _BRSR_INPUT_ONLY_KPIS:
+            _field["brsr"] = None
+
 ENV_SUM_RULES = {(_norm(cat), _norm(sub)): r for (cat, sub) in SPECS if (r := _sum_rules(cat, sub))}
 ENV_LABELS = {s["key"]: s["label"] for specs in SPECS.values() for s in specs}
 

@@ -145,6 +145,14 @@ for _sub, _cfg, _p, _who in (("Employees Parental Leave", "EMPLOYEE_PARENTAL_LEA
         R("retained", "Still employed 12 months after return", "Parental Leave Funnel", 0, "P3-E5", "401-3-d", le="returned"),
     ]}
 
+# These Employee Diversity splits are supporting inputs, not direct BRSR answers.
+for _row in SPECS["Employee Diversity"]["rows"]:
+    if _row["row"] in {"temporary", "contract", "intern", "vulnerable"}:
+        _row["brsr"] = None
+for _turnover in ("Employee Turnover", "Workers Turnover"):
+    for _row in SPECS[_turnover]["rows"]:
+        _row["brsr"] = None
+
 
 def key(sub: str, row: str, col: str) -> str:
     spec = SPECS[sub]
