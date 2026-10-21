@@ -152,6 +152,8 @@ for _row in SPECS["Employee Diversity"]["rows"]:
 for _turnover in ("Employee Turnover", "Workers Turnover"):
     for _row in SPECS[_turnover]["rows"]:
         _row["brsr"] = None
+for _row in SPECS["Employees Parental Leave"]["rows"]:
+    _row["brsr"] = None
 
 
 def key(sub: str, row: str, col: str) -> str:
