@@ -145,6 +145,14 @@ for _sub, _cfg, _p, _who in (("Employees Parental Leave", "EMPLOYEE_PARENTAL_LEA
         R("retained", "Still employed 12 months after return", "Parental Leave Funnel", 0, "P3-E5", "401-3-d", le="returned"),
     ]}
 
+# Employee parental-leave due-return values are no longer collected. Returned
+# employees remain bounded by people who took parental leave.
+SPECS["Employees Parental Leave"]["rows"] = [
+    {**row, "le": "took"} if row["row"] == "returned" else row
+    for row in SPECS["Employees Parental Leave"]["rows"]
+    if row["row"] != "due_return"
+]
+
 # These Employee Diversity splits are supporting inputs, not direct BRSR answers.
 for _row in SPECS["Employee Diversity"]["rows"]:
     if _row["row"] in {"temporary", "contract", "intern", "vulnerable"}:
