@@ -210,21 +210,20 @@ SPECS[INTERNAL][0]["eq_parts"] = ["no_of_complaints_resolved", "no_of_pending_co
 
 _C = "no_of_complaints_on_"
 SPECS[CONSUMER] = [
-    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Total", brsr="A-25; P9-E3", gri="2-25",
+    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Received", brsr="A-25; P9-E3", gri="2-25",
          kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
          sum_of=[_C + k for k in ("data_privacy", "advertising", "cyber_security", "delivery_of_essential_services",
                                   "restrictive_unfair_trade_practices")] + ["no_of_other_consumer_complaints"]),
-    _cnt(_C + "data_privacy", "Data privacy", "By Category", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Data Privacy", old="SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
-    _cnt(_C + "advertising", "Advertising", "By Category", 1, brsr="P9-E3", gri="417-3", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
-    _cnt(_C + "cyber_security", "Cyber-security", "By Category", 1, brsr="P9-E3", gri="418-1", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
-    _cnt(_C + "delivery_of_essential_services", "Delivery of essential services", "By Category", 1, brsr="P9-E3",
+    _cnt(_C + "data_privacy", "Data privacy", "Received", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Data Privacy", old="SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
+    _cnt(_C + "advertising", "Advertising", "Received", 1, brsr="P9-E3", gri="417-3", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
+    _cnt(_C + "cyber_security", "Cyber-security", "Received", 1, brsr="P9-E3", gri="418-1", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
+    _cnt(_C + "delivery_of_essential_services", "Delivery of essential services", "Received", 1, brsr="P9-E3",
          kpi="Consumer Complaints - Delivery of Essential Services", old="SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
-    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "By Category", 1, brsr="P9-E3", gri="206-1",
+    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "Received", 1, brsr="P9-E3", gri="206-1",
          kpi="Consumer Complaints - Restrictive / Unfair Trade Practices", old="SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
-    _cnt("no_of_other_consumer_complaints", "Other", "By Category", 1, brsr="P9-E3", kpi="Consumer Complaints - Other"),
-    _cnt("no_of_complaints_involving_sensitive_customer_data", "of which: Complaints involving sensitive customer data (across categories)",
-         "Of Which", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Sensitive Customer Data",
-         old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS_WHERE_SE", le="total_no_of_complaints"),
+    _cnt("no_of_other_consumer_complaints", "Other", "Received", 1, brsr="P9-E3", kpi="Consumer Complaints - Other"),
+    _cnt("consumer_complaints_pending_resolution", "Consumer complaints pending resolution", "Pending Resolution", brsr="A-25; P9-E3", gri="2-25",
+         kpi="Consumer Complaints Pending Resolution"),
 ]
 
 _ext_filed = [f"ext_{g}_filed" for g, _l in EXT_GROUPS]
@@ -372,7 +371,13 @@ SPECS[REHAB] = [
 ]
 # Rehabilitation is collected in the Health & Safety Incidents form, not as a
 # separate entry choice. Keep its field keys/KPI references intact for record history.
-SPECS[INCIDENTS] += SPECS.pop(REHAB)
+SPECS[INCIDENTS] += [
+    _n("rehabilitated_total", "Rehabilitated or family member placed in suitable employment (Total)", "", brsr="P3-L3",
+       kpi="Rehabilitated / Placed in Suitable Employment (Total)", sum_of=["rehabilitated_employees", "rehabilitated_workers"]),
+    _n("rehabilitated_employees", "Employees", "", 1, "rehabilitated_total", brsr="P3-L3", kpi="Rehabilitated / Placed - Employees"),
+    _n("rehabilitated_workers", "Workers", "", 1, "rehabilitated_total", brsr="P3-L3", kpi="Rehabilitated / Placed - Workers"),
+]
+SPECS.pop(REHAB)
 
 
 GEN_TRAINING = ("Training", "General Training")
@@ -527,6 +532,7 @@ SPECS[VIOLATIONS] = [
     F("no_of_incidents_reviewed_by_the_organization", "of which: Reviewed by the organisation", group="Total", level=1, parent=_VT,
       gri="411-1-b-i; 406-1-b-i", kpi="Violation Incidents - Reviewed by the Organisation", le=_VT),
 ]
+SPECS.pop(VIOLATIONS, None)
 
 _BT = "no_of_incidents_of_data_breach"
 _BP = "no_of_data_breach_which_involved_personally_identifiable_information_of_customers"
