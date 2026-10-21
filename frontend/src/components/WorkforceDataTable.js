@@ -9,12 +9,25 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { CheckCircle2, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 
 function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   const { title, rows, columns, autoCalculate, validations, fieldMap } = config;
   const manualTotals = useRef(new Set());
   const cellId = (rowKey, colKey) => `${rowKey}:${colKey}`;
+  const [collapsedRows, setCollapsedRows] = useState({});
+  const childRows = useMemo(() => rows.reduce((all, row) => {
+    if (row.parent) (all[row.parent] ||= []).push(row.key);
+    return all;
+  }, {}), [rows]);
+  const rowVisible = (row) => {
+    let parent = row.parent;
+    while (parent) {
+      if (collapsedRows[parent]) return false;
+      parent = rows.find((candidate) => candidate.key === parent)?.parent;
+    }
+    return true;
+  };
 
   // Determine which cells are auto-calculated vs editable per ROW
   // A row's "total" is auto-calc only if it has both source columns mapped
@@ -166,7 +179,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row, idx) => (
+            {rows.filter(rowVisible).map((row, idx) => (
               <React.Fragment key={row.key}>
               {row.group && row.group !== rows[idx - 1]?.group && (
                 <TableRow className="bg-stone-50/70">
@@ -177,7 +190,10 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
               )}
               <TableRow className="hover:bg-stone-50/50" data-testid={`workforce-row-${row.key}`}>
                 <TableCell className="text-sm font-medium sticky left-0 bg-white z-10" style={{ paddingLeft: 16 + (row.level || 0) * 16 }} data-testid={`workforce-${config.key}-${row.key}-label`}>
-                  {row.label}
+                  <span className="inline-flex items-center gap-1">
+                    {childRows[row.key]?.length ? <button type="button" onClick={() => setCollapsedRows(current => ({ ...current, [row.key]: !current[row.key] }))} data-testid={`workforce-${config.key}-${row.key}-toggle`} className="text-stone-500 hover:text-stone-800">{collapsedRows[row.key] ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button> : <span className="w-4" />}
+                    {row.label}
+                  </span>
                 </TableCell>
                 {columns.map(col => {
                   if (!mapped(row.key, col.key)) {
