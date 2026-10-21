@@ -152,6 +152,11 @@ SPECS["Employees Parental Leave"]["rows"] = [
     for row in SPECS["Employees Parental Leave"]["rows"]
     if row["row"] != "due_return"
 ]
+SPECS["Workers Parental Leave"]["rows"] = [
+    {**row, "le": "took"} if row["row"] == "returned" else row
+    for row in SPECS["Workers Parental Leave"]["rows"]
+    if row["row"] != "due_return"
+]
 
 # These Employee Diversity splits are supporting inputs, not direct BRSR answers.
 for _row in SPECS["Employee Diversity"]["rows"]:
@@ -162,6 +167,14 @@ for _turnover in ("Employee Turnover", "Workers Turnover"):
         _row["brsr"] = None
 for _row in SPECS["Employees Parental Leave"]["rows"]:
     _row["brsr"] = None
+for _row in SPECS["Workers Parental Leave"]["rows"]:
+    _row["brsr"] = None
+for _sub in ("Terminated Employees", "Terminated Workers"):
+    for _row in SPECS[_sub]["rows"]:
+        _row["brsr"] = None
+for _row in SPECS["Workers Diversity"]["rows"]:
+    if _row["row"] == "vulnerable":
+        _row["brsr"] = None
 
 
 def key(sub: str, row: str, col: str) -> str:

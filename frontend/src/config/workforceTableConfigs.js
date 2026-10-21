@@ -195,13 +195,11 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
   rows: [
     { key: 'took', label: 'Took Parental Leave' },
     { key: 'returned', label: 'Returned to Work' },
-    { key: 'due_return', label: 'Due to Return After Leave' },
     { key: 'retained', label: 'Retained After 12 Months' },
   ],
   fieldMap: {
     took:       { female: 'no_of_female_workers_that_took_leave', male: 'no_of_male_workers_took_leave' },
     returned:   { female: 'female_workers_who_returned_to_work', male: 'male_workers_who_returned_to_work' },
-    due_return: { female: 'female_workers_that_are_due_to_return_to_work_after_taking_parental_leave', male: 'male_workers_that_are_due_to_return_to_work_after_taking_parental_leave' },
     retained:   { female: 'female_workers_retained_after_12_months', male: 'male_workers_retained_after_12_months' },
   },
   validations: [
