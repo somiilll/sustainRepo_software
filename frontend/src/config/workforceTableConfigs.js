@@ -243,6 +243,18 @@ export const CONSUMER_COMPLAINTS_CONFIG = {
   validations: [],
 };
 
+const INTERNAL_COMPLAINT_ROWS = [
+  ['total', 'Internal Complaints total'], ['conflict', 'Conflict of Interest (Total)'], ['conflict_directors', 'of which: Directors', 1], ['conflict_kmps', 'of which: KMPs', 1],
+  ['working_conditions', 'Working Conditions'], ['health_safety', 'Health & safety'], ['sexual_harassment', 'Sexual Harassment'], ['posh', 'of which: POSH', 1], ['posh_upheld', 'of which: POSH complaints upheld', 2],
+  ['discrimination', 'Discrimination'], ['child_labour', 'Child labour'], ['forced_labour', 'Forced labour'], ['wages', 'Wages'], ['other_human_rights', 'Other human-rights issues'],
+];
+const INTERNAL_FILED_KEYS = { total: 'total_no_of_complaints_recieved', conflict: 'no_of_complaints_regarding_conflict_of_interest', conflict_directors: 'conflict_of_interest_directors', conflict_kmps: 'conflict_of_interest_kmps', working_conditions: 'no_of_complaints_regarding_working_conditions', health_safety: 'no_of_complaints_regarding_health_safety', sexual_harassment: 'no_of_complaints_regarding_sexual_harassment', posh: 'no_of_posh_complaints', posh_upheld: 'no_of_posh_complaints_upheld', discrimination: 'no_of_complaints_regarding_discrimination_at_workplace', child_labour: 'no_of_complaints_regarding_child_labour', forced_labour: 'no_of_complaints_regarding_forced_labour_involuntary_labour', wages: 'no_of_complaints_regarding_wages', other_human_rights: 'no_of_complaints_regarding_other_human_rights_related_issues' };
+export const INTERNAL_COMPLAINTS_CONFIG = {
+  key: 'internal-complaints', title: 'Internal Complaints', columns: [{ key: 'filed', label: 'Filed' }, { key: 'pending', label: 'Pending Resolution at the End of the Year' }], autoCalculate: {}, editableAutoTotals: true,
+  rows: INTERNAL_COMPLAINT_ROWS.map(([key, label, level]) => ({ key, label, level: level || 0 })),
+  fieldMap: Object.fromEntries(INTERNAL_COMPLAINT_ROWS.map(([key]) => [key, { filed: INTERNAL_FILED_KEYS[key], pending: key === 'total' ? 'no_of_pending_complaints' : `internal_pending_${key}` }])), validations: [],
+};
+
 
 export const GENERAL_TRAINING_CONFIG = {
   key: 'general_training',
@@ -295,4 +307,5 @@ export const ALL_WORKFORCE_CONFIGS = [
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
   CONSUMER_COMPLAINTS_CONFIG,
+  INTERNAL_COMPLAINTS_CONFIG,
 ];

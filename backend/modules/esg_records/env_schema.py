@@ -208,6 +208,44 @@ SPECS[INTERNAL] = [
 ]
 SPECS[INTERNAL][0]["eq_parts"] = ["no_of_complaints_resolved", "no_of_pending_complaints"]
 
+# Internal complaints are captured as Filed / Pending Resolution rows. Bribery
+# and corruption complaint rows are intentionally replaced by disciplinary-action
+# counts, as requested.
+_INTERNAL_GRID_ROWS = [
+    ("conflict", "Conflict of Interest (Total)", "no_of_complaints_regarding_conflict_of_interest", "P1-E6", "2-15"),
+    ("conflict_directors", "of which: Directors", "conflict_of_interest_directors", "P1-E6", "2-15"),
+    ("conflict_kmps", "of which: KMPs", "conflict_of_interest_kmps", "P1-E6", "2-15"),
+    ("working_conditions", "Working Conditions", _I + "working_conditions", "P3-E13", None),
+    ("health_safety", "Health & safety", _I + "health_safety", "P3-E13", "403-2"),
+    ("sexual_harassment", "Sexual Harassment", _I + "sexual_harassment", "P5-E6", "406-1-a"),
+    ("posh", "of which: POSH", "no_of_posh_complaints", "P5-E7", "406-1-a"),
+    ("posh_upheld", "of which: POSH complaints upheld", "no_of_posh_complaints_upheld", "P5-E7", "406-1-b"),
+    ("discrimination", "Discrimination", _I + "discrimination_at_workplace", "P5-E6", "406-1-a"),
+    ("child_labour", "Child labour", _I + "child_labour", "P5-E6", "408-1"),
+    ("forced_labour", "Forced labour", _I + "forced_labour_involuntary_labour", "P5-E6", "409-1"),
+    ("wages", "Wages", _I + "wages", "P5-E6", None),
+    ("other_human_rights", "Other human-rights issues", _I + "other_human_rights_related_issues", "P5-E6", "2-25"),
+]
+SPECS[INTERNAL] = [
+    _cnt("total_no_of_complaints_recieved", "Internal Complaints total", "Internal Complaints", brsr="A-25", gri=GRI_TOTAL,
+         kpi="Internal Complaints (Total)", old="SOC_NO_OF_COMPLAINTS", sum_of=[item[2] for item in _INTERNAL_GRID_ROWS if item[0] not in {"conflict_directors", "conflict_kmps", "posh", "posh_upheld"}]),
+    _cnt("no_of_pending_complaints", "Internal Complaints pending resolution at year end", "Internal Complaints", brsr="A-25", gri=GRI_TOTAL,
+         kpi="Internal Complaints - Pending (Total)"),
+]
+for _row, _label, _filed, _brsr, _gri in _INTERNAL_GRID_ROWS:
+    _level = 1 if _row in {"conflict_directors", "conflict_kmps", "posh"} else 2 if _row == "posh_upheld" else 0
+    _parent = "no_of_complaints_regarding_conflict_of_interest" if _row in {"conflict_directors", "conflict_kmps"} else "no_of_posh_complaints" if _row == "posh_upheld" else "no_of_complaints_regarding_sexual_harassment" if _row == "posh" else None
+    SPECS[INTERNAL].append(_cnt(_filed, _label, "Internal Complaints", _level, _parent, brsr=_brsr, gri=_gri,
+                                kpi=f"Internal Complaints - {_label.replace('of which: ', '')}"))
+    SPECS[INTERNAL].append(_cnt(f"internal_pending_{_row}", _label, "Internal Complaints", _level, _parent, brsr=_brsr, gri=_gri,
+                                kpi=f"Internal Complaints Pending - {_label.replace('of which: ', '')}"))
+SPECS[INTERNAL] += [
+    _cnt("disciplinary_action_bod", "BoD", "Disciplinary action taken for the charges of bribery / corruption", gri="205-3", kpi="Disciplinary Action - BoD", show_with_legacy_ui=True),
+    _cnt("disciplinary_action_kmps", "KMPs", "Disciplinary action taken for the charges of bribery / corruption", gri="205-3", kpi="Disciplinary Action - KMPs", show_with_legacy_ui=True),
+    _cnt("disciplinary_action_employees", "Employees", "Disciplinary action taken for the charges of bribery / corruption", gri="205-3", kpi="Disciplinary Action - Employees", show_with_legacy_ui=True),
+    _cnt("disciplinary_action_workers", "Workers", "Disciplinary action taken for the charges of bribery / corruption", gri="205-3", kpi="Disciplinary Action - Workers", show_with_legacy_ui=True),
+]
+
 _C = "no_of_complaints_on_"
 _CP = "pending_resolution_"
 _CONSUMER_ROWS = [
