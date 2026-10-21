@@ -3,7 +3,7 @@
  * Configuration-driven: supply title, rows, columns, validations, field mappings.
  * Auto-calculates totals, validates inline, maps to KPI field_values on save.
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -13,6 +13,8 @@ import { CheckCircle2, AlertTriangle } from 'lucide-react';
 
 function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   const { title, rows, columns, autoCalculate, validations, fieldMap } = config;
+  const manualTotals = useRef(new Set());
+  const cellId = (rowKey, colKey) => `${rowKey}:${colKey}`;
 
   // Determine which cells are auto-calculated vs editable per ROW
   // A row's "total" is auto-calc only if it has both source columns mapped
@@ -35,12 +37,14 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     (config.sumOrder || []).forEach((pk) => {
       const prow = rows.find((r) => r.key === pk);
       columns.forEach((col) => {
+        if (manualTotals.current.has(cellId(pk, col.key))) return;
         const vals = mapped(pk, col.key) ? childValues(next, prow, col.key) : [];
         if (vals.length) next[pk][col.key] = vals.reduce((x, y) => x + y, 0);
       });
     });
     Object.entries(autoCalculate || {}).forEach(([colKey, sourceCols]) => {
       rows.forEach((row) => {
+        if (manualTotals.current.has(cellId(row.key, colKey))) return;
         if (!isAutoCalcCell(row.key, colKey) || isSumCell(data, row, colKey)) return;
         const sum = sourceCols.reduce((x, sc) => x + (next[row.key]?.[sc] || 0), 0);
         next[row.key][colKey] = sourceCols.some((sc) => next[row.key]?.[sc] != null) ? sum : null;
@@ -66,11 +70,21 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
 
   const handleChange = (rowKey, colKey, value) => {
     const num = value === '' ? null : Number(value);
+    const row = rows.find((item) => item.key === rowKey);
+    const isDerivedTotal = colKey === 'total' && (isAutoCalcCell(rowKey, colKey) || !!row?.sumOf);
+    if (config.editableAutoTotals && isDerivedTotal) {
+      if (num == null) manualTotals.current.delete(cellId(rowKey, colKey));
+      else manualTotals.current.add(cellId(rowKey, colKey));
+    }
     const base = {};
     rows.forEach((r) => { base[r.key] = { ...tableData[r.key] }; });
     (config.sumOrder || []).forEach((pk) => {
       const prow = rows.find((r) => r.key === pk);
-      columns.forEach((col) => { if (isSumCell(base, prow, col.key)) base[pk][col.key] = null; });
+      columns.forEach((col) => {
+        if (isSumCell(base, prow, col.key) && !manualTotals.current.has(cellId(pk, col.key))) {
+          base[pk][col.key] = null;
+        }
+      });
     });
     base[rowKey][colKey] = num;
     const newData = computeAuto(base);
@@ -119,15 +133,15 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
 
   return (
     <Card className="p-4 border border-stone-200" data-testid={`workforce-table-${config.key || 'default'}`}>
-      {title && <h3 className="font-semibold text-text-primary mb-3">{title}</h3>}
+      {title && <h3 className="font-semibold text-text-primary mb-3" data-testid={`workforce-${config.key}-title`}>{title}</h3>}
       {config.dropdownFields?.length > 0 && (
         <div className="grid grid-cols-2 gap-4 mb-4">
           {config.dropdownFields.map(df => (
             <div key={df.key}>
-              <Label className="text-sm">{df.label}</Label>
+              <Label className="text-sm" data-testid={`workforce-${config.key}-${df.key}-label`}>{df.label}</Label>
               {isEditing ? (
                 <Select value={fieldValues?.[df.key] || ''} onValueChange={v => onChange({ ...fieldValues, [df.key]: v })}>
-                  <SelectTrigger className="mt-1 rounded-[10px]"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="mt-1 rounded-[10px]" data-testid={`workforce-${config.key}-${df.key}-select`}><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     {df.options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                   </SelectContent>
@@ -143,9 +157,9 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
         <Table>
           <TableHeader>
             <TableRow className="bg-stone-50">
-              <TableHead className="text-xs font-semibold sticky left-0 bg-stone-50 z-10 min-w-[180px]">Category</TableHead>
+              <TableHead className="text-xs font-semibold sticky left-0 bg-stone-50 z-10 min-w-[180px]" data-testid={`workforce-${config.key}-category-heading`}>Category</TableHead>
               {columns.map(col => (
-                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px]`}>
+                <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px]`} data-testid={`workforce-${config.key}-${col.key}-heading`}>
                   {col.label}
                 </TableHead>
               ))}
@@ -162,16 +176,20 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
                 </TableRow>
               )}
               <TableRow className="hover:bg-stone-50/50" data-testid={`workforce-row-${row.key}`}>
-                <TableCell className="text-sm font-medium sticky left-0 bg-white z-10" style={{ paddingLeft: 16 + (row.level || 0) * 16 }}>
+                <TableCell className="text-sm font-medium sticky left-0 bg-white z-10" style={{ paddingLeft: 16 + (row.level || 0) * 16 }} data-testid={`workforce-${config.key}-${row.key}-label`}>
                   {row.label}
                 </TableCell>
                 {columns.map(col => {
+                  if (!mapped(row.key, col.key)) {
+                    return <TableCell key={col.key} className="text-center text-stone-300" data-testid={`workforce-${config.key}-${row.key}-${col.key}-unavailable`}>—</TableCell>;
+                  }
                   const isAuto = isAutoCalcCell(row.key, col.key) || isSumCell(tableData, row, col.key);
+                  const editableAutoTotal = config.editableAutoTotals && col.key === 'total' && isAuto;
                   const val = tableData[row.key]?.[col.key];
                   return (
                     <TableCell key={col.key} className={`text-center ${isAuto ? 'bg-stone-50' : ''}`}>
-                      {isAuto || !isEditing ? (
-                        <span className={`text-sm ${val != null ? 'font-medium' : 'text-stone-300'}`}>
+                      {(isAuto && !editableAutoTotal) || !isEditing ? (
+                        <span className={`text-sm ${val != null ? 'font-medium' : 'text-stone-300'}`} data-testid={`workforce-${config.key}-${row.key}-${col.key}-value`}>
                           {val != null ? val.toLocaleString() : '—'}
                         </span>
                       ) : (
@@ -182,6 +200,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
                           value={val != null ? val : ''}
                           placeholder="—"
                           onChange={e => handleChange(row.key, col.key, e.target.value)}
+                          data-testid={`workforce-${config.key}-${row.key}-${col.key}-input`}
                         />
                       )}
                     </TableCell>
@@ -198,7 +217,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
       {validationResults.length > 0 && (
         <div className="mt-3 space-y-1">
           {validationResults.map((v, i) => (
-            <div key={i} className={`flex items-center gap-1.5 text-xs ${v.pass ? 'text-green-600' : 'text-amber-600'}`}>
+            <div key={i} className={`flex items-center gap-1.5 text-xs ${v.pass ? 'text-green-600' : 'text-amber-600'}`} data-testid={`workforce-${config.key}-validation-${i}`}>
               {v.pass ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
               <span>{v.message}</span>
             </div>

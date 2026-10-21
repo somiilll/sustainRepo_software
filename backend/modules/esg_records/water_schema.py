@@ -228,7 +228,8 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
     if cat == "waste" and sub == "spills":
         return apply_spill_rules(field_values, is_draft)
     rules = (RULES.get(sub) if cat == "water" else WASTE_RULES.get(sub) if cat == "waste"
-             else ENV_SUM_RULES.get((cat, sub)) or (GRID_RULES.get(sub) if cat == WORKFORCE_CATEGORY.lower() else None))
+             else GRID_RULES.get(sub) if cat == WORKFORCE_CATEGORY.lower()
+             else ENV_SUM_RULES.get((cat, sub)))
     if not rules:
         return field_values
 

@@ -20,6 +20,29 @@ def _ages(gri, group="By Age Group", cols=None):
 
 
 SPECS: Dict[str, Dict[str, Any]] = {
+    "New Employees/Worker": {"cfg": "NEW_HIRES_CONFIG", "prefix": "new_hires", "cols": FMT, "editable_auto_totals": True, "rows": [
+        R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"],
+          eq=[["age_u30", "age_3050", "age_o50"]]),
+        R("employees", "Employees", "By Employment Type", 1, gri="401-1-a; 102-3-a", sum_of=["employees_permanent", "employees_other"]),
+        R("employees_permanent", "Employees - Permanent", "By Employment Type", 2, gri="102-3-a-ii"),
+        R("employees_other", "Employees - Other than permanent", "By Employment Type", 2, gri="102-3-a-ii"),
+        R("workers", "Workers", "By Employment Type", 1, gri="102-3-e", sum_of=["workers_permanent", "workers_other"]),
+        R("workers_permanent", "Workers - Permanent", "By Employment Type", 2, gri="102-3-e"),
+        R("workers_other", "Workers - Other than permanent", "By Employment Type", 2, gri="102-3-e"),
+        *_ages("401-1-a", "By Age Group"),
+    ]},
+    "Terminated Employees": {"cfg": "TERMINATED_EMPLOYEES_CONFIG", "prefix": "term_emp", "cols": FMT, "editable_auto_totals": True, "rows": [
+        R("total", "Employees terminated (Total)", "Total", 0, "A-22", "102-3-b; 401-1-b",
+          sum_of=["permanent", "temporary", "contract", "part_time", "intern"]),
+        R("permanent", "Permanent", "By Employment Type", 1, "A-22", "102-3-b-ii"),
+        R("temporary", "Temporary", "By Employment Type", 1, gri="102-3-b-ii"),
+        R("contract", "Contract", "By Employment Type", 1, gri="102-3-b-ii"),
+        R("part_time", "Part-time", "By Employment Type", 1, gri="102-3-b-ii"),
+        R("intern", "Intern / trainee", "By Employment Type", 1, gri="102-3-b-ii"),
+    ]},
+    "Terminated Workers": {"cfg": "TERMINATED_WORKERS_CONFIG", "prefix": "term_wrk", "cols": FMT, "editable_auto_totals": True, "rows": [
+        R("total", "Workers terminated (Total)", "Total", 0, "A-22", "102-3-f; 401-1-b"),
+    ]},
     "Employee Diversity": {"cfg": "EMPLOYEE_DIVERSITY_CONFIG", "prefix": "emp_div", "cols": FMT, "rows": [
         R("total", "Total Employees", "Total", 0, "A-20a (D+E)", "2-7-a; 405-1-b", sum_of=["permanent", "other_than_permanent"],
           eq=[["full_time", "part_time"], ["age_u30", "age_3050", "age_o50"]]),
@@ -83,6 +106,35 @@ SPECS: Dict[str, Dict[str, Any]] = {
         R("left", "Workers leaving (Total)", "Workers Leaving", 0, "A-22", "401-1-b"),
     ]},
 }
+
+# Preserve the original field keys for the three grid migrations.  Existing record
+# values therefore remain usable while the new Female / Male / Total cells receive
+# stable keys for new detail entry.
+LEGACY_FIELD_KEYS = {
+    "New Employees/Worker": {
+        "total": {"female": "female", "male": "male", "total": "total_no_of_people_hired"},
+        "employees": {"total": "new_hires_employees"},
+        "employees_permanent": {"total": "new_hires_employees_permanent"},
+        "employees_other": {"total": "new_hires_employees_other_than_permanent"},
+        "workers": {"total": "new_hires_workers"},
+        "workers_permanent": {"total": "new_hires_workers_permanent"},
+        "workers_other": {"total": "new_hires_workers_other_than_permanent"},
+        "age_u30": {"total": "no_of_employees_worker_under_30"},
+        "age_3050": {"total": "no_of_employees_worker_30_50"},
+        "age_o50": {"total": "no_of_employees_worker_over_50"},
+    },
+    "Terminated Employees": {
+        "total": {"female": "female", "male": "male", "total": "no_of_people_terminated"},
+        "permanent": {"total": "no_of_permanent_employee_terminated"},
+        "temporary": {"total": "no_of_temporary_employee_terminated"},
+        "contract": {"total": "no_of_contract_employee_terminated"},
+        "part_time": {"total": "no_of_part_time_employee_terminated"},
+        "intern": {"total": "no_of_intern_trainee_terminated"},
+    },
+    "Terminated Workers": {
+        "total": {"female": "no_of_female_terminated", "male": "no_of_male_terminated", "total": "no_of_workers_terminated"},
+    },
+}
 for _sub, _cfg, _p, _who in (("Employees Parental Leave", "EMPLOYEE_PARENTAL_LEAVE_CONFIG", "emp_pl", "employees"),
                              ("Workers Parental Leave", "WORKER_PARENTAL_LEAVE_CONFIG", "wrk_pl", "workers")):
     SPECS[_sub] = {"cfg": _cfg, "prefix": _p, "cols": FM, "rows": [
@@ -96,7 +148,9 @@ for _sub, _cfg, _p, _who in (("Employees Parental Leave", "EMPLOYEE_PARENTAL_LEA
 
 def key(sub: str, row: str, col: str) -> str:
     spec = SPECS[sub]
-    return _EXISTING.get(spec["cfg"], {}).get(row, {}).get(col) or f"{spec['prefix']}_{row}_{col}"
+    return (LEGACY_FIELD_KEYS.get(sub, {}).get(row, {}).get(col)
+            or _EXISTING.get(spec["cfg"], {}).get(row, {}).get(col)
+            or f"{spec['prefix']}_{row}_{col}")
 
 
 def row_cols(spec, r) -> List[str]:
@@ -154,6 +208,7 @@ def frontend_config(sub: str) -> Dict[str, Any]:
             validations.append({"type": "less_than_or_equal", "row": r["row"], "target": r["le"]})
     return {
         "key": spec["prefix"], "title": sub,
+        "editableAutoTotals": spec.get("editable_auto_totals", False),
         "columns": [{"key": c, "label": c.capitalize()} for c in cols],
         "autoCalculate": {"total": ["female", "male"]} if "total" in cols else {},
         "rows": [{"key": r["row"], "label": r["label"], "group": r["group"], "level": r["level"], "brsr": r["brsr"],
