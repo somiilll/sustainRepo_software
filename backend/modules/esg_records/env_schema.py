@@ -209,22 +209,28 @@ SPECS[INTERNAL] = [
 SPECS[INTERNAL][0]["eq_parts"] = ["no_of_complaints_resolved", "no_of_pending_complaints"]
 
 _C = "no_of_complaints_on_"
-SPECS[CONSUMER] = [
-    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Received", brsr="A-25; P9-E3", gri="2-25",
-         kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
-         sum_of=[_C + k for k in ("data_privacy", "advertising", "cyber_security", "delivery_of_essential_services",
-                                  "restrictive_unfair_trade_practices")] + ["no_of_other_consumer_complaints"]),
-    _cnt(_C + "data_privacy", "Data privacy", "Received", 1, brsr="P9-E3", gri="418-1-a", kpi="Consumer Complaints - Data Privacy", old="SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
-    _cnt(_C + "advertising", "Advertising", "Received", 1, brsr="P9-E3", gri="417-3", kpi="Consumer Complaints - Advertising", old="SOC_NO_OF_ADVERTISING_COMPLAINTS"),
-    _cnt(_C + "cyber_security", "Cyber-security", "Received", 1, brsr="P9-E3", gri="418-1", kpi="Consumer Complaints - Cyber-security", old="SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
-    _cnt(_C + "delivery_of_essential_services", "Delivery of essential services", "Received", 1, brsr="P9-E3",
-         kpi="Consumer Complaints - Delivery of Essential Services", old="SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
-    _cnt(_C + "restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "Received", 1, brsr="P9-E3", gri="206-1",
-         kpi="Consumer Complaints - Restrictive / Unfair Trade Practices", old="SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
-    _cnt("no_of_other_consumer_complaints", "Other", "Received", 1, brsr="P9-E3", kpi="Consumer Complaints - Other"),
-    _cnt("consumer_complaints_pending_resolution", "Consumer complaints pending resolution", "Pending Resolution", brsr="A-25; P9-E3", gri="2-25",
-         kpi="Consumer Complaints Pending Resolution"),
+_CP = "pending_resolution_"
+_CONSUMER_ROWS = [
+    ("data_privacy", "Data privacy", "P9-E3", "418-1-a", "SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
+    ("advertising", "Advertising", "P9-E3", "417-3", "SOC_NO_OF_ADVERTISING_COMPLAINTS"),
+    ("cyber_security", "Cyber-security", "P9-E3", "418-1", "SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
+    ("delivery_of_essential_services", "Delivery of essential services", "P9-E3", None, "SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
+    ("restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "P9-E3", "206-1", "SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
+    ("other", "Other", "P9-E3", None, None),
 ]
+SPECS[CONSUMER] = [
+    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Consumer Complaints", brsr="A-25; P9-E3", gri="2-25",
+         kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
+         sum_of=[_C + key if key != "other" else "no_of_other_consumer_complaints" for key, *_ in _CONSUMER_ROWS]),
+    _cnt("total_consumer_complaints_pending_resolution", "Total number pending resolution at year end", "Consumer Complaints", brsr="A-25; P9-E3", gri="2-25",
+         kpi="Consumer Complaints Pending Resolution (Total)", sum_of=[_CP + key for key, *_ in _CONSUMER_ROWS]),
+]
+for _key, _label, _brsr, _gri, _old in _CONSUMER_ROWS:
+    _received_key = _C + _key if _key != "other" else "no_of_other_consumer_complaints"
+    SPECS[CONSUMER].append(_cnt(_received_key, _label, "Consumer Complaints", 1, "total_no_of_complaints", brsr=_brsr, gri=_gri,
+                                kpi=f"Consumer Complaints - {_label}", old=_old))
+    SPECS[CONSUMER].append(_cnt(_CP + _key, _label, "Consumer Complaints", 1, "total_consumer_complaints_pending_resolution", brsr=_brsr, gri=_gri,
+                                kpi=f"Consumer Complaints Pending Resolution - {_label}"))
 
 _ext_filed = [f"ext_{g}_filed" for g, _l in EXT_GROUPS]
 _ext_pending = [f"ext_{g}_pending" for g, _l in EXT_GROUPS]

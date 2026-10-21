@@ -24,6 +24,7 @@ import {
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
   GENERAL_TRAINING_CONFIG,
+  CONSUMER_COMPLAINTS_CONFIG,
 } from '../config/workforceTableConfigs';
 
 import { WORKFORCE_GRID_CONFIGS } from '../config/workforceSpec.generated';
@@ -38,6 +39,7 @@ const LEGACY_WORKFORCE_TABLE_MAP = {
   'Employees Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
   'General Training': GENERAL_TRAINING_CONFIG,
+  'Consumer Complaints': CONSUMER_COMPLAINTS_CONFIG,
 };
 const WORKFORCE_TABLE_MAP = { ...LEGACY_WORKFORCE_TABLE_MAP, ...WORKFORCE_GRID_CONFIGS };
 const workforceSupplementaryFields = (fields = []) => {

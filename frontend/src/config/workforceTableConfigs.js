@@ -212,6 +212,37 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
   ],
 };
 
+export const CONSUMER_COMPLAINTS_CONFIG = {
+  key: 'consumer-complaints',
+  title: 'Consumer Complaints',
+  columns: [
+    { key: 'received', label: 'Received' },
+    { key: 'pending', label: 'Pending Resolution at the End of Year' },
+  ],
+  autoCalculate: {},
+  editableAutoTotals: true,
+  sumOrder: ['total'],
+  rows: [
+    { key: 'total', label: 'Total number of consumer complaints', sumOf: ['data_privacy', 'advertising', 'cyber_security', 'essential_services', 'unfair_trade', 'other'] },
+    { key: 'data_privacy', label: 'Data privacy' },
+    { key: 'advertising', label: 'Advertising' },
+    { key: 'cyber_security', label: 'Cyber-security' },
+    { key: 'essential_services', label: 'Delivery of essential services' },
+    { key: 'unfair_trade', label: 'Restrictive / unfair trade practices' },
+    { key: 'other', label: 'Other' },
+  ],
+  fieldMap: {
+    total: { received: 'total_no_of_complaints', pending: 'total_consumer_complaints_pending_resolution' },
+    data_privacy: { received: 'no_of_complaints_on_data_privacy', pending: 'pending_resolution_data_privacy' },
+    advertising: { received: 'no_of_complaints_on_advertising', pending: 'pending_resolution_advertising' },
+    cyber_security: { received: 'no_of_complaints_on_cyber_security', pending: 'pending_resolution_cyber_security' },
+    essential_services: { received: 'no_of_complaints_on_delivery_of_essential_services', pending: 'pending_resolution_delivery_of_essential_services' },
+    unfair_trade: { received: 'no_of_complaints_on_restrictive_unfair_trade_practices', pending: 'pending_resolution_restrictive_unfair_trade_practices' },
+    other: { received: 'no_of_other_consumer_complaints', pending: 'pending_resolution_other' },
+  },
+  validations: [],
+};
+
 
 export const GENERAL_TRAINING_CONFIG = {
   key: 'general_training',
@@ -263,4 +294,5 @@ export const ALL_WORKFORCE_CONFIGS = [
   WORKER_TURNOVER_CONFIG,
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
+  CONSUMER_COMPLAINTS_CONFIG,
 ];

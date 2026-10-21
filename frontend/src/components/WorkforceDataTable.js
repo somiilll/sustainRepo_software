@@ -71,8 +71,8 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
   const handleChange = (rowKey, colKey, value) => {
     const num = value === '' ? null : Number(value);
     const row = rows.find((item) => item.key === rowKey);
-    const isDerivedTotal = colKey === 'total' && (isAutoCalcCell(rowKey, colKey) || !!row?.sumOf);
-    if (config.editableAutoTotals && isDerivedTotal) {
+    const isDerivedCell = isAutoCalcCell(rowKey, colKey) || !!row?.sumOf;
+    if (config.editableAutoTotals && isDerivedCell) {
       if (num == null) manualTotals.current.delete(cellId(rowKey, colKey));
       else manualTotals.current.add(cellId(rowKey, colKey));
     }
@@ -184,7 +184,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
                     return <TableCell key={col.key} className="text-center text-stone-300" data-testid={`workforce-${config.key}-${row.key}-${col.key}-unavailable`}>—</TableCell>;
                   }
                   const isAuto = isAutoCalcCell(row.key, col.key) || isSumCell(tableData, row, col.key);
-                  const editableAutoTotal = config.editableAutoTotals && col.key === 'total' && isAuto;
+                  const editableAutoTotal = config.editableAutoTotals && isAuto;
                   const val = tableData[row.key]?.[col.key];
                   return (
                     <TableCell key={col.key} className={`text-center ${isAuto ? 'bg-stone-50' : ''}`}>
