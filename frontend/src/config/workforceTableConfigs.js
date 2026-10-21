@@ -278,7 +278,7 @@ export const GENERAL_TRAINING_CONFIG = {
     org_policy:     { count: 'no_of_trainings_on_organization_policy_ies', female: 'no_of_female_attendees_for_trainings_on_organization_policy_ies', male: 'no_of_male_attendees_for_trainings_on_organization_policy_ies', hours: 'training_hours_org_policies' },
     skill_upgrade:  { count: 'no_of_trainings_on_skill_upgrade_up_skilling', female: 'no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling', male: 'no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling', hours: 'training_hours_skill_upgrading' },
     reskilling:     { count: 'no_of_trainings_on_re_skilling', female: 'no_of_female_attendees_for_trainings_on_re_skilling', male: 'no_of_male_attendees_for_trainings_on_re_skilling', hours: 'training_hours_re_skilling' },
-    anti_corruption:{ count: 'no_of_trainings_on_anti_corruption', female: 'no_of_female_attendees_for_training_on_anti_corruption', male: 'no_of_male_attendees_for_training_on_anti_corruption', hours: 'training_hours_anti_corruption' },
+    anti_corruption:{ count: 'no_of_trainings_on_anti_corruption', female: 'no_of_female_attendees_for_trainings_on_anti_corruption', male: 'no_of_male_attendees_for_trainings_on_anti_corruption', hours: 'training_hours_anti_corruption' },
     ethical:        { count: 'no_of_trainings_on_ethical_principles', female: 'no_of_female_attendees_for_trainings_on_ethical_principles', male: 'no_of_male_attendees_for_trainings_on_ethical_principles', hours: 'training_hours_ethical_principles' },
   },
   sumOrder: ['overall'],
