@@ -579,6 +579,7 @@ STEAM = ("Energy", "Steam Within Organization")
 ENERGY_OUTSIDE = ("Energy", "Energy Outside the Organization")
 ENERGY_REDUCTION = ("Energy", "Reduction")
 FUEL_QTY_UNITS = ["kg", "tonnes", "Litres", "KiloLitres", "m3", "Nm3", "GJ"]
+SCOPE1_FUELS = ["Coal", "Diesel", "Petrol / Gasoline", "Natural Gas", "LPG", "CNG", "LNG", "Fuel Oil", "Furnace Oil", "Kerosene", "Biomass", "Biogas", "Biodiesel", "Wood / Wood Waste", "Other"]
 
 
 def _e(key, label, group, level=0, parent=None, **kw):
@@ -600,20 +601,14 @@ def _fuel_summary(table):
 
 
 SPECS[FUEL] = [
-    _e("quantity", "Fuel consumption (Total)", "Total", brsr="P6-E1 (B+E)", gri="302-1-a, 302-1-b, 103-2-a",
-       kpi="Total Energy Consumption - Fuel", old="ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
-       sum_of=["renewable_energy_consumption", "non_renewable_energy_consumption"]),
-    _e("renewable_energy_consumption", "Renewable fuel consumption", "Renewable Fuels", 1, "quantity", brsr="P6-E1 (B)",
-       gri="302-1-b, 103-2-a-i", kpi="Renewable Energy Consumption - Fuel", old="ENV_RENEWABLE_ENERGY_CONSUMPTION_FUEL",
-       summary=_fuel_summary("renewable_fuel_types")),
-    _fuel_table("renewable_fuel_types", "Renewable fuel by type (e.g. biomass, biodiesel, biogas) - quantity and energy", "302-1-b"),
-    _e("non_renewable_energy_consumption", "Non-renewable fuel consumption", "Non-renewable Fuels", 1, "quantity", brsr="P6-E1 (E)",
-       gri="302-1-a, 103-2-a-i", kpi="Non-Renewable Energy Consumption - Fuel", old="ENV_NONRENEWABLE_ENERGY_CONSUMPTION_FUEL",
-       summary=_fuel_summary("non_renewable_fuel_types")),
-    _fuel_table("non_renewable_fuel_types", "Non-renewable fuel by type (e.g. diesel, petrol, coal, natural gas, LPG) - quantity and energy", "302-1-a"),
+    _e("quantity", "Fuel consumption", "Fuel Consumption", brsr="P6-E1 (B+E)", gri="302-1-a, 302-1-b, 103-2-a",
+       kpi="Total Energy Consumption - Fuel", old="ENV_TOTAL_ENERGY_CONSUMPTION_FUEL", summary=_fuel_summary("fuel_types")),
+    F("fuel_types", "By Fuel Type", type="table", group="Fuel Consumption", level=1, parent="quantity", cols=[
+        C("fuel_type", "Fuel Type", "dropdown", SCOPE1_FUELS, required=True, gri="302-1-a, 302-1-b"),
+        C("energy", "Energy", "number", required=True, gri="302-1-a, 302-1-b"),
+        C("energy_unit", "Energy unit", "dropdown", ENERGY_UNITS),
+    ]),
 ]
-SPECS[FUEL][2]["parent"] = "renewable_energy_consumption"
-SPECS[FUEL][4]["parent"] = "non_renewable_energy_consumption"
 
 _OLD_CODES = {
     "Electricity": ("ENV_TOTAL_ENERGY_CONSUMPTION_ELECTRICITY", "ENV_RENEWABLE_ENERGY_CONSUMPTION_ELECTRICITY",
@@ -656,20 +651,26 @@ def _carrier(noun, sub_gri, brsr_total, brsr_ren, brsr_non, keys, inp):
 
 
 _ER, _NR, _ERS, _NRS = "renewable_energy_consumption", "non_renewable_energy_consumption", "renewable_energy_sold", "non_renewable_energy_sold"
-SPECS[ELECTRICITY] = _carrier("Electricity", "i", "P6-E1 (A+D)", "P6-E1 (A)", "P6-E1 (D)",
-                              ("purchased_electricity_consumption", "self_generated_electricity_consumption", "self_generated_electricity_sold",
-                               _ER, _NR, _ERS, _NRS), False)
-SPECS[HEATING] = _carrier("Heating", "ii", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)",
-                          ("purchased_heating_consumption", "self_generated_heating_consumption", "self_generated_heating_sold",
-                           "renewable_heating_consumption", "non_renewable_heating_consumption", "renewable_heating_sold",
-                           "non_renewable_heating_sold"), True)
-SPECS[COOLING] = _carrier("Cooling", "iii", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)",
-                          ("purchased_cooling_consumption", "self_generated_cooling_consumption", "self_generated_cooling_sold",
-                           _ER, _NR, _ERS, _NRS), True)
-SPECS[STEAM] = _carrier("Steam", "iv", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)",
-                        ("purchased_steam_consumption", "self_generated_steam_consumption", "self_generated_steam_sold",
-                         _ER, _NR, _ERS, _NRS), True)
-SPECS[HEATING][0]["old"] = "ENV_TOTAL_ENERGY_CONSUMPTION_HEATING"
+SPECS[ELECTRICITY] = [
+    _e("quantity", "Electricity consumption (Total)", "Electricity Consumption", brsr="P6-E1 (A+D)", gri="302-1-c-i", kpi="Total Energy Consumption - Electricity", old="ENV_TOTAL_ENERGY_CONSUMPTION_ELECTRICITY", sum_of=["grid_electricity", "renewable_electricity"]),
+    _e("grid_electricity", "Grid Electricity", "Electricity Consumption", 1, "quantity", brsr="P6-E1 (A+D)", gri="302-1-c-i", kpi="Grid Electricity Consumption"),
+    _e("renewable_electricity", "Renewable Electricity", "Electricity Consumption", 1, "quantity", brsr="P6-E1 (A)", gri="302-1-c-i", kpi="Renewable Electricity Consumption", sum_of=["solar_electricity", "wind_electricity", "other_renewable_electricity"]),
+    _e("solar_electricity", "Solar", "Electricity Consumption", 2, "renewable_electricity", gri="302-1-c-i", kpi="Solar Electricity Consumption"),
+    _e("wind_electricity", "Wind", "Electricity Consumption", 2, "renewable_electricity", gri="302-1-c-i", kpi="Wind Electricity Consumption"),
+    _e("other_renewable_electricity", "Other", "Electricity Consumption", 2, "renewable_electricity", gri="302-1-c-i", kpi="Other Renewable Electricity Consumption"),
+]
+
+def _simple_carrier(noun, sub_gri, brsr_total, brsr_ren, brsr_non, old_total):
+    low = noun.lower()
+    return [
+        _e("quantity", f"{noun} consumption (Total)", f"{noun} Consumption", brsr=brsr_total, gri=f"302-1-c-{sub_gri}", kpi=f"Total Energy Consumption - {noun}", old=old_total, sum_of=[f"non_renewable_{low}", f"renewable_{low}"]),
+        _e(f"non_renewable_{low}", f"Non-renewable {low}", f"{noun} Consumption", 1, "quantity", brsr=brsr_non, gri=f"302-1-c-{sub_gri}", kpi=f"Non-Renewable Energy Consumption - {noun}"),
+        _e(f"renewable_{low}", f"Renewable {low}", f"{noun} Consumption", 1, "quantity", brsr=brsr_ren, gri=f"302-1-c-{sub_gri}", kpi=f"Renewable Energy Consumption - {noun}"),
+    ]
+
+SPECS[HEATING] = _simple_carrier("Heating", "ii", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)", "ENV_TOTAL_ENERGY_CONSUMPTION_HEATING")
+SPECS[COOLING] = _simple_carrier("Cooling", "iii", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)", "ENV_TOTAL_ENERGY_CONSUMPTION_COOLING")
+SPECS[STEAM] = _simple_carrier("Steam", "iv", "P6-E1 (C+F)", "P6-E1 (C)", "P6-E1 (F)", "ENV_TOTAL_ENERGY_CONSUMPTION_STEAM")
 
 _UP = [("category_1_energy", "Cat 1 - Purchased goods and services"), ("category_2_energy", "Cat 2 - Capital goods"),
        ("category_3_energy_consumption", "Cat 3 - Fuel- and energy-related activities"),
@@ -694,6 +695,9 @@ SPECS[ENERGY_OUTSIDE] = [
        old="ENV_TOTAL_ENERGY_CONSUMPTION_DOWNSTREAM_ACTI", sum_of=[k for k, _l in _DOWN]),
     *[_e(k, label, "Downstream", 2, _DOWNK, gri="302-2-a, 103-3-a", kpi=f"Energy Outside - {label}", old="!new") for k, label in _DOWN],
 ]
+
+# Retired from ESG data entry; retained above only as a historical schema reference.
+SPECS.pop(ENERGY_OUTSIDE)
 
 SPECS[ENERGY_REDUCTION] = [
     _e("total_reduction", "Total reduction in energy consumption", "Reduction", gri="302-4-a, 103-5-a", kpi="Total Energy Reduction",

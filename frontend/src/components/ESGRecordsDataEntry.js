@@ -113,7 +113,7 @@ const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = ''
 };
 
 // "Others" is a virtual category that groups: Climate Change, Material, Other Emissions
-const OTHERS_CATEGORIES = ['Climate Change', 'Material', 'Other Emissions'];
+const OTHERS_CATEGORIES = ['Other Emissions'];
 const isOthersCategory = (category) => category === 'Others';
 
 /**

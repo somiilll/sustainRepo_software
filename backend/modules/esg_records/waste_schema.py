@@ -104,35 +104,13 @@ def _build_stream(sub: str) -> Dict[str, Any]:
         for code, label, rom, _h, stem in cats:
             ckey = f"{stem}_{verb}"
             add(ckey, f"{label} {title}", f"P6-E9 {rom}", f"{gri_x}, {gri_total}", group, 2, total_key, label=label)
-            op_keys = []
-            for ocode, olabel, orom, sfx, _ok in ops:
-                okey = f"{stem}_{verb}_{ocode}"
-                op_keys.append(okey)
-                add(okey, f"{label} {title} - {olabel}", f"P6-E9 {orom}", ", ".join(f"{gri_x}-{s}" for s in sfx),
-                    group, 3, ckey, label=olabel)
-            if op_keys:
-                sums.append((ckey, op_keys))
         sums.append((total_key, [f"{stem}_{verb}" for _c, _l, _r, _h, stem in cats]))
-        if cfg["loc"]:
-            on_key, off_key = f"{total_key}_onsite", f"{total_key}_offsite"
-            add(on_key, f"{total_name.replace(' (Total)', '')} - Onsite", None, cfg["loc"][0], group, 2, total_key, label="Onsite")
-            add(off_key, f"{total_name.replace(' (Total)', '')} - Offsite", None, cfg["loc"][1], group, 2, total_key, label="Offsite")
-            quality.append(([on_key, off_key], total_key))
 
     for code, label, rom, sfx, okey in ops:
         gri = ", ".join([f"{gri_haz}-{s}" for s in sfx] + [f"{gri_non}-{s}" for s in sfx])
         add(okey, f"Waste {title} - {label}", f"P6-E9 {rom}", gri, cfg["op_group"], 1, label=label)
-        if code == "incineration":
-            add("incineration_with_energy_recovery", "Incineration - With Energy Recovery", "P6-E9 (i)",
-                "306-5-b-i, 306-5-c-i", cfg["op_group"], 2, okey, label="With energy recovery")
-            add("incineration_without_energy_recovery", "Incineration - Without Energy Recovery", "P6-E9 (i)",
-                "306-5-b-ii, 306-5-c-ii", cfg["op_group"], 2, okey, label="Without energy recovery")
-            quality.append((["incineration_with_energy_recovery", "incineration_without_energy_recovery"], okey))
 
     sums.append(("quantity", [haz_total, non_total]))
-    for code, label, rom, sfx, okey in ops:
-        sums.append((okey, [f"{stem}_{verb}_{code}" for _c, _l, _r, _h, stem in CATS]))
-
     return {"rows": rows, "tree": tree, "rules": {"root": "quantity", "sums": sums, "le": [], "quality": quality, "other": []}}
 
 

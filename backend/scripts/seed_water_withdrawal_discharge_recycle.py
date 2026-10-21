@@ -182,10 +182,13 @@ def spill_fields(existing_unit_field):
 
 
 async def sync_waste(db, now):
-    for sub in [*STREAMS, "Spills"]:
+    for sub in STREAMS:
         cat = await db.esg_record_categories.find_one({"category": "Waste", "subcategory": sub})
         rows = waste_rows(sub)
         fields = spill_fields(None) if sub == "Spills" else build_fields(cat["fields"], rows, sub, waste_tree_meta)
+        if sub != "Spills":
+            desired_keys = {row["key"] for row in rows}
+            fields = [field for field in fields if field["field_key"] in desired_keys]
         await db.esg_record_categories.update_one({"_id": cat["_id"]}, {"$set": {"fields": fields, "updated_at": now}})
         print(f"Waste/{sub}: {len(fields)} entry fields")
         counts = {"created": 0, "updated": 0}
