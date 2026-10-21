@@ -182,9 +182,9 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
         vals[f.field_key] = den ? Math.round((sumOf(f.table_summary.num_column) / den) * 1e6) / 1e6 : 0;
         return;
       }
-      const target = VOLUME_FACTORS[String(unitOf(vals, f.field_key)).toLowerCase()] || 1;
+      const target = unitFactor(f, unitOf(vals, f.field_key)) || 1;
       const numbers = rows.filter((r) => isEntered(r[column])).map((r) => Number(r[column]) * (unitColumn
-        ? (VOLUME_FACTORS[String(r[unitColumn] || unitOf(vals, f.field_key)).toLowerCase()] || 1) / target : 1));
+        ? (unitFactor(f, r[unitColumn] || unitOf(vals, f.field_key)) || 1) / target : 1));
       const total = numbers.reduce((sum, n) => sum + n, 0);
       const result = op === 'avg' ? (numbers.length ? total / numbers.length : 0) : total;
       vals[f.field_key] = Math.round(result * 1e6) / 1e6;

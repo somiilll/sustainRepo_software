@@ -713,6 +713,9 @@ SPECS[ENERGY_REDUCTION] = [
        old="ENV_TOTAL_REDUCTION_IN_ENERGY_REQUIREMENTS_O"),
 ]
 
+# Retired from ESG data entry and KPI selection; historical records remain available.
+SPECS.pop(ENERGY_REDUCTION)
+
 
 REMOVALS = ("Other Emissions", "GHG Removals")
 CARBON_CREDITS = ("Other Emissions", "GHG Emissions - Carbon Credits")
