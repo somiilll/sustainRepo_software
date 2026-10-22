@@ -468,15 +468,9 @@ SPECS[GEN_TRAINING] = [
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
     F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
       kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
-    F("training_attendes_type", "Training audience (per training)", type="dropdown", group="Training Audience",
-      brsr=_AUD_BRSR, gri="404-1-a",
-      options=["Board of Directors", "Key Managerial Personnel", "Employees (permanent / other than permanent)",
-               "Workers (permanent / other than permanent)"],
-      option_refs={"Board of Directors": {"brsr": "P1-E1"}, "Key Managerial Personnel": {"brsr": "P1-E1"},
-                   "Employees (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"},
-                   "Workers (permanent / other than permanent)": {"brsr": "P1-E1; P3-E8; P5-E1"}}),
-    F("employee_worker_type", "Employee / worker type (per training)", type="dropdown", group="Training Audience", level=1,
-      parent="training_attendes_type", brsr=_AUD_BRSR, gri="404-1-a", options=["Permanent", "Other than Permanent"]),
+    F("training_recipient_type", "Who was the training for?", type="dropdown", group="Training Audience",
+      options=["Board of Directors", "Key Managerial Personnel", "Permanent Employee", "Other than Permanent Employee",
+               "Permanent Worker", "Other than Permanent Worker"]),
 ]
 for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
     _g = f"By Topic - {_label}"
