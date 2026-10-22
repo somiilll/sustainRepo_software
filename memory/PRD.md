@@ -707,3 +707,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added/derived field-level `answer_paths` for every active Section A/B config, including scalar fields, addresses, contacts, dynamic rows, grouped workforce cells, FY turnover cells, CSR fields, complaint/grievance cells, and all P1–P9 policy fields. These paths feed the dependent dropdowns in the KPI/BRSR mapping workbook.
 - Updated generated BRSR report bindings so employee/worker, differently abled, and women representation tables read current nested response structures instead of obsolete flattened keys.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Field-level complaint answer paths
+- Persisted selectable field-level Answer Paths for every active BRSR question so the KPI/BRSR mapping workbook can distinguish complaint table cells such as `cur_filed`, `cur_received`, `cur_pending`, `prev_filed`, `prev_received`, `prev_pending`, and remarks for each fixed complaint category row.
+- The downloadable workbook is generated live from the updated BRSR question catalogue, so it also includes all new Section A/B paths and structures from the Annexure II alignment.
+- No KPI mapping decisions were automatically changed; the workbook continues to let the user select the exact Question Key and dependent Answer Path.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
