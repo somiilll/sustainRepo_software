@@ -729,3 +729,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Generated `/app/exports/kpi_definitions_brsr_mappings_updated.xlsx` with the updated logical paths, `Applied Mapping Summary`, `Workbook Import Review`, and `Needs Your Response` sheets.
 - Preserved backups before both path migration and import: `/app/backups/kpi_framework_mappings_before_reporting_year_neutral_2026-10-22T115443.610355_0000.json` and `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T115448.003331_0000.json`.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Mapping workbook download freshness
+- Updated the BRSR mapping download response to use the filename `kpi_definitions_brsr_mappings_updated.xlsx`, no-store/no-cache response headers, and a per-request generation timestamp from the frontend so the Download action always retrieves a newly generated workbook from current mappings/configuration.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

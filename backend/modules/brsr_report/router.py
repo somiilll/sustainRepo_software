@@ -70,7 +70,12 @@ async def download_kpi_brsr_mappings(
     return StreamingResponse(
         io.BytesIO(workbook),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=kpi_definitions_brsr_mappings.xlsx"},
+        headers={
+            "Content-Disposition": "attachment; filename=kpi_definitions_brsr_mappings_updated.xlsx",
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 

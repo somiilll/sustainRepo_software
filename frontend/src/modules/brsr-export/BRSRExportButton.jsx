@@ -33,12 +33,13 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
     try {
       const response = await axios.get(`${API}/api/brsr-report/kpi-mappings.xlsx`, {
         headers: getAuthHeader(),
+        params: { generated_at: Date.now() },
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'kpi_definitions_brsr_mappings.xlsx';
+      link.download = 'kpi_definitions_brsr_mappings_updated.xlsx';
       document.body.appendChild(link);
       link.click();
       link.remove();
