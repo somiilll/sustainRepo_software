@@ -17,7 +17,8 @@ import {
   LongTextResponseRenderer,
   HistoricalMaterialPercentageTableRenderer,
   HistoricalReclaimPercentageTableRenderer,
-  HistoricalWasteManagementMatrixRenderer
+  HistoricalWasteManagementMatrixRenderer,
+  NGRBCReviewMatrixRenderer
 } from './ESGQuestionnaire/renderers';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -813,6 +814,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
       case 'ngrbc_policy_matrix':
         return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+
+      case 'ngrbc_review_matrix':
+        return <NGRBCReviewMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       default:
         // For unknown types, try to render object data as a table in view mode

@@ -697,3 +697,13 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Existing multiple mapping rows continue to support one KPI pointing to multiple BRSR destinations. Per user choice, the workbook does not add blank destination rows; users can work with current rows only.
 - Workbook selections remain local to the downloaded file. Applying edited workbook mappings back to the application requires a separate validated import workflow.
 - Per user instruction, no tests, screenshots, or testing-agent validation were run for this change.
+
+## 2026-10-22 — BRSR Annexure II Section A/B alignment
+- Audited Section A and Section B against the user-provided `Annexure_II-Updated-BRSR_p.pdf` and applied a non-destructive question-config synchronization; existing organization responses and response history were not deleted or rewritten.
+- Replaced the card-style Section A employee/worker inputs with official grouped tables containing Total (A), Male No. (B), Male % (B/A), Female No. (C), and Female % (C/A), including separate differently abled employee/worker groups and computed totals/percentages.
+- Made Participation/Inclusion/Representation of women a fixed two-row table: Board of Directors and Key Management Personnel. Category rows can no longer be added, removed, or changed; Total, female count, and computed percentage use stable answer paths.
+- Added missing Section A configuration records for export contribution and customer types, corrected official question numbering/group metadata from A-20 through A-26, and corrected the Transparency section label.
+- Converted Section B question 10 from free text into the official two-subject, P1–P9 review/frequency matrix. The previous duplicate config remains stored for compatibility but is hidden from the active BRSR questionnaire.
+- Added/derived field-level `answer_paths` for every active Section A/B config, including scalar fields, addresses, contacts, dynamic rows, grouped workforce cells, FY turnover cells, CSR fields, complaint/grievance cells, and all P1–P9 policy fields. These paths feed the dependent dropdowns in the KPI/BRSR mapping workbook.
+- Updated generated BRSR report bindings so employee/worker, differently abled, and women representation tables read current nested response structures instead of obsolete flattened keys.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

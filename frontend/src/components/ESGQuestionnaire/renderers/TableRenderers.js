@@ -133,6 +133,85 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
   );
 }
 
+export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }) {
+  const tableConfig = config.table_config || {};
+  const rows = tableConfig.fixed_rows || [];
+  const principles = tableConfig.principles || Array.from({ length: 9 }, (_, index) => `P${index + 1}`);
+  const reviewOptions = tableConfig.review_options || ['Director', 'Committee of the Board', 'Any Other Committee'];
+  const frequencyOptions = tableConfig.frequency_options || ['Annually', 'Half Yearly', 'Quarterly', 'Any Other'];
+  const data = value?.rows || {};
+
+  const updateCell = (rowKey, groupKey, principle, nextValue) => {
+    onChange({
+      ...(value || {}),
+      rows: {
+        ...data,
+        [rowKey]: {
+          ...(data[rowKey] || {}),
+          [groupKey]: {
+            ...(data[rowKey]?.[groupKey] || {}),
+            [principle]: nextValue,
+          },
+        },
+      },
+    });
+  };
+
+  const renderCell = (row, groupKey, principle, options) => {
+    const cellValue = data[row.key]?.[groupKey]?.[principle] || '';
+    if (!isEditing) return <span className="text-xs">{cellValue || '-'}</span>;
+    return (
+      <Select value={cellValue} onValueChange={(nextValue) => updateCell(row.key, groupKey, principle, nextValue)}>
+        <SelectTrigger className="h-8 min-w-28 text-xs" data-testid={`brsr-review-${row.key}-${groupKey}-${principle}`}>
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  };
+
+  return (
+    <div className="mt-3 overflow-x-auto border border-stone-200" data-testid="brsr-ngrbc-review-matrix">
+      <Table className="min-w-[2200px]">
+        <TableHeader>
+          <TableRow className="bg-stone-100">
+            <TableHead rowSpan={2} className="sticky left-0 z-20 w-72 border-r bg-stone-100 text-xs">Subject for Review</TableHead>
+            <TableHead colSpan={principles.length} className="border-r text-center text-xs">
+              Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee
+            </TableHead>
+            <TableHead colSpan={principles.length} className="text-center text-xs">
+              Frequency (Annually / Half yearly / Quarterly / Any other – please specify)
+            </TableHead>
+          </TableRow>
+          <TableRow className="bg-stone-50">
+            {principles.map((principle) => <TableHead key={`review-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
+            {principles.map((principle) => <TableHead key={`frequency-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className="sticky left-0 z-10 border-r bg-white text-xs font-medium">{row.label}</TableCell>
+              {principles.map((principle) => (
+                <TableCell key={`${row.key}-review-${principle}`} className="border-r p-1 text-center">
+                  {renderCell(row, 'review_by', principle, reviewOptions)}
+                </TableCell>
+              ))}
+              {principles.map((principle) => (
+                <TableCell key={`${row.key}-frequency-${principle}`} className="border-r p-1 text-center">
+                  {renderCell(row, 'frequency', principle, frequencyOptions)}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export function FYComparisonTableRenderer({ config, value, onChange, isEditing, allResponses, lockedPaths = [], dynamicRows = [] }) {
   const tableConfig = config.table_config || {};
   const fixedRows = tableConfig.fixed_rows || [];

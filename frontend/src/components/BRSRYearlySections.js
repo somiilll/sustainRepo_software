@@ -95,7 +95,10 @@ const DEFAULT_TURNOVER_RATE = {
   permanent_workers_male: 0, permanent_workers_female: 0,
 };
 
-const CATEGORIES_WOMEN = ["Board of Directors", "Key Management Personnel"];
+const FIXED_WOMEN_ROWS = [
+  { key: 'board_of_directors', category: 'Board of Directors' },
+  { key: 'key_management_personnel', category: 'Key Management Personnel' },
+];
 const ENTITY_TYPES = ["Holding Company", "Subsidiary", "Associate Company", "Joint Venture"];
 
 // Complaints/Grievances fixed categories
@@ -131,6 +134,130 @@ const DEFAULT_MATERIAL_ISSUE_ROW = {
 };
 
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
+
+const normalizeWomenRows = (rows = []) => FIXED_WOMEN_ROWS.map((fixed) => {
+  const existing = rows.find((row) => row?.key === fixed.key || row?.category === fixed.category) || {};
+  return {
+    key: fixed.key,
+    category: fixed.category,
+    total: Number(existing.total) || 0,
+    number_of_females: Number(existing.number_of_females) || 0,
+  };
+});
+
+const compositionPercentage = (part, total) => total > 0 ? `${((part / total) * 100).toFixed(2)}%` : '0.00%';
+
+const WorkforceCompositionTable = ({ title, groups, details, setDetails, editable, testId }) => {
+  const renderNumber = (field, inputTestId) => editable ? (
+    <Input
+      type="number"
+      min="0"
+      value={details[field] || 0}
+      onChange={(event) => setDetails((previous) => ({ ...previous, [field]: parseInt(event.target.value, 10) || 0 }))}
+      className="h-8 min-w-16 text-center text-xs"
+      data-testid={inputTestId}
+    />
+  ) : <span className="tabular-nums">{details[field] || 0}</span>;
+
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <h5 className="text-sm font-semibold text-stone-800">{title}</h5>
+      <div className="overflow-x-auto border border-stone-200">
+        <Table className="min-w-[760px] table-fixed">
+          <TableHeader>
+            <TableRow className="bg-stone-100">
+              <TableHead rowSpan={2} className="w-14 border-r text-center text-xs">S. No.</TableHead>
+              <TableHead rowSpan={2} className="w-[30%] border-r text-xs">Particulars</TableHead>
+              <TableHead rowSpan={2} className="w-24 border-r text-center text-xs">Total (A)</TableHead>
+              <TableHead colSpan={2} className="border-r text-center text-xs">Male</TableHead>
+              <TableHead colSpan={2} className="text-center text-xs">Female</TableHead>
+            </TableRow>
+            <TableRow className="bg-stone-50">
+              <TableHead className="border-r text-center text-xs">No. (B)</TableHead>
+              <TableHead className="border-r text-center text-xs">% (B/A)</TableHead>
+              <TableHead className="border-r text-center text-xs">No. (C)</TableHead>
+              <TableHead className="text-center text-xs">% (C/A)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.flatMap((group) => {
+              const detailRows = group.rows.map((row) => {
+                const male = details[row.maleField] || 0;
+                const female = details[row.femaleField] || 0;
+                const total = male + female;
+                return (
+                  <TableRow key={row.key}>
+                    <TableCell className="border-r text-center text-xs">{row.serial}</TableCell>
+                    <TableCell className="border-r text-xs">{row.label}</TableCell>
+                    <TableCell className="border-r text-center text-xs font-medium tabular-nums">{total}</TableCell>
+                    <TableCell className="border-r p-1 text-center text-xs">{renderNumber(row.maleField, `${testId}-${row.key}-male`)}</TableCell>
+                    <TableCell className="border-r text-center text-xs tabular-nums">{compositionPercentage(male, total)}</TableCell>
+                    <TableCell className="border-r p-1 text-center text-xs">{renderNumber(row.femaleField, `${testId}-${row.key}-female`)}</TableCell>
+                    <TableCell className="text-center text-xs tabular-nums">{compositionPercentage(female, total)}</TableCell>
+                  </TableRow>
+                );
+              });
+              const totalMale = group.rows.reduce((sum, row) => sum + (details[row.maleField] || 0), 0);
+              const totalFemale = group.rows.reduce((sum, row) => sum + (details[row.femaleField] || 0), 0);
+              const total = totalMale + totalFemale;
+              return [
+                <TableRow key={`${group.key}-heading`} className="bg-emerald-50/60">
+                  <TableCell colSpan={7} className="text-xs font-bold uppercase text-emerald-900">{group.heading}</TableCell>
+                </TableRow>,
+                ...detailRows,
+                <TableRow key={`${group.key}-total`} className="bg-stone-50 font-semibold">
+                  <TableCell className="border-r text-center text-xs">{group.totalSerial}</TableCell>
+                  <TableCell className="border-r text-xs">{group.totalLabel}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{total}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{totalMale}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{compositionPercentage(totalMale, total)}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{totalFemale}</TableCell>
+                  <TableCell className="text-center text-xs tabular-nums">{compositionPercentage(totalFemale, total)}</TableCell>
+                </TableRow>,
+              ];
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
+const WORKFORCE_GROUPS = [
+  {
+    key: 'employees', heading: 'Employees', totalSerial: 3, totalLabel: 'Total employees (D + E)',
+    rows: [
+      { key: 'employees-permanent', serial: 1, label: 'Permanent (D)', maleField: 'permanent_male_employees', femaleField: 'permanent_female_employees' },
+      { key: 'employees-other', serial: 2, label: 'Other than Permanent (E)', maleField: 'other_than_permanent_male_employees', femaleField: 'other_than_permanent_female_employees' },
+    ],
+  },
+  {
+    key: 'workers', heading: 'Workers', totalSerial: 6, totalLabel: 'Total workers (F + G)',
+    rows: [
+      { key: 'workers-permanent', serial: 4, label: 'Permanent (F)', maleField: 'permanent_male_workers', femaleField: 'permanent_female_workers' },
+      { key: 'workers-other', serial: 5, label: 'Other than Permanent (G)', maleField: 'other_than_permanent_male_workers', femaleField: 'other_than_permanent_female_workers' },
+    ],
+  },
+];
+
+const DIFFERENTLY_ABLED_GROUPS = [
+  {
+    key: 'differently-abled-employees', heading: 'Differently Abled Employees', totalSerial: 3,
+    totalLabel: 'Total differently abled employees (D + E)',
+    rows: [
+      { key: 'differently-abled-employees-permanent', serial: 1, label: 'Permanent (D)', maleField: 'diff_abled_permanent_male_employees', femaleField: 'diff_abled_permanent_female_employees' },
+      { key: 'differently-abled-employees-other', serial: 2, label: 'Other than Permanent (E)', maleField: 'diff_abled_other_permanent_male_employees', femaleField: 'diff_abled_other_permanent_female_employees' },
+    ],
+  },
+  {
+    key: 'differently-abled-workers', heading: 'Differently Abled Workers', totalSerial: 6,
+    totalLabel: 'Total differently abled workers (F + G)',
+    rows: [
+      { key: 'differently-abled-workers-permanent', serial: 4, label: 'Permanent (F)', maleField: 'diff_abled_permanent_male_workers', femaleField: 'diff_abled_permanent_female_workers' },
+      { key: 'differently-abled-workers-other', serial: 5, label: 'Other than Permanent (G)', maleField: 'diff_abled_other_permanent_male_workers', femaleField: 'diff_abled_other_permanent_female_workers' },
+    ],
+  },
+];
 
 export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false }) {
   const { getAuthHeader } = useAuth();
@@ -170,9 +297,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   // Form data
   const [employeeDetails, setEmployeeDetails] = useState({ ...DEFAULT_EMPLOYEE_DETAILS });
-  const [womenRepresentation, setWomenRepresentation] = useState([
-    { category: "Board of Directors", total: 0, number_of_females: 0 }
-  ]);
+  const [womenRepresentation, setWomenRepresentation] = useState(normalizeWomenRows());
   const [csrApplicability, setCSRApplicability] = useState({ ...DEFAULT_CSR });
   const [holdingEntities, setHoldingEntities] = useState([
     { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }
@@ -236,9 +361,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     
     // Women representation
     if (responses.brsr_a_women_representation?.length > 0) {
-      setWomenRepresentation(responses.brsr_a_women_representation);
+      setWomenRepresentation(normalizeWomenRows(responses.brsr_a_women_representation));
     } else {
-      setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+      setWomenRepresentation(normalizeWomenRows());
     }
     
     // CSR
@@ -342,7 +467,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           },
         },
       },
-      brsr_a_women_representation: womenRepresentation,
+      brsr_a_women_representation: womenRepresentation.map((row) => ({
+        ...row,
+        percentage: row.total > 0 ? Number(((row.number_of_females / row.total) * 100).toFixed(2)) : 0,
+      })),
       brsr_a_csr_applicability: csrApplicability,
       brsr_a_holding_subsidiary: holdingEntities,
       brsr_a_turnover_rate: {
@@ -399,7 +527,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   const resetToDefaults = () => {
     setEmployeeDetails({ ...DEFAULT_EMPLOYEE_DETAILS });
-    setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+    setWomenRepresentation(normalizeWomenRows());
     setCSRApplicability({ ...DEFAULT_CSR });
     setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
     setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
@@ -565,87 +693,27 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             </Badge>
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Employees */}
-            <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Employees</h5>
-              <div className="space-y-2">
-                {[
-                  ['Permanent Male Employees', 'permanent_male_employees'],
-                  ['Permanent Female Employees', 'permanent_female_employees'],
-                  ['Other than Permanent Male Employees', 'other_than_permanent_male_employees'],
-                  ['Other than Permanent Female Employees', 'other_than_permanent_female_employees'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]} 
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Employees</h6>
-              <div className="space-y-2 bg-blue-50 p-2 rounded">
-                {[
-                  ['Differently Abled Permanent Male Employees', 'diff_abled_permanent_male_employees'],
-                  ['Differently Abled Permanent Female Employees', 'diff_abled_permanent_female_employees'],
-                  ['Differently Abled Other than Permanent Male Employees', 'diff_abled_other_permanent_male_employees'],
-                  ['Differently Abled Other than Permanent Female Employees', 'diff_abled_other_permanent_female_employees'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]} 
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Workers */}
-            <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Workers</h5>
-              <div className="space-y-2">
-                {[
-                  ['Permanent Male Workers', 'permanent_male_workers'],
-                  ['Permanent Female Workers', 'permanent_female_workers'],
-                  ['Other than Permanent Male Workers', 'other_than_permanent_male_workers'],
-                  ['Other than Permanent Female Workers', 'other_than_permanent_female_workers'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]}
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Workers</h6>
-              <div className="space-y-2 bg-blue-50 p-2 rounded">
-                {[
-                  ['Differently Abled Permanent Male Workers', 'diff_abled_permanent_male_workers'],
-                  ['Differently Abled Permanent Female Workers', 'diff_abled_permanent_female_workers'],
-                  ['Differently Abled Other than Permanent Male Workers', 'diff_abled_other_permanent_male_workers'],
-                  ['Differently Abled Other than Permanent Female Workers', 'diff_abled_other_permanent_female_workers'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]}
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        <CollapsibleContent className="space-y-6 border-t p-4">
+          {(isAdmin || canSeeQuestion('brsr_a_employees_workers')) && (
+            <WorkforceCompositionTable
+              title="a. Employees and workers (including differently abled)"
+              groups={WORKFORCE_GROUPS}
+              details={employeeDetails}
+              setDetails={setEmployeeDetails}
+              editable={isEditing && canEditQuestion('brsr_a_employees_workers')}
+              testId="brsr-employees-workers-table"
+            />
+          )}
+          {(isAdmin || canSeeQuestion('brsr_a_differently_abled')) && (
+            <WorkforceCompositionTable
+              title="b. Differently abled Employees and workers"
+              groups={DIFFERENTLY_ABLED_GROUPS}
+              details={employeeDetails}
+              setDetails={setEmployeeDetails}
+              editable={isEditing && canEditQuestion('brsr_a_differently_abled')}
+              testId="brsr-differently-abled-table"
+            />
+          )}
         </CollapsibleContent>
       </Collapsible>
       )}
@@ -658,7 +726,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.women ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <UserCheck className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Women Representation on Board & KMP</span>
+              <span className="font-medium text-sm">Participation/Inclusion/Representation of women</span>
             </div>
             <Badge variant="outline" className="text-xs">
               {womenRepresentation.reduce((sum, row) => sum + (row.number_of_females || 0), 0)} Women
@@ -666,58 +734,40 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
-          <Table>
+          <Table className="table-fixed" data-testid="brsr-women-representation-table">
             <TableHeader>
               <TableRow className="bg-stone-50">
-                <TableHead className="text-xs">Category</TableHead>
-                <TableHead className="text-xs text-center">Total</TableHead>
-                <TableHead className="text-xs text-center">No. of Females</TableHead>
-                {isEditing && <TableHead className="text-xs w-12"></TableHead>}
+                <TableHead className="w-[40%] text-xs"></TableHead>
+                <TableHead className="w-[20%] text-center text-xs">Total (A)</TableHead>
+                <TableHead className="w-[20%] text-center text-xs">No. of Females (B)</TableHead>
+                <TableHead className="w-[20%] text-center text-xs">% (B/A)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {womenRepresentation.map((row, idx) => (
-                <TableRow key={idx}>
+                <TableRow key={row.key} data-testid={`brsr-women-row-${row.key}`}>
+                  <TableCell className="text-xs font-medium">{row.category}</TableCell>
                   <TableCell>
-                    {isEditing ? (
-                      <Select value={row.category} onValueChange={(v) => {
-                        const updated = [...womenRepresentation]; updated[idx].category = v; setWomenRepresentation(updated);
-                      }}>
-                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>{CATEGORIES_WOMEN.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                      </Select>
-                    ) : <span className="text-xs">{row.category}</span>}
-                  </TableCell>
-                  <TableCell>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') ? (
                       <Input type="number" min="0" value={row.total} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
-                      }} className="h-7 text-xs text-center" />
-                    ) : <span className="text-xs">{row.total}</span>}
+                      }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-total`} />
+                    ) : <div className="text-center text-xs tabular-nums">{row.total}</div>}
                   </TableCell>
                   <TableCell>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') ? (
                       <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
-                      }} className="h-7 text-xs text-center" />
-                    ) : <span className="text-xs">{row.number_of_females}</span>}
+                      }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-female`} />
+                    ) : <div className="text-center text-xs tabular-nums">{row.number_of_females}</div>}
                   </TableCell>
-                  {isEditing && (
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        if (womenRepresentation.length > 1) setWomenRepresentation(womenRepresentation.filter((_, i) => i !== idx));
-                      }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
-                    </TableCell>
-                  )}
+                  <TableCell className="text-center text-xs font-medium tabular-nums" data-testid={`brsr-women-${row.key}-percentage`}>
+                    {compositionPercentage(row.number_of_females, row.total)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {isEditing && (
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => setWomenRepresentation([...womenRepresentation, { category: "Board of Directors", total: 0, number_of_females: 0 }])}>
-              <Plus className="w-3 h-3 mr-1" /> Add Row
-            </Button>
-          )}
         </CollapsibleContent>
       </Collapsible>
       )}

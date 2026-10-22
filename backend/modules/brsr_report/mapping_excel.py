@@ -1,5 +1,6 @@
 import io
 import hashlib
+import re
 from typing import Any, Dict, List
 
 from openpyxl import Workbook
@@ -54,15 +55,101 @@ def _review_reason(mapping: Dict[str, Any]) -> str:
 
 
 def _question_answer_paths(config: Dict[str, Any], mapped_paths: List[str]) -> List[str]:
-    paths = {path for path in mapped_paths if path}
-    table_config = config.get("table_config") or {}
-    for row_key in ("fixed_rows", "rows"):
-        for row in table_config.get(row_key) or []:
-            if isinstance(row, dict) and row.get("key"):
-                paths.add(f"rows.{row['key']}")
+    paths = {path for path in [*mapped_paths, *(config.get("answer_paths") or [])] if path}
+    config_body = config.get("config") or {}
+    table_config = config.get("table_config") or config_body
+    question_type = config.get("type") or ""
+
+    def safe_key(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
+
+    columns = table_config.get("columns") or []
+    fixed_rows = table_config.get("fixed_rows") or table_config.get("rows") or []
+    for row in fixed_rows:
+        if not isinstance(row, dict):
+            continue
+        row_id = row.get("key") or row.get("location_type") or row.get("category") or row.get("label")
+        if not row_id:
+            continue
+        row_path = f"rows.{safe_key(row_id)}"
+        paths.add(row_path)
+        for column in columns:
+            if isinstance(column, dict) and column.get("key"):
+                paths.add(f"{row_path}.{column['key']}")
+
+    if question_type == "dynamic_table":
+        for column in config_body.get("columns") or columns:
+            if isinstance(column, dict) and column.get("key"):
+                paths.add(f"rows[].{column['key']}")
+    elif question_type in {"address", "contact"}:
+        for field in config_body.get("fields") or []:
+            paths.add(field if isinstance(field, str) else field.get("key"))
+    elif question_type == "composite":
+        for sub_field in config_body.get("sub_fields") or []:
+            sub_key = sub_field.get("key")
+            if not sub_key:
+                continue
+            if sub_field.get("type") == "dynamic_table":
+                for column in sub_field.get("columns") or []:
+                    if column.get("key"):
+                        paths.add(f"{sub_key}[].{column['key']}")
+            else:
+                paths.add(sub_key)
+    elif question_type == "employees_workers_matrix":
+        for category in config_body.get("categories") or []:
+            for subcategory in category.get("sub_categories") or []:
+                base = f"{category['key']}.{subcategory['key']}"
+                paths.update({f"{base}.total", f"{base}.male", f"{base}.male_percentage",
+                              f"{base}.female", f"{base}.female_percentage"})
+    elif question_type == "turnover_rate_matrix":
+        for year in ("current_fy", "previous_fy", "prior_to_previous_fy"):
+            for row in config_body.get("rows") or []:
+                for column in config_body.get("columns_per_year") or []:
+                    paths.add(f"{year}.{row['key']}.{column}")
+    elif question_type == "csr_details":
+        for field in config_body.get("fields") or []:
+            if field.get("key"):
+                paths.add(field["key"])
+    elif question_type == "complaints_grievances_matrix":
+        for category in config_body.get("stakeholder_categories") or []:
+            base = f"rows.{safe_key(category)}"
+            paths.update({f"{base}.has_mechanism", f"{base}.policy_weblink"})
+            for period in ("current_fy", "previous_fy"):
+                paths.update({f"{base}.{period}.filed", f"{base}.{period}.pending", f"{base}.{period}.remarks"})
+    elif question_type == "ngrbc_policy_matrix":
+        paths.update({"all_together.covered", "all_together.board_approved", "all_together.web_link"})
+        for reason in ("not_material", "not_ready", "no_resources", "planned_next_fy", "other"):
+            paths.add(f"all_together.reasons.{reason}")
+        for principle in (f"P{index}" for index in range(1, 10)):
+            paths.update({f"principle_wise.{principle}.covered", f"principle_wise.{principle}.board_approved",
+                          f"principle_wise.{principle}.web_link"})
+            for reason in ("not_material", "not_ready", "no_resources", "planned_next_fy", "other"):
+                paths.add(f"principle_wise.{principle}.reasons.{reason}")
+    elif question_type == "principle_toggle_with_description":
+        paths.update({"all_enabled", "all_description"})
+        for principle in (f"P{index}" for index in range(1, 10)):
+            paths.update({f"principles.{principle}.enabled", f"principles.{principle}.description"})
+    elif question_type == "principle_text":
+        paths.add("all_text")
+        for principle in (f"P{index}" for index in range(1, 10)):
+            paths.add(f"principles.{principle}")
+    elif question_type == "principle_mode_table":
+        fields = ((config.get("field_config") or {}).get("fields") or [])
+        for field in fields:
+            paths.add(f"combined.{field['key']}")
+            for principle in (f"P{index}" for index in range(1, 10)):
+                paths.add(f"principles.{principle}.{field['key']}")
+    elif question_type == "conditional_yes_no_table":
+        paths.add("answer")
+        for column in table_config.get("columns") or []:
+            key = column if isinstance(column, str) else column.get("key")
+            if key:
+                paths.add(f"rows[].{key}")
+    elif question_type in {"text", "number", "email", "url", "radio", "currency", "textarea"}:
+        paths.add("value")
     if not paths:
         paths.add("value")
-    return sorted(paths)
+    return sorted(path for path in paths if path)
 
 
 def _range_name(question_key: str) -> str:
@@ -129,8 +216,9 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
             mapped_paths_by_question.setdefault(mapping["question_key"], []).append(mapping["answer_path"])
 
     question_configs = await db.esg_question_configs.find(
-        {"$or": [{"frameworks": "BRSR"}, {"question_key": {"$regex": "^p[0-9]+_", "$options": "i"}}]},
-        {"_id": 0, "question_key": 1, "question": 1, "table_config": 1, "order": 1},
+        {"hidden": {"$ne": True}, "$or": [{"frameworks": "BRSR"}, {"question_key": {"$regex": "^p[0-9]+_", "$options": "i"}}]},
+        {"_id": 0, "question_key": 1, "question": 1, "type": 1, "config": 1, "table_config": 1,
+         "field_config": 1, "answer_paths": 1, "order": 1},
     ).sort([("question_key", 1)]).to_list(10000)
     question_options = []
     for config in question_configs:
