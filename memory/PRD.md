@@ -691,3 +691,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Deferred a premium multi-tenant architecture consolidation to P1 across ESG, GHG, KPI Definitions, Organization Config, BRSR/GRI reporting, dashboards, targets, and Supplier Assessment.
 - P1 will introduce versioned tenant policies, first-class custom fields/KPIs, configurable link/sync/edit/conflict behavior, effective-configuration resolution, immutable history, and registry/strategy-based execution in place of growing module-specific conditionals.
 - No application behavior or production data changed for this roadmap-only decision.
+
+## 2026-10-22 — BRSR mapping workbook dropdowns
+- The KPI Definitions & BRSR mappings workbook now gives every current mapping row a BRSR Question Key dropdown sourced from configured BRSR questions and a dependent Answer Path dropdown sourced from the selected question's configured table rows/known mapping paths.
+- Existing multiple mapping rows continue to support one KPI pointing to multiple BRSR destinations. Per user choice, the workbook does not add blank destination rows; users can work with current rows only.
+- Workbook selections remain local to the downloaded file. Applying edited workbook mappings back to the application requires a separate validated import workflow.
+- Per user instruction, no tests, screenshots, or testing-agent validation were run for this change.
