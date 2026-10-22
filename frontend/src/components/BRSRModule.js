@@ -28,6 +28,7 @@ import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
 import { ModulePageHeader } from './ModulePageHeader';
+import { BRSRImportProposals } from './BRSRImportProposals';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -39,6 +40,7 @@ export default function BRSRModule() {
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [organization, setOrganization] = useState(null);
+  const [responseRefreshKey, setResponseRefreshKey] = useState(0);
 
   // Initialize reporting years
   useEffect(() => {
@@ -98,6 +100,12 @@ export default function BRSRModule() {
         </>}
       />
 
+      <BRSRImportProposals
+        reportingPeriod={reportingPeriod}
+        isEditing={isEditing}
+        onResponseUpdated={() => setResponseRefreshKey((value) => value + 1)}
+      />
+
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-stone-100 p-1 rounded-lg">
@@ -117,7 +125,8 @@ export default function BRSRModule() {
 
         {/* Section A - General Disclosures */}
         <TabsContent value="section_a" className="mt-6">
-          <BRSRDetailsSection 
+          <BRSRDetailsSection
+            key={`section-a-${responseRefreshKey}`}
             isEditing={isEditing}
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
@@ -126,7 +135,8 @@ export default function BRSRModule() {
 
         {/* Section B - Management & Process Disclosures */}
         <TabsContent value="section_b" className="mt-6">
-          <ESGQuestionnaire 
+          <ESGQuestionnaire
+            key={`section-b-${responseRefreshKey}`}
             framework="BRSR"
             section="section_b"
             isEditing={isEditing}
@@ -137,6 +147,7 @@ export default function BRSRModule() {
         {/* Section C - Principle-wise Performance Disclosures */}
         <TabsContent value="section_c" className="mt-6">
           <BRSRSectionC
+            key={`section-c-${responseRefreshKey}`}
             framework="BRSR"
             isEditing={isEditing}
             reportingYear={reportingPeriod}

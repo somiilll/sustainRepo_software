@@ -55,6 +55,12 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([("metric_code", 1)], {}),
         ],
 
+        "brsr_kpi_import_proposals": [
+            ([('id', 1)], {"unique": True}),
+            ([('org_id', 1), ('reporting_period', 1), ('mapping_id', 1)], {"unique": True}),
+            ([('org_id', 1), ('reporting_period', 1), ('status', 1)], {}),
+        ],
+
         # Production Quantities
         "production_quantities": [
             ([("organization_id", 1), ("facility_id", 1), ("reporting_period", 1)], {}),

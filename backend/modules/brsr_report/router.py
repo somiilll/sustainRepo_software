@@ -4,7 +4,7 @@ BRSR Report Router
 API endpoints for generating BRSR reports in PDF format.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, HTMLResponse
 from typing import Optional
 from datetime import datetime
@@ -15,8 +15,46 @@ from modules.esg_questionnaire.service import esg_questionnaire_service
 from shared.database.mongo import db
 from .templates import BRSRHTMLTemplate
 from .service import BRSRReportService
+from .proposal_contracts import (
+    BRSRImportProposalList,
+    ProposalDecisionRequest,
+    ProposalDecisionResponse,
+)
+from .proposal_service import brsr_import_proposal_service
 
 router = APIRouter(prefix="/brsr-report", tags=["BRSR Report"])
+
+
+@router.get("/import-proposals", response_model=BRSRImportProposalList)
+async def list_import_proposals(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return await brsr_import_proposal_service.list_proposals(org_id, reporting_period)
+
+
+@router.post("/import-proposals/{mapping_id}/decision", response_model=ProposalDecisionResponse)
+async def decide_import_proposal(
+    mapping_id: str,
+    request: ProposalDecisionRequest,
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return await brsr_import_proposal_service.decide(
+        org_id=org_id,
+        reporting_period=reporting_period,
+        mapping_id=mapping_id,
+        action=request.action,
+        expected_fingerprint=request.source_fingerprint,
+        edited_value=request.edited_value,
+        user=current_user,
+    )
 
 
 async def get_organization(org_id: str) -> dict:

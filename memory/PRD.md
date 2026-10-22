@@ -664,3 +664,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## 2026-08 — Reference display + qualifiers
 - BRSR/GRI badges removed from data-entry forms (`HierarchicalFields`, `WorkforceDataTable`); KPI Definitions list still shows them. "<Subcategory> Fields" heading removed from the Add form.
 - References now store the code only: "(partial)/(related)/(input)" stripped from `env_schema.py`, `workforce_schema.py`, and the DB (seed script `strip_reference_qualifiers` keeps it clean on re-seed).
+
+## 2026-10-22 — BRSR KPI import proposals (P0 complete)
+- Added a reporting-period-scoped proposal engine backed by `kpi_framework_mappings` and `brsr_kpi_import_proposals`. Only verified `exact_destination` mappings with a stable `question_key` and `answer_path` are eligible; ambiguous mappings remain excluded rather than guessed.
+- Proposal calculation supports direct KPI sums/averages and future formula rules, financial/calendar reporting periods, organization key compatibility, contributor details, unit metadata, and deterministic source fingerprints.
+- Added authenticated BRSR APIs to list proposals and Accept/Edit/Reject a proposal. Accept/Edit merges only the mapped nested value into `organization_esg_responses`; Reject does not change a BRSR response. Fingerprint mismatches return 409.
+- Accepted/edited proposals become stale when source records change. Rejected proposals remain hidden while their fingerprint is unchanged and return to pending after a source change.
+- Added the BRSR KPI proposal inbox with `Imported from: Category → Subcategory`, BRSR destination, contributing KPI/value/record counts, proposed/current values, status, and Edit-mode-gated Accept/Edit/Reject controls. All new critical/interactive elements have unique `data-testid`s.
+- Verified six exact Air Emissions proposals for FY 2026-2027, complete lifecycle and period isolation, nested response preservation, source-change conflicts, desktop/mobile rendering, and zero horizontal overflow. Focused suite: 2/2 passed; no APIs are mocked.
+- P1 next: complete additional exact BRSR destination paths from existing table row keys, then those mappings will automatically enter this review workflow. P2 remains Training recipient dimensions in dashboards/targets and stale generated/dashboard UI cleanup.
