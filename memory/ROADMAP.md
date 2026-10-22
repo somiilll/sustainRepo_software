@@ -26,6 +26,18 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+### Tenant-Scoped Metadata & Policy Architecture Consolidation
+- Consolidate ESG, GHG, KPI Definitions, Organization Config, BRSR/GRI reporting, dashboards, targets, and Supplier Assessment around one versioned, tenant-scoped metadata and policy engine.
+- Make built-in and custom fields/KPIs first-class through stable immutable IDs, effective-dated schema versions, lineage, audit history, and non-destructive migrations so later configuration changes never reinterpret historical data.
+- Add organization-level mapping policies for every KPI/report destination: enabled/disabled, source KPI, framework/question/path, aggregation, formula, unit conversion, effective dates, and sync mode (`unlinked`, `suggest`, `auto-fill`).
+- Add configurable conflict/edit policies: KPI wins, manual answer wins, or approval required; mapped cells can be locked or editable per organization and reporting period.
+- Convert the dormant proposal workflow into the reusable `suggest/approval required` policy rather than maintaining it as a separate special-case system.
+- Make GHG methodologies, factor priority, organizational boundaries, Scope 3/custom categories, approvals, and report mappings organization-configurable without rewriting historical calculation snapshots.
+- Make Supplier Assessment taxonomy, questions, scoring, evidence rules, assignments, approval workflows, GHG permissions, and ESG/KPI/report mappings versioned per organization/program revision.
+- Replace module-specific conditionals with registries/strategies for source extraction, calculations, aggregation, transformations, rendering, scoring, and sync policies. Remove business rules duplicated across Python schemas, seed scripts, React configs, and live database documents.
+- Add an effective-configuration resolver with precedence: platform default → organization policy/version → program/framework/reporting-period override, plus an admin read-only explanation of the resolved rule and its provenance.
+- Deliver through compatibility adapters and staged migrations so existing organization configuration, records, response history, formula snapshots, supplier submissions, and reports continue to work unchanged until explicitly migrated.
+
 - Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
 - Add controlled decision-tree rebind and mapping-clone workflows to Formula Builder/Input Field Mapping, including a mandatory preview of affected category branches before applying either action.

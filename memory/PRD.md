@@ -686,3 +686,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added the global dimension-based KPI Definition `Air Emissions - Other Pollutants` for the repeating `other_air_pollutants` table. Its reporting dimension is `pollutant_name`; quantity and unit are sourced from each row, with kg/tonne conversion when period units differ.
 - Added exact BRSR mapping to `p6_air_emissions / rows.others` as a dynamic-row destination. Each entered pollutant name becomes its own locked BRSR row with Unit, Current FY, and Previous FY values; removed/renamed pollutant rows are cleared on the next sync.
 - Applied the new KPI Definition and BRSR mapping to live configuration. Per user instruction, no tests, screenshots, or testing-agent validation were run for this change.
+
+## 2026-10-22 — P1 architecture consolidation decision
+- Deferred a premium multi-tenant architecture consolidation to P1 across ESG, GHG, KPI Definitions, Organization Config, BRSR/GRI reporting, dashboards, targets, and Supplier Assessment.
+- P1 will introduce versioned tenant policies, first-class custom fields/KPIs, configurable link/sync/edit/conflict behavior, effective-configuration resolution, immutable history, and registry/strategy-based execution in place of growing module-specific conditionals.
+- No application behavior or production data changed for this roadmap-only decision.
