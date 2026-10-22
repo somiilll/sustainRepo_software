@@ -28,7 +28,7 @@ import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
 import { ModulePageHeader } from './ModulePageHeader';
-import { BRSRImportProposals } from './BRSRImportProposals';
+import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -41,6 +41,8 @@ export default function BRSRModule() {
   const [isEditing, setIsEditing] = useState(false);
   const [organization, setOrganization] = useState(null);
   const [responseRefreshKey, setResponseRefreshKey] = useState(0);
+  const [importProposals, setImportProposals] = useState([]);
+  const [importBusyId, setImportBusyId] = useState(null);
 
   // Initialize reporting years
   useEffect(() => {
@@ -65,6 +67,52 @@ export default function BRSRModule() {
       fetchOrgAndSetYears();
     }
   }, [token]);
+
+  useEffect(() => {
+    const loadImportProposals = async () => {
+      if (!token || !reportingPeriod) return;
+      try {
+        const response = await axios.get(`${API}/api/brsr-report/import-proposals`, {
+          params: { reporting_period: reportingPeriod },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setImportProposals(response.data.proposals || []);
+      } catch (error) {
+        console.error('Failed to load BRSR import proposals:', error);
+        toast.error(error.response?.data?.detail || 'Failed to load KPI import proposals');
+      }
+    };
+    loadImportProposals();
+  }, [token, reportingPeriod, responseRefreshKey]);
+
+  const importProposalsByQuestion = importProposals.reduce((grouped, proposal) => {
+    const next = { ...grouped };
+    next[proposal.question_key] = [...(next[proposal.question_key] || []), proposal];
+    return next;
+  }, {});
+
+  const handleImportDecision = async (proposal, action, editedValue = null) => {
+    setImportBusyId(proposal.mapping_id);
+    try {
+      await axios.post(
+        `${API}/api/brsr-report/import-proposals/${proposal.mapping_id}/decision`,
+        { action, source_fingerprint: proposal.source_fingerprint, edited_value: editedValue },
+        {
+          params: { reporting_period: reportingPeriod },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      toast.success(action === 'reject' ? 'Imported value rejected' : 'BRSR response updated');
+      setResponseRefreshKey((value) => value + 1);
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not review this imported value');
+      if (error.response?.status === 409) setResponseRefreshKey((value) => value + 1);
+      return false;
+    } finally {
+      setImportBusyId(null);
+    }
+  };
 
   return (
     <div className="space-y-7">
@@ -98,12 +146,6 @@ export default function BRSRModule() {
             {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
           </Button>
         </>}
-      />
-
-      <BRSRImportProposals
-        reportingPeriod={reportingPeriod}
-        isEditing={isEditing}
-        onResponseUpdated={() => setResponseRefreshKey((value) => value + 1)}
       />
 
       {/* Main Tabs */}
@@ -141,6 +183,9 @@ export default function BRSRModule() {
             section="section_b"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
+            importProposalsByQuestion={importProposalsByQuestion}
+            importBusyId={importBusyId}
+            onImportDecision={handleImportDecision}
           />
         </TabsContent>
 
@@ -151,6 +196,9 @@ export default function BRSRModule() {
             framework="BRSR"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
+            importProposalsByQuestion={importProposalsByQuestion}
+            importBusyId={importBusyId}
+            onImportDecision={handleImportDecision}
           />
         </TabsContent>
       </Tabs>

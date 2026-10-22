@@ -21,6 +21,7 @@ from .proposal_contracts import (
     ProposalDecisionResponse,
 )
 from .proposal_service import brsr_import_proposal_service
+from .mapping_excel import build_kpi_brsr_mapping_excel
 
 router = APIRouter(prefix="/brsr-report", tags=["BRSR Report"])
 
@@ -54,6 +55,21 @@ async def decide_import_proposal(
         expected_fingerprint=request.source_fingerprint,
         edited_value=request.edited_value,
         user=current_user,
+    )
+
+
+@router.get("/kpi-mappings.xlsx")
+async def download_kpi_brsr_mappings(
+    current_user: dict = Depends(get_current_user),
+):
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    workbook = await build_kpi_brsr_mapping_excel()
+    return StreamingResponse(
+        io.BytesIO(workbook),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=kpi_definitions_brsr_mappings.xlsx"},
     )
 
 

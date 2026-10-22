@@ -48,6 +48,7 @@ import {
 } from './ui/collapsible';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { BRSRQuestionImportReview } from './BRSRQuestionImportReview';
 import { 
   Loader2, 
   Save, 
@@ -396,7 +397,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, importProposals = [], importBusyId = null, onImportDecision = null }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
@@ -1126,6 +1127,12 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
+      <BRSRQuestionImportReview
+        proposals={importProposals}
+        isEditing={isEditing}
+        busyId={importBusyId}
+        onDecision={onImportDecision}
+      />
       {renderInput()}
       
       {/* Question-level Save Draft and Submit buttons */}
@@ -3392,7 +3399,10 @@ export default function ESGQuestionnaire({
   reportingYear: externalReportingYear = null,
   filterPrinciples = null,
   excludePrinciples = null,
-  yearType = 'financial_year'  // Organization's reporting year type
+  yearType = 'financial_year',  // Organization's reporting year type
+  importProposalsByQuestion = {},
+  importBusyId = null,
+  onImportDecision = null,
 }) {
   const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3681,6 +3691,9 @@ export default function ESGQuestionnaire({
                     onSaveQuestion={saveQuestion}
                     onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                     onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
+                    importProposals={importProposalsByQuestion[config.question_key] || []}
+                    importBusyId={importBusyId}
+                    onImportDecision={onImportDecision}
                   />
                 ))}
               </div>

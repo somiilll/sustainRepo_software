@@ -39,7 +39,7 @@ const PRINCIPLE_COLORS = {
   P7: '#6366f1', P8: '#f97316', P9: '#ec4899',
 };
 
-export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear }) {
+export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, importProposalsByQuestion = {}, importBusyId = null, onImportDecision = null }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -349,6 +349,9 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       onSaveQuestion={isEditing ? saveQuestion : null}
                       onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                       onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
+                      importProposals={importProposalsByQuestion[config.question_key] || []}
+                      importBusyId={importBusyId}
+                      onImportDecision={onImportDecision}
                     />
                   ))}
                 </div>

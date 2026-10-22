@@ -43,7 +43,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
   if (!isEditing) {
     return (
       <div className="mt-2 overflow-x-auto">
-        <Table>
+        <Table className="table-fixed [&_th]:whitespace-normal [&_th]:break-words [&_td]:break-words">
           <TableHeader>
             <TableRow className="bg-stone-50">
               {columns.map((col) => (
@@ -189,7 +189,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
 
   return (
     <div className="mt-2 overflow-x-auto">
-      <Table>
+      <Table className="table-fixed [&_th]:whitespace-normal [&_th]:break-words [&_td]:break-words">
         <TableHeader>
           {tableConfig.column_groups ? (
             (() => {

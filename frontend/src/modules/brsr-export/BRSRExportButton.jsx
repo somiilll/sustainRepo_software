@@ -12,14 +12,44 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import { Download, FileText, Loader2, ChevronDown } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, ChevronDown } from 'lucide-react';
 import { useBRSRExport } from './useBRSRExport';
+import { useAuth } from '../../contexts/AuthContext';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 export function BRSRExportButton({ reportingPeriod, organization }) {
+  const { getAuthHeader } = useAuth();
+  const [isExportingMappings, setIsExportingMappings] = useState(false);
   const { exportPDF, isExporting, progress } = useBRSRExport({
     reportingPeriod,
     organization
   });
+
+  const exportMappings = async () => {
+    setIsExportingMappings(true);
+    try {
+      const response = await axios.get(`${API}/api/brsr-report/kpi-mappings.xlsx`, {
+        headers: getAuthHeader(),
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'kpi_definitions_brsr_mappings.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('KPI mapping workbook downloaded');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to download KPI mapping workbook');
+    } finally {
+      setIsExportingMappings(false);
+    }
+  };
 
   if (isExporting) {
     return (
@@ -43,6 +73,10 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
         <DropdownMenuItem onClick={exportPDF} className="gap-2 cursor-pointer" data-testid="brsr-export-pdf">
           <FileText className="w-4 h-4 text-red-600" />
           Download as PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={exportMappings} disabled={isExportingMappings} className="gap-2 cursor-pointer" data-testid="brsr-export-kpi-mappings">
+          {isExportingMappings ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 text-emerald-700" />}
+          KPI definitions & BRSR mappings
         </DropdownMenuItem>
         {/* Word export can be added later */}
         {/* <DropdownMenuItem onClick={exportWord} className="gap-2 cursor-pointer">
