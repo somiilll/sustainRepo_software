@@ -733,3 +733,13 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## 2026-10-22 — Mapping workbook download freshness
 - Updated the BRSR mapping download response to use the filename `kpi_definitions_brsr_mappings_updated.xlsx`, no-store/no-cache response headers, and a per-request generation timestamp from the frontend so the Download action always retrieves a newly generated workbook from current mappings/configuration.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Derived BRSR reporting KPIs
+- Created a generic composite/constant KPI calculation capability and explicit formula period aggregation (`sum` or `average`). Composite KPIs can now sum source KPIs or calculate a percentage ratio without module-specific overwrite behavior.
+- Energy: created renewable fuel zero (organization policy: all fuel is non-renewable), renewable/non-renewable Other-source totals, renewable total, non-renewable total, and overall energy total KPI Definitions. Exact P6-E1 mappings now populate A–I rows; supporting Cooling/Electricity/Heating/Steam subcategory totals no longer carry direct BRSR references.
+- Internal complaints: mapped only `Internal Complaints - Directors` and `Internal Complaints - KMPs` to P1 conflict-of-interest complaint rows. Their pending variants no longer carry P1-E2 mappings/references.
+- Water discharge: mapped existing destination-level `No treatment`, `With treatment`, and overall total KPIs to the official P6-E4 rows. Primary/secondary/tertiary treatment details and destination subtotals remain supporting KPIs without direct BRSR references.
+- Parental leave: retained separate Female/Male/Total return-to-work and retention-rate KPIs for Employees and Workers, set period aggregation to the user-selected average of saved record rates, and mapped each directly to P3-E5. Raw parental-leave source counts no longer require direct BRSR mappings.
+- Training P3-E8: created 30 reporting KPIs covering Employees/Workers × Female/Male/Total × Health & Safety/Skill Upgradation counts and coverage percentages, plus eligible headcount totals. Employee and Worker groups roll up permanent and other-than-permanent recipient types; BoD/KMP are not P3-E8 rows and remain relevant to their separate disclosures.
+- Generated `/app/exports/kpi_definitions_brsr_mappings_derived_updated.xlsx`. Full pre-change definitions/mappings backup: `/app/backups/brsr_derived_kpi_sync_2026-10-22T122738.181140_0000.json`.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

@@ -44,6 +44,8 @@ def logical_answer_path(path: Optional[str]) -> Optional[str]:
     parts = [part for part in str(path).split(".") if part not in period_segments]
     if parts and parts[-1] in logical_columns:
         parts[-1] = logical_columns[parts[-1]]
+    elif parts and (parts[-1].startswith("cur_") or parts[-1].startswith("prev_")):
+        parts[-1] = parts[-1].split("_", 1)[1]
     return ".".join(parts)
 
 

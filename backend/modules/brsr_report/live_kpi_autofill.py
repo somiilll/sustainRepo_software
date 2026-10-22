@@ -38,6 +38,11 @@ def _period_answer_paths(mapping: Dict[str, Any], base_path: str) -> tuple:
             "received": ("cur_received", "prev_received"),
             "pending": ("cur_pending", "prev_pending"),
             "remarks": ("cur_remarks", "prev_remarks"),
+            "total": ("cur_total", "prev_total"),
+            "hs_no": ("cur_hs_no", "prev_hs_no"),
+            "hs_pct": ("cur_hs_pct", "prev_hs_pct"),
+            "skill_no": ("cur_skill_no", "prev_skill_no"),
+            "skill_pct": ("cur_skill_pct", "prev_skill_pct"),
         }
         parts = base_path.split(".")
         terminal = parts[-1]

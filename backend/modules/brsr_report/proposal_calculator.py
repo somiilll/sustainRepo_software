@@ -110,7 +110,7 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
 
 
-def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str, str]:
+def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str, List[str]]:
     variables = sorted(set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", expression)))
     aliases = {
         "leaving": ["leaving", "left_during"],
@@ -121,13 +121,13 @@ def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str,
         "retained_after_12_months": ["retained_after_12_months"],
     }
     available = {_normalise_name(field): field for field in input_fields}
-    matched: Dict[str, str] = {}
+    matched: Dict[str, List[str]] = {}
     for variable in variables:
         candidates = aliases.get(variable, [variable])
-        for normalised, original in available.items():
-            if any(candidate in normalised for candidate in candidates):
-                matched[variable] = original
-                break
+        matches = [original for normalised, original in available.items()
+                   if any(candidate in normalised for candidate in candidates)]
+        if matches:
+            matched[variable] = matches
     return matched
 
 
@@ -136,6 +136,7 @@ def _formula_value(
     expression: str,
     input_fields: List[str],
     per_entry: bool,
+    period_aggregation: str = "average",
 ) -> Optional[float]:
     field_map = _match_formula_fields(expression, input_fields)
     if not field_map:
@@ -146,20 +147,23 @@ def _formula_value(
         for record in records:
             field_values = record.get("field_values") or {}
             variables = {
-                variable: parse_numeric_value(field_values.get(field)) or 0.0
-                for variable, field in field_map.items()
+                variable: sum(parse_numeric_value(field_values.get(field)) or 0.0 for field in fields)
+                for variable, fields in field_map.items()
             }
             result = evaluate_formula(expression, variables)
             if result is not None:
                 values.append(result)
-        return sum(values) / len(values) if values else None
+        if not values:
+            return None
+        return sum(values) if period_aggregation == "sum" else sum(values) / len(values)
 
     variables = {
         variable: sum(
             parse_numeric_value((record.get("field_values") or {}).get(field)) or 0.0
             for record in records
+            for field in fields
         )
-        for variable, field in field_map.items()
+        for variable, fields in field_map.items()
     }
     return evaluate_formula(expression, variables)
 
@@ -189,8 +193,51 @@ async def _load_kpi_records(kpi: Dict[str, Any], org_id: str, reporting_period: 
 
 
 async def calculate_kpi_contribution(
-    kpi: Dict[str, Any], org_id: str, reporting_period: str, mapping_rule: str
+    kpi: Dict[str, Any], org_id: str, reporting_period: str, mapping_rule: str,
+    visited_kpi_ids: Optional[set] = None,
 ) -> Tuple[Optional[float], List[Dict[str, Any]]]:
+    visited = set(visited_kpi_ids or set())
+    kpi_id = kpi.get("id")
+    if kpi_id and kpi_id in visited:
+        return None, []
+    if kpi_id:
+        visited.add(kpi_id)
+
+    source_type = kpi.get("source_type")
+    if source_type == "constant":
+        value = ((kpi.get("source_config") or {}).get("constant") or {}).get("value")
+        return (float(value), [{"id": f"constant:{kpi_id}", "field_values": {"value": value}}]) if value is not None else (None, [])
+
+    if source_type == "composite":
+        composite = (kpi.get("source_config") or {}).get("composite") or {}
+        source_ids = composite.get("source_kpi_ids") or []
+        definitions = await db.esg_kpi_definitions.find(
+            {"id": {"$in": source_ids}, "status": {"$ne": "archived"}}, {"_id": 0}
+        ).to_list(1000)
+        definitions_by_id = {definition["id"]: definition for definition in definitions}
+        values = []
+        source_records = []
+        for source_id in source_ids:
+            source_kpi = definitions_by_id.get(source_id)
+            if not source_kpi:
+                continue
+            source_value, records = await calculate_kpi_contribution(
+                source_kpi, org_id, reporting_period, mapping_rule, visited
+            )
+            if source_value is not None:
+                values.append(float(source_value))
+                source_records.extend(records)
+        if not values:
+            return None, source_records
+        operation = composite.get("operation") or "sum"
+        if operation == "average":
+            result = sum(values) / len(values)
+        elif operation == "ratio_percent":
+            result = (values[0] / values[1] * 100) if len(values) >= 2 and values[1] else None
+        else:
+            result = sum(values)
+        return result, source_records
+
     records = await _load_kpi_records(kpi, org_id, reporting_period)
     if not records:
         return None, []
@@ -205,7 +252,8 @@ async def calculate_kpi_contribution(
             (kpi.get("metadata") or {}).get("calculation_scope") == "per_record_then_period_aggregate"
             and mapping_rule not in {"ratio_of_period_totals", "formula"}
         )
-        return _formula_value(records, formula, input_fields, per_entry), records
+        period_aggregation = (kpi.get("metadata") or {}).get("period_aggregation") or "average"
+        return _formula_value(records, formula, input_fields, per_entry, period_aggregation), records
 
     target_unit = None
     unit_config = kpi.get("unit_config") or {}
