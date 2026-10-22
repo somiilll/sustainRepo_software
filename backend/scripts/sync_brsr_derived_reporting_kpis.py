@@ -24,6 +24,10 @@ async def upsert_definition(name: str, fields: Dict[str, Any], now: str) -> Dict
     code = fields.pop("metric_code", metric_code(name))
     existing = await db.esg_kpi_definitions.find_one({"metric_code": code}, {"_id": 0})
     definition_id = existing["id"] if existing else str(uuid.uuid4())
+    metadata = fields.get("metadata") or {}
+    if "derived" in (fields.get("tags") or []):
+        metadata = {**metadata, "reporting_mapping_role": "derived_reporting"}
+        fields["metadata"] = metadata
     common = {
         "metric_name": name, "short_name": name, "metric_code": code, "status": "active",
         "display_config": {"display_name": None, "short_name": None, "display_order": 0,
@@ -65,8 +69,22 @@ async def upsert_mapping(
     }
     if existing:
         await db.kpi_framework_mappings.update_one({"id": existing["id"]}, {"$set": fields, "$unset": {"period_columns": ""}})
+        mapping_id = existing["id"]
     else:
-        await db.kpi_framework_mappings.insert_one({"id": str(uuid.uuid4()), "created_at": now, **fields})
+        mapping_id = str(uuid.uuid4())
+        await db.kpi_framework_mappings.insert_one({"id": mapping_id, "created_at": now, **fields})
+    await db.kpi_framework_mappings.update_many(
+        {"framework": "BRSR", "kpi_id": kpi["id"], "id": {"$ne": mapping_id},
+         "mapping_status": {"$ne": "exact_destination"}, "is_active": {"$ne": False}},
+        {"$set": {"is_active": False, "mapping_status": "superseded_by_exact_destination",
+                  "superseded_by_mapping_id": mapping_id, "updated_at": now}},
+    )
+    await db.esg_kpi_definitions.update_one(
+        {"id": kpi["id"]},
+        {"$set": {"metadata": {**(kpi.get("metadata") or {}),
+                                "reporting_mapping_role": "derived_reporting" if kpi.get("source_type") in {"composite", "constant"} else "direct_destination"},
+                  "updated_at": now}},
+    )
 
 
 async def remove_brsr_reference(definition: Dict[str, Any], reference_code: str, now: str) -> None:
@@ -76,18 +94,35 @@ async def remove_brsr_reference(definition: Dict[str, Any], reference_code: str,
             references.append(reference)
             continue
         codes = [code.strip() for code in re.split(r"[;,]", str(reference.get("reference") or "")) if code.strip()]
-        remaining = [code for code in codes if code != reference_code]
+        remaining = [code for code in codes if not code.startswith(reference_code)]
         if remaining:
             references.append({**reference, "reference": "; ".join(remaining)})
     current_codes = [code.strip() for code in re.split(r"[;,]", str(definition.get("brsr_reference") or "")) if code.strip()]
-    remaining_current = [code for code in current_codes if code != reference_code]
+    remaining_current = [code for code in current_codes if not code.startswith(reference_code)]
     await db.esg_kpi_definitions.update_one(
         {"id": definition["id"]},
         {"$set": {"brsr_reference": "; ".join(remaining_current) or None,
-                  "framework_references": references, "updated_at": now}},
+                  "framework_references": references,
+                  "metadata": {**(definition.get("metadata") or {}), "reporting_mapping_role": "supporting_source"},
+                  "updated_at": now}},
     )
     await db.kpi_framework_mappings.update_many(
         {"framework": "BRSR", "kpi_id": definition["id"], "reference": {"$regex": re.escape(reference_code)}},
+        {"$set": {"is_active": False, "mapping_status": "supporting_kpi_not_direct_destination", "updated_at": now}},
+    )
+
+
+async def remove_all_brsr_references(definition: Dict[str, Any], now: str) -> None:
+    references = [reference for reference in (definition.get("framework_references") or [])
+                  if str(reference.get("framework", "")).upper() != "BRSR"]
+    await db.esg_kpi_definitions.update_one(
+        {"id": definition["id"]},
+        {"$set": {"brsr_reference": None, "framework_references": references,
+                  "metadata": {**(definition.get("metadata") or {}), "reporting_mapping_role": "supporting_source"},
+                  "updated_at": now}},
+    )
+    await db.kpi_framework_mappings.update_many(
+        {"framework": "BRSR", "kpi_id": definition["id"], "is_active": {"$ne": False}},
         {"$set": {"is_active": False, "mapping_status": "supporting_kpi_not_direct_destination", "updated_at": now}},
     )
 
@@ -205,6 +240,35 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_water_stress_discharge(now: str) -> List[Dict[str, Any]]:
+    definitions = await db.esg_kpi_definitions.find(
+        {"$or": [{"value_field": {"$regex": "^ws_discharge_"}},
+                 {"value_field": "quantity_discharged_to_water_stress_area"}],
+         "status": {"$ne": "archived"}}, {"_id": 0}
+    ).to_list(200)
+    by_field = {definition.get("value_field"): definition for definition in definitions}
+    destination_keys = {"surface": "surface", "ground": "ground", "seawater": "sea",
+                        "third_party": "third", "others": "others"}
+    mapped = []
+    for source_key, row_key in destination_keys.items():
+        for treatment, suffix in (("no_treatment", "no"), ("with_treatment", "with")):
+            definition = by_field.get(f"ws_discharge_{source_key}_{treatment}")
+            if definition:
+                await upsert_mapping(definition, "p6_water_stress_areas", f"rows.discharge_{row_key}_{suffix}", "P6-L1", now)
+                mapped.append(definition)
+    total = by_field.get("quantity_discharged_to_water_stress_area")
+    if total:
+        await upsert_mapping(total, "p6_water_stress_areas", "rows.total_discharged", "P6-L1", now)
+        mapped.append(total)
+    for definition in definitions:
+        field = definition.get("value_field") or ""
+        if any(token in field for token in ("_primary", "_secondary", "_tertiary")) or (
+            field in {f"ws_discharge_{source}" for source in destination_keys}
+        ):
+            await remove_all_brsr_references(definition, now)
+    return mapped
+
+
 async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
     mapped = []
     for role, row in (("Directors", "rows.directors_coi"), ("KMPs", "rows.kmps_coi")):
@@ -212,19 +276,26 @@ async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
             "metric_name": {"$regex": f"^Internal Complaints - {role}$", "$options": "i"}}, {"_id": 0}
         )
         if direct:
-            await upsert_mapping(direct, "p1_conflict_of_interest_complaints", row, "P1-E2", now)
+            await upsert_mapping(direct, "p1_conflict_of_interest_complaints", row, "P1-E6", now)
             mapped.append(direct)
         pending = await db.esg_kpi_definitions.find_one({
             "metric_name": {"$regex": f"Internal Complaints.*Pending.*{role}|Internal Complaints.*{role}.*Pending", "$options": "i"}}, {"_id": 0}
         )
         if pending:
-            await remove_brsr_reference(pending, "P1-E2", now)
+            await remove_all_brsr_references(pending, now)
+    supporting_totals = await db.esg_kpi_definitions.find({
+        "metric_name": {"$in": ["Internal Complaints (Total)", "Internal Complaints - Pending (Total)",
+                                  "Internal Complaints - Conflict of Interest (Total)",
+                                  "Internal Complaints Pending - Conflict of Interest (Total)"]}}, {"_id": 0}
+    ).to_list(20)
+    for definition in supporting_totals:
+        await remove_all_brsr_references(definition, now)
     return mapped
 
 
 async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find({
-        "subcategory": {"$in": ["Employees Parental Leave", "Workers Parental Leave"]},
+        "metric_name": {"$regex": "Parental Leave|Return to Work Rate|Retention Rate", "$options": "i"},
         "status": {"$ne": "archived"},
     }, {"_id": 0}).to_list(200)
     mapped = []
@@ -235,7 +306,7 @@ async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
                 await remove_brsr_reference(definition, code, now)
             continue
         gender = "female" if "Female" in name else "male" if "Male" in name else "total"
-        is_worker = definition.get("subcategory") == "Workers Parental Leave"
+        is_worker = "Worker" in name
         column = ("perm_workers_" if is_worker else "perm_emp_") + ("return" if "Return to Work" in name else "retention")
         await db.esg_kpi_definitions.update_one(
             {"id": definition["id"]},
@@ -353,6 +424,7 @@ async def run() -> Dict[str, Any]:
     result = {
         "energy": len(await sync_energy(now)),
         "water_discharge": len(await sync_water_discharge(now)),
+        "water_stress_discharge": len(await sync_water_stress_discharge(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
         "parental_leave": len(await sync_parental_leave(now)),
         "training": len(await sync_training(now)),

@@ -743,3 +743,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Training P3-E8: created 30 reporting KPIs covering Employees/Workers × Female/Male/Total × Health & Safety/Skill Upgradation counts and coverage percentages, plus eligible headcount totals. Employee and Worker groups roll up permanent and other-than-permanent recipient types; BoD/KMP are not P3-E8 rows and remain relevant to their separate disclosures.
 - Generated `/app/exports/kpi_definitions_brsr_mappings_derived_updated.xlsx`. Full pre-change definitions/mappings backup: `/app/backups/brsr_derived_kpi_sync_2026-10-22T122738.181140_0000.json`.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Direct/supporting/derived mapping roles
+- Added explicit KPI reporting roles to the mapping export: `direct_destination`, `derived_reporting`, and `supporting_source`. Supporting source KPIs are no longer marked as needing a BRSR destination.
+- Exact mappings now automatically deactivate older unresolved mappings for the same KPI, preventing already-resolved KPIs such as Total Energy Consumption - Fuel, direct complaint KPIs, and parental-leave rates from appearing again as unresolved duplicates.
+- Corrected qualified/combined reference cleanup and marked raw parental-leave counts, pending Director/KMP complaints, generic internal-complaint totals, treatment-detail water-discharge fields, and other non-destination inputs as supporting sources.
+- Added exact P6-L1 mappings for water-stress discharge No treatment, With treatment, and total rows while retaining primary/secondary/tertiary treatment fields as supporting detail.
+- Regenerated `/app/exports/kpi_definitions_brsr_mappings_roles_updated.xlsx` with the new Mapping Role column and review filtering.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

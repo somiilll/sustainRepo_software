@@ -28,6 +28,7 @@ HEADERS = [
     "Mapping Status",
     "Needs Your Response",
     "Response Needed For",
+    "Mapping Role",
 ]
 
 
@@ -59,7 +60,20 @@ def _has_brsr_reference(kpi: Dict[str, Any]) -> bool:
     )
 
 
-def _review_reason(mapping: Dict[str, Any]) -> str:
+def _mapping_role(kpi: Dict[str, Any], mapping: Dict[str, Any]) -> str:
+    configured = (kpi.get("metadata") or {}).get("reporting_mapping_role")
+    if configured:
+        return configured
+    if mapping.get("mapping_status") == "exact_destination":
+        return "direct_destination"
+    if kpi.get("source_type") in {"composite", "constant"}:
+        return "derived_reporting"
+    return "direct_destination"
+
+
+def _review_reason(mapping: Dict[str, Any], kpi: Dict[str, Any]) -> str:
+    if _mapping_role(kpi, mapping) == "supporting_source":
+        return ""
     missing = []
     if not mapping:
         return "No BRSR mapping record"
@@ -221,6 +235,8 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
             "subcategory": 1,
             "brsr_reference": 1,
             "framework_references": 1,
+            "metadata": 1,
+            "source_type": 1,
         },
     ).sort([("section", 1), ("category_name", 1), ("subcategory", 1), ("metric_name", 1)]).to_list(10000)
     kpis = [kpi for kpi in kpis if _has_brsr_reference(kpi)]
@@ -261,7 +277,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
     for kpi in kpis:
         kpi_mappings = mapping_by_kpi.get(kpi["id"]) or [{}]
         for mapping in kpi_mappings:
-            reason = _review_reason(mapping)
+            reason = _review_reason(mapping, kpi)
             needs_response = bool(reason)
             row = [
                 kpi.get("metric_name"),
@@ -278,6 +294,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
                 mapping.get("mapping_status") or "unmapped",
                 "YES" if needs_response else "NO",
                 reason,
+                _mapping_role(kpi, mapping),
             ]
             rows.append(row)
             if needs_response:
@@ -328,7 +345,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
             cell.font = Font(color="FFFFFF", bold=True)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         sheet.freeze_panes = "A2"
-        sheet.auto_filter.ref = f"A1:N{max(1, len(data_rows) + 1)}"
+        sheet.auto_filter.ref = f"A1:O{max(1, len(data_rows) + 1)}"
 
         for row_index, row in enumerate(data_rows, start=2):
             sheet.append(row)
@@ -344,7 +361,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
                 sheet.cell(row_index, 13).fill = exact_fill
                 sheet.cell(row_index, 13).font = Font(color="166534", bold=True)
 
-        widths = [34, 22, 14, 24, 28, 18, 24, 30, 20, 40, 34, 24, 20, 34]
+        widths = [34, 22, 14, 24, 28, 18, 24, 30, 20, 40, 34, 24, 20, 34, 22]
         for column_index, width in enumerate(widths, start=1):
             sheet.column_dimensions[get_column_letter(column_index)].width = width
         sheet.row_dimensions[1].height = 34
