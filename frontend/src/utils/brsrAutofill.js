@@ -1,5 +1,6 @@
 export const mergeBRSRAutofill = (baseValue, liveValue) => {
-  if (!liveValue || typeof liveValue !== 'object') return baseValue;
+  if (liveValue === undefined) return baseValue;
+  if (liveValue === null || typeof liveValue !== 'object') return liveValue;
   const base = baseValue && typeof baseValue === 'object' ? baseValue : {};
   const merged = Array.isArray(base) ? [...base] : { ...base };
   Object.entries(liveValue).forEach(([key, value]) => {

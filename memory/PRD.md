@@ -713,3 +713,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - The downloadable workbook is generated live from the updated BRSR question catalogue, so it also includes all new Section A/B paths and structures from the Annexure II alignment.
 - No KPI mapping decisions were automatically changed; the workbook continues to let the user select the exact Question Key and dependent Answer Path.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — User workbook mapping import
+- Imported the user-edited `kpi_definitions_brsr_mappings (1).xlsx` after validating Question Keys and Answer Paths against the active BRSR catalogue. Applied 102 validated or high-confidence mapping actions to live `kpi_framework_mappings`; 58 workbook rows remain explicitly listed in `Workbook Import Review` because their destination was invalid, ambiguous, or would incorrectly map a component KPI to a total row.
+- Refined complaint mappings to field-level current-period destinations (`cur_received`, `cur_filed`, `cur_pending`) and inferred high-confidence Section A, data-breach, accounts-payable, Water, Waste, and other direct mappings. Many-to-one Energy cooling/heating/steam mappings are represented as grouped source mappings rather than competing writes to the same BRSR cell.
+- Migrated the mapping index architecture from one mapping per KPI/reference to one active mapping per distinct KPI/framework/question/path, allowing one KPI to target multiple BRSR destinations while preventing duplicate active destinations.
+- Preserved two pre-import backups: `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T111330.287794_0000.json` and `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T111446.990680_0000.json`.
+- Generated `/app/exports/kpi_definitions_brsr_mappings_revised.xlsx` with live mappings, `Needs Your Response`, `Applied Mapping Summary`, and `Workbook Import Review` sheets. Import details are stored in the adjacent JSON log.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

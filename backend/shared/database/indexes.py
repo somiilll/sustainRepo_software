@@ -61,6 +61,20 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([('org_id', 1), ('reporting_period', 1), ('status', 1)], {}),
         ],
 
+        "kpi_framework_mappings": [
+            ([('id', 1)], {"unique": True}),
+            ([('kpi_id', 1), ('framework', 1), ('reference', 1)], {"name": "kpi_framework_reference_lookup"}),
+            ([('kpi_id', 1), ('framework', 1), ('question_key', 1), ('answer_path', 1)], {
+                "name": "unique_active_kpi_framework_destination",
+                "unique": True,
+                "partialFilterExpression": {
+                    "is_active": True,
+                    "question_key": {"$type": "string"},
+                    "answer_path": {"$type": "string"},
+                },
+            }),
+        ],
+
         # Production Quantities
         "production_quantities": [
             ([("organization_id", 1), ("facility_id", 1), ("reporting_period", 1)], {}),

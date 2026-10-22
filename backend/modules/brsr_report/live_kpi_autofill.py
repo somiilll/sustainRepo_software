@@ -28,6 +28,28 @@ def _base_answer_path(answer_path: str) -> Optional[str]:
     return ".".join(parts)
 
 
+def _period_answer_paths(mapping: Dict[str, Any], base_path: str) -> tuple:
+    strategy = mapping.get("period_column_strategy") or "reporting_period_relative"
+    if strategy == "response_period_document":
+        return base_path, None
+    period_columns = mapping.get("period_columns") or {}
+    selected_column = period_columns.get("selected_reporting_year") or "current_fy"
+    previous_column = period_columns.get("previous_reporting_year") or "previous_fy"
+    parts = base_path.split(".")
+    known_current_columns = {
+        "current_fy": "previous_fy",
+        "cur_filed": "prev_filed",
+        "cur_received": "prev_received",
+        "cur_pending": "prev_pending",
+        "cur_remarks": "prev_remarks",
+    }
+    terminal = parts[-1]
+    if terminal in known_current_columns:
+        previous_parts = [*parts[:-1], known_current_columns[terminal]]
+        return base_path, ".".join(previous_parts)
+    return f"{base_path}.{selected_column}", f"{base_path}.{previous_column}"
+
+
 def _set_nested(target: Dict[str, Any], path: str, value: Any) -> None:
     current = target
     parts = path.split(".")
@@ -206,14 +228,22 @@ class BRSRLiveKPIAutofillService:
                 continue
             current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
             previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
-            current_path = f"{base_path}.current_fy"
-            previous_path = f"{base_path}.previous_fy"
-            unit_path = f"{base_path}.unit"
-            question_result["locked_paths"].extend([current_path, previous_path, unit_path])
-            _set_nested(question_result["value"], current_path, current["value"] if current else None)
-            _set_nested(question_result["value"], previous_path, previous["value"] if previous else None)
-            unit = (current or previous or {}).get("unit")
-            _set_nested(question_result["value"], unit_path, unit)
+            current_path, previous_path = _period_answer_paths(mapping, base_path)
+            direct_root = current_path == "value" and mapping.get("period_column_strategy") == "response_period_document"
+            if direct_root:
+                question_result["value"] = current["value"] if current else None
+                question_result["locked_paths"].append("$")
+            else:
+                question_result["locked_paths"].append(current_path)
+                _set_nested(question_result["value"], current_path, current["value"] if current else None)
+                if previous_path:
+                    question_result["locked_paths"].append(previous_path)
+                    _set_nested(question_result["value"], previous_path, previous["value"] if previous else None)
+                unit = (current or previous or {}).get("unit")
+                unit_path = f"{base_path.rsplit('.', 1)[0]}.unit" if base_path.split(".")[-1].startswith("cur_") else f"{base_path}.unit"
+                if unit and unit_path not in {current_path, previous_path}:
+                    question_result["locked_paths"].append(unit_path)
+                    _set_nested(question_result["value"], unit_path, unit)
             question_result["sources"].append({
                 "mapping_id": mapping.get("id"),
                 "source_tag": mapping.get("source_tag"),
@@ -246,6 +276,9 @@ class BRSRLiveKPIAutofillService:
             if result.get("has_dynamic_mapping"):
                 unset_fields["value.others"] = ""
             for path in result["locked_paths"]:
+                if path == "$":
+                    set_fields["value"] = result["value"]
+                    continue
                 current: Any = result["value"]
                 for part in path.split("."):
                     current = current.get(part) if isinstance(current, dict) else None

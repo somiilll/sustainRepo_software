@@ -403,6 +403,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
+  const valueIsLocked = lockedAnswerPaths.includes('$');
   const [savingDraft, setSavingDraft] = useState(false);
 
   // Check if question should be hidden based on conditional logic
@@ -536,9 +537,10 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
   };
 
   const renderInput = () => {
+    const editingAllowed = isEditing && !valueIsLocked;
     switch (type) {
       case 'text':
-        return isEditing ? (
+        return editingAllowed ? (
           <Input
             value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
@@ -552,7 +554,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'textarea':
-        return isEditing ? (
+        return editingAllowed ? (
           <Textarea
             value={typeof value === 'string' ? value : (value || '')}
             onChange={(e) => onChange(e.target.value)}
@@ -567,7 +569,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'yes_no':
-        return isEditing ? (
+        return editingAllowed ? (
           <div className="flex items-center gap-4 mt-2">
             <RadioGroup value={value || ''} onValueChange={onChange} className="flex gap-4">
               <div className="flex items-center gap-2">
@@ -588,7 +590,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
       case 'yes_no_with_text':
         const yesNoVal = typeof value === 'object' ? value : { answer: value || '', text: '' };
-        return isEditing ? (
+        return editingAllowed ? (
           <div className="space-y-3 mt-2">
             <RadioGroup value={yesNoVal.answer || ''} onValueChange={(v) => onChange({ ...yesNoVal, answer: v })} className="flex gap-4">
               <div className="flex items-center gap-2">
@@ -624,7 +626,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'url':
-        return isEditing ? (
+        return editingAllowed ? (
           <Input
             type="url"
             value={value || ''}
@@ -641,7 +643,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'number':
-        return isEditing ? (
+        return editingAllowed ? (
           <Input
             type="number"
             value={value || ''}
@@ -654,7 +656,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'select':
-        return isEditing ? (
+        return editingAllowed ? (
           <Select value={value || ''} onValueChange={onChange}>
             <SelectTrigger className="mt-2 w-64">
               <SelectValue placeholder={placeholder || 'Select option'} />
@@ -671,7 +673,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
       case 'multi_select':
         const selectedValues = Array.isArray(value) ? value : [];
-        return isEditing ? (
+        return editingAllowed ? (
           <div className="flex flex-wrap gap-2 mt-2">
             {options?.map((opt) => (
               <Button
@@ -700,7 +702,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'date':
-        return isEditing ? (
+        return editingAllowed ? (
           <Input
             type="date"
             value={value || ''}
@@ -712,49 +714,49 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         );
 
       case 'principle_toggle_with_description':
-        return <PrincipleToggleRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
+        return <PrincipleToggleRenderer value={value} onChange={onChange} isEditing={editingAllowed} config={config} />;
 
       case 'principle_text':
-        return <PrincipleTextRenderer value={value} onChange={onChange} isEditing={isEditing} config={config} />;
+        return <PrincipleTextRenderer value={value} onChange={onChange} isEditing={editingAllowed} config={config} />;
 
       case 'conditional_yes_no_table':
-        return <ConditionalYesNoTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <ConditionalYesNoTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'principle_mode_table':
-        return <PrincipleModeTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <PrincipleModeTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'reasons_checklist':
-        return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
+        return <ReasonsChecklistRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} />;
 
       case 'fixed_row_table':
-        return <FixedRowTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <FixedRowTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'multi_table':
-        return <MultiTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <MultiTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'conditional_yes_no_text':
-        return <ConditionalYesNoTextRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <ConditionalYesNoTextRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'fy_comparison_table':
-        return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
+        return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
 
       case 'grouped_matrix_table':
-        return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
+        return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} />;
 
       case 'structured_group':
-        return <StructuredGroupRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <StructuredGroupRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'comparison_table':
-        return <ComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <ComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'yes_no_detail_matrix':
-        return <YesNoDetailMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <YesNoDetailMatrixRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'dual_conditional_yes_no':
-        return <DualConditionalYesNoRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <DualConditionalYesNoRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'table':
-        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       // Environment Q70-74 Renderer Types
       case 'yes_no_with_dynamic_table':
@@ -813,10 +815,10 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <PercentageWithDescriptionRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       case 'ngrbc_policy_matrix':
-        return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <NGRBCPolicyMatrixRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'ngrbc_review_matrix':
-        return <NGRBCReviewMatrixRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
+        return <NGRBCReviewMatrixRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       default:
         // For unknown types, try to render object data as a table in view mode

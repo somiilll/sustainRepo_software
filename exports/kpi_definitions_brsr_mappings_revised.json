@@ -1,0 +1,1395 @@
+{
+  "result": {
+    "applied_count": 102,
+    "review_count": 58,
+    "backup": "/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T111446.990680_0000.json",
+    "export": "/app/exports/kpi_definitions_brsr_mappings_revised.xlsx",
+    "log": "/app/exports/kpi_definitions_brsr_mappings_revised.json"
+  },
+  "applied": [
+    {
+      "action": "updated",
+      "mapping_id": "143b9879-5364-48f3-bc5c-34e884c38281",
+      "kpi_code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_GRID_ELECTRICITY",
+      "kpi_name": "Grid Electricity Consumption",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_electricity",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "4e580cf7-1858-43fc-920d-020fd1c99818",
+      "kpi_code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_RENEWABLE_ELECTRICITY",
+      "kpi_name": "Renewable Electricity Consumption",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_electricity",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "6868dc2b-5dd0-4a24-8d78-8682b0403e99",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_HAP",
+      "kpi_name": "Air Emissions - Hazardous air pollutants (HAP)",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.hap",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "1cb46f3c-24cf-46bf-bf0a-f7285e13a549",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_NOX",
+      "kpi_name": "Air Emissions - NOx",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.nox",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "05762689-68fe-4298-bc87-fc40689cf1d3",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_OTHER_AIR_POLLUTANTS",
+      "kpi_name": "Air Emissions - Other Pollutants",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.others",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "196522fa-3d28-4841-a4b7-ecbf5e80a478",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_PARTICULATE_MATTER",
+      "kpi_name": "Air Emissions - Particulate matter (PM)",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.pm",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f7c9b311-01fc-4bea-aae1-1732e69be230",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_POP",
+      "kpi_name": "Air Emissions - Persistent organic pollutants (POP)",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.pop",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "758710d1-2417-4349-95a0-c2b1083d4da7",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_SOX",
+      "kpi_name": "Air Emissions - SOx",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.sox",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "4d0f9559-1dc5-4989-ab36-79e9ef784b52",
+      "kpi_code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_VOC",
+      "kpi_name": "Air Emissions - Volatile organic compounds (VOC)",
+      "question_key": "p6_air_emissions",
+      "answer_path": "rows.voc",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f754c0fb-2292-4b65-b607-07cfe0002104",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_INCINERATION",
+      "kpi_name": "Waste Disposed - Incineration",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_incineration",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "26b3c96c-c9bb-44f0-89c9-d0a1387598f5",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_LANDFILLING",
+      "kpi_name": "Waste Disposed - Landfilling",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_landfilling",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "53a7176f-e4e5-44dc-ba13-12d5449a50e9",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_OTHER_OPERATIONS",
+      "kpi_name": "Waste Disposed - Other disposal operations",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_other",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "a5a8d5bc-fce1-49e3-aac6-2e32e25b6a85",
+      "kpi_code": "ENV_WASTE_GENERATED_BATTERY_WASTE_GENERATED",
+      "kpi_name": "Battery Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.battery",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "a9fcc50c-e5c2-4962-8872-7d9082d8f8c1",
+      "kpi_code": "ENV_WASTE_GENERATED_BIO_MEDICAL_WASTE_GENERATED",
+      "kpi_name": "Biomedical Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.bio_medical",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "3f11ff31-41bb-44be-aca8-bc324cfd5d39",
+      "kpi_code": "ENV_WASTE_GENERATED_CONSTRUCTION_AND_DEMOLITION_WASTE_GENERATED",
+      "kpi_name": "Construction & demolition Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.construction",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "ce7712aa-33e7-454a-90f7-345363e40fa7",
+      "kpi_code": "ENV_WASTE_GENERATED_E_WASTE_GENERATED",
+      "kpi_name": "E-waste Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.e_waste",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "95748503-4e57-432a-9b17-967fd00af5aa",
+      "kpi_code": "ENV_WASTE_GENERATED_OTHER_HAZARDOUS_WASTE_GENERATED",
+      "kpi_name": "Other hazardous waste Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.other_hazardous",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c8bc1875-8ec4-49c5-8aff-479c68a7b03b",
+      "kpi_code": "ENV_WASTE_GENERATED_OTHER_NON_HAZARDOUS_WASTE_GENERATED",
+      "kpi_name": "Other non-hazardous waste Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.other_non_hazardous",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "41f12b7d-c1e1-4f0d-b8b9-7b58d1da9790",
+      "kpi_code": "ENV_WASTE_GENERATED_PLASTIC_WASTE_GENERATED",
+      "kpi_name": "Plastic Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.plastic_waste",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "4b465295-d60c-4668-b52e-9eb6882375e4",
+      "kpi_code": "ENV_WASTE_GENERATED_RADIOACTIVE_WASTE_GENERATED",
+      "kpi_name": "Radioactive Generated",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.radioactive",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "2ab0c8fa-0ac8-43fe-aaa1-f24e0b82b88a",
+      "kpi_code": "ENV_WASTE_GENERATED_IN_METRIC_TONNES",
+      "kpi_name": "Waste Generated (Total)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.total_generated",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "5ff8c2be-1344-491e-bee5-d684d66a4a3f",
+      "kpi_code": "ENV_WASTE_RECOVERED_IN_METRIC_TONNES",
+      "kpi_name": "Waste Recovered (Total)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_total",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "fff388ff-d751-48c0-9e4a-4542f97ac00c",
+      "kpi_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_OTHER_RECOVERY",
+      "kpi_name": "Waste Recovered - Other recovery operations",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_other",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "abf0406a-0c85-435b-9c8e-46eac0b8ee45",
+      "kpi_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RE_USED",
+      "kpi_name": "Waste Recovered - Re-used",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_reused",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "a0a2db34-04e9-49dc-90c4-da923b1c16c0",
+      "kpi_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RECYCLED",
+      "kpi_name": "Waste Recovered - Recycled",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_recycled",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "ec190c67-33b2-40a7-97d1-f1f7b3be2692",
+      "kpi_code": "ENV_WATER_CONSUPTION",
+      "kpi_name": "Water Consumption (Total)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.total_consumption",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b6cd13c9-1705-417a-a15e-793e92dc350e",
+      "kpi_code": "ENV_QUANTITY_LITRES_DISCHARGED",
+      "kpi_name": "Water Discharge (Total)",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.total_discharged",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "06e9277f-61ef-4e0e-bbf1-e7a2be39cb05",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_NO_TREATMENT",
+      "kpi_name": "Water Discharge to Ground Water - No treatment",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_no_treatment",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "bf2a5b6e-bb3d-4d97-b965-a248c1af08a6",
+      "kpi_code": "ENV_QUANTITY_LITRES_WITHDRAWN",
+      "kpi_name": "Water Withdrawal (Total)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.total_withdrawal",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "6159b646-403c-47a8-a908-553e17555bec",
+      "kpi_code": "ENV_QUANTITY_LITRES_FROM_GROUND_WATER_WITHDR",
+      "kpi_name": "Water Withdrawal - Ground Water",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.groundwater",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "bc170838-1b42-4908-a68c-7a3fe55563f0",
+      "kpi_code": "ENV_WATER_WITHDRAWAL_WATER_WITHDRAWAL_THROUGH_OTHER_SOURCES",
+      "kpi_name": "Water Withdrawal - Others",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.others",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c1dc48f3-7bcc-425e-9ef8-a8b67efbc05f",
+      "kpi_code": "ENV_QUANTITY_LITRES_FROM_SEAWATER_DESALINATE",
+      "kpi_name": "Water Withdrawal - Seawater / Desalinated",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.seawater",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "d78d46a1-8c01-4bb6-bb56-e88342afcd62",
+      "kpi_code": "ENV_QUANTITY_LITRES_FROM_SURFACE_WATER_WITHD",
+      "kpi_name": "Water Withdrawal - Surface Water",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.surface_water",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b4610ee0-f62a-4672-830f-0365eb5b1420",
+      "kpi_code": "ENV_QUANTITY_LITRES_FROM_THIRD_PARTY_WATER_W",
+      "kpi_name": "Water Withdrawal - Third-party Water",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.third_party",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "3ad83584-ee98-4cbc-a4bf-f65acaa8f987",
+      "kpi_code": "ENV_FINANCIAL & PROCUREMENT METRICS_ACCOUNTS_PAYABLE_DAYS_ACCOUNTS_PAYABLE_DAYS",
+      "kpi_name": "Accounts Payable Days",
+      "question_key": "p1_accounts_payables",
+      "answer_path": "rows.days_payables",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f054e032-3a63-47fa-aa98-c9d7f9243981",
+      "kpi_code": "ENV_INCIDENTS_DATA_BREACH_PERCENTAGE_DATA_BREACH_INVOLVING_CUSTOMER_PII",
+      "kpi_name": "% Data Breaches Involving Customer PII",
+      "question_key": "p9_data_breaches_pii_pct",
+      "answer_path": "value",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "83449e9a-3478-465f-ae43-ef74f83dd98c",
+      "kpi_code": "GOV_NO_OF_DATA_BREACH_INCIDENTS",
+      "kpi_name": "Data-breach Incidents (Total)",
+      "question_key": "p9_data_breaches_count",
+      "answer_path": "value",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "e55321fa-1668-472d-9d44-0c2100327084",
+      "kpi_code": "SOC_NO_OF_ADVERTISING_COMPLAINTS",
+      "kpi_name": "Consumer Complaints - Advertising",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.advertising.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "679975f1-17f0-4516-aadc-b92ea46473d4",
+      "kpi_code": "SOC_NO_OF_CYBERSECURITY_COMPLAINTS",
+      "kpi_name": "Consumer Complaints - Cyber-security",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.cyber_security.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "445c57f2-06dc-4471-867c-0f0617b42e86",
+      "kpi_code": "SOC_NO_OF_DATA_PRIVACY_COMPLAINTS",
+      "kpi_name": "Consumer Complaints - Data privacy",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.data_privacy.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "82641392-d71f-4802-9820-4d132e0c40af",
+      "kpi_code": "SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM",
+      "kpi_name": "Consumer Complaints - Delivery of essential services",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.delivery_essential.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "85ae23c4-a35e-4a9f-9cce-6e3c9524fa02",
+      "kpi_code": "ENV_COMPLAINTS_CONSUMER_COMPLAINTS_NO_OF_OTHER_CONSUMER_COMPLAINTS",
+      "kpi_name": "Consumer Complaints - Other",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.other.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "47221b6d-514f-4575-8c21-67171c2e5793",
+      "kpi_code": "SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_",
+      "kpi_name": "Consumer Complaints - Restrictive / unfair trade practices",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.unfair_trade.cur_received",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "eb8178fc-aa6e-4862-9af9-698323b929ef",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_CHILD_LABOUR",
+      "kpi_name": "Internal Complaints - Child labour",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.child_labour.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "9da02600-cc72-4d03-b644-1c32e4ced1cc",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_DISCRIMINATION_AT_WO",
+      "kpi_name": "Internal Complaints - Discrimination",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.discrimination.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "96720442-da13-4a56-a0eb-b894ccf287e9",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_FORCED_LABOURINVOLUN",
+      "kpi_name": "Internal Complaints - Forced labour",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.forced_labour.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c40b1240-b870-4219-9bd5-ccf26765d147",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_HEALTH",
+      "kpi_name": "Internal Complaints - Health & safety",
+      "question_key": "p3_complaints_employees_workers",
+      "answer_path": "rows.health_safety.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b7f29c04-ebb2-43e3-bb6a-caf4dedf0bf8",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_OTHER_HUMAN_RIGHTS_R",
+      "kpi_name": "Internal Complaints - Other human-rights issues",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.other_hr.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "784aa30e-31cb-4745-b249-ddc499efe988",
+      "kpi_code": "SOC_NO_OF_POSH_COMPLAINTS",
+      "kpi_name": "Internal Complaints - POSH",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.total_reported.current_fy",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "69d45188-d610-464e-8b31-86aee5ed3b4e",
+      "kpi_code": "ENV_COMPLAINTS_INTERNAL_COMPLAINTS_NO_OF_POSH_COMPLAINTS_UPHELD",
+      "kpi_name": "Internal Complaints - POSH complaints upheld",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.posh_upheld.current_fy",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "e4eb840c-d767-4510-a3a1-e4510c6f905b",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_SEXUAL_HARASSMENT",
+      "kpi_name": "Internal Complaints - Sexual Harassment",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.sexual_harassment.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "0dde0785-6a77-415d-b2a5-07dcaa3c89cd",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_WAGES",
+      "kpi_name": "Internal Complaints - Wages",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.wages.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "e56a36e7-945c-4ebd-acde-24bcd12953b7",
+      "kpi_code": "SOC_NO_OF_COMPLAINTS_ON_WORKING_CONDITIONS",
+      "kpi_name": "Internal Complaints - Working Conditions",
+      "question_key": "p3_complaints_employees_workers",
+      "answer_path": "rows.working_conditions.cur_filed",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "356920be-632c-419a-956f-40ff6a9a7e09",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_BOD_DIV_TOTAL_TOTAL",
+      "kpi_name": "Board of Directors Diversity - Board of Directors (Total)",
+      "question_key": "brsr_a_women_representation",
+      "answer_path": "rows.board_of_directors.total",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "7592fc99-ae6f-4c8d-8ab6-4fdd818efa24",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_NO_OF_FEMALE",
+      "kpi_name": "Board of Directors Diversity - Board of Directors (Total) (Female)",
+      "question_key": "brsr_a_women_representation",
+      "answer_path": "rows.board_of_directors.number_of_females",
+      "source": "user_workbook"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "2dc8f124-6ba8-4807-b594-519ae47a6aad",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_TOTAL",
+      "kpi_name": "Employee Diversity - Differently-abled - Other than permanent",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.total",
+      "source": "user_workbook"
+    },
+    {
+      "action": "created",
+      "mapping_id": "322a43cc-99e7-4491-a81d-6f515c76f574",
+      "kpi_code": "GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_PERSONA",
+      "kpi_name": "Data-breach Incidents - Involving Customer PII",
+      "question_key": "p9_data_breaches_count",
+      "answer_path": "value",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "created",
+      "mapping_id": "e837571f-2956-4724-b2cc-3914a4bef019",
+      "kpi_code": "GOV_NO_OF_DATA_BREACH_INCIDENTS_SUBSTANTIATE",
+      "kpi_name": "Privacy Complaints - From Outside Parties",
+      "question_key": "p9_data_breaches_count",
+      "answer_path": "value",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "created",
+      "mapping_id": "f254889e-d220-475e-a226-c056bb160ef0",
+      "kpi_code": "GOV_NO_OF_DATA_BREACH_INCIDENTS_RECEIVED_FRO",
+      "kpi_name": "Privacy Complaints - From Regulatory Bodies",
+      "question_key": "p9_data_breaches_count",
+      "answer_path": "value",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "created",
+      "mapping_id": "db9dffd9-e5e5-455f-80f6-d0f79b70d1ff",
+      "kpi_code": "GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_LEAKS_T",
+      "kpi_name": "Data-breach Incidents - Leaks / Thefts / Losses of Customer Data",
+      "question_key": "p9_data_breaches_count",
+      "answer_path": "value",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b25ba9a0-42df-417c-ad39-c22c9e27167b",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_NO_OF_FEMALE_PERMANENT_EMPLOYEES",
+      "kpi_name": "Employee Diversity - Permanent employees (Female)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "3dbee6fe-4739-441d-a596-3a6d710ad059",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_NO_OF_MALE_PERMANENT_EMPLOYEES",
+      "kpi_name": "Employee Diversity - Permanent employees (Male)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "57c3829f-83fd-4625-a100-c83b7e8e4411",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_OTHER_THAN_PERMANENT_FEMALE",
+      "kpi_name": "Employee Diversity - Other-than-permanent employees (Female)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b598afef-330c-459e-b5c6-c79d25deb09f",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_OTHER_THAN_PERMANENT_MALE",
+      "kpi_name": "Employee Diversity - Other-than-permanent employees (Male)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "6afd2d48-fb0b-43eb-8efd-f8b36870a361",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_OTHER_THAN_PERMANENT_TOTAL",
+      "kpi_name": "Employee Diversity - Other-than-permanent employees",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b75d0219-5d14-468a-8d30-20dcf64bb781",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_PERMANENT_FEMALE",
+      "kpi_name": "Employee Diversity - Differently-abled - Permanent (Female)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "8dd48608-bcdd-41b9-b8e2-9497e938b823",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_PERMANENT_MALE",
+      "kpi_name": "Employee Diversity - Differently-abled - Permanent (Male)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f655c195-84ec-4f60-a63a-176db12d6fb6",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_PERMANENT_TOTAL",
+      "kpi_name": "Employee Diversity - Differently-abled - Permanent",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "ad489d58-73de-4494-b994-0515c19642ce",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_FEMALE",
+      "kpi_name": "Employee Diversity - Differently-abled - Other than permanent (Female)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "58386db9-21c6-4b42-8a3c-e131e4441617",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_MALE",
+      "kpi_name": "Employee Diversity - Differently-abled - Other than permanent (Male)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b46c4653-6be1-42c3-b817-0eb3c49bdb49",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_PERMANENT_FEMALE",
+      "kpi_name": "Workers Diversity - Permanent workers (Female)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "067b9d97-32bb-45a8-a9e5-e405b3b1d2b4",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_PERMANENT_MALE",
+      "kpi_name": "Workers Diversity - Permanent workers (Male)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "9c9c5744-ec7b-4576-adfb-29da74a70ebf",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_PERMANENT_TOTAL",
+      "kpi_name": "Workers Diversity - Permanent workers",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "d9ab697c-eab6-44bc-a5f8-cd7d9898065b",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_OTHER_THAN_PERMANENT_FEMALE",
+      "kpi_name": "Workers Diversity - Other-than-permanent workers (Female)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "7b013d3e-dd25-40f8-939d-7e00979622c5",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_OTHER_THAN_PERMANENT_MALE",
+      "kpi_name": "Workers Diversity - Other-than-permanent workers (Male)",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "398b9caa-fa74-4333-a292-64c1581d8287",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_OTHER_THAN_PERMANENT_TOTAL",
+      "kpi_name": "Workers Diversity - Other-than-permanent workers",
+      "question_key": "brsr_a_employees_workers",
+      "answer_path": "workers.other_than_permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "db34dc4f-1404-402f-b7a8-782cb666c458",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_PERMANENT_FEMALE",
+      "kpi_name": "Workers Diversity - Differently-abled - Permanent (Female)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f4e2603e-76ab-4111-804e-a2104157af53",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_PERMANENT_MALE",
+      "kpi_name": "Workers Diversity - Differently-abled - Permanent (Male)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "85a6140f-72ec-431c-be00-0f3b3f7ff847",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_PERMANENT_TOTAL",
+      "kpi_name": "Workers Diversity - Differently-abled - Permanent",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b70244ad-8fbb-4d59-902a-7af2dcfbd632",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_OTHER_THAN_PERMANENT_FEMALE",
+      "kpi_name": "Workers Diversity - Differently-abled - Other than permanent (Female)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.female",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "b45659f2-9e52-4042-b18a-2698d6594c68",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_OTHER_THAN_PERMANENT_MALE",
+      "kpi_name": "Workers Diversity - Differently-abled - Other than permanent (Male)",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.male",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "77dc1df5-a9ad-411c-b359-78ab5fba729b",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_WORKERS_DIVERSITY_WRK_DIV_DA_OTHER_THAN_PERMANENT_TOTAL",
+      "kpi_name": "Workers Diversity - Differently-abled - Other than permanent",
+      "question_key": "brsr_a_differently_abled",
+      "answer_path": "workers.other_than_permanent.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "38b1ace5-b5ed-4a3f-8d5e-62ed85dcfb30",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_KEY_MANAGEMENT_PERSONNEL_DIVERSITY_NO_OF_FEMALE",
+      "kpi_name": "Key Management Personnel Diversity - Key Management Personnel (Total) (Female)",
+      "question_key": "brsr_a_women_representation",
+      "answer_path": "rows.key_management_personnel.number_of_females",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "cc5c2e32-5ce2-4911-a6f5-4e0e7e464f0f",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_KEY_MANAGEMENT_PERSONNEL_DIVERSITY_KMP_DIV_TOTAL_TOTAL",
+      "kpi_name": "Key Management Personnel Diversity - Key Management Personnel (Total)",
+      "question_key": "brsr_a_women_representation",
+      "answer_path": "rows.key_management_personnel.total",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "3857bdae-e4b2-43ae-941d-5dd5cd139711",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_DATA_PRIVACY",
+      "kpi_name": "Consumer Complaints Pending Resolution - Data privacy",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.data_privacy.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "2511dc93-5b21-46b0-bc44-e2897ae5c9e9",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_ADVERTISING",
+      "kpi_name": "Consumer Complaints Pending Resolution - Advertising",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.advertising.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "dea84ed9-2e32-4dd6-9639-4def18c4b6f8",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_CYBER_SECURITY",
+      "kpi_name": "Consumer Complaints Pending Resolution - Cyber-security",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.cyber_security.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "07cb1276-6585-4069-a462-cce397e6d9fd",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_DELIVERY_OF_ESSENTIAL_SERVICES",
+      "kpi_name": "Consumer Complaints Pending Resolution - Delivery of essential services",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.delivery_essential.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f0d91348-ce84-4cb7-817a-b0d42bd54886",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_RESTRICTIVE_UNFAIR_TRADE_PRACTICES",
+      "kpi_name": "Consumer Complaints Pending Resolution - Restrictive / unfair trade practices",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.unfair_trade.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "f12ef558-7b51-4893-a79d-b0ac4307cf66",
+      "kpi_code": "SOC_COMPLAINTS_CONSUMER_COMPLAINTS_PENDING_RESOLUTION_OTHER",
+      "kpi_name": "Consumer Complaints Pending Resolution - Other",
+      "question_key": "p9_consumer_complaints",
+      "answer_path": "rows.other.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c34701c8-c7d8-4a29-b6ec-80103869d353",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_WORKING_CONDITIONS",
+      "kpi_name": "Internal Complaints Pending - Working Conditions",
+      "question_key": "p3_complaints_employees_workers",
+      "answer_path": "rows.working_conditions.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "547cd518-b8a3-4477-ad75-7a059eef59f6",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_HEALTH_SAFETY",
+      "kpi_name": "Internal Complaints Pending - Health & safety",
+      "question_key": "p3_complaints_employees_workers",
+      "answer_path": "rows.health_safety.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "e7aa56d7-1240-476f-a2e3-7628049e5b3a",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_SEXUAL_HARASSMENT",
+      "kpi_name": "Internal Complaints Pending - Sexual Harassment",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.sexual_harassment.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "0248d0f1-3704-4e45-a616-29cf1218cf53",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_POSH",
+      "kpi_name": "Internal Complaints Pending - POSH",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.total_reported.current_fy",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "8e8bcc99-fdd4-4d78-b569-1f45d0200e4a",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_POSH_UPHELD",
+      "kpi_name": "Internal Complaints Pending - POSH complaints upheld",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.posh_upheld.current_fy",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "8a76819b-9346-491b-98e2-1eefcc2025cd",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_DISCRIMINATION",
+      "kpi_name": "Internal Complaints Pending - Discrimination",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.discrimination.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c5576fce-c9dd-4467-8ec0-871f28988f3b",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_CHILD_LABOUR",
+      "kpi_name": "Internal Complaints Pending - Child labour",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.child_labour.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "c89f4473-57ff-4a3b-a9e4-114b6c309d30",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_FORCED_LABOUR",
+      "kpi_name": "Internal Complaints Pending - Forced labour",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.forced_labour.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "47833e59-03c7-4b27-a6d4-39e36d076e7e",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_WAGES",
+      "kpi_name": "Internal Complaints Pending - Wages",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.wages.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "updated",
+      "mapping_id": "be407a12-c6f3-4587-935c-52cd90e0be4c",
+      "kpi_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_OTHER_HUMAN_RIGHTS",
+      "kpi_name": "Internal Complaints Pending - Other human-rights issues",
+      "question_key": "p5_hr_complaints",
+      "answer_path": "rows.other_hr.cur_pending",
+      "source": "high_confidence_inference"
+    },
+    {
+      "action": "created",
+      "mapping_id": "12254de4-04a2-4d88-9235-98306b26292f",
+      "kpi_code": "GROUP_RENEWABLE_OTHER_ENERGY",
+      "kpi_name": "Renewable other-source energy",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_other",
+      "source": "high_confidence_grouping"
+    },
+    {
+      "action": "created",
+      "mapping_id": "e3486132-0704-4799-a227-96a117493a03",
+      "kpi_code": "GROUP_NONRENEWABLE_OTHER_ENERGY",
+      "kpi_name": "Non-renewable other-source energy",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_other",
+      "source": "high_confidence_grouping"
+    }
+  ],
+  "review": [
+    {
+      "row": 2,
+      "kpi_name": "Non-Renewable Energy Consumption - Cooling",
+      "kpi_code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_NON_RENEWABLE_COOLING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 3,
+      "kpi_name": "Non-Renewable Energy Consumption - Cooling",
+      "kpi_code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_NON_RENEWABLE_COOLING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 4,
+      "kpi_name": "Renewable Energy Consumption - Cooling",
+      "kpi_code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_RENEWABLE_COOLING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 5,
+      "kpi_name": "Renewable Energy Consumption - Cooling",
+      "kpi_code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_RENEWABLE_COOLING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 6,
+      "kpi_name": "Total Energy Consumption - Cooling",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_COOLING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.total_energy",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 8,
+      "kpi_name": "Grid Electricity Consumption",
+      "kpi_code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_GRID_ELECTRICITY",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 10,
+      "kpi_name": "Renewable Electricity Consumption",
+      "kpi_code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_RENEWABLE_ELECTRICITY",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 11,
+      "kpi_name": "Total Energy Consumption - Electricity",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_ELECTRICITY",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.total_energy",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 12,
+      "kpi_name": "Total Energy Consumption - Fuel",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_fuel",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 13,
+      "kpi_name": "Total Energy Consumption - Fuel",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 14,
+      "kpi_name": "Total Energy Consumption - Fuel",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.total_energy",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 15,
+      "kpi_name": "Non-Renewable Energy Consumption - Heating",
+      "kpi_code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_NON_RENEWABLE_HEATING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 16,
+      "kpi_name": "Non-Renewable Energy Consumption - Heating",
+      "kpi_code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_NON_RENEWABLE_HEATING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 17,
+      "kpi_name": "Renewable Energy Consumption - Heating",
+      "kpi_code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_RENEWABLE_HEATING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 18,
+      "kpi_name": "Renewable Energy Consumption - Heating",
+      "kpi_code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_RENEWABLE_HEATING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 19,
+      "kpi_name": "Total Energy Consumption - Heating",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_HEATING",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.total_energy",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 20,
+      "kpi_name": "Non-Renewable Energy Consumption - Steam",
+      "kpi_code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_NON_RENEWABLE_STEAM",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 21,
+      "kpi_name": "Non-Renewable Energy Consumption - Steam",
+      "kpi_code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_NON_RENEWABLE_STEAM",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.nonrenew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 22,
+      "kpi_name": "Renewable Energy Consumption - Steam",
+      "kpi_code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_RENEWABLE_STEAM",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_other",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 23,
+      "kpi_name": "Renewable Energy Consumption - Steam",
+      "kpi_code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_RENEWABLE_STEAM",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.renew_total",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 24,
+      "kpi_name": "Total Energy Consumption - Steam",
+      "kpi_code": "ENV_TOTAL_ENERGY_CONSUMPTION_STEAM",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "rows.total_energy",
+      "reason": "This KPI does not independently equal the selected Energy total row"
+    },
+    {
+      "row": 44,
+      "kpi_name": "Waste Disposed - Incineration",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_INCINERATION",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_total",
+      "reason": "This component KPI does not independently equal the selected Waste total row"
+    },
+    {
+      "row": 46,
+      "kpi_name": "Waste Disposed - Landfilling",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_LANDFILLING",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_total",
+      "reason": "This component KPI does not independently equal the selected Waste total row"
+    },
+    {
+      "row": 48,
+      "kpi_name": "Waste Disposed - Other disposal operations",
+      "kpi_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_OTHER_OPERATIONS",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_total",
+      "reason": "This component KPI does not independently equal the selected Waste total row"
+    },
+    {
+      "row": 53,
+      "kpi_name": "Hazardous Waste Generated (Total)",
+      "kpi_code": "ENV_QUANTITY_OF_HAZARDOUS_WASTE_GENERATED",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 54,
+      "kpi_name": "Non-hazardous Waste Generated (Total)",
+      "kpi_code": "ENV_QUANTITY_OF_NONHAZARDOUS_WASTE_GENERATED",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 86,
+      "kpi_name": "Water Discharge to Ground Water",
+      "kpi_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_GROUND_WAT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 88,
+      "kpi_name": "Water Discharge to Ground Water - Primary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_PRIMARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 89,
+      "kpi_name": "Water Discharge to Ground Water - Secondary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_SECONDARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 90,
+      "kpi_name": "Water Discharge to Ground Water - Tertiary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_TERTIARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 91,
+      "kpi_name": "Water Discharge to Ground Water - With treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_WITH_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 92,
+      "kpi_name": "Water Discharge to Others",
+      "kpi_code": "ENV_WATER_DISCHARGE_WATER_DISCHARGED_TO_OTHER_DESTINATIONS",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 93,
+      "kpi_name": "Water Discharge to Others - No treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_NO_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 94,
+      "kpi_name": "Water Discharge to Others - Primary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_PRIMARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 95,
+      "kpi_name": "Water Discharge to Others - Secondary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_SECONDARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 96,
+      "kpi_name": "Water Discharge to Others - Tertiary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_TERTIARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 97,
+      "kpi_name": "Water Discharge to Others - With treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_WITH_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 98,
+      "kpi_name": "Water Discharge to Seawater / Desalinated",
+      "kpi_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SEAWATER",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 99,
+      "kpi_name": "Water Discharge to Seawater / Desalinated - No treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_NO_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 100,
+      "kpi_name": "Water Discharge to Seawater / Desalinated - Primary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_PRIMARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 101,
+      "kpi_name": "Water Discharge to Seawater / Desalinated - Secondary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_SECONDARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 102,
+      "kpi_name": "Water Discharge to Seawater / Desalinated - Tertiary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_TERTIARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 103,
+      "kpi_name": "Water Discharge to Seawater / Desalinated - With treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_WITH_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 104,
+      "kpi_name": "Water Discharge to Surface Water",
+      "kpi_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SURFACE_WA",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 105,
+      "kpi_name": "Water Discharge to Surface Water - No treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_NO_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 106,
+      "kpi_name": "Water Discharge to Surface Water - Primary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_PRIMARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 107,
+      "kpi_name": "Water Discharge to Surface Water - Secondary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_SECONDARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 108,
+      "kpi_name": "Water Discharge to Surface Water - Tertiary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_TERTIARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 109,
+      "kpi_name": "Water Discharge to Surface Water - With treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_WITH_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 110,
+      "kpi_name": "Water Discharge to Third-party Water",
+      "kpi_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_THIRD_PART",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 111,
+      "kpi_name": "Water Discharge to Third-party Water - No treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 112,
+      "kpi_name": "Water Discharge to Third-party Water - Primary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_PRIMARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 113,
+      "kpi_name": "Water Discharge to Third-party Water - Secondary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_SECONDARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 114,
+      "kpi_name": "Water Discharge to Third-party Water - Tertiary treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_TERTIARY",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 115,
+      "kpi_name": "Water Discharge to Third-party Water - With treatment",
+      "kpi_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+      "question_key": "p6_water_discharged",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 173,
+      "kpi_name": "Non-compliance Cases (Total)",
+      "kpi_code": "GOV_NO_OF_NONCOMPLIANCE_INCIDENTS",
+      "question_key": "p6_energy_consumption",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 217,
+      "kpi_name": "Board of Directors Diversity - Board of Directors (Total) (Male)",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_NO_OF_MALE",
+      "question_key": "brsr_a_women_representation",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    },
+    {
+      "row": 222,
+      "kpi_name": "Employee Diversity - Differently-abled - Other than permanent (Female)",
+      "kpi_code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_FEMALE",
+      "question_key": "brsr_a_entity_name",
+      "answer_path": "",
+      "reason": "Answer Path is not valid for the selected BRSR question"
+    }
+  ]
+}

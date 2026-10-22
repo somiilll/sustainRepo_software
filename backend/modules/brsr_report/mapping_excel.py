@@ -208,7 +208,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
     kpis = [kpi for kpi in kpis if _has_brsr_reference(kpi)]
 
     mappings = await db.kpi_framework_mappings.find(
-        {"framework": "BRSR"}, {"_id": 0}
+        {"framework": "BRSR", "is_active": {"$ne": False}}, {"_id": 0}
     ).to_list(10000)
     mapped_paths_by_question: Dict[str, List[str]] = {}
     for mapping in mappings:
