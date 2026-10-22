@@ -143,6 +143,79 @@ async def sync_kpi(db, category, sub, row, now, meta_fn=tree_meta, units=UNITS):
     return "created"
 
 
+async def sync_table_kpi(db, category, sub, spec, now):
+    section = SECTIONS.get(category, "environment")
+    category_slug = re.sub(r"[^A-Z0-9]+", "_", category.upper()).strip("_")
+    sub_slug = re.sub(r"[^A-Z0-9]+", "_", sub.upper()).strip("_")
+    metric_code = f"ENV_{category_slug}_{sub_slug}_{spec['key'].upper()}"
+    table = spec["kpi_table"]
+    existing = await db.esg_kpi_definitions.find_one({"metric_code": metric_code}, {"_id": 0, "id": 1})
+    kpi_id = existing["id"] if existing else str(uuid.uuid4())
+    unit_config = {
+        "default_unit": table["default_unit"],
+        "supported_units": table["supported_units"],
+        "allow_unit_conversion": True,
+        "unit_type": table["unit_type"],
+    }
+    source_config = {"records": {"table": {
+        "field": spec["key"],
+        "value_column": table["value_column"],
+        "unit_column": table["unit_column"],
+        "dimension_columns": table["dimension_columns"],
+    }}}
+    common = {
+        "metric_name": spec["kpi"], "short_name": spec["kpi"], "section": section,
+        "category_name": category, "subcategory": sub, "sub_subcategory": "",
+        "aggregation_type": "sum", "source_type": "records", "value_field": f"{spec['key']}.{table['value_column']}",
+        "source_config": source_config, "filters": [], "dimensions": ["organization", *table["dimension_columns"]],
+        "supported_scopes": ["organization", "facility"], "output_type": "number", "unit_config": unit_config,
+        "brsr_reference": spec["brsr"], "gri_disclosure": spec["gri"], "status": "active",
+        "metadata": {"row_based": True, "table_field": spec["key"], "dimension_columns": table["dimension_columns"]},
+        "framework_references": [
+            {"framework": "BRSR", "reference": spec["brsr"], "question_key": "p6_air_emissions",
+             "answer_path": "rows.others", "reference_type": "exact"},
+            {"framework": "GRI", "reference": spec["gri"], "question_key": "gri_305_7_a_vii",
+             "answer_path": None, "reference_type": "exact"},
+        ],
+        "updated_at": now,
+    }
+    if existing:
+        await db.esg_kpi_definitions.update_one({"id": kpi_id}, {"$set": common})
+        action = "updated"
+    else:
+        await db.esg_kpi_definitions.insert_one({
+            "id": kpi_id, "metric_code": metric_code, "description": "Other air pollutants grouped by pollutant name.",
+            "formula_config": None, "validation_rules": [],
+            "display_config": {"display_name": None, "short_name": None, "display_order": 0,
+                               "category_order": 0, "icon": None, "color": None, "decimal_places": 3},
+            "visibility": dict(VISIBILITY), "tags": ["row-based", "air-pollutant"], "version": 1,
+            "created_by": None, "created_by_name": "seed script", "created_at": now,
+            "updated_by": None, "updated_by_name": None, **common,
+        })
+        action = "created"
+
+    mapping_filter = {"framework": "BRSR", "kpi_id": kpi_id}
+    mapping = await db.kpi_framework_mappings.find_one(mapping_filter, {"_id": 0, "id": 1})
+    mapping_common = {
+        "kpi_id": kpi_id, "source_kpi_ids": [kpi_id], "source_metric_code": metric_code,
+        "source_metric_name": spec["kpi"], "framework": "BRSR", "reference": spec["brsr"],
+        "question_key": "p6_air_emissions", "answer_path": "rows.others", "destination_label": "Others – please specify",
+        "destination_unit": None, "aggregation_rule": "sum_by_dimension", "formula_definition": None,
+        "unit_conversion_rule": "preserve_when_consistent_else_tonnes", "mapping_status": "exact_destination",
+        "dynamic_rows": True, "dimension_field": "pollutant_name", "is_active": True,
+        "period_column_strategy": "reporting_period_relative",
+        "period_columns": {"selected_reporting_year": "current_fy", "previous_reporting_year": "previous_fy",
+                           "prior_to_previous_reporting_year": "prior_to_previous_fy"},
+        "source_category": category, "source_subcategory": sub, "source_sub_subcategory": None,
+        "source_tag": f"{category} → {sub}", "updated_at": now,
+    }
+    if mapping:
+        await db.kpi_framework_mappings.update_one({"id": mapping["id"]}, {"$set": mapping_common})
+    else:
+        await db.kpi_framework_mappings.insert_one({"id": str(uuid.uuid4()), "created_at": now, **mapping_common})
+    return action
+
+
 async def sync_consumption(db, now):
     cat = await db.esg_record_categories.find_one({"category": "Water", "subcategory": "Consumption"})
     fields = apply_tree(cat["fields"], "Consumption", CONSUMPTION_REFS)
@@ -242,6 +315,9 @@ async def sync_env(db, now):
         counts = {"created": 0, "updated": 0}
         for sp in specs:
             if not sp["kpi"]:
+                continue
+            if sp.get("kpi_table"):
+                counts[await sync_table_kpi(db, category, sub, sp, now)] += 1
                 continue
             row = {"key": sp["key"], "name": sp["kpi"], "brsr": sp["brsr"], "gri": sp["gri"], "old_code": sp["old"],
                    "unit": bool(sp["units"]) or sp["percent"], "agg": sp["agg"], "percent": sp["percent"],

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { mergeBRSRAutofill } from '../utils/brsrAutofill';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -39,7 +40,7 @@ const PRINCIPLE_COLORS = {
   P7: '#6366f1', P8: '#f97316', P9: '#ec4899',
 };
 
-export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, importProposalsByQuestion = {}, importBusyId = null, onImportDecision = null }) {
+export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {} }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -335,7 +336,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                     <QuestionRenderer
                       key={config.question_key}
                       config={config}
-                      value={allResponses[config.question_key]}
+                      value={mergeBRSRAutofill(allResponses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
                       onChange={(val) => handleResponseChange(config.question_key, val)}
                       isEditing={isEditing}
                       allResponses={{
@@ -349,9 +350,8 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       onSaveQuestion={isEditing ? saveQuestion : null}
                       onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                       onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
-                      importProposals={importProposalsByQuestion[config.question_key] || []}
-                      importBusyId={importBusyId}
-                      onImportDecision={onImportDecision}
+                      lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
+                      dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
                     />
                   ))}
                 </div>

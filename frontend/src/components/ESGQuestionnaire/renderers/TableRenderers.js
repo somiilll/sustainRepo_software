@@ -133,7 +133,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
   );
 }
 
-export function FYComparisonTableRenderer({ config, value, onChange, isEditing, allResponses }) {
+export function FYComparisonTableRenderer({ config, value, onChange, isEditing, allResponses, lockedPaths = [], dynamicRows = [] }) {
   const tableConfig = config.table_config || {};
   const fixedRows = tableConfig.fixed_rows || [];
   const columns = tableConfig.columns || [
@@ -144,6 +144,10 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
   const normalizedValue = normalizeFYResponse(value);
   const data = normalizedValue || {};
   const fyLabels = getFYLabels(allResponses);
+  const locked = new Set(lockedPaths);
+  const displayRows = dynamicRows.length > 0
+    ? [...fixedRows.filter(row => row.key !== 'others'), ...dynamicRows]
+    : fixedRows;
 
   const getColumnLabel = (col) => {
     if (col.key === 'current_fy' || col.label?.toLowerCase().includes('current')) return fyLabels.current;
@@ -283,13 +287,13 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
           )}
         </TableHeader>
         <TableBody>
-          {fixedRows.map((row) => (
-            <TableRow key={row.key}>
+          {displayRows.map((row) => (
+            <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
               <TableCell className="text-xs font-medium">{row.label}</TableCell>
               {columns.map(col => (
                 <TableCell key={col.key} className="p-1">
-                  {!isEditing ? (
-                    <span className="text-sm">{data[row.key]?.[col.key] ?? '-'}</span>
+                  {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
+                    <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? '-'}</span>
                   ) : (
                     <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
                   )}

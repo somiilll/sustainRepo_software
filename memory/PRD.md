@@ -680,3 +680,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added authenticated Excel export under BRSR Download: `kpi_definitions_brsr_mappings.xlsx`. It includes Summary, BRSR KPI Mappings, and Needs Your Response sheets with KPI definition, BRSR reference, question key, answer path, aggregation/formula, Imported From, mapping status, review flag, and review reason.
 - Current workbook contains 374 mapping rows; 6 exact Air Emissions destinations are ready and 368 rows are highlighted/filtered into Needs Your Response because an exact question key, answer path, or destination confirmation remains missing.
 - Verified the inline question UI at desktop/mobile with no horizontal overflow, authenticated workbook download/content, Edit-mode gating, and proposal lifecycle. Full focused result: 5/5 tests passed; no API is mocked.
+
+## 2026-10-22 — Live BRSR KPI autofill and Other Air Pollutants
+- Proposal review code remains available but is no longer used by the BRSR UI. Exact KPI mappings now sync directly into their native BRSR table cells for the selected and previous reporting periods, refresh every 30 seconds/on browser focus, and remain locked from manual editing.
+- Added the global dimension-based KPI Definition `Air Emissions - Other Pollutants` for the repeating `other_air_pollutants` table. Its reporting dimension is `pollutant_name`; quantity and unit are sourced from each row, with kg/tonne conversion when period units differ.
+- Added exact BRSR mapping to `p6_air_emissions / rows.others` as a dynamic-row destination. Each entered pollutant name becomes its own locked BRSR row with Unit, Current FY, and Previous FY values; removed/renamed pollutant rows are cleared on the next sync.
+- Applied the new KPI Definition and BRSR mapping to live configuration. Per user instruction, no tests, screenshots, or testing-agent validation were run for this change.

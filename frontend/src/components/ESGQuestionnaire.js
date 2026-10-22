@@ -48,7 +48,7 @@ import {
 } from './ui/collapsible';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
-import { BRSRQuestionImportReview } from './BRSRQuestionImportReview';
+import { mergeBRSRAutofill } from '../utils/brsrAutofill';
 import { 
   Loader2, 
   Save, 
@@ -397,7 +397,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, importProposals = [], importBusyId = null, onImportDecision = null }) {
+export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
@@ -735,7 +735,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <ConditionalYesNoTextRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} />;
 
       case 'fy_comparison_table':
-        return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
+        return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
 
       case 'grouped_matrix_table':
         return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={isEditing} allResponses={allResponses} />;
@@ -1127,12 +1127,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
-      <BRSRQuestionImportReview
-        proposals={importProposals}
-        isEditing={isEditing}
-        busyId={importBusyId}
-        onDecision={onImportDecision}
-      />
       {renderInput()}
       
       {/* Question-level Save Draft and Submit buttons */}
@@ -3400,9 +3394,7 @@ export default function ESGQuestionnaire({
   filterPrinciples = null,
   excludePrinciples = null,
   yearType = 'financial_year',  // Organization's reporting year type
-  importProposalsByQuestion = {},
-  importBusyId = null,
-  onImportDecision = null,
+  liveKPIAutofillByQuestion = {},
 }) {
   const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3676,7 +3668,7 @@ export default function ESGQuestionnaire({
                   <QuestionRenderer
                     key={config.question_key}
                     config={config}
-                    value={responses[config.question_key]}
+                    value={mergeBRSRAutofill(responses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
                     allResponses={{ 
@@ -3691,9 +3683,8 @@ export default function ESGQuestionnaire({
                     onSaveQuestion={saveQuestion}
                     onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                     onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
-                    importProposals={importProposalsByQuestion[config.question_key] || []}
-                    importBusyId={importBusyId}
-                    onImportDecision={onImportDecision}
+                    lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
+                    dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
                   />
                 ))}
               </div>

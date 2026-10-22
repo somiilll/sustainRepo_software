@@ -10,13 +10,13 @@ UNIT_FACTORS = {"litres": 1.0, "kilolitres": 1000.0, "megalitres": 1_000_000.0,
 def F(key, label, type="number", units=None, default_unit=None, group="", level=0, parent=None, brsr=None, gri=None,
       kpi=None, old=None, agg="sum", cols=None, summary=None, sum_of=None, percent=False, le=None, eq_parts=None,
       options=None, option_refs=None, ratio=None, sum_le=None, legacy_only=False, hide_if_table_has_rows=None,
-      show_with_legacy_ui=False):
+      show_with_legacy_ui=False, kpi_table=None):
     return {"key": key, "label": label, "type": type, "units": units, "default_unit": default_unit or (units or [None])[0],
             "group": group, "level": level, "parent": parent, "brsr": brsr, "gri": gri, "kpi": kpi, "old": old,
             "agg": agg, "cols": cols, "summary": summary, "sum_of": sum_of, "percent": percent,
             "le": le, "eq_parts": eq_parts, "options": options, "option_refs": option_refs, "ratio": ratio, "sum_le": sum_le,
             "legacy_only": legacy_only, "hide_if_table_has_rows": hide_if_table_has_rows,
-            "show_with_legacy_ui": show_with_legacy_ui}
+            "show_with_legacy_ui": show_with_legacy_ui, "kpi_table": kpi_table}
 
 
 def C(key, label, type="text", options=None, required=False, gri=None, brsr=None, max=None, derived=None, options_source=None):
@@ -812,7 +812,10 @@ SPECS[AIR] = [
                             ("air_voc", "Volatile organic compounds (VOC)", "305-7-a-iv"),
                             ("air_hap", "Hazardous air pollutants (HAP)", "305-7-a-v"))
 ] + [
-    F("other_air_pollutants", "Others - pollutant name, quantity, unit (one row per pollutant)", type="table", group=_AIR_G, cols=[
+    F("other_air_pollutants", "Others - pollutant name, quantity, unit (one row per pollutant)", type="table", group=_AIR_G,
+      brsr="P6-E6", gri="305-7-a-vii", kpi="Air Emissions - Other Pollutants", old="!new",
+      kpi_table={"value_column": "quantity", "unit_column": "quantity_unit", "dimension_columns": ["pollutant_name"],
+                 "default_unit": "tonnes", "supported_units": AIR_UNITS, "unit_type": "mass"}, cols=[
         C("pollutant_name", "Other Pollutant name", required=True, gri="305-7-a-vii", brsr="P6-E6"),
         C("quantity", "Quantity", "number", required=True, gri="305-7-a-vii", brsr="P6-E6"),
         C("quantity_unit", "Unit", "dropdown", AIR_UNITS, gri="305-7-a-vii", brsr="P6-E6"),
