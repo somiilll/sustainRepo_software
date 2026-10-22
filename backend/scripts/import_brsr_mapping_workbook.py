@@ -13,12 +13,12 @@ from openpyxl.styles import Font, PatternFill
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from modules.brsr_report.mapping_excel import build_kpi_brsr_mapping_excel
+from modules.brsr_report.mapping_excel import build_kpi_brsr_mapping_excel, logical_answer_path
 from shared.database.mongo import db
 
 
-WORKBOOK_PATH = Path("/app/uploads/user_kpi_definitions_brsr_mappings.xlsx")
-EXPORT_PATH = Path("/app/exports/kpi_definitions_brsr_mappings_revised.xlsx")
+WORKBOOK_PATH = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/app/uploads/user_kpi_definitions_brsr_mappings.xlsx")
+EXPORT_PATH = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("/app/exports/kpi_definitions_brsr_mappings_revised.xlsx")
 BACKUP_DIR = Path("/app/backups")
 
 
@@ -37,10 +37,10 @@ def _complaint_destination(name: str, code: str) -> Optional[Tuple[str, str]]:
         }
         row = next((row_key for token, row_key in rows.items() if token in text), None)
         if row:
-            return "p9_consumer_complaints", f"rows.{row}.{'cur_pending' if pending else 'cur_received'}"
+            return "p9_consumer_complaints", f"rows.{row}.{'pending' if pending else 'received'}"
     if "posh" in text:
         row = "posh_upheld" if "upheld" in text else "total_reported"
-        return "p5_sexual_harassment_complaints", f"rows.{row}.current_fy"
+        return "p5_sexual_harassment_complaints", f"rows.{row}"
     if "internal complaint" in text:
         row_map = {
             "working conditions": ("p3_complaints_employees_workers", "working_conditions"),
@@ -55,7 +55,7 @@ def _complaint_destination(name: str, code: str) -> Optional[Tuple[str, str]]:
         matched = next((destination for token, destination in row_map.items() if token in text), None)
         if matched:
             question_key, row = matched
-            return question_key, f"rows.{row}.{'cur_pending' if pending else 'cur_filed'}"
+            return question_key, f"rows.{row}.{'pending' if pending else 'filed'}"
     return None
 
 
@@ -121,6 +121,7 @@ def _direct_destination(name: str, code: str, reference: str) -> Optional[Tuple[
 
 
 def _refine_selected_path(name: str, code: str, question_key: str, answer_path: str) -> Tuple[str, str]:
+    answer_path = logical_answer_path(answer_path) or ""
     if question_key in {"p9_consumer_complaints", "p5_hr_complaints", "p3_complaints_employees_workers",
                         "p5_sexual_harassment_complaints"} and answer_path and answer_path.count(".") == 1:
         inferred = _complaint_destination(name, code)
@@ -177,21 +178,7 @@ def _period_metadata(config: Dict[str, Any], answer_path: str) -> Tuple[str, Dic
         "text", "number", "email", "url", "radio", "currency", "textarea"
     }:
         return "response_period_document", {}
-    terminal = answer_path.split(".")[-1]
-    previous_by_current = {
-        "cur_filed": "prev_filed", "cur_received": "prev_received", "cur_pending": "prev_pending",
-        "cur_remarks": "prev_remarks", "current_fy": "previous_fy",
-    }
-    if terminal in previous_by_current:
-        return "reporting_period_relative", {
-            "selected_reporting_year": terminal,
-            "previous_reporting_year": previous_by_current[terminal],
-            "prior_to_previous_reporting_year": "prior_to_previous_fy",
-        }
-    return "reporting_period_relative", {
-        "selected_reporting_year": "current_fy", "previous_reporting_year": "previous_fy",
-        "prior_to_previous_reporting_year": "prior_to_previous_fy",
-    }
+    return "reporting_year_filter", {}
 
 
 async def _apply_mapping(

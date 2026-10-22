@@ -721,3 +721,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Preserved two pre-import backups: `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T111330.287794_0000.json` and `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T111446.990680_0000.json`.
 - Generated `/app/exports/kpi_definitions_brsr_mappings_revised.xlsx` with live mappings, `Needs Your Response`, `Applied Mapping Summary`, and `Workbook Import Review` sheets. Import details are stored in the adjacent JSON log.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Reporting-year-neutral BRSR mappings + second workbook import
+- Removed Current FY/Previous FY semantics from KPI-to-BRSR mapping destinations. A mapping now stores only the logical destination, such as a BRSR row or `received`/`filed`/`pending` field; source records are filtered by the selected reporting year at runtime to populate current and previous report columns.
+- Normalized 102 active mappings and all 166 active BRSR question-config path catalogues. Complaint paths now use logical fields such as `rows.advertising.received` and `rows.working_conditions.pending`, while standard FY-comparison tables retain only their stable row path.
+- Imported the user's newer `kpi_definitions_brsr_mappings.xlsx`: 99 validated/high-confidence mapping actions were applied and 41 entries remain in `Workbook Import Review` for user input.
+- Generated `/app/exports/kpi_definitions_brsr_mappings_updated.xlsx` with the updated logical paths, `Applied Mapping Summary`, `Workbook Import Review`, and `Needs Your Response` sheets.
+- Preserved backups before both path migration and import: `/app/backups/kpi_framework_mappings_before_reporting_year_neutral_2026-10-22T115443.610355_0000.json` and `/app/backups/kpi_framework_mappings_before_workbook_import_2026-10-22T115448.003331_0000.json`.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

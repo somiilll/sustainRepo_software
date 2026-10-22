@@ -1,7 +1,7 @@
 import io
 import hashlib
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
@@ -31,6 +31,22 @@ HEADERS = [
 ]
 
 
+def logical_answer_path(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return path
+    period_segments = {"current_fy", "previous_fy", "prior_to_previous_fy"}
+    logical_columns = {
+        "cur_filed": "filed", "prev_filed": "filed",
+        "cur_received": "received", "prev_received": "received",
+        "cur_pending": "pending", "prev_pending": "pending",
+        "cur_remarks": "remarks", "prev_remarks": "remarks",
+    }
+    parts = [part for part in str(path).split(".") if part not in period_segments]
+    if parts and parts[-1] in logical_columns:
+        parts[-1] = logical_columns[parts[-1]]
+    return ".".join(parts)
+
+
 def _has_brsr_reference(kpi: Dict[str, Any]) -> bool:
     if kpi.get("brsr_reference"):
         return True
@@ -55,7 +71,7 @@ def _review_reason(mapping: Dict[str, Any]) -> str:
 
 
 def _question_answer_paths(config: Dict[str, Any], mapped_paths: List[str]) -> List[str]:
-    paths = {path for path in [*mapped_paths, *(config.get("answer_paths") or [])] if path}
+    paths = {logical_answer_path(path) for path in [*mapped_paths, *(config.get("answer_paths") or [])] if path}
     config_body = config.get("config") or {}
     table_config = config.get("table_config") or config_body
     question_type = config.get("type") or ""
@@ -149,7 +165,7 @@ def _question_answer_paths(config: Dict[str, Any], mapped_paths: List[str]) -> L
         paths.add("value")
     if not paths:
         paths.add("value")
-    return sorted(path for path in paths if path)
+    return sorted({logical_answer_path(path) for path in paths if path})
 
 
 def _range_name(question_key: str) -> str:
@@ -349,6 +365,7 @@ async def build_kpi_brsr_mapping_excel() -> bytes:
     summary.append(["Question Key options", "Use the dropdown in BRSR Question Key. Options come from the configured BRSR questionnaire catalogue."])
     summary.append(["Answer Path options", "Select a Question Key first; the Answer Path dropdown then shows only that question's configured paths."])
     summary.append(["Multiple destinations", "One KPI can map to multiple destinations by using multiple mapping rows. This workbook contains current rows only, as selected."])
+    summary.append(["Reporting year rule", "Mappings are reporting-year neutral. The same KPI and Answer Path are reused; Current FY and Previous FY values are selected at runtime by filtering KPI source records by reporting year."])
     summary.append(["Persistence", "Workbook selections remain in the downloaded file; they are not applied to the application until an import workflow is implemented."])
     summary.column_dimensions["A"].width = 32
     summary.column_dimensions["B"].width = 95

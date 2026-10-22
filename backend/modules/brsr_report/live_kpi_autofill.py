@@ -32,6 +32,19 @@ def _period_answer_paths(mapping: Dict[str, Any], base_path: str) -> tuple:
     strategy = mapping.get("period_column_strategy") or "reporting_period_relative"
     if strategy == "response_period_document":
         return base_path, None
+    if strategy == "reporting_year_filter":
+        logical_columns = {
+            "filed": ("cur_filed", "prev_filed"),
+            "received": ("cur_received", "prev_received"),
+            "pending": ("cur_pending", "prev_pending"),
+            "remarks": ("cur_remarks", "prev_remarks"),
+        }
+        parts = base_path.split(".")
+        terminal = parts[-1]
+        if terminal in logical_columns:
+            current_column, previous_column = logical_columns[terminal]
+            return ".".join([*parts[:-1], current_column]), ".".join([*parts[:-1], previous_column])
+        return f"{base_path}.current_fy", f"{base_path}.previous_fy"
     period_columns = mapping.get("period_columns") or {}
     selected_column = period_columns.get("selected_reporting_year") or "current_fy"
     previous_column = period_columns.get("previous_reporting_year") or "previous_fy"
@@ -240,8 +253,8 @@ class BRSRLiveKPIAutofillService:
                     question_result["locked_paths"].append(previous_path)
                     _set_nested(question_result["value"], previous_path, previous["value"] if previous else None)
                 unit = (current or previous or {}).get("unit")
-                unit_path = f"{base_path.rsplit('.', 1)[0]}.unit" if base_path.split(".")[-1].startswith("cur_") else f"{base_path}.unit"
-                if unit and unit_path not in {current_path, previous_path}:
+                unit_path = f"{base_path}.unit"
+                if mapping.get("question_key") == "p6_air_emissions" and unit and unit_path not in {current_path, previous_path}:
                     question_result["locked_paths"].append(unit_path)
                     _set_nested(question_result["value"], unit_path, unit)
             question_result["sources"].append({
