@@ -469,8 +469,8 @@ SPECS[GEN_TRAINING] = [
     F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
       kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
     F("training_recipient_type", "Who was the training for?", type="dropdown", group="Training Audience",
-      options=["Board of Directors", "Key Managerial Personnel", "Permanent Employee", "Other than Permanent Employee",
-               "Permanent Worker", "Other than Permanent Worker"]),
+      options=["Board of Directors", "Key Managerial Personnel", "Vendor", "Contractor", "Permanent Employee",
+               "Other than Permanent Employee", "Permanent Worker", "Other than Permanent Worker"]),
 ]
 for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
     _g = f"By Topic - {_label}"
