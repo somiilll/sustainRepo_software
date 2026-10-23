@@ -86,7 +86,8 @@ async def _mapping_value(
     rule = (mapping.get("aggregation_rule") or "sum").lower()
     values: List[float] = []
     source_count = 0
-    unit = mapping.get("destination_unit")
+    destination_unit = mapping.get("destination_unit")
+    unit = destination_unit
 
     for kpi_id in filter(None, kpi_ids):
         kpi = definitions_by_id.get(kpi_id)
@@ -95,9 +96,13 @@ async def _mapping_value(
         value, records = await calculate_kpi_contribution(kpi, org_id, reporting_period, rule)
         if value is None or not records:
             continue
-        values.append(float(value))
+        source_unit = (kpi.get("unit_config") or {}).get("default_unit")
+        converted_value = float(value)
+        if destination_unit and source_unit and can_convert(source_unit, destination_unit):
+            converted_value = convert(converted_value, source_unit, destination_unit)
+        values.append(converted_value)
         source_count += sum(int(record.get("_source_count", 1)) for record in records)
-        unit = unit or (kpi.get("unit_config") or {}).get("default_unit")
+        unit = unit or source_unit
 
     if not values:
         return None
@@ -112,7 +117,7 @@ def _dynamic_row_key(name: str) -> str:
 
 
 async def _table_dimension_values(
-    kpi: Dict[str, Any], org_id: str, reporting_period: str
+    kpi: Dict[str, Any], org_id: str, reporting_period: str, destination_unit: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
     table = (((kpi.get("source_config") or {}).get("records") or {}).get("table") or {})
     table_field = table.get("field")
@@ -149,7 +154,7 @@ async def _table_dimension_values(
     results: Dict[str, Dict[str, Any]] = {}
     for key, group in grouped.items():
         units = {unit.casefold() for _value, unit in group["entries"]}
-        output_unit = group["entries"][0][1] if len(units) == 1 else default_unit
+        output_unit = destination_unit or (group["entries"][0][1] if len(units) == 1 else default_unit)
         total = 0.0
         for value, unit in group["entries"]:
             total += convert(value, unit, output_unit) if can_convert(unit, output_unit) else value
@@ -271,9 +276,10 @@ class BRSRLiveKPIAutofillService:
                               (((definitions_by_id[kpi_id].get("source_config") or {}).get("records") or {}).get("table"))), None)
             if mapping.get("dynamic_rows") and table_kpi:
                 question_result["has_dynamic_mapping"] = True
-                current_rows = await _table_dimension_values(table_kpi, org_id, reporting_period)
-                previous_rows = await _table_dimension_values(table_kpi, org_id, prior_period)
-                default_unit = (table_kpi.get("unit_config") or {}).get("default_unit") or "tonnes"
+                destination_unit = mapping.get("destination_unit")
+                current_rows = await _table_dimension_values(table_kpi, org_id, reporting_period, destination_unit)
+                previous_rows = await _table_dimension_values(table_kpi, org_id, prior_period, destination_unit)
+                default_unit = destination_unit or (table_kpi.get("unit_config") or {}).get("default_unit") or "tonnes"
                 for dimension_key in sorted(set(current_rows) | set(previous_rows)):
                     current_row, previous_row, unit = _align_period_units(
                         current_rows.get(dimension_key), previous_rows.get(dimension_key), default_unit
