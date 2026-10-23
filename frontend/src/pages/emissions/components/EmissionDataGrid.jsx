@@ -145,7 +145,6 @@ const EvidenceIndicator = ({ emission }) => {
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
-  </TooltipProvider>
   );
 };
 
