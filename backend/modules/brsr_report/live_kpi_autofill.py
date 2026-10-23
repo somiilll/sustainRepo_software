@@ -311,7 +311,11 @@ class BRSRLiveKPIAutofillService:
             if dynamic_row.get("key") and dynamic_row.get("label"):
                 current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
                 previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
-                if not current and not previous:
+                has_reportable_value = any(
+                    result and abs(float(result.get("value") or 0)) > 0
+                    for result in (current, previous)
+                )
+                if not has_reportable_value:
                     continue
                 row_key = dynamic_row["key"]
                 if not any(row["key"] == row_key for row in question_result["dynamic_rows"]):
