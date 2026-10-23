@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from modules.auth.dependencies import get_admin_user, get_current_user
 from modules.facilities.contracts import FacilityCreate, FacilityResponse
+from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
 
 router = APIRouter()
@@ -60,9 +61,13 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
 
 
 @router.get("/facilities", response_model=List[FacilityResponse])
-async def get_facilities(current_user: dict = Depends(get_current_user)):
+async def get_facilities(
+    organization_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
     if current_user["role"] == "super_admin":
-        facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
+        query = {"organization_id": organization_id} if organization_id else {}
+        facilities = await db.facilities.find(query, {"_id": 0}).to_list(10000)
     elif current_user["role"] == "admin":
         org_id = current_user.get("organization_id")
         if not org_id:
@@ -72,78 +77,15 @@ async def get_facilities(current_user: dict = Depends(get_current_user)):
             {"_id": 0},
         ).to_list(1000)
     else:
-        # Non-admin users: Return facilities they have access to via V2 KPI assignments
         org_id = current_user.get("organization_id")
-        user_id = current_user.get("id")
-        if not org_id or not user_id:
+        if not org_id or not current_user.get("id"):
             return []
-        
-        # Get user's assignment IDs via V2 architecture (esg_assignment_assignees)
-        assignee_records = await db.esg_assignment_assignees.find(
-            {
-                "user_id": user_id,
-                "organization_id": org_id,
-                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
-            },
-            {"_id": 0, "assignment_id": 1}
-        ).to_list(500)
-        
-        assignment_ids = [a["assignment_id"] for a in assignee_records]
-        
-        if not assignment_ids:
-            # No assignments - return all org facilities (default open behavior)
-            # Check if ANY assignments exist for this org
-            any_assignments = await db.esg_assignments.count_documents({
-                "organization_id": org_id,
-                "entity_type": "record_category",
-            })
-            if any_assignments == 0:
-                # No assignments configured at all - full access
-                facilities = await db.facilities.find(
-                    {"organization_id": org_id},
-                    {"_id": 0},
-                ).to_list(1000)
-            else:
-                # Assignments exist but user has none - return empty
-                facilities = []
-        else:
-            # Get facilities from user's assignments (facility-level assignments)
-            assignments = await db.esg_assignments.find(
-                {
-                    "id": {"$in": assignment_ids},
-                    "organization_id": org_id,
-                },
-                {"_id": 0, "facility_id": 1, "assignment_level": 1}
-            ).to_list(500)
-            
-            # Check if user has org-level assignments (grants access to all facilities)
-            has_org_level = any(a.get("assignment_level") == "organization" for a in assignments)
-            
-            if has_org_level:
-                # Org-level assignment = access to all facilities
-                facilities = await db.facilities.find(
-                    {"organization_id": org_id},
-                    {"_id": 0},
-                ).to_list(1000)
-            else:
-                # Facility-level assignments - only return assigned facilities
-                facility_ids = list(set(
-                    a["facility_id"] for a in assignments 
-                    if a.get("facility_id")
-                ))
-                
-                if facility_ids:
-                    facilities = await db.facilities.find(
-                        {"id": {"$in": facility_ids}, "organization_id": org_id},
-                        {"_id": 0},
-                    ).to_list(1000)
-                else:
-                    # User has assignments but none are facility-specific
-                    # This could mean category-level assignments - grant all facilities
-                    facilities = await db.facilities.find(
-                        {"organization_id": org_id},
-                        {"_id": 0},
-                    ).to_list(1000)
+        access_scope = await resolve_ghg_access_scope(current_user)
+        facility_ids = list(access_scope.facilities_for_scope())
+        facilities = await db.facilities.find(
+            {"organization_id": org_id, "id": {"$in": facility_ids}},
+            {"_id": 0},
+        ).to_list(10000)
     
     return [FacilityResponse(**f) for f in facilities]
 

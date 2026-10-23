@@ -1,3 +1,9 @@
+# October 23, 2026 — Facility-Scoped GHG Authorization
+- Added one backend GHG access policy that resolves admin, workflow-assignment, and direct-facility-assignment modes without changing JWT, roles, membership, or login behavior.
+- Applied server-owned facility boundaries to GHG records and history, C7, Sinks, Scope 3 Bulk Upload, OCR evidence attachment, Base Year reads, dashboard/analysis aggregates, and user-accessible AI report summaries.
+- Added tenant-validated multi-facility assignment at user creation and edit in both organization User Management and Super Admin Team Accounts; direct assignments are hidden and rejected for workflow-enabled organizations.
+- Standard customer users with GHG access now see and can route only to GHG Logs and GHG Analysis. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN pending user authorization.**
+
 # September 29, 2026 — ESG Annual (Basic) Questionnaire Bank
 - Added **ESG Annual (Basic)** from the workbook’s `Tier 1 - Basic (MSME)` sheet: 25 exact Tier 1 questions worth 350 points, distributed across Environment (9), Social (10), and Governance (6).
 - Seeded the Basic bank idempotently for existing organizations and included it in the existing future-organization and startup synchronization paths. It is enabled by default and maintains independent Basic / Standard / Advanced activation states.

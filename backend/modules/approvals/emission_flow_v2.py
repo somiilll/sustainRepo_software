@@ -864,83 +864,10 @@ async def fetch_emissions_for_user(
     org_id = current_user.get("organization_id")
     user_id = current_user.get("id")
     
-    # Build base query based on role
-    if user_role == "super_admin":
-        base_query = dict(query)
-    elif user_role == "admin":
-        facilities = await db.facilities.find(
-            {"organization_id": org_id},
-            {"_id": 0, "id": 1}
-        ).to_list(1000)
-        facility_ids = [f["id"] for f in facilities]
-        base_query = {**query, "facility_id": {"$in": facility_ids}}
-    else:
-        # V2 Architecture: Get facilities from esg_assignment_assignees
-        # First, get all assignment IDs for this user
-        assignee_records = await db.esg_assignment_assignees.find(
-            {
-                "user_id": user_id,
-                "organization_id": org_id,
-                "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}],
-            },
-            {"_id": 0, "assignment_id": 1}
-        ).to_list(500)
-        
-        assignment_ids = [a["assignment_id"] for a in assignee_records]
-        
-        if not assignment_ids:
-            # Fallback: check if any assignments exist for org
-            any_assignments = await db.esg_assignments.count_documents({
-                "organization_id": org_id,
-                "category": "GHG Emissions",
-            })
-            if any_assignments == 0:
-                # No GHG assignments configured - use org-level facility access
-                facilities = await db.facilities.find(
-                    {"organization_id": org_id},
-                    {"_id": 0, "id": 1}
-                ).to_list(1000)
-                facility_ids = [f["id"] for f in facilities]
-            else:
-                # Assignments exist but user has none
-                facility_ids = []
-        else:
-            # Get facility IDs from assignments
-            assignments = await db.esg_assignments.find(
-                {
-                    "id": {"$in": assignment_ids},
-                    "organization_id": org_id,
-                },
-                {"_id": 0, "facility_id": 1, "assignment_level": 1}
-            ).to_list(500)
-            
-            # Check for org-level assignments
-            has_org_level = any(a.get("assignment_level") == "organization" for a in assignments)
-            
-            if has_org_level:
-                # Org-level = access to all facilities
-                facilities = await db.facilities.find(
-                    {"organization_id": org_id},
-                    {"_id": 0, "id": 1}
-                ).to_list(1000)
-                facility_ids = [f["id"] for f in facilities]
-            else:
-                # Collect unique facility IDs from assignments
-                facility_ids = list(set(
-                    a["facility_id"] for a in assignments 
-                    if a.get("facility_id")
-                ))
-                
-                # If no facility-specific assignments, grant all facilities
-                # (this handles category-level assignments)
-                if not facility_ids:
-                    facilities = await db.facilities.find(
-                        {"organization_id": org_id},
-                        {"_id": 0, "id": 1}
-                    ).to_list(1000)
-                    facility_ids = [f["id"] for f in facilities]
-        
-        base_query = {**query, "facility_id": {"$in": facility_ids}}
+    from modules.emissions.access_policy import resolve_ghg_access_scope
+    reporting_period = query.get("reporting_period") if isinstance(query.get("reporting_period"), str) else None
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+    base_query = access_scope.emission_query(query)
 
     # Admin / super_admin path — scope tabs show approved data only.
     if user_role in ("admin", "super_admin"):

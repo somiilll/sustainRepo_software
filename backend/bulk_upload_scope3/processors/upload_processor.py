@@ -44,13 +44,15 @@ class UploadProcessor:
     
     def __init__(self, db, organization_id: str, user_id: str,
                  user_email: str = "", user_name: str = "",
-                 capabilities: Optional[ResolvedGhgCapabilities] = None):
+                 capabilities: Optional[ResolvedGhgCapabilities] = None,
+                 access_scope=None):
         self.db = db
         self.organization_id = organization_id
         self.user_id = user_id
         self.user_email = user_email
         self.user_name = user_name
         self.capabilities = capabilities
+        self.access_scope = access_scope
         self.row_processor = RowProcessor(db, organization_id, user_id, user_email, user_name)
         self.scope12_processor = Scope12RowProcessor(
             db, organization_id, user_id, user_email, user_name,
@@ -337,6 +339,9 @@ class UploadProcessor:
             workbook.close()
             
             valid_records = [r for r in all_emission_records if r is not None]
+            if self.access_scope:
+                for record in valid_records:
+                    self.access_scope.assert_emission_access(record)
             valid_records, quota_errors = await self._apply_period_row_limits(
                 all_results,
                 valid_records,

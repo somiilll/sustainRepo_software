@@ -1,6 +1,6 @@
 import React from 'react';
 import '@/App.css';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { OrganizationProvider, useOrganization } from './contexts/OrganizationContext';
 import { Toaster } from './components/ui/sonner';
@@ -98,6 +98,7 @@ import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentP
 import { ConnectivityProvider } from './contexts/ConnectivityContext';
 import { ConnectivityStatusBanner } from './components/ConnectivityStatusBanner';
 import { initializeCategoryModules } from './modules/emissions';
+import { useModuleAccess } from './hooks/useModuleAccess';
 
 // Initialize the emissions Category Registry once at app boot.
 // Pure registration step — does not alter any existing business logic.
@@ -157,13 +158,26 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
+const GhgUserRouteGate = ({ children, enabled }) => {
+  const location = useLocation();
+  const allowed = /^\/ghg(?:$|\/(?:analysis|scope1|scope2|scope3|biogenic)$)/.test(location.pathname);
+  if (enabled && !allowed) return <Navigate to="/ghg" replace />;
+  return children;
+};
+
 const AppRoutes = () => {
   const { user } = useAuth();
+  const { hasAccess, loading: moduleAccessLoading } = useModuleAccess();
+  const isCustomerUser = user?.role === 'user' && user?.user_type !== 'supplier' && user?.org_type !== 'supplier';
+  if (isCustomerUser && moduleAccessLoading) {
+    return <div className="flex min-h-screen items-center justify-center" data-testid="ghg-user-access-loading"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" /></div>;
+  }
+  const isGhgOnlyUser = isCustomerUser && hasAccess('environment.ghg');
   const defaultRoute = user?.role === 'super_admin'
     ? '/super-admin'
     : user?.user_type === 'supplier' || user?.org_type === 'supplier'
       ? '/supplier-assessment/supplier'
-      : '/dashboard';
+      : isGhgOnlyUser ? '/ghg' : '/dashboard';
 
   return (
     <>
@@ -175,7 +189,9 @@ const AppRoutes = () => {
         
         <Route path="/" element={
           <ProtectedRoute>
-            <Layout />
+            <GhgUserRouteGate enabled={isGhgOnlyUser}>
+              <Layout />
+            </GhgUserRouteGate>
           </ProtectedRoute>
         }>
           <Route path="dashboard" element={<Dashboard />} />

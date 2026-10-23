@@ -2079,23 +2079,19 @@ async def get_base_year_emissions(
         if facility_id:
             query["facility_id"] = facility_id
     else:  # user
+        from modules.emissions.access_policy import resolve_ghg_access_scope
         org_id = current_user.get("organization_id")
-        assigned = current_user.get("assigned_facilities", [])
         if not org_id:
             return []
+        access_scope = await resolve_ghg_access_scope(current_user)
+        assigned = list(access_scope.facilities_for_scope())
         if facility_id:
-            # User requesting specific facility - must be assigned
-            if facility_id not in assigned:
-                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+            access_scope.assert_facility_access(facility_id)
             query["facility_id"] = facility_id
             query["organization_id"] = org_id
         else:
-            # User can see: org-level records + their assigned facility records
             query["organization_id"] = org_id
-            query["$or"] = [
-                {"facility_id": None},  # Org-level base year
-                {"facility_id": {"$in": assigned}} if assigned else {"facility_id": None}
-            ]
+            query["facility_id"] = {"$in": assigned}
     
     # Filter by scope_group if provided
     if scope_group:
@@ -2111,6 +2107,16 @@ async def get_base_year_emissions(
             record["status"] = "configured" if record.get("emissions_data") else "incomplete"
         if "justification" not in record:
             record["justification"] = record.get("notes", "")
+        if current_user.get("role") == "user":
+            facility = record.get("facility_id")
+            record["emissions_data"] = [
+                item for item in (record.get("emissions_data") or [])
+                if access_scope.can_access_emission({
+                    "organization_id": org_id,
+                    "facility_id": facility,
+                    "scope": str(item.get("scope") or "").lower().replace(" ", ""),
+                })
+            ]
     
     return records
 
@@ -3530,8 +3536,17 @@ async def upload_scope3_file(
     user_id = current_user.get("id") or current_user.get("user_id")
     user_email = current_user.get("email", "")
     user_name = current_user.get("full_name") or current_user.get("name") or ""
-    
-    processor = UploadProcessor(db, organization_id, user_id, user_email, user_name)
+    from modules.emissions.access_policy import resolve_ghg_access_scope
+    access_scope = await resolve_ghg_access_scope(current_user)
+
+    processor = UploadProcessor(
+        db,
+        organization_id,
+        user_id,
+        user_email,
+        user_name,
+        access_scope=access_scope,
+    )
     try:
         summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
     except Exception:
@@ -3607,6 +3622,10 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         {"job_id": job_id},
         {"_id": 0}
     ).to_list(10000)
+    from modules.emissions.access_policy import resolve_ghg_access_scope
+    access_scope = await resolve_ghg_access_scope(current_user)
+    for record in pending_records:
+        access_scope.assert_emission_access(record)
     
     logger.info(f"[BULK_SAVE] Job {job_id}: Found {len(pending_records)} pending records")
     

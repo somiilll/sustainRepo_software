@@ -15,6 +15,7 @@ class SuperAdminAccountCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=200)
     organization_id: str = Field(min_length=1)
     role: Literal["admin", "user"]
+    assigned_facilities: List[str] = Field(default_factory=list)
 
 
 class EmissionFactorCreate(BaseModel):

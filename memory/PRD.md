@@ -27,6 +27,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Organization and Facility details remain responsive, concise, and use neutral supporting copy for equity-share guidance.
 
 ### GHG Data Entry
+- GHG authorization is backend-authoritative and resolves one access mode per request: platform/organization admins receive organization-wide access; workflow-enabled organizations use existing GHG workflow assignments and ignore direct user facility assignments; workflow-disabled organizations restrict standard users to their validated `assigned_facilities`.
+- The same resolved scope applies to logs, single-record reads, create/update/delete, history, C7, Sinks, Scope 3 Bulk Upload, OCR evidence finalization, Base Year analysis, dashboards, and user-accessible GHG report aggregation.
+- Standard customer users with GHG enabled may navigate only to GHG Logs and GHG Analysis; direct frontend routes outside that workspace redirect to Logs.
 - Support monthly and yearly Scope 1, Scope 2, Scope 3, and approved biogenic entries.
 - Preserve common Create/Edit contracts, calculation audit linkage, approval behavior, and atomic monthly multi-row submissions through `submission_batch_id` rollback.
 - Enforce organization capability overrides server-side.
@@ -73,6 +76,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Limit files to 10 MB, sheets to 5,000 rows, workbooks to 25,000 rows, and pending validated records to 24 hours.
 
 ## Architecture
+- `/app/backend/modules/emissions/access_policy.py` — centralized GHG facility/workflow scope resolution and Mongo query boundaries.
+- `/app/backend/modules/users/facility_assignments.py` — tenant-safe direct facility assignment validation shared by organization admins and Super Admins.
 - `/app/backend/modules/sustainability_config/` — canonical organization settings and GHG overrides.
 - `/app/backend/modules/entitlements/` — module access and numeric plan-limit enforcement.
 - `/app/backend/modules/emissions/` — manual GHG create/edit/history, C7, rollback, and contracts.
@@ -119,6 +124,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 23, 2026 — Implemented centralized facility-scoped GHG authorization. Workflow-disabled users are limited to one or more validated assigned facilities; workflow-enabled organizations continue through existing workflow assignments; admins retain broad organization access. Enforcement now covers GHG list/detail/create/update/delete/history, C7, Sinks, dashboard aggregates, Base Year reads, Bulk Upload, OCR evidence linking, and user-accessible AI summaries. Added multi-facility assignment controls to organization User Management and Super Admin Team Accounts, plus GHG Logs/Analysis-only navigation and route guarding for standard customer users. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN pending user authorization.**
 - October 23, 2026 — Fixed GHG log evidence session-expiry errors. Legacy comma-separated `evidence_url` values are now split into individual authenticated file IDs; View/Download uses only the secure file helper with the current authorization token, never a protected URL opened directly. **NO TESTS RUN per the user’s standing instruction.**
 - October 23, 2026 — Moved GHG evidence access from the edit-only behavior to the GHG log/table evidence indicator. The log tooltip now lists attached files and exposes secure View for previewable files plus Download for stored files; the previous edit-form hover-preview addition was removed. **NO TESTS RUN per the user’s standing instruction.**
 - October 23, 2026 — Enhanced GHG evidence access. Image evidence now shows a secure hover preview plus View/Download actions; PDFs retain View/Download; Office files use Download. Delete is available only in editable evidence contexts, not read-only views. **NO TESTS RUN per the user’s standing instruction.**

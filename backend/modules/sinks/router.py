@@ -17,6 +17,7 @@ from modules.auth.dependencies import get_current_user
 from modules.sinks.contracts import SinkCreate, SinkResponse
 from modules.sinks.periods import canonical_sink_period_fields
 from modules.base_year.sync_service import sync_changed_sink_base_years
+from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
 from shared.helpers.uploaded_files import delete_uploaded_files, extract_uploaded_file_ids
 
@@ -44,26 +45,11 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         org_id = facility.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="Organization context is required for an organization-level sink")
-    user_id = current_user.get("id")
-    user_role = current_user.get("role", "user")
-
-    # Admin org check
-    if user_role == "admin" and org_id != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized for this facility")
-
-    # KPI Assignment-based access control (admins bypass)
-    if user_role not in ["admin", "super_admin"]:
-        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
-        can_access, reason = await kpi_access_helper.can_access_sinks(
-            user_id=user_id,
-            organization_id=org_id,
-            facility_id=sink_data.facility_id,
-        )
-        if not can_access:
-            raise HTTPException(
-                status_code=403,
-                detail="You don't have access to create carbon sinks for this reporting entity. Check your KPI assignments."
-            )
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_sink_access({
+        "organization_id": org_id,
+        "facility_id": sink_data.facility_id,
+    })
 
     organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
     if not organization:
@@ -114,26 +100,8 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
 
 @router.get("/sinks", response_model=List[SinkResponse])
 async def get_sinks(current_user: dict = Depends(get_current_user)):
-    user_role = current_user.get("role", "user")
-    org_id = current_user.get("organization_id")
-    user_id = current_user.get("id")
-    
-    if user_role == "super_admin":
-        sinks = await db.sinks.find({}, {"_id": 0}).to_list(10000)
-    elif user_role == "admin":
-        sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
-    else:
-        # Regular users - use KPI assignment-based filtering only
-        # First get all sinks for org, then filter by KPI access
-        sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
-        
-        # Apply KPI access control filtering
-        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
-        sinks = await kpi_access_helper.filter_sinks_by_access(
-            user_id=user_id,
-            organization_id=org_id,
-            records=sinks,
-        )
+    access_scope = await resolve_ghg_access_scope(current_user)
+    sinks = await db.sinks.find(access_scope.sink_query(), {"_id": 0}).to_list(10000)
     
     return [SinkResponse(**s) for s in sinks]
 
@@ -143,6 +111,8 @@ async def get_sink(sink_id: str, current_user: dict = Depends(get_current_user))
     sink = await db.sinks.find_one(_sink_query_for_current_user(sink_id, current_user), {"_id": 0})
     if not sink:
         raise HTTPException(status_code=404, detail="Sink record not found")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_sink_access(sink)
     return SinkResponse(**sink)
 
 
@@ -152,6 +122,8 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     existing = await db.sinks.find_one(sink_query, {"_id": 0})
     if not existing:
         raise HTTPException(status_code=404, detail="Sink record not found")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_sink_access(existing)
 
     # frequency_type is preserved from the original record — not editable.
     existing_frequency = existing.get("frequency_type", "monthly")
@@ -162,6 +134,10 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
             raise HTTPException(status_code=404, detail="Facility not found")
         if target_facility.get("organization_id") != existing.get("organization_id"):
             raise HTTPException(status_code=403, detail="A sink can only be reassigned to a facility in the same organization")
+    access_scope.assert_sink_access({
+        "organization_id": existing.get("organization_id"),
+        "facility_id": sink_data.facility_id,
+    })
     try:
         period_fields = canonical_sink_period_fields(
             sink_data.reporting_period,
@@ -205,6 +181,8 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     sink = await db.sinks.find_one(sink_query, {"_id": 0})
     if not sink:
         raise HTTPException(status_code=404, detail="Sink record not found")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_sink_access(sink)
 
     try:
         await delete_uploaded_files(db, extract_uploaded_file_ids(sink))

@@ -2,6 +2,11 @@
 
 ## P0 — Immediate
 
+### GHG Facility Access Verification
+- Verify the newly implemented centralized GHG policy with assigned versus unassigned facilities across list/detail/create/update/delete/history, C7, Sinks, dashboard analysis, Base Year, Scope 3 Bulk Upload, OCR evidence finalization, and AI summary aggregation.
+- Verify workflow-enabled organizations ignore direct assignments and preserve existing workflow assignment behavior; verify organization admins retain full organization access.
+- Verify Super Admin and organization-admin facility pickers, Logs/Analysis-only navigation, direct-route redirection, and responsive desktop/mobile behavior. Testing is intentionally blocked until the user explicitly authorizes it.
+
 ### Editable Workforce Total Policy
 - Make each workforce grid explicitly choose one total policy: **calculated and locked from detailed rows**, or **manually entered with strict component validation**. Remove any mixed behavior caused by hidden/stale total fields. Existing testing data does not constrain this work and may be normalized as part of the implementation.
 

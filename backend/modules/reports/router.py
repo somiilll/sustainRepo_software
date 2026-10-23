@@ -43,6 +43,7 @@ from shared.database.mongo import db
 from shared.utils.emission_records import eligible_ghg_record_filter
 from shared.services.ghg_reporting import adjusted_reporting_records, adjusted_sink_value, facility_equity_factors
 from modules.reports.ghg_summary_excel import build_ghg_summary_excel
+from modules.emissions.access_policy import GHGAccessScope, resolve_ghg_access_scope
 
 import re
 
@@ -1089,7 +1090,13 @@ class AIReportRequest(BaseModel):
     reporting_period_end: str
 
 
-async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
+async def aggregate_emissions_for_ai(
+    organization_id: str,
+    facility_ids: List[str],
+    start_period: str,
+    end_period: str,
+    access_scope: GHGAccessScope,
+) -> dict:
     """Aggregate emission data for AI report generation - applies equity share and temporal proportion if applicable"""
     # Get organization info
     org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
@@ -1121,10 +1128,11 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     valid_facility_ids = [f['id'] for f in facilities]
     
     # Query emission_records
-    emissions = await db.emission_records.find({
+    emissions_query = access_scope.emission_query({
         "facility_id": {"$in": valid_facility_ids},
         **eligible_ghg_record_filter(),
-    }, {"_id": 0}).to_list(10000)
+    })
+    emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
 
     # --- DATE PARSING & PROPORTION LOGIC ---
     def parse_date_str(date_str, is_end=False):
@@ -1875,13 +1883,17 @@ async def generate_ai_report_summary(
     organization_id = current_user.get('organization_id')
     if not organization_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    for facility_id in request.facility_ids:
+        access_scope.assert_facility_access(facility_id)
     
     # Aggregate emissions data (with equity share applied if applicable)
     aggregated_data = await aggregate_emissions_for_ai(
         organization_id,
         request.facility_ids,
         request.reporting_period_start,
-        request.reporting_period_end
+        request.reporting_period_end,
+        access_scope,
     )
     if not aggregated_data:
         raise HTTPException(status_code=404, detail="No emission records found for the selected facilities and period")
