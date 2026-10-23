@@ -1798,6 +1798,20 @@ export function ImportedRecordModal({ open, onClose, record }) {
   if (!record) return null;
 
   const fieldValues = record.field_values || {};
+  const isPersistedGHGEnergy = record.source_type === 'ghg_derived' && record.category === 'Energy';
+  const quantity = fieldValues.quantity ?? fieldValues.total_energy ?? 0;
+  const quantityUnit = fieldValues.quantity_unit || fieldValues.energy_unit || 'TJ';
+  const period = record.reporting_period || {};
+  const reportingPeriodLabel = period.financial_year || period.calendar_year
+    || (period.year ? `${period.month ? `${period.month} ` : ''}${period.year}` : '-');
+  const sourceLabel = record.subcategory?.startsWith('Fuel')
+    ? 'Scope 1 fuel entries'
+    : record.subcategory?.startsWith('Heating')
+      ? 'Scope 2 thermal-energy entries'
+      : `Scope 2 ${record.sub_subcategory?.toLowerCase() || 'electricity'} entries`;
+  const energyFieldLabel = record.subcategory?.startsWith('Electricity')
+    ? (record.sub_subcategory === 'Renewable' ? 'Renewable electricity' : 'Grid electricity')
+    : record.subcategory?.startsWith('Heating') ? 'Non-renewable heating' : 'Energy quantity';
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -1805,7 +1819,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="w-5 h-5 text-emerald-600" />
-            Imported Record Details
+            {isPersistedGHGEnergy ? 'Energy Record Details' : 'Imported Record Details'}
           </DialogTitle>
         </DialogHeader>
 
@@ -1814,7 +1828,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
             <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-800">Imported from GHG Module</span>
+              <span className="text-sm font-medium text-emerald-800">Synced from GHG Module</span>
             </div>
             <p className="text-xs text-emerald-700 mt-1">
               This record is auto-synced and read-only. Changes must be made in the GHG Module.
@@ -1834,7 +1848,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
             <div>
               <Label className="text-xs text-text-muted">Reporting Period</Label>
               <p className="text-sm font-medium">
-                {record.reporting_period?.financial_year || record.reporting_period?.calendar_year || '-'}
+                {reportingPeriodLabel}
               </p>
             </div>
             <div>
@@ -1845,7 +1859,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
 
           {/* Field Values */}
           <div className="border-t pt-4">
-            <Label className="text-xs text-text-muted mb-2 block">Aggregated Data</Label>
+            <Label className="text-xs text-text-muted mb-2 block">{isPersistedGHGEnergy ? 'Energy Data' : 'Aggregated Data'}</Label>
             <div className="grid grid-cols-2 gap-3">
               {record.category === 'Emissions' ? (
                 <>
@@ -1865,17 +1879,17 @@ export function ImportedRecordModal({ open, onClose, record }) {
               ) : record.category === 'Energy' ? (
                 <>
                   <div className="p-3 bg-stone-50 rounded">
-                    <p className="text-xs text-text-muted">Total Energy</p>
+                    <p className="text-xs text-text-muted">{isPersistedGHGEnergy ? energyFieldLabel : 'Total Energy'}</p>
                     <p className="text-lg font-bold text-blue-700">
-                      {fieldValues.total_energy?.toLocaleString() || '0'}
+                      {Number(quantity).toLocaleString()}
                     </p>
-                    <p className="text-xs text-text-muted">{fieldValues.energy_unit || 'TJ'}</p>
+                    <p className="text-xs text-text-muted">{quantityUnit}</p>
                   </div>
                   <div className="p-3 bg-stone-50 rounded">
                     <p className="text-xs text-text-muted">Source Records</p>
                     <p className="text-lg font-bold">{fieldValues.source_records_count || 0}</p>
                     <p className="text-xs text-text-muted">
-                      {record.subcategory === 'Fuel' ? 'Scope 1 fuel entries' : 'Scope 2 electricity entries'}
+                      {sourceLabel}
                     </p>
                   </div>
                 </>

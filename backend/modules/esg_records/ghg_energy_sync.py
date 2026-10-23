@@ -60,6 +60,7 @@ class GHGEnergySyncService:
                 "id": record_id,
                 "org_id": org_id,
                 "facility_id": imported.get("facility_id"),
+                "facility_name": imported.get("facility_name"),
                 "record_level": imported.get("record_level", "facility"),
                 "section": "environment",
                 "category": "Energy",
