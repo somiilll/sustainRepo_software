@@ -342,6 +342,11 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                 f"{_label(total)} is {value_with_unit(values[total], total)}, but its required breakdown totals "
                 f"{_fmt(part_sum)} {unit_of(total)} ({entered_breakdown(parts, total)})."
             )
+    # Persist a field-level unit even when the user selected the default. This
+    # makes every Water/Waste KPI unit explicit for reports and conversions.
+    for key, value in values.items():
+        if value is not None and not out.get(f"{key}_unit"):
+            out[f"{key}_unit"] = unit_of(key)
     return out
 
 

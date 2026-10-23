@@ -122,6 +122,24 @@ def _normalise_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
 
 
+def _with_default_field_units(records: List[Dict[str, Any]], value_field: Optional[str], default_unit: Optional[str]) -> List[Dict[str, Any]]:
+    """Expose a KPI's configured default unit for legacy records missing a field unit."""
+    if not value_field or not default_unit:
+        return records
+    unit_key = f"{value_field}_unit"
+    normalized_records = []
+    for record in records:
+        field_values = record.get("field_values") or {}
+        if field_values.get(value_field) is None or field_values.get(unit_key):
+            normalized_records.append(record)
+            continue
+        normalized_records.append({
+            **record,
+            "field_values": {**field_values, unit_key: default_unit},
+        })
+    return normalized_records
+
+
 def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str, List[str]]:
     variables = sorted(set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", expression)))
     aliases = {
@@ -285,6 +303,9 @@ async def calculate_kpi_contribution(
     unit_config = kpi.get("unit_config") or {}
     if not aggregation_target_unit and unit_config.get("allow_unit_conversion"):
         aggregation_target_unit = unit_config.get("default_unit")
+    records = _with_default_field_units(
+        records, kpi.get("value_field") or None, unit_config.get("default_unit")
+    )
     result = Aggregator.aggregate(
         records,
         "avg" if aggregation_type in {"avg", "average"} else aggregation_type,
