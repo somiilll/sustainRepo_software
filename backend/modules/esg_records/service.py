@@ -20,6 +20,10 @@ from shared.unit_registry import get_conversion_metadata
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
+class RecordAccessError(ValueError):
+    """Raised when a user is not permitted to submit an ESG record."""
+
+
 def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
     """Return the previous applied snapshot, excluding display-only rejected proposals."""
     for candidate in versions[index + 1:]:
@@ -226,7 +230,7 @@ class ESGRecordsService:
                     facility_name = facility.get("name") if facility else data.facility_id
                 
                 location_str = f"at {facility_name}" if facility_name else "at organization level"
-                raise ValueError(
+                raise RecordAccessError(
                     f"No active assignment found for {data.category}/{data.subcategory or ''} "
                     f"{location_str}"
                 )
@@ -258,7 +262,7 @@ class ESGRecordsService:
                             if 0 <= month_idx < 12:
                                 month_display = month_names[month_idx]
                     period_str = f"{month_display} {rp.year}" if month_display else str(rp.year)
-                    raise ValueError(
+                    raise RecordAccessError(
                         f"No task assigned for period {period_str}. "
                         f"You can only submit data for periods assigned to you."
                     )

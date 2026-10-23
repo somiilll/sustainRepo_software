@@ -18,7 +18,7 @@ import re
 
 from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
-from .service import esg_records_service
+from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
 from .category_config_service import category_config_service
 from .detailed_progress_service import detailed_progress_service
@@ -491,8 +491,12 @@ async def create_record(
             allow_without_assignment=is_admin,  # Admins can proceed without assignment
             is_admin=is_admin,  # Admins bypass approval workflow
         )
-    except ValueError as e:
+    except RecordAccessError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        # Validation failures (for example, Water Withdrawal totals/sources)
+        # are input problems, never authorization failures.
+        raise HTTPException(status_code=400, detail=str(e))
     
     response = {"message": "Record created", "record": record}
     
