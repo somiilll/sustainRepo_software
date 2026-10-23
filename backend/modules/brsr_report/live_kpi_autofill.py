@@ -311,9 +311,15 @@ class BRSRLiveKPIAutofillService:
             if dynamic_row.get("key") and dynamic_row.get("label"):
                 current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
                 previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
+                if not current and not previous:
+                    continue
                 row_key = dynamic_row["key"]
                 if not any(row["key"] == row_key for row in question_result["dynamic_rows"]):
-                    question_result["dynamic_rows"].append({"key": row_key, "label": dynamic_row["label"]})
+                    question_result["dynamic_rows"].append({
+                        "key": row_key,
+                        "label": dynamic_row["label"],
+                        "indent": bool(dynamic_row.get("indent")),
+                    })
                 for column, result in (("current_fy", current), ("previous_fy", previous)):
                     path = f"{row_key}.{column}"
                     question_result["locked_paths"].append(path)

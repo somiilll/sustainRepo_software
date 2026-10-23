@@ -221,9 +221,9 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
         {"value_field": {"$regex": "^discharge_"}, "status": {"$ne": "archived"}}, {"_id": 0}
     ).to_list(200)
     by_field = {definition.get("value_field"): definition for definition in definitions}
-    destination_keys = {"surface": "surface", "groundwater": "ground", "seawater": "sea",
+    destination_keys = {"surface": "surface", "ground": "ground", "seawater": "sea",
                         "third_party": "thirdparty", "other": "other"}
-    destination_labels = {"surface": "Surface water", "groundwater": "Groundwater", "seawater": "Seawater / desalinated water",
+    destination_labels = {"surface": "Surface water", "ground": "Groundwater", "seawater": "Seawater / desalinated water",
                           "third_party": "third parties", "other": "Other destinations"}
     mapped = []
     for source_key, row_key in destination_keys.items():
@@ -242,6 +242,7 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
                     {"$set": {"dynamic_row": {
                         "key": f"{row_key}_{treatment}",
                         "label": f"To {destination_labels[source_key]} — With treatment: {treatment_label}",
+                        "indent": True,
                     }, "updated_at": now}},
                 )
                 await db.esg_question_configs.update_one(

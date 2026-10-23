@@ -368,7 +368,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
         <TableBody>
           {displayRows.map((row) => (
             <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
-              <TableCell className="text-xs font-medium">{row.label}</TableCell>
+              <TableCell className={`text-xs font-medium ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>{row.label}</TableCell>
               {columns.map(col => (
                 <TableCell key={col.key} className="p-1">
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
