@@ -131,24 +131,15 @@ const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const openDirectFile = (url, download = false) => {
-  if (!url) return;
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  if (download) anchor.download = '';
-  anchor.target = '_blank';
-  anchor.rel = 'noopener noreferrer';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-};
-
 const EvidenceIndicator = ({ emission, count }) => {
+  const legacyUrls = typeof emission.evidence_url === 'string'
+    ? emission.evidence_url.split(',').map((url) => url.trim()).filter(Boolean)
+    : [];
   const files = emission.evidence_files?.length
     ? emission.evidence_files
     : (emission.evidence_urls?.length
       ? emission.evidence_urls.map((url, index) => ({ url, filename: `Evidence ${index + 1}` }))
-      : (emission.evidence_url ? [{ url: emission.evidence_url, filename: emission.evidence_file_name || 'Evidence 1' }] : []));
+      : legacyUrls.map((url, index) => ({ url, filename: emission.evidence_file_name || `Evidence ${index + 1}` })));
   const attachedCount = files.length || count;
   const [fileInfo, setFileInfo] = useState({});
   const loadFileInfo = async () => {
@@ -185,13 +176,12 @@ const EvidenceIndicator = ({ emission, count }) => {
           const previewable = isPreviewableFile(metadata);
           const filename = metadata.original_filename || metadata.filename || file.filename || `Evidence ${index + 1}`;
           const date = metadata.created_at ? format(new Date(metadata.created_at), 'dd MMM yyyy') : '';
-          const directUrl = metadata.url || file.url;
           return <div key={file.url || index} className="flex items-center gap-3 px-4 py-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-50"><FileText className="h-5 w-5 text-emerald-700" /></div>
             <div className="min-w-0 flex-1"><p className="max-w-[170px] truncate font-medium" title={filename}>{filename}</p>{(metadata.size || metadata.file_size || date) && <p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ')}</p>}</div>
             <div className="flex items-center gap-2">
-              {previewable && (fileId || directUrl) && <button type="button" onClick={(event) => { event.stopPropagation(); fileId ? void openSecureFile(fileId) : openDirectFile(directUrl); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`} aria-label={`View ${filename}`}><Eye className="h-4 w-4" /></button>}
-              {(fileId || directUrl) && <button type="button" onClick={(event) => { event.stopPropagation(); fileId ? void downloadSecureFile(fileId) : openDirectFile(directUrl, true); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`} aria-label={`Download ${filename}`}><Download className="h-4 w-4" /></button>}
+              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`} aria-label={`View ${filename}`}><Eye className="h-4 w-4" /></button>}
+              {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`} aria-label={`Download ${filename}`}><Download className="h-4 w-4" /></button>}
             </div>
           </div>;
         })}
