@@ -6,7 +6,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -50,7 +50,7 @@ async def upsert_definition(name: str, fields: Dict[str, Any], now: str) -> Dict
 
 async def upsert_mapping(
     kpi: Dict[str, Any], question_key: str, answer_path: str, reference: str,
-    now: str, strategy: str = "reporting_year_filter",
+    now: str, strategy: str = "reporting_year_filter", destination_unit: Optional[str] = None,
 ) -> None:
     existing = await db.kpi_framework_mappings.find_one({
         "framework": "BRSR", "kpi_id": kpi["id"], "question_key": question_key, "answer_path": answer_path,
@@ -60,8 +60,8 @@ async def upsert_mapping(
         "source_metric_name": kpi.get("metric_name"), "framework": "BRSR", "reference": reference,
         "question_key": question_key, "answer_path": answer_path, "aggregation_rule": "sum",
         "formula_definition": (kpi.get("formula_config") or {}).get("formula_definition"),
-        "destination_unit": (kpi.get("unit_config") or {}).get("default_unit"),
-        "unit_conversion_rule": "use_kpi_unit_config", "mapping_status": "exact_destination",
+        "destination_unit": destination_unit or (kpi.get("unit_config") or {}).get("default_unit"),
+        "unit_conversion_rule": "convert_with_shared_unit_registry" if destination_unit else "use_kpi_unit_config", "mapping_status": "exact_destination",
         "is_active": True, "period_column_strategy": strategy, "reporting_period_source": "runtime_filter",
         "source_category": kpi.get("category_name"), "source_subcategory": kpi.get("subcategory"),
         "source_sub_subcategory": kpi.get("sub_subcategory"),
@@ -223,20 +223,39 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
     by_field = {definition.get("value_field"): definition for definition in definitions}
     destination_keys = {"surface": "surface", "groundwater": "ground", "seawater": "sea",
                         "third_party": "thirdparty", "other": "other"}
+    destination_labels = {"surface": "Surface water", "groundwater": "Groundwater", "seawater": "Seawater / desalinated water",
+                          "third_party": "third parties", "other": "Other destinations"}
     mapped = []
     for source_key, row_key in destination_keys.items():
         for treatment in ("no_treatment", "with_treatment"):
             definition = by_field.get(f"discharge_{source_key}_{treatment}")
             if definition:
-                await upsert_mapping(definition, "p6_water_discharged", f"rows.{row_key}_{treatment}", "P6-E4", now)
+                await upsert_mapping(definition, "p6_water_discharged", f"rows.{row_key}_{treatment}", "P6-E4", now, destination_unit="kl")
+                mapped.append(definition)
+        for treatment, treatment_label in (("primary", "Primary treatment"), ("secondary", "Secondary treatment"), ("tertiary", "Tertiary treatment")):
+            definition = by_field.get(f"discharge_{source_key}_{treatment}")
+            if definition:
+                answer_path = f"rows.{row_key}_{treatment}"
+                await upsert_mapping(definition, "p6_water_discharged", answer_path, "P6-E4", now, destination_unit="kl")
+                await db.kpi_framework_mappings.update_one(
+                    {"framework": "BRSR", "kpi_id": definition["id"], "question_key": "p6_water_discharged", "answer_path": answer_path},
+                    {"$set": {"dynamic_row": {
+                        "key": f"{row_key}_{treatment}",
+                        "label": f"To {destination_labels[source_key]} — With treatment: {treatment_label}",
+                    }, "updated_at": now}},
+                )
+                await db.esg_question_configs.update_one(
+                    {"question_key": "p6_water_discharged"},
+                    {"$addToSet": {"answer_paths": answer_path}, "$set": {"updated_at": now}},
+                )
                 mapped.append(definition)
     total = by_field.get("discharge_total")
     if total:
-        await upsert_mapping(total, "p6_water_discharged", "rows.total_discharged", "P6-E4", now)
+        await upsert_mapping(total, "p6_water_discharged", "rows.total_discharged", "P6-E4", now, destination_unit="kl")
         mapped.append(total)
     for definition in definitions:
         field = definition.get("value_field") or ""
-        if any(token in field for token in ("_primary", "_secondary", "_tertiary")) or field.endswith("_total") and field != "discharge_total":
+        if field.endswith("_total") and field != "discharge_total":
             await remove_brsr_reference(definition, "P6-E4", now)
     return mapped
 
@@ -268,7 +287,7 @@ async def sync_water_withdrawal(now: str) -> List[Dict[str, Any]]:
     for field, path in general_paths.items():
         definition = by_field.get(field)
         if definition:
-            await upsert_mapping(definition, "p6_water_disclosures", path, definition.get("brsr_reference") or "P6-E3", now)
+            await upsert_mapping(definition, "p6_water_disclosures", path, definition.get("brsr_reference") or "P6-E3", now, destination_unit="kl")
             mapped.append(definition)
 
     stress_paths = {
@@ -282,7 +301,7 @@ async def sync_water_withdrawal(now: str) -> List[Dict[str, Any]]:
     for field, path in stress_paths.items():
         definition = by_field.get(field)
         if definition:
-            await upsert_mapping(definition, "p6_water_stress_areas", path, definition.get("brsr_reference") or "P6-L1", now)
+            await upsert_mapping(definition, "p6_water_stress_areas", path, definition.get("brsr_reference") or "P6-L1", now, destination_unit="kl")
             mapped.append(definition)
     return mapped
 
@@ -301,11 +320,11 @@ async def sync_water_stress_discharge(now: str) -> List[Dict[str, Any]]:
         for treatment, suffix in (("no_treatment", "no"), ("with_treatment", "with")):
             definition = by_field.get(f"ws_discharge_{source_key}_{treatment}")
             if definition:
-                await upsert_mapping(definition, "p6_water_stress_areas", f"rows.discharge_{row_key}_{suffix}", "P6-L1", now)
+                await upsert_mapping(definition, "p6_water_stress_areas", f"rows.discharge_{row_key}_{suffix}", "P6-L1", now, destination_unit="kl")
                 mapped.append(definition)
     total = by_field.get("quantity_discharged_to_water_stress_area")
     if total:
-        await upsert_mapping(total, "p6_water_stress_areas", "rows.total_discharged", "P6-L1", now)
+        await upsert_mapping(total, "p6_water_stress_areas", "rows.total_discharged", "P6-L1", now, destination_unit="kl")
         mapped.append(total)
     for definition in definitions:
         field = definition.get("value_field") or ""

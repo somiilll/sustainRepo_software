@@ -307,6 +307,24 @@ class BRSRLiveKPIAutofillService:
                         question_result["locked_paths"].append(path)
                         _set_nested(question_result["value"], path, None)
                 continue
+            dynamic_row = mapping.get("dynamic_row") or {}
+            if dynamic_row.get("key") and dynamic_row.get("label"):
+                current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
+                previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
+                row_key = dynamic_row["key"]
+                if not any(row["key"] == row_key for row in question_result["dynamic_rows"]):
+                    question_result["dynamic_rows"].append({"key": row_key, "label": dynamic_row["label"]})
+                for column, result in (("current_fy", current), ("previous_fy", previous)):
+                    path = f"{row_key}.{column}"
+                    question_result["locked_paths"].append(path)
+                    _set_nested(question_result["value"], path, result["value"] if result else None)
+                question_result["sources"].append({
+                    "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"),
+                    "answer_path": row_key,
+                    "current_source_count": (current or {}).get("source_count", 0),
+                    "previous_source_count": (previous or {}).get("source_count", 0),
+                })
+                continue
             current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
             previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
             current_path, previous_path = _period_answer_paths(mapping, base_path)
