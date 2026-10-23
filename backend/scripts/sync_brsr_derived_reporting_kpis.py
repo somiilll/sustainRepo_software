@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.database.mongo import db
+from modules.brsr_report.section_a_workforce import SECTION_A_WORKFORCE_CELL_MAPPINGS
 
 
 BACKUP_DIR = Path("/app/backups")
@@ -366,40 +367,21 @@ async def sync_additional_requested_kpis(now: str) -> List[Dict[str, Any]]:
         if definition:
             await remove_all_brsr_references(definition, now)
 
-    config_paths = {
-        "brsr_a_employees_workers": [
-            "employees.total.total", "employees.total.male", "employees.total.female",
-            "workers.total.total", "workers.total.male", "workers.total.female",
-        ],
-        "brsr_a_differently_abled": [
-            "employees.total.total", "employees.total.male", "employees.total.female",
-            "workers.total.total", "workers.total.male", "workers.total.female",
-        ],
-    }
+    config_paths = {}
+    for mapping in SECTION_A_WORKFORCE_CELL_MAPPINGS:
+        config_paths.setdefault(mapping["question_key"], []).append(mapping["answer_path"])
     for question_key, paths in config_paths.items():
         await db.esg_question_configs.update_one(
             {"question_key": question_key}, {"$addToSet": {"answer_paths": {"$each": paths}}, "$set": {"updated_at": now}}
         )
 
-    diversity_mappings = {
-        "Employee Diversity - Permanent employees": ("brsr_a_employees_workers", "employees.permanent.total", "A-20a (D)"),
-        "Employee Diversity - Total Employees": ("brsr_a_employees_workers", "employees.total.total", "A-20a (D+E)"),
-        "Employee Diversity - Total Employees (Female)": ("brsr_a_employees_workers", "employees.total.female", "A-20a (D+E)"),
-        "Employee Diversity - Total Employees (Male)": ("brsr_a_employees_workers", "employees.total.male", "A-20a (D+E)"),
-        "Employee Diversity - Differently-abled employees": ("brsr_a_differently_abled", "employees.total.total", "A-20b (D+E)"),
-        "Employee Diversity - Differently-abled employees (Female)": ("brsr_a_differently_abled", "employees.total.female", "A-20b (D+E)"),
-        "Employee Diversity - Differently-abled employees (Male)": ("brsr_a_differently_abled", "employees.total.male", "A-20b (D+E)"),
-        "Workers Diversity - Total Workers": ("brsr_a_employees_workers", "workers.total.total", "A-20a (F+G)"),
-        "Workers Diversity - Total Workers (Female)": ("brsr_a_employees_workers", "workers.total.female", "A-20a (F+G)"),
-        "Workers Diversity - Total Workers (Male)": ("brsr_a_employees_workers", "workers.total.male", "A-20a (F+G)"),
-        "Workers Diversity - Differently-abled workers": ("brsr_a_differently_abled", "workers.total.total", "A-20b (F+G)"),
-        "Workers Diversity - Differently-abled workers (Female)": ("brsr_a_differently_abled", "workers.total.female", "A-20b (F+G)"),
-        "Workers Diversity - Differently-abled workers (Male)": ("brsr_a_differently_abled", "workers.total.male", "A-20b (F+G)"),
-    }
-    for name, (question_key, path, reference) in diversity_mappings.items():
-        definition = await db.esg_kpi_definitions.find_one({"metric_name": name}, {"_id": 0})
+    for mapping in SECTION_A_WORKFORCE_CELL_MAPPINGS:
+        definition = await db.esg_kpi_definitions.find_one({"metric_name": mapping["metric_name"]}, {"_id": 0})
         if definition:
-            await upsert_mapping(definition, question_key, path, reference, now, "response_period_document")
+            await upsert_mapping(
+                definition, mapping["question_key"], mapping["answer_path"], mapping["reference"], now,
+                "response_period_document",
+            )
             mapped.append(definition)
 
     turnover_mappings = {
