@@ -33,6 +33,7 @@ from modules.base_year.sync_service import (
     sync_changed_emission_base_years,
     sync_deleted_emission_base_years,
 )
+from modules.esg_records.ghg_energy_sync import get_ghg_energy_sync_service
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import (
     assert_supplier_emission_capability,
@@ -82,6 +83,24 @@ C7_INCOMPATIBLE_RECORD_FIELDS = (
     "ch4_emissions",
     "n2o_emissions",
 )
+
+
+async def _sync_derived_energy(record: dict, action: str) -> None:
+    """Synchronize locked Energy rows after any Scope 1/2 canonical GHG write."""
+    if (record.get("scope") or "").lower() not in {"scope1", "scope2"}:
+        return
+    org_id = record.get("organization_id")
+    if not org_id:
+        return
+    try:
+        result = await get_ghg_energy_sync_service(db).sync_organization(org_id)
+        log_event(logger, logging.INFO, "ghg.energy.sync", action=action, outcome="succeeded",
+                  context={"organization_id": org_id, "changes": result})
+    except Exception:
+        # The GHG write remains authoritative. Energy list reads reconcile any
+        # missed derived write on the next Energy request.
+        log_event(logger, logging.WARNING, "ghg.energy.sync", action=action, outcome="degraded",
+                  error_code="GHG_ENERGY_SYNC_FAILED", context={"organization_id": org_id}, exc_info=True)
 SCOPE3_SELECTION_FIELDS = (
     "calculation_method_scope3",
     "spend_currency_conversion_method",
@@ -1304,6 +1323,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     await db.emission_records.insert_one(record_dict)
     log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="succeeded",
               context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})
+    await _sync_derived_energy(record_dict, "ghg.emission.create")
     
     # Phase B11: emit emission.saved (best-effort; never break write path).
     try:
@@ -1711,6 +1731,7 @@ async def update_emission_record(
         })
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+    await _sync_derived_energy(updated, "ghg.emission.update")
 
     try:
         sync_results = await sync_changed_emission_base_years(existing, updated, current_user)
@@ -2109,6 +2130,8 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     result = await db[target_collection].delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    if target_collection == APPROVED_COLLECTION:
+        await _sync_derived_energy(existing, "ghg.emission.delete")
 
     if target_collection == APPROVED_COLLECTION:
         try:

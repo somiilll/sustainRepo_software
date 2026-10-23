@@ -20,6 +20,7 @@ from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
 from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
+from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
@@ -612,6 +613,10 @@ async def list_records(
             raise HTTPException(status_code=422, detail=f"{label} must use YYYY-MM format")
     if period_start and period_end and period_start > period_end:
         raise HTTPException(status_code=422, detail="Start Period cannot be after End Period")
+    if section == "environment" and (category or "").lower() == "energy":
+        # Safe read-time reconciliation covers approved GHG writes that were
+        # created through non-interactive sources such as imports.
+        await get_ghg_energy_sync_service(db).sync_organization(org_id)
     
     filters = RecordListFilters(
         category=category,
@@ -655,6 +660,9 @@ async def list_records(
             category=category,
             facility_id=facility_id
         )
+        # GHG-derived Energy is now persisted using manual Energy field keys.
+        # Keep virtual GHG emissions, but never duplicate Energy rows.
+        imported_records = [record for record in imported_records if record.get("category") != "Energy"]
 
         if status and imported_records:
             def matches_status(record: dict) -> bool:

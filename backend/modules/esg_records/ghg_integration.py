@@ -813,6 +813,7 @@ class GHGIntegrationService:
                     "total_energy": round(data["total_energy"], 6),
                     "energy_unit": "TJ",
                     "source_records_count": len(data["records"]),
+                    "source_record_ids": [record.get("id") for record in data["records"] if record.get("id")],
                     "fuels_included": list(data.get("fuels_used", []))
                 }
                 notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV){equity_note}"
@@ -821,7 +822,8 @@ class GHGIntegrationService:
                 field_values = {
                     "total_energy": round(data["total_energy"], 2),
                     "energy_unit": "MWh",
-                    "source_records_count": len(data["records"])
+                    "source_records_count": len(data["records"]),
+                    "source_record_ids": [record.get("id") for record in data["records"] if record.get("id")],
                 }
                 notes = f"Aggregated from {len(data['records'])} Scope 2 Purchased Steam/Heat records{equity_note}"
             else:
@@ -829,7 +831,8 @@ class GHGIntegrationService:
                 field_values = {
                     "total_energy": round(data["total_energy"], 2),
                     "energy_unit": "MWh",
-                    "source_records_count": len(data["records"])
+                    "source_records_count": len(data["records"]),
+                    "source_record_ids": [record.get("id") for record in data["records"] if record.get("id")],
                 }
                 notes = f"Aggregated from {len(data['records'])} Scope 2 {sub_subcategory.lower()} electricity records{equity_note}"
             
