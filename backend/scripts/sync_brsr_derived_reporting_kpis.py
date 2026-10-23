@@ -243,6 +243,7 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
                         "key": f"{row_key}_{treatment}",
                         "label": f"To {destination_labels[source_key]} — With treatment: {treatment_label}",
                         "indent": True,
+                        "parent_key": f"{row_key}_with_treatment",
                     }, "updated_at": now}},
                 )
                 await db.esg_question_configs.update_one(

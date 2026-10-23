@@ -319,6 +319,7 @@ class BRSRLiveKPIAutofillService:
                         "key": row_key,
                         "label": dynamic_row["label"],
                         "indent": bool(dynamic_row.get("indent")),
+                        "parent_key": dynamic_row.get("parent_key"),
                     })
                 for column, result in (("current_fy", current), ("previous_fy", previous)):
                     path = f"{row_key}.{column}"

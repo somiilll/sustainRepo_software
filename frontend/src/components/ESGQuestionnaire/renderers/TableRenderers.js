@@ -224,9 +224,17 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
   const data = normalizedValue || {};
   const fyLabels = getFYLabels(allResponses);
   const locked = new Set(lockedPaths);
-  const displayRows = dynamicRows.length > 0
-    ? [...fixedRows.filter(row => row.key !== 'others'), ...dynamicRows]
-    : fixedRows;
+  const displayRows = (() => {
+    if (dynamicRows.length === 0) return fixedRows;
+    const childRows = dynamicRows.filter((row) => row.parent_key);
+    const standaloneRows = dynamicRows.filter((row) => !row.parent_key);
+    const baseRows = fixedRows.filter((row) => !(row.key === 'others' && standaloneRows.length > 0));
+    const positionedRows = baseRows.flatMap((row) => [
+      row,
+      ...childRows.filter((child) => child.parent_key === row.key),
+    ]);
+    return [...positionedRows, ...standaloneRows];
+  })();
 
   const getColumnLabel = (col) => {
     if (col.key === 'current_fy' || col.label?.toLowerCase().includes('current')) return fyLabels.current;
