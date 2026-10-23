@@ -172,6 +172,63 @@ def _align_period_units(current: Optional[Dict[str, Any]], previous: Optional[Di
     return aligned_current, aligned_previous, default_unit
 
 
+_WOMEN_REPRESENTATION_ROWS = (
+    ("board_of_directors", "Board of Directors"),
+    ("key_management_personnel", "Key Management Personnel"),
+)
+
+
+def _number_or_zero(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _canonical_women_representation(
+    existing_value: Any, live_value: Any
+) -> List[Dict[str, Any]]:
+    """Keep Section A's historic row-array response contract while applying KPI values."""
+    existing_rows = existing_value if isinstance(existing_value, list) else []
+    if isinstance(existing_value, dict):
+        nested_rows = existing_value.get("rows", existing_value)
+        if isinstance(nested_rows, list):
+            existing_rows = nested_rows
+        elif isinstance(nested_rows, dict):
+            existing_rows = [
+                {"key": row_key, **row_value}
+                for row_key, row_value in nested_rows.items()
+                if isinstance(row_value, dict)
+            ]
+    rows_by_key = {
+        str(row.get("key") or ""): dict(row)
+        for row in existing_rows
+        if isinstance(row, dict) and row.get("key")
+    }
+    live_rows = live_value.get("rows", live_value) if isinstance(live_value, dict) else {}
+
+    normalized_rows: List[Dict[str, Any]] = []
+    for row_key, category in _WOMEN_REPRESENTATION_ROWS:
+        row = {
+            "key": row_key,
+            "category": category,
+            **rows_by_key.pop(row_key, {}),
+        }
+        mapped_values = live_rows.get(row_key, {}) if isinstance(live_rows, dict) else {}
+        if isinstance(mapped_values, dict):
+            for field in ("total", "number_of_females"):
+                if field in mapped_values:
+                    row[field] = mapped_values[field]
+        total = _number_or_zero(row.get("total"))
+        female = _number_or_zero(row.get("number_of_females"))
+        row["percentage"] = round((female / total) * 100, 2) if total else 0
+        normalized_rows.append(row)
+
+    # Preserve any legacy rows rather than deleting historical response content.
+    normalized_rows.extend(rows_by_key.values())
+    return normalized_rows
+
+
 class BRSRLiveKPIAutofillService:
     async def sync(self, org_id: str, reporting_period: str) -> Dict[str, Any]:
         mappings = await db.kpi_framework_mappings.find({
@@ -276,7 +333,7 @@ class BRSRLiveKPIAutofillService:
             ) or {}
             existing_response = await db.organization_esg_responses.find_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
-                {"_id": 0, "kpi_autofill_dynamic_rows": 1},
+                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "value": 1},
             ) or {}
             current_dynamic_keys = {row["key"] for row in result.get("dynamic_rows") or []}
             previous_dynamic_keys = set(existing_response.get("kpi_autofill_dynamic_rows") or [])
@@ -293,18 +350,26 @@ class BRSRLiveKPIAutofillService:
                 unset_fields[f"value.{stale_key}"] = ""
             if result.get("has_dynamic_mapping"):
                 unset_fields["value.others"] = ""
-            for path in result["locked_paths"]:
-                if path == "$":
-                    set_fields["value"] = result["value"]
-                    continue
-                current: Any = result["value"]
-                for part in path.split("."):
-                    current = current.get(part) if isinstance(current, dict) else None
-                db_path = f"value.{path}"
-                if current is None:
-                    unset_fields[db_path] = ""
-                else:
-                    set_fields[db_path] = current
+            if question_key == "brsr_a_women_representation":
+                # Section A renders this response as a fixed row array, unlike the
+                # generic nested-object tables used by Sections B and C.
+                result["value"] = _canonical_women_representation(
+                    existing_response.get("value"), result["value"]
+                )
+                set_fields["value"] = result["value"]
+            else:
+                for path in result["locked_paths"]:
+                    if path == "$":
+                        set_fields["value"] = result["value"]
+                        continue
+                    current: Any = result["value"]
+                    for part in path.split("."):
+                        current = current.get(part) if isinstance(current, dict) else None
+                    db_path = f"value.{path}"
+                    if current is None:
+                        unset_fields[db_path] = ""
+                    else:
+                        set_fields[db_path] = current
 
             update: Dict[str, Any] = {
                 "$set": set_fields,

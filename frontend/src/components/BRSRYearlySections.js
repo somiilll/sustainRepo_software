@@ -136,7 +136,8 @@ const DEFAULT_MATERIAL_ISSUE_ROW = {
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
 
 const normalizeWomenRows = (rows = []) => FIXED_WOMEN_ROWS.map((fixed) => {
-  const existing = rows.find((row) => row?.key === fixed.key || row?.category === fixed.category) || {};
+  const rowList = Array.isArray(rows) ? rows : [];
+  const existing = rowList.find((row) => row?.key === fixed.key || row?.category === fixed.category) || {};
   return {
     key: fixed.key,
     category: fixed.category,
@@ -145,10 +146,51 @@ const normalizeWomenRows = (rows = []) => FIXED_WOMEN_ROWS.map((fixed) => {
   };
 });
 
+const getNestedValue = (value, path) => path.split('.').reduce(
+  (current, part) => (current && typeof current === 'object' ? current[part] : undefined), value
+);
+
+const mergeNestedValues = (baseValue, liveValue) => {
+  if (liveValue === undefined) return baseValue;
+  if (!liveValue || typeof liveValue !== 'object' || Array.isArray(liveValue)) return liveValue;
+  const base = baseValue && typeof baseValue === 'object' && !Array.isArray(baseValue) ? baseValue : {};
+  return Object.entries(liveValue).reduce((merged, [key, value]) => ({
+    ...merged,
+    [key]: value && typeof value === 'object' && !Array.isArray(value)
+      ? mergeNestedValues(merged[key], value)
+      : value,
+  }), { ...base });
+};
+
+const mergeWomenRepresentation = (savedRows, liveValue) => {
+  const savedRowList = Array.isArray(savedRows) ? savedRows
+    : Object.entries(savedRows?.rows || savedRows || {}).map(([key, row]) => ({ key, ...(row || {}) }));
+  const liveRows = Array.isArray(liveValue) ? liveValue.reduce((rows, row) => ({ ...rows, [row?.key]: row }), {})
+    : (liveValue?.rows || liveValue || {});
+  return normalizeWomenRows(savedRowList).map((row) => {
+    const liveRow = liveRows[row.key];
+    const merged = liveRow && typeof liveRow === 'object' ? { ...row, ...liveRow } : row;
+    const total = Number(merged.total) || 0;
+    const numberOfFemales = Number(merged.number_of_females) || 0;
+    return { ...merged, total, number_of_females: numberOfFemales };
+  });
+};
+
+const WORKFORCE_FIELD_PATHS = {
+  permanent_male_employees: 'employees.permanent.male',
+  permanent_female_employees: 'employees.permanent.female',
+  other_than_permanent_male_employees: 'employees.other_than_permanent.male',
+  other_than_permanent_female_employees: 'employees.other_than_permanent.female',
+  permanent_male_workers: 'workers.permanent.male',
+  permanent_female_workers: 'workers.permanent.female',
+  other_than_permanent_male_workers: 'workers.other_than_permanent.male',
+  other_than_permanent_female_workers: 'workers.other_than_permanent.female',
+};
+
 const compositionPercentage = (part, total) => total > 0 ? `${((part / total) * 100).toFixed(2)}%` : '0.00%';
 
-const WorkforceCompositionTable = ({ title, groups, details, setDetails, editable, testId }) => {
-  const renderNumber = (field, inputTestId) => editable ? (
+const WorkforceCompositionTable = ({ title, groups, details, setDetails, editable, lockedFields = new Set(), testId }) => {
+  const renderNumber = (field, inputTestId) => editable && !lockedFields.has(field) ? (
     <Input
       type="number"
       min="0"
@@ -157,7 +199,7 @@ const WorkforceCompositionTable = ({ title, groups, details, setDetails, editabl
       className="h-8 min-w-16 text-center text-xs"
       data-testid={inputTestId}
     />
-  ) : <span className="tabular-nums">{details[field] || 0}</span>;
+  ) : <span className="tabular-nums" data-testid={lockedFields.has(field) ? `${inputTestId}-kpi-autofill` : undefined}>{details[field] || 0}</span>;
 
   return (
     <div className="space-y-2" data-testid={testId}>
@@ -259,7 +301,7 @@ const DIFFERENTLY_ABLED_GROUPS = [
   },
 ];
 
-export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false }) {
+export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {} }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -314,6 +356,41 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   // Material Issues
   const [materialIssues, setMaterialIssues] = useState([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
 
+  const liveQuestionValue = (questionKey) => liveKPIAutofillByQuestion[questionKey]?.value;
+  const lockedPathsFor = (questionKey) => new Set(
+    (liveKPIAutofillByQuestion[questionKey]?.locked_paths || []).map((path) => path.replace(/^rows\./, ''))
+  );
+  const workforceLockedFields = (questionKey) => new Set(
+    Object.entries(WORKFORCE_FIELD_PATHS)
+      .filter(([, path]) => lockedPathsFor(questionKey).has(path))
+      .map(([field]) => field)
+  );
+  const employeeLockedFields = workforceLockedFields('brsr_a_employees_workers');
+  const differentlyAbledLockedFields = workforceLockedFields('brsr_a_differently_abled');
+  const womenLockedPaths = lockedPathsFor('brsr_a_women_representation');
+
+  useEffect(() => {
+    const applyWorkforceAutofill = (previous) => {
+      const next = { ...previous };
+      [
+        ['brsr_a_employees_workers', employeeLockedFields],
+        ['brsr_a_differently_abled', differentlyAbledLockedFields],
+      ].forEach(([questionKey, lockedFields]) => {
+        const liveValue = liveQuestionValue(questionKey);
+        lockedFields.forEach((field) => {
+          const value = getNestedValue(liveValue, WORKFORCE_FIELD_PATHS[field]);
+          if (value !== undefined) next[field] = Number(value) || 0;
+        });
+      });
+      return next;
+    };
+    setEmployeeDetails(applyWorkforceAutofill);
+    setWomenRepresentation((previous) => mergeWomenRepresentation(
+      previous,
+      liveQuestionValue('brsr_a_women_representation')
+    ));
+  }, [liveKPIAutofillByQuestion]);
+
   useEffect(() => {
     fetchYearlyData();
   }, [reportingYear]);
@@ -321,8 +398,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   // Map ESG responses to yearly section form data
   const mapResponsesToFormData = (responses) => {
     // Employee/worker details
-    if (responses.brsr_a_employees_workers) {
-      const ew = responses.brsr_a_employees_workers;
+    const employeeWorkerValues = mergeNestedValues(
+      responses.brsr_a_employees_workers,
+      liveQuestionValue('brsr_a_employees_workers')
+    );
+    if (employeeWorkerValues) {
+      const ew = employeeWorkerValues;
       setEmployeeDetails({
         permanent_male_employees: ew.employees?.permanent?.male || 0,
         permanent_female_employees: ew.employees?.permanent?.female || 0,
@@ -344,8 +425,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     }
     
     // Differently abled
-    if (responses.brsr_a_differently_abled) {
-      const da = responses.brsr_a_differently_abled;
+    const differentlyAbledValues = mergeNestedValues(
+      responses.brsr_a_differently_abled,
+      liveQuestionValue('brsr_a_differently_abled')
+    );
+    if (differentlyAbledValues) {
+      const da = differentlyAbledValues;
       setEmployeeDetails(prev => ({
         ...prev,
         diff_abled_permanent_male_employees: da.employees?.permanent?.male || 0,
@@ -360,11 +445,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     }
     
     // Women representation
-    if (responses.brsr_a_women_representation?.length > 0) {
-      setWomenRepresentation(normalizeWomenRows(responses.brsr_a_women_representation));
-    } else {
-      setWomenRepresentation(normalizeWomenRows());
-    }
+    setWomenRepresentation(mergeWomenRepresentation(
+      responses.brsr_a_women_representation,
+      liveQuestionValue('brsr_a_women_representation')
+    ));
     
     // CSR
     if (responses.brsr_a_csr_applicability) {
@@ -701,6 +785,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               details={employeeDetails}
               setDetails={setEmployeeDetails}
               editable={isEditing && canEditQuestion('brsr_a_employees_workers')}
+              lockedFields={employeeLockedFields}
               testId="brsr-employees-workers-table"
             />
           )}
@@ -711,6 +796,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               details={employeeDetails}
               setDetails={setEmployeeDetails}
               editable={isEditing && canEditQuestion('brsr_a_differently_abled')}
+              lockedFields={differentlyAbledLockedFields}
               testId="brsr-differently-abled-table"
             />
           )}
@@ -748,18 +834,18 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                 <TableRow key={row.key} data-testid={`brsr-women-row-${row.key}`}>
                   <TableCell className="text-xs font-medium">{row.category}</TableCell>
                   <TableCell>
-                    {isEditing && canEditQuestion('brsr_a_women_representation') ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.total`) ? (
                       <Input type="number" min="0" value={row.total} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-total`} />
-                    ) : <div className="text-center text-xs tabular-nums">{row.total}</div>}
+                    ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.total`) ? `brsr-women-${row.key}-total-kpi-autofill` : undefined}>{row.total}</div>}
                   </TableCell>
                   <TableCell>
-                    {isEditing && canEditQuestion('brsr_a_women_representation') ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.number_of_females`) ? (
                       <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-female`} />
-                    ) : <div className="text-center text-xs tabular-nums">{row.number_of_females}</div>}
+                    ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.number_of_females`) ? `brsr-women-${row.key}-female-kpi-autofill` : undefined}>{row.number_of_females}</div>}
                   </TableCell>
                   <TableCell className="text-center text-xs font-medium tabular-nums" data-testid={`brsr-women-${row.key}-percentage`}>
                     {compositionPercentage(row.number_of_females, row.total)}

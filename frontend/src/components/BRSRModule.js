@@ -149,6 +149,7 @@ export default function BRSRModule() {
             isEditing={isEditing}
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
+            liveKPIAutofillByQuestion={liveKPIAutofill}
           />
         </TabsContent>
 
