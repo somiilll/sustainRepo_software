@@ -2,6 +2,9 @@
 
 ## P0 — Immediate
 
+### Editable Workforce Total Policy
+- Make each workforce grid explicitly choose one total policy: **calculated and locked from detailed rows**, or **manually entered with strict component validation**. Remove any mixed behavior caused by hidden/stale total fields. Existing testing data does not constrain this work and may be normalized as part of the implementation.
+
 ### Supplier Questionnaire Section Applicability Scoring
 - Fix the new per-question ESG scorer so an absent section is not emitted as `0`. When a questionnaire has no Governance questions and Governance has no configured weight, return Governance as not applicable/blank in score breakdowns, supplier snapshots, rankings, and charts. Do not penalize the ESG total; normalize only scored, weighted sections. Preserve the existing legacy scorer behavior and audit the recalculation impact for affected submitted questionnaires.
 
