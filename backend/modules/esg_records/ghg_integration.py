@@ -577,6 +577,9 @@ class GHGIntegrationService:
             
             # Determine energy type and calculate
             if scope == "scope1":
+                combustion_category = (em.get("category") or "").strip().lower()
+                if combustion_category not in {"stationary combustion", "mobile combustion"}:
+                    return
                 energy_type = "fuel"
                 
                 # Get quantity from dynamic_field_values.qty

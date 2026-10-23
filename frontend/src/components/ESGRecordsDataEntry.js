@@ -179,6 +179,7 @@ export default function ESGRecordsDataEntry({
   const [editData, setEditData] = useState({});
   const [versions, setVersions] = useState([]);
   const [saving, setSaving] = useState({});
+  const recordsFetchSequence = useRef(0);
   
   // Add/Edit form state
   // Map filling_frequency to reporting_type
@@ -468,6 +469,7 @@ export default function ESGRecordsDataEntry({
   }, [records, sort]);
 
   const fetchRecords = async () => {
+    const requestSequence = ++recordsFetchSequence.current;
     setLoading(true);
     try {
       const params = {
@@ -495,6 +497,7 @@ export default function ESGRecordsDataEntry({
         params,
         headers
       });
+      if (requestSequence !== recordsFetchSequence.current) return;
       setRecords(res.data.records || []);
       setPagination(prev => ({
         ...prev,
@@ -502,9 +505,10 @@ export default function ESGRecordsDataEntry({
         total_pages: res.data.total_pages || 0
       }));
     } catch (error) {
+      if (requestSequence !== recordsFetchSequence.current) return;
       console.error('Failed to fetch records:', error);
     } finally {
-      setLoading(false);
+      if (requestSequence === recordsFetchSequence.current) setLoading(false);
     }
   };
 
@@ -1954,21 +1958,24 @@ export default function ESGRecordsDataEntry({
       <Dialog open={showEditModal} onOpenChange={(isOpen) => { if (!isOpen) discardEdit(); }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="edit-metric-dialog">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {isReadOnlyRecord ? <Lock className="w-5 h-5 text-emerald-600" /> : <Edit2 className="w-5 h-5 text-emerald-600" />}
-              {isReadOnlyRecord ? 'Energy Record Details' : 'Edit Metric'}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedRecord?.category}
-              {selectedRecord?.subcategory && ` → ${selectedRecord.subcategory}`}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {isReadOnlyRecord && (
-            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" data-testid="ghg-derived-energy-read-only-notice">
-              Synced from GHG Module. Update the GHG source record to change these Energy values.
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  {isReadOnlyRecord ? <Lock className="w-5 h-5 text-emerald-600" /> : <Edit2 className="w-5 h-5 text-emerald-600" />}
+                  {isReadOnlyRecord ? 'Energy Record Details' : 'Edit Metric'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedRecord?.category}
+                  {selectedRecord?.subcategory && ` → ${selectedRecord.subcategory}`}
+                </DialogDescription>
+              </div>
+              {isReadOnlyRecord && (
+                <span className="text-xs text-emerald-700 sm:text-right" data-testid="ghg-derived-energy-read-only-notice">
+                  Synced from GHG Module. Update the GHG source record to change these values.
+                </span>
+              )}
             </div>
-          )}
+          </DialogHeader>
           <div className={`space-y-4 py-4 ${isReadOnlyRecord ? 'pointer-events-none opacity-75' : ''}`} aria-readonly={isReadOnlyRecord}>
             {/* Pending Proposal Banner */}
             {editData._viewing_pending_proposal && (
@@ -1991,7 +1998,7 @@ export default function ESGRecordsDataEntry({
                 Reporting Period
               </p>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${editData.reporting_type === 'monthly' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 {/* Reporting Type */}
                 <div className="space-y-1">
                   <Label className="text-xs">Type</Label>
