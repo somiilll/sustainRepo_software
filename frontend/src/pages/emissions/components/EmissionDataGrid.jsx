@@ -135,11 +135,15 @@ const EvidenceIndicator = ({ emission, count }) => {
   const legacyUrls = typeof emission.evidence_url === 'string'
     ? emission.evidence_url.split(',').map((url) => url.trim()).filter(Boolean)
     : [];
-  const files = emission.evidence_files?.length
-    ? emission.evidence_files
-    : (emission.evidence_urls?.length
+  // Match the Edit form exactly: legacy `evidence_url` is the canonical
+  // authenticated source for log records, even when summary metadata exists.
+  const files = legacyUrls.length
+    ? legacyUrls.map((url, index) => ({ url, filename: emission.evidence_file_name || `Evidence ${index + 1}` }))
+    : (emission.evidence_files?.length
+      ? emission.evidence_files
+      : (emission.evidence_urls?.length
       ? emission.evidence_urls.map((url, index) => ({ url, filename: `Evidence ${index + 1}` }))
-      : legacyUrls.map((url, index) => ({ url, filename: emission.evidence_file_name || `Evidence ${index + 1}` })));
+      : []));
   const attachedCount = files.length || count;
   const [fileInfo, setFileInfo] = useState({});
   const loadFileInfo = async () => {
@@ -176,12 +180,11 @@ const EvidenceIndicator = ({ emission, count }) => {
           const previewable = isPreviewableFile(metadata);
           const filename = metadata.original_filename || metadata.filename || file.filename || `Evidence ${index + 1}`;
           const date = metadata.created_at ? format(new Date(metadata.created_at), 'dd MMM yyyy') : '';
-          const viewUrl = fileId ? '#' : (file.url || metadata.url || '#');
           return <div key={file.url || index} className="flex items-center gap-3 px-4 py-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-50"><FileText className="h-5 w-5 text-emerald-700" /></div>
             <div className="min-w-0 flex-1"><p className="max-w-[135px] truncate font-medium" title={filename}>{filename}</p>{(metadata.size || metadata.file_size || date) && <p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ')}</p>}</div>
             <div className="flex shrink-0 items-center gap-1">
-              {previewable && <a href={viewUrl} target="_blank" rel="noopener noreferrer" onClick={fileId ? (event) => { event.preventDefault(); event.stopPropagation(); void openSecureFile(fileId); } : undefined} className="inline-flex items-center gap-1 rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3 w-3" />View</a>}
+              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="inline-flex items-center gap-1 rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3 w-3" />View</button>}
               {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="inline-flex items-center gap-1 rounded border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3 w-3" />Download</button>}
             </div>
           </div>;
