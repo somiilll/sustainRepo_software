@@ -96,7 +96,7 @@ async def _mapping_value(
         if value is None or not records:
             continue
         values.append(float(value))
-        source_count += len(records)
+        source_count += sum(int(record.get("_source_count", 1)) for record in records)
         unit = unit or (kpi.get("unit_config") or {}).get("default_unit")
 
     if not values:
@@ -316,7 +316,7 @@ class BRSRLiveKPIAutofillService:
                     _set_nested(question_result["value"], previous_path, previous["value"] if previous else None)
                 unit = (current or previous or {}).get("unit")
                 unit_path = f"{base_path}.unit"
-                if mapping.get("question_key") == "p6_air_emissions" and unit and unit_path not in {current_path, previous_path}:
+                if (mapping.get("include_unit") or mapping.get("question_key") == "p6_air_emissions") and unit and unit_path not in {current_path, previous_path}:
                     question_result["locked_paths"].append(unit_path)
                     _set_nested(question_result["value"], unit_path, unit)
             question_result["sources"].append({

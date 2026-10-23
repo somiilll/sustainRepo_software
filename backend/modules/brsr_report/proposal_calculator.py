@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from modules.kpi_engine.aggregators import Aggregator
 from modules.kpi_engine.filters import FilterBuilder
+from modules.kpi_engine.ghg_adapter import calculate_ghg_kpi
 from modules.kpi_engine.utils import get_collection_for_section, parse_numeric_value
 from shared.database.mongo import db
 
@@ -54,6 +55,17 @@ def build_reporting_period_filter(reporting_period: str) -> Dict[str, Any]:
         {"reporting_period.financial_year": reporting_period},
         {"reporting_period.calendar_year": reporting_period},
     ]}
+
+
+def _ghg_period(reporting_period: str) -> Optional[Dict[str, Any]]:
+    """Translate the shared BRSR FY/CY label to the GHG adapter period contract."""
+    financial_year = re.fullmatch(r"FY\s*(\d{4})-(\d{4})", reporting_period or "", re.I)
+    if financial_year:
+        return {"year": int(financial_year.group(1)), "reporting_year_type": "FY"}
+    calendar_year = re.fullmatch(r"CY\s*(\d{4})", reporting_period or "", re.I)
+    if calendar_year:
+        return {"year": int(calendar_year.group(1)), "reporting_year_type": "CY"}
+    return None
 
 
 class SafeFormulaEvaluator(ast.NodeVisitor):
@@ -202,6 +214,20 @@ async def calculate_kpi_contribution(
         return None, []
     if kpi_id:
         visited.add(kpi_id)
+
+    if kpi.get("baseline_mapping_key"):
+        result = await calculate_ghg_kpi(
+            kpi=kpi,
+            org_id=org_id,
+            period=_ghg_period(reporting_period),
+        )
+        value = result.get("value")
+        record_count = int(result.get("record_count") or 0)
+        source_records = [{
+            "id": f"ghg:{kpi.get('baseline_mapping_key')}",
+            "_source_count": record_count,
+        }] if value is not None else []
+        return value, source_records
 
     source_type = kpi.get("source_type")
     if source_type == "constant":
