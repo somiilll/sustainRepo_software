@@ -28,18 +28,32 @@ async def _load_definitions() -> Dict[str, Dict]:
     return by_name
 
 
-async def _retire_non_displayable_total_mappings(now: str) -> int:
-    """Keep historic mappings but stop totals overwriting cells calculated by the UI/report."""
-    result = await db.kpi_framework_mappings.update_many(
+async def _retire_noncanonical_mappings(now: str) -> int:
+    """Retire every old Section A mapping that is not a canonical cell destination."""
+    definitions = await _load_definitions()
+    valid_destinations = {
+        (definitions[mapping["metric_name"]]["id"], mapping["question_key"], mapping["answer_path"])
+        for mapping in SECTION_A_WORKFORCE_CELL_MAPPINGS
+    }
+    existing_mappings = await db.kpi_framework_mappings.find(
         {
             "framework": "BRSR",
             "question_key": {"$in": ["brsr_a_employees_workers", "brsr_a_differently_abled"]},
-            "answer_path": {"$regex": r"\.(total)$"},
             "is_active": {"$ne": False},
         },
+        {"_id": 0, "id": 1, "kpi_id": 1, "source_kpi_ids": 1, "question_key": 1, "answer_path": 1},
+    ).to_list(200)
+    stale_ids = [
+        mapping["id"] for mapping in existing_mappings
+        if (mapping.get("kpi_id"), mapping.get("question_key"), mapping.get("answer_path")) not in valid_destinations
+    ]
+    if not stale_ids:
+        return 0
+    result = await db.kpi_framework_mappings.update_many(
+        {"id": {"$in": stale_ids}},
         {"$set": {
             "is_active": False,
-            "mapping_status": "superseded_by_displayable_section_a_cell",
+            "mapping_status": "superseded_by_canonical_section_a_cell_mapping",
             "mapping_role": "supporting_source",
             "updated_at": now,
         }},
@@ -65,8 +79,8 @@ async def run() -> Dict[str, int]:
             {"$addToSet": {"answer_paths": {"$each": answer_paths}}, "$set": {"updated_at": now}},
         )
 
-    retired = await _retire_non_displayable_total_mappings(now)
-    return {"direct_cell_mappings": len(SECTION_A_WORKFORCE_CELL_MAPPINGS), "retired_total_mappings": retired}
+    retired = await _retire_noncanonical_mappings(now)
+    return {"direct_cell_mappings": len(SECTION_A_WORKFORCE_CELL_MAPPINGS), "retired_stale_mappings": retired}
 
 
 if __name__ == "__main__":

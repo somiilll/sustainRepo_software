@@ -176,7 +176,7 @@ const mergeWomenRepresentation = (savedRows, liveValue) => {
   });
 };
 
-const WORKFORCE_FIELD_PATHS = {
+const EMPLOYEE_WORKFORCE_FIELD_PATHS = {
   permanent_male_employees: 'employees.permanent.male',
   permanent_female_employees: 'employees.permanent.female',
   other_than_permanent_male_employees: 'employees.other_than_permanent.male',
@@ -185,6 +185,22 @@ const WORKFORCE_FIELD_PATHS = {
   permanent_female_workers: 'workers.permanent.female',
   other_than_permanent_male_workers: 'workers.other_than_permanent.male',
   other_than_permanent_female_workers: 'workers.other_than_permanent.female',
+};
+
+const DIFFERENTLY_ABLED_FIELD_PATHS = {
+  diff_abled_permanent_male_employees: 'employees.permanent.male',
+  diff_abled_permanent_female_employees: 'employees.permanent.female',
+  diff_abled_other_permanent_male_employees: 'employees.other_than_permanent.male',
+  diff_abled_other_permanent_female_employees: 'employees.other_than_permanent.female',
+  diff_abled_permanent_male_workers: 'workers.permanent.male',
+  diff_abled_permanent_female_workers: 'workers.permanent.female',
+  diff_abled_other_permanent_male_workers: 'workers.other_than_permanent.male',
+  diff_abled_other_permanent_female_workers: 'workers.other_than_permanent.female',
+};
+
+const WORKFORCE_FIELD_PATHS_BY_QUESTION = {
+  brsr_a_employees_workers: EMPLOYEE_WORKFORCE_FIELD_PATHS,
+  brsr_a_differently_abled: DIFFERENTLY_ABLED_FIELD_PATHS,
 };
 
 const compositionPercentage = (part, total) => total > 0 ? `${((part / total) * 100).toFixed(2)}%` : '0.00%';
@@ -361,7 +377,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     (liveKPIAutofillByQuestion[questionKey]?.locked_paths || []).map((path) => path.replace(/^rows\./, ''))
   );
   const workforceLockedFields = (questionKey) => new Set(
-    Object.entries(WORKFORCE_FIELD_PATHS)
+    Object.entries(WORKFORCE_FIELD_PATHS_BY_QUESTION[questionKey] || {})
       .filter(([, path]) => lockedPathsFor(questionKey).has(path))
       .map(([field]) => field)
   );
@@ -377,8 +393,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         ['brsr_a_differently_abled', differentlyAbledLockedFields],
       ].forEach(([questionKey, lockedFields]) => {
         const liveValue = liveQuestionValue(questionKey);
+        const fieldPaths = WORKFORCE_FIELD_PATHS_BY_QUESTION[questionKey] || {};
         lockedFields.forEach((field) => {
-          const value = getNestedValue(liveValue, WORKFORCE_FIELD_PATHS[field]);
+          const value = getNestedValue(liveValue, fieldPaths[field]);
           if (value !== undefined) next[field] = Number(value) || 0;
         });
       });
