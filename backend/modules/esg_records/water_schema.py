@@ -279,7 +279,7 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         total = normalised_sum(entered, parent)
         if total is None:
             continue
-        if values[parent] is None:
+        if parent in rules.get("auto_sum_parents", []) or values[parent] is None:
             values[parent] = round(total, 6)
             out[parent] = values[parent]
             out[f"{parent}_unit"] = unit_of(parent)

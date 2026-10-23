@@ -226,7 +226,14 @@ def build_rules(sub: str) -> Dict[str, Any]:
             for group in r["eq"] or []:
                 if all(c in row_cols(spec, rows[p]) for p in group):
                     quality.append(([k(p, c) for p in group], k(r["row"], c)))
-    return {"root": grid_keys(sub), "sums": sums, "le": le, "quality": quality, "other": []}
+    # Diversity-grid totals are calculated in the entry UI. Mark the same
+    # backend fields as authoritative sums so old stored totals cannot conflict
+    # with newly entered detail values during persistence.
+    auto_sum_parents = [] if spec.get("editable_auto_totals") else [parent for parent, _children in sums]
+    return {
+        "root": grid_keys(sub), "sums": sums, "le": le, "quality": quality, "other": [],
+        "auto_sum_parents": auto_sum_parents,
+    }
 
 
 GRID_RULES = {sub.lower(): build_rules(sub) for sub in SPECS}
