@@ -222,7 +222,7 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
     ).to_list(200)
     by_field = {definition.get("value_field"): definition for definition in definitions}
     destination_keys = {"surface": "surface", "ground": "ground", "seawater": "sea",
-                        "third_party": "thirdparty", "other": "other"}
+                        "third_party": "third_party", "other": "other"}
     destination_labels = {"surface": "Surface water", "ground": "Groundwater", "seawater": "Seawater / desalinated water",
                           "third_party": "third parties", "other": "Other destinations"}
     mapped = []
@@ -255,6 +255,19 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
     if total:
         await upsert_mapping(total, "p6_water_discharged", "rows.total_discharged", "P6-E4", now, destination_unit="kl")
         mapped.append(total)
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR",
+            "question_key": "p6_water_discharged",
+            "answer_path": {"$regex": r"^rows\.thirdparty_"},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {
+            "is_active": False,
+            "mapping_status": "superseded_by_canonical_third_party_key",
+            "updated_at": now,
+        }},
+    )
     for definition in definitions:
         field = definition.get("value_field") or ""
         if field.endswith("_total") and field != "discharge_total":
