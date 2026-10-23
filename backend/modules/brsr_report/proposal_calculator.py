@@ -206,7 +206,7 @@ async def _load_kpi_records(kpi: Dict[str, Any], org_id: str, reporting_period: 
 
 async def calculate_kpi_contribution(
     kpi: Dict[str, Any], org_id: str, reporting_period: str, mapping_rule: str,
-    visited_kpi_ids: Optional[set] = None,
+    visited_kpi_ids: Optional[set] = None, target_unit: Optional[str] = None,
 ) -> Tuple[Optional[float], List[Dict[str, Any]]]:
     visited = set(visited_kpi_ids or set())
     kpi_id = kpi.get("id")
@@ -248,7 +248,7 @@ async def calculate_kpi_contribution(
             if not source_kpi:
                 continue
             source_value, records = await calculate_kpi_contribution(
-                source_kpi, org_id, reporting_period, mapping_rule, visited
+                source_kpi, org_id, reporting_period, mapping_rule, visited, target_unit
             )
             if source_value is not None:
                 values.append(float(source_value))
@@ -281,15 +281,15 @@ async def calculate_kpi_contribution(
         period_aggregation = (kpi.get("metadata") or {}).get("period_aggregation") or "average"
         return _formula_value(records, formula, input_fields, per_entry, period_aggregation), records
 
-    target_unit = None
+    aggregation_target_unit = target_unit
     unit_config = kpi.get("unit_config") or {}
-    if unit_config.get("allow_unit_conversion"):
-        target_unit = unit_config.get("default_unit")
+    if not aggregation_target_unit and unit_config.get("allow_unit_conversion"):
+        aggregation_target_unit = unit_config.get("default_unit")
     result = Aggregator.aggregate(
         records,
         "avg" if aggregation_type in {"avg", "average"} else aggregation_type,
         kpi.get("value_field") or None,
-        target_unit,
+        aggregation_target_unit,
     )
     return result.get("value"), records
 

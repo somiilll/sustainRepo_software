@@ -93,16 +93,14 @@ async def _mapping_value(
         kpi = definitions_by_id.get(kpi_id)
         if not kpi:
             continue
-        value, records = await calculate_kpi_contribution(kpi, org_id, reporting_period, rule)
+        value, records = await calculate_kpi_contribution(
+            kpi, org_id, reporting_period, rule, target_unit=destination_unit
+        )
         if value is None or not records:
             continue
-        source_unit = (kpi.get("unit_config") or {}).get("default_unit")
-        converted_value = float(value)
-        if destination_unit and source_unit and can_convert(source_unit, destination_unit):
-            converted_value = convert(converted_value, source_unit, destination_unit)
-        values.append(converted_value)
+        values.append(float(value))
         source_count += sum(int(record.get("_source_count", 1)) for record in records)
-        unit = unit or source_unit
+        unit = unit or (kpi.get("unit_config") or {}).get("default_unit")
 
     if not values:
         return None
