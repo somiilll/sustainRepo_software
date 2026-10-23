@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
-import { downloadSecureFile, getUploadedFileId, isPreviewableFile, openSecureFile } from '../../../lib/secureFileAccess';
+import { downloadSecureFile, getSecureFileInfo, getUploadedFileId, isPreviewableFile, openSecureFile } from '../../../lib/secureFileAccess';
 
 /**
  * EmissionDataGrid
@@ -124,30 +124,65 @@ const OverrideBadge = ({ emissionId }) => (
   </TooltipProvider>
 );
 
+const formatFileSize = (bytes) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const EvidenceIndicator = ({ emission, count }) => {
   const files = emission.evidence_files?.length
     ? emission.evidence_files
     : (emission.evidence_urls?.length
       ? emission.evidence_urls.map((url, index) => ({ url, filename: `Evidence ${index + 1}` }))
       : (emission.evidence_url ? [{ url: emission.evidence_url, filename: emission.evidence_file_name || 'Evidence 1' }] : []));
+  const [fileInfo, setFileInfo] = useState({});
+  const loadFileInfo = async () => {
+    const pending = files.filter((file) => {
+      const fileId = getUploadedFileId(file);
+      return fileId && !fileInfo[fileId];
+    });
+    if (!pending.length) return;
+    const resolved = await Promise.all(pending.map(async (file) => {
+      const fileId = getUploadedFileId(file);
+      try {
+        return [fileId, await getSecureFileInfo(fileId)];
+      } catch {
+        return [fileId, null];
+      }
+    }));
+    setFileInfo((current) => ({ ...current, ...Object.fromEntries(resolved) }));
+  };
   return (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emission.id}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
+        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} onMouseEnter={loadFileInfo} onFocus={loadFileInfo} data-testid={`emission-evidence-indicator-${emission.id}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
       </TooltipTrigger>
-      <TooltipContent data-testid={`emission-evidence-tooltip-${emission.id}`}>
-        <p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p>
-        <div className="mt-2 flex flex-wrap gap-2">
+      <TooltipContent className="w-80 overflow-hidden rounded-md bg-white p-0 text-stone-900 shadow-xl" data-testid={`emission-evidence-tooltip-${emission.id}`}>
+        <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
+          <span className="font-semibold">Evidence</span>
+          <span className="text-sm text-stone-500">{count} file{count === 1 ? '' : 's'} attached</span>
+        </div>
+        <div className="divide-y divide-stone-100">
         {files.map((file, index) => {
           const fileId = getUploadedFileId(file);
-          const previewable = isPreviewableFile(file);
-          return <span key={file.url || index} className="inline-flex gap-1">
-            {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="inline-flex items-center gap-1 text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3.5 w-3.5" />View</button>}
-            {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="inline-flex items-center gap-1 text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3.5 w-3.5" />Download</button>}
-          </span>;
+          const metadata = fileInfo[fileId] || file;
+          const previewable = isPreviewableFile(metadata);
+          const filename = metadata.original_filename || metadata.filename || file.filename || `Evidence ${index + 1}`;
+          const date = metadata.created_at ? format(new Date(metadata.created_at), 'dd MMM yyyy') : '';
+          return <div key={file.url || index} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-50"><FileText className="h-5 w-5 text-emerald-700" /></div>
+            <div className="min-w-0 flex-1"><p className="truncate font-medium">{filename}</p><p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ') || 'File attached'}</p></div>
+            <div className="flex items-center gap-2">
+              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`} aria-label={`View ${filename}`}><Eye className="h-4 w-4" /></button>}
+              {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`} aria-label={`Download ${filename}`}><Download className="h-4 w-4" /></button>}
+            </div>
+          </div>;
         })}
         </div>
+        <div className="border-t border-stone-200 px-4 py-3 text-sm text-stone-500">Use View for images/PDFs or Download for Office files.</div>
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
