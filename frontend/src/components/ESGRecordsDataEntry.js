@@ -340,6 +340,16 @@ export default function ESGRecordsDataEntry({
     }
   }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, preFilterPeriodStart, mode]);
 
+  useEffect(() => {
+    if (mode !== 'list') return;
+    setFilters(prev => ({
+      ...prev,
+      category: preFilterCategory || 'all',
+      subcategory: preFilterSubcategory || '',
+    }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [mode, preFilterCategory, preFilterSubcategory]);
+
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {
     // Skip fetching category config for "Others" since it's a virtual category
@@ -462,8 +472,10 @@ export default function ESGRecordsDataEntry({
       const params = {
         page: pagination.page,
         limit: pagination.limit,
-        framework
       };
+      const isFrameworkNeutralEnergyList = section === 'environment'
+        && (filters.category === 'Energy' || preFilterCategory === 'Energy');
+      if (!isFrameworkNeutralEnergyList) params.framework = framework;
       
       // Handle "Others" as a virtual category that maps to multiple real categories
       if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
