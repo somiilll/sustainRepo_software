@@ -31,7 +31,7 @@ import {
 import FlightDetailsSection from './FlightDetailsSection';
 import { ColourfulEmissionSummary } from './ColourfulEmissionSummary';
 import { CustomFuelLiveCalculation } from './CustomFuelLiveCalculation';
-import { downloadSecureFile, getSecureFileUrl, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
+import { downloadSecureFile, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 import {
   Trash2,
   Calendar as CalendarIcon,
@@ -313,7 +313,6 @@ export default function EmissionEditForm(props) {
   const editEmployeeYearlyTotal = draft.employeeYearlyTotal;
   const dynamicFieldValues = draft.dynamicFieldValues;
   const existingEvidences = draft.existingEvidences;
-  const [hoveredEvidencePreview, setHoveredEvidencePreview] = useState(null);
   const [duplicateEvidencePrompt, setDuplicateEvidencePrompt] = useState(null);
   const confirmDuplicateEvidence = useCallback(async (file, evidences, context) => {
     let sha256Hash = null;
@@ -1703,20 +1702,9 @@ export default function EmissionEditForm(props) {
                         const fileId = fileIdMatch ? fileIdMatch[1] : null;
                         const viewUrl = fileId ? '#' : evidence.url;
                         const canPreview = isPreviewableFile(evidence);
-                        const isImage = /^image\//i.test(evidence.content_type || evidence.type || '')
-                          || /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(evidence.filename || '');
-                        const loadImagePreview = async () => {
-                          if (!isImage || !fileId) return;
-                          try {
-                            const url = await getSecureFileUrl(fileId, 'view');
-                            setHoveredEvidencePreview({ fileId, url });
-                          } catch (error) {
-                            console.error('Failed to load evidence preview', error);
-                          }
-                        };
                         
                         return (
-                          <div key={idx} className="relative flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200" onMouseEnter={loadImagePreview} onMouseLeave={() => setHoveredEvidencePreview(null)}>
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
                             <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
                             <span className="text-sm text-stone-700 truncate flex-1">
                               {evidence.filename || `Evidence ${idx + 1}`}
@@ -1749,7 +1737,7 @@ export default function EmissionEditForm(props) {
                                   Download
                                 </button>
                               )}
-                              {!readOnly && <Button
+                              <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
@@ -1759,11 +1747,7 @@ export default function EmissionEditForm(props) {
                               >
                                 <X className="w-4 h-4" />
                               </Button>
-                              }
                             </div>
-                            {isImage && hoveredEvidencePreview?.fileId === fileId && (
-                              <img src={hoveredEvidencePreview.url} alt={`Preview of ${evidence.filename || 'evidence'}`} className="absolute bottom-full right-0 z-20 mb-2 h-40 w-56 rounded-md border border-stone-200 bg-white object-contain p-1 shadow-lg" data-testid={`emission-evidence-image-preview-${idx}`} />
-                            )}
                           </div>
                         );
                       })}

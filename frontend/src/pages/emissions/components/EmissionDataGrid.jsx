@@ -1,12 +1,13 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Lock, MoreHorizontal } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Lock, MoreHorizontal, Eye, Download } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import { downloadSecureFile, getUploadedFileId, isPreviewableFile, openSecureFile } from '../../../lib/secureFileAccess';
 
 /**
  * EmissionDataGrid
@@ -123,16 +124,30 @@ const OverrideBadge = ({ emissionId }) => (
   </TooltipProvider>
 );
 
-const EvidenceIndicator = ({ emissionId, count }) => (
+const EvidenceIndicator = ({ emission }) => {
+  const files = emission.evidence_files?.length ? emission.evidence_files : (emission.evidence_url ? [{ url: emission.evidence_url, filename: emission.evidence_file_name }] : []);
+  return (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emissionId}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
+        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emission.id}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
       </TooltipTrigger>
-      <TooltipContent data-testid={`emission-evidence-tooltip-${emissionId}`}><p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p><p>View more in Edit.</p></TooltipContent>
+      <TooltipContent className="max-w-xs" data-testid={`emission-evidence-tooltip-${emission.id}`}>
+        {files.map((file, index) => {
+          const fileId = getUploadedFileId(file);
+          const previewable = isPreviewableFile(file);
+          return <div key={file.url || index} className="flex items-center gap-2 py-1">
+            <span className="min-w-0 flex-1 truncate">{file.filename || `Evidence ${index + 1}`}</span>
+            {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3.5 w-3.5" /></button>}
+            {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3.5 w-3.5" /></button>}
+          </div>;
+        })}
+      </TooltipContent>
     </Tooltip>
   </TooltipProvider>
-);
+  </TooltipProvider>
+  );
+};
 
 const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, locked, handleEdit, fetchHistory, openDeleteConfirm }) => (
   <DropdownMenu>
@@ -691,7 +706,7 @@ const EmissionDataGrid = forwardRef(({
                       {activityDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
@@ -734,7 +749,7 @@ const EmissionDataGrid = forwardRef(({
                       {subcategoryDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
@@ -783,7 +798,7 @@ const EmissionDataGrid = forwardRef(({
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
