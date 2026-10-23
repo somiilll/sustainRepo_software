@@ -634,6 +634,7 @@ class GHGIntegrationService:
                         "total_energy": 0,
                         "total_quantity": 0,
                         "fuels_used": set(),
+                        "fuel_rows": {},
                         "sub_subcategory": "Non-Renewable",
                         "period_info": period_info,
                         "equity_share": equity_factor * 100
@@ -644,6 +645,8 @@ class GHGIntegrationService:
                 grouped[key]["total_quantity"] += quantity
                 if fuel_name:
                     grouped[key]["fuels_used"].add(fuel_name.title())
+                fuel_label = fuel_name.title() if fuel_name else "Other"
+                grouped[key]["fuel_rows"][fuel_label] = grouped[key]["fuel_rows"].get(fuel_label, 0) + energy_tj_proportioned
             
             elif scope == "scope2":
                 category_name = (em.get("category") or "").lower()
@@ -672,7 +675,7 @@ class GHGIntegrationService:
                     # Apply equity share proportionation
                     energy_mwh_proportioned = energy_mwh * equity_factor
                     
-                    key = (fac_id, energy_type, period_key, "Non-Renewable")
+                    key = (fac_id, energy_type, period_key)
                     if key not in grouped:
                         grouped[key] = {
                             "records": [],
@@ -713,13 +716,15 @@ class GHGIntegrationService:
                     # Apply equity share proportionation
                     energy_mwh_proportioned = energy_mwh * equity_factor
                     
-                    key = (fac_id, energy_type, period_key, renewable_type)
+                    key = (fac_id, energy_type, period_key)
                     if key not in grouped:
                         grouped[key] = {
                             "records": [],
                             "total_energy": 0,
                             "total_quantity": 0,
-                            "sub_subcategory": renewable_type,
+                            "grid_energy": 0,
+                            "renewable_energy": 0,
+                            "sub_subcategory": None,
                             "period_info": period_info,
                             "equity_share": equity_factor * 100
                         }
@@ -727,6 +732,10 @@ class GHGIntegrationService:
                     grouped[key]["records"].append(em)
                     grouped[key]["total_energy"] += energy_mwh_proportioned
                     grouped[key]["total_quantity"] += quantity
+                    if is_renewable:
+                        grouped[key]["renewable_energy"] += energy_mwh_proportioned
+                    else:
+                        grouped[key]["grid_energy"] += energy_mwh_proportioned
         
         # =====================================================
         # Process YEARLY records - aggregate by FY
@@ -792,16 +801,11 @@ class GHGIntegrationService:
         # Build virtual ESG records
         records = []
         for key, data in all_grouped.items():
-            # Key can be 3-tuple (fuel) or 4-tuple (electricity with renewable type)
-            if len(key) == 3:
-                fac_id, energy_type, period_key = key
-                sub_subcategory = data.get("sub_subcategory", "Non-Renewable")
-            else:
-                fac_id, energy_type, period_key, renewable_type = key
-                sub_subcategory = renewable_type
+            fac_id, energy_type, period_key = key
+            sub_subcategory = data.get("sub_subcategory")
             
             period_info = data.get("period_info", {})
-            record_id = f"ghg_energy_{fac_id}_{energy_type}_{sub_subcategory}_{period_key.replace(' ', '_').replace('-', '_')}"
+            record_id = f"ghg_energy_{fac_id}_{energy_type}_{period_key.replace(' ', '_').replace('-', '_')}"
             
             # Build equity note if proportionated
             equity_pct = data.get("equity_share", 100)
@@ -814,7 +818,11 @@ class GHGIntegrationService:
                     "energy_unit": "TJ",
                     "source_records_count": len(data["records"]),
                     "source_record_ids": [record.get("id") for record in data["records"] if record.get("id")],
-                    "fuels_included": list(data.get("fuels_used", []))
+                    "fuels_included": list(data.get("fuels_used", [])),
+                    "fuel_types": [
+                        {"fuel_type": fuel, "energy": round(value, 6), "energy_unit": "TJ"}
+                        for fuel, value in sorted(data.get("fuel_rows", {}).items())
+                    ],
                 }
                 notes = f"Calculated from {len(data['records'])} Scope 1 fuel records (Energy = Qty × CV){equity_note}"
             elif energy_type == "other_sources":
@@ -833,8 +841,12 @@ class GHGIntegrationService:
                     "energy_unit": "MWh",
                     "source_records_count": len(data["records"]),
                     "source_record_ids": [record.get("id") for record in data["records"] if record.get("id")],
+                    "grid_electricity": round(data.get("grid_energy", 0), 2),
+                    "grid_electricity_unit": "MWh",
+                    "renewable_electricity": round(data.get("renewable_energy", 0), 2),
+                    "renewable_electricity_unit": "MWh",
                 }
-                notes = f"Aggregated from {len(data['records'])} Scope 2 {sub_subcategory.lower()} electricity records{equity_note}"
+                notes = f"Aggregated from {len(data['records'])} Scope 2 electricity records{equity_note}"
             
             records.append({
                 "id": record_id,

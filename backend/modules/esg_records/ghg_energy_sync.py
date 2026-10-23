@@ -30,9 +30,15 @@ def _manual_energy_fields(imported: Dict[str, Any]) -> Dict[str, Any]:
     subcategory = imported.get("subcategory")
     renewable_type = imported.get("sub_subcategory")
     if subcategory == "Electricity Within Organization":
-        fields["renewable_electricity" if renewable_type == "Renewable" else "grid_electricity"] = quantity
+        fields["grid_electricity"] = source_fields.get("grid_electricity", 0)
+        fields["grid_electricity_unit"] = source_fields.get("grid_electricity_unit", unit)
+        fields["renewable_electricity"] = source_fields.get("renewable_electricity", 0)
+        fields["renewable_electricity_unit"] = source_fields.get("renewable_electricity_unit", unit)
+    elif subcategory == "Fuel Within Organization":
+        fields["fuel_types"] = source_fields.get("fuel_types", [])
     elif subcategory == "Heating Within Organization":
         fields["non_renewable_heating"] = quantity
+        fields["non_renewable_heating_unit"] = unit
     return {key: value for key, value in fields.items() if value is not None}
 
 
@@ -50,6 +56,19 @@ class GHGEnergySyncService:
         existing_records = await self.db.environment_records.find(
             {"org_id": org_id, "source_type": DERIVED_SOURCE_TYPE}, {"_id": 0}
         ).to_list(10000)
+        manual_category_rows = await self.db.environment_records.find(
+            {
+                "org_id": org_id,
+                "category": "Energy",
+                "source_type": {"$ne": DERIVED_SOURCE_TYPE},
+                "category_id": {"$exists": True, "$ne": None},
+            },
+            {"_id": 0, "subcategory": 1, "category_id": 1},
+        ).to_list(1000)
+        category_ids = {
+            row["subcategory"]: row["category_id"]
+            for row in manual_category_rows if row.get("subcategory") and row.get("category_id")
+        }
         existing_by_id = {record["id"]: record for record in existing_records}
         created = updated = deleted = 0
 
@@ -66,6 +85,7 @@ class GHGEnergySyncService:
                 "category": "Energy",
                 "subcategory": imported.get("subcategory"),
                 "sub_subcategory": imported.get("sub_subcategory"),
+                "category_id": category_ids.get(imported.get("subcategory")),
                 "reporting_period": imported.get("reporting_period") or {},
                 "field_values": _manual_energy_fields(imported),
                 "source_type": DERIVED_SOURCE_TYPE,
@@ -94,7 +114,7 @@ class GHGEnergySyncService:
                 continue
 
             changed = any(existing.get(key) != persisted.get(key) for key in (
-                "subcategory", "sub_subcategory", "reporting_period", "field_values", "notes", "provenance"
+                "subcategory", "sub_subcategory", "category_id", "reporting_period", "field_values", "notes", "provenance"
             ))
             if changed:
                 persisted["version"] = int(existing.get("version") or 1) + 1

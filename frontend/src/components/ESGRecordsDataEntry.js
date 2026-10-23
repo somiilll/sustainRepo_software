@@ -173,6 +173,7 @@ export default function ESGRecordsDataEntry({
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [showImportedModal, setShowImportedModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isReadOnlyRecord, setIsReadOnlyRecord] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editData, setEditData] = useState({});
@@ -845,8 +846,9 @@ export default function ESGRecordsDataEntry({
   };
 
   // Open edit modal
-  const openEditModal = async (record) => {
+  const openEditModal = async (record, readOnly = false) => {
     setSelectedRecord(record);
+    setIsReadOnlyRecord(readOnly);
     revokeDraftEvidences(editEvidences);
     pendingEditEvidenceDeletionIds.current.clear();
     
@@ -1702,7 +1704,7 @@ export default function ESGRecordsDataEntry({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => viewImportedRecord(record)}
+            onClick={() => openEditModal(record, record.source_type === 'ghg_derived')}
                             title="View Details"
                             data-testid={`view-imported-metric-button-${record.id}`}
                           >
@@ -1953,8 +1955,8 @@ export default function ESGRecordsDataEntry({
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="edit-metric-dialog">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-emerald-600" />
-              Edit Metric
+              {isReadOnlyRecord ? <Lock className="w-5 h-5 text-emerald-600" /> : <Edit2 className="w-5 h-5 text-emerald-600" />}
+              {isReadOnlyRecord ? 'Energy Record Details' : 'Edit Metric'}
             </DialogTitle>
             <DialogDescription>
               {selectedRecord?.category}
@@ -1962,7 +1964,12 @@ export default function ESGRecordsDataEntry({
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          {isReadOnlyRecord && (
+            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800" data-testid="ghg-derived-energy-read-only-notice">
+              Synced from GHG Module. Update the GHG source record to change these Energy values.
+            </div>
+          )}
+          <div className={`space-y-4 py-4 ${isReadOnlyRecord ? 'pointer-events-none opacity-75' : ''}`} aria-readonly={isReadOnlyRecord}>
             {/* Pending Proposal Banner */}
             {editData._viewing_pending_proposal && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
@@ -2225,6 +2232,9 @@ export default function ESGRecordsDataEntry({
           </div>
 
           <DialogFooter className="flex gap-2">
+            {isReadOnlyRecord ? (
+              <Button variant="outline" onClick={discardEdit} data-testid="ghg-derived-energy-close-button">Close</Button>
+            ) : <>
             <Button
               variant="outline"
               onClick={discardEdit}
@@ -2253,6 +2263,7 @@ export default function ESGRecordsDataEntry({
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save
             </Button>
+            </>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
