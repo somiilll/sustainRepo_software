@@ -1610,7 +1610,7 @@ export default function ESGRecordsDataEntry({
             ) : (
               sortedRecords.map(record => {
                 const hasDraft = drafts.some(d => d.record_id === record.id);
-                const isImported = record.source_type === 'ghg_import';
+                const isImported = ['ghg_import', 'ghg_derived'].includes(record.source_type);
                 const isLocked = record.is_locked || isImported;
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;

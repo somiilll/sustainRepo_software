@@ -65,6 +65,7 @@ class GHGEnergySyncService:
                 "category": "Energy",
                 "subcategory": imported.get("subcategory"),
                 "sub_subcategory": imported.get("sub_subcategory"),
+                "frameworks": ["BRSR"],
                 "reporting_period": imported.get("reporting_period") or {},
                 "field_values": _manual_energy_fields(imported),
                 "source_type": DERIVED_SOURCE_TYPE,
