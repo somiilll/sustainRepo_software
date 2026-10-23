@@ -339,6 +339,85 @@ async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_additional_requested_kpis(now: str) -> List[Dict[str, Any]]:
+    mapped = []
+    water_stress_consumption = await db.esg_kpi_definitions.find_one(
+        {"metric_name": "Water Consumption in Water-stress Areas"}, {"_id": 0}
+    )
+    if water_stress_consumption:
+        await upsert_mapping(water_stress_consumption, "p6_water_stress_areas", "rows.total_consumption", "P6-L1", now)
+        mapped.append(water_stress_consumption)
+
+    legacy_discharge_totals = await db.esg_kpi_definitions.find({
+        "metric_name": {"$in": [
+            "Water Discharge to Ground Water", "Water Discharge to Others",
+            "Water Discharge to Seawater / Desalinated", "Water Discharge to Surface Water",
+            "Water Discharge to Third-party Water",
+        ]}}, {"_id": 0}
+    ).to_list(20)
+    for definition in legacy_discharge_totals:
+        await remove_all_brsr_references(definition, now)
+
+    for name in (
+        "Board of Directors Diversity - Board of Directors (Total) (Male)",
+        "Key Management Personnel Diversity - Key Management Personnel (Total) (Male)",
+    ):
+        definition = await db.esg_kpi_definitions.find_one({"metric_name": name}, {"_id": 0})
+        if definition:
+            await remove_all_brsr_references(definition, now)
+
+    config_paths = {
+        "brsr_a_employees_workers": [
+            "employees.total.total", "employees.total.male", "employees.total.female",
+            "workers.total.total", "workers.total.male", "workers.total.female",
+        ],
+        "brsr_a_differently_abled": [
+            "employees.total.total", "employees.total.male", "employees.total.female",
+            "workers.total.total", "workers.total.male", "workers.total.female",
+        ],
+    }
+    for question_key, paths in config_paths.items():
+        await db.esg_question_configs.update_one(
+            {"question_key": question_key}, {"$addToSet": {"answer_paths": {"$each": paths}}, "$set": {"updated_at": now}}
+        )
+
+    diversity_mappings = {
+        "Employee Diversity - Permanent employees": ("brsr_a_employees_workers", "employees.permanent.total", "A-20a (D)"),
+        "Employee Diversity - Total Employees": ("brsr_a_employees_workers", "employees.total.total", "A-20a (D+E)"),
+        "Employee Diversity - Total Employees (Female)": ("brsr_a_employees_workers", "employees.total.female", "A-20a (D+E)"),
+        "Employee Diversity - Total Employees (Male)": ("brsr_a_employees_workers", "employees.total.male", "A-20a (D+E)"),
+        "Employee Diversity - Differently-abled employees": ("brsr_a_differently_abled", "employees.total.total", "A-20b (D+E)"),
+        "Employee Diversity - Differently-abled employees (Female)": ("brsr_a_differently_abled", "employees.total.female", "A-20b (D+E)"),
+        "Employee Diversity - Differently-abled employees (Male)": ("brsr_a_differently_abled", "employees.total.male", "A-20b (D+E)"),
+        "Workers Diversity - Total Workers": ("brsr_a_employees_workers", "workers.total.total", "A-20a (F+G)"),
+        "Workers Diversity - Total Workers (Female)": ("brsr_a_employees_workers", "workers.total.female", "A-20a (F+G)"),
+        "Workers Diversity - Total Workers (Male)": ("brsr_a_employees_workers", "workers.total.male", "A-20a (F+G)"),
+        "Workers Diversity - Differently-abled workers": ("brsr_a_differently_abled", "workers.total.total", "A-20b (F+G)"),
+        "Workers Diversity - Differently-abled workers (Female)": ("brsr_a_differently_abled", "workers.total.female", "A-20b (F+G)"),
+        "Workers Diversity - Differently-abled workers (Male)": ("brsr_a_differently_abled", "workers.total.male", "A-20b (F+G)"),
+    }
+    for name, (question_key, path, reference) in diversity_mappings.items():
+        definition = await db.esg_kpi_definitions.find_one({"metric_name": name}, {"_id": 0})
+        if definition:
+            await upsert_mapping(definition, question_key, path, reference, now, "response_period_document")
+            mapped.append(definition)
+
+    turnover_mappings = {
+        "Employee Turnover Rate (Female)": "permanent_employees.female",
+        "Employee Turnover Rate (Male)": "permanent_employees.male",
+        "Employee Turnover Rate (Total)": "permanent_employees.total",
+        "Worker Turnover Rate (Female)": "permanent_workers.female",
+        "Worker Turnover Rate (Male)": "permanent_workers.male",
+        "Worker Turnover Rate (Total)": "permanent_workers.total",
+    }
+    for name, path in turnover_mappings.items():
+        definition = await db.esg_kpi_definitions.find_one({"metric_name": name}, {"_id": 0})
+        if definition:
+            await upsert_mapping(definition, "brsr_a_turnover_rate", path, "A-22", now, "response_period_document")
+            mapped.append(definition)
+    return mapped
+
+
 async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find({
         "metric_name": {"$regex": "Parental Leave|Return to Work Rate|Retention Rate", "$options": "i"},
@@ -473,6 +552,7 @@ async def run() -> Dict[str, Any]:
         "water_discharge": len(await sync_water_discharge(now)),
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
+        "additional_requested": len(await sync_additional_requested_kpis(now)),
         "parental_leave": len(await sync_parental_leave(now)),
         "training": len(await sync_training(now)),
         "backup": str(backup),

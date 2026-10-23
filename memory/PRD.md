@@ -757,3 +757,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added exact P6-E3 mappings for Surface water, Groundwater, Third-party water, Seawater/desalinated water, Other sources, and Total withdrawal.
 - Added exact P6-L1 mappings for the equivalent water-stress-area withdrawal sources and Total withdrawal. Older unresolved mappings are superseded automatically by these exact destinations.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-23 — Additional Water and Section A exact mappings
+- Confirmed every KPI explicitly listed by the user already existed; no duplicate definitions were created.
+- Mapped Water Consumption in Water-stress Areas to P6-L1 Total consumption. Destination-level Water Discharge totals remain supporting because Annexure II exposes separate No-treatment and With-treatment rows; those exact treatment KPIs remain mapped.
+- Marked BoD/KMP Male-only diversity KPIs as supporting because A-21 contains only Total and Female columns; male values are derived from those columns.
+- Added logical total-row paths and exact mappings for overall Employee/Worker totals and differently-abled Employee/Worker totals by Female/Male/Total, while preserving permanent/other-than-permanent detail mappings.
+- Added exact A-22 mappings for Employee and Worker Turnover Rate by Female/Male/Total.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
