@@ -751,3 +751,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added exact P6-L1 mappings for water-stress discharge No treatment, With treatment, and total rows while retaining primary/secondary/tertiary treatment fields as supporting detail.
 - Regenerated `/app/exports/kpi_definitions_brsr_mappings_roles_updated.xlsx` with the new Mapping Role column and review filtering.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-22 — Water Withdrawal exact mappings
+- Confirmed the required Water Withdrawal KPI Definitions already existed; no duplicate KPI Definitions were created.
+- Added exact P6-E3 mappings for Surface water, Groundwater, Third-party water, Seawater/desalinated water, Other sources, and Total withdrawal.
+- Added exact P6-L1 mappings for the equivalent water-stress-area withdrawal sources and Total withdrawal. Older unresolved mappings are superseded automatically by these exact destinations.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.

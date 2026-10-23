@@ -240,6 +240,52 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_water_withdrawal(now: str) -> List[Dict[str, Any]]:
+    definitions = await db.esg_kpi_definitions.find(
+        {"$or": [
+            {"value_field": {"$in": [
+                "quantity", "water_withdrawal_through_surface_water", "water_withdrawal_through_ground_water",
+                "water_withdrawal_through_third_party_water", "water_withdrawal_through_seawater_desalinated_water",
+                "water_withdrawal_through_other_sources", "water_withdrawal_in_water_stress_area",
+                "ws_withdrawal_surface", "ws_withdrawal_ground", "ws_withdrawal_third_party",
+                "ws_withdrawal_seawater", "ws_withdrawal_others",
+            ]}},
+            {"metric_name": {"$regex": "^Water Withdrawal", "$options": "i"}},
+        ], "category_name": "Water", "subcategory": "Withdrawal", "status": {"$ne": "archived"}},
+        {"_id": 0},
+    ).to_list(200)
+    by_field = {definition.get("value_field"): definition for definition in definitions}
+    mapped = []
+    general_paths = {
+        "water_withdrawal_through_surface_water": "rows.surface_water",
+        "water_withdrawal_through_ground_water": "rows.groundwater",
+        "water_withdrawal_through_third_party_water": "rows.third_party",
+        "water_withdrawal_through_seawater_desalinated_water": "rows.seawater",
+        "water_withdrawal_through_other_sources": "rows.others",
+        "quantity": "rows.total_withdrawal",
+    }
+    for field, path in general_paths.items():
+        definition = by_field.get(field)
+        if definition:
+            await upsert_mapping(definition, "p6_water_disclosures", path, definition.get("brsr_reference") or "P6-E3", now)
+            mapped.append(definition)
+
+    stress_paths = {
+        "ws_withdrawal_surface": "rows.surface_water",
+        "ws_withdrawal_ground": "rows.groundwater",
+        "ws_withdrawal_third_party": "rows.third_party",
+        "ws_withdrawal_seawater": "rows.seawater",
+        "ws_withdrawal_others": "rows.others_withdrawal",
+        "water_withdrawal_in_water_stress_area": "rows.total_withdrawal",
+    }
+    for field, path in stress_paths.items():
+        definition = by_field.get(field)
+        if definition:
+            await upsert_mapping(definition, "p6_water_stress_areas", path, definition.get("brsr_reference") or "P6-L1", now)
+            mapped.append(definition)
+    return mapped
+
+
 async def sync_water_stress_discharge(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find(
         {"$or": [{"value_field": {"$regex": "^ws_discharge_"}},
@@ -423,6 +469,7 @@ async def run() -> Dict[str, Any]:
     backup.write_text(json.dumps({"definitions": definitions, "mappings": mappings}, default=str, indent=2), encoding="utf-8")
     result = {
         "energy": len(await sync_energy(now)),
+        "water_withdrawal": len(await sync_water_withdrawal(now)),
         "water_discharge": len(await sync_water_discharge(now)),
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
