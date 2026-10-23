@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import uuid
 import hashlib
 import re
+import logging
 
 from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
@@ -29,6 +30,8 @@ from .contracts import (
 )
 from shared.database import get_database
 from shared.database.mongo import db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
 
@@ -613,10 +616,17 @@ async def list_records(
             raise HTTPException(status_code=422, detail=f"{label} must use YYYY-MM format")
     if period_start and period_end and period_start > period_end:
         raise HTTPException(status_code=422, detail="Start Period cannot be after End Period")
-    if section == "environment" and (category or "").lower() == "energy":
+    is_framework_neutral_energy = section == "environment" and (category or "").lower() == "energy"
+    if is_framework_neutral_energy:
         # Safe read-time reconciliation covers approved GHG writes that were
         # created through non-interactive sources such as imports.
-        await get_ghg_energy_sync_service(db).sync_organization(org_id)
+        try:
+            await get_ghg_energy_sync_service(db).sync_organization(org_id)
+        except Exception:
+            # A list must remain available from the last successful persisted
+            # sync even if reconciliation encounters an unrelated GHG issue.
+            logger.exception("GHG-derived Energy reconciliation failed", extra={"organization_id": org_id})
+        framework = None
     
     filters = RecordListFilters(
         category=category,
@@ -651,8 +661,8 @@ async def list_records(
         except HTTPException:
             include_imported = False
     if include_imported and section == "environment":
-        db = get_database()
-        ghg_service = get_ghg_integration_service(db)
+        database = get_database()
+        ghg_service = get_ghg_integration_service(database)
         
         imported_records = await ghg_service.get_all_imported_records(
             org_id=org_id,
