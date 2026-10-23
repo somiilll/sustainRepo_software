@@ -18,7 +18,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from modules.esg_records.water_schema import ROWS, tree_meta
 from modules.esg_records.env_schema import RESTORATION_REFS, SPECS, env_tree_meta
-from modules.esg_records.workforce_schema import CATEGORY as WF_CATEGORY, SPECS as WF_SPECS, frontend_config, key as wf_key, row_cols
+from modules.esg_records.workforce_schema import CATEGORY as WF_CATEGORY, SPECS as WF_SPECS, brsr_for_col, frontend_config, key as wf_key, row_cols
 from modules.esg_records.waste_schema import (
     SPILL_COLUMNS, SPILL_COUNT_KEY, SPILL_TABLE_KEY, SPILL_TOTAL_KEY, STREAMS, waste_rows, waste_tree_meta,
 )
@@ -349,14 +349,15 @@ async def sync_workforce(db, now):
             for col in row_cols(spec, r):
                 k = wf_key(sub, r["row"], col)
                 suffix = {"female": " (Female)", "male": " (Male)", "total": ""}[col]
+                column_brsr = brsr_for_col(r, col)
                 fields.append({
                     "field_key": k, "label": f"{r['label']} - {col.capitalize()}", "type": "number", "required": False,
                     "placeholder": "", "options": [], "default_value": None, "validation": {"min": 0}, "has_unit": False,
                     "allowed_units": [], "default_unit": None, "table_columns": [], "table_min_rows": 1, "table_max_rows": 10,
                     "group": r["group"], "level": r["level"], "parent_key": None, "sum_parents": [],
-                    "grid_row": r["row"], "grid_col": col, "brsr_reference": r["brsr"], "gri_disclosure": r["gri"]})
+                    "grid_row": r["row"], "grid_col": col, "brsr_reference": column_brsr, "gri_disclosure": r["gri"]})
                 meta[k] = {"group": r["group"], "level": r["level"], "parent_key": None, "order": len(fields)}
-                rows_kpi.append({"key": k, "name": f"{sub} - {r['label']}{suffix}", "brsr": r["brsr"], "gri": r["gri"],
+                rows_kpi.append({"key": k, "name": f"{sub} - {r['label']}{suffix}", "brsr": column_brsr, "gri": r["gri"],
                                  "old_code": None, "unit": False, "section": "social"})
         for tkey, tlabel, tgroup, tcols in spec.get("extra_tables", []):
             fields.append({"field_key": tkey, "label": tlabel, "type": "table", "required": False, "placeholder": "",

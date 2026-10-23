@@ -10,9 +10,14 @@ FM = ["female", "male"]
 AGE = [("age_u30", "Under 30", "age"), ("age_3050", "30-50", "age"), ("age_o50", "Over 50", "age")]
 
 
-def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None):
+def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None, brsr_by_col=None):
     return {"row": row, "label": label, "group": group, "level": level, "brsr": brsr, "gri": gri,
-            "sum_of": sum_of, "le": le, "eq": eq, "cols": cols}
+            "sum_of": sum_of, "le": le, "eq": eq, "cols": cols, "brsr_by_col": brsr_by_col}
+
+
+def brsr_for_col(row: Dict[str, Any], col: str) -> Optional[str]:
+    overrides = row.get("brsr_by_col")
+    return overrides.get(col) if overrides is not None else row.get("brsr")
 
 
 def _ages(gri, group="By Age Group", cols=None):
@@ -76,13 +81,15 @@ SPECS: Dict[str, Dict[str, Any]] = {
         R("da_other_than_permanent", "Differently-abled - Other than permanent", "Diversity Groups (subsets)", 2, "A-20b (G)", "405-1-b-iii"),
     ]},
     "Board of Directors Diversity": {"cfg": "BOD_DIVERSITY_CONFIG", "prefix": "bod_div", "cols": FMT, "rows": [
-        R("total", "Board of Directors (Total)", "Total", 0, "A-21", "405-1-a; 2-9-c", eq=[["age_u30", "age_3050", "age_o50"]]),
+        R("total", "Board of Directors (Total)", "Total", 0, "A-21", "405-1-a; 2-9-c",
+          eq=[["age_u30", "age_3050", "age_o50"]], brsr_by_col={"female": "A-21", "male": None, "total": "A-21"}),
         *_ages("405-1-a-ii", "By Age Band"),
         R("minority", "of which: Minority-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),
         R("vulnerable", "of which: Vulnerable-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),
     ]},
     "Key Management Personnel Diversity": {"cfg": "KMP_DIVERSITY_CONFIG", "prefix": "kmp_div", "cols": FMT, "rows": [
-        R("total", "Key Management Personnel (Total)", "Total", 0, "A-21", "405-1-a", eq=[["age_u30", "age_3050", "age_o50"]]),
+        R("total", "Key Management Personnel (Total)", "Total", 0, "A-21", "405-1-a",
+          eq=[["age_u30", "age_3050", "age_o50"]], brsr_by_col={"female": "A-21", "male": None, "total": "A-21"}),
         *_ages("405-1-a-ii", "By Age Band"),
         R("minority", "of which: Minority-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),
         R("vulnerable", "of which: Vulnerable-group members", "Diversity Groups (subsets)", 1, gri="405-1-a-iii", le="total"),

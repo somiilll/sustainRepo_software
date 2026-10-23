@@ -765,3 +765,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Added logical total-row paths and exact mappings for overall Employee/Worker totals and differently-abled Employee/Worker totals by Female/Male/Total, while preserving permanent/other-than-permanent detail mappings.
 - Added exact A-22 mappings for Employee and Worker Turnover Rate by Female/Male/Total.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-23 — BoD/KMP Male BRSR reference removal
+- Confirmed live BoD Male and KMP Male KPI Definitions already have no BRSR reference/mapping while retaining their GRI references.
+- Added durable column-level workforce reference metadata so future workforce schema synchronization assigns A-21 only to Total and Female columns and does not re-add A-21 to Male KPI Definitions.
+- Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
