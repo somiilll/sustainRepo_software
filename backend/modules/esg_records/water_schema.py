@@ -272,6 +272,18 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         converted = [in_unit(values[key], key, target_key) for key in keys if values[key] is not None]
         return None if any(value is None for value in converted) else sum(converted)
 
+    def value_with_unit(value, key, target_key=None):
+        target_key = target_key or key
+        normalized_value = in_unit(value, key, target_key) if key != target_key else value
+        return f"{_fmt(normalized_value)} {unit_of(target_key)}"
+
+    def entered_breakdown(keys, target_key):
+        parts = [
+            f"{_label(key)}: {value_with_unit(values[key], key, target_key)}"
+            for key in keys if values[key] is not None
+        ]
+        return "; ".join(parts) or "no detailed values"
+
     for parent, children in rules["sums"]:
         entered = [child for child in children if values[child] is not None]
         if not entered:
@@ -285,8 +297,10 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
             out[f"{parent}_unit"] = unit_of(parent)
         elif abs(values[parent] - total) > max(TOLERANCE, abs(total) * 1e-6):
             raise ValueError(
-                f"{_label(parent)} ({_fmt(values[parent])}) must equal the sum of its parts ({_fmt(total)}). "
-                "Fix the parts or enter only the total."
+                f"{_label(parent)} is {value_with_unit(values[parent], parent)}, but its detailed entries total "
+                f"{_fmt(total)} {unit_of(parent)} ({entered_breakdown(entered, parent)}). "
+                f"Enter only {_label(parent)} and leave its details blank, or update the listed details so they total "
+                f"{value_with_unit(values[parent], parent)}."
             )
 
     for key, num, den, scale in rules.get("ratios", []):
@@ -294,18 +308,28 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
             values[key] = out[key] = round(values[num] * scale / values[den], 6)
 
     if all(values[r] is None for r in roots) and not any(values[c] is not None for _p, ch in rules["sums"] for c in ch):
-        raise ValueError("Enter the total, or at least one source/destination value")
+        raise ValueError(
+            f"Enter at least one value for {', '.join(_label(root) for root in roots)}, "
+            "or provide one of its source/destination breakdown values."
+        )
 
     for small, big in rules["le"]:
         small_value = in_unit(values[small], small, big) if values[small] is not None else None
         if small_value is not None and values[big] is not None and small_value > values[big] + TOLERANCE:
-            raise ValueError(f"{_label(small)} cannot exceed {_label(big)}")
+            raise ValueError(
+                f"{_label(small)} is {value_with_unit(values[small], small, big)}, which cannot exceed "
+                f"{_label(big)} at {value_with_unit(values[big], big)}."
+            )
 
     for parts, total in rules.get("sum_le", []):
         entered = [part for part in parts if values[part] is not None]
         part_sum = normalised_sum(entered, total) if entered else None
         if part_sum is not None and values[total] is not None and part_sum > values[total] + TOLERANCE:
-            raise ValueError(f"{' + '.join(_label(p) for p in parts)} ({_fmt(part_sum)}) cannot exceed {_label(total)} ({_fmt(values[total])})")
+            raise ValueError(
+                f"The entered breakdown totals {_fmt(part_sum)} {unit_of(total)} "
+                f"({entered_breakdown(entered, total)}), which exceeds {_label(total)} at "
+                f"{value_with_unit(values[total], total)}."
+            )
 
     for parts, total in rules["quality"]:
         if values[total] is None or any(values[p] is None for p in parts):
@@ -315,7 +339,8 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
             continue
         if abs(part_sum - values[total]) > max(TOLERANCE, abs(part_sum) * 1e-6):
             raise ValueError(
-                f"{' + '.join(_label(p) for p in parts)} ({_fmt(part_sum)}) must equal {_label(total)} ({_fmt(values[total])})"
+                f"{_label(total)} is {value_with_unit(values[total], total)}, but its required breakdown totals "
+                f"{_fmt(part_sum)} {unit_of(total)} ({entered_breakdown(parts, total)})."
             )
     return out
 
