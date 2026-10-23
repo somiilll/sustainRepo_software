@@ -124,24 +124,30 @@ const OverrideBadge = ({ emissionId }) => (
   </TooltipProvider>
 );
 
-const EvidenceIndicator = ({ emission }) => {
-  const files = emission.evidence_files?.length ? emission.evidence_files : (emission.evidence_url ? [{ url: emission.evidence_url, filename: emission.evidence_file_name }] : []);
+const EvidenceIndicator = ({ emission, count }) => {
+  const files = emission.evidence_files?.length
+    ? emission.evidence_files
+    : (emission.evidence_urls?.length
+      ? emission.evidence_urls.map((url, index) => ({ url, filename: `Evidence ${index + 1}` }))
+      : (emission.evidence_url ? [{ url: emission.evidence_url, filename: emission.evidence_file_name || 'Evidence 1' }] : []));
   return (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
       <TooltipTrigger asChild>
         <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emission.id}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs" data-testid={`emission-evidence-tooltip-${emission.id}`}>
+      <TooltipContent data-testid={`emission-evidence-tooltip-${emission.id}`}>
+        <p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
         {files.map((file, index) => {
           const fileId = getUploadedFileId(file);
           const previewable = isPreviewableFile(file);
-          return <div key={file.url || index} className="flex items-center gap-2 py-1">
-            <span className="min-w-0 flex-1 truncate">{file.filename || `Evidence ${index + 1}`}</span>
-            {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3.5 w-3.5" /></button>}
-            {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3.5 w-3.5" /></button>}
-          </div>;
+          return <span key={file.url || index} className="inline-flex gap-1">
+            {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="inline-flex items-center gap-1 text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3.5 w-3.5" />View</button>}
+            {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="inline-flex items-center gap-1 text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3.5 w-3.5" />Download</button>}
+          </span>;
         })}
+        </div>
       </TooltipContent>
     </Tooltip>
   </TooltipProvider>
@@ -705,7 +711,7 @@ const EmissionDataGrid = forwardRef(({
                       {activityDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
@@ -748,7 +754,7 @@ const EmissionDataGrid = forwardRef(({
                       {subcategoryDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
@@ -797,7 +803,7 @@ const EmissionDataGrid = forwardRef(({
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
