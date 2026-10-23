@@ -178,10 +178,10 @@ const EvidenceIndicator = ({ emission, count }) => {
           const date = metadata.created_at ? format(new Date(metadata.created_at), 'dd MMM yyyy') : '';
           return <div key={file.url || index} className="flex items-center gap-3 px-4 py-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-50"><FileText className="h-5 w-5 text-emerald-700" /></div>
-            <div className="min-w-0 flex-1"><p className="max-w-[170px] truncate font-medium" title={filename}>{filename}</p>{(metadata.size || metadata.file_size || date) && <p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ')}</p>}</div>
-            <div className="flex items-center gap-2">
-              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`} aria-label={`View ${filename}`}><Eye className="h-4 w-4" /></button>}
-              {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`} aria-label={`Download ${filename}`}><Download className="h-4 w-4" /></button>}
+            <div className="min-w-0 flex-1"><p className="max-w-[135px] truncate font-medium" title={filename}>{filename}</p>{(metadata.size || metadata.file_size || date) && <p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ')}</p>}</div>
+            <div className="flex shrink-0 items-center gap-1">
+              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="inline-flex items-center gap-1 rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`}><Eye className="h-3 w-3" />View</button>}
+              {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="inline-flex items-center gap-1 rounded border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`}><Download className="h-3 w-3" />Download</button>}
             </div>
           </div>;
         })}
