@@ -41,6 +41,7 @@ STATUS_REJECTED_CREATE = "rejected_create"
 STATUS_REJECTED_UPDATE = "rejected_update"
 STATUS_REJECTED_DELETE = "rejected_delete"
 STATUS_APPROVED = "approved"
+STATUS_NOT_REQUIRED = "not_required"
 
 PENDING_STATUSES = (STATUS_PENDING_CREATE, STATUS_PENDING_UPDATE, STATUS_PENDING_DELETE)
 REJECTED_STATUSES = (STATUS_REJECTED_CREATE, STATUS_REJECTED_UPDATE, STATUS_REJECTED_DELETE)
@@ -272,7 +273,7 @@ async def intercept_update(
         return ("queue", updated)
     
     # Case 3: Record is approved or rejected - create new pending_update
-    if cur_status in (STATUS_APPROVED, STATUS_REJECTED_CREATE, STATUS_REJECTED_UPDATE, STATUS_REJECTED_DELETE):
+    if cur_status in (STATUS_APPROVED, STATUS_NOT_REQUIRED, STATUS_REJECTED_CREATE, STATUS_REJECTED_UPDATE, STATUS_REJECTED_DELETE):
         # Check if there's already a pending request for this record
         existing_pending = await find_pending_by_original_id(record_id)
         if existing_pending:
@@ -314,6 +315,7 @@ async def intercept_update(
             "original_record_id": record_id,  # Reference to approved record
             "organization_id": org_id,
             "approval_status": STATUS_PENDING_UPDATE,
+            "previous_approval_status": cur_status,
             
             # Submission metadata
             "submitted_by": current_user.get("id"),
@@ -422,6 +424,7 @@ async def intercept_delete(
         "original_record_id": record_id,
         "organization_id": org_id,
         "approval_status": STATUS_PENDING_DELETE,
+        "previous_approval_status": cur_status,
         "created_at": existing.get("created_at") or _now(),
         
         # Submission metadata
@@ -639,6 +642,7 @@ _PENDING_ONLY_FIELDS = (
     "edit_history",
     "version_history",
     "original_snapshot",
+    "previous_approval_status",
 )
 
 
@@ -832,9 +836,10 @@ async def reject_request(
     
     # If it was an update/delete, restore original record status
     if original_id:
+        restored_status = pending.get("previous_approval_status") or STATUS_APPROVED
         await db[APPROVED_COLLECTION].update_one(
             {"id": original_id},
-            {"$set": {"approval_status": STATUS_APPROVED}}
+            {"$set": {"approval_status": restored_status}}
         )
     
     return (True, "Request rejected")
@@ -1046,6 +1051,7 @@ __all__ = [
     "STATUS_PENDING_UPDATE",
     "STATUS_PENDING_DELETE",
     "STATUS_APPROVED",
+    "STATUS_NOT_REQUIRED",
     "PENDING_STATUSES",
     "REJECTED_STATUSES",
 ]

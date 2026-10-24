@@ -1302,12 +1302,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         
         return EmissionRecordResponse(**record_dict)
     
-    # No approval required - insert directly.
-    # Admins/Super Admins bypass the workflow, so they must not receive an
-    # "approved" status: no approval event occurred. Suppliers also have no
-    # emission approval workflow.
-    if current_user.get("user_type") != "supplier" and not is_admin:
-        record_dict["approval_status"] = "approved"
+    # The record is final and reportable, but no approval event occurred.
+    record_dict["approval_status"] = "not_required"
     await db.emission_records.insert_one(record_dict)
     log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="succeeded",
               context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})

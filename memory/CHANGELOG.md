@@ -1,3 +1,8 @@
+# October 23, 2026 — Explicit No-Approval GHG Lifecycle Status
+- Future direct-final GHG form, C7, and bulk-upload records now store `approval_status: "not_required"`; genuinely approved workflow records continue to store `"approved"`.
+- Historical records remain untouched per user choice. Updated legacy workflow transition handling so future `not_required` records can enter approval safely and restore their prior status after a rejected update/delete request.
+- Existing dashboard, target, base-year, Energy, report, MIS, KPI, and benchmarking inclusion rules already accept `not_required`. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN because testing remains paused.**
+
 # October 23, 2026 — No-Workflow GHG Log Status Label
 - Updated the main GHG Logs table to display final records as **Completed** when approval workflow is disabled, while retaining `approval_status: "approved"` internally for dashboard/report eligibility.
 - Workflow-enabled status labels and all detail/history views remain unchanged. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN because testing remains paused.**

@@ -372,6 +372,7 @@ class UploadProcessor:
                 if not normalized_period:
                     raise ValueError(f"Invalid reporting period for bulk-upload record {record.get('id')}")
                 record["reporting_period"] = normalized_period
+                record["approval_status"] = "not_required"
             preview = self._build_preview(valid_records) if valid_records else None
             
             if validate_only and valid_records:
