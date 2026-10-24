@@ -20,7 +20,7 @@ import pytest
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://esg-supplier-hub.preview.emergentagent.com"
+    pytest.skip("REACT_APP_BACKEND_URL is required", allow_module_level=True)
 
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 AMAN_EMAIL = "goyalsomil+1@hotmail.com"

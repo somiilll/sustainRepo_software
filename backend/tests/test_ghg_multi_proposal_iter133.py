@@ -15,7 +15,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://esg-supplier-hub.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 
 ADMIN = ("goyalsomil2001@gmail.com", "TestUser123!")
 AMAN = ("goyalsomil+1@hotmail.com", "TestUser123!")

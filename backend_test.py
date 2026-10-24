@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 
 import requests
+import os
 import sys
 import json
 from datetime import datetime
 import uuid
 
 class GHGPlatformTester:
-    def __init__(self, base_url="https://esg-supplier-hub.preview.emergentagent.com"):
-        self.base_url = base_url
-        self.api_url = f"{base_url}/api"
+    def __init__(self, base_url=None):
+        self.base_url = (base_url or os.environ["REACT_APP_BACKEND_URL"]).rstrip("/")
+        self.api_url = f"{self.base_url}/api"
         self.admin_token = None
         self.user_token = None
         self.admin_user = None

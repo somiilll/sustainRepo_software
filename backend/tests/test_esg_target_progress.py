@@ -3,7 +3,9 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+if not BASE_URL:
+    pytest.skip("REACT_APP_BACKEND_URL is required", allow_module_level=True)
 EMAIL = "esg-test-user@example.com"
 PASSWORD = "TestUser123!"
 

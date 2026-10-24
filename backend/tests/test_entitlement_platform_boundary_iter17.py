@@ -70,7 +70,9 @@ def test_admin_login_sets_http_only_cookie(api_client: requests.Session):
 
 
 def test_auth_login_cors_allows_trusted_origin_only(api_client: requests.Session):
-    trusted = "https://esg-supplier-hub.preview.emergentagent.com"
+    trusted = os.environ.get("FRONTEND_URL")
+    if not trusted:
+        pytest.skip("FRONTEND_URL is required for the CORS test")
     options_trusted = api_client.options(
         f"{BASE_URL}/api/auth/login",
         headers={

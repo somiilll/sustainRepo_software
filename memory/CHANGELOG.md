@@ -1,3 +1,8 @@
+# October 23, 2026 — Environment Endpoint and Script Cleanup
+- Removed embedded preview and production application hosts from runtime email flows and legacy tests; application links now require `FRONTEND_URL` and tests require environment-provided URLs.
+- Removed localhost fallbacks for report generation, repository ingestion, Mongo access, and integration tests; protected environment variables now fail fast when missing.
+- Deleted ten unreferenced one-off scripts for temporary PDF extraction, source integration, diagnostic dumps, destructive Scope 2 cleanup, test-only formula isolation, and obsolete Super Admin bootstrap. Retained operational/idempotent migration and data-repair scripts. **STATIC SCANS PASSED; runtime tests remain paused.**
+
 # October 23, 2026 — Explicit No-Approval GHG Lifecycle Status
 - Future direct-final GHG form, C7, and bulk-upload records now store `approval_status: "not_required"`; genuinely approved workflow records continue to store `"approved"`.
 - Historical records remain untouched per user choice. Updated legacy workflow transition handling so future `not_required` records can enter approval safely and restore their prior status after a rejected update/delete request.

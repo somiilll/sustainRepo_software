@@ -28,12 +28,11 @@ class GHGReportGenerator:
     # Month order for sorting
     MONTH_ORDER = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     
-    def __init__(self, template_path: str = None, backend_base_url: str = None):
+    def __init__(self, template_path: str = None):
         """Initialize with template path"""
         self.template_path = template_path or os.path.join(
             os.path.dirname(__file__), 'templates', 'GHG_inventory_report.docx'
         )
-        self.backend_base_url = backend_base_url or os.environ.get('BACKEND_URL', 'http://localhost:8001')
         self.report_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
     
     # ==================== UTILITY METHODS ====================
@@ -164,8 +163,8 @@ class GHGReportGenerator:
                         from pymongo import MongoClient
                         
                         # Get file record from database - check BOTH collections
-                        mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-                        db_name = os.environ.get('DB_NAME', 'test_database')
+                        mongo_url = os.environ["MONGO_URL"]
+                        db_name = os.environ["DB_NAME"]
                         client = MongoClient(mongo_url)
                         db = client[db_name]
                         
@@ -230,8 +229,8 @@ class GHGReportGenerator:
         """Get file path from database record"""
         try:
             from pymongo import MongoClient
-            mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-            db_name = os.environ.get('DB_NAME', 'ghg_platform')
+            mongo_url = os.environ["MONGO_URL"]
+            db_name = os.environ["DB_NAME"]
             
             client = MongoClient(mongo_url)
             db = client[db_name]
@@ -2687,8 +2686,8 @@ class GHGReportGenerator:
         For Scope 1,2,3 reports, fetches both scope12 and scope3 base year records separately."""
         try:
             from pymongo import MongoClient
-            mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-            db_name = os.environ.get('DB_NAME', 'ghg_platform')
+            mongo_url = os.environ["MONGO_URL"]
+            db_name = os.environ["DB_NAME"]
             
             client = MongoClient(mongo_url)
             db = client[db_name]
