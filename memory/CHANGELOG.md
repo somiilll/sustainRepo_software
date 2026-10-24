@@ -1,3 +1,7 @@
+# October 23, 2026 — No-Workflow GHG Log Status Label
+- Updated the main GHG Logs table to display final records as **Completed** when approval workflow is disabled, while retaining `approval_status: "approved"` internally for dashboard/report eligibility.
+- Workflow-enabled status labels and all detail/history views remain unchanged. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN because testing remains paused.**
+
 # October 23, 2026 — Avoided Emissions due to Green Energy KPI
 - Added a new GHG Analysis KPI for counterfactual grid emissions avoided through renewable Scope 2 electricity.
 - Resolves non-renewable electricity factors by facility geography and reporting year, supports kWh/MWh/GWh conversion, and honors active date/facility filters, annual proration, and equity share.
