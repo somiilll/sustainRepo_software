@@ -2,6 +2,9 @@
 
 ## P0 — Immediate
 
+### Avoided Green-Energy Emissions Verification
+- Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
+
 ### GHG Facility Access Verification
 - Verify the newly implemented centralized GHG policy with assigned versus unassigned facilities across list/detail/create/update/delete/history, C7, Sinks, dashboard analysis, Base Year, Scope 3 Bulk Upload, OCR evidence finalization, and AI summary aggregation.
 - Verify workflow-enabled organizations ignore direct assignments and preserve existing workflow assignment behavior; verify organization admins retain full organization access.

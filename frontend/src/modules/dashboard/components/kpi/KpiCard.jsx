@@ -18,6 +18,7 @@ export default function KpiCard({
   sparkColor = '#10B981',
   icon: Icon,
   rightSlot = null,
+  rightSlotBelow = false,
   loading = false,
   ariaLabel,
   comparisonLabel,
@@ -47,13 +48,18 @@ export default function KpiCard({
         className="absolute inset-x-0 top-0 h-[3px] opacity-80"
         style={{ background: `linear-gradient(90deg, ${sparkColor}40 0%, ${sparkColor} 50%, ${sparkColor}40 100%)` }}
       />
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className={`flex items-start justify-between gap-2 ${rightSlotBelow ? 'mb-2' : 'mb-3'}`}>
         <div className="flex min-w-0 items-center gap-2">
           {Icon && <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `${sparkColor}15` }}><Icon className="h-4 w-4" style={{ color: sparkColor }} aria-hidden="true" /></div>}
           <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{title}</p>
         </div>
-        {rightSlot}
+        {!rightSlotBelow && rightSlot}
       </div>
+      {rightSlotBelow && rightSlot && (
+        <div className="mb-3 flex w-full" data-testid={`kpi-control-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          {rightSlot}
+        </div>
+      )}
       <div className="flex items-baseline gap-1.5">
         <div className="min-w-0">
           <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -69,8 +75,8 @@ export default function KpiCard({
         {!loading && value != null && Number.isFinite(Number(value)) && <span className="text-[11px] font-medium text-stone-500">{unit}</span>}
       </div>
       {deltaPct != null && (
-        <div className={`mt-3 flex items-center gap-1 text-xs font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
-          <TrendIcon className="w-3.5 h-3.5" />
+        <div className={`mt-3 flex items-center gap-0.5 whitespace-nowrap text-[9px] font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+          <TrendIcon className="h-3 w-3 shrink-0" />
           <span>{Math.abs(deltaPct).toFixed(1)}%</span>
           <span className="font-normal text-stone-400">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</span>
         </div>

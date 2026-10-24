@@ -16,6 +16,7 @@ from modules.auth.dependencies import get_current_user
 from modules.dashboards.contracts import DashboardStats
 from modules.emissions.contracts import EmissionRecordResponse
 from modules.emissions.access_policy import resolve_ghg_access_scope
+from modules.dashboards.avoided_emissions import calculate_avoided_green_energy_emissions
 from shared.database.mongo import db
 from modules.dashboards.esg_analytics_service import get_esg_analytics
 from modules.dashboards.environment_detail_service import get_environment_detail
@@ -438,6 +439,14 @@ async def get_dashboard_stats(
     scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
     biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
     total_emissions = scope1_emissions + scope2_emissions + scope3_emissions
+    avoided_emissions_green_energy = await calculate_avoided_green_energy_emissions(
+        db,
+        deduplicated_emissions,
+        {facility["id"]: facility for facility in facilities},
+        date_filter_start,
+        date_filter_end,
+        facility_equity_map if use_equity_share else None,
+    )
     
     # Helper function to check if biogenic is direct (Scope 1) or indirect (Scope 3)
     def is_indirect_biogenic(emission):
@@ -992,6 +1001,7 @@ async def get_dashboard_stats(
         scope2_emissions=float(display_round(scope2_emissions)),
         scope3_emissions=float(display_round(scope3_emissions)),
         biogenic_emissions=float(display_round(biogenic_emissions)),
+        avoided_emissions_green_energy=float(display_round(avoided_emissions_green_energy)),
         biogenic_direct=float(display_round(biogenic_direct)),
         biogenic_indirect=float(display_round(biogenic_indirect)),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],

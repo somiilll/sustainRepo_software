@@ -1,3 +1,8 @@
+# October 23, 2026 — Avoided Emissions due to Green Energy KPI
+- Added a new GHG Analysis KPI for counterfactual grid emissions avoided through renewable Scope 2 electricity.
+- Resolves non-renewable electricity factors by facility geography and reporting year, supports kWh/MWh/GWh conversion, and honors active date/facility filters, annual proration, and equity share.
+- Expanded the primary KPI grid to fit the new card while preserving responsive three/two/one-column layouts at narrower widths. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN pending user authorization.**
+
 # October 23, 2026 — Facility-Scoped GHG Authorization
 - Added one backend GHG access policy that resolves admin, workflow-assignment, and direct-facility-assignment modes without changing JWT, roles, membership, or login behavior.
 - Applied server-owned facility boundaries to GHG records and history, C7, Sinks, Scope 3 Bulk Upload, OCR evidence attachment, Base Year reads, dashboard/analysis aggregates, and user-accessible AI report summaries.

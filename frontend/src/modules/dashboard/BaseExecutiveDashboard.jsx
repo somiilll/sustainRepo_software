@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { Activity, BarChart3, Flame, Loader2, RadioTower, TreeDeciduous } from 'lucide-react';
+import { Activity, BarChart3, Flame, Leaf, Loader2, RadioTower, TreeDeciduous } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
 import StickyFilterBar from './components/filters/StickyFilterBar';
@@ -244,7 +244,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
         <>
           <div className="space-y-4">
           {/* ROW 1: KPI cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-[repeat(4,minmax(0,0.75fr))_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,0.68fr))_minmax(0,0.82fr)]">
             <KpiCard
               title="Total Emissions"
               value={totals.total}
@@ -282,7 +282,17 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               icon={BarChart3}
               loading={intensityLoading}
               emptyLabel={intensityMode === 'revenue' ? 'Revenue unavailable' : 'Production unavailable'}
-              rightSlot={<select value={intensityMode} onChange={(event) => setIntensityMode(event.target.value)} className="max-w-[92px] rounded-md border border-stone-200 bg-white px-1.5 py-1 text-[10px] font-medium text-stone-600" data-testid="ghg-intensity-mode-selector" aria-label="GHG intensity calculation basis"><option value="revenue">Revenue</option><option value="production">Production</option></select>}
+              rightSlot={<select value={intensityMode} onChange={(event) => setIntensityMode(event.target.value)} className="w-full rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-medium text-stone-600" data-testid="ghg-intensity-mode-selector" aria-label="GHG intensity calculation basis"><option value="revenue">Revenue</option><option value="production">Production</option></select>}
+              rightSlotBelow
+            />
+            <KpiCard
+              title="Avoided Emissions"
+              value={stats?.avoided_emissions_green_energy || 0}
+              sparkData={[]}
+              sparkColor="#16A34A"
+              icon={Leaf}
+              invertedColor
+              ariaLabel="Avoided emissions due to renewable Scope 2 electricity"
             />
             <GaugeCard
               targets={targets}
