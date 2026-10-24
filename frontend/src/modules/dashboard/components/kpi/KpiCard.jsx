@@ -60,7 +60,7 @@ export default function KpiCard({
           {rightSlot}
         </div>
       )}
-      <div className="mt-3 flex items-baseline gap-1.5">
+      <div className="mt-4 flex items-baseline gap-1.5">
         <div className="min-w-0">
           <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {loading ? (
