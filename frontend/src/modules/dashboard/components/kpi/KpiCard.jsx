@@ -56,7 +56,7 @@ export default function KpiCard({
         {!rightSlotBelow && rightSlot}
       </div>
       {rightSlotBelow && rightSlot && (
-        <div className="absolute right-3 top-11 w-[92px]" data-testid={`kpi-control-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className="absolute right-3 top-10 w-[84px]" data-testid={`kpi-control-${title.toLowerCase().replace(/\s+/g, '-')}`}>
           {rightSlot}
         </div>
       )}
