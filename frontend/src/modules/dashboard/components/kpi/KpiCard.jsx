@@ -60,7 +60,7 @@ export default function KpiCard({
           {rightSlot}
         </div>
       )}
-      <div className="flex items-baseline gap-1.5">
+      <div className="mt-1 flex items-baseline gap-1.5">
         <div className="min-w-0">
           <div className="text-3xl font-bold text-stone-900 tracking-tight tabular-nums" data-testid={`kpi-value-${title.toLowerCase().replace(/\s+/g, '-')}`}>
             {loading ? (
@@ -75,7 +75,7 @@ export default function KpiCard({
         {!loading && value != null && Number.isFinite(Number(value)) && <span className="text-[11px] font-medium text-stone-500">{unit}</span>}
       </div>
       {deltaPct != null && (
-        <div className={`mt-3 flex items-center gap-0.5 whitespace-nowrap text-[9px] font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className={`mt-1.5 flex items-center gap-1 whitespace-nowrap text-[9px] font-medium ${trendColor}`} data-testid={`kpi-comparison-delta-${title.toLowerCase().replace(/\s+/g, '-')}`}>
           <TrendIcon className="h-3 w-3 shrink-0" />
           <span>{Math.abs(deltaPct).toFixed(1)}%</span>
           <span className="font-normal text-stone-400">{comparisonLabel ? `vs ${comparisonLabel.replace(/^Compared with\s*/i, '')}` : 'vs previous period'}</span>
