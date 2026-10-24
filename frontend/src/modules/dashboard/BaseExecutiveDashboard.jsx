@@ -282,7 +282,7 @@ export default function BaseExecutiveDashboard({ data, hasScope3 }) {
               icon={BarChart3}
               loading={intensityLoading}
               emptyLabel={intensityMode === 'revenue' ? 'Revenue unavailable' : 'Production unavailable'}
-              rightSlot={<select value={intensityMode} onChange={(event) => setIntensityMode(event.target.value)} className="w-full rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-medium text-stone-600" data-testid="ghg-intensity-mode-selector" aria-label="GHG intensity calculation basis"><option value="revenue">Revenue</option><option value="production">Production</option></select>}
+              rightSlot={<select value={intensityMode} onChange={(event) => setIntensityMode(event.target.value)} className="w-[92px] rounded-md border border-stone-200 bg-white px-2 py-1 text-[10px] font-medium text-stone-600" data-testid="ghg-intensity-mode-selector" aria-label="GHG intensity calculation basis"><option value="revenue">Revenue</option><option value="production">Production</option></select>}
               rightSlotBelow
             />
             <KpiCard
