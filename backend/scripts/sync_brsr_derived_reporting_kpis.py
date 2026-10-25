@@ -501,15 +501,9 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         "sub_subcategory": "", "supported_scopes": ["organization", "facility"], "output_type": "number",
         "unit_config": {"default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False},
         "brsr_reference": None, "gri_disclosure": None, "framework_references": [], "tags": ["calculated"],
-        "source_type": "calculated",
-        "source_config": {"calculated": {"input_fields": ["no_of_female_attendees", "no_of_male_attendees"]}},
-        "value_field": "", "aggregation_type": "formula",
-        "formula_config": {
-            "formula_type": "expression",
-            "formula_definition": "no_of_female_attendees + no_of_male_attendees",
-            "dependencies": ["no_of_female_attendees", "no_of_male_attendees"],
-        },
-        "metadata": {"calculation_scope": "per_record_then_period_aggregate", "period_aggregation": "sum"},
+        "source_type": "records", "source_config": {"records": {"value_field": "total_attendees"}},
+        "value_field": "total_attendees", "aggregation_type": "sum", "formula_config": None,
+        "metadata": {"calculation_scope": "stored_total", "formula": "female attendees + male attendees"},
     }, now)
     groups = {
         "Employees": ["Permanent Employee", "Other than Permanent Employee"],

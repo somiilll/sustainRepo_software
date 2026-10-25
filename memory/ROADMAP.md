@@ -8,6 +8,9 @@
 ### BRSR Training UI Verification
 - Verify the P3-E8 table displays the synced `workers_female`, `workers_male`, and `workers_total` values and retains blanks for worker training measures until worker-recipient training records exist. Browser testing is paused until explicitly authorized.
 
+### Training and Unit UI Verification
+- Verify Training Total Attendees updates and displays after editing female or male attendees, and verify Social/Governance count validation messages use Number rather than Litres. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 

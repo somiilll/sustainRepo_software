@@ -1,0 +1,100 @@
+{
+  "social": [
+    {
+      "id": "e4d554aa-5dba-47e9-9816-aaba40a9c0d2",
+      "before": {
+        "no_of_permanent_employees_unit": "Litres",
+        "emp_div_da_permanent_total_unit": "Litres",
+        "emp_div_da_other_than_permanent_total_unit": "Litres",
+        "emp_div_other_than_permanent_total_unit": "Litres",
+        "emp_div_differently_abled_female_unit": "Litres",
+        "emp_div_differently_abled_male_unit": "Litres",
+        "emp_div_differently_abled_total_unit": "Litres",
+        "no_of_female_unit": "Litres",
+        "no_of_male_unit": "Litres",
+        "no_of_employees_unit": "Litres"
+      }
+    },
+    {
+      "id": "8ff423d6-ab98-4f7f-8e90-89f9ddd77163",
+      "before": {
+        "wrk_div_da_permanent_total_unit": "Litres",
+        "wrk_div_da_other_than_permanent_total_unit": "Litres",
+        "no_of_workers_unit": "Litres",
+        "wrk_div_differently_abled_female_unit": "Litres",
+        "wrk_div_differently_abled_male_unit": "Litres",
+        "wrk_div_differently_abled_total_unit": "Litres",
+        "wrk_div_da_other_than_permanent_female_unit": "Litres",
+        "no_of_female_workers_unit": "Litres",
+        "no_of_male_workers_unit": "Litres",
+        "wrk_div_da_permanent_female_unit": "Litres",
+        "wrk_div_da_other_than_permanent_male_unit": "Litres",
+        "wrk_div_da_permanent_male_unit": "Litres",
+        "wrk_div_permanent_total_unit": "Litres",
+        "wrk_div_other_than_permanent_total_unit": "Litres",
+        "wrk_div_permanent_male_unit": "Litres",
+        "wrk_div_other_than_permanent_male_unit": "Litres",
+        "wrk_div_other_than_permanent_female_unit": "Litres",
+        "wrk_div_permanent_female_unit": "Litres"
+      }
+    },
+    {
+      "id": "54e453db-4afe-43ff-827b-74d08aa3b18f",
+      "before": {
+        "kmp_div_total_total_unit": "Litres",
+        "no_of_male_unit": "Litres",
+        "no_of_female_unit": "Litres"
+      }
+    },
+    {
+      "id": "da788c5f-3ddd-4006-a6db-244a6847c29a",
+      "before": {
+        "no_of_complaints_regarding_child_labour_unit": "Litres",
+        "no_of_complaints_regarding_discrimination_at_workplace_unit": "Litres",
+        "no_of_complaints_regarding_forced_labour_involuntary_labour_unit": "Litres",
+        "total_no_of_complaints_recieved_unit": "Litres",
+        "no_of_complaints_regarding_conflict_of_interest_unit": "Litres",
+        "no_of_complaints_regarding_working_conditions_unit": "Litres",
+        "no_of_complaints_regarding_wages_unit": "Litres",
+        "no_of_complaints_regarding_other_human_rights_related_issues_unit": "Litres",
+        "no_of_complaints_regarding_health_safety_unit": "Litres",
+        "no_of_complaints_regarding_sexual_harassment_unit": "Litres"
+      }
+    },
+    {
+      "id": "cdcebc4b-abfe-48ef-93ca-6e05f4ddccfd",
+      "before": {
+        "no_of_male_attendees_for_training_on_health_safety_unit": "Litres",
+        "no_of_trainings_on_re_skilling_unit": "Litres",
+        "no_of_male_attendees_for_trainings_on_anti_corruption_unit": "Litres",
+        "no_of_trainings_on_health_safety_unit": "Litres",
+        "no_of_male_attendees_for_trainings_on_organization_policy_ies_unit": "Litres",
+        "no_of_male_attendees_for_trainings_on_re_skilling_unit": "Litres",
+        "no_of_trainings_on_ethical_principles_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_ethical_principles_unit": "Litres",
+        "no_of_male_attendees_for_training_on_environment_unit": "Litres",
+        "no_of_trainings_on_organization_policy_ies_unit": "Litres",
+        "no_of_female_attendees_for_training_on_health_safety_unit": "Litres",
+        "no_of_trainings_on_anti_corruption_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_organization_policy_ies_unit": "Litres",
+        "no_of_trainings_on_environment_unit": "Litres",
+        "no_of_male_attendees_for_trainings_on_ethical_principles_unit": "Litres",
+        "no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling_unit": "Litres",
+        "no_of_trainings_done_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_anti_corruption_unit": "Litres",
+        "no_of_male_attendees_unit": "Litres",
+        "no_of_female_attendees_for_training_on_environment_unit": "Litres",
+        "no_of_female_attendees_unit": "Litres",
+        "no_of_male_attendees_trainings_on_human_right_issues_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_human_right_issues_unit": "Litres",
+        "no_of_trainings_on_skill_upgrade_up_skilling_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling_unit": "Litres",
+        "no_of_trainings_on_human_right_issues_unit": "Litres",
+        "no_of_female_attendees_for_trainings_on_re_skilling_unit": "Litres",
+        "total_attendees": null,
+        "total_attendees_unit": null
+      }
+    }
+  ],
+  "governance": []
+}

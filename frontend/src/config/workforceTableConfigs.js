@@ -280,7 +280,7 @@ export const GENERAL_TRAINING_CONFIG = {
     { key: 'ethical', label: 'Ethical Principles' },
   ],
   fieldMap: {
-    overall:        { count: 'no_of_trainings_done', female: 'no_of_female_attendees', male: 'no_of_male_attendees', hours: 'total_training_hours_by_topic' },
+    overall:        { count: 'no_of_trainings_done', female: 'no_of_female_attendees', male: 'no_of_male_attendees', total: 'total_attendees', hours: 'total_training_hours_by_topic' },
     health_safety:  { count: 'no_of_trainings_on_health_safety', female: 'no_of_female_attendees_for_training_on_health_safety', male: 'no_of_male_attendees_for_training_on_health_safety', hours: 'training_hours_health_safety' },
     environment:    { count: 'no_of_trainings_on_environment', female: 'no_of_female_attendees_for_training_on_environment', male: 'no_of_male_attendees_for_training_on_environment', hours: 'training_hours_environment' },
     human_rights:   { count: 'no_of_trainings_on_human_right_issues', female: 'no_of_female_attendees_for_trainings_on_human_right_issues', male: 'no_of_male_attendees_trainings_on_human_right_issues', hours: 'training_hours_human_rights' },

@@ -466,6 +466,8 @@ SPECS[GEN_TRAINING] = [
       kpi="Training Attendees (Total) - Female", sum_of=[t[3] for t in _TOPICS]),
     F("no_of_male_attendees", "Attendees (Total) - Male", group="Totals", brsr="P3-E8", gri="404-1-a",
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
+    F("total_attendees", "Attendees (Total)", group="Totals", brsr="P3-E8", gri="404-1-a",
+      sum_of=["no_of_female_attendees", "no_of_male_attendees"]),
     F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
       kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
     F("training_recipient_type", "Who was the training for?", type="dropdown", group="Training Audience",
@@ -882,6 +884,18 @@ for _specs in SPECS.values():
 
 ENV_SUM_RULES = {(_norm(cat), _norm(sub)): r for (cat, sub) in SPECS if (r := _sum_rules(cat, sub))}
 ENV_LABELS = {s["key"]: s["label"] for specs in SPECS.values() for s in specs}
+ENV_FIELD_DEFAULT_UNITS = {
+    (_norm(category), _norm(subcategory), field["key"]): (
+        field["default_unit"] or "%" if field["percent"] else field["default_unit"] or "Number"
+    )
+    for (category, subcategory), specs in SPECS.items()
+    for field in specs
+    if field["type"] == "number"
+}
+
+
+def field_default_unit(category: Optional[str], subcategory: Optional[str], key: str) -> Optional[str]:
+    return ENV_FIELD_DEFAULT_UNITS.get((_norm(category), _norm(subcategory), key))
 
 
 def _number(value: Any, label: str) -> Optional[float]:

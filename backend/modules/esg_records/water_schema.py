@@ -1,7 +1,7 @@
 """Water (Consumption / Withdrawal / Discharge / Recycle): field keys, KPI rows and entry rules."""
 from typing import Any, Dict, List, Optional
 
-from .env_schema import ENV_LABELS, ENV_SUM_RULES, apply_table_rules
+from .env_schema import ENV_LABELS, ENV_SUM_RULES, apply_table_rules, field_default_unit
 from .workforce_schema import CATEGORY as WORKFORCE_CATEGORY, GRID_LABELS, GRID_RULES
 from .waste_schema import WASTE_LABELS, WASTE_RULES, apply_spill_rules
 from shared.unit_registry import can_convert, convert as unit_convert
@@ -263,12 +263,18 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
     def unit_of(key):
         if is_workforce:
             return "Number"
-        return str(field_values.get(f"{key}_unit") or out.get(f"{key}_unit") or default_unit)
+        configured_unit = field_default_unit(category, subcategory, key)
+        stored_unit = field_values.get(f"{key}_unit") or out.get(f"{key}_unit")
+        if stored_unit and stored_unit != "Litres":
+            return str(stored_unit)
+        return configured_unit or str(stored_unit or default_unit)
 
     def in_unit(value, key, target_key):
         if is_workforce:
             return value
         source_unit, target_unit = unit_of(key), unit_of(target_key)
+        if source_unit.strip().casefold() == target_unit.strip().casefold():
+            return value
         if not can_convert(source_unit, target_unit):
             return None
         return unit_convert(value, source_unit, target_unit)
@@ -351,8 +357,10 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
     for key, value in values.items():
         if is_workforce and value is not None:
             out[f"{key}_unit"] = "Number"
-        elif value is not None and not out.get(f"{key}_unit"):
-            out[f"{key}_unit"] = unit_of(key)
+        elif value is not None:
+            resolved_unit = unit_of(key)
+            if not out.get(f"{key}_unit") or (out.get(f"{key}_unit") == "Litres" and resolved_unit != "Litres"):
+                out[f"{key}_unit"] = resolved_unit
     return out
 
 
