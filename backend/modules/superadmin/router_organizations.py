@@ -46,6 +46,7 @@ from shared.database.mongo import db
 from shared.helpers.email import send_email
 from shared.helpers.passwords import generate_random_password, get_password_hash
 from modules.sustainability_config.service import resolve_organization_settings, upsert_org_config
+from modules.users.facility_assignments import direct_assignments_for_new_user
 from shared.utils.emission_records import eligible_ghg_record_filter
 
 logger = logging.getLogger(__name__)
@@ -458,6 +459,11 @@ async def _create_organization_account(account_data: SuperAdminAccountCreate) ->
             detail=f"Maximum {account_data.role} limit ({account_limit}) reached for this organization",
         )
 
+    assigned_facilities = []
+    if account_data.role == "user":
+        assigned_facilities = await direct_assignments_for_new_user(
+            account_data.organization_id, account_data.assigned_facilities
+        )
     temporary_password = generate_random_password()
     account = {
         "id": str(uuid.uuid4()),
@@ -466,7 +472,7 @@ async def _create_organization_account(account_data: SuperAdminAccountCreate) ->
         "role": account_data.role,
         "password_hash": get_password_hash(temporary_password),
         "organization_id": account_data.organization_id,
-        "assigned_facilities": [],
+        "assigned_facilities": assigned_facilities,
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -575,7 +581,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
+    frontend_url = os.environ["FRONTEND_URL"].rstrip("/")
     
     # Send welcome email with beautiful template
     email_body = f"""

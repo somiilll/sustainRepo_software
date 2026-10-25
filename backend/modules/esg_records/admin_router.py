@@ -150,7 +150,11 @@ async def update_category(
     if data.allowed_reporting_types is not None:
         update_data["allowed_reporting_types"] = data.allowed_reporting_types
     if data.fields is not None:
-        update_data["fields"] = [f.model_dump() for f in data.fields]
+        existing_by_key = {field.get("field_key"): field for field in existing.get("fields", [])}
+        update_data["fields"] = [
+            {**existing_by_key.get(field.field_key, {}), **field.model_dump()}
+            for field in data.fields
+        ]
     if data.is_active is not None:
         update_data["is_active"] = data.is_active
     if data.order is not None:

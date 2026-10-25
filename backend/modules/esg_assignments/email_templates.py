@@ -2,6 +2,7 @@
 Email templates for ESG Assignment notifications
 """
 
+import os
 from typing import Optional
 from datetime import datetime
 
@@ -13,9 +14,10 @@ def assignment_reminder_email(
     status: str,
     due_date: Optional[datetime],
     reporting_period: str,
-    app_url: str = "https://app.sustainrepo.com"
+    app_url: Optional[str] = None
 ) -> str:
     """Generate HTML email for assignment reminder"""
+    app_url = (app_url or os.environ["FRONTEND_URL"]).rstrip("/")
     
     due_str = ""
     urgency_class = ""
@@ -149,9 +151,10 @@ def assignment_overdue_email(
     user_name: str,
     overdue_count: int,
     assignments: list,
-    app_url: str = "https://app.sustainrepo.com"
+    app_url: Optional[str] = None
 ) -> str:
     """Generate HTML email for overdue assignments summary"""
+    app_url = (app_url or os.environ["FRONTEND_URL"]).rstrip("/")
     
     # Build assignments list HTML
     assignments_html = ""
@@ -258,9 +261,10 @@ def assignment_created_email(
     reporting_period: str,
     due_date: Optional[datetime],
     assigned_by: str,
-    app_url: str = "https://app.sustainrepo.com"
+    app_url: Optional[str] = None
 ) -> str:
     """Generate HTML email for new assignment notification"""
+    app_url = (app_url or os.environ["FRONTEND_URL"]).rstrip("/")
     
     due_str = due_date.strftime("%B %d, %Y") if isinstance(due_date, datetime) else ""
     entity_display = entity_type.replace("_", " ").title()

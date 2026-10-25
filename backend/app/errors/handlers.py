@@ -32,6 +32,7 @@ TECHNICAL_TERMS = re.compile(
     r"validationerror|connectionerror|timeout|openai|llamaparse|httpx",
     re.IGNORECASE,
 )
+MAX_SAFE_VALIDATION_MESSAGE_LENGTH = 1000
 
 
 def _request_id(request: Request) -> str:
@@ -54,7 +55,8 @@ def _safe_message(detail: Any, status_code: int, path: str = "") -> Tuple[str, s
         candidate = detail
         error_code = default_code
 
-    if isinstance(candidate, str) and candidate.strip() and len(candidate) <= 280 and not TECHNICAL_TERMS.search(candidate):
+    max_length = MAX_SAFE_VALIDATION_MESSAGE_LENGTH if status_code == 400 else 280
+    if isinstance(candidate, str) and candidate.strip() and len(candidate) <= max_length and not TECHNICAL_TERMS.search(candidate):
         return error_code, candidate.strip()
     return default_code, default_message
 

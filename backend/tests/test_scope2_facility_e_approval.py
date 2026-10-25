@@ -22,8 +22,7 @@ sys.path.insert(0, "/app/backend")
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    # Fallback for internal test invocation
-    BASE_URL = "http://localhost:8001"
+    pytest.skip("REACT_APP_BACKEND_URL is required", allow_module_level=True)
 
 ADMIN_EMAIL = "goyalsomil2001@gmail.com"
 ADMIN_PASSWORD = "TestUser123!"

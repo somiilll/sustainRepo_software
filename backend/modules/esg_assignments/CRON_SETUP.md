@@ -110,7 +110,7 @@ curl -X POST "https://your-app.com/api/esg-assignments/reminders/send-overdue-no
 Ensure the following environment variables are set:
 - `RESEND_API_KEY` - For email notifications (via Resend)
 - `MONGO_URL` - Database connection
-- `APP_URL` - Base URL for email links (defaults to https://app.sustainrepo.com)
+- `FRONTEND_URL` - Required environment-provided base URL for email links
 
 ## Logging
 

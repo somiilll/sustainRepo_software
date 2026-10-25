@@ -815,7 +815,7 @@ function FieldModal({ open, onClose, onSave, field, isEdit = false }) {
       return;
     }
 
-    const fieldData = { ...formData };
+    const fieldData = { ...(field || {}), ...formData };
     
     // Parse options from text
     if (['dropdown', 'radio', 'checkbox_group'].includes(formData.type)) {

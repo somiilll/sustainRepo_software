@@ -30,6 +30,7 @@ async def list_kpi_definitions(
     search: Optional[str] = Query(None, description="Search in name/code/description"),
     tags: Optional[str] = Query(None, description="Comma-separated tags filter"),
     include_archived: bool = Query(False, description="Include archived KPIs"),
+    framework: Optional[str] = Query(None, description="Framework filter: brsr, gri or none"),
     current_user: dict = Depends(get_super_admin_user)
 ):
     """List all KPI definitions with optional filters. Super Admin only."""
@@ -42,7 +43,8 @@ async def list_kpi_definitions(
         source_type=source_type,
         search=search,
         tags=tags_list,
-        include_archived=include_archived
+        include_archived=include_archived,
+        framework=framework
     )
     
     return kpi_defs
@@ -106,7 +108,7 @@ async def get_categories_by_section(
     
     # Get all categories for this section
     categories = await db.esg_record_categories.find(
-        {"section": section},
+        {"section": section, "is_active": True},
         {"_id": 0, "id": 1, "category": 1, "subcategory": 1, "sub_subcategory": 1, "fields": 1, "unit": 1}
     ).to_list(1000)
     
@@ -174,7 +176,7 @@ async def get_fields_for_subcategory(
     
     # Find the category document
     cat_doc = await db.esg_record_categories.find_one(
-        {"section": section, "category": category, "subcategory": subcategory},
+        {"section": section, "category": category, "subcategory": subcategory, "is_active": True},
         {"_id": 0, "id": 1, "fields": 1, "unit": 1}
     )
     
@@ -256,10 +258,17 @@ async def delete_kpi_definition(
 ):
     """Hard delete a KPI definition. Use archive instead when possible. Super Admin only."""
     try:
-        deleted = await esg_kpi_definitions_service.delete_kpi_definition(kpi_id)
-        if not deleted:
+        result = await esg_kpi_definitions_service.delete_kpi_definition(
+            kpi_id,
+            user_id=current_user.get("id"),
+        )
+        if not result:
             raise HTTPException(status_code=404, detail="KPI definition not found")
-        return {"message": "KPI definition deleted successfully"}
+        return {
+            "message": "KPI definition deleted successfully",
+            "entry_category_retired": result["entry_category_retired"],
+            "overrides_removed": result["overrides_removed"],
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

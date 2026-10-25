@@ -30,6 +30,7 @@ import {
   Trash2, Edit2, Eye, X, Lock, Link2, RefreshCw
 } from 'lucide-react';
 
+import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 // Months for monthly reporting
@@ -1039,7 +1040,14 @@ function AddRecordModal({ open, onClose, onSuccess, section, framework, categori
             {selectedCategory?.fields?.length > 0 && (
               <div className="space-y-3 pt-3 border-t">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
-                {selectedCategory.fields.map(field => (
+                {hasFieldTree(selectedCategory.fields) ? (
+                  <HierarchicalFields
+                    fields={selectedCategory.fields}
+                    values={formData.field_values}
+                    onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="add-metric-field"
+                  />
+                ) : selectedCategory.fields.map(field => (
                   <DynamicFieldRenderer
                     key={field.field_key}
                     field={field}
@@ -1484,6 +1492,14 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
           {selectedCategory?.fields?.length > 0 && (
             <div className="space-y-4 pt-2 border-t">
               <p className="text-sm font-medium text-text-primary">Data Fields</p>
+              {hasFieldTree(selectedCategory.fields) ? (
+                <HierarchicalFields
+                  fields={selectedCategory.fields}
+                  values={formData.field_values}
+                  onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                  testIdPrefix="edit-metric-field"
+                />
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {selectedCategory.fields.map(field => (
                   <div key={field.field_key} className={field.type === 'textarea' || field.type === 'table' ? 'md:col-span-2' : ''}>
@@ -1495,6 +1511,7 @@ function EditRecordModal({ open, onClose, onSuccess, section, record, categories
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
@@ -1594,7 +1611,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="mt-1"
+            className="mt-1 rounded-[10px]"
           />
         </div>
       );
@@ -1608,7 +1625,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             rows={2}
-            className="mt-1"
+            className="mt-1 rounded-[10px]"
           />
         </div>
       );
@@ -1623,13 +1640,13 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
                 type="number"
                 value={value ?? ''}
                 onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-                className="flex-1 border-stone-300"
+                className="flex-1 rounded-[10px] border-stone-300"
                 min={field.validation?.min}
                 max={field.validation?.max}
                 data-testid={`${testIdPrefix}-${field_key}-input`}
               />
               <Select value={unitValue || field.default_unit || ''} onValueChange={onUnitChange}>
-                <SelectTrigger className="w-[120px] shrink-0 border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
+                <SelectTrigger className="w-[120px] shrink-0 rounded-[10px] border-stone-300" data-testid={`${testIdPrefix}-${field_key}-unit-select`}>
                   <SelectValue placeholder="Unit" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1644,7 +1661,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
               type="number"
               value={value ?? ''}
               onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-              className="mt-auto border-stone-300"
+              className="mt-auto rounded-[10px] border-stone-300"
               min={field.validation?.min}
               max={field.validation?.max}
               data-testid={`${testIdPrefix}-${field_key}-input`}
@@ -1658,7 +1675,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
         <div>
           <Label>{label}{required && ' *'}</Label>
           <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder={`Select ${label.toLowerCase()}...`} /></SelectTrigger>
+            <SelectTrigger className="mt-1 rounded-[10px]"><SelectValue placeholder={`Select ${label.toLowerCase()}...`} /></SelectTrigger>
             <SelectContent>
               {(options || []).map(opt => (
                 <SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -1673,7 +1690,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
         <div>
           <Label>{label}{required && ' *'}</Label>
           <Select value={value || ''} onValueChange={onChange}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectTrigger className="mt-1 rounded-[10px]"><SelectValue placeholder="Select..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="yes">Yes</SelectItem>
               <SelectItem value="no">No</SelectItem>
@@ -1690,7 +1707,7 @@ export function DynamicFieldRenderer({ field, value, onChange, unitValue, onUnit
             type="date"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
-            className="mt-1"
+            className="mt-1 rounded-[10px]"
           />
         </div>
       );
@@ -1781,6 +1798,20 @@ export function ImportedRecordModal({ open, onClose, record }) {
   if (!record) return null;
 
   const fieldValues = record.field_values || {};
+  const isPersistedGHGEnergy = record.source_type === 'ghg_derived' && record.category === 'Energy';
+  const quantity = fieldValues.quantity ?? fieldValues.total_energy ?? 0;
+  const quantityUnit = fieldValues.quantity_unit || fieldValues.energy_unit || 'TJ';
+  const period = record.reporting_period || {};
+  const reportingPeriodLabel = period.financial_year || period.calendar_year
+    || (period.year ? `${period.month ? `${period.month} ` : ''}${period.year}` : '-');
+  const sourceLabel = record.subcategory?.startsWith('Fuel')
+    ? 'Scope 1 fuel entries'
+    : record.subcategory?.startsWith('Heating')
+      ? 'Scope 2 thermal-energy entries'
+      : `Scope 2 ${record.sub_subcategory?.toLowerCase() || 'electricity'} entries`;
+  const energyFieldLabel = record.subcategory?.startsWith('Electricity')
+    ? (record.sub_subcategory === 'Renewable' ? 'Renewable electricity' : 'Grid electricity')
+    : record.subcategory?.startsWith('Heating') ? 'Non-renewable heating' : 'Energy quantity';
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -1788,7 +1819,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="w-5 h-5 text-emerald-600" />
-            Imported Record Details
+            {isPersistedGHGEnergy ? 'Energy Record Details' : 'Imported Record Details'}
           </DialogTitle>
         </DialogHeader>
 
@@ -1797,7 +1828,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
             <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-800">Imported from GHG Module</span>
+              <span className="text-sm font-medium text-emerald-800">Synced from GHG Module</span>
             </div>
             <p className="text-xs text-emerald-700 mt-1">
               This record is auto-synced and read-only. Changes must be made in the GHG Module.
@@ -1817,7 +1848,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
             <div>
               <Label className="text-xs text-text-muted">Reporting Period</Label>
               <p className="text-sm font-medium">
-                {record.reporting_period?.financial_year || record.reporting_period?.calendar_year || '-'}
+                {reportingPeriodLabel}
               </p>
             </div>
             <div>
@@ -1828,7 +1859,7 @@ export function ImportedRecordModal({ open, onClose, record }) {
 
           {/* Field Values */}
           <div className="border-t pt-4">
-            <Label className="text-xs text-text-muted mb-2 block">Aggregated Data</Label>
+            <Label className="text-xs text-text-muted mb-2 block">{isPersistedGHGEnergy ? 'Energy Data' : 'Aggregated Data'}</Label>
             <div className="grid grid-cols-2 gap-3">
               {record.category === 'Emissions' ? (
                 <>
@@ -1848,17 +1879,17 @@ export function ImportedRecordModal({ open, onClose, record }) {
               ) : record.category === 'Energy' ? (
                 <>
                   <div className="p-3 bg-stone-50 rounded">
-                    <p className="text-xs text-text-muted">Total Energy</p>
+                    <p className="text-xs text-text-muted">{isPersistedGHGEnergy ? energyFieldLabel : 'Total Energy'}</p>
                     <p className="text-lg font-bold text-blue-700">
-                      {fieldValues.total_energy?.toLocaleString() || '0'}
+                      {Number(quantity).toLocaleString()}
                     </p>
-                    <p className="text-xs text-text-muted">{fieldValues.energy_unit || 'TJ'}</p>
+                    <p className="text-xs text-text-muted">{quantityUnit}</p>
                   </div>
                   <div className="p-3 bg-stone-50 rounded">
                     <p className="text-xs text-text-muted">Source Records</p>
                     <p className="text-lg font-bold">{fieldValues.source_records_count || 0}</p>
                     <p className="text-xs text-text-muted">
-                      {record.subcategory === 'Fuel' ? 'Scope 1 fuel entries' : 'Scope 2 electricity entries'}
+                      {sourceLabel}
                     </p>
                   </div>
                 </>

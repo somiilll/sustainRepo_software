@@ -150,6 +150,15 @@ class FormulaConfig(BaseModel):
     dependencies: List[str] = []  # List of metric_codes this KPI depends on
 
 
+class FrameworkReference(BaseModel):
+    """Exact, framework-specific answer target for a KPI."""
+    framework: str
+    reference: str
+    question_key: Optional[str] = None
+    answer_path: Optional[str] = None
+    reference_type: str = "exact"  # exact answer target or broad disclosure
+
+
 # =============================================================================
 # Validation Rules (Future)
 # =============================================================================
@@ -178,6 +187,17 @@ class KPIDefinitionCreate(BaseModel):
     category_name: Optional[str] = None
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
+    
+    # Framework references (used for future framework-based fetching)
+    brsr_reference: Optional[str] = None  # e.g., "P6-E3"
+    gri_disclosure: Optional[str] = None  # e.g., "303-5-a"
+    framework_references: List[FrameworkReference] = []
+    
+    # Tree display (optional)
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
     
     # Source
     source_type: SourceType = SourceType.RECORDS
@@ -233,6 +253,15 @@ class KPIDefinitionUpdate(BaseModel):
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
     
+    brsr_reference: Optional[str] = None
+    gri_disclosure: Optional[str] = None
+    framework_references: Optional[List[FrameworkReference]] = None
+    
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
+    
     source_type: Optional[SourceType] = None
     source_config: Optional[Dict[str, Any]] = None
     
@@ -271,6 +300,14 @@ class KPIDefinitionResponse(BaseModel):
     category_name: Optional[str] = None
     subcategory: Optional[str] = None
     sub_subcategory: Optional[str] = None
+    
+    brsr_reference: Optional[str] = None
+    gri_disclosure: Optional[str] = None
+    
+    tree_group: Optional[str] = None
+    tree_level: Optional[int] = None
+    tree_parent_key: Optional[str] = None
+    tree_order: Optional[int] = None
     
     source_type: str
     source_config: Optional[Dict[str, Any]] = None

@@ -95,7 +95,17 @@ const DEFAULT_TURNOVER_RATE = {
   permanent_workers_male: 0, permanent_workers_female: 0,
 };
 
-const CATEGORIES_WOMEN = ["Board of Directors", "Key Management Personnel"];
+const mapTurnoverPeriod = (period = {}) => ({
+  permanent_employees_male: period.permanent_employees?.male || 0,
+  permanent_employees_female: period.permanent_employees?.female || 0,
+  permanent_workers_male: period.permanent_workers?.male || 0,
+  permanent_workers_female: period.permanent_workers?.female || 0,
+});
+
+const FIXED_WOMEN_ROWS = [
+  { key: 'board_of_directors', category: 'Board of Directors' },
+  { key: 'key_management_personnel', category: 'Key Management Personnel' },
+];
 const ENTITY_TYPES = ["Holding Company", "Subsidiary", "Associate Company", "Joint Venture"];
 
 // Complaints/Grievances fixed categories
@@ -132,7 +142,189 @@ const DEFAULT_MATERIAL_ISSUE_ROW = {
 
 const formatINR = (num) => num ? '₹' + num.toLocaleString('en-IN') : '₹0';
 
-export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false }) {
+const normalizeWomenRows = (rows = []) => FIXED_WOMEN_ROWS.map((fixed) => {
+  const rowList = Array.isArray(rows) ? rows : [];
+  const existing = rowList.find((row) => row?.key === fixed.key || row?.category === fixed.category) || {};
+  return {
+    key: fixed.key,
+    category: fixed.category,
+    total: Number(existing.total) || 0,
+    number_of_females: Number(existing.number_of_females) || 0,
+  };
+});
+
+const getNestedValue = (value, path) => path.split('.').reduce(
+  (current, part) => (current && typeof current === 'object' ? current[part] : undefined), value
+);
+
+const mergeNestedValues = (baseValue, liveValue) => {
+  if (liveValue === undefined) return baseValue;
+  if (!liveValue || typeof liveValue !== 'object' || Array.isArray(liveValue)) return liveValue;
+  const base = baseValue && typeof baseValue === 'object' && !Array.isArray(baseValue) ? baseValue : {};
+  return Object.entries(liveValue).reduce((merged, [key, value]) => ({
+    ...merged,
+    [key]: value && typeof value === 'object' && !Array.isArray(value)
+      ? mergeNestedValues(merged[key], value)
+      : value,
+  }), { ...base });
+};
+
+const mergeWomenRepresentation = (savedRows, liveValue) => {
+  const savedRowList = Array.isArray(savedRows) ? savedRows
+    : Object.entries(savedRows?.rows || savedRows || {}).map(([key, row]) => ({ key, ...(row || {}) }));
+  const liveRows = Array.isArray(liveValue) ? liveValue.reduce((rows, row) => ({ ...rows, [row?.key]: row }), {})
+    : (liveValue?.rows || liveValue || {});
+  return normalizeWomenRows(savedRowList).map((row) => {
+    const liveRow = liveRows[row.key];
+    const merged = liveRow && typeof liveRow === 'object' ? { ...row, ...liveRow } : row;
+    const total = Number(merged.total) || 0;
+    const numberOfFemales = Number(merged.number_of_females) || 0;
+    return { ...merged, total, number_of_females: numberOfFemales };
+  });
+};
+
+const EMPLOYEE_WORKFORCE_FIELD_PATHS = {
+  permanent_male_employees: 'employees.permanent.male',
+  permanent_female_employees: 'employees.permanent.female',
+  other_than_permanent_male_employees: 'employees.other_than_permanent.male',
+  other_than_permanent_female_employees: 'employees.other_than_permanent.female',
+  permanent_male_workers: 'workers.permanent.male',
+  permanent_female_workers: 'workers.permanent.female',
+  other_than_permanent_male_workers: 'workers.other_than_permanent.male',
+  other_than_permanent_female_workers: 'workers.other_than_permanent.female',
+};
+
+const DIFFERENTLY_ABLED_FIELD_PATHS = {
+  diff_abled_permanent_male_employees: 'employees.permanent.male',
+  diff_abled_permanent_female_employees: 'employees.permanent.female',
+  diff_abled_other_permanent_male_employees: 'employees.other_than_permanent.male',
+  diff_abled_other_permanent_female_employees: 'employees.other_than_permanent.female',
+  diff_abled_permanent_male_workers: 'workers.permanent.male',
+  diff_abled_permanent_female_workers: 'workers.permanent.female',
+  diff_abled_other_permanent_male_workers: 'workers.other_than_permanent.male',
+  diff_abled_other_permanent_female_workers: 'workers.other_than_permanent.female',
+};
+
+const WORKFORCE_FIELD_PATHS_BY_QUESTION = {
+  brsr_a_employees_workers: EMPLOYEE_WORKFORCE_FIELD_PATHS,
+  brsr_a_differently_abled: DIFFERENTLY_ABLED_FIELD_PATHS,
+};
+
+const compositionPercentage = (part, total) => total > 0 ? `${((part / total) * 100).toFixed(2)}%` : '0.00%';
+
+const WorkforceCompositionTable = ({ title, groups, details, setDetails, editable, lockedFields = new Set(), testId }) => {
+  const renderNumber = (field, inputTestId) => editable && !lockedFields.has(field) ? (
+    <Input
+      type="number"
+      min="0"
+      value={details[field] || 0}
+      onChange={(event) => setDetails((previous) => ({ ...previous, [field]: parseInt(event.target.value, 10) || 0 }))}
+      className="h-8 min-w-16 text-center text-xs"
+      data-testid={inputTestId}
+    />
+  ) : <span className="tabular-nums" data-testid={lockedFields.has(field) ? `${inputTestId}-kpi-autofill` : undefined}>{details[field] || 0}</span>;
+
+  return (
+    <div className="space-y-2" data-testid={testId}>
+      <h5 className="text-sm font-semibold text-stone-800">{title}</h5>
+      <div className="overflow-x-auto border border-stone-200">
+        <Table className="min-w-[760px] table-fixed">
+          <TableHeader>
+            <TableRow className="bg-stone-100">
+              <TableHead rowSpan={2} className="w-14 border-r text-center text-xs">S. No.</TableHead>
+              <TableHead rowSpan={2} className="w-[30%] border-r text-xs">Particulars</TableHead>
+              <TableHead rowSpan={2} className="w-24 border-r text-center text-xs">Total (A)</TableHead>
+              <TableHead colSpan={2} className="border-r text-center text-xs">Male</TableHead>
+              <TableHead colSpan={2} className="text-center text-xs">Female</TableHead>
+            </TableRow>
+            <TableRow className="bg-stone-50">
+              <TableHead className="border-r text-center text-xs">No. (B)</TableHead>
+              <TableHead className="border-r text-center text-xs">% (B/A)</TableHead>
+              <TableHead className="border-r text-center text-xs">No. (C)</TableHead>
+              <TableHead className="text-center text-xs">% (C/A)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.flatMap((group) => {
+              const detailRows = group.rows.map((row) => {
+                const male = details[row.maleField] || 0;
+                const female = details[row.femaleField] || 0;
+                const total = male + female;
+                return (
+                  <TableRow key={row.key}>
+                    <TableCell className="border-r text-center text-xs">{row.serial}</TableCell>
+                    <TableCell className="border-r text-xs">{row.label}</TableCell>
+                    <TableCell className="border-r text-center text-xs font-medium tabular-nums">{total}</TableCell>
+                    <TableCell className="border-r p-1 text-center text-xs">{renderNumber(row.maleField, `${testId}-${row.key}-male`)}</TableCell>
+                    <TableCell className="border-r text-center text-xs tabular-nums">{compositionPercentage(male, total)}</TableCell>
+                    <TableCell className="border-r p-1 text-center text-xs">{renderNumber(row.femaleField, `${testId}-${row.key}-female`)}</TableCell>
+                    <TableCell className="text-center text-xs tabular-nums">{compositionPercentage(female, total)}</TableCell>
+                  </TableRow>
+                );
+              });
+              const totalMale = group.rows.reduce((sum, row) => sum + (details[row.maleField] || 0), 0);
+              const totalFemale = group.rows.reduce((sum, row) => sum + (details[row.femaleField] || 0), 0);
+              const total = totalMale + totalFemale;
+              return [
+                <TableRow key={`${group.key}-heading`} className="bg-emerald-50/60">
+                  <TableCell colSpan={7} className="text-xs font-bold uppercase text-emerald-900">{group.heading}</TableCell>
+                </TableRow>,
+                ...detailRows,
+                <TableRow key={`${group.key}-total`} className="bg-stone-50 font-semibold">
+                  <TableCell className="border-r text-center text-xs">{group.totalSerial}</TableCell>
+                  <TableCell className="border-r text-xs">{group.totalLabel}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{total}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{totalMale}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{compositionPercentage(totalMale, total)}</TableCell>
+                  <TableCell className="border-r text-center text-xs tabular-nums">{totalFemale}</TableCell>
+                  <TableCell className="text-center text-xs tabular-nums">{compositionPercentage(totalFemale, total)}</TableCell>
+                </TableRow>,
+              ];
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
+const WORKFORCE_GROUPS = [
+  {
+    key: 'employees', heading: 'Employees', totalSerial: 3, totalLabel: 'Total employees (D + E)',
+    rows: [
+      { key: 'employees-permanent', serial: 1, label: 'Permanent (D)', maleField: 'permanent_male_employees', femaleField: 'permanent_female_employees' },
+      { key: 'employees-other', serial: 2, label: 'Other than Permanent (E)', maleField: 'other_than_permanent_male_employees', femaleField: 'other_than_permanent_female_employees' },
+    ],
+  },
+  {
+    key: 'workers', heading: 'Workers', totalSerial: 6, totalLabel: 'Total workers (F + G)',
+    rows: [
+      { key: 'workers-permanent', serial: 4, label: 'Permanent (F)', maleField: 'permanent_male_workers', femaleField: 'permanent_female_workers' },
+      { key: 'workers-other', serial: 5, label: 'Other than Permanent (G)', maleField: 'other_than_permanent_male_workers', femaleField: 'other_than_permanent_female_workers' },
+    ],
+  },
+];
+
+const DIFFERENTLY_ABLED_GROUPS = [
+  {
+    key: 'differently-abled-employees', heading: 'Differently Abled Employees', totalSerial: 3,
+    totalLabel: 'Total differently abled employees (D + E)',
+    rows: [
+      { key: 'differently-abled-employees-permanent', serial: 1, label: 'Permanent (D)', maleField: 'diff_abled_permanent_male_employees', femaleField: 'diff_abled_permanent_female_employees' },
+      { key: 'differently-abled-employees-other', serial: 2, label: 'Other than Permanent (E)', maleField: 'diff_abled_other_permanent_male_employees', femaleField: 'diff_abled_other_permanent_female_employees' },
+    ],
+  },
+  {
+    key: 'differently-abled-workers', heading: 'Differently Abled Workers', totalSerial: 6,
+    totalLabel: 'Total differently abled workers (F + G)',
+    rows: [
+      { key: 'differently-abled-workers-permanent', serial: 4, label: 'Permanent (F)', maleField: 'diff_abled_permanent_male_workers', femaleField: 'diff_abled_permanent_female_workers' },
+      { key: 'differently-abled-workers-other', serial: 5, label: 'Other than Permanent (G)', maleField: 'diff_abled_other_permanent_male_workers', femaleField: 'diff_abled_other_permanent_female_workers' },
+    ],
+  },
+];
+
+export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {} }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -170,16 +362,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   // Form data
   const [employeeDetails, setEmployeeDetails] = useState({ ...DEFAULT_EMPLOYEE_DETAILS });
-  const [womenRepresentation, setWomenRepresentation] = useState([
-    { category: "Board of Directors", total: 0, number_of_females: 0 }
-  ]);
+  const [womenRepresentation, setWomenRepresentation] = useState(normalizeWomenRows());
   const [csrApplicability, setCSRApplicability] = useState({ ...DEFAULT_CSR });
   const [holdingEntities, setHoldingEntities] = useState([
     { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }
   ]);
-  // Turnover rate - current year only (we fetch previous years separately for display)
+  // The active BRSR response carries the complete three-year turnover matrix.
   const [turnoverRate, setTurnoverRate] = useState({ ...DEFAULT_TURNOVER_RATE });
-  // Editable data for previous years (fetched from their own documents, saved back to them)
+  // Previous-period values belong to the active reporting response, not separate reports.
   const [prevYearTurnover, setPrevYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   const [priorYearTurnover, setPriorYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   // Complaints/Grievances - initialize with all fixed categories
@@ -189,6 +379,42 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   // Material Issues
   const [materialIssues, setMaterialIssues] = useState([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
 
+  const liveQuestionValue = (questionKey) => liveKPIAutofillByQuestion[questionKey]?.value;
+  const lockedPathsFor = (questionKey) => new Set(
+    (liveKPIAutofillByQuestion[questionKey]?.locked_paths || []).map((path) => path.replace(/^rows\./, ''))
+  );
+  const workforceLockedFields = (questionKey) => new Set(
+    Object.entries(WORKFORCE_FIELD_PATHS_BY_QUESTION[questionKey] || {})
+      .filter(([, path]) => lockedPathsFor(questionKey).has(path))
+      .map(([field]) => field)
+  );
+  const employeeLockedFields = workforceLockedFields('brsr_a_employees_workers');
+  const differentlyAbledLockedFields = workforceLockedFields('brsr_a_differently_abled');
+  const womenLockedPaths = lockedPathsFor('brsr_a_women_representation');
+
+  useEffect(() => {
+    const applyWorkforceAutofill = (previous) => {
+      const next = { ...previous };
+      [
+        ['brsr_a_employees_workers', employeeLockedFields],
+        ['brsr_a_differently_abled', differentlyAbledLockedFields],
+      ].forEach(([questionKey, lockedFields]) => {
+        const liveValue = liveQuestionValue(questionKey);
+        const fieldPaths = WORKFORCE_FIELD_PATHS_BY_QUESTION[questionKey] || {};
+        lockedFields.forEach((field) => {
+          const value = getNestedValue(liveValue, fieldPaths[field]);
+          if (value !== undefined) next[field] = Number(value) || 0;
+        });
+      });
+      return next;
+    };
+    setEmployeeDetails(applyWorkforceAutofill);
+    setWomenRepresentation((previous) => mergeWomenRepresentation(
+      previous,
+      liveQuestionValue('brsr_a_women_representation')
+    ));
+  }, [liveKPIAutofillByQuestion]);
+
   useEffect(() => {
     fetchYearlyData();
   }, [reportingYear]);
@@ -196,8 +422,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   // Map ESG responses to yearly section form data
   const mapResponsesToFormData = (responses) => {
     // Employee/worker details
-    if (responses.brsr_a_employees_workers) {
-      const ew = responses.brsr_a_employees_workers;
+    const employeeWorkerValues = mergeNestedValues(
+      responses.brsr_a_employees_workers,
+      liveQuestionValue('brsr_a_employees_workers')
+    );
+    if (employeeWorkerValues) {
+      const ew = employeeWorkerValues;
       setEmployeeDetails({
         permanent_male_employees: ew.employees?.permanent?.male || 0,
         permanent_female_employees: ew.employees?.permanent?.female || 0,
@@ -219,8 +449,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     }
     
     // Differently abled
-    if (responses.brsr_a_differently_abled) {
-      const da = responses.brsr_a_differently_abled;
+    const differentlyAbledValues = mergeNestedValues(
+      responses.brsr_a_differently_abled,
+      liveQuestionValue('brsr_a_differently_abled')
+    );
+    if (differentlyAbledValues) {
+      const da = differentlyAbledValues;
       setEmployeeDetails(prev => ({
         ...prev,
         diff_abled_permanent_male_employees: da.employees?.permanent?.male || 0,
@@ -235,11 +469,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     }
     
     // Women representation
-    if (responses.brsr_a_women_representation?.length > 0) {
-      setWomenRepresentation(responses.brsr_a_women_representation);
-    } else {
-      setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
-    }
+    setWomenRepresentation(mergeWomenRepresentation(
+      responses.brsr_a_women_representation,
+      liveQuestionValue('brsr_a_women_representation')
+    ));
     
     // CSR
     if (responses.brsr_a_csr_applicability) {
@@ -255,17 +488,21 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
     }
     
-    // Turnover rate
-    if (responses.brsr_a_turnover_rate) {
-      const tr = responses.brsr_a_turnover_rate;
-      setTurnoverRate({
-        permanent_employees_male: tr.current_fy?.permanent_employees?.male || 0,
-        permanent_employees_female: tr.current_fy?.permanent_employees?.female || 0,
-        permanent_workers_male: tr.current_fy?.permanent_workers?.male || 0,
-        permanent_workers_female: tr.current_fy?.permanent_workers?.female || 0,
-      });
+    // Turnover rate: live autofill returns all three periods in the active report.
+    const turnoverValues = mergeNestedValues(
+      responses.brsr_a_turnover_rate,
+      liveQuestionValue('brsr_a_turnover_rate')
+    );
+    if (turnoverValues) {
+      setTurnoverRate(mapTurnoverPeriod(turnoverValues.current_fy));
+      setPrevYearTurnover(mapTurnoverPeriod(turnoverValues.previous_fy));
+      setPriorYearTurnover(mapTurnoverPeriod(
+        turnoverValues.prior_to_previous_fy || turnoverValues.prior_fy
+      ));
     } else {
       setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
+      setPrevYearTurnover({ ...DEFAULT_TURNOVER_RATE });
+      setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
     }
     
     // Complaints/Grievances
@@ -342,7 +579,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           },
         },
       },
-      brsr_a_women_representation: womenRepresentation,
+      brsr_a_women_representation: womenRepresentation.map((row) => ({
+        ...row,
+        percentage: row.total > 0 ? Number(((row.number_of_females / row.total) * 100).toFixed(2)) : 0,
+      })),
       brsr_a_csr_applicability: csrApplicability,
       brsr_a_holding_subsidiary: holdingEntities,
       brsr_a_turnover_rate: {
@@ -387,8 +627,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         setAvailableYears(generateReportingYears());
       }
       
-      // Fetch previous years' turnover data for display
-      await fetchPreviousYearsTurnover();
     } catch (error) {
       if (error.response?.status !== 404) console.error('Fetch error:', error);
       resetToDefaults();
@@ -399,7 +637,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   const resetToDefaults = () => {
     setEmployeeDetails({ ...DEFAULT_EMPLOYEE_DETAILS });
-    setWomenRepresentation([{ category: "Board of Directors", total: 0, number_of_females: 0 }]);
+    setWomenRepresentation(normalizeWomenRows());
     setCSRApplicability({ ...DEFAULT_CSR });
     setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
     setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
@@ -407,38 +645,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
     setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
     setMaterialIssues([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
-  };
-
-  // Fetch previous years' documents for display-only in turnover matrix
-  const fetchPreviousYearsTurnover = async () => {
-    const prevFY = getPreviousFY(reportingYear);
-    const priorFY = getPreviousFY(prevFY);
-    
-    try {
-      const [prevRes, priorRes] = await Promise.all([
-        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(prevFY)}`, { headers: getAuthHeader() }).catch(() => null),
-        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(priorFY)}`, { headers: getAuthHeader() }).catch(() => null)
-      ]);
-
-      const prevTurnover = prevRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
-      const priorTurnover = priorRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
-      
-      setPrevYearTurnover(prevTurnover ? {
-        permanent_employees_male: prevTurnover.permanent_employees?.male || 0,
-        permanent_employees_female: prevTurnover.permanent_employees?.female || 0,
-        permanent_workers_male: prevTurnover.permanent_workers?.male || 0,
-        permanent_workers_female: prevTurnover.permanent_workers?.female || 0,
-      } : { ...DEFAULT_TURNOVER_RATE });
-      
-      setPriorYearTurnover(priorTurnover ? {
-        permanent_employees_male: priorTurnover.permanent_employees?.male || 0,
-        permanent_employees_female: priorTurnover.permanent_employees?.female || 0,
-        permanent_workers_male: priorTurnover.permanent_workers?.male || 0,
-        permanent_workers_female: priorTurnover.permanent_workers?.female || 0,
-      } : { ...DEFAULT_TURNOVER_RATE });
-    } catch (e) {
-      // Silent fail
-    }
   };
 
   const saveAllYearlyData = async () => {
@@ -565,87 +771,29 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             </Badge>
           </div>
         </CollapsibleTrigger>
-        <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Employees */}
-            <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Employees</h5>
-              <div className="space-y-2">
-                {[
-                  ['Permanent Male Employees', 'permanent_male_employees'],
-                  ['Permanent Female Employees', 'permanent_female_employees'],
-                  ['Other than Permanent Male Employees', 'other_than_permanent_male_employees'],
-                  ['Other than Permanent Female Employees', 'other_than_permanent_female_employees'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]} 
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Employees</h6>
-              <div className="space-y-2 bg-blue-50 p-2 rounded">
-                {[
-                  ['Differently Abled Permanent Male Employees', 'diff_abled_permanent_male_employees'],
-                  ['Differently Abled Permanent Female Employees', 'diff_abled_permanent_female_employees'],
-                  ['Differently Abled Other than Permanent Male Employees', 'diff_abled_other_permanent_male_employees'],
-                  ['Differently Abled Other than Permanent Female Employees', 'diff_abled_other_permanent_female_employees'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]} 
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Workers */}
-            <div className="border rounded p-3">
-              <h5 className="text-xs font-semibold mb-3 text-stone-600 border-b pb-2">Workers</h5>
-              <div className="space-y-2">
-                {[
-                  ['Permanent Male Workers', 'permanent_male_workers'],
-                  ['Permanent Female Workers', 'permanent_female_workers'],
-                  ['Other than Permanent Male Workers', 'other_than_permanent_male_workers'],
-                  ['Other than Permanent Female Workers', 'other_than_permanent_female_workers'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]}
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-              <h6 className="text-xs font-semibold mt-3 mb-2 text-blue-600">Differently Abled Workers</h6>
-              <div className="space-y-2 bg-blue-50 p-2 rounded">
-                {[
-                  ['Differently Abled Permanent Male Workers', 'diff_abled_permanent_male_workers'],
-                  ['Differently Abled Permanent Female Workers', 'diff_abled_permanent_female_workers'],
-                  ['Differently Abled Other than Permanent Male Workers', 'diff_abled_other_permanent_male_workers'],
-                  ['Differently Abled Other than Permanent Female Workers', 'diff_abled_other_permanent_female_workers'],
-                ].map(([label, field]) => (
-                  <div key={field} className="flex items-center justify-between">
-                    <span className="text-xs">{label}</span>
-                    {isEditing ? (
-                      <Input type="number" min="0" value={employeeDetails[field]}
-                        onChange={(e) => setEmployeeDetails(p => ({ ...p, [field]: parseInt(e.target.value) || 0 }))}
-                        className="w-20 h-7 text-xs text-center" />
-                    ) : <span className="text-xs font-medium">{employeeDetails[field]}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        <CollapsibleContent className="space-y-6 border-t p-4">
+          {(isAdmin || canSeeQuestion('brsr_a_employees_workers')) && (
+            <WorkforceCompositionTable
+              title="a. Employees and workers (including differently abled)"
+              groups={WORKFORCE_GROUPS}
+              details={employeeDetails}
+              setDetails={setEmployeeDetails}
+              editable={isEditing && canEditQuestion('brsr_a_employees_workers')}
+              lockedFields={employeeLockedFields}
+              testId="brsr-employees-workers-table"
+            />
+          )}
+          {(isAdmin || canSeeQuestion('brsr_a_differently_abled')) && (
+            <WorkforceCompositionTable
+              title="b. Differently abled Employees and workers"
+              groups={DIFFERENTLY_ABLED_GROUPS}
+              details={employeeDetails}
+              setDetails={setEmployeeDetails}
+              editable={isEditing && canEditQuestion('brsr_a_differently_abled')}
+              lockedFields={differentlyAbledLockedFields}
+              testId="brsr-differently-abled-table"
+            />
+          )}
         </CollapsibleContent>
       </Collapsible>
       )}
@@ -658,7 +806,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.women ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <UserCheck className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Women Representation on Board & KMP</span>
+              <span className="font-medium text-sm">Participation/Inclusion/Representation of women</span>
             </div>
             <Badge variant="outline" className="text-xs">
               {womenRepresentation.reduce((sum, row) => sum + (row.number_of_females || 0), 0)} Women
@@ -666,58 +814,40 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
-          <Table>
+          <Table className="table-fixed" data-testid="brsr-women-representation-table">
             <TableHeader>
               <TableRow className="bg-stone-50">
-                <TableHead className="text-xs">Category</TableHead>
-                <TableHead className="text-xs text-center">Total</TableHead>
-                <TableHead className="text-xs text-center">No. of Females</TableHead>
-                {isEditing && <TableHead className="text-xs w-12"></TableHead>}
+                <TableHead className="w-[40%] text-xs"></TableHead>
+                <TableHead className="w-[20%] text-center text-xs">Total (A)</TableHead>
+                <TableHead className="w-[20%] text-center text-xs">No. of Females (B)</TableHead>
+                <TableHead className="w-[20%] text-center text-xs">% (B/A)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {womenRepresentation.map((row, idx) => (
-                <TableRow key={idx}>
+                <TableRow key={row.key} data-testid={`brsr-women-row-${row.key}`}>
+                  <TableCell className="text-xs font-medium">{row.category}</TableCell>
                   <TableCell>
-                    {isEditing ? (
-                      <Select value={row.category} onValueChange={(v) => {
-                        const updated = [...womenRepresentation]; updated[idx].category = v; setWomenRepresentation(updated);
-                      }}>
-                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>{CATEGORIES_WOMEN.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                      </Select>
-                    ) : <span className="text-xs">{row.category}</span>}
-                  </TableCell>
-                  <TableCell>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.total`) ? (
                       <Input type="number" min="0" value={row.total} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
-                      }} className="h-7 text-xs text-center" />
-                    ) : <span className="text-xs">{row.total}</span>}
+                      }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-total`} />
+                    ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.total`) ? `brsr-women-${row.key}-total-kpi-autofill` : undefined}>{row.total}</div>}
                   </TableCell>
                   <TableCell>
-                    {isEditing ? (
+                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.number_of_females`) ? (
                       <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
-                      }} className="h-7 text-xs text-center" />
-                    ) : <span className="text-xs">{row.number_of_females}</span>}
+                      }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-female`} />
+                    ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.number_of_females`) ? `brsr-women-${row.key}-female-kpi-autofill` : undefined}>{row.number_of_females}</div>}
                   </TableCell>
-                  {isEditing && (
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        if (womenRepresentation.length > 1) setWomenRepresentation(womenRepresentation.filter((_, i) => i !== idx));
-                      }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
-                    </TableCell>
-                  )}
+                  <TableCell className="text-center text-xs font-medium tabular-nums" data-testid={`brsr-women-${row.key}-percentage`}>
+                    {compositionPercentage(row.number_of_females, row.total)}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {isEditing && (
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => setWomenRepresentation([...womenRepresentation, { category: "Board of Directors", total: 0, number_of_females: 0 }])}>
-              <Plus className="w-3 h-3 mr-1" /> Add Row
-            </Button>
-          )}
         </CollapsibleContent>
       </Collapsible>
       )}

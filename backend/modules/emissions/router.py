@@ -33,6 +33,7 @@ from modules.base_year.sync_service import (
     sync_changed_emission_base_years,
     sync_deleted_emission_base_years,
 )
+from modules.esg_records.ghg_energy_sync import get_ghg_energy_sync_service
 from modules.entitlements.dependencies import assert_ghg_scope_access, assert_period_row_limit
 from modules.supplier_assessment.ghg_submission_service import (
     assert_supplier_emission_capability,
@@ -49,6 +50,7 @@ from modules.emissions.contracts import (
     EmissionRecordCreate,
     EmissionRecordResponse,
 )
+from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 from shared.helpers.uploaded_files import delete_unreferenced_emission_files, delete_uploaded_files, extract_uploaded_file_ids
@@ -82,6 +84,24 @@ C7_INCOMPATIBLE_RECORD_FIELDS = (
     "ch4_emissions",
     "n2o_emissions",
 )
+
+
+async def _sync_derived_energy(record: dict, action: str) -> None:
+    """Synchronize locked Energy rows after any Scope 1/2 canonical GHG write."""
+    if (record.get("scope") or "").lower() not in {"scope1", "scope2"}:
+        return
+    org_id = record.get("organization_id")
+    if not org_id:
+        return
+    try:
+        result = await get_ghg_energy_sync_service(db).sync_organization(org_id)
+        log_event(logger, logging.INFO, "ghg.energy.sync", action=action, outcome="succeeded",
+                  context={"organization_id": org_id, "changes": result})
+    except Exception:
+        # The GHG write remains authoritative. Energy list reads reconcile any
+        # missed derived write on the next Energy request.
+        log_event(logger, logging.WARNING, "ghg.energy.sync", action=action, outcome="degraded",
+                  error_code="GHG_ENERGY_SYNC_FAILED", context={"organization_id": org_id}, exc_info=True)
 SCOPE3_SELECTION_FIELDS = (
     "calculation_method_scope3",
     "spend_currency_conversion_method",
@@ -1035,6 +1055,8 @@ async def rollback_emission_submission_batch(
         "submission_batch_id": batch_id,
         "created_by": created_by,
     }
+    access_scope = await resolve_ghg_access_scope(current_user)
+    rollback_query = access_scope.emission_query(rollback_query)
     records = await db.emission_records.find(rollback_query, {"_id": 0}).to_list(100)
     record_ids = [record["id"] for record in records if record.get("id")]
     if not record_ids:
@@ -1080,31 +1102,16 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     org_id = facility.get("organization_id")
     user_id = current_user.get("id")
     user_role = current_user.get("role", "user")
-    
-    # Admin org check
-    if user_role == "admin" and org_id != current_user.get("organization_id"):
-        raise HTTPException(status_code=403, detail="Not authorized")
+
+    access_scope = await resolve_ghg_access_scope(current_user, record_data.reporting_period)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": record_data.facility_id,
+        "scope": record_data.scope,
+    })
 
     await assert_ghg_scope_access(org_id, record_data.scope, record_data.biogenic_scope_selection)
     
-    # KPI Assignment-based access control (admins bypass)
-    if user_role not in ["admin", "super_admin"]:
-        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
-        can_access, reason = await kpi_access_helper.can_access_emission(
-            user_id=user_id,
-            organization_id=org_id,
-            scope=record_data.scope.lower() if record_data.scope else "",
-            facility_id=record_data.facility_id,
-            reporting_period=record_data.reporting_period,
-        )
-        if not can_access:
-            log_event(logger, logging.WARNING, "ghg.emission.create.rejected", action="ghg.emission.create", outcome="rejected",
-                      error_code="PERMISSION_DENIED", context={"scope": record_data.scope, "facility_id": record_data.facility_id})
-            raise HTTPException(
-                status_code=403,
-                detail=f"You don't have access to create {record_data.scope} emissions for this facility. Check your KPI assignments."
-            )
-
     # Validate frequency_type
     frequency_type = record_data.frequency_type or "monthly"
     if frequency_type not in ["monthly", "yearly"]:
@@ -1295,15 +1302,12 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         
         return EmissionRecordResponse(**record_dict)
     
-    # No approval required - insert directly.
-    # Admins/Super Admins bypass the workflow, so they must not receive an
-    # "approved" status: no approval event occurred. Suppliers also have no
-    # emission approval workflow.
-    if current_user.get("user_type") != "supplier" and not is_admin:
-        record_dict["approval_status"] = "approved"
+    # The record is final and reportable, but no approval event occurred.
+    record_dict["approval_status"] = "not_required"
     await db.emission_records.insert_one(record_dict)
     log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="succeeded",
               context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})
+    await _sync_derived_energy(record_dict, "ghg.emission.create")
     
     # Phase B11: emit emission.saved (best-effort; never break write path).
     try:
@@ -1399,6 +1403,22 @@ async def update_emission_record(
     
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
+
+    access_scope = await resolve_ghg_access_scope(current_user, existing.get("reporting_period"))
+    access_scope.assert_emission_access(existing)
+    target_facility = await db.facilities.find_one(
+        {"id": record_data.facility_id}, {"_id": 0, "organization_id": 1}
+    )
+    if not target_facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    if target_facility.get("organization_id") != existing.get("organization_id"):
+        raise HTTPException(status_code=422, detail="An emission record cannot be moved to another organization")
+    target_access_scope = await resolve_ghg_access_scope(current_user, record_data.reporting_period)
+    target_access_scope.assert_emission_access({
+        "organization_id": target_facility.get("organization_id"),
+        "facility_id": record_data.facility_id,
+        "scope": record_data.scope,
+    })
 
     try:
         versioned_record_data = await apply_record_version_binding(
@@ -1711,6 +1731,7 @@ async def update_emission_record(
         })
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
+    await _sync_derived_energy(updated, "ghg.emission.update")
 
     try:
         sync_results = await sync_changed_emission_base_years(existing, updated, current_user)
@@ -1801,16 +1822,6 @@ async def get_emission_records(
     # source revision for audit and parent visibility. GHG Logs should show the
     # active draft rather than rendering both revisions as duplicate entries.
     records = exclude_reopened_supplier_submission_revisions(records)
-    
-    # KPI Assignment-based filtering (admins bypass)
-    if user_role not in ["admin", "super_admin"]:
-        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
-        records = await kpi_access_helper.filter_emissions_by_access(
-            user_id=user_id,
-            organization_id=org_id,
-            records=records,
-            reporting_period=reporting_period,
-        )
     
     # Filter out biogenic records from non-biogenic scope tabs
     # Biogenic records should ONLY appear in the biogenic tab
@@ -1912,6 +1923,8 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
     if not record_org_id and record.get("facility_id"):
         facility = await db.facilities.find_one({"id": record["facility_id"]}, {"_id": 0, "organization_id": 1})
         record_org_id = (facility or {}).get("organization_id")
+    access_scope = await resolve_ghg_access_scope(current_user, record.get("reporting_period"))
+    access_scope.assert_emission_access({**record, "organization_id": record_org_id})
     await assert_ghg_scope_access(record_org_id, record.get("scope"), record.get("biogenic_scope_selection"))
     
     # If user has a pending proposal, overlay their proposed values onto the record
@@ -1937,37 +1950,6 @@ async def get_emission_record(record_id: str, current_user: dict = Depends(get_c
         record["is_my_pending_proposal"] = True
         record["approval_status"] = "pending_approval"
 
-    # Role-based access check
-    role = current_user.get("role")
-    if role == "super_admin":
-        pass
-    elif role == "admin":
-        # Admin can access their org's records
-        org_id = current_user.get("organization_id")
-        record_org = record.get("organization_id")
-        # Also check facility's org if record doesn't have org_id
-        if not record_org:
-            fac = await db.facilities.find_one({"id": record.get("facility_id")}, {"_id": 0, "organization_id": 1})
-            record_org = fac.get("organization_id") if fac else None
-        if record_org and record_org != org_id:
-            raise HTTPException(status_code=403, detail="Not authorized")
-    else:  # regular user - use KPI access control
-        from modules.esg_assignments.kpi_access_helper import kpi_access_helper
-        can_access, reason = await kpi_access_helper.can_access_emission(
-            user_id=current_user.get("id"),
-            organization_id=current_user.get("organization_id"),
-            scope=record.get("scope", "").lower(),
-            facility_id=record.get("facility_id"),
-            reporting_period=record.get("reporting_period"),
-        )
-        # Also allow users to access their own pending records
-        is_own_pending = (
-            record.get("approval_status", "approved") != "approved"
-            and record.get("submitted_by") == current_user.get("id")
-        )
-        if not can_access and not is_own_pending:
-            raise HTTPException(status_code=403, detail="Not authorized")
-
     return EmissionRecordResponse(**record)
 
 
@@ -1984,6 +1966,17 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
     Embedded `version_history` on the record (if any) is treated as a
     legacy fallback for records approved before this change.
     """
+    record, _ = await find_record(record_id)
+    if not record:
+        pending = await db[PENDING_COLLECTION].find_one(
+            {"original_record_id": record_id}, {"_id": 0}
+        )
+        record = pending
+    if not record:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+    access_scope = await resolve_ghg_access_scope(current_user, record.get("reporting_period"))
+    access_scope.assert_emission_access(record)
+
     history: List[dict] = []
 
     # Primary source: emission_history collection.
@@ -2073,6 +2066,9 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
 
+    access_scope = await resolve_ghg_access_scope(current_user, existing.get("reporting_period"))
+    access_scope.assert_emission_access(existing)
+
     await assert_ghg_scope_access(
         existing.get("organization_id"),
         existing.get("scope"),
@@ -2109,6 +2105,8 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     result = await db[target_collection].delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    if target_collection == APPROVED_COLLECTION:
+        await _sync_derived_energy(existing, "ghg.emission.delete")
 
     if target_collection == APPROVED_COLLECTION:
         try:

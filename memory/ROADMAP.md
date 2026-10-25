@@ -2,6 +2,26 @@
 
 ## P0 — Immediate
 
+### BRSR Turnover Display Verification
+- Verify the Section A turnover matrix for current, previous, and prior financial years using the active reporting-period response. Confirm Employee and Worker rates display in the intended columns and that switching reporting periods never leaves stale values. Testing is paused until explicitly authorized.
+
+### BRSR Training UI Verification
+- Verify the P3-E8 table displays the synced `workers_female`, `workers_male`, and `workers_total` values and retains blanks for worker training measures until worker-recipient training records exist. Browser testing is paused until explicitly authorized.
+
+### Training and Unit UI Verification
+- Verify Training Total Attendees updates and displays after editing female or male attendees, and verify Social/Governance count validation messages use Number rather than Litres. Browser testing is paused until explicitly authorized.
+
+### Avoided Green-Energy Emissions Verification
+- Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
+
+### GHG Facility Access Verification
+- Verify the newly implemented centralized GHG policy with assigned versus unassigned facilities across list/detail/create/update/delete/history, C7, Sinks, dashboard analysis, Base Year, Scope 3 Bulk Upload, OCR evidence finalization, and AI summary aggregation.
+- Verify workflow-enabled organizations ignore direct assignments and preserve existing workflow assignment behavior; verify organization admins retain full organization access.
+- Verify Super Admin and organization-admin facility pickers, Logs/Analysis-only navigation, direct-route redirection, and responsive desktop/mobile behavior. Testing is intentionally blocked until the user explicitly authorizes it.
+
+### Editable Workforce Total Policy
+- Make each workforce grid explicitly choose one total policy: **calculated and locked from detailed rows**, or **manually entered with strict component validation**. Remove any mixed behavior caused by hidden/stale total fields. Existing testing data does not constrain this work and may be normalized as part of the implementation.
+
 ### Supplier Questionnaire Section Applicability Scoring
 - Fix the new per-question ESG scorer so an absent section is not emitted as `0`. When a questionnaire has no Governance questions and Governance has no configured weight, return Governance as not applicable/blank in score breakdowns, supplier snapshots, rankings, and charts. Do not penalize the ESG total; normalize only scored, weighted sections. Preserve the existing legacy scorer behavior and audit the recalculation impact for affected submitted questionnaires.
 
@@ -26,6 +46,18 @@
 - Map custom GHG and Energy target fields to canonical `field_code` values without duplicate targets.
 
 ## P1 — Upcoming
+### Tenant-Scoped Metadata & Policy Architecture Consolidation
+- Consolidate ESG, GHG, KPI Definitions, Organization Config, BRSR/GRI reporting, dashboards, targets, and Supplier Assessment around one versioned, tenant-scoped metadata and policy engine.
+- Make built-in and custom fields/KPIs first-class through stable immutable IDs, effective-dated schema versions, lineage, audit history, and non-destructive migrations so later configuration changes never reinterpret historical data.
+- Add organization-level mapping policies for every KPI/report destination: enabled/disabled, source KPI, framework/question/path, aggregation, formula, unit conversion, effective dates, and sync mode (`unlinked`, `suggest`, `auto-fill`).
+- Add configurable conflict/edit policies: KPI wins, manual answer wins, or approval required; mapped cells can be locked or editable per organization and reporting period.
+- Convert the dormant proposal workflow into the reusable `suggest/approval required` policy rather than maintaining it as a separate special-case system.
+- Make GHG methodologies, factor priority, organizational boundaries, Scope 3/custom categories, approvals, and report mappings organization-configurable without rewriting historical calculation snapshots.
+- Make Supplier Assessment taxonomy, questions, scoring, evidence rules, assignments, approval workflows, GHG permissions, and ESG/KPI/report mappings versioned per organization/program revision.
+- Replace module-specific conditionals with registries/strategies for source extraction, calculations, aggregation, transformations, rendering, scoring, and sync policies. Remove business rules duplicated across Python schemas, seed scripts, React configs, and live database documents.
+- Add an effective-configuration resolver with precedence: platform default → organization policy/version → program/framework/reporting-period override, plus an admin read-only explanation of the resolved rule and its provenance.
+- Deliver through compatibility adapters and staged migrations so existing organization configuration, records, response history, formula snapshots, supplier submissions, and reports continue to work unchanged until explicitly migrated.
+
 - Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
 - Add controlled decision-tree rebind and mapping-clone workflows to Formula Builder/Input Field Mapping, including a mandatory preview of affected category branches before applying either action.

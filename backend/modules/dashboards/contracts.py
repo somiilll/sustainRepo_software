@@ -19,6 +19,7 @@ class DashboardStats(BaseModel):
     scope2_emissions: float
     scope3_emissions: float = 0  # NEW: Scope 3 emissions
     biogenic_emissions: float
+    avoided_emissions_green_energy: float = 0
     biogenic_direct: float = 0  # Biogenic from Scope 1 activities (e.g., biomass combustion)
     biogenic_indirect: float = 0  # Biogenic from Scope 3 activities (e.g., C8 upstream)
     recent_records: List[EmissionRecordResponse]

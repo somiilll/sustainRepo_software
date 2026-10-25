@@ -61,7 +61,8 @@ export default function BRSRDetailsSection({
   initialData = null,
   isCollapsible = true,
   hideSections = [],
-  reportingPeriod = ''
+  reportingPeriod = '',
+  liveKPIAutofillByQuestion = {}
 }) {
   const { getAuthHeader, user } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
@@ -1675,6 +1676,7 @@ export default function BRSRDetailsSection({
               reportingYear={reportingPeriod}
               assignedQuestionKeys={assignedQuestionKeys}
               isAdmin={isAdmin}
+              liveKPIAutofillByQuestion={liveKPIAutofillByQuestion}
             />
           </div>
         </div>

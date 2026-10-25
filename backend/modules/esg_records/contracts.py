@@ -49,6 +49,16 @@ class ESGRecordFieldConfig(BaseModel):
     table_columns: Optional[List[Dict[str, Any]]] = None
     table_min_rows: Optional[int] = None
     table_max_rows: Optional[int] = None
+    # Display tree + framework references (optional)
+    group: Optional[str] = None
+    level: Optional[int] = None
+    parent_key: Optional[str] = None
+    sum_parents: Optional[List[str]] = None
+    brsr_reference: Optional[str] = None
+    gri_disclosure: Optional[str] = None
+    table_summary: Optional[Dict[str, Any]] = None
+    option_refs: Optional[Dict[str, Any]] = None
+    ratio: Optional[Dict[str, Any]] = None
 
 
 class ESGRecordCategoryConfig(BaseModel):

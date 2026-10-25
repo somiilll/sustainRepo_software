@@ -1,0 +1,73 @@
+{
+  "completed_at": "2026-10-19T06:16:40.175761+00:00",
+  "indexes_created": {
+    "airports": [
+      "iata_code_text_airport_name_text_city_text_country_text"
+    ]
+  },
+  "production_counts": {
+    "airports": 9053,
+    "category_frequency_configs": 1,
+    "ce_compound_units": 70,
+    "ce_decision_tree_versions": 170,
+    "ce_decision_trees": 23,
+    "ce_formula_versions": 147,
+    "ce_formulas": 83,
+    "ce_input_field_mappings": 72,
+    "ce_properties": 9,
+    "ce_property_source_mappings": 15,
+    "ce_unit_conversions": 13,
+    "ce_variables": 56,
+    "currency_conversion": 31,
+    "emission_categories": 25,
+    "emission_configurations": 9,
+    "emission_factors": 6,
+    "esg_frameworks": 2,
+    "esg_kpi_definitions": 355,
+    "esg_question_configs": 469,
+    "esg_record_categories": 78,
+    "fuel_database": 502,
+    "gwp_config": 1,
+    "scope3_ef": 3875,
+    "scopes": 5,
+    "sectors": 10,
+    "units": 32
+  },
+  "staging_counts": {
+    "airports": 9053,
+    "category_frequency_configs": 1,
+    "ce_compound_units": 70,
+    "ce_decision_tree_versions": 170,
+    "ce_decision_trees": 23,
+    "ce_formula_versions": 147,
+    "ce_formulas": 82,
+    "ce_input_field_mappings": 72,
+    "ce_properties": 9,
+    "ce_property_source_mappings": 15,
+    "ce_unit_conversions": 13,
+    "ce_variables": 56,
+    "currency_conversion": 31,
+    "emission_categories": 24,
+    "emission_configurations": 9,
+    "emission_factors": 6,
+    "esg_frameworks": 2,
+    "esg_kpi_definitions": 355,
+    "esg_question_configs": 469,
+    "esg_record_categories": 78,
+    "fuel_database": 502,
+    "gwp_config": 1,
+    "scope3_ef": 3875,
+    "scopes": 5,
+    "sectors": 10,
+    "units": 32
+  },
+  "excluded_scopes": [
+    "organization-specific",
+    "user-specific",
+    "test",
+    "supplier",
+    "audit",
+    "response",
+    "operational records"
+  ]
+}

@@ -2170,10 +2170,12 @@ async def finalize_import(
     
     # Find emission records by invoice number if no IDs provided
     emission_record_ids = request.emission_record_ids
+    from modules.emissions.access_policy import resolve_ghg_access_scope
+    access_scope = await resolve_ghg_access_scope(current_user)
     if emission_record_ids:
         linked_records = await db.emission_records.find(
-            {"id": {"$in": emission_record_ids}, "organization_id": org_id},
-            {"_id": 0, "id": 1},
+            access_scope.emission_query({"id": {"$in": emission_record_ids}, "organization_id": org_id}),
+            {"_id": 0},
         ).to_list(len(emission_record_ids))
         if {record.get("id") for record in linked_records} != set(emission_record_ids):
             raise HTTPException(status_code=422, detail="Each GHG record must belong to your organization before evidence can be attached.")
@@ -2181,10 +2183,10 @@ async def finalize_import(
         # Search for recently created emissions with this invoice in record_source.
         logger.info(f"[OCR Finalize] Searching for emissions with invoice number: {invoice_number}")
         recent_emissions = await db.emission_records.find(
-            {
+            access_scope.emission_query({
                 "organization_id": org_id,
                 "record_source": {"$regex": invoice_number, "$options": "i"}
-            },
+            }),
             {"id": 1, "_id": 0}
         ).sort("created_at", -1).limit(10).to_list(10)
         

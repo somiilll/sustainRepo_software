@@ -7,11 +7,12 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Search, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
+import { Building2, Plus, Search, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { FacilityAssignmentPicker } from '../components/FacilityAssignmentPicker';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const EMPTY_FORM = { email: '', full_name: '', organization_id: '', role: 'user' };
+const EMPTY_FORM = { email: '', full_name: '', organization_id: '', role: 'user', assigned_facilities: [] };
 
 const roleMeta = {
   admin: { label: 'Admin', icon: UserCog, className: 'bg-amber-100 text-amber-800' },
@@ -26,6 +27,10 @@ export default function AdminManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [accountToDelete, setAccountToDelete] = useState(null);
+  const [facilities, setFacilities] = useState([]);
+  const [facilityAccount, setFacilityAccount] = useState(null);
+  const [facilityDialogOpen, setFacilityDialogOpen] = useState(false);
+  const [selectedFacilityIds, setSelectedFacilityIds] = useState([]);
   const { getAuthHeader } = useAuth();
 
   const fetchData = async () => {
@@ -62,6 +67,30 @@ export default function AdminManagement() {
   }, [accounts, organizations, searchTerm]);
 
   const resetForm = () => setFormData(EMPTY_FORM);
+  const getOrganization = (organizationId) => organizations.find((organization) => organization.id === organizationId);
+  const selectedOrganization = getOrganization(formData.organization_id);
+  const usesWorkflow = Boolean(selectedOrganization?.approval_workflow_enabled);
+
+  const loadFacilities = async (organizationId) => {
+    if (!organizationId) {
+      setFacilities([]);
+      return;
+    }
+    try {
+      const response = await axios.get(`${API}/facilities`, {
+        params: { organization_id: organizationId },
+        headers: getAuthHeader(),
+      });
+      setFacilities(response.data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Unable to load facilities');
+    }
+  };
+
+  const handleOrganizationChange = async (organizationId) => {
+    setFormData({ ...formData, organization_id: organizationId, assigned_facilities: [] });
+    await loadFacilities(organizationId);
+  };
 
   const handleCreate = async (event) => {
     event.preventDefault();
@@ -89,6 +118,33 @@ export default function AdminManagement() {
     }
   };
 
+  const openFacilityAssignments = async (account) => {
+    setFacilityAccount(account);
+    setSelectedFacilityIds(account.assigned_facilities || []);
+    await loadFacilities(account.organization_id);
+    setFacilityDialogOpen(true);
+  };
+
+  const saveFacilityAssignments = async () => {
+    if (!facilityAccount || selectedFacilityIds.length === 0) {
+      toast.error('Select at least one facility');
+      return;
+    }
+    try {
+      await axios.put(
+        `${API}/admin/users/${facilityAccount.id}/assign-facilities`,
+        selectedFacilityIds,
+        { headers: getAuthHeader() }
+      );
+      toast.success('Facility access updated');
+      setFacilityDialogOpen(false);
+      setFacilityAccount(null);
+      await fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update facility access');
+    }
+  };
+
   if (loading) {
     return <div className="flex h-96 items-center justify-center" data-testid="team-accounts-loading"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" /></div>;
   }
@@ -107,7 +163,7 @@ export default function AdminManagement() {
           <DialogTrigger asChild>
             <Button className="rounded-full bg-primary px-6 text-white hover:bg-primary/90" data-testid="create-team-account-button"><Plus className="mr-2 h-4 w-4" />Add account</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md" data-testid="create-team-account-dialog">
+          <DialogContent className="max-w-lg" data-testid="create-team-account-dialog">
             <DialogHeader>
               <DialogTitle data-testid="create-team-account-title">Add team account</DialogTitle>
               <DialogDescription data-testid="create-team-account-description">Choose the account role and its organization.</DialogDescription>
@@ -123,22 +179,40 @@ export default function AdminManagement() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-role">Account role *</Label>
-                <select id="account-role" value={formData.role} onChange={(event) => setFormData({ ...formData, role: event.target.value })} className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-role-select">
+                <select id="account-role" value={formData.role} onChange={(event) => setFormData({ ...formData, role: event.target.value, assigned_facilities: [] })} className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-role-select">
                   <option value="user" data-testid="team-account-role-user">User</option>
                   <option value="admin" data-testid="team-account-role-admin">Admin</option>
                 </select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-organization">Organization *</Label>
-                <select id="account-organization" value={formData.organization_id} onChange={(event) => setFormData({ ...formData, organization_id: event.target.value })} required className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-organization-select">
+                <select id="account-organization" value={formData.organization_id} onChange={(event) => handleOrganizationChange(event.target.value)} required className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-organization-select">
                   <option value="" data-testid="team-account-organization-placeholder">Select organization</option>
                   {organizations.map((organization) => <option key={organization.id} value={organization.id} data-testid={`team-account-organization-${organization.id}`}>{organization.name}</option>)}
                 </select>
               </div>
+              {formData.role === 'user' && formData.organization_id && !usesWorkflow && (
+                <FacilityAssignmentPicker
+                  facilities={facilities}
+                  selectedIds={formData.assigned_facilities}
+                  onChange={(assigned_facilities) => setFormData({ ...formData, assigned_facilities })}
+                  testIdPrefix="team-account"
+                />
+              )}
+              {formData.role === 'user' && formData.organization_id && usesWorkflow && (
+                <p className="border-y border-stone-200 py-3 text-sm text-stone-600" data-testid="team-account-workflow-access-note">
+                  This organization controls GHG access through workflow assignments.
+                </p>
+              )}
               <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800" data-testid="team-account-invitation-notice">An invitation with a temporary password will be sent by email. The account holder must change it when they first sign in.</div>
               <div className="flex justify-end gap-3 pt-3">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} data-testid="cancel-team-account-button">Cancel</Button>
-                <Button type="submit" className="bg-primary text-white hover:bg-primary/90" data-testid="submit-team-account-button">Create {roleMeta[formData.role].label}</Button>
+                <Button
+                  type="submit"
+                  className="bg-primary text-white hover:bg-primary/90"
+                  disabled={formData.role === 'user' && !usesWorkflow && formData.assigned_facilities.length === 0}
+                  data-testid="submit-team-account-button"
+                >Create {roleMeta[formData.role].label}</Button>
               </div>
             </form>
           </DialogContent>
@@ -166,6 +240,16 @@ export default function AdminManagement() {
               {account.requires_password_change && <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800" data-testid={`team-account-password-change-${account.id}`}>Password change pending</span>}
             </div>
             <p className="mt-4 text-xs text-text-secondary" data-testid={`team-account-organization-name-${account.id}`}><span className="font-semibold">Organization:</span> {getOrganizationName(account.organization_id)}</p>
+            {account.role === 'user' && !getOrganization(account.organization_id)?.approval_workflow_enabled && (
+              <div className="mt-4 border-t border-stone-100 pt-4">
+                <p className="mb-3 text-xs text-stone-600" data-testid={`team-account-facility-count-${account.id}`}>
+                  {account.assigned_facilities?.length || 0} facilities assigned
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => openFacilityAssignments(account)} data-testid={`manage-team-account-facilities-${account.id}-button`}>
+                  <Building2 className="mr-2 h-4 w-4" /> Manage facilities
+                </Button>
+              </div>
+            )}
           </Card>;
         })}
       </div>
@@ -181,6 +265,20 @@ export default function AdminManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={facilityDialogOpen} onOpenChange={setFacilityDialogOpen}>
+        <DialogContent className="max-w-lg" data-testid="manage-team-account-facilities-dialog">
+          <DialogHeader>
+            <DialogTitle>Facility access for {facilityAccount?.full_name}</DialogTitle>
+            <DialogDescription>Choose the facilities this user can access across GHG Logs and Analysis.</DialogDescription>
+          </DialogHeader>
+          <FacilityAssignmentPicker facilities={facilities} selectedIds={selectedFacilityIds} onChange={setSelectedFacilityIds} testIdPrefix="manage-team-account" />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setFacilityDialogOpen(false)} data-testid="cancel-team-account-facilities-button">Cancel</Button>
+            <Button type="button" onClick={saveFacilityAssignments} disabled={selectedFacilityIds.length === 0} data-testid="save-team-account-facilities-button">Save access</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

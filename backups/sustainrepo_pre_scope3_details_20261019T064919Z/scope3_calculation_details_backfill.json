@@ -1,0 +1,20 @@
+{
+  "organization_id": "6ad5a436-58e3-4184-a03e-bc89870b704d",
+  "scope3_spend_records_updated": 30,
+  "inputs_or_totals_changed": false,
+  "fields_written": [
+    "calculation_details"
+  ],
+  "fields_not_written": [
+    "total_emissions",
+    "co2_emissions",
+    "ch4_emissions",
+    "n2o_emissions",
+    "co2e_emissions",
+    "dynamic_field_values",
+    "formula_id",
+    "formula_version_id",
+    "formula_snapshot",
+    "decision_tree_version_id"
+  ]
+}

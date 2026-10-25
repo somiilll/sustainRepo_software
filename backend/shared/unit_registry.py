@@ -45,7 +45,7 @@ UNIT_REGISTRY: Dict[str, Dict] = {
             "g":     {"factor": 0.001,       "label": "Gram",            "aliases": ["gram", "grams", "g"]},
             "kg":    {"factor": 1,            "label": "Kilogram",        "aliases": ["kilogram", "kilograms", "kg"]},
             "t":     {"factor": 1_000,        "label": "Tonne",           "aliases": ["tonne", "tonnes", "metric ton", "metric tons", "t"]},
-            "MT":    {"factor": 1_000_000,    "label": "Megatonne",       "aliases": ["megatonne", "megatonnes", "mt"]},
+            "MT":    {"factor": 1_000,        "label": "Metric Tonne",   "aliases": ["metric tonne", "metric tonnes", "metric ton", "metric tons", "mt"]},
             "lb":    {"factor": 0.453592,     "label": "Pound",           "aliases": ["pound", "pounds", "lb", "lbs"]},
             "kgCO2": {"factor": 1,            "label": "kg CO₂",         "aliases": ["kgco2", "kg co2"]},
             "tCO2":  {"factor": 1_000,        "label": "Tonne CO₂",      "aliases": ["tco2", "t co2", "tco2e", "tonne co2"]},
@@ -134,6 +134,38 @@ def convert(value: float, from_unit: str, to_unit: str) -> float:
 
     # Convert: value * from_factor / to_factor  (via base unit)
     return value * from_cfg["factor"] / to_cfg["factor"]
+
+
+def can_convert(from_unit: str, to_unit: str) -> bool:
+    """Return whether two unit strings resolve to the same measurement type."""
+    if not from_unit or not to_unit:
+        return False
+    from_entry = _ALIAS_MAP.get(from_unit.lower().strip())
+    to_entry = _ALIAS_MAP.get(to_unit.lower().strip())
+    return bool(from_entry and to_entry and from_entry[0] == to_entry[0])
+
+
+def get_conversion_metadata(units: List[str]) -> Optional[Dict]:
+    """Return client-safe factors for a compatible field unit set.
+
+    API category payloads use this to give entry forms the exact same factors
+    as the backend KPI engine, without duplicating conversion rules in React.
+    """
+    resolved = [(unit, _ALIAS_MAP.get(str(unit).lower().strip())) for unit in units if unit]
+    if not resolved or any(entry is None for _unit, entry in resolved):
+        return None
+    unit_type = resolved[0][1][0]
+    if any(entry[0] != unit_type for _unit, entry in resolved):
+        return None
+    definitions = UNIT_REGISTRY[unit_type]["units"]
+    return {
+        "dimension": unit_type,
+        "base_unit": UNIT_REGISTRY[unit_type]["base"],
+        "factors": {
+            str(unit).lower(): definitions[entry[1]]["factor"]
+            for unit, entry in resolved
+        },
+    }
 
 
 def get_base_unit(unit_type: str) -> Optional[str]:

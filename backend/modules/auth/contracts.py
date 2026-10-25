@@ -8,7 +8,7 @@ inline routes that still reference the bare class names.
 """
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -54,7 +54,7 @@ class UserResponse(BaseModel):
     role: str
     user_type: Optional[str] = None  # admin, employee, supplier, super_admin
     organization_id: Optional[str] = None
-    assigned_facilities: List[str] = []
+    assigned_facilities: List[str] = Field(default_factory=list)
     requires_password_change: bool = False
     recovery_email: Optional[str] = None
     recovery_mobile: Optional[str] = None

@@ -24,9 +24,13 @@ import {
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
   GENERAL_TRAINING_CONFIG,
+  CONSUMER_COMPLAINTS_CONFIG,
+  INTERNAL_COMPLAINTS_CONFIG,
 } from '../config/workforceTableConfigs';
 
-const WORKFORCE_TABLE_MAP = {
+import { WORKFORCE_GRID_CONFIGS } from '../config/workforceSpec.generated';
+
+const LEGACY_WORKFORCE_TABLE_MAP = {
   'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
   'Workers Diversity': WORKER_DIVERSITY_CONFIG,
   'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
@@ -36,6 +40,13 @@ const WORKFORCE_TABLE_MAP = {
   'Employees Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
   'General Training': GENERAL_TRAINING_CONFIG,
+  'Consumer Complaints': CONSUMER_COMPLAINTS_CONFIG,
+  'Internal Complaints': INTERNAL_COMPLAINTS_CONFIG,
+};
+const WORKFORCE_TABLE_MAP = { ...LEGACY_WORKFORCE_TABLE_MAP, ...WORKFORCE_GRID_CONFIGS };
+const workforceSupplementaryFields = (fields = []) => {
+  const hasGridFields = fields.some((field) => field.grid_row);
+  return fields.filter((field) => !field.grid_row && (hasGridFields || field.show_with_legacy_ui));
 };
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -49,6 +60,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { toast } from 'sonner';
 import { ImportedRecordModal, DynamicFieldRenderer } from './ESGRecords';
+import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
 import { OperationalStatusBadge, ApprovalStatusBadge } from './tasks/StatusBadge';
 import {
   createDraftEvidence,
@@ -105,7 +117,7 @@ const SortableTableHead = ({ label, sortKey, currentSort, onSort, className = ''
 };
 
 // "Others" is a virtual category that groups: Climate Change, Material, Other Emissions
-const OTHERS_CATEGORIES = ['Climate Change', 'Material', 'Other Emissions'];
+const OTHERS_CATEGORIES = ['Other Emissions'];
 const isOthersCategory = (category) => category === 'Others';
 
 /**
@@ -161,11 +173,13 @@ export default function ESGRecordsDataEntry({
   const [showVersionsModal, setShowVersionsModal] = useState(false);
   const [showImportedModal, setShowImportedModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isReadOnlyRecord, setIsReadOnlyRecord] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [editData, setEditData] = useState({});
   const [versions, setVersions] = useState([]);
   const [saving, setSaving] = useState({});
+  const recordsFetchSequence = useRef(0);
   
   // Add/Edit form state
   // Map filling_frequency to reporting_type
@@ -328,11 +342,23 @@ export default function ESGRecordsDataEntry({
     }
   }, [preFilterCategory, preFilterSubcategory, preFilterFrequency, preFilterPeriodStart, mode]);
 
+  useEffect(() => {
+    if (mode !== 'list') return;
+    setFilters(prev => ({
+      ...prev,
+      category: preFilterCategory || 'all',
+      subcategory: preFilterSubcategory || '',
+    }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, [mode, preFilterCategory, preFilterSubcategory]);
+
   // Fetch category config when categories are loaded and preFilter is set (for add mode)
   useEffect(() => {
     // Skip fetching category config for "Others" since it's a virtual category
-    if (mode === 'add' && preFilterCategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
-      fetchAddFormCategory(preFilterCategory, preFilterSubcategory || '');
+    if (mode === 'add' && preFilterCategory && preFilterSubcategory && categories.length > 0 && !isOthersCategory(preFilterCategory)) {
+      fetchAddFormCategory(preFilterCategory, preFilterSubcategory);
+    } else if (mode === 'add' && preFilterCategory && !preFilterSubcategory) {
+      setAddFormCategory(null);
     }
   }, [preFilterCategory, preFilterSubcategory, categories, mode]);
 
@@ -443,13 +469,16 @@ export default function ESGRecordsDataEntry({
   }, [records, sort]);
 
   const fetchRecords = async () => {
+    const requestSequence = ++recordsFetchSequence.current;
     setLoading(true);
     try {
       const params = {
         page: pagination.page,
         limit: pagination.limit,
-        framework
       };
+      const isFrameworkNeutralEnergyList = section === 'environment'
+        && (filters.category === 'Energy' || preFilterCategory === 'Energy');
+      if (!isFrameworkNeutralEnergyList) params.framework = framework;
       
       // Handle "Others" as a virtual category that maps to multiple real categories
       if (isOthersCategory(filters.category) || isOthersCategory(preFilterCategory)) {
@@ -468,6 +497,7 @@ export default function ESGRecordsDataEntry({
         params,
         headers
       });
+      if (requestSequence !== recordsFetchSequence.current) return;
       setRecords(res.data.records || []);
       setPagination(prev => ({
         ...prev,
@@ -475,9 +505,10 @@ export default function ESGRecordsDataEntry({
         total_pages: res.data.total_pages || 0
       }));
     } catch (error) {
+      if (requestSequence !== recordsFetchSequence.current) return;
       console.error('Failed to fetch records:', error);
     } finally {
-      setLoading(false);
+      if (requestSequence === recordsFetchSequence.current) setLoading(false);
     }
   };
 
@@ -520,7 +551,11 @@ export default function ESGRecordsDataEntry({
 
   // Fetch category config for add form when category+subcategory selected
   const fetchAddFormCategory = async (category, subcategory) => {
-    const cat = categories.find(c => c.category === category && (!subcategory || c.subcategory === subcategory));
+    if (!category || !subcategory) {
+      setAddFormCategory(null);
+      return;
+    }
+    const cat = categories.find(c => c.category === category && c.subcategory === subcategory);
     if (cat?.id) {
       try {
         const res = await axios.get(`${API}/api/esg-records/categories/${section}/${cat.id}`, { headers });
@@ -539,6 +574,7 @@ export default function ESGRecordsDataEntry({
     // Validate
     const errors = {};
     if (!formData.category) errors.category = 'Required';
+    if (!formData.subcategory) errors.subcategory = 'Required';
     if (!asDraft && formData.reporting_type === 'monthly' && !formData.reporting_month) errors.reporting_month = 'Month is required';
     if (!asDraft && formData.reporting_type === 'quarterly' && !formData.reporting_quarter) errors.reporting_quarter = 'Quarter is required';
     if (!asDraft && ['daily', 'weekly'].includes(formData.reporting_type) && !formData.reporting_date) errors.reporting_date = 'Date is required';
@@ -551,7 +587,7 @@ export default function ESGRecordsDataEntry({
     setSaving(prev => ({ ...prev, form: true }));
     try {
       // Find category_id
-      const cat = categories.find(c => c.category === formData.category && (!formData.subcategory || c.subcategory === formData.subcategory));
+      const cat = categories.find(c => c.category === formData.category && c.subcategory === formData.subcategory);
       
       // Build reporting_period object based on type
       const reportingPeriod = {
@@ -814,8 +850,9 @@ export default function ESGRecordsDataEntry({
   };
 
   // Open edit modal
-  const openEditModal = async (record) => {
+  const openEditModal = async (record, readOnly = false) => {
     setSelectedRecord(record);
+    setIsReadOnlyRecord(readOnly);
     revokeDraftEvidences(editEvidences);
     pendingEditEvidenceDeletionIds.current.clear();
     
@@ -1120,7 +1157,7 @@ export default function ESGRecordsDataEntry({
               value={formData.category} 
               onValueChange={(v) => {
                 setFormData(prev => ({ ...prev, category: v, subcategory: '', field_values: {} }));
-                fetchAddFormCategory(v, '');
+                setAddFormCategory(null);
               }}
               disabled={!!preFilterCategory && !isOthersCategory(preFilterCategory)}
             >
@@ -1147,11 +1184,12 @@ export default function ESGRecordsDataEntry({
               }}
               disabled={!formData.category}
             >
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select subcategory" /></SelectTrigger>
+              <SelectTrigger className={`h-9 ${formErrors.subcategory ? 'border-red-500' : ''}`} data-testid="add-metric-subcategory-select"><SelectValue placeholder="Select subcategory" /></SelectTrigger>
               <SelectContent>
                 {getSubcategories().map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
               </SelectContent>
             </Select>
+            {formErrors.subcategory && <p className="text-xs text-red-500" data-testid="add-metric-subcategory-error">{formErrors.subcategory}</p>}
           </div>
 
           <div className="space-y-2">
@@ -1264,17 +1302,32 @@ export default function ESGRecordsDataEntry({
             <Card className="p-5 space-y-5">
               {/* Dynamic Category Fields */}
               {WORKFORCE_TABLE_MAP[formData.subcategory] ? (
-                <WorkforceDataTable
-                  config={WORKFORCE_TABLE_MAP[formData.subcategory]}
-                  fieldValues={formData.field_values}
-                  onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
-                  isEditing={true}
-                />
+                <div className="space-y-4">
+                  <WorkforceDataTable
+                    config={WORKFORCE_TABLE_MAP[formData.subcategory]}
+                    fieldValues={formData.field_values}
+                    onChange={(fv) => setFormData(prev => ({ ...prev, field_values: fv }))}
+                    isEditing={true}
+                  />
+                  {workforceSupplementaryFields(addFormCategory?.fields).length > 0 && (
+                    <HierarchicalFields
+                      fields={workforceSupplementaryFields(addFormCategory.fields)}
+                      values={formData.field_values || {}}
+                      onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                      testIdPrefix="add-workforce-extra"
+                    />
+                  )}
+                </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm font-medium text-stone-700">
-                    {formData.subcategory || formData.category} Fields
-                  </p>
+                  {hasFieldTree(addFormCategory.fields) ? (
+                    <HierarchicalFields
+                      fields={addFormCategory.fields}
+                      values={formData.field_values || {}}
+                      onChange={(update) => setFormData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                      testIdPrefix="add-metric-field"
+                    />
+                  ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {addFormCategory.fields.map(field => (
                       <DynamicFieldRenderer
@@ -1294,6 +1347,7 @@ export default function ESGRecordsDataEntry({
                       />
                     ))}
                   </div>
+                  )}
                 </div>
               )}
 
@@ -1305,6 +1359,7 @@ export default function ESGRecordsDataEntry({
                     value={formData.source_of_information}
                     onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
                     placeholder="e.g., Utility Bill, Vendor Invoice..."
+                    className="rounded-[10px]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1314,6 +1369,7 @@ export default function ESGRecordsDataEntry({
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     placeholder="Additional notes or comments..."
                     rows={3}
+                    className="rounded-[10px]"
                   />
                 </div>
               </div>
@@ -1572,7 +1628,7 @@ export default function ESGRecordsDataEntry({
             ) : (
               sortedRecords.map(record => {
                 const hasDraft = drafts.some(d => d.record_id === record.id);
-                const isImported = record.source_type === 'ghg_import';
+                const isImported = ['ghg_import', 'ghg_derived'].includes(record.source_type);
                 const isLocked = record.is_locked || isImported;
                 const reportingPeriod = record.reporting_period || {};
                 const reportingMonth = reportingPeriod.month;
@@ -1652,7 +1708,7 @@ export default function ESGRecordsDataEntry({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => viewImportedRecord(record)}
+            onClick={() => openEditModal(record, record.source_type === 'ghg_derived')}
                             title="View Details"
                             data-testid={`view-imported-metric-button-${record.id}`}
                           >
@@ -1902,17 +1958,25 @@ export default function ESGRecordsDataEntry({
       <Dialog open={showEditModal} onOpenChange={(isOpen) => { if (!isOpen) discardEdit(); }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto" data-testid="edit-metric-dialog">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit2 className="w-5 h-5 text-emerald-600" />
-              Edit Metric
-            </DialogTitle>
-            <DialogDescription>
-              {selectedRecord?.category}
-              {selectedRecord?.subcategory && ` → ${selectedRecord.subcategory}`}
-            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  {isReadOnlyRecord ? <Lock className="w-5 h-5 text-emerald-600" /> : <Edit2 className="w-5 h-5 text-emerald-600" />}
+                  {isReadOnlyRecord ? 'Energy Record Details' : 'Edit Metric'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedRecord?.category}
+                  {selectedRecord?.subcategory && ` → ${selectedRecord.subcategory}`}
+                </DialogDescription>
+              </div>
+              {isReadOnlyRecord && (
+                <span className="text-xs text-emerald-700 sm:text-right" data-testid="ghg-derived-energy-read-only-notice">
+                  Synced from GHG Module. Update the GHG source record to change these values.
+                </span>
+              )}
+            </div>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
+          <div className={`space-y-4 py-4 ${isReadOnlyRecord ? 'pointer-events-none opacity-75' : ''}`} aria-readonly={isReadOnlyRecord}>
             {/* Pending Proposal Banner */}
             {editData._viewing_pending_proposal && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
@@ -1934,7 +1998,7 @@ export default function ESGRecordsDataEntry({
                 Reporting Period
               </p>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${editData.reporting_type === 'monthly' ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 {/* Reporting Type */}
                 <div className="space-y-1">
                   <Label className="text-xs">Type</Label>
@@ -2060,16 +2124,33 @@ export default function ESGRecordsDataEntry({
             
             {/* Dynamic Category Fields — table for workforce, individual fields for others */}
             {WORKFORCE_TABLE_MAP[editData.subcategory] ? (
-              <WorkforceDataTable
-                config={WORKFORCE_TABLE_MAP[editData.subcategory]}
-                fieldValues={editData.field_values}
-                onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
-                isEditing={true}
-              />
+              <div className="space-y-4">
+                <WorkforceDataTable
+                  config={WORKFORCE_TABLE_MAP[editData.subcategory]}
+                  fieldValues={editData.field_values}
+                  onChange={(fv) => setEditData(prev => ({ ...prev, field_values: fv }))}
+                  isEditing={true}
+                />
+                {workforceSupplementaryFields(selectedCategory?.fields).length > 0 && (
+                  <HierarchicalFields
+                    fields={workforceSupplementaryFields(selectedCategory.fields)}
+                    values={editData.field_values || {}}
+                    onChange={(update) => setEditData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="edit-workforce-extra"
+                  />
+                )}
+              </div>
             ) : selectedCategory?.fields?.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-text-primary">Category Fields</p>
-                {selectedCategory.fields.map(field => (
+                {hasFieldTree(selectedCategory.fields) ? (
+                  <HierarchicalFields
+                    fields={selectedCategory.fields}
+                    values={editData.field_values || {}}
+                    onChange={(update) => setEditData(prev => ({ ...prev, field_values: update(prev.field_values || {}) }))}
+                    testIdPrefix="edit-metric-field"
+                  />
+                ) : selectedCategory.fields.map(field => (
                   <DynamicFieldRenderer
                     key={field.field_key}
                     field={field}
@@ -2158,6 +2239,9 @@ export default function ESGRecordsDataEntry({
           </div>
 
           <DialogFooter className="flex gap-2">
+            {isReadOnlyRecord ? (
+              <Button variant="outline" onClick={discardEdit} data-testid="ghg-derived-energy-close-button">Close</Button>
+            ) : <>
             <Button
               variant="outline"
               onClick={discardEdit}
@@ -2186,6 +2270,7 @@ export default function ESGRecordsDataEntry({
               {saving.edit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save
             </Button>
+            </>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

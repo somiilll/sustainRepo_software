@@ -1,12 +1,13 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Lock, MoreHorizontal } from 'lucide-react';
+import { Activity, FileText, Edit, History, Trash2, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Lock, MoreHorizontal, Eye, Download } from 'lucide-react';
 import { getStatusDisplay } from '../../../modules/ghg/utils/approvalSchema';
 import { format } from 'date-fns';
 import { resolveEmissionQuantity } from '../../../modules/ghg/emissions/shared/utils/emissionQuantity';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import { downloadSecureFile, getSecureFileInfo, getUploadedFileId, isPreviewableFile, openSecureFile } from '../../../lib/secureFileAccess';
 
 /**
  * EmissionDataGrid
@@ -85,8 +86,10 @@ const ResizableColumnHeader = ({ columnKey, width, onResize, children }) => {
 };
 
 // Status display helper - shows pending proposal indicator
-const StatusCell = ({ emission }) => {
-  const baseStatus = getStatusDisplay(emission.approval_status);
+const StatusCell = ({ emission, approvalWorkflowEnabled }) => {
+  const baseStatus = !approvalWorkflowEnabled && emission.approval_status === 'approved'
+    ? { text: 'Completed', cls: 'bg-green-100 text-green-700' }
+    : getStatusDisplay(emission.approval_status);
   
   // Show user's own pending proposal as "Completed, Awaiting Approval"
   if (emission.is_my_pending_proposal) {
@@ -106,10 +109,12 @@ const StatusCell = ({ emission }) => {
   );
 };
 
-const getStatusSortValue = (emission) => (
+const getStatusSortValue = (emission, approvalWorkflowEnabled) => (
   emission.is_my_pending_proposal
     ? 'completed awaiting approval'
-    : getStatusDisplay(emission.approval_status).text.toLowerCase()
+    : (!approvalWorkflowEnabled && emission.approval_status === 'approved'
+      ? 'completed'
+      : getStatusDisplay(emission.approval_status).text.toLowerCase())
 );
 
 const OverrideBadge = ({ emissionId }) => (
@@ -123,16 +128,77 @@ const OverrideBadge = ({ emissionId }) => (
   </TooltipProvider>
 );
 
-const EvidenceIndicator = ({ emissionId, count }) => (
+const formatFileSize = (bytes) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const EvidenceIndicator = ({ emission, count }) => {
+  const legacyUrls = typeof emission.evidence_url === 'string'
+    ? emission.evidence_url.split(',').map((url) => url.trim()).filter(Boolean)
+    : [];
+  // Match the Edit form exactly: legacy `evidence_url` is the canonical
+  // authenticated source for log records, even when summary metadata exists.
+  const files = legacyUrls.length
+    ? legacyUrls.map((url, index) => ({ url, filename: emission.evidence_file_name || `Evidence ${index + 1}` }))
+    : (emission.evidence_files?.length
+      ? emission.evidence_files
+      : (emission.evidence_urls?.length
+      ? emission.evidence_urls.map((url, index) => ({ url, filename: `Evidence ${index + 1}` }))
+      : []));
+  const attachedCount = files.length || count;
+  const [fileInfo, setFileInfo] = useState({});
+  const loadFileInfo = async () => {
+    const pending = files.filter((file) => {
+      const fileId = getUploadedFileId(file);
+      return fileId && !fileInfo[fileId];
+    });
+    if (!pending.length) return;
+    const resolved = await Promise.all(pending.map(async (file) => {
+      const fileId = getUploadedFileId(file);
+      try {
+        return [fileId, await getSecureFileInfo(fileId)];
+      } catch {
+        return [fileId, null];
+      }
+    }));
+    setFileInfo((current) => ({ ...current, ...Object.fromEntries(resolved) }));
+  };
+  return (
   <TooltipProvider delayDuration={150}>
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} data-testid={`emission-evidence-indicator-${emissionId}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
+        <span className="inline-flex cursor-help flex-shrink-0" tabIndex={0} onMouseEnter={loadFileInfo} onFocus={loadFileInfo} data-testid={`emission-evidence-indicator-${emission.id}`}><FileText className="w-3.5 h-3.5 text-blue-500" aria-hidden="true" /></span>
       </TooltipTrigger>
-      <TooltipContent data-testid={`emission-evidence-tooltip-${emissionId}`}><p>{count} evidence{count === 1 ? '' : 's'} uploaded.</p><p>View more in Edit.</p></TooltipContent>
+      <TooltipContent className="w-80 overflow-hidden rounded-md bg-white p-0 text-stone-900 shadow-xl" data-testid={`emission-evidence-tooltip-${emission.id}`}>
+        <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
+          <span className="font-semibold">Evidence</span>
+          <span className="text-sm text-stone-500">{attachedCount} file{attachedCount === 1 ? '' : 's'} attached</span>
+        </div>
+        <div className="divide-y divide-stone-100">
+        {files.map((file, index) => {
+          const fileId = getUploadedFileId(file);
+          const metadata = fileInfo[fileId] || file;
+          const previewable = isPreviewableFile(metadata);
+          const filename = metadata.original_filename || metadata.filename || file.filename || `Evidence ${index + 1}`;
+          const date = metadata.created_at ? format(new Date(metadata.created_at), 'dd MMM yyyy') : '';
+          return <div key={file.url || index} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-emerald-50"><FileText className="h-5 w-5 text-emerald-700" /></div>
+            <div className="min-w-0 flex-1"><p className="max-w-[135px] truncate font-medium" title={filename}>{filename}</p>{(metadata.size || metadata.file_size || date) && <p className="text-sm text-stone-500">{[formatFileSize(metadata.size || metadata.file_size), date].filter(Boolean).join(' · ')}</p>}</div>
+            <div className="flex shrink-0 items-center gap-1">
+              {previewable && fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void openSecureFile(fileId); }} className="inline-flex h-7 w-7 items-center justify-center rounded border border-blue-200 text-blue-700" data-testid={`emission-log-evidence-view-${emission.id}-${index}`} aria-label={`View ${filename}`} title="View"><Eye className="h-3.5 w-3.5" /></button>}
+              {fileId && <button type="button" onClick={(event) => { event.stopPropagation(); void downloadSecureFile(fileId); }} className="inline-flex h-7 w-7 items-center justify-center rounded border border-emerald-200 text-emerald-700" data-testid={`emission-log-evidence-download-${emission.id}-${index}`} aria-label={`Download ${filename}`} title="Download"><Download className="h-3.5 w-3.5" /></button>}
+            </div>
+          </div>;
+        })}
+        </div>
+      </TooltipContent>
     </Tooltip>
   </TooltipProvider>
-);
+  );
+};
 
 const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, locked, handleEdit, fetchHistory, openDeleteConfirm }) => (
   <DropdownMenu>
@@ -155,6 +221,7 @@ const EmissionDataGrid = forwardRef(({
   filteredScope3Activities,
   getMethodLabel,
   isRegularUser,
+  approvalWorkflowEnabled = false,
   hideHistoryActions = false,
   lockedEmissionIds = new Set(),
   handleEdit,
@@ -449,8 +516,8 @@ const EmissionDataGrid = forwardRef(({
           bVal = (b.biogenic_scope_selection || '').toLowerCase();
           break;
         case 'status':
-          aVal = getStatusSortValue(a);
-          bVal = getStatusSortValue(b);
+          aVal = getStatusSortValue(a, approvalWorkflowEnabled);
+          bVal = getStatusSortValue(b, approvalWorkflowEnabled);
           break;
         case 'lastUpdated':
           aVal = getLastUpdatedAt(a) || '';
@@ -468,7 +535,7 @@ const EmissionDataGrid = forwardRef(({
       if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredEmissions, sort, facilities]);
+  }, [approvalWorkflowEnabled, filteredEmissions, sort, facilities]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" data-testid="emissions-ledger">
@@ -691,7 +758,7 @@ const EmissionDataGrid = forwardRef(({
                       {activityDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('method')}>
                     <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
@@ -704,7 +771,7 @@ const EmissionDataGrid = forwardRef(({
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
-                    <StatusCell emission={emission} />
+                    <StatusCell emission={emission} approvalWorkflowEnabled={approvalWorkflowEnabled} />
                     {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
@@ -734,7 +801,7 @@ const EmissionDataGrid = forwardRef(({
                       {subcategoryDisplay}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
@@ -742,7 +809,7 @@ const EmissionDataGrid = forwardRef(({
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
-                    <StatusCell emission={emission} />
+                    <StatusCell emission={emission} approvalWorkflowEnabled={approvalWorkflowEnabled} />
                     {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>
@@ -783,7 +850,7 @@ const EmissionDataGrid = forwardRef(({
                         : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                     </p>
                     {hasOverride && <OverrideBadge emissionId={emission.id} />}
-                    {evidenceCount > 0 && <EvidenceIndicator emissionId={emission.id} count={evidenceCount} />}
+                    {evidenceCount > 0 && <EvidenceIndicator emission={emission} count={evidenceCount} />}
                   </div>
                   <div className="flex-shrink-0 text-center" style={columnStyle('emissions')}>
                     <span className="text-sm font-semibold text-primary">
@@ -791,7 +858,7 @@ const EmissionDataGrid = forwardRef(({
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center justify-center gap-2 text-center" style={columnStyle('status')}>
-                    <StatusCell emission={emission} />
+                    <StatusCell emission={emission} approvalWorkflowEnabled={approvalWorkflowEnabled} />
                     {locked && <span className="inline-flex items-center gap-1 rounded bg-stone-200 px-2 py-0.5 text-xs font-medium text-stone-700" data-testid={`emission-submission-lock-${emission.id}`}><Lock className="h-3 w-3" />Locked</span>}
                   </div>
                   <div className="flex-shrink-0 text-center text-xs text-text-secondary" style={columnStyle('updated')} title={getLastUpdatedAt(emission) || ''} data-testid={`emission-updated-at-${emission.id}`}>

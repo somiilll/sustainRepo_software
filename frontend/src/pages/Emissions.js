@@ -4020,6 +4020,7 @@ export default function Emissions({ organizationGhgOverrides = null }) {
               filteredScope3Activities={filteredScope3Activities}
               getMethodLabel={getMethodLabel}
               isRegularUser={isRegularUser}
+              approvalWorkflowEnabled={Boolean(organization?.approval_workflow_enabled)}
               hideHistoryActions={isSupplierUser}
               lockedEmissionIds={lockedSupplierEmissionIds}
               handleEdit={handleEdit}

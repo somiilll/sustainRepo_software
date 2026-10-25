@@ -44,13 +44,13 @@ export function useGHGAccess(reportingPeriod = null) {
     } catch (err) {
       console.error('Failed to fetch GHG access:', err);
       setError(err);
-      // Default to full access on error (fail-open for better UX)
+      // Keep the UI fail-closed; the backend remains authoritative.
       setAccessInfo({
-        has_full_access: true,
-        allowed_scopes: ['scope1', 'scope2', 'scope3', 'biogenic'],
+        has_full_access: false,
+        allowed_scopes: [],
         allowed_subcategories: [],
-        facility_restrictions: {},
-        has_sinks_access: true,
+        facility_restrictions: { scope1: [], scope2: [], scope3: [], biogenic: [] },
+        has_sinks_access: false,
       });
     } finally {
       setLoading(false);
@@ -63,13 +63,13 @@ export function useGHGAccess(reportingPeriod = null) {
 
   // Helper functions
   const canAccessScope = useCallback((scope) => {
-    if (!accessInfo) return true;
+    if (!accessInfo) return false;
     if (accessInfo.has_full_access) return true;
     return accessInfo.allowed_scopes.includes(scope.toLowerCase());
   }, [accessInfo]);
 
   const canAccessFacility = useCallback((scope, facilityId) => {
-    if (!accessInfo) return true;
+    if (!accessInfo) return false;
     if (accessInfo.has_full_access) return true;
     
     const restrictions = accessInfo.facility_restrictions[scope.toLowerCase()];
@@ -78,13 +78,13 @@ export function useGHGAccess(reportingPeriod = null) {
   }, [accessInfo]);
 
   const canAccessSinks = useMemo(() => {
-    if (!accessInfo) return true;
+    if (!accessInfo) return false;
     return accessInfo.has_full_access || accessInfo.has_sinks_access;
   }, [accessInfo]);
 
   // Check if a date is within the allowed period for a scope
   const canAccessPeriod = useCallback((scope, date) => {
-    if (!accessInfo) return true;
+    if (!accessInfo) return false;
     if (accessInfo.has_full_access) return true;
     
     const restrictions = accessInfo.period_restrictions?.[scope.toLowerCase()];
@@ -111,7 +111,7 @@ export function useGHGAccess(reportingPeriod = null) {
 
   // Filter facilities based on scope restrictions
   const filterFacilitiesByScope = useCallback((facilities, scope) => {
-    if (!accessInfo) return facilities;
+    if (!accessInfo) return [];
     if (accessInfo.has_full_access) return facilities;
     
     const restrictions = accessInfo.facility_restrictions[scope.toLowerCase()];
@@ -133,7 +133,7 @@ export function useGHGAccess(reportingPeriod = null) {
     getPeriodRestrictions,
     filterFacilitiesByScope,
     // Quick access
-    hasFullAccess: accessInfo?.has_full_access ?? true,
+    hasFullAccess: accessInfo?.has_full_access ?? false,
     allowedScopes: accessInfo?.allowed_scopes ?? ['scope1', 'scope2', 'scope3', 'biogenic'],
     periodRestrictions: accessInfo?.period_restrictions ?? {},
   };
@@ -179,10 +179,10 @@ export function useFacilityAccess(category, subcategory = null, reportingPeriod 
     } catch (err) {
       console.error('Failed to fetch facility access:', err);
       setError(err);
-      // Default to full access on error
+      // Keep the UI fail-closed; the backend remains authoritative.
       setAccessInfo({
-        has_full_access: true,
-        allowed_facility_ids: null,
+        has_full_access: false,
+        allowed_facility_ids: [],
         assignment_level: null,
       });
     } finally {
@@ -196,7 +196,7 @@ export function useFacilityAccess(category, subcategory = null, reportingPeriod 
 
   // Helper function to check facility access
   const canAccessFacility = useCallback((facilityId) => {
-    if (!accessInfo) return true;
+    if (!accessInfo) return false;
     if (accessInfo.has_full_access) return true;
     if (accessInfo.allowed_facility_ids === null) return true;
     return accessInfo.allowed_facility_ids.includes(facilityId);
@@ -209,7 +209,7 @@ export function useFacilityAccess(category, subcategory = null, reportingPeriod 
     error,
     refetch: fetchAccess,
     canAccessFacility,
-    hasFullAccess: accessInfo?.has_full_access ?? true,
+    hasFullAccess: accessInfo?.has_full_access ?? false,
     assignmentLevel: accessInfo?.assignment_level,
   };
 }

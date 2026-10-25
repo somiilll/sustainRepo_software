@@ -33,6 +33,7 @@ from modules.emissions.c7_contracts import (
     C7YearlyEntryCreate,
     C7YearlyEntryResponse,
 )
+from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import (
     compute_field_changes,
@@ -71,9 +72,6 @@ async def create_or_update_c7_monthly_entry(
         raise HTTPException(status_code=404, detail="Facility not found")
     
     org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
-    
     # Create reporting_period in YYYY-MM format
     month_to_num = {
         'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
@@ -81,6 +79,12 @@ async def create_or_update_c7_monthly_entry(
     }
     month_num = month_to_num.get(entry_data.reporting_month.lower(), '01')
     reporting_period = f"{entry_data.reporting_year}-{month_num}"
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": entry_data.facility_id,
+        "scope": "scope3",
+    })
     
     # Only look for existing record if entry_id is explicitly provided (UPDATE mode)
     existing = None
@@ -92,6 +96,9 @@ async def create_or_update_c7_monthly_entry(
         }, {"_id": 0})
         if not existing:
             raise HTTPException(status_code=404, detail=f"C7 entry with id '{entry_data.entry_id}' not found")
+        if existing.get("facility_id") != entry_data.facility_id:
+            raise HTTPException(status_code=422, detail="A C7 entry cannot be moved to another facility")
+        access_scope.assert_emission_access(existing)
     
     # Calculate monthly total from employees
     total_co2e = 0.0
@@ -273,6 +280,7 @@ async def create_or_update_c7_monthly_entry(
             "monthly_total": monthly_total,
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
+            "approval_status": "not_required",
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
             "supplier_name": entry_data.supplier_name,
@@ -348,8 +356,12 @@ async def get_c7_yearly_summary(
         raise HTTPException(status_code=404, detail="Facility not found")
     
     org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": facility_id,
+        "scope": "scope3",
+    })
     
     # Get new model entries (v2)
     new_entries = await db.emission_records.find({
@@ -404,8 +416,12 @@ async def get_c7_yearly_entry(
     if not facility:
         raise HTTPException(status_code=404, detail="Facility not found")
     org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_year)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": facility_id,
+        "scope": "scope3",
+    })
     entry = await db.emission_records.find_one({
         "facility_id": facility_id,
         "category": "C7 - Employee Commuting",
@@ -435,8 +451,17 @@ async def get_c7_monthly_entry(
         raise HTTPException(status_code=404, detail="Facility not found")
     
     org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    month_to_num = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    reporting_period = f"{year}-{month_to_num.get(month.lower(), '01')}"
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": facility_id,
+        "scope": "scope3",
+    })
     
     entry = await db.emission_records.find_one({
         "facility_id": facility_id,
@@ -464,13 +489,8 @@ async def delete_c7_monthly_entry(
     entry = await db.emission_records.find_one({"id": entry_id}, {"_id": 0})
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    
-    # Verify access
-    facility = await db.facilities.find_one({"id": entry.get("facility_id")}, {"_id": 0})
-    if facility:
-        org_id = facility.get("organization_id")
-        if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-            raise HTTPException(status_code=403, detail="Not authorized")
+    access_scope = await resolve_ghg_access_scope(current_user, entry.get("reporting_period"))
+    access_scope.assert_emission_access(entry)
     
     # Save deletion to history
     history_dict = {
@@ -525,9 +545,6 @@ async def create_or_update_c7_yearly_entry(
         raise HTTPException(status_code=404, detail="Facility not found")
     
     org_id = facility.get("organization_id")
-    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
-    
     # Validate reporting_year format (CY2025 or FY 2025-2026)
     reporting_year = entry_data.reporting_year
     if not (reporting_year.startswith("CY") or reporting_year.startswith("FY ")):
@@ -535,6 +552,12 @@ async def create_or_update_c7_yearly_entry(
             status_code=400,
             detail="reporting_year must be in format 'CY2025' or 'FY 2025-2026'"
         )
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_year)
+    access_scope.assert_emission_access({
+        "organization_id": org_id,
+        "facility_id": entry_data.facility_id,
+        "scope": "scope3",
+    })
     
     # Only look for existing record if entry_id is explicitly provided (UPDATE mode)
     existing = None
@@ -547,6 +570,9 @@ async def create_or_update_c7_yearly_entry(
         }, {"_id": 0})
         if not existing:
             raise HTTPException(status_code=404, detail=f"C7 yearly entry with id '{entry_data.entry_id}' not found")
+        if existing.get("facility_id") != entry_data.facility_id:
+            raise HTTPException(status_code=422, detail="A C7 entry cannot be moved to another facility")
+        access_scope.assert_emission_access(existing)
     
     # Calculate yearly total from employees
     total_co2e = 0.0
@@ -707,6 +733,7 @@ async def create_or_update_c7_yearly_entry(
             "yearly_total": yearly_total,
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
+            "approval_status": "not_required",
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
             "supplier_name": entry_data.supplier_name,
@@ -778,6 +805,11 @@ async def migrate_c7_to_monthly_model(
     """Migrate old C7 entries to new monthly model (Admin only)"""
     log_event(logger, logging.INFO, "ghg.c7.migration.started", action="ghg.c7.migration", outcome="started",
               context={"facility_id": facility_id, "reporting_year": year})
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0, "organization_id": 1})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    access_scope = await resolve_ghg_access_scope(current_user)
+    access_scope.assert_facility_access(facility_id)
     
     # Find old model entries
     old_entries = await db.emission_records.find({
@@ -852,6 +884,7 @@ async def migrate_c7_to_monthly_model(
                 "monthly_total": {"co2e": total_co2e, "employee_count": len(month_employees)},
                 "co2e_emissions": total_co2e,
                 "total_emissions": total_co2e,
+                "approval_status": "not_required",
                 "notes": old_entry.get("notes"),
                 "responsible_person": old_entry.get("responsible_person"),
                 "version": 1,

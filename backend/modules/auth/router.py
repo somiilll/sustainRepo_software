@@ -243,7 +243,7 @@ async def forgot_password(request: Request, reset_data: PasswordReset):
         "used": False,
     })
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
+    frontend_url = os.environ["FRONTEND_URL"].rstrip("/")
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
 
     email_body = password_reset_email(user.get('full_name', 'User'), reset_link)

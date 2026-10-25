@@ -15,7 +15,13 @@ from .contracts import (
     ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
     UpdateRecordRequest, RecordListFilters
 )
+from .water_schema import apply_water_rules
+from shared.unit_registry import get_conversion_metadata
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
+
+
+class RecordAccessError(ValueError):
+    """Raised when a user is not permitted to submit an ESG record."""
 
 
 def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
@@ -92,14 +98,48 @@ class ESGRecordsService:
             query["frameworks"] = framework
         
         cursor = self._categories.find(query, {"_id": 0}).sort("order", 1)
-        return await cursor.to_list(None)
+        categories = await cursor.to_list(None)
+        await self._hydrate_dynamic_field_options(categories)
+        return categories
     
     async def get_category(self, category_id: str) -> Optional[Dict[str, Any]]:
         """Get a single category config."""
-        return await self._categories.find_one(
+        category = await self._categories.find_one(
             {"id": category_id}, 
             {"_id": 0}
         )
+        if category:
+            await self._hydrate_dynamic_field_options([category])
+        return category
+
+    @staticmethod
+    async def _hydrate_dynamic_field_options(categories: List[Dict[str, Any]]) -> None:
+        """Resolve database-backed select choices consistently for list and detail routes."""
+        for category in categories:
+            for field in category.get("fields", []):
+                if field.get("has_unit"):
+                    conversion = get_conversion_metadata(field.get("allowed_units") or [])
+                    if conversion:
+                        field["unit_conversion"] = conversion
+        fuel_columns = [
+            column
+            for category in categories
+            if category.get("section") == "environment"
+            for field in category.get("fields", [])
+            for column in field.get("table_columns", [])
+            if column.get("options_source") == "scope1_fuels"
+        ]
+        if not fuel_columns:
+            return
+        scope1_fuels = sorted({
+            fuel.get("fuel_name") for fuel in await db.fuel_database.find(
+                {"scope": {"$in": ["scope1", "biogenic"]}, "category": "Stationary Combustion"},
+                {"_id": 0, "fuel_name": 1},
+            ).to_list(None)
+            if fuel.get("fuel_name")
+        })
+        for column in fuel_columns:
+            column["options"] = scope1_fuels
     
     async def get_category_by_name(
         self, 
@@ -142,6 +182,28 @@ class ESGRecordsService:
         collection = self._get_records_collection(section)
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
+
+        # Retired global categories stay available for historical ledgers and
+        # edits, but cannot receive new records from stale clients or direct API
+        # calls. Organization custom categories are resolved separately.
+        if not str(data.category_id or "").startswith("custom_"):
+            selected_category = await self._categories.find_one(
+                {
+                    "section": section,
+                    "category": data.category,
+                    "subcategory": data.subcategory,
+                },
+                {"_id": 0, "is_active": 1},
+            )
+            if selected_category and selected_category.get("is_active") is False:
+                raise ValueError(
+                    "This KPI category has been retired and cannot receive new records. "
+                    "Existing records remain available in the metrics ledger."
+                )
+
+        data.field_values = apply_water_rules(
+            data.category, data.subcategory, data.field_values, is_draft=data.status == "draft"
+        )
         
         # ACCESS CONTROL: Check if user has valid assignment
         assignment = None
@@ -168,7 +230,7 @@ class ESGRecordsService:
                     facility_name = facility.get("name") if facility else data.facility_id
                 
                 location_str = f"at {facility_name}" if facility_name else "at organization level"
-                raise ValueError(
+                raise RecordAccessError(
                     f"No active assignment found for {data.category}/{data.subcategory or ''} "
                     f"{location_str}"
                 )
@@ -200,7 +262,7 @@ class ESGRecordsService:
                             if 0 <= month_idx < 12:
                                 month_display = month_names[month_idx]
                     period_str = f"{month_display} {rp.year}" if month_display else str(rp.year)
-                    raise ValueError(
+                    raise RecordAccessError(
                         f"No task assigned for period {period_str}. "
                         f"You can only submit data for periods assigned to you."
                     )
@@ -1196,6 +1258,15 @@ class ESGRecordsService:
             return None
         
         org_id = current.get("org_id")
+        
+        if data.field_values is not None:
+            try:
+                data.field_values = apply_water_rules(
+                    current.get("category"), current.get("subcategory"), data.field_values,
+                    is_draft=data.status == "draft",
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         
         # =========================================================================
         # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit
