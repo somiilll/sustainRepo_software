@@ -496,6 +496,21 @@ async def create_training_source_kpi(
 
 
 async def sync_training(now: str) -> List[Dict[str, Any]]:
+    total_attendees = await upsert_definition("Training Attendees (Total)", {
+        "section": "social", "category_name": "Training", "subcategory": "General Training",
+        "sub_subcategory": "", "supported_scopes": ["organization", "facility"], "output_type": "number",
+        "unit_config": {"default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False},
+        "brsr_reference": None, "gri_disclosure": None, "framework_references": [], "tags": ["calculated"],
+        "source_type": "calculated",
+        "source_config": {"calculated": {"input_fields": ["no_of_female_attendees", "no_of_male_attendees"]}},
+        "value_field": "", "aggregation_type": "formula",
+        "formula_config": {
+            "formula_type": "expression",
+            "formula_definition": "no_of_female_attendees + no_of_male_attendees",
+            "dependencies": ["no_of_female_attendees", "no_of_male_attendees"],
+        },
+        "metadata": {"calculation_scope": "per_record_then_period_aggregate", "period_aggregation": "sum"},
+    }, now)
     groups = {
         "Employees": ["Permanent Employee", "Other than Permanent Employee"],
         "Workers": ["Permanent Worker", "Other than Permanent Worker"],
@@ -509,7 +524,15 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         ("Workers", "Total"): ["Workers Diversity - Permanent workers", "Workers Diversity - Other-than-permanent workers"],
     }
     row_keys = {("Employees", "Female"): "emp_female", ("Employees", "Male"): "emp_male", ("Employees", "Total"): "emp_total",
-                ("Workers", "Female"): "wrk_female", ("Workers", "Male"): "wrk_male", ("Workers", "Total"): "wrk_total"}
+                ("Workers", "Female"): "workers_female", ("Workers", "Male"): "workers_male", ("Workers", "Total"): "workers_total"}
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p3_training_details",
+            "answer_path": {"$regex": r"^rows\.wrk_(female|male|total)\."},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "superseded_worker_row_key", "updated_at": now}},
+    )
     headcounts = {}
     for key, names in headcount_sources.items():
         sources = [await find_definition(name) for name in names]
@@ -551,7 +574,7 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
     ).to_list(500)
     for definition in raw_training:
         await remove_brsr_reference(definition, "P3-E8", now)
-    return mapped
+    return [total_attendees, *mapped]
 
 
 async def run() -> Dict[str, Any]:

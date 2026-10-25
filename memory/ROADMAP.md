@@ -5,6 +5,9 @@
 ### BRSR Turnover Display Verification
 - Verify the Section A turnover matrix for current, previous, and prior financial years using the active reporting-period response. Confirm Employee and Worker rates display in the intended columns and that switching reporting periods never leaves stale values. Testing is paused until explicitly authorized.
 
+### BRSR Training UI Verification
+- Verify the P3-E8 table displays the synced `workers_female`, `workers_male`, and `workers_total` values and retains blanks for worker training measures until worker-recipient training records exist. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 
