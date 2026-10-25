@@ -419,6 +419,41 @@ UPDATES = [
     }),
 ]
 
+RESOURCE_ROW_UNITS = {
+    "p6_energy_consumption": {
+        **{key: "J" for key in ["renew_electricity", "renew_fuel", "renew_other", "renew_total", "nonrenew_electricity", "nonrenew_fuel", "nonrenew_other", "nonrenew_total", "total_energy"]},
+        "intensity_turnover": "J / ₹", "intensity_turnover_ppp": "J / ₹ (PPP)", "intensity_physical": "J / output unit",
+    },
+    "p6_water_disclosures": {
+        **{key: "kl" for key in ["surface_water", "groundwater", "third_party", "seawater", "others", "total_withdrawal", "total_consumption"]},
+        "intensity_turnover": "kl / ₹", "intensity_turnover_ppp": "kl / ₹ (PPP)", "intensity_physical": "kl / output unit",
+    },
+    "p6_water_discharged": {key: "kl" for key in ["surface_no_treatment", "surface_with_treatment", "ground_no_treatment", "ground_with_treatment", "sea_no_treatment", "sea_with_treatment", "third_party_no_treatment", "third_party_with_treatment", "others_no_treatment", "others_with_treatment", "total_discharged"]},
+    "p6_water_stress_areas": {
+        **{key: "kl" for key in ["surface_water", "groundwater", "third_party", "seawater", "others_withdrawal", "total_withdrawal", "total_consumption", "discharge_surface_no", "discharge_surface_with", "discharge_ground_no", "discharge_ground_with", "discharge_sea_no", "discharge_sea_with", "discharge_third_no", "discharge_third_with", "discharge_others_no", "discharge_others_with", "total_discharged"]},
+        "intensity_turnover": "kl / ₹", "intensity_optional": "kl / selected metric",
+    },
+    "p6_waste_management_details": {
+        **{key: "MT" for key in ["plastic_waste", "e_waste", "bio_medical", "construction", "battery", "radioactive", "other_hazardous", "other_non_hazardous", "total_generated", "recovered_recycled", "recovered_reused", "recovered_other", "recovered_total", "disposed_incineration", "disposed_landfilling", "disposed_other", "disposed_total"]},
+        "intensity_turnover": "MT / ₹", "intensity_turnover_ppp": "MT / ₹ (PPP)", "intensity_physical": "MT / output unit",
+    },
+}
+
+
+async def apply_resource_unit_defaults():
+    for question_key, row_units in RESOURCE_ROW_UNITS.items():
+        config = await db.esg_question_configs.find_one({"question_key": question_key}, {"_id": 0, "table_config": 1})
+        if not config:
+            continue
+        table_config = config.get("table_config") or {}
+        columns = table_config.get("columns") or []
+        if not any(column.get("key") == "unit" for column in columns):
+            table_config["columns"] = [{"key": "unit", "label": "Units", "type": "text"}, *columns]
+        for row in table_config.get("fixed_rows") or []:
+            if row.get("key") in row_units:
+                row["default_unit"] = row_units[row["key"]]
+        await db.esg_question_configs.update_one({"question_key": question_key}, {"$set": {"table_config": table_config}})
+
 async def run():
     for key, fields in UPDATES:
         r = await db.esg_question_configs.update_one(
@@ -427,6 +462,7 @@ async def run():
         )
         status = "UPDATED" if r.modified_count else "NO CHANGE"
         print(f"  {status}: {key}")
+    await apply_resource_unit_defaults()
 
 if __name__ == "__main__":
     asyncio.run(run())

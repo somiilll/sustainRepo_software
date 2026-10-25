@@ -380,9 +380,9 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
               {columns.map(col => (
                 <TableCell key={col.key} className="p-1">
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
-                    <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? '-'}</span>
+                    <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? (col.key === 'unit' ? row.default_unit : '-') ?? '-'}</span>
                   ) : (
-                    <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
+                    <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? (col.key === 'unit' ? row.default_unit : '')} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
                   )}
                 </TableCell>
               ))}

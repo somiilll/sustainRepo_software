@@ -21,6 +21,7 @@ UNIT_COLUMN_QUESTION_KEYS = {
     "p6_water_disclosures",
     "p6_water_discharged",
     "p6_water_stress_areas",
+    "p6_waste_management_details",
 }
 
 
@@ -252,6 +253,7 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
                         "label": f"To {destination_labels[source_key]} — With treatment: {treatment_label}",
                         "indent": True,
                         "parent_key": f"{row_key}_with_treatment",
+                        "default_unit": "kl",
                     }, "updated_at": now}},
                 )
                 await db.esg_question_configs.update_one(
@@ -356,6 +358,17 @@ async def sync_water_stress_discharge(now: str) -> List[Dict[str, Any]]:
         ):
             await remove_all_brsr_references(definition, now)
     return mapped
+
+
+async def sync_p6_unit_visibility(now: str) -> int:
+    result = await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": {"$in": list(UNIT_COLUMN_QUESTION_KEYS)},
+            "answer_path": {"$ne": None}, "is_active": {"$ne": False},
+        },
+        {"$set": {"include_unit": True, "updated_at": now}},
+    )
+    return result.modified_count
 
 
 async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
@@ -661,6 +674,7 @@ async def run() -> Dict[str, Any]:
         "water_withdrawal": len(await sync_water_withdrawal(now)),
         "water_discharge": len(await sync_water_discharge(now)),
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
+        "p6_unit_visibility": await sync_p6_unit_visibility(now),
         "internal_complaints": len(await sync_internal_complaints(now)),
         "additional_requested": len(await sync_additional_requested_kpis(now)),
         "p5_workforce_counts": len(await sync_p5_workforce_count_mappings(now)),

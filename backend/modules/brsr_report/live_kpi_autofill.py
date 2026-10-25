@@ -333,11 +333,17 @@ class BRSRLiveKPIAutofillService:
                         "label": dynamic_row["label"],
                         "indent": bool(dynamic_row.get("indent")),
                         "parent_key": dynamic_row.get("parent_key"),
+                        "default_unit": dynamic_row.get("default_unit") or mapping.get("destination_unit"),
                     })
                 for column, result in (("current_fy", current), ("previous_fy", previous)):
                     path = f"{row_key}.{column}"
                     question_result["locked_paths"].append(path)
                     _set_nested(question_result["value"], path, result["value"] if result else None)
+                unit = (current or previous or {}).get("unit") or mapping.get("destination_unit")
+                if unit:
+                    unit_path = f"{row_key}.unit"
+                    question_result["locked_paths"].append(unit_path)
+                    _set_nested(question_result["value"], unit_path, unit)
                 question_result["sources"].append({
                     "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"),
                     "answer_path": row_key,
