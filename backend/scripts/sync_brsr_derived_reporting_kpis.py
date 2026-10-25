@@ -371,6 +371,56 @@ async def sync_p6_unit_visibility(now: str) -> int:
     return result.modified_count
 
 
+async def sync_consumer_complaints(now: str) -> List[Dict[str, Any]]:
+    common = {
+        "section": "social", "category_name": "Complaints", "subcategory": "Consumer Complaints",
+        "sub_subcategory": "", "supported_scopes": ["organization"], "output_type": "number",
+        "unit_config": {"default_unit": "Number", "supported_units": ["Number"], "allow_unit_conversion": False},
+        "brsr_reference": "P9-E3", "gri_disclosure": "206-1",
+        "framework_references": [{"framework": "BRSR", "reference": "P9-E3", "reference_type": "exact"}],
+        "tags": ["brsr-reporting"], "source_type": "records", "aggregation_type": "sum", "formula_config": None,
+    }
+    definitions = []
+    for row_key, label, value_field in (
+        ("restrictive_trade", "Restrictive Trade Practices", "no_of_complaints_on_restrictive_trade_practices"),
+        ("unfair_trade", "Unfair Trade Practices", "no_of_complaints_on_unfair_trade_practices"),
+    ):
+        received = await upsert_definition(f"Consumer Complaints - {label}", {
+            **common, "source_config": {"records": {"value_field": value_field}}, "value_field": value_field,
+        }, now)
+        pending_field = f"pending_resolution_{value_field.removeprefix('no_of_complaints_on_')}"
+        pending = await upsert_definition(f"Consumer Complaints Pending Resolution - {label}", {
+            **common, "source_config": {"records": {"value_field": pending_field}}, "value_field": pending_field,
+        }, now)
+        await upsert_mapping(received, "p9_consumer_complaints", f"rows.{row_key}.received", "P9-E3", now)
+        await upsert_mapping(pending, "p9_consumer_complaints", f"rows.{row_key}.pending", "P9-E3", now)
+        definitions.extend([received, pending])
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p9_consumer_complaints",
+            "source_metric_name": {"$in": [
+                "Consumer Complaints - Restrictive / unfair trade practices",
+                "Consumer Complaints Pending Resolution - Restrictive / unfair trade practices",
+            ]}, "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "superseded_by_separate_trade_practice_fields", "updated_at": now}},
+    )
+    return definitions
+
+
+async def sync_data_breach_count(now: str) -> List[Dict[str, Any]]:
+    total = await find_definition("Data-breach Incidents (Total)")
+    await upsert_mapping(total, "p9_data_breaches_count", "value", "P9-E7 (a)", now, "response_period_document")
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p9_data_breaches_count", "kpi_id": {"$ne": total["id"]},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "not_data_breach_instance_total", "updated_at": now}},
+    )
+    return [total]
+
+
 async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
     mapped = []
     for role, row in (("Directors", "rows.directors_coi"), ("KMPs", "rows.kmps_coi")):
@@ -675,6 +725,8 @@ async def run() -> Dict[str, Any]:
         "water_discharge": len(await sync_water_discharge(now)),
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
         "p6_unit_visibility": await sync_p6_unit_visibility(now),
+        "consumer_complaints": len(await sync_consumer_complaints(now)),
+        "data_breach_count": len(await sync_data_breach_count(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
         "additional_requested": len(await sync_additional_requested_kpis(now)),
         "p5_workforce_counts": len(await sync_p5_workforce_count_mappings(now)),

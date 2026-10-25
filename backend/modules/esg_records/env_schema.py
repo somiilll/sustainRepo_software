@@ -253,7 +253,8 @@ _CONSUMER_ROWS = [
     ("advertising", "Advertising", "P9-E3", "417-3", "SOC_NO_OF_ADVERTISING_COMPLAINTS"),
     ("cyber_security", "Cyber-security", "P9-E3", "418-1", "SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
     ("delivery_of_essential_services", "Delivery of essential services", "P9-E3", None, "SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
-    ("restrictive_unfair_trade_practices", "Restrictive / unfair trade practices", "P9-E3", "206-1", "SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_"),
+    ("restrictive_trade_practices", "Restrictive Trade Practices", "P9-E3", "206-1", "SOC_NO_OF_RESTRICTIVE_TRADE_PRACTICES"),
+    ("unfair_trade_practices", "Unfair Trade Practices", "P9-E3", "206-1", "SOC_NO_OF_UNFAIR_TRADE_PRACTICES"),
     ("other", "Other", "P9-E3", None, None),
 ]
 SPECS[CONSUMER] = [

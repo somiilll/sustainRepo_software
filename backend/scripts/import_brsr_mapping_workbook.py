@@ -32,7 +32,7 @@ def _complaint_destination(name: str, code: str) -> Optional[Tuple[str, str]]:
     if "consumer complaint" in text:
         rows = {
             "data privacy": "data_privacy", "advertising": "advertising", "cyber security": "cyber_security",
-            "delivery of essential services": "delivery_essential", "restrictive unfair trade": "unfair_trade",
+            "delivery of essential services": "delivery_essential",
             "restrictive trade": "restrictive_trade", "unfair trade": "unfair_trade", "other": "other",
         }
         row = next((row_key for token, row_key in rows.items() if token in text), None)
