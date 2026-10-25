@@ -144,8 +144,8 @@ def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str,
     variables = sorted(set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", expression)))
     aliases = {
         "leaving": ["leaving", "left_during"],
-        "start_of_year": ["start_of_year"],
-        "end_of_year": ["end_of_year"],
+        "start_of_year": ["start_of_year", "start_of_the_year", "at_the_start_of_year", "at_the_start_of_the_year"],
+        "end_of_year": ["end_of_year", "end_of_the_year", "at_the_end_of_year", "at_the_end_of_the_year"],
         "returned_to_work": ["returned_to_work"],
         "took_parental_leave": ["took_parental_leave", "took_leave"],
         "retained_after_12_months": ["retained_after_12_months"],
@@ -158,6 +158,8 @@ def _match_formula_fields(expression: str, input_fields: List[str]) -> Dict[str,
                    if any(candidate in normalised for candidate in candidates)]
         if matches:
             matched[variable] = matches
+    if any(variable not in matched for variable in variables):
+        return {}
     return matched
 
 

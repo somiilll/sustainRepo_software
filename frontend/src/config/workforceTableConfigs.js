@@ -133,6 +133,7 @@ export const KMP_DIVERSITY_CONFIG = {
 export const EMPLOYEE_TURNOVER_CONFIG = {
   key: 'employee_turnover',
   title: 'Employee Turnover',
+  unit: 'Number',
   columns: [{ key: 'female', label: 'Female' }, { key: 'male', label: 'Male' }, { key: 'total', label: 'Total' }],
   autoCalculate: { total: ['female', 'male'] },
   rows: [
@@ -151,6 +152,7 @@ export const EMPLOYEE_TURNOVER_CONFIG = {
 export const WORKER_TURNOVER_CONFIG = {
   key: 'worker_turnover',
   title: 'Workers Turnover',
+  unit: 'Number',
   columns: [{ key: 'female', label: 'Female' }, { key: 'male', label: 'Male' }, { key: 'total', label: 'Total' }],
   autoCalculate: { total: ['female', 'male'] },
   rows: [

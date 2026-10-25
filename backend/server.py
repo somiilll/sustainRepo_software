@@ -4011,6 +4011,10 @@ async def startup_event():
     await sync_questionnaire_banks_for_all_organizations()
     from bulk_upload_scope3.router import ensure_bulk_upload_indexes
     await ensure_bulk_upload_indexes(db)
+    from modules.brsr_report.turnover_maintenance import ensure_turnover_configuration
+    await ensure_turnover_configuration()
+    from modules.brsr_report.accounts_payable_maintenance import ensure_accounts_payable_days_configuration
+    await ensure_accounts_payable_days_configuration()
     # Seed airport reference data from CSV
     from modules.airports.service import seed_airports_from_csv
     import os

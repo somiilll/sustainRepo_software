@@ -1,3 +1,9 @@
+# October 25, 2026 — BRSR Turnover Rate and Unit Correction
+- Corrected employee and worker turnover to `departures ÷ average headcount × 100`, where average headcount is `(start + end) ÷ 2`.
+- Added exact aliases for persisted start/end/departure fields and fail-closed formula matching when any required variable is unavailable.
+- Live BRSR autofill now writes Section A turnover under `current_fy`, `previous_fy`, and `prior_to_previous_fy`; turnover data-entry columns and persisted metadata use **Number**.
+- Added idempotent startup maintenance for derived KPI formulas and active historical turnover unit metadata. Applied the approved existing-record correction and refreshed ORG1 FY 2026–27. **Runtime/UI verification pending authorization.**
+
 # October 23, 2026 — Environment Endpoint and Script Cleanup
 - Removed embedded preview and production application hosts from runtime email flows and legacy tests; application links now require `FRONTEND_URL` and tests require environment-provided URLs.
 - Removed localhost fallbacks for report generation, repository ingestion, Mongo access, and integration tests; protected environment variables now fail fast when missing.

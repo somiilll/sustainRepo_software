@@ -253,6 +253,7 @@ def frontend_config(sub: str) -> Dict[str, Any]:
             validations.append({"type": "less_than_or_equal", "row": r["row"], "target": r["le"]})
     return {
         "key": spec["prefix"], "title": sub,
+        "unit": "Number" if sub in {"Employee Turnover", "Workers Turnover"} else None,
         "editableAutoTotals": spec.get("editable_auto_totals", False),
         "columns": [{"key": c, "label": c.capitalize()} for c in cols],
         "autoCalculate": {"total": ["female", "male"]} if "total" in cols else {},

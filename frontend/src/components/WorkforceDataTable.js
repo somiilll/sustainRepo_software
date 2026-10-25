@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 
 function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
-  const { title, rows, columns, autoCalculate, validations, fieldMap } = config;
+  const { title, rows, columns, autoCalculate, validations, fieldMap, unit } = config;
   const manualTotals = useRef(new Set());
   const cellId = (rowKey, colKey) => `${rowKey}:${colKey}`;
   const [collapsedRows, setCollapsedRows] = useState({});
@@ -173,7 +173,8 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
               <TableHead className="text-xs font-semibold sticky left-0 bg-stone-50 z-10 min-w-[180px]" data-testid={`workforce-${config.key}-category-heading`}>Category</TableHead>
               {columns.map(col => (
                 <TableHead key={col.key} className={`text-xs font-semibold text-center min-w-[100px]`} data-testid={`workforce-${config.key}-${col.key}-heading`}>
-                  {col.label}
+                  <span>{col.label}</span>
+                  {unit && <span className="ml-1 font-normal text-stone-400">({unit})</span>}
                 </TableHead>
               ))}
             </TableRow>

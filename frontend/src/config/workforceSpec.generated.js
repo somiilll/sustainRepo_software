@@ -1156,6 +1156,7 @@ export const WORKFORCE_GRID_CONFIGS = {
  "Employee Turnover": {
   "key": "emp_to",
   "title": "Employee Turnover",
+  "unit": "Number",
   "editableAutoTotals": false,
   "columns": [
    {
@@ -1275,6 +1276,7 @@ export const WORKFORCE_GRID_CONFIGS = {
  "Workers Turnover": {
   "key": "wrk_to",
   "title": "Workers Turnover",
+  "unit": "Number",
   "editableAutoTotals": false,
   "columns": [
    {

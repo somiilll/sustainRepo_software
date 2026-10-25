@@ -257,12 +257,17 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
 
     out = dict(field_values)
 
-    default_unit = "MT" if cat == "waste" else "Litres"
+    is_workforce = cat == WORKFORCE_CATEGORY.lower()
+    default_unit = "Number" if is_workforce else "MT" if cat == "waste" else "Litres"
 
     def unit_of(key):
+        if is_workforce:
+            return "Number"
         return str(field_values.get(f"{key}_unit") or out.get(f"{key}_unit") or default_unit)
 
     def in_unit(value, key, target_key):
+        if is_workforce:
+            return value
         source_unit, target_unit = unit_of(key), unit_of(target_key)
         if not can_convert(source_unit, target_unit):
             return None
@@ -342,10 +347,11 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
                 f"{_label(total)} is {value_with_unit(values[total], total)}, but its required breakdown totals "
                 f"{_fmt(part_sum)} {unit_of(total)} ({entered_breakdown(parts, total)})."
             )
-    # Persist a field-level unit even when the user selected the default. This
-    # makes every Water/Waste KPI unit explicit for reports and conversions.
+    # Persist a field-level unit even when the user selected the default.
     for key, value in values.items():
-        if value is not None and not out.get(f"{key}_unit"):
+        if is_workforce and value is not None:
+            out[f"{key}_unit"] = "Number"
+        elif value is not None and not out.get(f"{key}_unit"):
             out[f"{key}_unit"] = unit_of(key)
     return out
 

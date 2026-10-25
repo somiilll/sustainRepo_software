@@ -21,6 +21,16 @@ def previous_reporting_period(reporting_period: str) -> str:
     return reporting_period
 
 
+def _has_reportable_value(value: Any) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, dict):
+        return any(_has_reportable_value(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_reportable_value(item) for item in value)
+    return True
+
+
 def _base_answer_path(answer_path: str) -> Optional[str]:
     parts = [part for part in (answer_path or "").split(".") if part and part != "rows"]
     if not parts or any(not re.fullmatch(r"[A-Za-z0-9_-]+", part) for part in parts):
@@ -253,6 +263,7 @@ class BRSRLiveKPIAutofillService:
         ).to_list(1000)
         definitions_by_id = {definition["id"]: definition for definition in definitions}
         prior_period = previous_reporting_period(reporting_period)
+        prior_to_previous_period = previous_reporting_period(prior_period)
         now = datetime.now(timezone.utc).isoformat()
         values_by_question: Dict[str, Dict[str, Any]] = {}
 
@@ -336,6 +347,27 @@ class BRSRLiveKPIAutofillService:
                 continue
             current = await _mapping_value(mapping, definitions_by_id, org_id, reporting_period)
             previous = await _mapping_value(mapping, definitions_by_id, org_id, prior_period)
+            if question_key == "brsr_a_turnover_rate":
+                prior_to_previous = await _mapping_value(
+                    mapping, definitions_by_id, org_id, prior_to_previous_period
+                )
+                for period_key, result in (
+                    ("current_fy", current),
+                    ("previous_fy", previous),
+                    ("prior_to_previous_fy", prior_to_previous),
+                ):
+                    path = f"{period_key}.{base_path}"
+                    question_result["locked_paths"].append(path)
+                    _set_nested(question_result["value"], path, result["value"] if result else None)
+                question_result["sources"].append({
+                    "mapping_id": mapping.get("id"),
+                    "source_tag": mapping.get("source_tag"),
+                    "answer_path": base_path,
+                    "current_source_count": (current or {}).get("source_count", 0),
+                    "previous_source_count": (previous or {}).get("source_count", 0),
+                    "prior_to_previous_source_count": (prior_to_previous or {}).get("source_count", 0),
+                })
+                continue
             current_path, previous_path = _period_answer_paths(mapping, base_path)
             direct_root = current_path == "value" and mapping.get("period_column_strategy") == "response_period_document"
             if direct_root:
@@ -373,7 +405,7 @@ class BRSRLiveKPIAutofillService:
             set_fields: Dict[str, Any] = {
                 "framework": "BRSR",
                 "section": config.get("section") or "section_c",
-                "status": "saved",
+                "status": "saved" if _has_reportable_value(result.get("value")) else "pending",
                 "updated_at": now,
                 "kpi_autofill_updated_at": now,
                 "kpi_autofill_dynamic_rows": sorted(current_dynamic_keys),
