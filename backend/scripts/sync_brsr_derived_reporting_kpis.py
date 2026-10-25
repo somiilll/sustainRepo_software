@@ -435,6 +435,42 @@ async def sync_additional_requested_kpis(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_p5_workforce_count_mappings(now: str) -> List[Dict[str, Any]]:
+    minimum_wage_sources = {
+        "emp_perm_male": "Employee Diversity - Permanent employees (Male)",
+        "emp_perm_female": "Employee Diversity - Permanent employees (Female)",
+        "emp_other_male": "Employee Diversity - Other-than-permanent employees (Male)",
+        "emp_other_female": "Employee Diversity - Other-than-permanent employees (Female)",
+        "workers_perm_male": "Workers Diversity - Permanent workers (Male)",
+        "workers_perm_female": "Workers Diversity - Permanent workers (Female)",
+        "workers_other_male": "Workers Diversity - Other-than-permanent workers (Male)",
+        "workers_other_female": "Workers Diversity - Other-than-permanent workers (Female)",
+    }
+    remuneration_sources = {
+        "bod.male_number": "Board of Directors Diversity - Board of Directors (Total) (Male)",
+        "bod.female_number": "Board of Directors Diversity - Board of Directors (Total) (Female)",
+        "kmp.male_number": "Key Management Personnel Diversity - Key Management Personnel (Total) (Male)",
+        "kmp.female_number": "Key Management Personnel Diversity - Key Management Personnel (Total) (Female)",
+        "employees_other.male_number": "Employee Diversity - Total Employees (Male)",
+        "employees_other.female_number": "Employee Diversity - Total Employees (Female)",
+        "workers.male_number": "Workers Diversity - Total Workers (Male)",
+        "workers.female_number": "Workers Diversity - Total Workers (Female)",
+    }
+    mapped = []
+    for row_key, metric_name in minimum_wage_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "p5_minimum_wages", f"rows.{row_key}.total", "P5-E2", now)
+        mapped.append(source)
+    for answer_path, metric_name in remuneration_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(
+            source, "p5_remuneration_details", f"rows.{answer_path}", "P5-E3", now,
+            "response_period_document",
+        )
+        mapped.append(source)
+    return mapped
+
+
 async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find({
         "metric_name": {"$regex": "Parental Leave|Return to Work Rate|Retention Rate", "$options": "i"},
@@ -620,6 +656,7 @@ async def run() -> Dict[str, Any]:
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
         "additional_requested": len(await sync_additional_requested_kpis(now)),
+        "p5_workforce_counts": len(await sync_p5_workforce_count_mappings(now)),
         "parental_leave": len(await sync_parental_leave(now)),
         "training": len(await sync_training(now)),
         "backup": str(backup),

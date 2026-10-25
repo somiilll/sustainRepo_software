@@ -302,7 +302,12 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         total = normalised_sum(entered, parent)
         if total is None:
             continue
-        if parent in rules.get("auto_sum_parents", []) or values[parent] is None:
+        is_training_attendee_total = (
+            cat == "training"
+            and sub == "general training"
+            and (parent == "total_attendees" or parent.startswith("total_attendees_"))
+        )
+        if parent in rules.get("auto_sum_parents", []) or is_training_attendee_total or values[parent] is None:
             values[parent] = round(total, 6)
             out[parent] = values[parent]
             out[f"{parent}_unit"] = unit_of(parent)
