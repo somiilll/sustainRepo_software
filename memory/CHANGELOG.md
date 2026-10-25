@@ -1,4 +1,5 @@
 # October 25, 2026 — BRSR Turnover Rate and Unit Correction
+- Corrected BRSR Section A’s three-year turnover display. The active report now reads `current_fy`, `previous_fy`, and `prior_to_previous_fy` directly, with `prior_fy` compatibility for legacy responses, rather than loading separate historical reports. This fixes the missing FY 2025–26 Worker Turnover data in the FY 2026–27 Previous FY column. **SOURCE-REVIEWED; FUNCTIONAL TESTING PAUSED by user instruction.**
 - Corrected employee and worker turnover to `departures ÷ average headcount × 100`, where average headcount is `(start + end) ÷ 2`.
 - Added exact aliases for persisted start/end/departure fields and fail-closed formula matching when any required variable is unavailable.
 - Live BRSR autofill now writes Section A turnover under `current_fy`, `previous_fy`, and `prior_to_previous_fy`; turnover data-entry columns and persisted metadata use **Number**.

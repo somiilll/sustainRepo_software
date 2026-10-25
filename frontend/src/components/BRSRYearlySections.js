@@ -95,6 +95,13 @@ const DEFAULT_TURNOVER_RATE = {
   permanent_workers_male: 0, permanent_workers_female: 0,
 };
 
+const mapTurnoverPeriod = (period = {}) => ({
+  permanent_employees_male: period.permanent_employees?.male || 0,
+  permanent_employees_female: period.permanent_employees?.female || 0,
+  permanent_workers_male: period.permanent_workers?.male || 0,
+  permanent_workers_female: period.permanent_workers?.female || 0,
+});
+
 const FIXED_WOMEN_ROWS = [
   { key: 'board_of_directors', category: 'Board of Directors' },
   { key: 'key_management_personnel', category: 'Key Management Personnel' },
@@ -360,9 +367,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   const [holdingEntities, setHoldingEntities] = useState([
     { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }
   ]);
-  // Turnover rate - current year only (we fetch previous years separately for display)
+  // The active BRSR response carries the complete three-year turnover matrix.
   const [turnoverRate, setTurnoverRate] = useState({ ...DEFAULT_TURNOVER_RATE });
-  // Editable data for previous years (fetched from their own documents, saved back to them)
+  // Previous-period values belong to the active reporting response, not separate reports.
   const [prevYearTurnover, setPrevYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   const [priorYearTurnover, setPriorYearTurnover] = useState({ ...DEFAULT_TURNOVER_RATE });
   // Complaints/Grievances - initialize with all fixed categories
@@ -481,17 +488,21 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       setHoldingEntities([{ name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }]);
     }
     
-    // Turnover rate
-    if (responses.brsr_a_turnover_rate) {
-      const tr = responses.brsr_a_turnover_rate;
-      setTurnoverRate({
-        permanent_employees_male: tr.current_fy?.permanent_employees?.male || 0,
-        permanent_employees_female: tr.current_fy?.permanent_employees?.female || 0,
-        permanent_workers_male: tr.current_fy?.permanent_workers?.male || 0,
-        permanent_workers_female: tr.current_fy?.permanent_workers?.female || 0,
-      });
+    // Turnover rate: live autofill returns all three periods in the active report.
+    const turnoverValues = mergeNestedValues(
+      responses.brsr_a_turnover_rate,
+      liveQuestionValue('brsr_a_turnover_rate')
+    );
+    if (turnoverValues) {
+      setTurnoverRate(mapTurnoverPeriod(turnoverValues.current_fy));
+      setPrevYearTurnover(mapTurnoverPeriod(turnoverValues.previous_fy));
+      setPriorYearTurnover(mapTurnoverPeriod(
+        turnoverValues.prior_to_previous_fy || turnoverValues.prior_fy
+      ));
     } else {
       setTurnoverRate({ ...DEFAULT_TURNOVER_RATE });
+      setPrevYearTurnover({ ...DEFAULT_TURNOVER_RATE });
+      setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
     }
     
     // Complaints/Grievances
@@ -616,8 +627,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         setAvailableYears(generateReportingYears());
       }
       
-      // Fetch previous years' turnover data for display
-      await fetchPreviousYearsTurnover();
     } catch (error) {
       if (error.response?.status !== 404) console.error('Fetch error:', error);
       resetToDefaults();
@@ -636,38 +645,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     setPriorYearTurnover({ ...DEFAULT_TURNOVER_RATE });
     setComplaintsGrievances(GRIEVANCE_CATEGORIES.map(cat => ({ ...DEFAULT_GRIEVANCE_ROW, category: cat })));
     setMaterialIssues([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
-  };
-
-  // Fetch previous years' documents for display-only in turnover matrix
-  const fetchPreviousYearsTurnover = async () => {
-    const prevFY = getPreviousFY(reportingYear);
-    const priorFY = getPreviousFY(prevFY);
-    
-    try {
-      const [prevRes, priorRes] = await Promise.all([
-        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(prevFY)}`, { headers: getAuthHeader() }).catch(() => null),
-        axios.get(`${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(priorFY)}`, { headers: getAuthHeader() }).catch(() => null)
-      ]);
-
-      const prevTurnover = prevRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
-      const priorTurnover = priorRes?.data?.responses?.brsr_a_turnover_rate?.current_fy;
-      
-      setPrevYearTurnover(prevTurnover ? {
-        permanent_employees_male: prevTurnover.permanent_employees?.male || 0,
-        permanent_employees_female: prevTurnover.permanent_employees?.female || 0,
-        permanent_workers_male: prevTurnover.permanent_workers?.male || 0,
-        permanent_workers_female: prevTurnover.permanent_workers?.female || 0,
-      } : { ...DEFAULT_TURNOVER_RATE });
-      
-      setPriorYearTurnover(priorTurnover ? {
-        permanent_employees_male: priorTurnover.permanent_employees?.male || 0,
-        permanent_employees_female: priorTurnover.permanent_employees?.female || 0,
-        permanent_workers_male: priorTurnover.permanent_workers?.male || 0,
-        permanent_workers_female: priorTurnover.permanent_workers?.female || 0,
-      } : { ...DEFAULT_TURNOVER_RATE });
-    } catch (e) {
-      // Silent fail
-    }
   };
 
   const saveAllYearlyData = async () => {
