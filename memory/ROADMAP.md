@@ -73,6 +73,9 @@
 - Add an effective-configuration resolver with precedence: platform default → organization policy/version → program/framework/reporting-period override, plus an admin read-only explanation of the resolved rule and its provenance.
 - Deliver through compatibility adapters and staged migrations so existing organization configuration, records, response history, formula snapshots, supplier submissions, and reports continue to work unchanged until explicitly migrated.
 
+### Weighted Annual Data-Breach PII Percentage
+- Replace the current unweighted monthly average with `(summed breaches involving customer PII ÷ summed data-breach incidents) × 100` for BRSR P9. Current FY 2026–27 source values indicate `29 ÷ 157 × 100 = 18.471337%`.
+
 - Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
 - Add controlled decision-tree rebind and mapping-clone workflows to Formula Builder/Input Field Mapping, including a mandatory preview of affected category branches before applying either action.
