@@ -18,6 +18,7 @@ from .ghg_config_resolver import resolve_ghg_capabilities
 from modules.entitlements.dependencies import assert_period_row_batch_limit
 from shared.utils.emission_records import normalize_reporting_period_for_storage
 from .calculation_audit import prepare_bulk_calculation_audits, persist_bulk_calculation_audits
+from modules.esg_records.ghg_energy_sync import get_ghg_energy_sync_service
 
 logger = get_logger(__name__)
 
@@ -281,6 +282,12 @@ async def save_valid_rows(
             result = await db.emission_history.insert_many(history_entries)
             log_event(logger, logging.INFO, "bulk_upload.history.persisted", action="bulk_upload.save", outcome="succeeded",
                       context={"job_id": job_id, "record_count": len(result.inserted_ids)})
+
+        if any((record.get("scope") or "").lower() in {"scope1", "scope2"} for record in records_to_save):
+            try:
+                await get_ghg_energy_sync_service(db).sync_organization(organization_id)
+            except Exception:
+                logger.exception("GHG-derived Energy sync failed after bulk upload", extra={"organization_id": organization_id, "job_id": job_id})
         
         # Update job with saved record IDs
         await db.bulk_upload_jobs.update_one(

@@ -546,15 +546,10 @@ async def get_ghg_access(
     Returns allowed scopes, facility restrictions, and sinks access.
     Used by frontend to filter UI elements.
     """
-    from .kpi_access_helper import kpi_access_helper
-    
-    access_info = await kpi_access_helper.get_allowed_ghg_scopes(
-        user_id=current_user["id"],
-        organization_id=current_user["organization_id"],
-        reporting_period=reporting_period,
-    )
-    
-    return access_info
+    from modules.emissions.access_policy import resolve_ghg_access_scope
+
+    access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+    return access_scope.as_response()
 
 
 @router.get("/kpi-access/facilities")
@@ -569,15 +564,23 @@ async def get_facility_access(
     
     Returns allowed facility IDs or indicates full access.
     """
-    from .kpi_access_helper import kpi_access_helper
-    
-    access_info = await kpi_access_helper.get_allowed_facilities(
-        user_id=current_user["id"],
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        reporting_period=reporting_period,
-    )
+    if category == "GHG Emissions":
+        from modules.emissions.access_policy import resolve_ghg_access_scope
+        access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+        access_info = {
+            "has_full_access": access_scope.has_full_access,
+            "allowed_facility_ids": None if access_scope.has_full_access else list(access_scope.facilities_for_scope()),
+            "assignment_level": access_scope.mode,
+        }
+    else:
+        from .kpi_access_helper import kpi_access_helper
+        access_info = await kpi_access_helper.get_allowed_facilities(
+            user_id=current_user["id"],
+            organization_id=current_user["organization_id"],
+            category=category,
+            subcategory=subcategory,
+            reporting_period=reporting_period,
+        )
     
     return access_info
 
@@ -594,15 +597,25 @@ async def get_accessible_facilities(
     
     Returns list of facility objects with id, name, etc.
     """
-    from .kpi_access_helper import kpi_access_helper
-    
-    facilities = await kpi_access_helper.get_accessible_facilities_list(
-        user_id=current_user["id"],
-        organization_id=current_user["organization_id"],
-        category=category,
-        subcategory=subcategory,
-        reporting_period=reporting_period,
-    )
+    if category == "GHG Emissions":
+        from modules.emissions.access_policy import resolve_ghg_access_scope
+        access_scope = await resolve_ghg_access_scope(current_user, reporting_period)
+        facilities = await db.facilities.find(
+            {
+                "organization_id": current_user.get("organization_id"),
+                "id": {"$in": list(access_scope.facilities_for_scope())},
+            },
+            {"_id": 0, "id": 1, "name": 1, "facility_type": 1},
+        ).to_list(10000)
+    else:
+        from .kpi_access_helper import kpi_access_helper
+        facilities = await kpi_access_helper.get_accessible_facilities_list(
+            user_id=current_user["id"],
+            organization_id=current_user["organization_id"],
+            category=category,
+            subcategory=subcategory,
+            reporting_period=reporting_period,
+        )
     
     return {"facilities": facilities, "total": len(facilities)}
 

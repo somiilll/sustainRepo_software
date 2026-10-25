@@ -96,8 +96,15 @@ def build_period_filter(
         ]
         
     if month is not None:
-        month_str = f"{month:02d}"  # Pad to 2 digits for date matching
-        month_name = MONTH_NAMES.get(month, "")
+        month_lookup = {name.lower(): number for number, name in MONTH_NAMES.items()}
+        try:
+            month_number = int(month)
+        except (TypeError, ValueError):
+            month_number = month_lookup.get(str(month).strip().lower())
+        if month_number not in MONTH_NAMES:
+            raise ValueError(f"Invalid month: {month}")
+        month_str = f"{month_number:02d}"  # Pad to 2 digits for date matching
+        month_name = MONTH_NAMES[month_number]
         
         if year is not None:
             year_str = str(year)
@@ -106,14 +113,14 @@ def build_period_filter(
             # 2. Monthly records with month as string name
             # 3. Daily records with date matching year-month pattern
             filters["$or"] = [
-                {"reporting_period.year": year, "reporting_period.month": month},
+                {"reporting_period.year": year, "reporting_period.month": {"$in": [month_number, str(month_number), month_str]}},
                 {"reporting_period.year": year, "reporting_period.month": month_name},
                 {"reporting_period.date": {"$regex": f"^{year_str}-{month_str}"}}
             ]
         else:
             # Match month as integer or string name
             filters["$or"] = [
-                {"reporting_period.month": month},
+                {"reporting_period.month": {"$in": [month_number, str(month_number), month_str]}},
                 {"reporting_period.month": month_name}
             ]
         

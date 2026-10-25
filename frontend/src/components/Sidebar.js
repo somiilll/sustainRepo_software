@@ -154,6 +154,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
+  const isGhgOnlyUser = user?.role === 'user' && !isSupplier && hasAccess('environment.ghg');
 
   // Fetch resolved org config for dynamic environment sidebar
   useEffect(() => {
@@ -178,6 +179,17 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   // Build the active sidebar config, replacing section children if org has custom config
   const activeConfig = useMemo(() => {
     if (isSuperAdmin) return superAdminSidebarConfig;
+    if (isGhgOnlyUser) {
+      return [{
+        key: 'environment.ghg',
+        label: 'GHG',
+        icon: 'Cloud',
+        children: [
+          { key: 'environment.ghg.logs', label: 'Logs', icon: 'FileText', path: '/ghg' },
+          { key: 'environment.ghg.analysis', label: 'Analysis', icon: 'BarChart3', path: '/ghg/analysis' },
+        ],
+      }];
+    }
     const configuredSidebar = withSupplierAssessmentLabels(sidebarConfig, resolvedConfig);
     if (!resolvedConfig?.has_org_config) return configuredSidebar;
 
@@ -260,7 +272,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
       }
       return item;
     });
-  }, [isSuperAdmin, resolvedConfig]);
+  }, [isSuperAdmin, isGhgOnlyUser, resolvedConfig]);
 
   const buildExpanded = () => {
     const result = {};
@@ -306,7 +318,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-stone-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`} data-testid="main-sidebar">
       <div className="flex h-16 items-center justify-between border-b border-stone-200 px-4">
-        <Link to={isSuperAdmin ? '/super-admin' : isSupplier ? '/supplier-assessment/supplier' : '/dashboard'} className="flex items-center gap-2.5" data-testid="sidebar-logo-link">
+        <Link to={isSuperAdmin ? '/super-admin' : isSupplier ? '/supplier-assessment/supplier' : isGhgOnlyUser ? '/ghg' : '/dashboard'} className="flex items-center gap-2.5" data-testid="sidebar-logo-link">
           <img src={logoUrl} alt="Logo" className="h-9 w-auto" onError={(e) => { e.target.src = LOGO_FALLBACK; }} />
           <span className="text-lg font-bold text-stone-800 tracking-tight">SustainRepo</span>
         </Link>

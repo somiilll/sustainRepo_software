@@ -39,6 +39,8 @@ export default function BRSRModule() {
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [organization, setOrganization] = useState(null);
+  const [responseRefreshKey, setResponseRefreshKey] = useState(0);
+  const [liveKPIAutofill, setLiveKPIAutofill] = useState({});
 
   // Initialize reporting years
   useEffect(() => {
@@ -63,6 +65,31 @@ export default function BRSRModule() {
       fetchOrgAndSetYears();
     }
   }, [token]);
+
+  useEffect(() => {
+    let active = true;
+    const loadLiveKPIAutofill = async () => {
+      if (!token || !reportingPeriod) return;
+      try {
+        const response = await axios.get(`${API}/api/brsr-report/live-kpi-autofill`, {
+          params: { reporting_period: reportingPeriod },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (active) setLiveKPIAutofill(response.data.values_by_question || {});
+      } catch (error) {
+        console.error('Failed to sync live BRSR KPI values:', error);
+      }
+    };
+    loadLiveKPIAutofill();
+    const interval = window.setInterval(loadLiveKPIAutofill, 30000);
+    const refreshOnFocus = () => loadLiveKPIAutofill();
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [token, reportingPeriod, responseRefreshKey]);
 
   return (
     <div className="space-y-7">
@@ -117,29 +144,35 @@ export default function BRSRModule() {
 
         {/* Section A - General Disclosures */}
         <TabsContent value="section_a" className="mt-6">
-          <BRSRDetailsSection 
+          <BRSRDetailsSection
+            key={`section-a-${responseRefreshKey}`}
             isEditing={isEditing}
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
+            liveKPIAutofillByQuestion={liveKPIAutofill}
           />
         </TabsContent>
 
         {/* Section B - Management & Process Disclosures */}
         <TabsContent value="section_b" className="mt-6">
-          <ESGQuestionnaire 
+          <ESGQuestionnaire
+            key={`section-b-${responseRefreshKey}`}
             framework="BRSR"
             section="section_b"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
+            liveKPIAutofillByQuestion={liveKPIAutofill}
           />
         </TabsContent>
 
         {/* Section C - Principle-wise Performance Disclosures */}
         <TabsContent value="section_c" className="mt-6">
           <BRSRSectionC
+            key={`section-c-${responseRefreshKey}`}
             framework="BRSR"
             isEditing={isEditing}
             reportingYear={reportingPeriod}
+            liveKPIAutofillByQuestion={liveKPIAutofill}
           />
         </TabsContent>
       </Tabs>

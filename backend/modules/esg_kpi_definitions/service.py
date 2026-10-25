@@ -47,6 +47,12 @@ class ESGKPIDefinitionsService:
             if existing:
                 raise ValueError(f"metric_code '{metric_code}' already exists")
         
+        framework_references = [reference.dict() for reference in data.framework_references]
+        if data.brsr_reference and not any(reference["framework"].upper() == "BRSR" for reference in framework_references):
+            framework_references.append({"framework": "BRSR", "reference": data.brsr_reference.strip(), "reference_type": "disclosure"})
+        if data.gri_disclosure and not any(reference["framework"].upper() == "GRI" for reference in framework_references):
+            framework_references.append({"framework": "GRI", "reference": data.gri_disclosure.strip()})
+
         kpi_def = {
             "id": str(uuid.uuid4()),
             
@@ -59,6 +65,14 @@ class ESGKPIDefinitionsService:
             "category_name": data.category_name,
             "subcategory": data.subcategory,
             "sub_subcategory": data.sub_subcategory,
+            
+            "brsr_reference": (data.brsr_reference or "").strip() or None,
+            "gri_disclosure": (data.gri_disclosure or "").strip() or None,
+            "framework_references": framework_references,
+            "tree_group": data.tree_group,
+            "tree_level": data.tree_level,
+            "tree_parent_key": data.tree_parent_key,
+            "tree_order": data.tree_order,
             
             "source_type": data.source_type.value,
             "source_config": data.source_config,
@@ -135,7 +149,8 @@ class ESGKPIDefinitionsService:
         source_type: Optional[str] = None,
         search: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        include_archived: bool = False
+        include_archived: bool = False,
+        framework: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List KPI definitions with optional filters."""
         query = {}
@@ -152,6 +167,12 @@ class ESGKPIDefinitionsService:
             query["source_type"] = source_type
         if tags:
             query["tags"] = {"$in": tags}
+        framework_field = {"brsr": "brsr_reference", "gri": "gri_disclosure"}.get((framework or "").lower())
+        if framework_field:
+            query[framework_field] = {"$nin": [None, ""]}
+        elif (framework or "").lower() == "none":
+            query["brsr_reference"] = {"$in": [None, ""]}
+            query["gri_disclosure"] = {"$in": [None, ""]}
         if search:
             from shared.security import safe_regex
             _s = safe_regex(search)
@@ -159,7 +180,9 @@ class ESGKPIDefinitionsService:
                 {"metric_name": {"$regex": _s, "$options": "i"}},
                 {"short_name": {"$regex": _s, "$options": "i"}},
                 {"metric_code": {"$regex": _s, "$options": "i"}},
-                {"description": {"$regex": _s, "$options": "i"}}
+                {"description": {"$regex": _s, "$options": "i"}},
+                {"brsr_reference": {"$regex": _s, "$options": "i"}},
+                {"gri_disclosure": {"$regex": _s, "$options": "i"}}
             ]
         
         cursor = db[self.COLLECTION].find(query, {"_id": 0}).sort([
@@ -265,9 +288,18 @@ class ESGKPIDefinitionsService:
     
     async def delete_kpi_definition(
         self,
-        kpi_id: str
-    ) -> bool:
-        """Hard delete a KPI definition. Use with caution - prefer archive."""
+        kpi_id: str,
+        user_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Hard delete a KPI definition and retire an orphaned entry category.
+
+        ESG KPI Definitions are the lifecycle owner for their linked data-entry
+        category. Historical ESG records are intentionally never removed.
+        """
+        kpi = await db[self.COLLECTION].find_one({"id": kpi_id}, {"_id": 0})
+        if not kpi:
+            return None
+
         # Check for references
         ref_counts = await self._get_reference_counts(kpi_id)
         if ref_counts["target_count"] > 0 or ref_counts["dashboard_count"] > 0:
@@ -277,7 +309,77 @@ class ESGKPIDefinitionsService:
             )
         
         result = await db[self.COLLECTION].delete_one({"id": kpi_id})
-        return result.deleted_count > 0
+        if result.deleted_count == 0:
+            return None
+
+        cleanup = await self._retire_unreferenced_entry_category(kpi, user_id=user_id)
+        return {"deleted": True, **cleanup}
+
+    @staticmethod
+    def _subcategory_code(subcategory: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "_", subcategory.lower().strip()).strip("_")
+
+    async def _retire_unreferenced_entry_category(
+        self,
+        kpi: Dict[str, Any],
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Hide a data-entry category only after its final non-archived KPI is removed.
+
+        Category retirement removes its organization-level field overrides so it
+        cannot appear in Org Config or Add Metric. ESG records retain their
+        category text and remain available in ledgers and history.
+        """
+        section = kpi.get("section")
+        category_name = kpi.get("category_name")
+        subcategory = kpi.get("subcategory")
+        if not (section and category_name and subcategory):
+            return {"entry_category_retired": False, "overrides_removed": 0}
+
+        remaining = await db[self.COLLECTION].count_documents({
+            "section": section,
+            "category_name": category_name,
+            "subcategory": subcategory,
+            "status": {"$ne": KPIStatus.ARCHIVED.value},
+        })
+        if remaining:
+            return {"entry_category_retired": False, "overrides_removed": 0}
+
+        now = datetime.now(timezone.utc).isoformat()
+        retired = await db.esg_record_categories.update_many(
+            {
+                "section": section,
+                "category": category_name,
+                "subcategory": subcategory,
+                "is_active": True,
+            },
+            {"$set": {
+                "is_active": False,
+                "retired_at": now,
+                "retired_by": user_id,
+                "retired_reason": "linked_kpi_definition_deleted",
+            }},
+        )
+
+        overrides_removed = 0
+        if retired.modified_count:
+            override_key = self._subcategory_code(subcategory)
+            override_result = await db.organization_config.update_many(
+                {f"kpi_overrides.{override_key}": {"$exists": True}},
+                {
+                    "$unset": {f"kpi_overrides.{override_key}": ""},
+                    "$set": {
+                        "updated_at": now,
+                        "updated_by": user_id or "linked_kpi_definition_cleanup",
+                    },
+                },
+            )
+            overrides_removed = override_result.modified_count
+
+        return {
+            "entry_category_retired": bool(retired.modified_count),
+            "overrides_removed": overrides_removed,
+        }
     
     async def duplicate_kpi_definition(
         self,

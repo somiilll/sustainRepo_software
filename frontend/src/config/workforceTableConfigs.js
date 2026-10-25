@@ -133,6 +133,7 @@ export const KMP_DIVERSITY_CONFIG = {
 export const EMPLOYEE_TURNOVER_CONFIG = {
   key: 'employee_turnover',
   title: 'Employee Turnover',
+  unit: 'Number',
   columns: [{ key: 'female', label: 'Female' }, { key: 'male', label: 'Male' }, { key: 'total', label: 'Total' }],
   autoCalculate: { total: ['female', 'male'] },
   rows: [
@@ -151,6 +152,7 @@ export const EMPLOYEE_TURNOVER_CONFIG = {
 export const WORKER_TURNOVER_CONFIG = {
   key: 'worker_turnover',
   title: 'Workers Turnover',
+  unit: 'Number',
   columns: [{ key: 'female', label: 'Female' }, { key: 'male', label: 'Male' }, { key: 'total', label: 'Total' }],
   autoCalculate: { total: ['female', 'male'] },
   rows: [
@@ -174,13 +176,11 @@ export const EMPLOYEE_PARENTAL_LEAVE_CONFIG = {
   rows: [
     { key: 'took', label: 'Took Parental Leave' },
     { key: 'returned', label: 'Returned to Work' },
-    { key: 'due_return', label: 'Due to Return After Leave' },
     { key: 'retained', label: 'Retained After 12 Months' },
   ],
   fieldMap: {
     took:       { female: 'no_of_female_employee_took_leave', male: 'no_of_male_employee_took_leave' },
     returned:   { female: 'female_employees_who_returned_to_work', male: 'male_employees_who_returned_to_work' },
-    due_return: { female: 'female_employees_number_of_employees_that_are_due_to_return_to_work_after_taking_parental_leave', male: 'male_employees_number_of_employees_that_are_due_to_return_to_work_after_taking_parental_leave' },
     retained:   { female: 'female_employees_retained_after_12_months', male: 'male_employees_retained_after_12_months' },
   },
   validations: [
@@ -197,13 +197,11 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
   rows: [
     { key: 'took', label: 'Took Parental Leave' },
     { key: 'returned', label: 'Returned to Work' },
-    { key: 'due_return', label: 'Due to Return After Leave' },
     { key: 'retained', label: 'Retained After 12 Months' },
   ],
   fieldMap: {
     took:       { female: 'no_of_female_workers_that_took_leave', male: 'no_of_male_workers_took_leave' },
     returned:   { female: 'female_workers_who_returned_to_work', male: 'male_workers_who_returned_to_work' },
-    due_return: { female: 'female_workers_that_are_due_to_return_to_work_after_taking_parental_leave', male: 'male_workers_that_are_due_to_return_to_work_after_taking_parental_leave' },
     retained:   { female: 'female_workers_retained_after_12_months', male: 'male_workers_retained_after_12_months' },
   },
   validations: [
@@ -212,23 +210,66 @@ export const WORKER_PARENTAL_LEAVE_CONFIG = {
   ],
 };
 
+export const CONSUMER_COMPLAINTS_CONFIG = {
+  key: 'consumer-complaints',
+  title: 'Consumer Complaints',
+  columns: [
+    { key: 'received', label: 'Received' },
+    { key: 'pending', label: 'Pending Resolution at the End of Year' },
+  ],
+  autoCalculate: {},
+  editableAutoTotals: true,
+  sumOrder: ['total'],
+  rows: [
+    { key: 'total', label: 'Total number of consumer complaints', sumOf: ['data_privacy', 'advertising', 'cyber_security', 'essential_services', 'unfair_trade', 'other'] },
+    { key: 'data_privacy', label: 'Data privacy' },
+    { key: 'advertising', label: 'Advertising' },
+    { key: 'cyber_security', label: 'Cyber-security' },
+    { key: 'essential_services', label: 'Delivery of essential services' },
+    { key: 'unfair_trade', label: 'Restrictive / unfair trade practices' },
+    { key: 'other', label: 'Other' },
+  ],
+  fieldMap: {
+    total: { received: 'total_no_of_complaints', pending: 'total_consumer_complaints_pending_resolution' },
+    data_privacy: { received: 'no_of_complaints_on_data_privacy', pending: 'pending_resolution_data_privacy' },
+    advertising: { received: 'no_of_complaints_on_advertising', pending: 'pending_resolution_advertising' },
+    cyber_security: { received: 'no_of_complaints_on_cyber_security', pending: 'pending_resolution_cyber_security' },
+    essential_services: { received: 'no_of_complaints_on_delivery_of_essential_services', pending: 'pending_resolution_delivery_of_essential_services' },
+    unfair_trade: { received: 'no_of_complaints_on_restrictive_unfair_trade_practices', pending: 'pending_resolution_restrictive_unfair_trade_practices' },
+    other: { received: 'no_of_other_consumer_complaints', pending: 'pending_resolution_other' },
+  },
+  validations: [],
+};
+
+const INTERNAL_COMPLAINT_ROWS = [
+  ['total', 'Internal Complaints total'], ['conflict', 'Conflict of Interest (Total)'], ['conflict_directors', 'of which: Directors', 1, 'conflict'], ['conflict_kmps', 'of which: KMPs', 1, 'conflict'],
+  ['working_conditions', 'Working Conditions'], ['health_safety', 'Health & safety'], ['sexual_harassment', 'Sexual Harassment'], ['posh', 'of which: POSH', 1], ['posh_upheld', 'of which: POSH complaints upheld', 2, 'posh'],
+  ['discrimination', 'Discrimination'], ['child_labour', 'Child labour'], ['forced_labour', 'Forced labour'], ['wages', 'Wages'], ['other_human_rights', 'Other human-rights issues'],
+];
+const INTERNAL_FILED_KEYS = { total: 'total_no_of_complaints_recieved', conflict: 'no_of_complaints_regarding_conflict_of_interest', conflict_directors: 'conflict_of_interest_directors', conflict_kmps: 'conflict_of_interest_kmps', working_conditions: 'no_of_complaints_regarding_working_conditions', health_safety: 'no_of_complaints_regarding_health_safety', sexual_harassment: 'no_of_complaints_regarding_sexual_harassment', posh: 'no_of_posh_complaints', posh_upheld: 'no_of_posh_complaints_upheld', discrimination: 'no_of_complaints_regarding_discrimination_at_workplace', child_labour: 'no_of_complaints_regarding_child_labour', forced_labour: 'no_of_complaints_regarding_forced_labour_involuntary_labour', wages: 'no_of_complaints_regarding_wages', other_human_rights: 'no_of_complaints_regarding_other_human_rights_related_issues' };
+export const INTERNAL_COMPLAINTS_CONFIG = {
+  key: 'internal-complaints', title: 'Internal Complaints', columns: [{ key: 'filed', label: 'Filed' }, { key: 'pending', label: 'Pending Resolution at the End of the Year' }], autoCalculate: {}, editableAutoTotals: true,
+  rows: INTERNAL_COMPLAINT_ROWS.map(([key, label, level, parent]) => ({ key, label, level: level || 0, parent })),
+  fieldMap: Object.fromEntries(INTERNAL_COMPLAINT_ROWS.map(([key]) => [key, { filed: INTERNAL_FILED_KEYS[key], pending: key === 'total' ? 'no_of_pending_complaints' : `internal_pending_${key}` }])), validations: [],
+};
+
 
 export const GENERAL_TRAINING_CONFIG = {
   key: 'general_training',
   title: 'General Training',
   dropdownFields: [
-    { key: 'training_attendes_type', label: 'Who was the training for?', options: ['Board of Directors', 'Key Management Personal', 'Employees', 'Workers', 'Vendors', 'Contractors'] },
-    { key: 'employee_worker_type', label: 'Employee/Worker Type', options: ['Permanent', 'Other than Permanent'] },
+    { key: 'training_recipient_type', label: 'Who was the training for?', options: ['Board of Directors', 'Key Managerial Personnel', 'Vendor', 'Contractor', 'Permanent Employee', 'Other than Permanent Employee', 'Permanent Worker', 'Other than Permanent Worker'] },
   ],
   columns: [
     { key: 'count', label: '# Trainings' },
     { key: 'female', label: 'Female Attendees' },
     { key: 'male', label: 'Male Attendees' },
     { key: 'total', label: 'Total Attendees' },
+    { key: 'hours', label: 'Training Hours' },
   ],
   autoCalculate: { total: ['female', 'male'] },
   rows: [
-    { key: 'overall', label: 'Overall' },
+    { key: 'overall', label: 'Overall', sumOf: ['health_safety', 'environment', 'human_rights', 'org_policy', 'skill_upgrade', 'reskilling', 'anti_corruption', 'ethical'] },
     { key: 'health_safety', label: 'Health & Safety' },
     { key: 'environment', label: 'Environment' },
     { key: 'human_rights', label: 'Human Right Issues' },
@@ -239,16 +280,17 @@ export const GENERAL_TRAINING_CONFIG = {
     { key: 'ethical', label: 'Ethical Principles' },
   ],
   fieldMap: {
-    overall:        { count: 'no_of_trainings_done', female: 'no_of_female_attendees', male: 'no_of_male_attendees' },
-    health_safety:  { count: 'no_of_trainings_on_health_safety', female: 'no_of_female_attendees_for_training_on_health_safety', male: 'no_of_male_attendees_for_training_on_health_safety' },
-    environment:    { count: 'no_of_trainings_on_environment', female: 'no_of_female_attendees_for_training_on_environment', male: 'no_of_male_attendees_for_training_on_environment' },
-    human_rights:   { count: 'no_of_trainings_on_human_right_issues', female: 'no_of_female_attendees_for_trainings_on_human_right_issues', male: 'no_of_male_attendees_trainings_on_human_right_issues' },
-    org_policy:     { count: 'no_of_trainings_on_organization_policy_ies', female: 'no_of_female_attendees_for_trainings_on_organization_policy_ies', male: 'no_of_male_attendees_for_trainings_on_organization_policy_ies' },
-    skill_upgrade:  { count: 'no_of_trainings_on_skill_upgrade_up_skilling', female: 'no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling', male: 'no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling' },
-    reskilling:     { count: 'no_of_trainings_on_re_skilling', female: 'no_of_female_attendees_for_trainings_on_re_skilling', male: 'no_of_male_attendees_for_trainings_on_re_skilling' },
-    anti_corruption:{ count: 'no_of_trainings_on_anti_corruption', female: 'no_of_female_attendees_for_trainings_on_anti_corruption', male: 'no_of_male_attendees_for_trainings_on_anti_corruption' },
-    ethical:        { count: 'no_of_trainings_on_ethical_principles', female: 'no_of_female_attendees_for_trainings_on_ethical_principles', male: 'no_of_male_attendees_for_trainings_on_ethical_principles' },
+    overall:        { count: 'no_of_trainings_done', female: 'no_of_female_attendees', male: 'no_of_male_attendees', total: 'total_attendees', hours: 'total_training_hours_by_topic' },
+    health_safety:  { count: 'no_of_trainings_on_health_safety', female: 'no_of_female_attendees_for_training_on_health_safety', male: 'no_of_male_attendees_for_training_on_health_safety', hours: 'training_hours_health_safety' },
+    environment:    { count: 'no_of_trainings_on_environment', female: 'no_of_female_attendees_for_training_on_environment', male: 'no_of_male_attendees_for_training_on_environment', hours: 'training_hours_environment' },
+    human_rights:   { count: 'no_of_trainings_on_human_right_issues', female: 'no_of_female_attendees_for_trainings_on_human_right_issues', male: 'no_of_male_attendees_trainings_on_human_right_issues', hours: 'training_hours_human_rights' },
+    org_policy:     { count: 'no_of_trainings_on_organization_policy_ies', female: 'no_of_female_attendees_for_trainings_on_organization_policy_ies', male: 'no_of_male_attendees_for_trainings_on_organization_policy_ies', hours: 'training_hours_org_policies' },
+    skill_upgrade:  { count: 'no_of_trainings_on_skill_upgrade_up_skilling', female: 'no_of_female_attendees_for_trainings_on_skill_upgrade_up_skilling', male: 'no_of_male_attendees_for_trainings_on_skill_upgrade_up_skilling', hours: 'training_hours_skill_upgrading' },
+    reskilling:     { count: 'no_of_trainings_on_re_skilling', female: 'no_of_female_attendees_for_trainings_on_re_skilling', male: 'no_of_male_attendees_for_trainings_on_re_skilling', hours: 'training_hours_re_skilling' },
+    anti_corruption:{ count: 'no_of_trainings_on_anti_corruption', female: 'no_of_female_attendees_for_trainings_on_anti_corruption', male: 'no_of_male_attendees_for_trainings_on_anti_corruption', hours: 'training_hours_anti_corruption' },
+    ethical:        { count: 'no_of_trainings_on_ethical_principles', female: 'no_of_female_attendees_for_trainings_on_ethical_principles', male: 'no_of_male_attendees_for_trainings_on_ethical_principles', hours: 'training_hours_ethical_principles' },
   },
+  sumOrder: ['overall'],
   validations: [],
 };
 
@@ -261,4 +303,6 @@ export const ALL_WORKFORCE_CONFIGS = [
   WORKER_TURNOVER_CONFIG,
   EMPLOYEE_PARENTAL_LEAVE_CONFIG,
   WORKER_PARENTAL_LEAVE_CONFIG,
+  CONSUMER_COMPLAINTS_CONFIG,
+  INTERNAL_COMPLAINTS_CONFIG,
 ];

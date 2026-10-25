@@ -66,7 +66,7 @@ class ESGQuestionnaireService:
         If filter_by_assignment=True and user_id is provided, only returns configs
         for questions/disclosures the user is assigned to via V2 architecture.
         """
-        query = {}
+        query = {"hidden": {"$ne": True}}
         if framework:
             # Handle both storage formats: 'framework' field or 'frameworks' array
             query["$or"] = [

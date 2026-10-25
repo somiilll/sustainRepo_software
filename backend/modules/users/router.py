@@ -23,6 +23,11 @@ from modules.auth.contracts import UserResponse
 from modules.auth.dependencies import get_admin_user
 from modules.auth.email_templates import user_invite_email
 from modules.users.contracts import UserCreateRequest
+from modules.users.facility_assignments import (
+    assert_direct_assignment_mode,
+    direct_assignments_for_new_user,
+    validate_direct_facility_assignments,
+)
 
 router = APIRouter()
 
@@ -58,6 +63,7 @@ async def create_user(
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    assigned_facilities = await direct_assignments_for_new_user(org_id, user_data.assigned_facilities)
     temp_password = generate_random_password()
     user_dict = {
         "id": str(uuid.uuid4()),
@@ -66,7 +72,7 @@ async def create_user(
         "role": "user",
         "password_hash": get_password_hash(temp_password),
         "organization_id": org_id,
-        "assigned_facilities": user_data.assigned_facilities,
+        "assigned_facilities": assigned_facilities,
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -75,7 +81,7 @@ async def create_user(
     org_name_doc = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
     org_name = org_name_doc.get("name", "your organization") if org_name_doc else "your organization"
 
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://supplier-ghg-preview.preview.emergentagent.com')
+    frontend_url = os.environ["FRONTEND_URL"].rstrip("/")
     login_link = f"{frontend_url}/login"
 
     email_body = user_invite_email(
@@ -116,8 +122,20 @@ async def assign_facilities(
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    await db.users.update_one({"id": user_id}, {"$set": {"assigned_facilities": facility_ids}})
-    return {"message": "Facilities assigned successfully"}
+    if user.get("role") != "user":
+        raise HTTPException(status_code=422, detail="Facilities can only be assigned to standard users")
+    target_org_id = user.get("organization_id")
+    if not target_org_id:
+        raise HTTPException(status_code=422, detail="User is not associated with an organization")
+    if current_user.get("role") != "super_admin" and target_org_id != current_user.get("organization_id"):
+        raise HTTPException(status_code=403, detail="Not authorized to manage this user")
+    await assert_direct_assignment_mode(target_org_id)
+    validated_ids = await validate_direct_facility_assignments(target_org_id, facility_ids)
+    await db.users.update_one(
+        {"id": user_id, "organization_id": target_org_id},
+        {"$set": {"assigned_facilities": validated_ids}},
+    )
+    return {"message": "Facilities assigned successfully", "assigned_facilities": validated_ids}
 
 
 @router.delete("/admin/users/{user_id}")

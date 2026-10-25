@@ -1,0 +1,914 @@
+[
+  {
+    "row": 2,
+    "code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_NON_RENEWABLE_COOLING",
+    "name": "Non-Renewable Energy Consumption - Cooling",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_other"
+  },
+  {
+    "row": 3,
+    "code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_NON_RENEWABLE_COOLING",
+    "name": "Non-Renewable Energy Consumption - Cooling",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_total"
+  },
+  {
+    "row": 4,
+    "code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_RENEWABLE_COOLING",
+    "name": "Renewable Energy Consumption - Cooling",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_other"
+  },
+  {
+    "row": 5,
+    "code": "ENV_ENERGY_COOLING_WITHIN_ORGANIZATION_RENEWABLE_COOLING",
+    "name": "Renewable Energy Consumption - Cooling",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_total"
+  },
+  {
+    "row": 6,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_COOLING",
+    "name": "Total Energy Consumption - Cooling",
+    "ref": "P6-E1 (C+F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.total_energy"
+  },
+  {
+    "row": 7,
+    "code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_GRID_ELECTRICITY",
+    "name": "Grid Electricity Consumption",
+    "ref": "P6-E1 (A+D)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_electricity"
+  },
+  {
+    "row": 8,
+    "code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_GRID_ELECTRICITY",
+    "name": "Grid Electricity Consumption",
+    "ref": "P6-E1 (A+D)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_total"
+  },
+  {
+    "row": 9,
+    "code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_RENEWABLE_ELECTRICITY",
+    "name": "Renewable Electricity Consumption",
+    "ref": "P6-E1 (A)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_electricity"
+  },
+  {
+    "row": 10,
+    "code": "ENV_ENERGY_ELECTRICITY_WITHIN_ORGANIZATION_RENEWABLE_ELECTRICITY",
+    "name": "Renewable Electricity Consumption",
+    "ref": "P6-E1 (A)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_total"
+  },
+  {
+    "row": 11,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_ELECTRICITY",
+    "name": "Total Energy Consumption - Electricity",
+    "ref": "P6-E1 (A+D)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.total_energy"
+  },
+  {
+    "row": 12,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+    "name": "Total Energy Consumption - Fuel",
+    "ref": "P6-E1 (B+E)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_fuel"
+  },
+  {
+    "row": 13,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+    "name": "Total Energy Consumption - Fuel",
+    "ref": "P6-E1 (B+E)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_total"
+  },
+  {
+    "row": 14,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_FUEL",
+    "name": "Total Energy Consumption - Fuel",
+    "ref": "P6-E1 (B+E)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.total_energy"
+  },
+  {
+    "row": 15,
+    "code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_NON_RENEWABLE_HEATING",
+    "name": "Non-Renewable Energy Consumption - Heating",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_other"
+  },
+  {
+    "row": 16,
+    "code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_NON_RENEWABLE_HEATING",
+    "name": "Non-Renewable Energy Consumption - Heating",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_total"
+  },
+  {
+    "row": 17,
+    "code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_RENEWABLE_HEATING",
+    "name": "Renewable Energy Consumption - Heating",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_other"
+  },
+  {
+    "row": 18,
+    "code": "ENV_ENERGY_HEATING_WITHIN_ORGANIZATION_RENEWABLE_HEATING",
+    "name": "Renewable Energy Consumption - Heating",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_total"
+  },
+  {
+    "row": 19,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_HEATING",
+    "name": "Total Energy Consumption - Heating",
+    "ref": "P6-E1 (C+F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.total_energy"
+  },
+  {
+    "row": 20,
+    "code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_NON_RENEWABLE_STEAM",
+    "name": "Non-Renewable Energy Consumption - Steam",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_other"
+  },
+  {
+    "row": 21,
+    "code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_NON_RENEWABLE_STEAM",
+    "name": "Non-Renewable Energy Consumption - Steam",
+    "ref": "P6-E1 (F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.nonrenew_total"
+  },
+  {
+    "row": 22,
+    "code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_RENEWABLE_STEAM",
+    "name": "Renewable Energy Consumption - Steam",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_other"
+  },
+  {
+    "row": 23,
+    "code": "ENV_ENERGY_STEAM_WITHIN_ORGANIZATION_RENEWABLE_STEAM",
+    "name": "Renewable Energy Consumption - Steam",
+    "ref": "P6-E1 (C)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.renew_total"
+  },
+  {
+    "row": 24,
+    "code": "ENV_TOTAL_ENERGY_CONSUMPTION_STEAM",
+    "name": "Total Energy Consumption - Steam",
+    "ref": "P6-E1 (C+F)",
+    "question_key": "p6_energy_consumption",
+    "answer_path": "rows.total_energy"
+  },
+  {
+    "row": 25,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_HAP",
+    "name": "Air Emissions - Hazardous air pollutants (HAP)",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.hap"
+  },
+  {
+    "row": 26,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_NOX",
+    "name": "Air Emissions - NOx",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.nox"
+  },
+  {
+    "row": 27,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_OTHER_AIR_POLLUTANTS",
+    "name": "Air Emissions - Other Pollutants",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.others"
+  },
+  {
+    "row": 28,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_PARTICULATE_MATTER",
+    "name": "Air Emissions - Particulate matter (PM)",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.pm"
+  },
+  {
+    "row": 29,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_POP",
+    "name": "Air Emissions - Persistent organic pollutants (POP)",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.pop"
+  },
+  {
+    "row": 30,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_SOX",
+    "name": "Air Emissions - SOx",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.sox"
+  },
+  {
+    "row": 31,
+    "code": "ENV_OTHER_EMISSIONS_AIR_EMISSIONS_AIR_VOC",
+    "name": "Air Emissions - Volatile organic compounds (VOC)",
+    "ref": "P6-E6",
+    "question_key": "p6_air_emissions",
+    "answer_path": "rows.voc"
+  },
+  {
+    "row": 43,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_INCINERATION",
+    "name": "Waste Disposed - Incineration",
+    "ref": "P6-E9 (i)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_incineration"
+  },
+  {
+    "row": 44,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_INCINERATION",
+    "name": "Waste Disposed - Incineration",
+    "ref": "P6-E9 (i)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_total"
+  },
+  {
+    "row": 45,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_LANDFILLING",
+    "name": "Waste Disposed - Landfilling",
+    "ref": "P6-E9 (ii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_landfilling"
+  },
+  {
+    "row": 46,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_LANDFILLING",
+    "name": "Waste Disposed - Landfilling",
+    "ref": "P6-E9 (ii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_total"
+  },
+  {
+    "row": 47,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_OTHER_OPERATIONS",
+    "name": "Waste Disposed - Other disposal operations",
+    "ref": "P6-E9 (iii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_other"
+  },
+  {
+    "row": 48,
+    "code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_OTHER_OPERATIONS",
+    "name": "Waste Disposed - Other disposal operations",
+    "ref": "P6-E9 (iii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.disposed_total"
+  },
+  {
+    "row": 49,
+    "code": "ENV_WASTE_GENERATED_BATTERY_WASTE_GENERATED",
+    "name": "Battery Generated",
+    "ref": "P6-E9 (E)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.battery"
+  },
+  {
+    "row": 50,
+    "code": "ENV_WASTE_GENERATED_BIO_MEDICAL_WASTE_GENERATED",
+    "name": "Biomedical Generated",
+    "ref": "P6-E9 (C)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.bio_medical"
+  },
+  {
+    "row": 51,
+    "code": "ENV_WASTE_GENERATED_CONSTRUCTION_AND_DEMOLITION_WASTE_GENERATED",
+    "name": "Construction & demolition Generated",
+    "ref": "P6-E9 (D)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.construction"
+  },
+  {
+    "row": 52,
+    "code": "ENV_WASTE_GENERATED_E_WASTE_GENERATED",
+    "name": "E-waste Generated",
+    "ref": "P6-E9 (B)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.e_waste"
+  },
+  {
+    "row": 53,
+    "code": "ENV_QUANTITY_OF_HAZARDOUS_WASTE_GENERATED",
+    "name": "Hazardous Waste Generated (Total)",
+    "ref": null,
+    "question_key": "p6_waste_management_details",
+    "answer_path": null
+  },
+  {
+    "row": 54,
+    "code": "ENV_QUANTITY_OF_NONHAZARDOUS_WASTE_GENERATED",
+    "name": "Non-hazardous Waste Generated (Total)",
+    "ref": null,
+    "question_key": "p6_waste_management_details",
+    "answer_path": null
+  },
+  {
+    "row": 55,
+    "code": "ENV_WASTE_GENERATED_OTHER_HAZARDOUS_WASTE_GENERATED",
+    "name": "Other hazardous waste Generated",
+    "ref": "P6-E9 (G)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.other_hazardous"
+  },
+  {
+    "row": 56,
+    "code": "ENV_WASTE_GENERATED_OTHER_NON_HAZARDOUS_WASTE_GENERATED",
+    "name": "Other non-hazardous waste Generated",
+    "ref": "P6-E9 (H)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.other_non_hazardous"
+  },
+  {
+    "row": 57,
+    "code": "ENV_WASTE_GENERATED_PLASTIC_WASTE_GENERATED",
+    "name": "Plastic Generated",
+    "ref": "P6-E9 (A)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.plastic_waste"
+  },
+  {
+    "row": 58,
+    "code": "ENV_WASTE_GENERATED_RADIOACTIVE_WASTE_GENERATED",
+    "name": "Radioactive Generated",
+    "ref": "P6-E9 (F)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.radioactive"
+  },
+  {
+    "row": 59,
+    "code": "ENV_WASTE_GENERATED_IN_METRIC_TONNES",
+    "name": "Waste Generated (Total)",
+    "ref": "P6-E9",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.total_generated"
+  },
+  {
+    "row": 70,
+    "code": "ENV_WASTE_RECOVERED_IN_METRIC_TONNES",
+    "name": "Waste Recovered (Total)",
+    "ref": null,
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.recovered_total"
+  },
+  {
+    "row": 71,
+    "code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_OTHER_RECOVERY",
+    "name": "Waste Recovered - Other recovery operations",
+    "ref": "P6-E9 (iii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.recovered_other"
+  },
+  {
+    "row": 72,
+    "code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RE_USED",
+    "name": "Waste Recovered - Re-used",
+    "ref": "P6-E9 (ii)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.recovered_reused"
+  },
+  {
+    "row": 73,
+    "code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RECYCLED",
+    "name": "Waste Recovered - Recycled",
+    "ref": "P6-E9 (i)",
+    "question_key": "p6_waste_management_details",
+    "answer_path": "rows.recovered_recycled"
+  },
+  {
+    "row": 74,
+    "code": "ENV_WATER_CONSUPTION",
+    "name": "Water Consumption (Total)",
+    "ref": "P6-E3",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.total_consumption"
+  },
+  {
+    "row": 80,
+    "code": "ENV_QUANTITY_LITRES_DISCHARGED",
+    "name": "Water Discharge (Total)",
+    "ref": "P6-E4",
+    "question_key": "p6_water_discharged",
+    "answer_path": "rows.total_discharged"
+  },
+  {
+    "row": 86,
+    "code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_GROUND_WAT",
+    "name": "Water Discharge to Ground Water",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 87,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_NO_TREATMENT",
+    "name": "Water Discharge to Ground Water - No treatment",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": "rows.ground_no_treatment"
+  },
+  {
+    "row": 88,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_PRIMARY",
+    "name": "Water Discharge to Ground Water - Primary treatment",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 89,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_SECONDARY",
+    "name": "Water Discharge to Ground Water - Secondary treatment",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 90,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_TERTIARY",
+    "name": "Water Discharge to Ground Water - Tertiary treatment",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 91,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_WITH_TREATMENT",
+    "name": "Water Discharge to Ground Water - With treatment",
+    "ref": "P6-E4 (ii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 92,
+    "code": "ENV_WATER_DISCHARGE_WATER_DISCHARGED_TO_OTHER_DESTINATIONS",
+    "name": "Water Discharge to Others",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 93,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_NO_TREATMENT",
+    "name": "Water Discharge to Others - No treatment",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 94,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_PRIMARY",
+    "name": "Water Discharge to Others - Primary treatment",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 95,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_SECONDARY",
+    "name": "Water Discharge to Others - Secondary treatment",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 96,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_TERTIARY",
+    "name": "Water Discharge to Others - Tertiary treatment",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 97,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_WITH_TREATMENT",
+    "name": "Water Discharge to Others - With treatment",
+    "ref": "P6-E4 (v)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 98,
+    "code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SEAWATER",
+    "name": "Water Discharge to Seawater / Desalinated",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 99,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_NO_TREATMENT",
+    "name": "Water Discharge to Seawater / Desalinated - No treatment",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 100,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_PRIMARY",
+    "name": "Water Discharge to Seawater / Desalinated - Primary treatment",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 101,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_SECONDARY",
+    "name": "Water Discharge to Seawater / Desalinated - Secondary treatment",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 102,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_TERTIARY",
+    "name": "Water Discharge to Seawater / Desalinated - Tertiary treatment",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 103,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_WITH_TREATMENT",
+    "name": "Water Discharge to Seawater / Desalinated - With treatment",
+    "ref": "P6-E4 (iii)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 104,
+    "code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SURFACE_WA",
+    "name": "Water Discharge to Surface Water",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 105,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_NO_TREATMENT",
+    "name": "Water Discharge to Surface Water - No treatment",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 106,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_PRIMARY",
+    "name": "Water Discharge to Surface Water - Primary treatment",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 107,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_SECONDARY",
+    "name": "Water Discharge to Surface Water - Secondary treatment",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 108,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_TERTIARY",
+    "name": "Water Discharge to Surface Water - Tertiary treatment",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 109,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_WITH_TREATMENT",
+    "name": "Water Discharge to Surface Water - With treatment",
+    "ref": "P6-E4 (i)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 110,
+    "code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_THIRD_PART",
+    "name": "Water Discharge to Third-party Water",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 111,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+    "name": "Water Discharge to Third-party Water - No treatment",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 112,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_PRIMARY",
+    "name": "Water Discharge to Third-party Water - Primary treatment",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 113,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_SECONDARY",
+    "name": "Water Discharge to Third-party Water - Secondary treatment",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 114,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_TERTIARY",
+    "name": "Water Discharge to Third-party Water - Tertiary treatment",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 115,
+    "code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+    "name": "Water Discharge to Third-party Water - With treatment",
+    "ref": "P6-E4 (iv)",
+    "question_key": "p6_water_discharged",
+    "answer_path": null
+  },
+  {
+    "row": 147,
+    "code": "ENV_QUANTITY_LITRES_WITHDRAWN",
+    "name": "Water Withdrawal (Total)",
+    "ref": "P6-E3",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.total_withdrawal"
+  },
+  {
+    "row": 148,
+    "code": "ENV_QUANTITY_LITRES_FROM_GROUND_WATER_WITHDR",
+    "name": "Water Withdrawal - Ground Water",
+    "ref": "P6-E3 (ii)",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.groundwater"
+  },
+  {
+    "row": 149,
+    "code": "ENV_WATER_WITHDRAWAL_WATER_WITHDRAWAL_THROUGH_OTHER_SOURCES",
+    "name": "Water Withdrawal - Others",
+    "ref": "P6-E3 (v)",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.others"
+  },
+  {
+    "row": 150,
+    "code": "ENV_QUANTITY_LITRES_FROM_SEAWATER_DESALINATE",
+    "name": "Water Withdrawal - Seawater / Desalinated",
+    "ref": "P6-E3 (iv)",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.seawater"
+  },
+  {
+    "row": 151,
+    "code": "ENV_QUANTITY_LITRES_FROM_SURFACE_WATER_WITHD",
+    "name": "Water Withdrawal - Surface Water",
+    "ref": "P6-E3 (i)",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.surface_water"
+  },
+  {
+    "row": 152,
+    "code": "ENV_QUANTITY_LITRES_FROM_THIRD_PARTY_WATER_W",
+    "name": "Water Withdrawal - Third-party Water",
+    "ref": "P6-E3 (iii)",
+    "question_key": "p6_water_disclosures",
+    "answer_path": "rows.third_party"
+  },
+  {
+    "row": 163,
+    "code": "ENV_FINANCIAL & PROCUREMENT METRICS_ACCOUNTS_PAYABLE_DAYS_ACCOUNTS_PAYABLE_DAYS",
+    "name": "Accounts Payable Days",
+    "ref": "P1-E8",
+    "question_key": "p1_accounts_payables",
+    "answer_path": "rows.days_payables"
+  },
+  {
+    "row": 165,
+    "code": "ENV_INCIDENTS_DATA_BREACH_PERCENTAGE_DATA_BREACH_INVOLVING_CUSTOMER_PII",
+    "name": "% Data Breaches Involving Customer PII",
+    "ref": "P9-E7 (b)",
+    "question_key": "p9_data_breaches_pii_pct",
+    "answer_path": "value"
+  },
+  {
+    "row": 166,
+    "code": "GOV_NO_OF_DATA_BREACH_INCIDENTS",
+    "name": "Data-breach Incidents (Total)",
+    "ref": "P9-E7 (a)",
+    "question_key": "p9_data_breaches_count",
+    "answer_path": "value"
+  },
+  {
+    "row": 173,
+    "code": "GOV_NO_OF_NONCOMPLIANCE_INCIDENTS",
+    "name": "Non-compliance Cases (Total)",
+    "ref": "P6-E13",
+    "question_key": "p6_energy_consumption",
+    "answer_path": null
+  },
+  {
+    "row": 175,
+    "code": "SOC_NO_OF_ADVERTISING_COMPLAINTS",
+    "name": "Consumer Complaints - Advertising",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.advertising"
+  },
+  {
+    "row": 176,
+    "code": "SOC_NO_OF_CYBERSECURITY_COMPLAINTS",
+    "name": "Consumer Complaints - Cyber-security",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.cyber_security"
+  },
+  {
+    "row": 177,
+    "code": "SOC_NO_OF_DATA_PRIVACY_COMPLAINTS",
+    "name": "Consumer Complaints - Data privacy",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.data_privacy"
+  },
+  {
+    "row": 178,
+    "code": "SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM",
+    "name": "Consumer Complaints - Delivery of essential services",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.delivery_essential"
+  },
+  {
+    "row": 179,
+    "code": "ENV_COMPLAINTS_CONSUMER_COMPLAINTS_NO_OF_OTHER_CONSUMER_COMPLAINTS",
+    "name": "Consumer Complaints - Other",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.other"
+  },
+  {
+    "row": 180,
+    "code": "SOC_NO_OF_RESTRICTIVEUNFAIR_TRADE_PRACTICES_",
+    "name": "Consumer Complaints - Restrictive / unfair trade practices",
+    "ref": "P9-E3",
+    "question_key": "p9_consumer_complaints",
+    "answer_path": "rows.unfair_trade"
+  },
+  {
+    "row": 188,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_CHILD_LABOUR",
+    "name": "Internal Complaints - Child labour",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.child_labour"
+  },
+  {
+    "row": 191,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_DISCRIMINATION_AT_WO",
+    "name": "Internal Complaints - Discrimination",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.discrimination"
+  },
+  {
+    "row": 192,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_FORCED_LABOURINVOLUN",
+    "name": "Internal Complaints - Forced labour",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.forced_labour"
+  },
+  {
+    "row": 193,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_HEALTH",
+    "name": "Internal Complaints - Health & safety",
+    "ref": "P3-E13",
+    "question_key": "p3_complaints_employees_workers",
+    "answer_path": "rows.health_safety"
+  },
+  {
+    "row": 195,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_OTHER_HUMAN_RIGHTS_R",
+    "name": "Internal Complaints - Other human-rights issues",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.other_hr"
+  },
+  {
+    "row": 196,
+    "code": "SOC_NO_OF_POSH_COMPLAINTS",
+    "name": "Internal Complaints - POSH",
+    "ref": "P5-E7",
+    "question_key": "p5_sexual_harassment_complaints",
+    "answer_path": "rows.total_reported"
+  },
+  {
+    "row": 197,
+    "code": "ENV_COMPLAINTS_INTERNAL_COMPLAINTS_NO_OF_POSH_COMPLAINTS_UPHELD",
+    "name": "Internal Complaints - POSH complaints upheld",
+    "ref": "P5-E7",
+    "question_key": "p5_sexual_harassment_complaints",
+    "answer_path": "rows.posh_upheld"
+  },
+  {
+    "row": 199,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_SEXUAL_HARASSMENT",
+    "name": "Internal Complaints - Sexual Harassment",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.sexual_harassment"
+  },
+  {
+    "row": 200,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_WAGES",
+    "name": "Internal Complaints - Wages",
+    "ref": "P5-E6",
+    "question_key": "p5_hr_complaints",
+    "answer_path": "rows.wages"
+  },
+  {
+    "row": 201,
+    "code": "SOC_NO_OF_COMPLAINTS_ON_WORKING_CONDITIONS",
+    "name": "Internal Complaints - Working Conditions",
+    "ref": "P3-E13",
+    "question_key": "p3_complaints_employees_workers",
+    "answer_path": "rows.working_conditions"
+  },
+  {
+    "row": 215,
+    "code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_BOD_DIV_TOTAL_TOTAL",
+    "name": "Board of Directors Diversity - Board of Directors (Total)",
+    "ref": "A-21",
+    "question_key": "brsr_a_women_representation",
+    "answer_path": null
+  },
+  {
+    "row": 216,
+    "code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_NO_OF_FEMALE",
+    "name": "Board of Directors Diversity - Board of Directors (Total) (Female)",
+    "ref": "A-21",
+    "question_key": "brsr_a_women_representation",
+    "answer_path": null
+  },
+  {
+    "row": 217,
+    "code": "ENV_EMPLOYEES/WORKER_BOARD_OF_DIRECTORS_DIVERSITY_NO_OF_MALE",
+    "name": "Board of Directors Diversity - Board of Directors (Total) (Male)",
+    "ref": "A-21",
+    "question_key": "brsr_a_women_representation",
+    "answer_path": null
+  },
+  {
+    "row": 221,
+    "code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_TOTAL",
+    "name": "Employee Diversity - Differently-abled - Other than permanent",
+    "ref": "A-20b (E)",
+    "question_key": "brsr_a_differently_abled",
+    "answer_path": null
+  },
+  {
+    "row": 222,
+    "code": "ENV_EMPLOYEES/WORKER_EMPLOYEE_DIVERSITY_EMP_DIV_DA_OTHER_THAN_PERMANENT_FEMALE",
+    "name": "Employee Diversity - Differently-abled - Other than permanent (Female)",
+    "ref": "A-20b (E)",
+    "question_key": "brsr_a_entity_name",
+    "answer_path": null
+  }
+]

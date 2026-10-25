@@ -37,6 +37,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([("organization_id", 1), ("scope", 1), ("reporting_period", 1)], {}),
             ([("facility_id", 1), ("scope", 1), ("reporting_period", 1)], {}),
             ([("facility_id", 1), ("reporting_period", 1)], {}),
+            ([("id", 1)], {}),
+            ([("supplier_relationship_id", 1), ("source", 1), ("reporting_period", 1)], {}),
+            ([("submission_batch_id", 1)], {}),
         ],
 
         # ESG Targets
@@ -50,6 +53,26 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([("id", 1)], {"unique": True}),
             ([("section", 1), ("status", 1)], {}),
             ([("metric_code", 1)], {}),
+        ],
+
+        "brsr_kpi_import_proposals": [
+            ([('id', 1)], {"unique": True}),
+            ([('org_id', 1), ('reporting_period', 1), ('mapping_id', 1)], {"unique": True}),
+            ([('org_id', 1), ('reporting_period', 1), ('status', 1)], {}),
+        ],
+
+        "kpi_framework_mappings": [
+            ([('id', 1)], {"unique": True}),
+            ([('kpi_id', 1), ('framework', 1), ('reference', 1)], {"name": "kpi_framework_reference_lookup"}),
+            ([('kpi_id', 1), ('framework', 1), ('question_key', 1), ('answer_path', 1)], {
+                "name": "unique_active_kpi_framework_destination",
+                "unique": True,
+                "partialFilterExpression": {
+                    "is_active": True,
+                    "question_key": {"$type": "string"},
+                    "answer_path": {"$type": "string"},
+                },
+            }),
         ],
 
         # Production Quantities
@@ -113,6 +136,63 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
         "supplier_question_evidence": [
             ([("customer_org_id", 1), ("supplier_relationship_id", 1), ("questionnaire_id", 1), ("reporting_period", 1), ("sha256_hash", 1)], {}),
             ([("customer_org_id", 1), ("supplier_relationship_id", 1), ("questionnaire_id", 1), ("reporting_period", 1), ("normalized_filename", 1)], {}),
+        ],
+
+        # Supplier relationships (ranking, review-list, dashboard aggregations)
+        "supplier_relationships": [
+            ([("id", 1)], {}),
+            ([("customer_org_id", 1), ("is_active", 1)], {}),
+            ([("customer_org_id", 1), ("is_active", 1), ("reporting_period", 1)], {}),
+            ([("supplier_org_id", 1)], {}),
+        ],
+
+        # Supplier questionnaires (assignment + review eligibility reads)
+        "supplier_questionnaires": [
+            ([("id", 1)], {}),
+            ([("organization_id", 1), ("is_active", 1)], {}),
+        ],
+
+        # Supplier questions (per-questionnaire question loads)
+        "supplier_questions": [
+            ([("id", 1)], {}),
+            ([("questionnaire_id", 1), ("is_active", 1)], {}),
+        ],
+
+        # Supplier questionnaire responses (review list, clarification, scoring)
+        "supplier_questionnaire_responses": [
+            ([("supplier_relationship_id", 1), ("questionnaire_id", 1), ("reporting_period", 1)], {}),
+            ([("questionnaire_id", 1), ("is_current", 1), ("status", 1)], {}),
+            ([("supplier_relationship_id", 1), ("reporting_period", 1), ("status", 1)], {}),
+        ],
+
+        # Supplier revenue submissions (completion + ranking reads)
+        "supplier_revenue_submissions": [
+            ([("supplier_relationship_id", 1), ("reporting_period", 1)], {}),
+            ([("supplier_relationship_id", 1), ("reporting_period", 1), ("status", 1), ("is_current", 1)], {}),
+            ([("customer_org_id", 1), ("reporting_period", 1)], {}),
+        ],
+
+        # Supplier question banks (bank lookups by id)
+        "supplier_question_banks": [
+            ([("id", 1)], {}),
+        ],
+
+        # Category frequency configs (org + global lookups)
+        "category_frequency_configs": [
+            ([("org_id", 1), ("category", 1), ("subcategory", 1)], {}),
+            ([("category", 1), ("subcategory", 1)], {}),
+        ],
+
+        # Bulk upload jobs / staging / errors (job-scoped reads)
+        "bulk_upload_jobs": [
+            ([("id", 1)], {}),
+            ([("organization_id", 1)], {}),
+        ],
+        "bulk_upload_pending_records": [
+            ([("job_id", 1)], {}),
+        ],
+        "bulk_upload_errors": [
+            ([("job_id", 1)], {}),
         ],
     }
 

@@ -826,6 +826,23 @@ class BRSRHTMLTemplate:
                     val = type_data.get(field)
                     return str(val) if val is not None else ''
         return ''
+
+    def _get_women_representation_data(self, row_key: str, field: str) -> str:
+        """Read fixed women representation rows from current or legacy response shapes."""
+        data = self.section_a.get('brsr_a_women_representation', [])
+        label_by_key = {
+            'board_of_directors': 'Board of Directors',
+            'key_management_personnel': 'Key Management Personnel',
+        }
+        if isinstance(data, dict):
+            row = (data.get('rows') or data).get(row_key, {})
+            value = row.get(field) if isinstance(row, dict) else None
+            return str(value) if value is not None else ''
+        if isinstance(data, list):
+            row = next((item for item in data if item.get('key') == row_key or item.get('category') == label_by_key[row_key]), {})
+            value = row.get(field) if isinstance(row, dict) else None
+            return str(value) if value is not None else ''
+        return ''
     
     def _calc_percentage(self, part: str, total: str) -> str:
         """Calculate percentage, handling empty or zero values."""
@@ -856,6 +873,19 @@ class BRSRHTMLTemplate:
         wrk_other_male = self._get_employee_data('workers', 'other_than_permanent', 'male')
         wrk_other_female = self._get_employee_data('workers', 'other_than_permanent', 'female')
         wrk_other_total = self._get_employee_data('workers', 'other_than_permanent', 'total')
+
+        da_emp_perm_male = self._get_differently_abled_data('employees', 'permanent', 'male')
+        da_emp_perm_female = self._get_differently_abled_data('employees', 'permanent', 'female')
+        da_emp_perm_total = self._get_differently_abled_data('employees', 'permanent', 'total')
+        da_emp_other_male = self._get_differently_abled_data('employees', 'other_than_permanent', 'male')
+        da_emp_other_female = self._get_differently_abled_data('employees', 'other_than_permanent', 'female')
+        da_emp_other_total = self._get_differently_abled_data('employees', 'other_than_permanent', 'total')
+        da_wrk_perm_male = self._get_differently_abled_data('workers', 'permanent', 'male')
+        da_wrk_perm_female = self._get_differently_abled_data('workers', 'permanent', 'female')
+        da_wrk_perm_total = self._get_differently_abled_data('workers', 'permanent', 'total')
+        da_wrk_other_male = self._get_differently_abled_data('workers', 'other_than_permanent', 'male')
+        da_wrk_other_female = self._get_differently_abled_data('workers', 'other_than_permanent', 'female')
+        da_wrk_other_total = self._get_differently_abled_data('workers', 'other_than_permanent', 'total')
         
         # Calculate totals
         try:
@@ -866,9 +896,23 @@ class BRSRHTMLTemplate:
             wrk_total_male = str(int(float(wrk_perm_male or 0)) + int(float(wrk_other_male or 0))) if wrk_perm_male or wrk_other_male else ''
             wrk_total_female = str(int(float(wrk_perm_female or 0)) + int(float(wrk_other_female or 0))) if wrk_perm_female or wrk_other_female else ''
             wrk_total_total = str(int(float(wrk_perm_total or 0)) + int(float(wrk_other_total or 0))) if wrk_perm_total or wrk_other_total else ''
+
+            da_emp_total_male = str(int(float(da_emp_perm_male or 0)) + int(float(da_emp_other_male or 0))) if da_emp_perm_male or da_emp_other_male else ''
+            da_emp_total_female = str(int(float(da_emp_perm_female or 0)) + int(float(da_emp_other_female or 0))) if da_emp_perm_female or da_emp_other_female else ''
+            da_emp_total_total = str(int(float(da_emp_perm_total or 0)) + int(float(da_emp_other_total or 0))) if da_emp_perm_total or da_emp_other_total else ''
+            da_wrk_total_male = str(int(float(da_wrk_perm_male or 0)) + int(float(da_wrk_other_male or 0))) if da_wrk_perm_male or da_wrk_other_male else ''
+            da_wrk_total_female = str(int(float(da_wrk_perm_female or 0)) + int(float(da_wrk_other_female or 0))) if da_wrk_perm_female or da_wrk_other_female else ''
+            da_wrk_total_total = str(int(float(da_wrk_perm_total or 0)) + int(float(da_wrk_other_total or 0))) if da_wrk_perm_total or da_wrk_other_total else ''
         except (ValueError, TypeError):
             emp_total_male = emp_total_female = emp_total_total = ''
             wrk_total_male = wrk_total_female = wrk_total_total = ''
+            da_emp_total_male = da_emp_total_female = da_emp_total_total = ''
+            da_wrk_total_male = da_wrk_total_female = da_wrk_total_total = ''
+
+        bod_total = self._get_women_representation_data('board_of_directors', 'total')
+        bod_female = self._get_women_representation_data('board_of_directors', 'number_of_females')
+        kmp_total = self._get_women_representation_data('key_management_personnel', 'total')
+        kmp_female = self._get_women_representation_data('key_management_personnel', 'number_of_females')
         
         return f'''
         <!-- IV. Employees -->
@@ -983,57 +1027,57 @@ class BRSRHTMLTemplate:
                 <tr>
                     <td class="text-center">1</td>
                     <td>Permanent (D)</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_perm_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_perm_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_perm_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_perm_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_perm_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_emp_perm_total}</td>
+                    <td class="text-center answer-cell">{da_emp_perm_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_perm_male, da_emp_perm_total)}</td>
+                    <td class="text-center answer-cell">{da_emp_perm_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_perm_female, da_emp_perm_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">2</td>
                     <td>Other than Permanent (E)</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_other_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_other_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_other_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_other_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_other_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_emp_other_total}</td>
+                    <td class="text-center answer-cell">{da_emp_other_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_other_male, da_emp_other_total)}</td>
+                    <td class="text-center answer-cell">{da_emp_other_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_other_female, da_emp_other_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">3</td>
                     <td>Total differently abled employees (D + E)</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_total_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_total_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_total_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_total_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_emp_total_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_emp_total_total}</td>
+                    <td class="text-center answer-cell">{da_emp_total_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_total_male, da_emp_total_total)}</td>
+                    <td class="text-center answer-cell">{da_emp_total_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_emp_total_female, da_emp_total_total)}</td>
                 </tr>
                 <tr class="category-header"><td colspan="7">DIFFERENTLY ABLED WORKERS</td></tr>
                 <tr>
                     <td class="text-center">4</td>
                     <td>Permanent (F)</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_perm_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_perm_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_perm_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_perm_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_perm_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_wrk_perm_total}</td>
+                    <td class="text-center answer-cell">{da_wrk_perm_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_perm_male, da_wrk_perm_total)}</td>
+                    <td class="text-center answer-cell">{da_wrk_perm_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_perm_female, da_wrk_perm_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">5</td>
                     <td>Other than permanent (G)</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_other_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_other_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_other_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_other_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_other_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_wrk_other_total}</td>
+                    <td class="text-center answer-cell">{da_wrk_other_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_other_male, da_wrk_other_total)}</td>
+                    <td class="text-center answer-cell">{da_wrk_other_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_other_female, da_wrk_other_total)}</td>
                 </tr>
                 <tr>
                     <td class="text-center">6</td>
                     <td>Total differently abled workers (F + G)</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_total_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_total_male', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_total_male_pct', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_total_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('da_wrk_total_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{da_wrk_total_total}</td>
+                    <td class="text-center answer-cell">{da_wrk_total_male}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_total_male, da_wrk_total_total)}</td>
+                    <td class="text-center answer-cell">{da_wrk_total_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(da_wrk_total_female, da_wrk_total_total)}</td>
                 </tr>
             </tbody>
         </table>
@@ -1052,15 +1096,15 @@ class BRSRHTMLTemplate:
             <tbody>
                 <tr>
                     <td>Board of Directors</td>
-                    <td class="text-center answer-cell">{self._val('bod_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('bod_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('bod_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{bod_total}</td>
+                    <td class="text-center answer-cell">{bod_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(bod_female, bod_total)}</td>
                 </tr>
                 <tr>
                     <td>Key Management Personnel</td>
-                    <td class="text-center answer-cell">{self._val('kmp_total', '')}</td>
-                    <td class="text-center answer-cell">{self._val('kmp_female', '')}</td>
-                    <td class="text-center answer-cell">{self._val('kmp_female_pct', '')}</td>
+                    <td class="text-center answer-cell">{kmp_total}</td>
+                    <td class="text-center answer-cell">{kmp_female}</td>
+                    <td class="text-center answer-cell">{self._calc_percentage(kmp_female, kmp_total)}</td>
                 </tr>
             </tbody>
         </table>

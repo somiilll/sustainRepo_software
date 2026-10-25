@@ -1,4 +1,5 @@
 """Shared unit conversion utilities for all dashboard services."""
+from shared.unit_registry import convert as unit_convert
 
 
 def to_kilolitres(value: float, unit: str) -> float:
@@ -49,6 +50,11 @@ def to_mwh(value: float, unit: str) -> float:
     
     # Default: assume MWh
     return value
+
+
+def to_metric_tonnes(value: float, unit: str) -> float:
+    """Normalize Waste values to the standard ESG Waste unit: metric tonnes."""
+    return unit_convert(value, unit or "MT", "MT")
 
 
 def to_number(value) -> float:

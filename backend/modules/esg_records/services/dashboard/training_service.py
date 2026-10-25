@@ -6,6 +6,26 @@ from typing import Optional, List, Dict, Any
 from .date_utils import build_date_filter
 
 
+def _numeric_field(path: str) -> Dict[str, Any]:
+    return {
+        "$convert": {
+            "input": {"$ifNull": [path, 0]},
+            "to": "double",
+            "onError": 0,
+            "onNull": 0,
+        }
+    }
+
+
+def _total_attendees() -> Dict[str, Any]:
+    return {
+        "$add": [
+            _numeric_field("$field_values.no_of_female_attendees"),
+            _numeric_field("$field_values.no_of_male_attendees"),
+        ]
+    }
+
+
 class TrainingMetricsService:
     CATEGORY = "Training"
     
@@ -38,9 +58,9 @@ class TrainingMetricsService:
             {"$match": query},
             {"$group": {
                 "_id": None,
-                "total_trainings": {"$sum": 1},
-                "total_hours": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.training_hours", 0]}}},
-                "total_participants": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.attendees_number", 0]}}}
+                "total_trainings": {"$sum": _numeric_field("$field_values.no_of_trainings_done")},
+                "total_hours": {"$sum": _numeric_field("$field_values.total_training_hours_by_topic")},
+                "total_participants": {"$sum": _total_attendees()},
             }}
         ]
         
@@ -88,8 +108,8 @@ class TrainingMetricsService:
         pipeline = [
             {"$match": query},
             {"$group": {
-                "_id": "$field_values.training_type",
-                "count": {"$sum": 1}
+                "_id": "$field_values.training_recipient_type",
+                "count": {"$sum": _numeric_field("$field_values.no_of_trainings_done")},
             }}
         ]
         
@@ -121,10 +141,10 @@ class TrainingMetricsService:
         pipeline = [
             {"$match": query},
             {"$group": {
-                "_id": "$field_values.training_attendes_type",
-                "total_attendees": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.attendees_number", 0]}}},
-                "female_attendees": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.female_attendees", 0]}}},
-                "male_attendees": {"$sum": {"$toDouble": {"$ifNull": ["$field_values.male_attendees", 0]}}}
+                "_id": "$field_values.training_recipient_type",
+                "total_attendees": {"$sum": _total_attendees()},
+                "female_attendees": {"$sum": _numeric_field("$field_values.no_of_female_attendees")},
+                "male_attendees": {"$sum": _numeric_field("$field_values.no_of_male_attendees")},
             }}
         ]
         

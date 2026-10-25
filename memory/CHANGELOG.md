@@ -1,3 +1,38 @@
+# October 25, 2026 — BRSR Turnover Rate and Unit Correction
+- Replaced the erroneous Social/Governance Litres fallback with semantic field units and normalized existing records through a backup-first migration: 68 Social fields updated and no Governance Litres values found. General Training now stores `total_attendees` from female + male values; the KPI sums that stored field and accepts numeric-string monthly periods. Verified total attendees: 890.
+- Corrected BRSR P3-E8 worker-row destinations from stale `wrk_*` paths to the table’s existing `workers_*` paths, then synced the current FY response; worker total now resolves to 200 without changing KPI field names. Added the calculated **Training Attendees (Total)** KPI and aligned Training dashboard aggregation with the saved female/male attendee fields. Source/data verification: 890 total attendees.
+- Extended safe HTTP 400 validation-message delivery to 1,000 characters. Existing ESG metric-entry toasts now show multi-field validation guidance—such as conflicting Internal Complaints totals—instead of the generic fallback; technical and authorization errors remain protected.
+- Corrected BRSR Section A’s three-year turnover display. The active report now reads `current_fy`, `previous_fy`, and `prior_to_previous_fy` directly, with `prior_fy` compatibility for legacy responses, rather than loading separate historical reports. This fixes the missing FY 2025–26 Worker Turnover data in the FY 2026–27 Previous FY column. **SOURCE-REVIEWED; FUNCTIONAL TESTING PAUSED by user instruction.**
+- Corrected employee and worker turnover to `departures ÷ average headcount × 100`, where average headcount is `(start + end) ÷ 2`.
+- Added exact aliases for persisted start/end/departure fields and fail-closed formula matching when any required variable is unavailable.
+- Live BRSR autofill now writes Section A turnover under `current_fy`, `previous_fy`, and `prior_to_previous_fy`; turnover data-entry columns and persisted metadata use **Number**.
+- Added idempotent startup maintenance for derived KPI formulas and active historical turnover unit metadata. Applied the approved existing-record correction and refreshed ORG1 FY 2026–27. **Runtime/UI verification pending authorization.**
+
+# October 23, 2026 — Environment Endpoint and Script Cleanup
+- Removed embedded preview and production application hosts from runtime email flows and legacy tests; application links now require `FRONTEND_URL` and tests require environment-provided URLs.
+- Removed localhost fallbacks for report generation, repository ingestion, Mongo access, and integration tests; protected environment variables now fail fast when missing.
+- Deleted ten unreferenced one-off scripts for temporary PDF extraction, source integration, diagnostic dumps, destructive Scope 2 cleanup, test-only formula isolation, and obsolete Super Admin bootstrap. Retained operational/idempotent migration and data-repair scripts. **STATIC SCANS PASSED; runtime tests remain paused.**
+
+# October 23, 2026 — Explicit No-Approval GHG Lifecycle Status
+- Future direct-final GHG form, C7, and bulk-upload records now store `approval_status: "not_required"`; genuinely approved workflow records continue to store `"approved"`.
+- Historical records remain untouched per user choice. Updated legacy workflow transition handling so future `not_required` records can enter approval safely and restore their prior status after a rejected update/delete request.
+- Existing dashboard, target, base-year, Energy, report, MIS, KPI, and benchmarking inclusion rules already accept `not_required`. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN because testing remains paused.**
+
+# October 23, 2026 — No-Workflow GHG Log Status Label
+- Updated the main GHG Logs table to display final records as **Completed** when approval workflow is disabled, while retaining `approval_status: "approved"` internally for dashboard/report eligibility.
+- Workflow-enabled status labels and all detail/history views remain unchanged. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN because testing remains paused.**
+
+# October 23, 2026 — Avoided Emissions due to Green Energy KPI
+- Added a new GHG Analysis KPI for counterfactual grid emissions avoided through renewable Scope 2 electricity.
+- Resolves non-renewable electricity factors by facility geography and reporting year, supports kWh/MWh/GWh conversion, and honors active date/facility filters, annual proration, and equity share.
+- Expanded the primary KPI grid to fit the new card while preserving responsive three/two/one-column layouts at narrower widths. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN pending user authorization.**
+
+# October 23, 2026 — Facility-Scoped GHG Authorization
+- Added one backend GHG access policy that resolves admin, workflow-assignment, and direct-facility-assignment modes without changing JWT, roles, membership, or login behavior.
+- Applied server-owned facility boundaries to GHG records and history, C7, Sinks, Scope 3 Bulk Upload, OCR evidence attachment, Base Year reads, dashboard/analysis aggregates, and user-accessible AI report summaries.
+- Added tenant-validated multi-facility assignment at user creation and edit in both organization User Management and Super Admin Team Accounts; direct assignments are hidden and rejected for workflow-enabled organizations.
+- Standard customer users with GHG access now see and can route only to GHG Logs and GHG Analysis. **SOURCE-REVIEWED ONLY; VERIFICATION NOT RUN pending user authorization.**
+
 # September 29, 2026 — ESG Annual (Basic) Questionnaire Bank
 - Added **ESG Annual (Basic)** from the workbook’s `Tier 1 - Basic (MSME)` sheet: 25 exact Tier 1 questions worth 350 points, distributed across Environment (9), Social (10), and Governance (6).
 - Seeded the Basic bank idempotently for existing organizations and included it in the existing future-organization and startup synchronization paths. It is enabled by default and maintains independent Basic / Standard / Advanced activation states.

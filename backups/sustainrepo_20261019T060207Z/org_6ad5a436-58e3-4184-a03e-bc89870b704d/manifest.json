@@ -1,0 +1,65 @@
+{
+  "created_at": "2026-10-19T06:02:17.319004+00:00",
+  "source_database": "sustainrepo",
+  "organization_id": "6ad5a436-58e3-4184-a03e-bc89870b704d",
+  "facility_ids": [
+    "fdde5d0d-79c1-4625-945a-bb5efe201ea6"
+  ],
+  "user_ids": [
+    "3abbc3b8-2a06-4d80-a058-c9d367057bf2",
+    "d53fd99f-ddcc-476d-b507-ff97666fe996"
+  ],
+  "collections": {
+    "audit_logs": {
+      "documents": 8,
+      "file": "audit_logs.ndjson.gz",
+      "sha256": "9cd1a1716c71c141eeb31bdd06db3c4aaf0fe5f380dee3e289fe3ed9689945b5"
+    },
+    "bulk_upload_jobs": {
+      "documents": 20,
+      "file": "bulk_upload_jobs.ndjson.gz",
+      "sha256": "ec1431c4be036070475d8532bd1801863497d764cf64e2fb18a37a5bc6c76d47"
+    },
+    "bulk_upload_pending_records": {
+      "documents": 449,
+      "file": "bulk_upload_pending_records.ndjson.gz",
+      "sha256": "a83c58a6938ccb63d31b640d78af1c42212dd1bb74148d15dec616019f0f8b58"
+    },
+    "ce_calculation_audit_logs": {
+      "documents": 17,
+      "file": "ce_calculation_audit_logs.ndjson.gz",
+      "sha256": "a500764001e833d2c85138c8d76cf7eca99769d17fe3af989bc5f3bfcf5c19a2"
+    },
+    "emission_history": {
+      "documents": 1,
+      "file": "emission_history.ndjson.gz",
+      "sha256": "6b9961252eaa95e35f50b134a5cfc3b39ddd32ab55804ae8dc80e03b143debe8"
+    },
+    "emission_records": {
+      "documents": 52,
+      "file": "emission_records.ndjson.gz",
+      "sha256": "a9e8d48b53925862b78f84cdc99cbd55482c2b5e24169b0db9addcb5bf53c14b"
+    },
+    "facilities": {
+      "documents": 1,
+      "file": "facilities.ndjson.gz",
+      "sha256": "d9579b39b09a95d2af4652ef32e5865fad6bc11f93eb44dae8e67a8a9e6f3e22"
+    },
+    "organizations": {
+      "documents": 1,
+      "file": "organizations.ndjson.gz",
+      "sha256": "c2f04da365a2d3891d699d5fcfe21914b5c9d90d19dac4170c2670b79f994f89"
+    },
+    "users": {
+      "documents": 2,
+      "file": "users.ndjson.gz",
+      "sha256": "a006be7e9c15fb8e8d001e4b8c79dceef7fe26766efab02a19c66804a38bb59d"
+    }
+  },
+  "scope_note": "Documents were exported when directly linked to the organization, its facilities, or its users. The full database archive is the authoritative complete backup.",
+  "full_archive": {
+    "file": "sustainrepo_full.archive.gz",
+    "bytes": 1274268,
+    "sha256": "2485fbfd17ab240d5110e94a0d87e54d43697eac43fe8265fbe7ef9a31acff9c"
+  }
+}

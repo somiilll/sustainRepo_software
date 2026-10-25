@@ -1,0 +1,19 @@
+{
+  "legacy_formula_stub_inserted": true,
+  "decision_tree_maps": {
+    "ce_decision_trees": {
+      "requested": 0,
+      "modified": 0
+    },
+    "ce_decision_tree_versions": {
+      "requested": 47,
+      "modified": 47
+    }
+  },
+  "formula_records_previously_backfilled": 210,
+  "legacy_records_untouched": 83,
+  "fields_not_added": [
+    "calculation_provenance",
+    "versioning_backfilled_at"
+  ]
+}

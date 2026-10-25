@@ -169,8 +169,8 @@ def _process_pdf_sync(pdf_path: str, org_id: str, doc_id: str, split_2up: bool =
     if len(embeddings) == len(docs_to_insert):
         # Sync insert since we're in a thread pool
         from pymongo import MongoClient
-        sync_client = MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
-        sync_db = sync_client[os.environ.get("DB_NAME", "test_database")]
+        sync_client = MongoClient(os.environ["MONGO_URL"])
+        sync_db = sync_client[os.environ["DB_NAME"]]
         bulk_docs = []
         for i, (text, meta, emb, chunk_id) in enumerate(zip(docs_to_insert, metadatas, embeddings, ids)):
             bulk_docs.append({

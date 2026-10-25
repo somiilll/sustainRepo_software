@@ -3,9 +3,9 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/') or "http://localhost:8001"
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 # Note: use frontend/.env if REACT_APP_BACKEND_URL not present
-if not BASE_URL or BASE_URL == "http://localhost:8001":
+if not BASE_URL:
     try:
         with open("/app/frontend/.env") as f:
             for line in f:
@@ -14,6 +14,8 @@ if not BASE_URL or BASE_URL == "http://localhost:8001":
                     break
     except FileNotFoundError:
         pass
+if not BASE_URL:
+    pytest.skip("REACT_APP_BACKEND_URL is required", allow_module_level=True)
 
 LOGIN_EMAIL = "goyalsomil2001@gmail.com"
 LOGIN_PASSWORD = "TestUser123!"

@@ -15,6 +15,8 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from modules.auth.dependencies import get_current_user
 from modules.dashboards.contracts import DashboardStats
 from modules.emissions.contracts import EmissionRecordResponse
+from modules.emissions.access_policy import resolve_ghg_access_scope
+from modules.dashboards.avoided_emissions import calculate_avoided_green_energy_emissions
 from shared.database.mongo import db
 from modules.dashboards.esg_analytics_service import get_esg_analytics
 from modules.dashboards.environment_detail_service import get_environment_detail
@@ -105,14 +107,15 @@ async def get_dashboard_stats(
     use_equity_share = False
     facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
     org_id = None  # Initialize org_id for all user types
+    access_scope = await resolve_ghg_access_scope(current_user)
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
-        emissions_query = {"facility_id": {"$in": facility_ids}}
+        emissions_query = {}
         # For super_admin, try to get org_id from first facility
         if facilities:
             org_id = facilities[0].get("organization_id")
-    elif current_user["role"] == "admin":
+    else:
         org_id = current_user.get("organization_id")
         if not org_id:
             # Admin without organization - return empty stats
@@ -143,8 +146,9 @@ async def get_dashboard_stats(
         if organization and organization.get("org_boundaries_approach") == "equity_share":
             use_equity_share = True
         
+        permitted_facility_ids = list(access_scope.facilities_for_scope())
         facilities = await db.facilities.find(
-            {"organization_id": org_id},
+            {"organization_id": org_id, "id": {"$in": permitted_facility_ids}},
             {"_id": 0}
         ).to_list(1000)
         
@@ -155,27 +159,7 @@ async def get_dashboard_stats(
         }
         
         facility_ids = [f["id"] for f in facilities]
-        emissions_query = {"facility_id": {"$in": facility_ids}}
-    else:  # user - Dashboards use KPI access; for now return empty for users without KPI assignments
-        # Users access dashboards through KPI-based filtering, not assigned_facilities
-        # Return empty data - frontend should handle this appropriately
-        return DashboardStats(
-            total_facilities=0,
-            total_emissions=0,
-            scope1_emissions=0,
-            scope2_emissions=0,
-            biogenic_emissions=0,
-            recent_records=[],
-            emissions_by_facility=[],
-            emissions_trend=[],
-            emissions_by_category=[],
-            emissions_by_fuel=[],
-            yearly_fuel_analysis=[],
-            yearly_facility_analysis=[],
-            monthly_comparison=[],
-            sinks_total=0,
-            sinks_by_facility=[]
-        )
+        emissions_query = {}
     
     date_filter_start = start_period
     date_filter_end = end_period
@@ -192,6 +176,7 @@ async def get_dashboard_stats(
         emissions_query["facility_id"] = {"$in": facility_id}
         # Also filter the facilities list for the response
         facilities = [f for f in facilities if f["id"] in facility_id]
+    emissions_query = access_scope.emission_query(emissions_query)
     raw_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     all_emissions = [
         normalized
@@ -454,6 +439,14 @@ async def get_dashboard_stats(
     scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
     biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
     total_emissions = scope1_emissions + scope2_emissions + scope3_emissions
+    avoided_emissions_green_energy = await calculate_avoided_green_energy_emissions(
+        db,
+        deduplicated_emissions,
+        {facility["id"]: facility for facility in facilities},
+        date_filter_start,
+        date_filter_end,
+        facility_equity_map if use_equity_share else None,
+    )
     
     # Helper function to check if biogenic is direct (Scope 1) or indirect (Scope 3)
     def is_indirect_biogenic(emission):
@@ -910,6 +903,7 @@ async def get_dashboard_stats(
         if end_period:
             # The record must start BEFORE the requested end period finishes
             sinks_query["start_date"] = {"$lte": f"{end_period}-31"}
+    sinks_query = access_scope.sink_query(sinks_query)
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     
@@ -1007,6 +1001,7 @@ async def get_dashboard_stats(
         scope2_emissions=float(display_round(scope2_emissions)),
         scope3_emissions=float(display_round(scope3_emissions)),
         biogenic_emissions=float(display_round(biogenic_emissions)),
+        avoided_emissions_green_energy=float(display_round(avoided_emissions_green_energy)),
         biogenic_direct=float(display_round(biogenic_direct)),
         biogenic_indirect=float(display_round(biogenic_indirect)),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
@@ -1040,18 +1035,8 @@ async def get_supplier_hotspots(
     Get aggregated Scope 3 emissions by supplier for heatmap visualization.
     Returns hierarchical data: Category -> Supplier -> Emissions
     """
-    # Build base query based on user role
-    if current_user["role"] == "super_admin":
-        facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
-        facility_ids = [f["id"] for f in facilities]
-    elif current_user["role"] == "admin":
-        org_id = current_user.get("organization_id")
-        if not org_id:
-            return {"categories": [], "suppliers": [], "total_scope3_emissions": 0}
-        facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(1000)
-        facility_ids = [f["id"] for f in facilities]
-    else:  # user - Return empty data for users; dashboards use KPI-based access
-        facility_ids = []
+    access_scope = await resolve_ghg_access_scope(current_user)
+    facility_ids = list(access_scope.facilities_for_scope("scope3"))
     
     # Build emissions query for Scope 3 only
     emissions_query = {
@@ -1070,6 +1055,7 @@ async def get_supplier_hotspots(
     # Apply facility filter
     if facility_id and len(facility_id) > 0:
         emissions_query["facility_id"] = {"$in": facility_id}
+    emissions_query = access_scope.emission_query(emissions_query)
     
     # Get all Scope 3 emissions
     raw_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
@@ -1216,13 +1202,14 @@ async def get_esg_summary(
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
+    access_scope = await resolve_ghg_access_scope(current_user)
 
     now = datetime.now(timezone.utc)
     curr_year = year or now.year
     prev_year = curr_year - 1
 
     # Get all facilities for this org
-    fac_ids = [f["id"] async for f in db.facilities.find({"organization_id": org_id}, {"id": 1})]
+    fac_ids = list(access_scope.facilities_for_scope())
 
     async def sum_emissions(yr, scope=None):
         q = {
@@ -1232,6 +1219,7 @@ async def get_esg_summary(
         }
         if scope:
             q["scope"] = scope
+        q = access_scope.emission_query(q)
         total = 0.0
         async for rec in db.emission_records.find(q, {"total_emissions": 1}):
             total += rec.get("total_emissions") or 0
@@ -1247,6 +1235,7 @@ async def get_esg_summary(
             }
             if scope:
                 q["scope"] = scope
+            q = access_scope.emission_query(q)
             total = 0.0
             async for rec in db.emission_records.find(q, {"total_emissions": 1}):
                 total += rec.get("total_emissions") or 0
@@ -1313,13 +1302,25 @@ async def get_esg_summary(
     from shared.utils.period_utils import period_variants
     prod_val = None
     for pv in period_variants(curr_year, "FY"):
-        prod = await db.production_quantities.find_one(
-            {"organization_id": org_id, "facility_id": None, "reporting_period": pv, "is_deleted": {"$ne": True}},
-            {"quantity": 1, "unit": 1}
-        )
-        if prod:
-            prod_val = prod.get("quantity")
-            break
+        production_query = {
+            "organization_id": org_id,
+            "reporting_period": pv,
+            "is_deleted": {"$ne": True},
+        }
+        if current_user.get("role") in {"admin", "super_admin"}:
+            production_query["facility_id"] = None
+            prod = await db.production_quantities.find_one(production_query, {"_id": 0, "quantity": 1, "unit": 1})
+            if prod:
+                prod_val = prod.get("quantity")
+                break
+        else:
+            production_query["facility_id"] = {"$in": fac_ids}
+            production_rows = await db.production_quantities.find(
+                production_query, {"_id": 0, "quantity": 1}
+            ).to_list(10000)
+            if production_rows:
+                prod_val = sum(float(row.get("quantity") or 0) for row in production_rows)
+                break
 
     ghg_intensity = round((s1_curr + s2_curr) / prod_val, 4) if prod_val else None
 
@@ -1382,6 +1383,20 @@ async def get_esg_summary(
         "subcategory": "Health & Safety Incidents",
         "approval_status": {"$in": ["approved", "not_required", None]},
     })
+
+    if current_user.get("role") == "user" and current_user.get("user_type") != "supplier":
+        total_employees = None
+        diversity_pct = None
+        turnover_pct = None
+        emp_under30 = None
+        emp_3050 = None
+        emp_over50 = None
+        emp_minority = None
+        emp_vulnerable = None
+        data_breaches = None
+        ap_days = None
+        ltifr = None
+        safety_count = None
 
     def yoy_change(curr, prev):
         if prev and prev != 0:

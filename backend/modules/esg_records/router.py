@@ -15,11 +15,13 @@ from datetime import datetime, timezone
 import uuid
 import hashlib
 import re
+import logging
 
 from modules.auth.dependencies import get_current_user
 from modules.entitlements.dependencies import assert_entitlement, assert_monthly_row_limit
-from .service import esg_records_service
+from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
+from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
@@ -28,6 +30,8 @@ from .contracts import (
 )
 from shared.database import get_database
 from shared.database.mongo import db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/esg-records", tags=["ESG Records"])
 
@@ -491,8 +495,12 @@ async def create_record(
             allow_without_assignment=is_admin,  # Admins can proceed without assignment
             is_admin=is_admin,  # Admins bypass approval workflow
         )
-    except ValueError as e:
+    except RecordAccessError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        # Validation failures (for example, Water Withdrawal totals/sources)
+        # are input problems, never authorization failures.
+        raise HTTPException(status_code=400, detail=str(e))
     
     response = {"message": "Record created", "record": record}
     
@@ -608,6 +616,17 @@ async def list_records(
             raise HTTPException(status_code=422, detail=f"{label} must use YYYY-MM format")
     if period_start and period_end and period_start > period_end:
         raise HTTPException(status_code=422, detail="Start Period cannot be after End Period")
+    is_framework_neutral_energy = section == "environment" and (category or "").lower() == "energy"
+    if is_framework_neutral_energy:
+        # Safe read-time reconciliation covers approved GHG writes that were
+        # created through non-interactive sources such as imports.
+        try:
+            await get_ghg_energy_sync_service(db).sync_organization(org_id)
+        except Exception:
+            # A list must remain available from the last successful persisted
+            # sync even if reconciliation encounters an unrelated GHG issue.
+            logger.exception("GHG-derived Energy reconciliation failed", extra={"organization_id": org_id})
+        framework = None
     
     filters = RecordListFilters(
         category=category,
@@ -642,8 +661,8 @@ async def list_records(
         except HTTPException:
             include_imported = False
     if include_imported and section == "environment":
-        db = get_database()
-        ghg_service = get_ghg_integration_service(db)
+        database = get_database()
+        ghg_service = get_ghg_integration_service(database)
         
         imported_records = await ghg_service.get_all_imported_records(
             org_id=org_id,
@@ -651,6 +670,9 @@ async def list_records(
             category=category,
             facility_id=facility_id
         )
+        # GHG-derived Energy is now persisted using manual Energy field keys.
+        # Keep virtual GHG emissions, but never duplicate Energy rows.
+        imported_records = [record for record in imported_records if record.get("category") != "Energy"]
 
         if status and imported_records:
             def matches_status(record: dict) -> bool:

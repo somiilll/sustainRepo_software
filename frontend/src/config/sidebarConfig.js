@@ -57,7 +57,6 @@ const sidebarConfig = [
           { key: 'environment.waste.kpi', label: 'KPI', icon: 'FileText', path: '/environment/waste' },
           { key: 'environment.waste.analysis', label: 'Analysis', icon: 'BarChart3', path: '/environment/waste/analysis' },
       ] },
-      { key: 'environment.biodiversity', label: 'Biodiversity', icon: 'TreeDeciduous', path: '/environment/biodiversity' },
       {
         key: 'environment.others', label: 'Others', icon: 'Leaf', path: '/environment/others',
         anyAccess: ['environment.climate_change', 'environment.material', 'environment.other_emissions'],
