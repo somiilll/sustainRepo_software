@@ -26,6 +26,9 @@
 ### Principle 9 UI Verification
 - Verify Consumer Complaints presents the new separate Restrictive and Unfair Trade inputs and that P9 displays 23/0 under Restrictive and 157 data-breach instances. Browser testing is paused until explicitly authorized.
 
+### Principle 3 and Section A UI Verification
+- Verify P3 Total (A) cells display locked Diversity values in all four updated tables and that Section A presents the organization name/corporate address when no BRSR-specific value is saved. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 

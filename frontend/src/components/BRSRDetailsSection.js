@@ -319,6 +319,19 @@ export default function BRSRDetailsSection({
     
     return mapped;
   };
+
+  const applyOrganizationDefaults = (mapped, organization) => {
+    if (!organization) return mapped;
+    return {
+      ...mapped,
+      listed_entity_name: mapped.listed_entity_name || organization.name || '',
+      corporate_address: mapped.corporate_address || organization.corporate_address || '',
+      corporate_city: mapped.corporate_city || organization.city || '',
+      corporate_state: mapped.corporate_state || organization.state || '',
+      corporate_country: mapped.corporate_country || organization.country || 'India',
+      corporate_pincode: mapped.corporate_pincode || organization.pincode || '',
+    };
+  };
   
   // Convert form data to API responses format
   const mapFormDataToResponses = () => {
@@ -366,14 +379,17 @@ export default function BRSRDetailsSection({
     if (!reportingPeriod) return;
     
     try {
-      // Fetch from ESG Questionnaire API (unified storage)
-      const res = await axios.get(
-        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
-        { headers: getAuthHeader() }
-      );
+      const [res, organizationRes] = await Promise.all([
+        axios.get(
+          `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingPeriod)}`,
+          { headers: getAuthHeader() }
+        ),
+        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => null),
+      ]);
+      const organization = organizationRes?.data;
       
       if (res.data.responses && Object.keys(res.data.responses).length > 0) {
-        const mappedData = mapResponsesToFormData(res.data.responses);
+        const mappedData = applyOrganizationDefaults(mapResponsesToFormData(res.data.responses), organization);
         setFormData(prev => ({
           ...prev,
           ...mappedData,
@@ -393,7 +409,7 @@ export default function BRSRDetailsSection({
       } else {
         // Reset to defaults
         setFormData(prev => ({
-          ...prev,
+          ...applyOrganizationDefaults(prev, organization),
           reporting_period: reportingPeriod,
           business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
           products_services: [{ ...EMPTY_PRODUCT_SERVICE }],

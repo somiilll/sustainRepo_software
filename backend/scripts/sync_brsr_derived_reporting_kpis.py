@@ -548,6 +548,56 @@ async def sync_p5_workforce_count_mappings(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_p3_diversity_totals(now: str) -> List[Dict[str, Any]]:
+    employee_detail = {
+        "perm_male": "Employee Diversity - Permanent employees (Male)",
+        "perm_female": "Employee Diversity - Permanent employees (Female)",
+        "perm_total": "Employee Diversity - Permanent employees",
+        "other_male": "Employee Diversity - Other-than-permanent employees (Male)",
+        "other_female": "Employee Diversity - Other-than-permanent employees (Female)",
+        "other_total": "Employee Diversity - Other-than-permanent employees",
+    }
+    worker_detail = {
+        "perm_male": "Workers Diversity - Permanent workers (Male)",
+        "perm_female": "Workers Diversity - Permanent workers (Female)",
+        "perm_total": "Workers Diversity - Permanent workers",
+        "other_male": "Workers Diversity - Other-than-permanent workers (Male)",
+        "other_female": "Workers Diversity - Other-than-permanent workers (Female)",
+        "other_total": "Workers Diversity - Other-than-permanent workers",
+    }
+    mapped = []
+    for question_key, sources in (("p3_wellbeing_employees", employee_detail), ("p3_wellbeing_workers", worker_detail)):
+        for row_key, metric_name in sources.items():
+            source = await find_definition(metric_name)
+            await upsert_mapping(source, question_key, f"rows.{row_key}.total_a", "P3", now, "response_period_document")
+            mapped.append(source)
+
+    union_sources = {
+        "perm_emp_male": "Employee Diversity - Permanent employees (Male)",
+        "perm_emp_female": "Employee Diversity - Permanent employees (Female)",
+        "perm_workers_male": "Workers Diversity - Permanent workers (Male)",
+        "perm_workers_female": "Workers Diversity - Permanent workers (Female)",
+    }
+    for row_key, metric_name in union_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "p3_union_membership", f"rows.{row_key}.total", "P3-E7", now)
+        mapped.append(source)
+
+    review_sources = {
+        "emp_male": "Employee Diversity - Total Employees (Male)",
+        "emp_female": "Employee Diversity - Total Employees (Female)",
+        "emp_total": "Employee Diversity - Total Employees",
+        "workers_male": "Workers Diversity - Total Workers (Male)",
+        "workers_female": "Workers Diversity - Total Workers (Female)",
+        "workers_total": "Workers Diversity - Total Workers",
+    }
+    for row_key, metric_name in review_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "performance_career_reviews", f"rows.{row_key}.total", "P3-E9", now)
+        mapped.append(source)
+    return mapped
+
+
 async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find({
         "metric_name": {"$regex": "Parental Leave|Return to Work Rate|Retention Rate", "$options": "i"},
@@ -737,6 +787,7 @@ async def run() -> Dict[str, Any]:
         "internal_complaints": len(await sync_internal_complaints(now)),
         "additional_requested": len(await sync_additional_requested_kpis(now)),
         "p5_workforce_counts": len(await sync_p5_workforce_count_mappings(now)),
+        "p3_diversity_totals": len(await sync_p3_diversity_totals(now)),
         "parental_leave": len(await sync_parental_leave(now)),
         "training": len(await sync_training(now)),
         "backup": str(backup),

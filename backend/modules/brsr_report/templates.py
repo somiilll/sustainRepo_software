@@ -556,6 +556,14 @@ class BRSRHTMLTemplate:
     def _format_address(self, key: str) -> str:
         """Format address from section_a field (stored as object with address, city, state, country, pincode)."""
         addr_data = self.section_a.get(key, {})
+        if not addr_data and key == 'brsr_a_corporate_address':
+            addr_data = {
+                'address': self.organization.get('corporate_address', ''),
+                'city': self.organization.get('city', ''),
+                'state': self.organization.get('state', ''),
+                'country': self.organization.get('country', ''),
+                'pincode': self.organization.get('pincode', ''),
+            }
         if isinstance(addr_data, dict):
             parts = []
             for field in ['address', 'city', 'state', 'country', 'pincode']:
