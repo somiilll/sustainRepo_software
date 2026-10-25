@@ -405,6 +405,13 @@ async def sync_consumer_complaints(now: str) -> List[Dict[str, Any]]:
         },
         {"$set": {"is_active": False, "mapping_status": "superseded_by_separate_trade_practice_fields", "updated_at": now}},
     )
+    await db.esg_kpi_definitions.update_many(
+        {"metric_name": {"$in": [
+            "Consumer Complaints - Restrictive / unfair trade practices",
+            "Consumer Complaints Pending Resolution - Restrictive / unfair trade practices",
+        ]}, "status": {"$ne": "archived"}},
+        {"$set": {"status": "archived", "updated_at": now}},
+    )
     return definitions
 
 
