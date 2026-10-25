@@ -2553,7 +2553,7 @@ class BRSRHTMLTemplate:
         <div class="indicator-header">Essential Indicators</div>
         
         <div class="question-item"><span class="q-num">1.</span> <span class="q-text">Employees and workers who have been provided training on human rights issues and policy(ies) of the entity, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e1_hr_training', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_hr_training', '')}</div>
         
         <div class="question-item"><span class="q-num">2.</span> <span class="q-text">Details of minimum wages paid to employees and workers, in the following format:</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e2_minimum_wages', '')}</div>
@@ -2574,7 +2574,7 @@ class BRSRHTMLTemplate:
         <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e6_complaints', '')}</div>
         
         <div class="question-item"><span class="q-num">7.</span> <span class="q-text">Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:</span></div>
-        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e7_posh_complaints', '')}</div>
+        <div class="answer-value">{self._get_response(self.section_c_data, 'p5_sexual_harassment_complaints', '')}</div>
         
         <div class="question-item"><span class="q-num">8.</span> <span class="q-text">Mechanisms to prevent adverse consequences to the complainant in discrimination and harassment cases.</span></div>
         <div class="answer-value">{self._get_response(self.section_c_data, 'p5_e8_complainant_protection', '')}</div>

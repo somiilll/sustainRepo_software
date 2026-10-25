@@ -458,6 +458,10 @@ _TOPICS = [
      "no_of_female_attendees_for_trainings_on_ethical_principles", "no_of_male_attendees_for_trainings_on_ethical_principles",
      "P1-E1", "205-2"),
 ]
+TRAINING_TOPIC_TOTALS = {
+    slug: {"label": label, "female_key": female_key, "male_key": male_key, "total_key": f"total_attendees_{slug}"}
+    for slug, label, _training_key, female_key, male_key, _brsr, _gri in _TOPICS
+}
 _AUD_BRSR = "P1-E1; P3-E8; P5-E1"
 SPECS[GEN_TRAINING] = [
     F("no_of_trainings_done", "Trainings completed (Total)", group="Totals", brsr="P1-E1", gri="404-1",
@@ -480,6 +484,8 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
         F(_tk, "Number of trainings", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Number of Trainings"),
         F(_fk, "Attendees - Female", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Female Attendees"),
         F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
+        F(TRAINING_TOPIC_TOTALS[_slug]["total_key"], "Attendees - Total", group=_g, brsr=_br, gri=_gr,
+          sum_of=[_fk, _mk]),
         F(f"training_hours_{_slug}", "Training hours", units=["Hours"], group=_g, level=1,
           parent="total_training_hours_by_topic", brsr=_br, gri=_gr, kpi=f"Training Hours - {_label}"),
     ]

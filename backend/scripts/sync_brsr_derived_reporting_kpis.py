@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.database.mongo import db
 from modules.brsr_report.section_a_workforce import SECTION_A_WORKFORCE_CELL_MAPPINGS
+from modules.esg_records.env_schema import TRAINING_TOPIC_TOTALS
 
 
 BACKUP_DIR = Path("/app/backups")
@@ -505,10 +506,32 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         "value_field": "total_attendees", "aggregation_type": "sum", "formula_config": None,
         "metadata": {"calculation_scope": "stored_total", "formula": "female attendees + male attendees"},
     }, now)
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p5_sexual_harassment_complaints",
+            "source_metric_name": {"$in": [
+                "Internal Complaints Pending - POSH",
+                "Internal Complaints Pending - POSH complaints upheld",
+            ]},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "not_reported_by_p5_e7", "updated_at": now}},
+    )
     groups = {
         "Employees": ["Permanent Employee", "Other than Permanent Employee"],
         "Workers": ["Permanent Worker", "Other than Permanent Worker"],
     }
+    topic_total_kpis = []
+    for topic in TRAINING_TOPIC_TOTALS.values():
+        topic_total_kpis.append(await upsert_definition(f"Trainings - {topic['label']} - Total Attendees", {
+            "section": "social", "category_name": "Training", "subcategory": "General Training",
+            "sub_subcategory": "", "supported_scopes": ["organization", "facility"], "output_type": "number",
+            "unit_config": {"default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False},
+            "brsr_reference": None, "gri_disclosure": None, "framework_references": [], "tags": ["calculated"],
+            "source_type": "records", "source_config": {"records": {"value_field": topic["total_key"]}},
+            "value_field": topic["total_key"], "aggregation_type": "sum", "formula_config": None,
+            "metadata": {"calculation_scope": "stored_total", "formula": "female attendees + male attendees", "topic": topic["label"]},
+        }, now))
     headcount_sources = {
         ("Employees", "Female"): ["Employee Diversity - Permanent employees (Female)", "Employee Diversity - Other-than-permanent employees (Female)"],
         ("Employees", "Male"): ["Employee Diversity - Permanent employees (Male)", "Employee Diversity - Other-than-permanent employees (Male)"],
@@ -542,7 +565,18 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         }, now)
         await upsert_mapping(headcounts[key], "p3_training_details", f"rows.{row_keys[key]}.total", "P3-E8", now)
 
-    mapped = list(headcounts.values())
+    p5_headcount_sources = {
+        "emp_permanent": await find_definition("Employee Diversity - Permanent employees"),
+        "emp_other": await find_definition("Employee Diversity - Other-than-permanent employees"),
+        "emp_total": headcounts[("Employees", "Total")],
+        "workers_permanent": await find_definition("Workers Diversity - Permanent workers"),
+        "workers_other": await find_definition("Workers Diversity - Other-than-permanent workers"),
+        "workers_total": headcounts[("Workers", "Total")],
+    }
+    for row_key, source in p5_headcount_sources.items():
+        await upsert_mapping(source, "p5_hr_training", f"rows.{row_key}.total", "P5-E1", now)
+
+    mapped = [*headcounts.values(), *topic_total_kpis]
     for group, recipient_types in groups.items():
         for topic, field_prefix in (("Health & Safety", "hs"), ("Skill Upgradation", "skill")):
             for gender in ("Female", "Male", "Total"):

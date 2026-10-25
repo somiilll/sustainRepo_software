@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from modules.esg_records.env_schema import field_default_unit
+from modules.esg_records.env_schema import TRAINING_TOPIC_TOTALS, field_default_unit
 from shared.database.mongo import db
 
 
@@ -47,6 +47,13 @@ async def plan_collection(collection_name: str, include_training_total: bool) ->
                 updates["field_values.total_attendees"] = number(female) + number(male)
                 updates["field_values.total_attendees_unit"] = "Number"
                 attendee_totals += 1
+            for topic in TRAINING_TOPIC_TOTALS.values():
+                female = field_values.get(topic["female_key"])
+                male = field_values.get(topic["male_key"])
+                if female not in (None, "") or male not in (None, ""):
+                    updates[f"field_values.{topic['total_key']}"] = number(female) + number(male)
+                    updates[f"field_values.{topic['total_key']}_unit"] = "Number"
+                    attendee_totals += 1
 
         if not updates:
             continue

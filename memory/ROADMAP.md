@@ -11,6 +11,9 @@
 ### Training and Unit UI Verification
 - Verify Training Total Attendees updates and displays after editing female or male attendees, and verify Social/Governance count validation messages use Number rather than Litres. Browser testing is paused until explicitly authorized.
 
+### BRSR Principle 5 UI Verification
+- Verify P5 Human Rights Training shows all six Diversity denominators, POSH shows 2 filed and 1 upheld, and generated reports render the corrected P5 response keys. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 

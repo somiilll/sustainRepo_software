@@ -1,0 +1,28 @@
+{
+  "social": [
+    {
+      "id": "cdcebc4b-abfe-48ef-93ca-6e05f4ddccfd",
+      "before": {
+        "total_attendees": 890.0,
+        "total_attendees_unit": "Number",
+        "total_attendees_health_safety": null,
+        "total_attendees_health_safety_unit": null,
+        "total_attendees_environment": null,
+        "total_attendees_environment_unit": null,
+        "total_attendees_human_rights": null,
+        "total_attendees_human_rights_unit": null,
+        "total_attendees_org_policies": null,
+        "total_attendees_org_policies_unit": null,
+        "total_attendees_skill_upgrading": null,
+        "total_attendees_skill_upgrading_unit": null,
+        "total_attendees_re_skilling": null,
+        "total_attendees_re_skilling_unit": null,
+        "total_attendees_anti_corruption": null,
+        "total_attendees_anti_corruption_unit": null,
+        "total_attendees_ethical_principles": null,
+        "total_attendees_ethical_principles_unit": null
+      }
+    }
+  ],
+  "governance": []
+}
