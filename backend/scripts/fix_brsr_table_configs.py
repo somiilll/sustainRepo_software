@@ -23,6 +23,7 @@ UPDATES = [
                 {"key": "intensity_optional", "label": "Energy intensity (optional) – the relevant metric may be selected by the entity"},
             ],
             "columns": [
+                {"key": "unit", "label": "Units", "type": "text"},
                 {"key": "current_fy", "label": "FY _____ (Current Financial Year)", "type": "text"},
                 {"key": "previous_fy", "label": "FY _____ (Previous Financial Year)", "type": "text"},
             ],
@@ -46,6 +47,7 @@ UPDATES = [
                 {"key": "intensity_optional", "label": "Water intensity (optional) – the relevant metric may be selected by the entity"},
             ],
             "columns": [
+                {"key": "unit", "label": "Units", "type": "text"},
                 {"key": "current_fy", "label": "FY _____ (Current Financial Year)", "type": "text"},
                 {"key": "previous_fy", "label": "FY _____ (Previous Financial Year)", "type": "text"},
             ],
@@ -69,6 +71,7 @@ UPDATES = [
                 {"key": "total_discharged", "label": "Total water discharged (in kilolitres)"},
             ],
             "columns": [
+                {"key": "unit", "label": "Units", "type": "text"},
                 {"key": "current_fy", "label": "FY _____ (Current Financial Year)", "type": "text"},
                 {"key": "previous_fy", "label": "FY _____ (Previous Financial Year)", "type": "text"},
             ],
@@ -141,6 +144,7 @@ UPDATES = [
                 {"key": "disposed_total", "label": "Waste disposed - Total"},
             ],
             "columns": [
+                {"key": "unit", "label": "Units", "type": "text"},
                 {"key": "current_fy", "label": "FY _____ (Current Financial Year)", "type": "text"},
                 {"key": "previous_fy", "label": "FY _____ (Previous Financial Year)", "type": "text"},
             ],
@@ -173,6 +177,7 @@ UPDATES = [
                 {"key": "total_discharged", "label": "Total water discharged (in kilolitres)"},
             ],
             "columns": [
+                {"key": "unit", "label": "Units", "type": "text"},
                 {"key": "current_fy", "label": "FY _____ (Current Financial Year)", "type": "text"},
                 {"key": "previous_fy", "label": "FY _____ (Previous Financial Year)", "type": "text"},
             ],
@@ -423,4 +428,5 @@ async def run():
         status = "UPDATED" if r.modified_count else "NO CHANGE"
         print(f"  {status}: {key}")
 
-asyncio.run(run())
+if __name__ == "__main__":
+    asyncio.run(run())

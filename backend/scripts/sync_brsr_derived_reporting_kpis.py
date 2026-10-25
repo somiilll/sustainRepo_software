@@ -16,6 +16,12 @@ from modules.esg_records.env_schema import TRAINING_TOPIC_TOTALS
 
 
 BACKUP_DIR = Path("/app/backups")
+UNIT_COLUMN_QUESTION_KEYS = {
+    "p6_energy_consumption",
+    "p6_water_disclosures",
+    "p6_water_discharged",
+    "p6_water_stress_areas",
+}
 
 
 def metric_code(name: str) -> str:
@@ -63,6 +69,7 @@ async def upsert_mapping(
         "formula_definition": (kpi.get("formula_config") or {}).get("formula_definition"),
         "destination_unit": destination_unit or (kpi.get("unit_config") or {}).get("default_unit"),
         "unit_conversion_rule": "convert_with_shared_unit_registry" if destination_unit else "use_kpi_unit_config", "mapping_status": "exact_destination",
+        "include_unit": question_key in UNIT_COLUMN_QUESTION_KEYS,
         "is_active": True, "period_column_strategy": strategy, "reporting_period_source": "runtime_filter",
         "source_category": kpi.get("category_name"), "source_subcategory": kpi.get("subcategory"),
         "source_sub_subcategory": kpi.get("sub_subcategory"),

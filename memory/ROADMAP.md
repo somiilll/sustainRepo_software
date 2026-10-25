@@ -17,6 +17,9 @@
 ### P5 Wages and Remuneration UI Verification
 - Verify Minimum Wages Total (A) and Remuneration Male/Female count cells show their synced Diversity values, while wage classifications and median-pay cells remain editable/manual. Browser testing is paused until explicitly authorized.
 
+### P6 Resource Units UI Verification
+- Verify all four updated Principle 6 tables render their Units column, with J on energy rows and kl on mapped water rows. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 
