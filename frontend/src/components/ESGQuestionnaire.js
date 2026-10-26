@@ -1330,14 +1330,20 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
 
       {data.mode === 'all_together' ? (
         <div className="p-4 border rounded-lg space-y-4">
-          <div className="flex items-center gap-3">
-            <Label className="text-sm font-medium">Applicable to all principles?</Label>
-            <Switch
-              checked={data.all_enabled || false}
-              onCheckedChange={(v) => handleAllChange('all_enabled', v)}
-            />
-            <span className="text-sm">{data.all_enabled ? 'Yes' : 'No'}</span>
-          </div>
+          <RadioGroup
+            value={data.all_enabled === true ? 'yes' : data.all_enabled === false ? 'no' : ''}
+            onValueChange={(v) => handleAllChange('all_enabled', v === 'yes')}
+            className="flex flex-row gap-4"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="yes" id={`${config.question_key}-all-yes`} />
+              <Label htmlFor={`${config.question_key}-all-yes`} className="text-sm">Yes</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="no" id={`${config.question_key}-all-no`} />
+              <Label htmlFor={`${config.question_key}-all-no`} className="text-sm">No</Label>
+            </div>
+          </RadioGroup>
           <div>
             <Label className="text-sm font-medium">Description / Justification</Label>
             <Textarea
@@ -1360,13 +1366,20 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
                     <span className="font-medium text-sm">{p.key}</span>
                     <span className="text-xs text-text-muted ml-2">{p.name}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={pData.enabled || false}
-                      onCheckedChange={(v) => handlePrincipleChange(p.key, 'enabled', v)}
-                    />
-                    <span className="text-xs">{pData.enabled ? 'Yes' : 'No'}</span>
-                  </div>
+                  <RadioGroup
+                    value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
+                    onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
+                    className="flex flex-row gap-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="yes" id={`${config.question_key}-${p.key}-yes`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-yes`} className="text-xs">Yes</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="no" id={`${config.question_key}-${p.key}-no`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-no`} className="text-xs">No</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
                 <Textarea
                   value={pData.description || ''}
