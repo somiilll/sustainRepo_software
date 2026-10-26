@@ -876,3 +876,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 - Status badges: a response saved with an empty value no longer shows "Saved". `esg_questionnaire/service.py` (`/statuses`) now omits docs with status saved, no approval state and an empty value. `_has_reportable_value` ignores a default `country` when the other address fields are empty. Cause: an earlier bulk "Save BRSR Details" wrote blank values (Registered Address with only country India, Contact Person with empty strings) as `saved`.
 - Spacing: the cards in Sections B and C sit inside an unclassed `<span>` wrapper, so the parents' `space-y-*` did not apply. The cards now carry their own `mb-*` margins. Checked with the API and ESLint; no testing agent, per the user.
+
+- Section A box I: removed the "Listing & Reporting Information" heading, the Contact Person description text and its underline. Increased vertical spacing between blocks in boxes I, II, III (space-y-10) and IV–VII (space-y-8). ESLint passed, no browser test.

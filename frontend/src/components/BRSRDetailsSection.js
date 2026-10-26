@@ -802,7 +802,7 @@ export default function BRSRDetailsSection({
          'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary',
          'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
       ))) && (statusFilter === 'all' || BASIC_FILTER_KEYS.some(matchesFilter)) && (
-      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-6">
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
         <div className="mb-4"><SectionHeading id="I">{sectionBar('I')}</SectionHeading></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CIN */}
@@ -1200,16 +1200,13 @@ export default function BRSRDetailsSection({
           {/* BRSR Contact Person Section */}
           {(canSeeQuestion('brsr_a_contact_person')) && (
           <div>
-            <div className="flex items-center justify-between mb-4 pb-2 border-b">
+            <div className="flex items-center justify-between mb-4">
               {renderQuestionHeader('BRSR Report Contact Person', 'brsr_a_contact_person', () => ({
                 name: formData.brsr_contact_name,
                 telephone: formData.brsr_contact_telephone,
                 email: formData.brsr_contact_email,
               }), true)}
             </div>
-            <p className="text-xs text-text-muted mb-4">
-              Name and contact details (telephone, email address) of the person who may be contacted in case of any queries on the BRSR report
-            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Contact Person Name *</Label>
@@ -1260,9 +1257,6 @@ export default function BRSRDetailsSection({
           {/* Radio Button Sections - Stock Exchange & Reporting Boundary */}
           {(canSeeQuestion('brsr_a_stock_exchange') || canSeeQuestion('brsr_a_reporting_boundary')) && (
           <div>
-            <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
-              Listing & Reporting Information
-            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
@@ -1323,7 +1317,7 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
-            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-6">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
             <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
             {(canSeeQuestion('brsr_a_business_activities')) && (
@@ -1506,7 +1500,7 @@ export default function BRSRDetailsSection({
             )}
 
             </div>
-            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-6">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
             <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
             {(canSeeQuestion('brsr_a_plants_offices')) && (
