@@ -11,15 +11,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { 
-  BarChart3,
   Pencil,
   X,
-  ClipboardList,
-  Building2
+  ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
@@ -28,6 +26,7 @@ import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
 import { ModulePageHeader } from './ModulePageHeader';
+import { BRSRSectionCards, BRSRProgressPanel } from './BRSRProgress';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -41,6 +40,28 @@ export default function BRSRModule() {
   const [organization, setOrganization] = useState(null);
   const [responseRefreshKey, setResponseRefreshKey] = useState(0);
   const [liveKPIAutofill, setLiveKPIAutofill] = useState({});
+  const [progress, setProgress] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const loadProgress = React.useCallback(async () => {
+    if (!token || !reportingPeriod) return;
+    try {
+      const response = await axios.get(`${API}/api/brsr-report/progress`, {
+        params: { reporting_period: reportingPeriod },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProgress(response.data);
+    } catch (error) {
+      console.error('Failed to load BRSR progress:', error);
+    }
+  }, [token, reportingPeriod]);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setStatusFilter('all');
+  };
+
+  useEffect(() => { loadProgress(); }, [loadProgress, isEditing, activeTab]);
 
   // Initialize reporting years
   useEffect(() => {
@@ -76,6 +97,7 @@ export default function BRSRModule() {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (active) setLiveKPIAutofill(response.data.values_by_question || {});
+        if (active) loadProgress();
       } catch (error) {
         console.error('Failed to sync live BRSR KPI values:', error);
       }
@@ -89,7 +111,7 @@ export default function BRSRModule() {
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, [token, reportingPeriod, responseRefreshKey]);
+  }, [token, reportingPeriod, responseRefreshKey, loadProgress]);
 
   return (
     <div className="space-y-7">
@@ -126,21 +148,10 @@ export default function BRSRModule() {
       />
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-stone-100 p-1 rounded-lg">
-          <TabsTrigger value="section_a" className="gap-2" data-testid="brsr-section-a-tab">
-            <Building2 className="w-4 h-4" />
-            Section A
-          </TabsTrigger>
-          <TabsTrigger value="section_b" className="gap-2" data-testid="brsr-section-b-tab">
-            <ClipboardList className="w-4 h-4" />
-            Section B
-          </TabsTrigger>
-          <TabsTrigger value="section_c" className="gap-2" data-testid="brsr-section-c-tab">
-            <BarChart3 className="w-4 h-4" />
-            Section C
-          </TabsTrigger>
-        </TabsList>
+      <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} />
+      <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} />
+
+      <Tabs value={activeTab} onValueChange={selectTab}>
 
         {/* Section A - General Disclosures */}
         <TabsContent value="section_a" className="mt-6">
@@ -150,6 +161,8 @@ export default function BRSRModule() {
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_a?.questions || {}}
           />
         </TabsContent>
 
@@ -162,6 +175,8 @@ export default function BRSRModule() {
             isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_b?.questions || {}}
           />
         </TabsContent>
 
@@ -173,6 +188,8 @@ export default function BRSRModule() {
             isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_c?.questions || {}}
           />
         </TabsContent>
       </Tabs>

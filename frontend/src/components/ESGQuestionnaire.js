@@ -3401,6 +3401,8 @@ export default function ESGQuestionnaire({
   excludePrinciples = null,
   yearType = 'financial_year',  // Organization's reporting year type
   liveKPIAutofillByQuestion = {},
+  statusFilter = 'all',
+  questionProgress = {},
 }) {
   const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3598,7 +3600,10 @@ export default function ESGQuestionnaire({
   }
 
   // Group questions by 'group' field
-  const groupedQuestions = configs.reduce((acc, config) => {
+  const visibleConfigs = statusFilter === 'all'
+    ? configs
+    : configs.filter((c) => questionProgress[c.question_key] === statusFilter);
+  const groupedQuestions = visibleConfigs.reduce((acc, config) => {
     const group = config.group || 'General';
     if (!acc[group]) acc[group] = [];
     acc[group].push(config);
@@ -3662,6 +3667,11 @@ export default function ESGQuestionnaire({
         )
       ) : (
         <div className="space-y-4">
+          {visibleConfigs.length === 0 && (
+            <p className="text-center py-10 text-sm text-text-muted" data-testid="brsr-filter-empty">
+              No questions with this status.
+            </p>
+          )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
             <div key={group} className="border rounded-lg bg-white">
               {group !== 'General' && (

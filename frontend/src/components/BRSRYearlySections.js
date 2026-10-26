@@ -324,7 +324,7 @@ const DIFFERENTLY_ABLED_GROUPS = [
   },
 ];
 
-export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {} }) {
+export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {} }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -343,6 +343,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   // Check if user can see/edit a specific question
   const canSeeQuestion = (questionKey) => {
+    if (statusFilter !== 'all' && questionProgress[questionKey] !== statusFilter) return false;
     if (isAdmin) return true;
     if (assignedQuestionKeys === null) return false;
     if (assignedQuestionKeys.length === 0) return false;
@@ -754,7 +755,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   return (
     <div className="space-y-4">
       {/* 1. Employee & Worker Details */}
-      {!hideSections.includes('employees_workers') && (isAdmin || canSeeQuestion('brsr_a_employees_workers') || canSeeQuestion('brsr_a_differently_abled')) && (
+      {!hideSections.includes('employees_workers') && (canSeeQuestion('brsr_a_employees_workers') || canSeeQuestion('brsr_a_differently_abled')) && (
       <Collapsible open={openSections.employees} onOpenChange={() => toggleSection('employees')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -772,7 +773,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-6 border-t p-4">
-          {(isAdmin || canSeeQuestion('brsr_a_employees_workers')) && (
+          {(canSeeQuestion('brsr_a_employees_workers')) && (
             <WorkforceCompositionTable
               title="a. Employees and workers (including differently abled)"
               groups={WORKFORCE_GROUPS}
@@ -783,7 +784,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               testId="brsr-employees-workers-table"
             />
           )}
-          {(isAdmin || canSeeQuestion('brsr_a_differently_abled')) && (
+          {(canSeeQuestion('brsr_a_differently_abled')) && (
             <WorkforceCompositionTable
               title="b. Differently abled Employees and workers"
               groups={DIFFERENTLY_ABLED_GROUPS}
@@ -799,7 +800,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 2. Women Representation */}
-      {!hideSections.includes('women_representation') && (isAdmin || canSeeQuestion('brsr_a_women_representation')) && (
+      {!hideSections.includes('women_representation') && (canSeeQuestion('brsr_a_women_representation')) && (
       <Collapsible open={openSections.women} onOpenChange={() => toggleSection('women')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -853,7 +854,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 3. CSR Applicability */}
-      {(isAdmin || canSeeQuestion('brsr_a_csr_applicability')) && (
+      {(canSeeQuestion('brsr_a_csr_applicability')) && (
       <Collapsible open={openSections.csr} onOpenChange={() => toggleSection('csr')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -896,7 +897,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 4. Holding/Subsidiary Companies */}
-      {(isAdmin || canSeeQuestion('brsr_a_holding_subsidiary')) && (
+      {(canSeeQuestion('brsr_a_holding_subsidiary')) && (
       <Collapsible open={openSections.holding} onOpenChange={() => toggleSection('holding')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -978,7 +979,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 5. Turnover Rate Matrix */}
-      {!hideSections.includes('turnover_rate') && (isAdmin || canSeeQuestion('brsr_a_turnover_rate')) && (
+      {!hideSections.includes('turnover_rate') && (canSeeQuestion('brsr_a_turnover_rate')) && (
       <Collapsible open={openSections.turnover} onOpenChange={() => toggleSection('turnover')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -1117,7 +1118,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 6. Complaints & Grievances */}
-      {!hideSections.includes('complaints_grievances') && (isAdmin || canSeeQuestion('brsr_a_complaints_grievances')) && (
+      {!hideSections.includes('complaints_grievances') && (canSeeQuestion('brsr_a_complaints_grievances')) && (
       <Collapsible open={openSections.complaints} onOpenChange={() => toggleSection('complaints')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">
@@ -1226,7 +1227,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       )}
 
       {/* 7. Material Responsible Business Conduct Issues */}
-      {(isAdmin || canSeeQuestion('brsr_a_material_issues')) && (
+      {(canSeeQuestion('brsr_a_material_issues')) && (
       <Collapsible open={openSections.materialIssues} onOpenChange={() => toggleSection('materialIssues')} className="border rounded-lg bg-white">
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between p-3 hover:bg-stone-50">

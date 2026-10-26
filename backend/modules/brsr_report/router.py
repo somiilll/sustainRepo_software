@@ -23,6 +23,7 @@ from .proposal_contracts import (
 from .proposal_service import brsr_import_proposal_service
 from .mapping_excel import build_kpi_brsr_mapping_excel
 from .live_kpi_autofill import brsr_live_kpi_autofill_service
+from .progress_service import brsr_progress
 
 router = APIRouter(prefix="/brsr-report", tags=["BRSR Report"])
 
@@ -88,6 +89,17 @@ async def sync_live_kpi_autofill(
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
     return await brsr_live_kpi_autofill_service.sync(org_id, reporting_period)
+
+
+@router.get("/progress")
+async def get_brsr_progress(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return await brsr_progress(org_id, reporting_period)
 
 
 async def get_organization(org_id: str) -> dict:

@@ -40,7 +40,7 @@ const PRINCIPLE_COLORS = {
   P7: '#6366f1', P8: '#f97316', P9: '#ec4899',
 };
 
-export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {} }) {
+export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {} }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -281,9 +281,13 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       {/* Principle Sections */}
       {principleKeys.map(p => {
         const meta = PRINCIPLE_META[p] || { name: p, title: '' };
-        const questions = grouped[p] || [];
-        const isOpen = !!expanded[p];
-        const answeredInP = questions.filter(c => {
+        const allQuestions = grouped[p] || [];
+        const questions = statusFilter === 'all'
+          ? allQuestions
+          : allQuestions.filter(c => questionProgress[c.question_key] === statusFilter);
+        if (statusFilter !== 'all' && questions.length === 0) return null;
+        const isOpen = statusFilter !== 'all' || !!expanded[p];
+        const answeredInP = allQuestions.filter(c => {
           const v = allResponses[c.question_key];
           return v !== undefined && v !== null && v !== '';
         }).length;
@@ -309,18 +313,18 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-stone-500 mt-0.5">{questions.length} questions · {answeredInP} answered</p>
+                  <p className="text-xs text-stone-500 mt-0.5">{allQuestions.length} questions · {answeredInP} answered</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-24 h-1.5 rounded-full bg-stone-100 overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${questions.length > 0 ? (answeredInP / questions.length) * 100 : 0}%`, backgroundColor: color }}
+                    style={{ width: `${allQuestions.length > 0 ? (answeredInP / allQuestions.length) * 100 : 0}%`, backgroundColor: color }}
                   />
                 </div>
                 <span className="text-xs tabular-nums text-stone-500 w-8 text-right">
-                  {questions.length > 0 ? Math.round((answeredInP / questions.length) * 100) : 0}%
+                  {allQuestions.length > 0 ? Math.round((answeredInP / allQuestions.length) * 100) : 0}%
                 </span>
                 <ChevronDown
                   className={`w-5 h-5 text-stone-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}

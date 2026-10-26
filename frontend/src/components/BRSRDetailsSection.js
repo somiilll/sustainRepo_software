@@ -49,6 +49,13 @@ import { QuestionVersionHistory } from './QuestionVersionHistory';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const BASIC_FILTER_KEYS = [
+  'brsr_a_cin', 'brsr_a_entity_name', 'brsr_a_year_of_incorporation', 'brsr_a_registered_address',
+  'brsr_a_corporate_address', 'brsr_a_email', 'brsr_a_telephone', 'brsr_a_website', 'brsr_a_stock_exchange',
+  'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary', 'brsr_a_assurance_provider',
+  'brsr_a_assurance_type',
+];
+
 // Empty row templates for dynamic tables
 const EMPTY_BUSINESS_ACTIVITY = { description: '', main_activity: '', turnover_percentage: 0 };
 const EMPTY_PRODUCT_SERVICE = { product_service: '', nic_code: '', turnover_percentage: 0 };
@@ -62,7 +69,9 @@ export default function BRSRDetailsSection({
   isCollapsible = true,
   hideSections = [],
   reportingPeriod = '',
-  liveKPIAutofillByQuestion = {}
+  liveKPIAutofillByQuestion = {},
+  statusFilter = 'all',
+  questionProgress = {}
 }) {
   const { getAuthHeader, user } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
@@ -181,8 +190,11 @@ export default function BRSRDetailsSection({
     return assignedQuestionKeys.includes(questionKey);
   };
 
+  const matchesFilter = (questionKey) => statusFilter === 'all' || questionProgress[questionKey] === statusFilter;
+
   // Check if user can see a specific question (same as canEdit for now)
   const canSeeQuestion = (questionKey) => {
+    if (!matchesFilter(questionKey)) return false;
     if (isAdmin) return true;
     if (assignedQuestionKeys === null) return false;
     if (assignedQuestionKeys.length === 0) return false; // No assignments
@@ -776,14 +788,14 @@ export default function BRSRDetailsSection({
          'brsr_a_telephone', 'brsr_a_website', 'brsr_a_stock_exchange', 
          'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary',
          'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
-      ))) && (
+      ))) && (statusFilter === 'all' || BASIC_FILTER_KEYS.some(matchesFilter)) && (
       <div>
         <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               I. Details of the Listed Entity
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CIN */}
-              {(isAdmin || canSeeQuestion('brsr_a_cin')) && (
+              {(canSeeQuestion('brsr_a_cin')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Corporate Identity Number (CIN)', 'brsr_a_cin', () => formData.cin, true)}
                 {isEditing && canEditQuestion('brsr_a_cin') ? (
@@ -800,7 +812,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Entity Name */}
-              {(isAdmin || canSeeQuestion('brsr_a_entity_name')) && (
+              {(canSeeQuestion('brsr_a_entity_name')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Name of the Listed Entity', 'brsr_a_entity_name', () => formData.listed_entity_name, true)}
                 {isEditing && canEditQuestion('brsr_a_entity_name') ? (
@@ -817,7 +829,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Year of Incorporation */}
-              {(isAdmin || canSeeQuestion('brsr_a_year_of_incorporation')) && (
+              {(canSeeQuestion('brsr_a_year_of_incorporation')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Year of Incorporation', 'brsr_a_year_of_incorporation', () => formData.year_of_incorporation, true)}
                 {isEditing && canEditQuestion('brsr_a_year_of_incorporation') ? (
@@ -837,7 +849,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Q4: Registered Office Address - Grouped Box */}
-              {(isAdmin || canSeeQuestion('brsr_a_registered_address')) && (
+              {(canSeeQuestion('brsr_a_registered_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
                 <div className="mb-3">
                   {renderQuestionHeader('Registered Office Address', 'brsr_a_registered_address', () => ({
@@ -931,7 +943,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Q5: Corporate Address - Grouped Box */}
-              {(isAdmin || canSeeQuestion('brsr_a_corporate_address')) && (
+              {(canSeeQuestion('brsr_a_corporate_address')) && (
               <div className="md:col-span-2 lg:col-span-3 border rounded-lg p-4 bg-stone-50">
                 <div className="mb-3">
                   {renderQuestionHeader('Corporate Address', 'brsr_a_corporate_address', () => ({
@@ -1025,7 +1037,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Email */}
-              {(isAdmin || canSeeQuestion('brsr_a_email')) && (
+              {(canSeeQuestion('brsr_a_email')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('E-mail', 'brsr_a_email', () => formData.email, true)}
                 {isEditing && canEditQuestion('brsr_a_email') ? (
@@ -1043,7 +1055,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Telephone */}
-              {(isAdmin || canSeeQuestion('brsr_a_telephone')) && (
+              {(canSeeQuestion('brsr_a_telephone')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Telephone', 'brsr_a_telephone', () => formData.telephone, true)}
                 {isEditing && canEditQuestion('brsr_a_telephone') ? (
@@ -1060,7 +1072,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Website */}
-              {(isAdmin || canSeeQuestion('brsr_a_website')) && (
+              {(canSeeQuestion('brsr_a_website')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Website', 'brsr_a_website', () => formData.website, true)}
                 {isEditing && canEditQuestion('brsr_a_website') ? (
@@ -1077,7 +1089,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Paid-up Capital */}
-              {(isAdmin || canSeeQuestion('brsr_a_paid_up_capital')) && (
+              {(canSeeQuestion('brsr_a_paid_up_capital')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Paid-up Capital (INR)', 'brsr_a_paid_up_capital', () => formData.paid_up_capital, true)}
                 {isEditing && canEditQuestion('brsr_a_paid_up_capital') ? (
@@ -1098,7 +1110,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Assurance Provider */}
-              {(isAdmin || canSeeQuestion('brsr_a_assurance_provider')) && (
+              {(canSeeQuestion('brsr_a_assurance_provider')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Name of Assurance Provider', 'brsr_a_assurance_provider', () => formData.assurance_provider, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_provider') ? (
@@ -1115,7 +1127,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Assurance Type */}
-              {(isAdmin || canSeeQuestion('brsr_a_assurance_type')) && (
+              {(canSeeQuestion('brsr_a_assurance_type')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Type of Assurance Obtained', 'brsr_a_assurance_type', () => formData.assurance_type, true)}
                 {isEditing && canEditQuestion('brsr_a_assurance_type') ? (
@@ -1132,7 +1144,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Export Contribution - separate question key */}
-              {(isAdmin || canSeeQuestion('brsr_a_export_contribution')) && (
+              {(canSeeQuestion('brsr_a_export_contribution')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
                 {isEditing && canEditQuestion('brsr_a_export_contribution') ? (
@@ -1154,7 +1166,7 @@ export default function BRSRDetailsSection({
               )}
               
               {/* Customer Types Brief - separate question key */}
-              {(isAdmin || canSeeQuestion('brsr_a_customer_types')) && (
+              {(canSeeQuestion('brsr_a_customer_types')) && (
               <div className="space-y-2 md:col-span-2 lg:col-span-3">
                 {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
                 {isEditing && canEditQuestion('brsr_a_customer_types') ? (
@@ -1177,7 +1189,7 @@ export default function BRSRDetailsSection({
       )}
 
           {/* BRSR Contact Person Section */}
-          {(isAdmin || canSeeQuestion('brsr_a_contact_person')) && (
+          {(canSeeQuestion('brsr_a_contact_person')) && (
           <div>
             <div className="flex items-center justify-between mb-4 pb-2 border-b">
               {renderQuestionHeader('BRSR Report Contact Person', 'brsr_a_contact_person', () => ({
@@ -1237,13 +1249,13 @@ export default function BRSRDetailsSection({
           )}
 
           {/* Radio Button Sections - Stock Exchange & Reporting Boundary */}
-          {(isAdmin || canSeeQuestion('brsr_a_stock_exchange') || canSeeQuestion('brsr_a_reporting_boundary')) && (
+          {(canSeeQuestion('brsr_a_stock_exchange') || canSeeQuestion('brsr_a_reporting_boundary')) && (
           <div>
             <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
               Listing & Reporting Information
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {(isAdmin || canSeeQuestion('brsr_a_stock_exchange')) && (
+              {(canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
                 {renderQuestionHeader('Stock Exchange(s) where shares are listed', 'brsr_a_stock_exchange', () => formData.stock_exchange, true)}
                 {isEditing && canEditQuestion('brsr_a_stock_exchange') ? (
@@ -1271,7 +1283,7 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {(isAdmin || canSeeQuestion('brsr_a_reporting_boundary')) && (
+              {(canSeeQuestion('brsr_a_reporting_boundary')) && (
               <div className="space-y-3">
                 {renderQuestionHeader('Reporting Boundary', 'brsr_a_reporting_boundary', () => formData.reporting_boundary, true)}
                 {isEditing && canEditQuestion('brsr_a_reporting_boundary') ? (
@@ -1301,7 +1313,7 @@ export default function BRSRDetailsSection({
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
             {/* Business Activities Table */}
-            {(isAdmin || canSeeQuestion('brsr_a_business_activities')) && (
+            {(canSeeQuestion('brsr_a_business_activities')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Business Activities Accounting for 90% of Turnover', 'brsr_a_business_activities', () => formData.business_activities, true)}
@@ -1391,7 +1403,7 @@ export default function BRSRDetailsSection({
             )}
 
             {/* Products/Services Table */}
-            {(isAdmin || canSeeQuestion('brsr_a_products_services')) && (
+            {(canSeeQuestion('brsr_a_products_services')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Products/Services Accounting for 90% of Turnover', 'brsr_a_products_services', () => formData.products_services, true)}
@@ -1481,7 +1493,7 @@ export default function BRSRDetailsSection({
             )}
 
             {/* Plants and Offices Table */}
-            {(isAdmin || canSeeQuestion('brsr_a_plants_offices')) && (
+            {(canSeeQuestion('brsr_a_plants_offices')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
@@ -1578,7 +1590,7 @@ export default function BRSRDetailsSection({
             )}
 
             {/* Markets Served Table */}
-            {(isAdmin || canSeeQuestion('brsr_a_markets_served')) && (
+            {(canSeeQuestion('brsr_a_markets_served')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
@@ -1692,6 +1704,8 @@ export default function BRSRDetailsSection({
               reportingYear={reportingPeriod}
               assignedQuestionKeys={assignedQuestionKeys}
               isAdmin={isAdmin}
+              statusFilter={statusFilter}
+              questionProgress={questionProgress}
               liveKPIAutofillByQuestion={liveKPIAutofillByQuestion}
             />
           </div>

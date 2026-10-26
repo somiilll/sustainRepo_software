@@ -841,3 +841,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
   - `p3_rehabilitation_injured`: affected (high-consequence + ill-health + fatalities) and rehabilitated.
 - New composite operation `ratio_scaled` (with `scale`) in `proposal_calculator.py`. `live_kpi_autofill.py` now maps the `affected` and `rehabilitated` logical columns to `cur_/prev_` columns.
 - Self-tested with a temporary record, which was deleted afterwards. Employees: LTIFR 5, affected 7. Workers: LTIFR 3. Not run on Staging or Production; copy over with a backup first. No testing agent or browser test was run.
+
+## 2026-10-26 — BRSR section cards and progress panel
+- Reporting → BRSR now has three section cards (A, B, C) with a percent and progress bar, plus a progress panel: ring, "N of M answered", segmented bar, and filter chips (All, Pending, Saved, Approved, Rejected). There is no "In progress" status, per the user.
+- New `GET /api/brsr-report/progress?reporting_period=` (`brsr_report/progress_service.py`). A question is Approved or Rejected from `approval_status`; Saved when status is saved or pending_approval and the value is non-empty; otherwise Pending (drafts count as Pending). Answered = Saved + Approved. Hidden questions are excluded. It also returns `approval_enabled`: true if an approval workflow exists for the org or any question already has an approval state.
+- Orgs without an approval workflow do not see the Approved/Rejected chips, the approved segment, or the "· N approved" text.
+- Chips filter the question list in Section A (`BRSRDetailsSection`, `BRSRYearlySections`), Section B (`ESGQuestionnaire`) and Section C (`BRSRSectionC`, which auto-expands the principles that match).
+- Checked with a login, the progress endpoint, and one screenshot (desktop and mobile) before the approval-chip change. The approval-chip change was checked only with the endpoint and ESLint, not in the browser. No testing agent run, per the user.
