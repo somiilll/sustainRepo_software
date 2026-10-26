@@ -827,3 +827,6 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Local → Staging → Production (`sustainrepo`) config sync completed for `esg_kpi_definitions`, `esg_record_categories`, `kpi_framework_mappings`, `esg_question_configs`; empty `brsr_kpi_import_proposals` and `esg_org_configs` created. Backups are in `/app/backups/`. Backfilled `output_type: "number"` on `GHG_SCOPE_TOTAL` definitions, which fixed the Staging 500 on `/api/esg-kpi-definitions`.
 - User declined running `normalize_social_governance_units.py` and `fix_brsr_table_configs.py` for now.
 - **P1 (marked, no code change):** weighted annual data-breach PII % (summed PII breaches ÷ summed incidents × 100), and LPG/duplicate-fuel allowed-unit validation should prefer `fuel_id` over fuel name in `calc_engine/execution.py`. Details are in ROADMAP.md.
+
+## 2026-10-23 — Health & Safety Incidents entry layout
+- `HierarchicalFields.jsx`: the `incident_records_by_person_type` table now renders transposed: one row per metric, with **Employees** and **Workers** columns. Storage is unchanged (rows keyed by `person_type`), so KPI aggregation, BRSR mappings and saved records are unaffected. A row is dropped if all its metric cells are cleared. ESLint passed; no browser test was run, per the standing instruction.

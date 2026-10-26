@@ -23,6 +23,52 @@ const derivedValue = (row, { num, den }) => {
   return isEntered(row?.[num]) && d ? Math.round((Number(row[num]) / d) * 1e6) / 1e6 : '-';
 };
 
+const TRANSPOSED_TABLES = { incident_records_by_person_type: 'person_type' };
+const GROUP_LABELS = { Employee: 'Employees', Worker: 'Workers' };
+
+function TransposedTable({ field, rows, onChange, testIdPrefix, keyColumn }) {
+  const keyCol = (field.table_columns || []).find((c) => c.key === keyColumn);
+  const metrics = (field.table_columns || []).filter((c) => c.key !== keyColumn);
+  const groups = keyCol?.options || [];
+  const cellValue = (group, key) => rows.find((r) => r[keyColumn] === group)?.[key] ?? '';
+  const setCell = (group, key, value) => {
+    const exists = rows.some((r) => r[keyColumn] === group);
+    const next = exists
+      ? rows.map((r) => (r[keyColumn] === group ? { ...r, [key]: value } : r))
+      : [...rows, { [keyColumn]: group, [key]: value }];
+    onChange(next.filter((r) => Object.entries(r).some(([k, v]) => k !== keyColumn && isEntered(v))));
+  };
+  return (
+    <div className="w-full overflow-x-auto border rounded-md" data-testid={`${testIdPrefix}-${field.field_key}-table`}>
+      <table className="w-full text-sm">
+        <thead className="bg-stone-50">
+          <tr>
+            <th className="px-2 py-1.5 text-left font-medium text-xs">Metric</th>
+            {groups.map((g) => (
+              <th key={g} className="px-2 py-1.5 text-left font-medium text-xs min-w-[140px]">{GROUP_LABELS[g] || g}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {metrics.map((m) => (
+            <tr key={m.key} className="border-t" data-testid={`${testIdPrefix}-${field.field_key}-metric-${m.key}`}>
+              <td className="px-2 py-1.5 text-xs">{m.label}</td>
+              {groups.map((g) => (
+                <td key={g} className="px-2 py-1.5">
+                  <Input type="number" min={0} value={cellValue(g, m.key)}
+                         onChange={(e) => setCell(g, m.key, e.target.value !== '' ? parseFloat(e.target.value) : '')}
+                         className="h-9 rounded-[10px] border-stone-300"
+                         data-testid={`${testIdPrefix}-${field.field_key}-${m.key}-${g.toLowerCase()}`} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
   const columns = field.table_columns || [];
   const setCell = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
@@ -291,8 +337,13 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     if (field.type === 'table') {
       rows.push(
         <div key={key} className="py-2" data-testid={`${testIdPrefix}-row-${key}`}>
-          <RepeatableTable field={field} rows={values?.[key] || []}
-                           onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          {TRANSPOSED_TABLES[key] ? (
+            <TransposedTable field={field} rows={values?.[key] || []} keyColumn={TRANSPOSED_TABLES[key]}
+                             onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          ) : (
+            <RepeatableTable field={field} rows={values?.[key] || []}
+                             onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          )}
         </div>
       );
       return;
