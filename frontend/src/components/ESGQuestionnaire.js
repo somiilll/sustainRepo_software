@@ -1315,9 +1315,9 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
 
   return (
     <div className="mt-3 space-y-4">
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id="mode-all" />
             <Label htmlFor="mode-all" className="text-xs">Fill All Principles Together</Label>
@@ -1330,9 +1330,9 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
       </div>
 
       {data.mode === 'all_together' ? (
-        <div className="bg-stone-50 p-4 rounded-lg space-y-3">
+        <div className="p-4 border rounded-lg space-y-4">
           <div className="flex items-center gap-3">
-            <Label className="text-sm">Applicable to all principles?</Label>
+            <Label className="text-sm font-medium">Applicable to all principles?</Label>
             <Switch
               checked={data.all_enabled || false}
               onCheckedChange={(v) => handleAllChange('all_enabled', v)}
@@ -1340,7 +1340,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
             <span className="text-sm">{data.all_enabled ? 'Yes' : 'No'}</span>
           </div>
           <div>
-            <Label className="text-sm">Description / Justification</Label>
+            <Label className="text-sm font-medium">Description / Justification</Label>
             <Textarea
               value={data.all_description || ''}
               onChange={(e) => handleAllChange('all_description', e.target.value)}
@@ -1433,9 +1433,9 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
 
   return (
     <div className="mt-3 space-y-4">
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id={`${config.question_key}-mode-all`} />
             <Label htmlFor={`${config.question_key}-mode-all`} className="text-xs">Fill All Principles Together</Label>
@@ -1448,7 +1448,7 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
       </div>
 
       {data.mode === 'all_together' ? (
-        <div className="bg-stone-50 p-4 rounded-lg">
+        <div className="p-4 border rounded-lg">
           <Textarea
             value={data.all_text || ''}
             onChange={(e) => handleAllTextChange(e.target.value)}
