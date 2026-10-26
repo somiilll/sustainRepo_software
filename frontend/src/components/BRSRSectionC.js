@@ -95,6 +95,24 @@ const wellbeingOverride = (config, noun) => {
 
 const applyConfigOverrides = (rawConfig) => {
   const config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  if (config.question_key === 'p3_equal_opportunity_policy') {
+    return { ...config, conditional_fields: [{ key: 'web_link', label: 'Web Link', type: 'url', show_when: 'yes' }] };
+  }
+  if (config.question_key === 'p3_parental_leave_return' && config.table_config?.columns) {
+    const cols = config.table_config.columns;
+    const pick = (prefix) => cols.filter(c => c.key.startsWith(prefix)).map(c => ({ ...c, label: c.key.endsWith('retention') ? 'Retention rate' : 'Return to work rate' }));
+    const emp = pick('perm_emp_');
+    const wrk = pick('perm_workers_');
+    return { ...config, table_config: { ...config.table_config, columns: [...emp, ...wrk],
+      column_groups: [{ label: 'Permanent Employees', columns: emp }, { label: 'Permanent Workers', columns: wrk }] } };
+  }
+  if (config.question_key === 'p3_union_membership' && config.table_config?.fixed_rows) {
+    const rows = config.table_config.fixed_rows;
+    const at = (key, row) => { const i = rows.findIndex(r => r.key === key); return [...rows.slice(0, i + 1), row, ...rows.slice(i + 1)]; };
+    const withEmp = at('perm_emp_female', { key: 'perm_emp_total', label: 'Total Permanent Employees' });
+    const withBoth = [...withEmp.slice(0, withEmp.findIndex(r => r.key === 'perm_workers_female') + 1), { key: 'perm_workers_total', label: 'Total Permanent Workers' }, ...withEmp.slice(withEmp.findIndex(r => r.key === 'perm_workers_female') + 1)];
+    return { ...config, table_config: { ...config.table_config, fixed_rows: withBoth } };
+  }
   if (config.question_key === 'p3_wellbeing_employees' && config.table_config) return wellbeingOverride(config, 'employees');
   if (config.question_key === 'p3_wellbeing_workers' && config.table_config) return wellbeingOverride(config, 'workers');
   if (config.question_key === 'p1_fines_penalties') {
