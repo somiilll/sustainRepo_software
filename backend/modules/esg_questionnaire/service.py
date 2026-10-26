@@ -3730,7 +3730,7 @@ class ESGQuestionnaireService:
                     {"framework": framework},
                 ],
             },
-            {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1,
+            {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1, "value": 1,
              "submitted_at": 1, "submitted_by": 1, "approved_at": 1, "approved_by": 1,
              "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1}
         ).to_list(1000)
@@ -3749,8 +3749,16 @@ class ESGQuestionnaireService:
                 in_section = any(sk.startswith(qk + "_") for sk in section_question_keys)
             
             if in_section:
-                # Add direct question status
-                if doc.get("status") or doc.get("approval_status"):
+                # Add direct question status (a "saved" doc with an empty value is still pending)
+                from modules.brsr_report.live_kpi_autofill import _has_reportable_value
+                empty_saved = (
+                    doc.get("status") == "saved"
+                    and doc.get("approval_status") in (None, "not_required")
+                    and "value" in doc
+                    and not doc.get("sub_responses")
+                    and not _has_reportable_value(doc.get("value"))
+                )
+                if (doc.get("status") or doc.get("approval_status")) and not empty_saved:
                     statuses[qk] = {
                         "status": doc.get("status"),
                         "approval_status": doc.get("approval_status"),

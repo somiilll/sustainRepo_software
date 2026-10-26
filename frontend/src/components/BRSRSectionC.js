@@ -217,7 +217,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
         const principleStatus = getPrincipleStatus(p);
 
         return (
-          <div key={p} id={`brsr-group-${p}`} className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden scroll-mt-24" data-testid={`principle-${p}`}>
+          <div key={p} id={`brsr-group-${p}`} className="rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden scroll-mt-24 mb-6" data-testid={`principle-${p}`}>
             <button
               onClick={() => togglePrinciple(p)}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-stone-50/50 transition-colors"

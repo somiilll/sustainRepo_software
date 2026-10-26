@@ -25,7 +25,8 @@ def _has_reportable_value(value: Any) -> bool:
     if value is None or value == "":
         return False
     if isinstance(value, dict):
-        return any(_has_reportable_value(item) for item in value.values())
+        items = {k: v for k, v in value.items() if k != "country"} if "country" in value and len(value) > 1 else value
+        return any(_has_reportable_value(item) for item in items.values())
     if isinstance(value, list):
         return any(_has_reportable_value(item) for item in value)
     return True

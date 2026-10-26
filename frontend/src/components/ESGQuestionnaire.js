@@ -3706,13 +3706,13 @@ export default function ESGQuestionnaire({
             </p>
           )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
-            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 rounded-xl border border-emerald-100 bg-white p-5 space-y-5">
+            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 rounded-xl border border-emerald-100 bg-white p-5 space-y-5 mb-8">
               {group !== 'General' && (
                 <h3 className="font-bold text-base text-text-primary px-1">{group}</h3>
               )}
               <div className="space-y-5">
                 {questions.map((config) => (
-                  <div key={config.question_key} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+                  <div key={config.question_key} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm mb-5 last:mb-0">
                   <QuestionRenderer
                     config={config}
                     value={mergeBRSRAutofill(responses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
