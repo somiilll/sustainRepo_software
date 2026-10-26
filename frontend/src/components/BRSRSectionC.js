@@ -200,33 +200,6 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
-        <div className="flex items-center gap-4">
-          <div>
-            <Badge variant="outline" className="mb-1">{framework}</Badge>
-            <p className="text-sm text-text-muted">
-              {allConfigs.length} questions across {principleKeys.length} principles
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button onClick={expandAll} className="text-xs text-blue-600 hover:underline">Expand All</button>
-          <span className="text-stone-300">|</span>
-          <button onClick={collapseAll} className="text-xs text-blue-600 hover:underline">Collapse All</button>
-          {summary && (
-            <div className="flex items-center gap-2 ml-3">
-              {summary.pct === 100
-                ? <CheckCircle2 className="w-5 h-5 text-green-600" />
-                : <AlertCircle className="w-5 h-5 text-amber-500" />}
-              <span className="text-sm font-medium">
-                {summary.answered}/{summary.total} answered ({summary.pct}%)
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Principle Sections */}
       {principleKeys.map(p => {
         const meta = PRINCIPLE_META[p] || { name: p, title: '' };

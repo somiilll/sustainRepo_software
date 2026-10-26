@@ -145,7 +145,7 @@ export default function BRSRModule() {
       <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">
 
         {/* Section A - General Disclosures */}
-        <TabsContent value="section_a" className="mt-6">
+        <TabsContent value="section_a" className="mt-0">
           <BRSRDetailsSection
             key={`section-a-${responseRefreshKey}`}
             isCollapsible={false}
@@ -159,7 +159,7 @@ export default function BRSRModule() {
         </TabsContent>
 
         {/* Section B - Management & Process Disclosures */}
-        <TabsContent value="section_b" className="mt-6">
+        <TabsContent value="section_b" className="mt-0">
           <ESGQuestionnaire
             key={`section-b-${responseRefreshKey}`}
             framework="BRSR"
@@ -175,7 +175,7 @@ export default function BRSRModule() {
         </TabsContent>
 
         {/* Section C - Principle-wise Performance Disclosures */}
-        <TabsContent value="section_c" className="mt-6">
+        <TabsContent value="section_c" className="mt-0">
           <BRSRSectionC
             key={`section-c-${responseRefreshKey}`}
             framework="BRSR"

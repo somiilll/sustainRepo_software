@@ -871,3 +871,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - ESLint passed. No browser test or testing agent, per the user.
 
 - Section B: each group (heading + its question boxes) sits in a white box with a very light green border, bold heading, and larger gaps between groups and questions. Section C gap between principle boxes increased. ESLint passed, no browser test.
+
+- Removed the BRSR / "N questions" / Expand All|Collapse All / "N/M answered (P%)" header strip from Sections B and C (Section A had none). Hidden only when `perQuestionEdit` is on, so GRI questionnaires keep it. Section tab content top margin is now 0, so the first box lines up with the "On this page" panel. ESLint passed, no browser test.

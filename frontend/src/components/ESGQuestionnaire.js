@@ -3644,6 +3644,7 @@ export default function ESGQuestionnaire({
   return (
     <div className="space-y-6">
       {/* Header */}
+      {!perQuestionEdit && (
       <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
         <div className="flex items-center gap-4">
           <div>
@@ -3685,6 +3686,7 @@ export default function ESGQuestionnaire({
           </div>
         )}
       </div>
+      )}
 
       {/* Questions */}
       {configs.length === 0 ? (
