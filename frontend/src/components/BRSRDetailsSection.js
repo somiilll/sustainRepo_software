@@ -785,7 +785,7 @@ export default function BRSRDetailsSection({
   }
 
   const content = (
-    <div className={`p-6 space-y-8 ${isCollapsible ? 'border-t' : ''}`}>
+    <div className={isCollapsible ? 'p-6 space-y-8 border-t' : 'space-y-6'}>
       {/* Show message if no questions assigned and not admin */}
       {!isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
@@ -1714,7 +1714,7 @@ export default function BRSRDetailsSection({
 
   if (!isCollapsible) {
     return (
-      <div className="border rounded-lg bg-white">
+      <div>
         {content}
         {renderHistoryModal()}
       </div>

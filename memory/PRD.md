@@ -860,3 +860,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B questions now carry `group`: "Policy and management processes" (6) and "Governance, leadership and oversight" (6). Applied to the local DB by `backend/scripts/set_brsr_section_b_groups.py` (backup in `/app/backups/`). Staging and Production still need the script run. Groups show as headings and in the "On this page" panel.
 - Section A topics I–VII each sit in a white rounded bordered box (`BRSRDetailsSection.js`, `BRSRYearlySections.js`).
 - ESLint passed and the progress endpoint was checked. No browser test, per the user.
+
+- Section A (`BRSRDetailsSection.js`, non-collapsible): removed the outer white bordered wrapper and its padding, so only the per-topic I–VII boxes show. ESLint passed, no browser test.
