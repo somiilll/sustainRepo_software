@@ -181,13 +181,13 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
             <TableHead colSpan={principles.length} className="border-r bg-emerald-50 text-center text-xs font-semibold text-emerald-900" data-testid="brsr-review-by-header">
               Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee
             </TableHead>
-            <TableHead colSpan={principles.length} className="border-l-4 border-l-stone-400 bg-sky-50 text-center text-xs font-semibold text-sky-900" data-testid="brsr-review-frequency-header">
+            <TableHead colSpan={principles.length} className="bg-sky-50 text-center text-xs font-semibold text-sky-900" data-testid="brsr-review-frequency-header">
               Frequency (Annually / Half yearly / Quarterly / Any other – please specify)
             </TableHead>
           </TableRow>
           <TableRow className="bg-stone-50">
-            {principles.map((principle) => <TableHead key={`review-${principle}`} className="border-r bg-emerald-50/60 text-center text-xs">{principle}</TableHead>)}
-            {principles.map((principle, index) => <TableHead key={`frequency-${principle}`} className={`border-r bg-sky-50/60 text-center text-xs ${index === 0 ? 'border-l-4 border-l-stone-400' : ''}`}>{principle}</TableHead>)}
+            {principles.map((principle) => <TableHead key={`review-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
+            {principles.map((principle) => <TableHead key={`frequency-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -195,12 +195,12 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
             <TableRow key={row.key}>
               <TableCell className="sticky left-0 z-10 border-r bg-white text-xs font-medium">{row.label}</TableCell>
               {principles.map((principle) => (
-                <TableCell key={`${row.key}-review-${principle}`} className="border-r bg-emerald-50/30 p-1 text-center">
+                <TableCell key={`${row.key}-review-${principle}`} className="border-r p-1 text-center">
                   {renderCell(row, 'review_by', principle, reviewOptions)}
                 </TableCell>
               ))}
-              {principles.map((principle, index) => (
-                <TableCell key={`${row.key}-frequency-${principle}`} className={`border-r bg-sky-50/30 p-1 text-center ${index === 0 ? 'border-l-4 border-l-stone-400' : ''}`}>
+              {principles.map((principle) => (
+                <TableCell key={`${row.key}-frequency-${principle}`} className="border-r p-1 text-center">
                   {renderCell(row, 'frequency', principle, frequencyOptions)}
                 </TableCell>
               ))}

@@ -890,3 +890,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B Q1 (NGRBC policy coverage) view mode now matches the other questions: a bordered "Mode: All Principles Together" chip, then the answer in a grey box. "Mode: All Principles Together" shows on unanswered questions because it is the default mode when nothing is saved; it is not saved data. ESLint passed. User instruction: no testing until told.
 
 - Section B: the "Review of NGRBCs" matrix now colours its two column groups differently (review-by in green, frequency in blue, with a thick divider before the frequency columns). The inline "translated to procedures" / "value chain" questions use the same edit layout as the NGRBC coverage question (grey Mode bar, bordered answer box, medium-weight labels). ESLint passed. No tests run, per the user.
+
+- Section B review matrix: only the two group headings keep colour (green for review-by, blue for frequency). P1–P9 sub-headers and body cells are back to the original colours, and the thick divider is removed. ESLint passed, no tests run.
