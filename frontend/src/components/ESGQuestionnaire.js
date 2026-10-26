@@ -60,8 +60,7 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
-  Clock
-} from 'lucide-react';
+  Clock, Pencil } from 'lucide-react';
 import { 
   generateReportingYears, 
   getCurrentReportingYear,
@@ -398,10 +397,12 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
+export function QuestionRenderer({ config, value, onChange, isEditing: isEditingProp, perQuestionEdit = false, canEditQuestion = true, approvalEnabled = false, isAdmin = false, onCancelEdit = null, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
   const [showVersions, setShowVersions] = useState(false);
+  const [localEditing, setLocalEditing] = useState(false);
+  const isEditing = perQuestionEdit ? localEditing : isEditingProp;
   const [savingQuestion, setSavingQuestion] = useState(false);
   const valueIsLocked = lockedAnswerPaths.includes('$');
   const [savingDraft, setSavingDraft] = useState(false);
@@ -1101,6 +1102,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     }
     try {
       await onSaveQuestion(config.question_key, value, status);
+      setLocalEditing(false);
+    } catch (error) {
+      console.error('Question save failed:', error);
     } finally {
       setSavingDraft(false);
       setSavingQuestion(false);
@@ -1130,13 +1134,35 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         <div className="flex items-center gap-1 flex-shrink-0">
           {renderStatusBadge()}
           {renderVersionHistoryButton()}
+          {perQuestionEdit && canEditQuestion && !localEditing && (
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setLocalEditing(true)}
+                    data-testid={`edit-${config.question_key}`}>
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )}
+          {perQuestionEdit && localEditing && (
+            <>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={savingDraft || savingQuestion}
+                      onClick={() => { setLocalEditing(false); if (onCancelEdit) onCancelEdit(); }}
+                      data-testid={`cancel-${config.question_key}`}>Cancel</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={savingDraft || savingQuestion}
+                      onClick={() => handleSaveQuestion('draft')} data-testid={`save-draft-${config.question_key}`}>
+                {savingDraft ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />} Save as Draft
+              </Button>
+              <Button size="sm" className="h-7 px-2 text-xs bg-primary hover:bg-primary/90" disabled={savingDraft || savingQuestion}
+                      onClick={() => handleSaveQuestion('saved')} data-testid={`submit-${config.question_key}`}>
+                {savingQuestion ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                {approvalEnabled && !isAdmin ? 'Submit Response' : 'Save Response'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
       {renderInput()}
       
       {/* Question-level Save Draft and Submit buttons */}
-      {isEditing && onSaveQuestion && (
+      {isEditing && onSaveQuestion && !perQuestionEdit && (
         <div className="flex items-center gap-2 mt-3 pt-2 border-t border-stone-100">
           <Button
             variant="outline"
@@ -3403,6 +3429,9 @@ export default function ESGQuestionnaire({
   liveKPIAutofillByQuestion = {},
   statusFilter = 'all',
   questionProgress = {},
+  perQuestionEdit = false,
+  approvalEnabled = false,
+  onSaved = null,
 }) {
   const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3534,6 +3563,7 @@ export default function ESGQuestionnaire({
         { headers: getAuthHeader() }
       );
       toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
+      if (onSaved) onSaved();
       // Refresh statuses after save
       try {
         const statusesRes = await axios.get(
@@ -3547,7 +3577,8 @@ export default function ESGQuestionnaire({
       }
     } catch (error) {
       console.error('Save question error:', error);
-      toast.error('Failed to save question');
+      toast.error(error.response?.data?.detail || 'Failed to save question');
+      throw error;
     }
   };
 
@@ -3673,7 +3704,7 @@ export default function ESGQuestionnaire({
             </p>
           )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
-            <div key={group} className="border rounded-lg bg-white">
+            <div key={group} id={`brsr-group-${group}`} className="border rounded-lg bg-white scroll-mt-24">
               {group !== 'General' && (
                 <div className="px-4 py-3 bg-stone-50 border-b rounded-t-lg">
                   <h3 className="font-medium text-sm">{group}</h3>
@@ -3687,6 +3718,10 @@ export default function ESGQuestionnaire({
                     value={mergeBRSRAutofill(responses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
+                    perQuestionEdit={perQuestionEdit}
+                    approvalEnabled={approvalEnabled}
+                    isAdmin={isAdmin}
+                    onCancelEdit={fetchData}
                     allResponses={{ 
                       ...responses, 
                       reporting_year: reportingYear,
@@ -3717,7 +3752,7 @@ export default function ESGQuestionnaire({
       )}
 
       {/* Save Button */}
-      {isEditing && configs.length > 0 && (
+      {isEditing && !perQuestionEdit && configs.length > 0 && (
         <div className="flex justify-end pt-4 border-t">
           <Button onClick={saveResponses} disabled={saving} className="bg-primary hover:bg-primary/90 text-white">
             {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Responses</>}

@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
+import { QuestionStatusBadge, SectionEditBar, SectionHeading, SECTION_A_KEYS } from './BRSRSectionEdit';
 import {
   Dialog,
   DialogContent,
@@ -324,7 +325,7 @@ const DIFFERENTLY_ABLED_GROUPS = [
   },
 ];
 
-export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {} }) {
+export default function BRSRYearlySections({ isEditing = false, hideSections = [], reportingYear: propReportingYear = '', assignedQuestionKeys = null, isAdmin = false, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {}, editingSection = null, onEditSection = () => {}, approvalEnabled = false, questionStatuses = {}, onSaved = null }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -648,7 +649,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     setMaterialIssues([{ ...DEFAULT_MATERIAL_ISSUE_ROW }]);
   };
 
-  const saveAllYearlyData = async () => {
+  const saveYearlySection = async (id, status) => {
     setSaving(true);
     const prevFY = getPreviousFY(reportingYear);
     const priorFY = getPreviousFY(prevFY);
@@ -658,11 +659,11 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       const currentResponses = mapFormDataToResponses();
 
       // Save current year data via ESG Questionnaire API
-      await axios.put(
-        `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(reportingYear)}`,
-        { responses: currentResponses },
+      await Promise.all(SECTION_A_KEYS[id].filter((k) => k in currentResponses).map((k) => axios.post(
+        `${API}/esg-questionnaire/response`,
+        { question_key: k, value: currentResponses[k], reporting_period: reportingYear, status },
         { headers: getAuthHeader() }
-      );
+      )));
       
       // Save previous years' turnover data (only if changed)
       const prevYearResponses = {
@@ -699,7 +700,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         },
       };
       
-      await Promise.all([
+      if (id === 'IV') await Promise.all([
         axios.put(
           `${API}/esg-questionnaire/responses/BRSR/section_a/${encodeURIComponent(prevFY)}`,
           { responses: prevYearResponses },
@@ -712,7 +713,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         )
       ]);
 
-      toast.success(`Section A data saved for ${reportingYear}, ${prevFY}, and ${priorFY}`);
+      toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      onEditSection(null);
+      if (onSaved) onSaved();
       fetchYearlyData();
     } catch (error) {
       console.error('Save error:', error);
@@ -740,6 +743,15 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   const prevFY = getPreviousFY(reportingYear);
   const priorFY = getPreviousFY(prevFY);
 
+  const inSection = (id) => isEditing || editingSection === id;
+  const sectionBar = (id) => (
+    <SectionEditBar id={id} editingSection={editingSection} canEdit={SECTION_A_KEYS[id].some(canEditQuestion)}
+                    saving={saving} onEdit={onEditSection} onSave={saveYearlySection}
+                    onCancel={() => { onEditSection(null); fetchYearlyData(); }}
+                    approvalEnabled={approvalEnabled} isAdmin={isAdmin} />
+  );
+  const statusOf = (key) => <QuestionStatusBadge status={questionStatuses[key]} />;
+
   // Check if user has ANY yearly section assigned
   const hasAnyYearlyAssignment = isAdmin || (assignedQuestionKeys && assignedQuestionKeys.some(k => 
     ['brsr_a_employees_workers', 'brsr_a_differently_abled', 'brsr_a_women_representation', 
@@ -754,6 +766,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   return (
     <div className="space-y-4">
+      <SectionHeading id="IV">{sectionBar('IV')}</SectionHeading>
       {/* 1. Employee & Worker Details */}
       {!hideSections.includes('employees_workers') && (canSeeQuestion('brsr_a_employees_workers') || canSeeQuestion('brsr_a_differently_abled')) && (
       <Collapsible open={openSections.employees} onOpenChange={() => toggleSection('employees')} className="border rounded-lg bg-white">
@@ -762,7 +775,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.employees ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <Users className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>
+              <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>{statusOf('brsr_a_employees_workers')}<QuestionStatusBadge status={questionStatuses['brsr_a_differently_abled']} label="Differently abled" />
             </div>
             <Badge variant="outline" className="text-xs">
               {(employeeDetails.permanent_male_employees || 0) + (employeeDetails.permanent_female_employees || 0) + 
@@ -779,7 +792,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               groups={WORKFORCE_GROUPS}
               details={employeeDetails}
               setDetails={setEmployeeDetails}
-              editable={isEditing && canEditQuestion('brsr_a_employees_workers')}
+              editable={inSection('IV') && canEditQuestion('brsr_a_employees_workers')}
               lockedFields={employeeLockedFields}
               testId="brsr-employees-workers-table"
             />
@@ -790,7 +803,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               groups={DIFFERENTLY_ABLED_GROUPS}
               details={employeeDetails}
               setDetails={setEmployeeDetails}
-              editable={isEditing && canEditQuestion('brsr_a_differently_abled')}
+              editable={inSection('IV') && canEditQuestion('brsr_a_differently_abled')}
               lockedFields={differentlyAbledLockedFields}
               testId="brsr-differently-abled-table"
             />
@@ -807,7 +820,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.women ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <UserCheck className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Participation/Inclusion/Representation of women</span>
+              <span className="font-medium text-sm">Participation/Inclusion/Representation of women</span>{statusOf('brsr_a_women_representation')}
             </div>
             <Badge variant="outline" className="text-xs">
               {womenRepresentation.reduce((sum, row) => sum + (row.number_of_females || 0), 0)} Women
@@ -829,14 +842,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                 <TableRow key={row.key} data-testid={`brsr-women-row-${row.key}`}>
                   <TableCell className="text-xs font-medium">{row.category}</TableCell>
                   <TableCell>
-                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.total`) ? (
+                    {inSection('IV') && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.total`) ? (
                       <Input type="number" min="0" value={row.total} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-total`} />
                     ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.total`) ? `brsr-women-${row.key}-total-kpi-autofill` : undefined}>{row.total}</div>}
                   </TableCell>
                   <TableCell>
-                    {isEditing && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.number_of_females`) ? (
+                    {inSection('IV') && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.number_of_females`) ? (
                       <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
                         const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-female`} />
@@ -853,131 +866,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       </Collapsible>
       )}
 
-      {/* 3. CSR Applicability */}
-      {(canSeeQuestion('brsr_a_csr_applicability')) && (
-      <Collapsible open={openSections.csr} onOpenChange={() => toggleSection('csr')} className="border rounded-lg bg-white">
-        <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
-            <div className="flex items-center gap-2">
-              {openSections.csr ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <Building2 className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">CSR Applicability</span>
-            </div>
-            <Badge variant="outline" className={`text-xs ${csrApplicability.is_applicable ? 'bg-green-50 text-green-700' : ''}`}>
-              {csrApplicability.is_applicable ? 'Applicable' : 'Not Applicable'}
-            </Badge>
-          </div>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-3 border rounded bg-stone-50">
-              <Label className="text-xs">CSR under Section 135?</Label>
-              {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
-                <div className="flex items-center gap-2 mt-2">
-                  <Switch checked={csrApplicability.is_applicable} onCheckedChange={(v) => setCSRApplicability(p => ({ ...p, is_applicable: v }))} data-testid="brsr-csr-applicability-switch" />
-                  <span className="text-xs">{csrApplicability.is_applicable ? 'Yes' : 'No'}</span>
-                </div>
-              ) : <p className="text-sm font-medium mt-1">{csrApplicability.is_applicable ? 'Yes' : 'No'}</p>}
-            </div>
-            <div className="p-3 border rounded">
-              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover (INR)</Label>
-              {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
-                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-turnover-input" />
-              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-turnover-value">{formatINR(csrApplicability.turnover_inr)}</p>}
-            </div>
-            <div className="p-3 border rounded">
-              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth (INR)</Label>
-              {isEditing && canEditQuestion('brsr_a_csr_applicability') ? (
-                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-net-worth-input" />
-              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-net-worth-value">{formatINR(csrApplicability.net_worth_inr)}</p>}
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-      )}
-
-      {/* 4. Holding/Subsidiary Companies */}
-      {(canSeeQuestion('brsr_a_holding_subsidiary')) && (
-      <Collapsible open={openSections.holding} onOpenChange={() => toggleSection('holding')} className="border rounded-lg bg-white">
-        <CollapsibleTrigger className="w-full">
-          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
-            <div className="flex items-center gap-2">
-              {openSections.holding ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              <Building className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Holding, Subsidiary & Associate Companies</span>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {holdingEntities.filter(e => e.name_of_entity).length} Entities
-            </Badge>
-          </div>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="p-4 pt-0 border-t">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-stone-50">
-                  <TableHead className="text-xs min-w-[150px]">Entity Name</TableHead>
-                  <TableHead className="text-xs min-w-[120px]">Type</TableHead>
-                  <TableHead className="text-xs text-center">% Shares</TableHead>
-                  <TableHead className="text-xs text-center">BR Participation</TableHead>
-                  {isEditing && <TableHead className="text-xs w-12"></TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {holdingEntities.map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>
-                      {isEditing ? (
-                        <Input value={row.name_of_entity} onChange={(e) => {
-                          const updated = [...holdingEntities]; updated[idx].name_of_entity = e.target.value; setHoldingEntities(updated);
-                        }} className="h-7 text-xs" placeholder="Entity name" />
-                      ) : <span className="text-xs">{row.name_of_entity || '-'}</span>}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <Select value={row.type_of_entity} onValueChange={(v) => {
-                          const updated = [...holdingEntities]; updated[idx].type_of_entity = v; setHoldingEntities(updated);
-                        }}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>{ENTITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                        </Select>
-                      ) : <span className="text-xs">{row.type_of_entity}</span>}
-                    </TableCell>
-                    <TableCell>
-                      {isEditing ? (
-                        <Input type="number" min="0" max="100" value={row.shares_held_percentage} onChange={(e) => {
-                          const updated = [...holdingEntities]; updated[idx].shares_held_percentage = parseFloat(e.target.value) || 0; setHoldingEntities(updated);
-                        }} className="h-7 text-xs text-center" />
-                      ) : <span className="text-xs">{row.shares_held_percentage}%</span>}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {isEditing ? (
-                        <Switch checked={row.participates_in_br_initiatives} onCheckedChange={(v) => {
-                          const updated = [...holdingEntities]; updated[idx].participates_in_br_initiatives = v; setHoldingEntities(updated);
-                        }} />
-                      ) : <Badge variant="outline" className={`text-xs ${row.participates_in_br_initiatives ? 'bg-green-50 text-green-700' : ''}`}>{row.participates_in_br_initiatives ? 'Yes' : 'No'}</Badge>}
-                    </TableCell>
-                    {isEditing && (
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => {
-                          if (holdingEntities.length > 1) setHoldingEntities(holdingEntities.filter((_, i) => i !== idx));
-                        }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {isEditing && canEditQuestion('brsr_a_holding_subsidiary') && (
-            <Button variant="outline" size="sm" className="mt-2" onClick={() => setHoldingEntities([...holdingEntities, { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }])}>
-              <Plus className="w-3 h-3 mr-1" /> Add Entity
-            </Button>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-      )}
-
       {/* 5. Turnover Rate Matrix */}
       {!hideSections.includes('turnover_rate') && (canSeeQuestion('brsr_a_turnover_rate')) && (
       <Collapsible open={openSections.turnover} onOpenChange={() => toggleSection('turnover')} className="border rounded-lg bg-white">
@@ -986,7 +874,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.turnover ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <TrendingDown className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Turnover Rate (%) - Last 3 Financial Years</span>
+              <span className="font-medium text-sm">Turnover Rate (%) - Last 3 Financial Years</span>{statusOf('brsr_a_turnover_rate')}
             </div>
             <Badge variant="outline" className="text-xs">3 Years</Badge>
           </div>
@@ -1016,14 +904,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <TableCell className="text-xs font-medium">Permanent Employees</TableCell>
                   {/* Current - Editable */}
                   <TableCell className="border-l">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_male}
                         onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell>
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_female}
                         onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1031,14 +919,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </TableCell>
                   {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_male}
                         onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_female}
                         onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1046,14 +934,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </TableCell>
                   {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_male}
                         onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_female}
                         onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1065,14 +953,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <TableCell className="text-xs font-medium">Permanent Workers</TableCell>
                   {/* Current - Editable */}
                   <TableCell className="border-l">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_male}
                         onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell>
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_female}
                         onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1080,14 +968,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </TableCell>
                   {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_male}
                         onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_female}
                         onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1095,14 +983,14 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </TableCell>
                   {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_male}
                         onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
-                    {isEditing ? (
+                    {inSection('IV') ? (
                       <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_female}
                         onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
                         className="h-7 text-xs text-center w-16" />
@@ -1117,6 +1005,134 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       </Collapsible>
       )}
 
+      <SectionHeading id="V">{sectionBar('V')}</SectionHeading>
+      {/* 4. Holding/Subsidiary Companies */}
+      {(canSeeQuestion('brsr_a_holding_subsidiary')) && (
+      <Collapsible open={openSections.holding} onOpenChange={() => toggleSection('holding')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.holding ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Building className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">Holding, Subsidiary & Associate Companies</span>{statusOf('brsr_a_holding_subsidiary')}
+            </div>
+            <Badge variant="outline" className="text-xs">
+              {holdingEntities.filter(e => e.name_of_entity).length} Entities
+            </Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs min-w-[150px]">Entity Name</TableHead>
+                  <TableHead className="text-xs min-w-[120px]">Type</TableHead>
+                  <TableHead className="text-xs text-center">% Shares</TableHead>
+                  <TableHead className="text-xs text-center">BR Participation</TableHead>
+                  {inSection('V') && <TableHead className="text-xs w-12"></TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {holdingEntities.map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      {inSection('V') ? (
+                        <Input value={row.name_of_entity} onChange={(e) => {
+                          const updated = [...holdingEntities]; updated[idx].name_of_entity = e.target.value; setHoldingEntities(updated);
+                        }} className="h-7 text-xs" placeholder="Entity name" />
+                      ) : <span className="text-xs">{row.name_of_entity || '-'}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {inSection('V') ? (
+                        <Select value={row.type_of_entity} onValueChange={(v) => {
+                          const updated = [...holdingEntities]; updated[idx].type_of_entity = v; setHoldingEntities(updated);
+                        }}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{ENTITY_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : <span className="text-xs">{row.type_of_entity}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {inSection('V') ? (
+                        <Input type="number" min="0" max="100" value={row.shares_held_percentage} onChange={(e) => {
+                          const updated = [...holdingEntities]; updated[idx].shares_held_percentage = parseFloat(e.target.value) || 0; setHoldingEntities(updated);
+                        }} className="h-7 text-xs text-center" />
+                      ) : <span className="text-xs">{row.shares_held_percentage}%</span>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {inSection('V') ? (
+                        <Switch checked={row.participates_in_br_initiatives} onCheckedChange={(v) => {
+                          const updated = [...holdingEntities]; updated[idx].participates_in_br_initiatives = v; setHoldingEntities(updated);
+                        }} />
+                      ) : <Badge variant="outline" className={`text-xs ${row.participates_in_br_initiatives ? 'bg-green-50 text-green-700' : ''}`}>{row.participates_in_br_initiatives ? 'Yes' : 'No'}</Badge>}
+                    </TableCell>
+                    {inSection('V') && (
+                      <TableCell>
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          if (holdingEntities.length > 1) setHoldingEntities(holdingEntities.filter((_, i) => i !== idx));
+                        }} className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {inSection('V') && canEditQuestion('brsr_a_holding_subsidiary') && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => setHoldingEntities([...holdingEntities, { name_of_entity: "", type_of_entity: "Subsidiary", shares_held_percentage: 0, participates_in_br_initiatives: false }])}>
+              <Plus className="w-3 h-3 mr-1" /> Add Entity
+            </Button>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+      )}
+
+      <SectionHeading id="VI">{sectionBar('VI')}</SectionHeading>
+      {/* 3. CSR Applicability */}
+      {(canSeeQuestion('brsr_a_csr_applicability')) && (
+      <Collapsible open={openSections.csr} onOpenChange={() => toggleSection('csr')} className="border rounded-lg bg-white">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between p-3 hover:bg-stone-50">
+            <div className="flex items-center gap-2">
+              {openSections.csr ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <Building2 className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">CSR Applicability</span>{statusOf('brsr_a_csr_applicability')}
+            </div>
+            <Badge variant="outline" className={`text-xs ${csrApplicability.is_applicable ? 'bg-green-50 text-green-700' : ''}`}>
+              {csrApplicability.is_applicable ? 'Applicable' : 'Not Applicable'}
+            </Badge>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="p-4 pt-0 border-t">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-3 border rounded bg-stone-50">
+              <Label className="text-xs">CSR under Section 135?</Label>
+              {inSection('VI') && canEditQuestion('brsr_a_csr_applicability') ? (
+                <div className="flex items-center gap-2 mt-2">
+                  <Switch checked={csrApplicability.is_applicable} onCheckedChange={(v) => setCSRApplicability(p => ({ ...p, is_applicable: v }))} data-testid="brsr-csr-applicability-switch" />
+                  <span className="text-xs">{csrApplicability.is_applicable ? 'Yes' : 'No'}</span>
+                </div>
+              ) : <p className="text-sm font-medium mt-1">{csrApplicability.is_applicable ? 'Yes' : 'No'}</p>}
+            </div>
+            <div className="p-3 border rounded">
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover (INR)</Label>
+              {inSection('VI') && canEditQuestion('brsr_a_csr_applicability') ? (
+                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-turnover-input" />
+              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-turnover-value">{formatINR(csrApplicability.turnover_inr)}</p>}
+            </div>
+            <div className="p-3 border rounded">
+              <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth (INR)</Label>
+              {inSection('VI') && canEditQuestion('brsr_a_csr_applicability') ? (
+                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-net-worth-input" />
+              ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-net-worth-value">{formatINR(csrApplicability.net_worth_inr)}</p>}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+      )}
+
+      <SectionHeading id="VII">{sectionBar('VII')}</SectionHeading>
       {/* 6. Complaints & Grievances */}
       {!hideSections.includes('complaints_grievances') && (canSeeQuestion('brsr_a_complaints_grievances')) && (
       <Collapsible open={openSections.complaints} onOpenChange={() => toggleSection('complaints')} className="border rounded-lg bg-white">
@@ -1125,7 +1141,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.complaints ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <MessageSquareWarning className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Complaints & Grievances</span>
+              <span className="font-medium text-sm">Complaints & Grievances</span>{statusOf('brsr_a_complaints_grievances')}
             </div>
             <Badge variant="outline" className="text-xs">
               {complaintsGrievances.reduce((sum, c) => sum + (c.current_fy_filed || 0), 0)} Filed
@@ -1150,7 +1166,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <TableRow key={idx}>
                     <TableCell className="text-xs font-medium">{row.category}</TableCell>
                     <TableCell className="text-center">
-                      {isEditing ? (
+                      {inSection('VII') ? (
                         <Switch
                           checked={row.has_grievance_mechanism}
                           onCheckedChange={(v) => {
@@ -1167,7 +1183,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                       )}
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
+                      {inSection('VII') ? (
                         <Input
                           value={row.policy_weblink}
                           onChange={(e) => {
@@ -1184,7 +1200,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                       )}
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
+                      {inSection('VII') ? (
                         <Input type="number" min="0" value={row.current_fy_filed}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
@@ -1195,7 +1211,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                       ) : <span className="text-xs">{row.current_fy_filed}</span>}
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
+                      {inSection('VII') ? (
                         <Input type="number" min="0" value={row.current_fy_pending}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
@@ -1206,7 +1222,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                       ) : <span className="text-xs">{row.current_fy_pending}</span>}
                     </TableCell>
                     <TableCell>
-                      {isEditing ? (
+                      {inSection('VII') ? (
                         <Input value={row.current_fy_remarks}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
@@ -1234,7 +1250,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.materialIssues ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <AlertTriangle className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Material Business Conduct Issues</span>
+              <span className="font-medium text-sm">Material Business Conduct Issues</span>{statusOf('brsr_a_material_issues')}
             </div>
             <Badge variant="outline" className="text-xs">{materialIssues.filter(i => i.issue_identified).length} Issues</Badge>
           </div>
@@ -1245,7 +1261,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
               <div key={idx} className="border rounded-lg p-3 bg-stone-50">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-xs font-medium text-stone-500">Issue #{idx + 1}</span>
-                  {isEditing && canEditQuestion('brsr_a_material_issues') && materialIssues.length > 1 && (
+                  {inSection('VII') && canEditQuestion('brsr_a_material_issues') && materialIssues.length > 1 && (
                     <Button variant="ghost" size="sm" onClick={() => setMaterialIssues(materialIssues.filter((_, i) => i !== idx))}
                       className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
                   )}
@@ -1253,7 +1269,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs">Material Issue Identified</Label>
-                    {isEditing && canEditQuestion('brsr_a_material_issues') ? (
+                    {inSection('VII') && canEditQuestion('brsr_a_material_issues') ? (
                       <Textarea value={issue.issue_identified} onChange={(e) => {
                         const updated = [...materialIssues]; updated[idx].issue_identified = e.target.value; setMaterialIssues(updated);
                       }} className="text-xs mt-1" rows={2} placeholder="Describe the material issue" />
@@ -1261,7 +1277,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </div>
                   <div>
                     <Label className="text-xs">Risk or Opportunity</Label>
-                    {isEditing ? (
+                    {inSection('VII') ? (
                       <Select value={issue.risk_or_opportunity} onValueChange={(v) => {
                         const updated = [...materialIssues]; updated[idx].risk_or_opportunity = v; setMaterialIssues(updated);
                       }}>
@@ -1279,7 +1295,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </div>
                   <div>
                     <Label className="text-xs">Rationale for Identification</Label>
-                    {isEditing ? (
+                    {inSection('VII') ? (
                       <Textarea value={issue.rationale} onChange={(e) => {
                         const updated = [...materialIssues]; updated[idx].rationale = e.target.value; setMaterialIssues(updated);
                       }} className="text-xs mt-1" rows={2} placeholder="Why was this identified?" />
@@ -1287,7 +1303,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </div>
                   <div>
                     <Label className="text-xs">Mitigation Approach {issue.risk_or_opportunity === 'Risk' && <span className="text-red-500">*</span>}</Label>
-                    {isEditing ? (
+                    {inSection('VII') ? (
                       <Textarea value={issue.mitigation_approach} onChange={(e) => {
                         const updated = [...materialIssues]; updated[idx].mitigation_approach = e.target.value; setMaterialIssues(updated);
                       }} className="text-xs mt-1" rows={2} placeholder={issue.risk_or_opportunity === 'Risk' ? 'Required for risks' : 'Optional'} />
@@ -1295,7 +1311,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </div>
                   <div>
                     <Label className="text-xs">Financial Implication</Label>
-                    {isEditing ? (
+                    {inSection('VII') ? (
                       <Select value={issue.financial_implication} onValueChange={(v) => {
                         const updated = [...materialIssues]; updated[idx].financial_implication = v; setMaterialIssues(updated);
                       }}>
@@ -1314,7 +1330,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   </div>
                   <div>
                     <Label className="text-xs">Financial Details</Label>
-                    {isEditing ? (
+                    {inSection('VII') ? (
                       <Textarea value={issue.financial_details} onChange={(e) => {
                         const updated = [...materialIssues]; updated[idx].financial_details = e.target.value; setMaterialIssues(updated);
                       }} className="text-xs mt-1" rows={2} placeholder="Describe financial implications" />
@@ -1323,7 +1339,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                 </div>
               </div>
             ))}
-            {isEditing && canEditQuestion('brsr_a_material_issues') && (
+            {inSection('VII') && canEditQuestion('brsr_a_material_issues') && (
               <Button variant="outline" size="sm" onClick={() => setMaterialIssues([...materialIssues, { ...DEFAULT_MATERIAL_ISSUE_ROW }])}>
                 <Plus className="w-3 h-3 mr-1" /> Add Issue
               </Button>
@@ -1331,15 +1347,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </CollapsibleContent>
       </Collapsible>
-      )}
-
-      {/* Single Save Button for All Sections */}
-      {isEditing && (
-        <div className="flex justify-end pt-4 border-t">
-          <Button onClick={saveAllYearlyData} disabled={saving} className="bg-primary hover:bg-primary/90 text-white" data-testid="save-all-yearly-btn">
-            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save All Yearly Data</>}
-          </Button>
-        </div>
       )}
 
       {/* History Modal */}

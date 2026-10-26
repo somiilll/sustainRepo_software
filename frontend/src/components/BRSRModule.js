@@ -15,8 +15,6 @@ import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { 
-  Pencil,
-  X,
   ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -26,17 +24,17 @@ import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
 import { ModulePageHeader } from './ModulePageHeader';
-import { BRSRSectionCards, BRSRProgressPanel } from './BRSRProgress';
+import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BRSRModule() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   const [activeTab, setActiveTab] = useState('section_a');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
   const [organization, setOrganization] = useState(null);
   const [responseRefreshKey, setResponseRefreshKey] = useState(0);
   const [liveKPIAutofill, setLiveKPIAutofill] = useState({});
@@ -61,7 +59,7 @@ export default function BRSRModule() {
     setStatusFilter('all');
   };
 
-  useEffect(() => { loadProgress(); }, [loadProgress, isEditing, activeTab]);
+  useEffect(() => { loadProgress(); }, [loadProgress, activeTab]);
 
   // Initialize reporting years
   useEffect(() => {
@@ -136,14 +134,6 @@ export default function BRSRModule() {
             reportingPeriod={reportingPeriod} 
             organization={organization}
           />
-          <Button
-            variant={isEditing ? 'outline' : 'default'}
-            size="sm"
-            onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
-            data-testid="brsr-edit-toggle-button">
-            {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
-          </Button>
         </>}
       />
 
@@ -151,18 +141,20 @@ export default function BRSRModule() {
       <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} />
       <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} />
 
-      <Tabs value={activeTab} onValueChange={selectTab}>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
+      <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">
 
         {/* Section A - General Disclosures */}
         <TabsContent value="section_a" className="mt-6">
           <BRSRDetailsSection
             key={`section-a-${responseRefreshKey}`}
-            isEditing={isEditing}
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
             statusFilter={statusFilter}
             questionProgress={progress?.sections?.section_a?.questions || {}}
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            onSaved={loadProgress}
           />
         </TabsContent>
 
@@ -172,11 +164,13 @@ export default function BRSRModule() {
             key={`section-b-${responseRefreshKey}`}
             framework="BRSR"
             section="section_b"
-            isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
             statusFilter={statusFilter}
             questionProgress={progress?.sections?.section_b?.questions || {}}
+            perQuestionEdit
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            onSaved={loadProgress}
           />
         </TabsContent>
 
@@ -185,14 +179,18 @@ export default function BRSRModule() {
           <BRSRSectionC
             key={`section-c-${responseRefreshKey}`}
             framework="BRSR"
-            isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
             statusFilter={statusFilter}
             questionProgress={progress?.sections?.section_c?.questions || {}}
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            isAdmin={isAdmin}
+            onSaved={loadProgress}
           />
         </TabsContent>
       </Tabs>
+      <BRSRPageNav progress={progress} activeTab={activeTab} />
+      </div>
     </div>
   );
 }

@@ -40,11 +40,9 @@ const PRINCIPLE_COLORS = {
   P7: '#6366f1', P8: '#f97316', P9: '#ec4899',
 };
 
-export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {} }) {
+export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {}, approvalEnabled = false, isAdmin = false, onSaved = null }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingPrinciple, setSavingPrinciple] = useState(null);
   const [allConfigs, setAllConfigs] = useState([]);
   const [allResponses, setAllResponses] = useState({});
   const [approvalStatuses, setApprovalStatuses] = useState({});
@@ -133,6 +131,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
         { headers }
       );
       toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      if (onSaved) onSaved();
       
       // Refresh status for this question
       try {
@@ -170,56 +169,6 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     } catch (error) {
       console.error('Failed to fetch version history:', error);
       return [];
-    }
-  };
-
-  // Save all responses for a principle
-  const savePrincipleResponses = async (principle, status = 'saved') => {
-    const questions = grouped[principle] || [];
-    if (questions.length === 0) return;
-    
-    setSavingPrinciple(principle);
-    try {
-      const headers = getAuthHeader();
-      const responses = {};
-      questions.forEach(q => {
-        if (allResponses[q.question_key] !== undefined) {
-          responses[q.question_key] = allResponses[q.question_key];
-        }
-      });
-      
-      await axios.put(
-        `${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`,
-        { responses, status },
-        { headers }
-      );
-      toast.success(`${PRINCIPLE_META[principle]?.name || principle} ${status === 'draft' ? 'saved as draft' : 'saved'}`);
-      fetchData();
-    } catch (err) {
-      console.error('Save principle error:', err);
-      toast.error('Failed to save responses');
-    } finally {
-      setSavingPrinciple(null);
-    }
-  };
-
-  // Save all responses
-  const saveAllResponses = async () => {
-    setSaving(true);
-    try {
-      const headers = getAuthHeader();
-      await axios.put(
-        `${API}/api/esg-questionnaire/responses/${framework}/${SECTION}/${reportingYear}`,
-        { responses: allResponses },
-        { headers }
-      );
-      toast.success(`Section C responses saved for ${reportingYear}`);
-      fetchData();
-    } catch (err) {
-      console.error('Save error:', err);
-      toast.error('Failed to save responses');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -293,10 +242,9 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
         }).length;
         const color = PRINCIPLE_COLORS[p] || '#78716c';
         const principleStatus = getPrincipleStatus(p);
-        const isSavingThis = savingPrinciple === p;
 
         return (
-          <div key={p} className="border rounded-lg bg-white overflow-hidden" data-testid={`principle-${p}`}>
+          <div key={p} id={`brsr-group-${p}`} className="border rounded-lg bg-white overflow-hidden scroll-mt-24" data-testid={`principle-${p}`}>
             <button
               onClick={() => togglePrinciple(p)}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-stone-50/50 transition-colors"
@@ -351,7 +299,11 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       historicalData={null}
                       approvalStatus={approvalStatuses[config.question_key]}
                       versionHistory={versionHistories[config.question_key]}
-                      onSaveQuestion={isEditing ? saveQuestion : null}
+                      onSaveQuestion={saveQuestion}
+                      perQuestionEdit
+                      approvalEnabled={approvalEnabled}
+                      isAdmin={isAdmin}
+                      onCancelEdit={fetchData}
                       onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                       onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                       lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
@@ -359,55 +311,12 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                     />
                   ))}
                 </div>
-                
-                {/* Principle-level Save Buttons */}
-                {isEditing && questions.length > 0 && (
-                  <div className="flex justify-end gap-2 px-5 py-3 bg-stone-50 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => savePrincipleResponses(p, 'draft')}
-                      disabled={isSavingThis}
-                    >
-                      <FileText className="w-4 h-4 mr-1" />
-                      Save as Draft
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => savePrincipleResponses(p, 'saved')}
-                      disabled={isSavingThis}
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      {isSavingThis ? (
-                        <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving...</>
-                      ) : (
-                        <><Save className="w-4 h-4 mr-1" /> Save {meta.name}</>
-                      )}
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </div>
         );
       })}
 
-      {/* Global Save Button */}
-      {isEditing && allConfigs.length > 0 && (
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button
-            variant="outline"
-            onClick={() => saveAllResponses('draft')}
-            disabled={saving}
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Save All as Draft
-          </Button>
-          <Button onClick={saveAllResponses} disabled={saving} className="bg-primary hover:bg-primary/90 text-white">
-            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save All Responses</>}
-          </Button>
-        </div>
-      )}
       <QuestionVersionHistory
         open={Boolean(timelineQuestionKey)}
         onOpenChange={(open) => !open && setTimelineQuestionKey(null)}

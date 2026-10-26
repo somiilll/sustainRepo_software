@@ -44,6 +44,7 @@ import {
 
 // Import yearly sections component for year-specific data (Employees, CSR, etc.)
 import BRSRYearlySections from './BRSRYearlySections';
+import { SectionEditBar, SectionHeading, SECTION_A_KEYS } from './BRSRSectionEdit';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -71,12 +72,15 @@ export default function BRSRDetailsSection({
   reportingPeriod = '',
   liveKPIAutofillByQuestion = {},
   statusFilter = 'all',
-  questionProgress = {}
+  questionProgress = {},
+  approvalEnabled = false,
+  onSaved = null
 }) {
   const { getAuthHeader, user } = useAuth();
   const [isOpen, setIsOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingSection, setEditingSection] = useState(null);
   const [savingQuestion, setSavingQuestion] = useState(null); // Track which question is being saved
   const [isComplete, setIsComplete] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
@@ -547,34 +551,6 @@ export default function BRSRDetailsSection({
     );
   };
 
-  // Render individual save button for a question
-  const renderSaveButton = (questionKey, getValue) => {
-    const isDirty = dirtyFields.has(questionKey);
-    const isSaving = savingQuestion === questionKey;
-    
-    if (!isEditing) return null;
-    
-    // Always show button in edit mode, but disable when not dirty
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        className={`h-7 px-2 text-xs ${!isDirty && !isSaving ? 'opacity-50' : ''}`}
-        onClick={() => saveQuestion(questionKey, getValue())}
-        disabled={isSaving || !isDirty}
-      >
-        {isSaving ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <>
-            <Save className="h-3 w-3 mr-1" />
-            Save
-          </>
-        )}
-      </Button>
-    );
-  };
-
   // Render question header with status, history, and save button
   const renderQuestionHeader = (label, questionKey, getValue, required = false) => {
     return (
@@ -585,7 +561,6 @@ export default function BRSRDetailsSection({
         </Label>
         <div className="flex items-center gap-1">
           {renderHistoryButton(questionKey)}
-          {renderSaveButton(questionKey, getValue)}
         </div>
       </div>
     );
@@ -759,6 +734,44 @@ export default function BRSRDetailsSection({
     }
   };
 
+  const inSection = (id) => isEditing || editingSection === id;
+
+  const saveSection = async (id, status) => {
+    const changed = mapChangedFieldsToResponses();
+    const keys = SECTION_A_KEYS[id].filter((k) => k in changed);
+    if (keys.length === 0) {
+      toast.info('No changes to save');
+      setEditingSection(null);
+      return;
+    }
+    setSaving(true);
+    try {
+      await Promise.all(keys.map((k) => axios.post(
+        `${API}/esg-questionnaire/response`,
+        { question_key: k, value: changed[k], reporting_period: reportingPeriod, status },
+        { headers: getAuthHeader() }
+      )));
+      setDirtyFields((prev) => new Set([...prev].filter((k) => !keys.includes(k))));
+      setOriginalData((prev) => ({ ...prev, ...Object.fromEntries(keys.map((k) => [k, changed[k]])) }));
+      await fetchQuestionStatuses();
+      toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
+      setEditingSection(null);
+      if (onSaved) onSaved();
+    } catch (error) {
+      console.error('Failed to save section:', error);
+      toast.error(error.response?.data?.detail || 'Failed to save section');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sectionBar = (id) => (
+    <SectionEditBar id={id} editingSection={editingSection} canEdit={SECTION_A_KEYS[id].some(canEditQuestion)}
+                    saving={saving} onEdit={setEditingSection} onSave={saveSection}
+                    onCancel={async () => { setEditingSection(null); await fetchBRSRDetails(); }}
+                    approvalEnabled={approvalEnabled} isAdmin={isAdmin} />
+  );
+
   // Get the data for parent component
   const getBRSRData = () => formData;
 
@@ -790,15 +803,13 @@ export default function BRSRDetailsSection({
          'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
       ))) && (statusFilter === 'all' || BASIC_FILTER_KEYS.some(matchesFilter)) && (
       <div>
-        <h4 className="text-sm font-semibold text-text-primary mb-4 pb-2 border-b">
-              I. Details of the Listed Entity
-            </h4>
+        <div className="mb-4"><SectionHeading id="I">{sectionBar('I')}</SectionHeading></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CIN */}
               {(canSeeQuestion('brsr_a_cin')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Corporate Identity Number (CIN)', 'brsr_a_cin', () => formData.cin, true)}
-                {isEditing && canEditQuestion('brsr_a_cin') ? (
+                {inSection('I') && canEditQuestion('brsr_a_cin') ? (
                   <Input
                     value={formData.cin}
                     onChange={(e) => handleInputChange('cin', e.target.value, 'brsr_a_cin')}
@@ -815,7 +826,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_entity_name')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Name of the Listed Entity', 'brsr_a_entity_name', () => formData.listed_entity_name, true)}
-                {isEditing && canEditQuestion('brsr_a_entity_name') ? (
+                {inSection('I') && canEditQuestion('brsr_a_entity_name') ? (
                   <Input
                     value={formData.listed_entity_name}
                     onChange={(e) => handleInputChange('listed_entity_name', e.target.value, 'brsr_a_entity_name')}
@@ -832,7 +843,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_year_of_incorporation')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Year of Incorporation', 'brsr_a_year_of_incorporation', () => formData.year_of_incorporation, true)}
-                {isEditing && canEditQuestion('brsr_a_year_of_incorporation') ? (
+                {inSection('I') && canEditQuestion('brsr_a_year_of_incorporation') ? (
                   <Input
                     type="number"
                     value={formData.year_of_incorporation}
@@ -863,7 +874,7 @@ export default function BRSRDetailsSection({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address *</Label>
-                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_address}
                         onChange={(e) => handleInputChange('registered_address', e.target.value, 'brsr_a_registered_address')}
@@ -877,7 +888,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>City *</Label>
-                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_city}
                         onChange={(e) => handleInputChange('registered_city', e.target.value, 'brsr_a_registered_address')}
@@ -891,7 +902,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>State *</Label>
-                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_state}
                         onChange={(e) => handleInputChange('registered_state', e.target.value, 'brsr_a_registered_address')}
@@ -905,7 +916,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>Country *</Label>
-                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_registered_address') ? (
                       <Select value={formData.registered_country} onValueChange={(v) => handleInputChange('registered_country', v, 'brsr_a_registered_address')}>
                         <SelectTrigger data-testid="brsr-registered-country">
                           <SelectValue placeholder="Select country" />
@@ -926,7 +937,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>PIN Code *</Label>
-                    {isEditing && canEditQuestion('brsr_a_registered_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_registered_address') ? (
                       <Input
                         value={formData.registered_pincode}
                         onChange={(e) => handleInputChange('registered_pincode', e.target.value, 'brsr_a_registered_address')}
@@ -957,7 +968,7 @@ export default function BRSRDetailsSection({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2 lg:col-span-2">
                     <Label>Address</Label>
-                    {isEditing && canEditQuestion('brsr_a_corporate_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_corporate_address') ? (
                       <Input
                         value={formData.corporate_address}
                         onChange={(e) => handleInputChange('corporate_address', e.target.value, 'brsr_a_corporate_address')}
@@ -971,7 +982,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>City</Label>
-                    {isEditing && canEditQuestion('brsr_a_corporate_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_corporate_address') ? (
                       <Input
                         value={formData.corporate_city}
                         onChange={(e) => handleInputChange('corporate_city', e.target.value, 'brsr_a_corporate_address')}
@@ -985,7 +996,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>State</Label>
-                    {isEditing && canEditQuestion('brsr_a_corporate_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_corporate_address') ? (
                       <Input
                         value={formData.corporate_state}
                         onChange={(e) => handleInputChange('corporate_state', e.target.value, 'brsr_a_corporate_address')}
@@ -999,7 +1010,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>Country</Label>
-                    {isEditing && canEditQuestion('brsr_a_corporate_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_corporate_address') ? (
                       <Select value={formData.corporate_country} onValueChange={(v) => handleInputChange('corporate_country', v, 'brsr_a_corporate_address')}>
                         <SelectTrigger data-testid="brsr-corporate-country">
                           <SelectValue placeholder="Select country" />
@@ -1020,7 +1031,7 @@ export default function BRSRDetailsSection({
                   
                   <div className="space-y-2">
                     <Label>PIN Code</Label>
-                    {isEditing && canEditQuestion('brsr_a_corporate_address') ? (
+                    {inSection('I') && canEditQuestion('brsr_a_corporate_address') ? (
                       <Input
                         value={formData.corporate_pincode}
                         onChange={(e) => handleInputChange('corporate_pincode', e.target.value, 'brsr_a_corporate_address')}
@@ -1040,7 +1051,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_email')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('E-mail', 'brsr_a_email', () => formData.email, true)}
-                {isEditing && canEditQuestion('brsr_a_email') ? (
+                {inSection('I') && canEditQuestion('brsr_a_email') ? (
                   <Input
                     type="email"
                     value={formData.email}
@@ -1058,7 +1069,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_telephone')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Telephone', 'brsr_a_telephone', () => formData.telephone, true)}
-                {isEditing && canEditQuestion('brsr_a_telephone') ? (
+                {inSection('I') && canEditQuestion('brsr_a_telephone') ? (
                   <Input
                     value={formData.telephone}
                     onChange={(e) => handleInputChange('telephone', e.target.value, 'brsr_a_telephone')}
@@ -1075,7 +1086,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_website')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Website', 'brsr_a_website', () => formData.website, true)}
-                {isEditing && canEditQuestion('brsr_a_website') ? (
+                {inSection('I') && canEditQuestion('brsr_a_website') ? (
                   <Input
                     value={formData.website}
                     onChange={(e) => handleInputChange('website', e.target.value, 'brsr_a_website')}
@@ -1092,7 +1103,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_paid_up_capital')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Paid-up Capital (INR)', 'brsr_a_paid_up_capital', () => formData.paid_up_capital, true)}
-                {isEditing && canEditQuestion('brsr_a_paid_up_capital') ? (
+                {inSection('I') && canEditQuestion('brsr_a_paid_up_capital') ? (
                   <Input
                     type="number"
                     value={formData.paid_up_capital}
@@ -1113,7 +1124,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_assurance_provider')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Name of Assurance Provider', 'brsr_a_assurance_provider', () => formData.assurance_provider, true)}
-                {isEditing && canEditQuestion('brsr_a_assurance_provider') ? (
+                {inSection('I') && canEditQuestion('brsr_a_assurance_provider') ? (
                   <Input
                     value={formData.assurance_provider}
                     onChange={(e) => handleInputChange('assurance_provider', e.target.value, 'brsr_a_assurance_provider')}
@@ -1130,7 +1141,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_assurance_type')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Type of Assurance Obtained', 'brsr_a_assurance_type', () => formData.assurance_type, true)}
-                {isEditing && canEditQuestion('brsr_a_assurance_type') ? (
+                {inSection('I') && canEditQuestion('brsr_a_assurance_type') ? (
                   <Input
                     value={formData.assurance_type}
                     onChange={(e) => handleInputChange('assurance_type', e.target.value, 'brsr_a_assurance_type')}
@@ -1147,7 +1158,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_export_contribution')) && (
               <div className="space-y-2">
                 {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
-                {isEditing && canEditQuestion('brsr_a_export_contribution') ? (
+                {inSection('I') && canEditQuestion('brsr_a_export_contribution') ? (
                   <Input
                     type="number"
                     value={formData.export_contribution_percentage}
@@ -1169,7 +1180,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_customer_types')) && (
               <div className="space-y-2 md:col-span-2 lg:col-span-3">
                 {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
-                {isEditing && canEditQuestion('brsr_a_customer_types') ? (
+                {inSection('I') && canEditQuestion('brsr_a_customer_types') ? (
                   <Textarea
                     value={formData.customer_types_brief}
                     onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_customer_types')}
@@ -1204,7 +1215,7 @@ export default function BRSRDetailsSection({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Contact Person Name *</Label>
-                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
+                {inSection('I') && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     value={formData.brsr_contact_name}
                     onChange={(e) => handleInputChange('brsr_contact_name', e.target.value, 'brsr_a_contact_person')}
@@ -1218,7 +1229,7 @@ export default function BRSRDetailsSection({
               
               <div className="space-y-2">
                 <Label>Contact Telephone *</Label>
-                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
+                {inSection('I') && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     value={formData.brsr_contact_telephone}
                     onChange={(e) => handleInputChange('brsr_contact_telephone', e.target.value, 'brsr_a_contact_person')}
@@ -1232,7 +1243,7 @@ export default function BRSRDetailsSection({
               
               <div className="space-y-2">
                 <Label>Contact Email Address *</Label>
-                {isEditing && canEditQuestion('brsr_a_contact_person') ? (
+                {inSection('I') && canEditQuestion('brsr_a_contact_person') ? (
                   <Input
                     type="email"
                     value={formData.brsr_contact_email}
@@ -1258,7 +1269,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
                 {renderQuestionHeader('Stock Exchange(s) where shares are listed', 'brsr_a_stock_exchange', () => formData.stock_exchange, true)}
-                {isEditing && canEditQuestion('brsr_a_stock_exchange') ? (
+                {inSection('I') && canEditQuestion('brsr_a_stock_exchange') ? (
                   <RadioGroup
                     value={formData.stock_exchange}
                     onValueChange={(value) => handleInputChange('stock_exchange', value, 'brsr_a_stock_exchange')}
@@ -1286,7 +1297,7 @@ export default function BRSRDetailsSection({
               {(canSeeQuestion('brsr_a_reporting_boundary')) && (
               <div className="space-y-3">
                 {renderQuestionHeader('Reporting Boundary', 'brsr_a_reporting_boundary', () => formData.reporting_boundary, true)}
-                {isEditing && canEditQuestion('brsr_a_reporting_boundary') ? (
+                {inSection('I') && canEditQuestion('brsr_a_reporting_boundary') ? (
                   <RadioGroup
                     value={formData.reporting_boundary}
                     onValueChange={(value) => handleInputChange('reporting_boundary', value, 'brsr_a_reporting_boundary')}
@@ -1312,12 +1323,13 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
+            <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
             {(canSeeQuestion('brsr_a_business_activities')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Business Activities Accounting for 90% of Turnover', 'brsr_a_business_activities', () => formData.business_activities, true)}
-                {isEditing && canEditQuestion('brsr_a_business_activities') && (
+                {inSection('II') && canEditQuestion('brsr_a_business_activities') && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1336,14 +1348,14 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[30%]">Description of Activity</TableHead>
                       <TableHead className="w-[40%]">Main Description of Business Activity</TableHead>
                       <TableHead className="w-[20%]">% of Turnover</TableHead>
-                      {isEditing && canEditQuestion('brsr_a_business_activities') && <TableHead className="w-[10%]">Action</TableHead>}
+                      {inSection('II') && canEditQuestion('brsr_a_business_activities') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.business_activities.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               value={row.description}
                               onChange={(e) => handleTableRowChange('business_activities', index, 'description', e.target.value, 'brsr_a_business_activities')}
@@ -1355,7 +1367,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               value={row.main_activity}
                               onChange={(e) => handleTableRowChange('business_activities', index, 'main_activity', e.target.value, 'brsr_a_business_activities')}
@@ -1367,7 +1379,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_business_activities') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_business_activities') ? (
                             <Input
                               type="number"
                               value={row.turnover_percentage}
@@ -1381,7 +1393,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.turnover_percentage}%</span>
                           )}
                         </TableCell>
-                        {isEditing && canEditQuestion('brsr_a_business_activities') && (
+                        {inSection('II') && canEditQuestion('brsr_a_business_activities') && (
                           <TableCell>
                             <Button
                               type="button"
@@ -1407,7 +1419,7 @@ export default function BRSRDetailsSection({
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Products/Services Accounting for 90% of Turnover', 'brsr_a_products_services', () => formData.products_services, true)}
-                {isEditing && canEditQuestion('brsr_a_products_services') && (
+                {inSection('II') && canEditQuestion('brsr_a_products_services') && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1426,14 +1438,14 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[40%]">Product / Service</TableHead>
                       <TableHead className="w-[30%]">NIC Code</TableHead>
                       <TableHead className="w-[20%]">% of Total Turnover</TableHead>
-                      {isEditing && canEditQuestion('brsr_a_products_services') && <TableHead className="w-[10%]">Action</TableHead>}
+                      {inSection('II') && canEditQuestion('brsr_a_products_services') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.products_services.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_products_services') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_products_services') ? (
                             <Input
                               value={row.product_service}
                               onChange={(e) => handleTableRowChange('products_services', index, 'product_service', e.target.value, 'brsr_a_products_services')}
@@ -1445,7 +1457,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_products_services') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_products_services') ? (
                             <Input
                               value={row.nic_code}
                               onChange={(e) => handleTableRowChange('products_services', index, 'nic_code', e.target.value, 'brsr_a_products_services')}
@@ -1457,7 +1469,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_products_services') ? (
+                          {inSection('II') && canEditQuestion('brsr_a_products_services') ? (
                             <Input
                               type="number"
                               value={row.turnover_percentage}
@@ -1471,7 +1483,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.turnover_percentage}%</span>
                           )}
                         </TableCell>
-                        {isEditing && canEditQuestion('brsr_a_products_services') && (
+                        {inSection('II') && canEditQuestion('brsr_a_products_services') && (
                           <TableCell>
                             <Button
                               type="button"
@@ -1492,12 +1504,13 @@ export default function BRSRDetailsSection({
             </div>
             )}
 
+            <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
             {(canSeeQuestion('brsr_a_plants_offices')) && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
-                {isEditing && canEditQuestion('brsr_a_plants_offices') && (
+                {inSection('III') && canEditQuestion('brsr_a_plants_offices') && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1516,14 +1529,14 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[40%]">Location</TableHead>
                       <TableHead className="w-[25%]">Number of Plants</TableHead>
                       <TableHead className="w-[25%]">Number of Offices</TableHead>
-                      {isEditing && canEditQuestion('brsr_a_plants_offices') && <TableHead className="w-[10%]">Action</TableHead>}
+                      {inSection('III') && canEditQuestion('brsr_a_plants_offices') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.plants_offices.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_plants_offices') ? (
+                          {inSection('III') && canEditQuestion('brsr_a_plants_offices') ? (
                             <Select
                               value={row.location_type}
                               onValueChange={(value) => handleTableRowChange('plants_offices', index, 'location_type', value, 'brsr_a_plants_offices')}
@@ -1541,7 +1554,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_plants_offices') ? (
+                          {inSection('III') && canEditQuestion('brsr_a_plants_offices') ? (
                             <Input
                               type="number"
                               value={row.num_plants}
@@ -1555,7 +1568,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_plants_offices') ? (
+                          {inSection('III') && canEditQuestion('brsr_a_plants_offices') ? (
                             <Input
                               type="number"
                               value={row.num_offices}
@@ -1568,7 +1581,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.num_offices}</span>
                           )}
                         </TableCell>
-                        {isEditing && canEditQuestion('brsr_a_plants_offices') && (
+                        {inSection('III') && canEditQuestion('brsr_a_plants_offices') && (
                           <TableCell>
                             <Button
                               type="button"
@@ -1594,7 +1607,7 @@ export default function BRSRDetailsSection({
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
-                {isEditing && canEditQuestion('brsr_a_markets_served') && (
+                {inSection('III') && canEditQuestion('brsr_a_markets_served') && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1612,14 +1625,14 @@ export default function BRSRDetailsSection({
                     <TableRow className="bg-stone-50">
                       <TableHead className="w-[60%]">Location</TableHead>
                       <TableHead className="w-[30%]">Number (States/Countries)</TableHead>
-                      {isEditing && canEditQuestion('brsr_a_markets_served') && <TableHead className="w-[10%]">Action</TableHead>}
+                      {inSection('III') && canEditQuestion('brsr_a_markets_served') && <TableHead className="w-[10%]">Action</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.markets_served.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                          {inSection('III') && canEditQuestion('brsr_a_markets_served') ? (
                             <Select
                               value={row.location_type}
                               onValueChange={(value) => handleTableRowChange('markets_served', index, 'location_type', value, 'brsr_a_markets_served')}
@@ -1639,7 +1652,7 @@ export default function BRSRDetailsSection({
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEditing && canEditQuestion('brsr_a_markets_served') ? (
+                          {inSection('III') && canEditQuestion('brsr_a_markets_served') ? (
                             <Input
                               type="number"
                               value={row.number}
@@ -1652,7 +1665,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.number}</span>
                           )}
                         </TableCell>
-                        {isEditing && canEditQuestion('brsr_a_markets_served') && (
+                        {inSection('III') && canEditQuestion('brsr_a_markets_served') && (
                           <TableCell>
                             <Button
                               type="button"
@@ -1674,28 +1687,6 @@ export default function BRSRDetailsSection({
             )}
           </div>
 
-          {/* Save Button - only shown in edit mode */}
-          {isEditing && (
-            <div className="flex justify-end pt-4 border-t border-stone-200">
-              <Button
-                type="button"
-                onClick={saveBRSRDetails}
-                disabled={saving}
-                className="bg-primary hover:bg-primary/90 text-white"
-                data-testid="save-brsr-details-btn"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save BRSR Details'
-                )}
-              </Button>
-            </div>
-          )}
-
           {/* IV-VII. Year-Specific BRSR Sections (Employees, CSR, Holdings, Complaints) */}
           <div className="pt-6 border-t border-stone-200">
             <BRSRYearlySections 
@@ -1706,6 +1697,11 @@ export default function BRSRDetailsSection({
               isAdmin={isAdmin}
               statusFilter={statusFilter}
               questionProgress={questionProgress}
+              editingSection={editingSection}
+              onEditSection={setEditingSection}
+              approvalEnabled={approvalEnabled}
+              questionStatuses={questionStatuses}
+              onSaved={() => { fetchQuestionStatuses(); if (onSaved) onSaved(); }}
               liveKPIAutofillByQuestion={liveKPIAutofillByQuestion}
             />
           </div>

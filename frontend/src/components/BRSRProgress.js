@@ -9,11 +9,12 @@ const SECTION_META = [
 
 const STATUS_META = [
   { key: 'pending', label: 'Pending', color: '#c4c8cc' },
+  { key: 'draft', label: 'Draft', color: '#c98a1a' },
   { key: 'saved', label: 'Saved', color: '#3b6aa0' },
   { key: 'approved', label: 'Approved', color: '#1f7a4d' },
   { key: 'rejected', label: 'Rejected', color: '#b03a3a' },
 ];
-const SEGMENT_ORDER = ['approved', 'saved', 'rejected', 'pending'];
+const SEGMENT_ORDER = ['approved', 'saved', 'draft', 'rejected', 'pending'];
 const colorOf = (key) => STATUS_META.find((s) => s.key === key).color;
 
 export function BRSRSectionCards({ progress, activeTab, onSelect }) {
@@ -107,5 +108,40 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter 
         </div>
       </div>
     </div>
+  );
+}
+
+export function BRSRPageNav({ progress, activeTab }) {
+  const groups = progress?.sections?.[activeTab]?.groups || [];
+  if (groups.length < 2) return null;
+  const goTo = (id) => document.getElementById(`brsr-group-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return (
+    <aside className="hidden lg:block" data-testid="brsr-page-nav">
+      <div className="sticky top-24 rounded-xl border border-stone-200 bg-white p-4 max-h-[calc(100vh-7rem)] overflow-y-auto">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">On this page</p>
+        <ul className="space-y-1">
+          {groups.map((g, index) => {
+            const percent = g.total ? Math.round((g.answered / g.total) * 100) : 0;
+            return (
+              <li key={g.id}>
+                <button type="button" onClick={() => goTo(g.id)} data-testid={`brsr-nav-${g.id}`}
+                        className="w-full rounded-lg px-2 py-2 text-left transition-colors duration-200 hover:bg-stone-50">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-md bg-stone-100 px-1 text-xs font-semibold text-stone-700">
+                      {g.numeral || g.id.replace('P', '') || index + 1}
+                    </span>
+                    <span className="flex-1 text-sm text-stone-800 leading-snug">{g.label}</span>
+                    <span className="text-xs tabular-nums text-stone-500">{g.answered}/{g.total}</span>
+                  </div>
+                  <div className="mt-1.5 ml-8 h-1 rounded-full bg-stone-100 overflow-hidden">
+                    <div className="h-full rounded-full bg-[#1f7a4d] transition-[width] duration-500" style={{ width: `${percent}%` }} />
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </aside>
   );
 }
