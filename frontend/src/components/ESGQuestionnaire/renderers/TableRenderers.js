@@ -172,39 +172,43 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
     );
   };
 
+  const groups = [
+    { key: 'review_by', options: reviewOptions, tone: 'bg-emerald-50 text-emerald-900',
+      label: 'Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee' },
+    { key: 'frequency', options: frequencyOptions, tone: 'bg-sky-50 text-sky-900',
+      label: 'Frequency (Annually / Half yearly / Quarterly / Any other – please specify)' },
+  ];
+
   return (
     <div className="mt-3 overflow-x-auto border border-stone-200" data-testid="brsr-ngrbc-review-matrix">
-      <Table className="min-w-[2200px]">
+      <Table className="w-full">
         <TableHeader>
           <TableRow className="bg-stone-100">
-            <TableHead rowSpan={2} className="sticky left-0 z-20 w-72 border-r bg-stone-100 text-xs">Subject for Review</TableHead>
-            <TableHead colSpan={principles.length} className="border-r bg-emerald-50 text-center text-xs font-semibold text-emerald-900" data-testid="brsr-review-by-header">
-              Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee
-            </TableHead>
-            <TableHead colSpan={principles.length} className="bg-sky-50 text-center text-xs font-semibold text-sky-900" data-testid="brsr-review-frequency-header">
-              Frequency (Annually / Half yearly / Quarterly / Any other – please specify)
-            </TableHead>
-          </TableRow>
-          <TableRow className="bg-stone-50">
-            {principles.map((principle) => <TableHead key={`review-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
-            {principles.map((principle) => <TableHead key={`frequency-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
+            <TableHead className="w-24 border-r text-xs">Principle</TableHead>
+            {rows.map((row) => (
+              <TableHead key={row.key} className="min-w-[220px] border-r text-xs" data-testid={`brsr-review-col-${row.key}`}>{row.label}</TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.key}>
-              <TableCell className="sticky left-0 z-10 border-r bg-white text-xs font-medium">{row.label}</TableCell>
-              {principles.map((principle) => (
-                <TableCell key={`${row.key}-review-${principle}`} className="border-r p-1 text-center">
-                  {renderCell(row, 'review_by', principle, reviewOptions)}
+          {groups.map((group) => (
+            <React.Fragment key={group.key}>
+              <TableRow>
+                <TableCell colSpan={rows.length + 1} className={`text-xs font-semibold ${group.tone}`} data-testid={`brsr-review-group-${group.key}`}>
+                  {group.label}
                 </TableCell>
-              ))}
+              </TableRow>
               {principles.map((principle) => (
-                <TableCell key={`${row.key}-frequency-${principle}`} className="border-r p-1 text-center">
-                  {renderCell(row, 'frequency', principle, frequencyOptions)}
-                </TableCell>
+                <TableRow key={`${group.key}-${principle}`}>
+                  <TableCell className="border-r text-xs font-medium">{principle}</TableCell>
+                  {rows.map((row) => (
+                    <TableCell key={`${group.key}-${principle}-${row.key}`} className="border-r p-1">
+                      {renderCell(row, group.key, principle, group.options)}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
