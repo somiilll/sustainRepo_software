@@ -804,9 +804,9 @@ export default function BRSRDetailsSection({
          'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary',
          'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
       ))) && (statusFilter === 'all' || BASIC_FILTER_KEYS.some(matchesFilter)) && (
-      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
-        <div className="mb-4"><SectionHeading id="I">{sectionBar('I')}</SectionHeading></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+        <div><SectionHeading id="I">{sectionBar('I')}</SectionHeading></div>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CIN */}
               {(canSeeQuestion('brsr_a_cin')) && (
               <div className="space-y-2">
@@ -1160,8 +1160,8 @@ export default function BRSRDetailsSection({
 
           {/* BRSR Contact Person Section */}
           {(canSeeQuestion('brsr_a_contact_person')) && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-3">
               {renderQuestionHeader('BRSR Report Contact Person', 'brsr_a_contact_person', () => ({
                 name: formData.brsr_contact_name,
                 telephone: formData.brsr_contact_telephone,
@@ -1217,7 +1217,7 @@ export default function BRSRDetailsSection({
 
           {/* Radio Button Sections - Stock Exchange & Reporting Boundary */}
           {(canSeeQuestion('brsr_a_stock_exchange') || canSeeQuestion('brsr_a_reporting_boundary')) && (
-          <div>
+          <div className="mt-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(canSeeQuestion('brsr_a_stock_exchange')) && (
               <div className="space-y-3">
@@ -1278,11 +1278,11 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
-            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
             {(canSeeQuestion('brsr_a_business_activities')) && (
-            <div>
+            <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Business Activities Accounting for 90% of Turnover', 'brsr_a_business_activities', () => formData.business_activities, true)}
                 {inSection('II') && canEditQuestion('brsr_a_business_activities') && (
@@ -1372,7 +1372,7 @@ export default function BRSRDetailsSection({
 
             {/* Products/Services Table */}
             {(canSeeQuestion('brsr_a_products_services')) && (
-            <div>
+            <div className="mt-8">
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Products/Services Accounting for 90% of Turnover', 'brsr_a_products_services', () => formData.products_services, true)}
                 {inSection('II') && canEditQuestion('brsr_a_products_services') && (
@@ -1461,11 +1461,11 @@ export default function BRSRDetailsSection({
             )}
 
             </div>
-            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-10">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
             {(canSeeQuestion('brsr_a_plants_offices')) && (
-            <div>
+            <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
 
@@ -1525,7 +1525,7 @@ export default function BRSRDetailsSection({
 
             {/* Markets Served Table */}
             {(canSeeQuestion('brsr_a_markets_served')) && (
-            <div>
+            <div className="mt-8">
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
 
@@ -1572,7 +1572,7 @@ export default function BRSRDetailsSection({
 
               {/* Export Contribution - separate question key */}
               {(canSeeQuestion('brsr_a_export_contribution')) && (
-              <div className="space-y-2">
+              <div className="space-y-2 mt-8">
                 {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
                 {inSection('III') && canEditQuestion('brsr_a_export_contribution') ? (
                   <Input
@@ -1594,7 +1594,7 @@ export default function BRSRDetailsSection({
               
               {/* Customer Types Brief - separate question key */}
               {(canSeeQuestion('brsr_a_customer_types')) && (
-              <div className="space-y-2">
+              <div className="space-y-2 mt-8">
                 {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
                 {inSection('III') && canEditQuestion('brsr_a_customer_types') ? (
                   <Textarea
