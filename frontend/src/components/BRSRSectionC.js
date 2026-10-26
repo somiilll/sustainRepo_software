@@ -65,7 +65,12 @@ const TRAINING_COLUMN_LABELS = {
   pct: '%age of persons in respective category covered by the awareness programmes',
 };
 
-const applyConfigOverrides = (config) => {
+const HIDDEN_DESCRIPTION_KEYS = new Set([
+  'env_life_cycle_assessment', 'env_lca_concerns_actions', 'env_recycled_input_material', 'env_reclaimed_products_packaging',
+]);
+
+const applyConfigOverrides = (rawConfig) => {
+  const config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
   if (config.question_key === 'p1_fines_penalties') {
     return { ...config, question: 'Details of fines / penalties /punishment/ award/ compounding fees/ settlement amount paid in proceedings (by the entity or by directors / KMPs) with regulators/ law enforcement agencies/ judicial institutions, in the financial year, in the following format' };
   }
