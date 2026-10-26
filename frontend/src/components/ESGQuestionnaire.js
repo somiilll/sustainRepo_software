@@ -3697,18 +3697,18 @@ export default function ESGQuestionnaire({
           <NoAssignmentMessage section={section} />
         )
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-8">
           {visibleConfigs.length === 0 && (
             <p className="text-center py-10 text-sm text-text-muted" data-testid="brsr-filter-empty">
               No questions with this status.
             </p>
           )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
-            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 space-y-3">
+            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 rounded-xl border border-emerald-100 bg-white p-5 space-y-5">
               {group !== 'General' && (
-                <h3 className="font-semibold text-sm text-text-primary px-1">{group}</h3>
+                <h3 className="font-bold text-base text-text-primary px-1">{group}</h3>
               )}
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {questions.map((config) => (
                   <div key={config.question_key} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
                   <QuestionRenderer

@@ -869,3 +869,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Edit and save buttons now sit to the left of the status badge on each question.
 - "On this page" numerals fixed: Section B shows 1, 2 and Section C shows P1–P9. Before, `replace('P','')` stripped the first "P" from names such as "Policy and management processes".
 - ESLint passed. No browser test or testing agent, per the user.
+
+- Section B: each group (heading + its question boxes) sits in a white box with a very light green border, bold heading, and larger gaps between groups and questions. Section C gap between principle boxes increased. ESLint passed, no browser test.
