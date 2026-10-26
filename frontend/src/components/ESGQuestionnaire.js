@@ -1132,8 +1132,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {renderStatusBadge()}
-          {renderVersionHistoryButton()}
           {perQuestionEdit && canEditQuestion && !localEditing && (
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setLocalEditing(true)}
                     data-testid={`edit-${config.question_key}`}>
@@ -1156,6 +1154,8 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
               </Button>
             </>
           )}
+          {renderStatusBadge()}
+          {renderVersionHistoryButton()}
         </div>
       </div>
       {description && <p className="text-xs text-text-muted mt-1">{description}</p>}
@@ -3704,16 +3704,14 @@ export default function ESGQuestionnaire({
             </p>
           )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
-            <div key={group} id={`brsr-group-${group}`} className="border rounded-lg bg-white scroll-mt-24">
+            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 space-y-3">
               {group !== 'General' && (
-                <div className="px-4 py-3 bg-stone-50 border-b rounded-t-lg">
-                  <h3 className="font-medium text-sm">{group}</h3>
-                </div>
+                <h3 className="font-semibold text-sm text-text-primary px-1">{group}</h3>
               )}
-              <div className="p-4">
+              <div className="space-y-4">
                 {questions.map((config) => (
+                  <div key={config.question_key} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
                   <QuestionRenderer
-                    key={config.question_key}
                     config={config}
                     value={mergeBRSRAutofill(responses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
@@ -3737,6 +3735,7 @@ export default function ESGQuestionnaire({
                     lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
                     dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
                   />
+                  </div>
                 ))}
               </div>
       <QuestionVersionHistory
