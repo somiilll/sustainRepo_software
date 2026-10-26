@@ -834,3 +834,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## 2026-10-23 — BRSR download menu
 - Removed the "KPI definitions & BRSR mappings" workbook option from `BRSRExportButton.jsx`; the Download menu now only offers PDF. The backend endpoint `/api/brsr-report/kpi-mappings.xlsx` is untouched. ESLint passed, no browser test.
 - Finding: the 27 BRSR mappings for Health & Safety Incidents KPIs (reference P3-E11) are all `needs_exact_destination` with no `question_key` or `answer_path`, so they do not fill the BRSR report's `p3_safety_incidents` table yet. The 3 rehabilitation KPIs (P3-L3) are in the same state.
+
+## 2026-10-26 — P3-E11 / P3-L3 BRSR mappings (local DB only)
+- New script `backend/scripts/sync_brsr_p3_safety_kpis.py` (backs up to `/app/backups/brsr_p3_safety_sync_*.json`, idempotent). It creates derived KPIs and exact mappings, for Employees and Workers:
+  - `p3_safety_incidents`: LTIFR (lost-time injuries ÷ hours worked × 1,000,000), recordable injuries, fatalities, and high-consequence injuries + recordable ill-health cases.
+  - `p3_rehabilitation_injured`: affected (high-consequence + ill-health + fatalities) and rehabilitated.
+- New composite operation `ratio_scaled` (with `scale`) in `proposal_calculator.py`. `live_kpi_autofill.py` now maps the `affected` and `rehabilitated` logical columns to `cur_/prev_` columns.
+- Self-tested with a temporary record, which was deleted afterwards. Employees: LTIFR 5, affected 7. Workers: LTIFR 3. Not run on Staging or Production; copy over with a backup first. No testing agent or browser test was run.

@@ -262,6 +262,7 @@ async def calculate_kpi_contribution(
         ).to_list(1000)
         definitions_by_id = {definition["id"]: definition for definition in definitions}
         values = []
+        ordered = []
         source_records = []
         for source_id in source_ids:
             source_kpi = definitions_by_id.get(source_id)
@@ -270,6 +271,7 @@ async def calculate_kpi_contribution(
             source_value, records = await calculate_kpi_contribution(
                 source_kpi, org_id, reporting_period, mapping_rule, visited, target_unit
             )
+            ordered.append(float(source_value) if source_value is not None else None)
             if source_value is not None:
                 values.append(float(source_value))
                 source_records.extend(records)
@@ -280,6 +282,9 @@ async def calculate_kpi_contribution(
             result = sum(values) / len(values)
         elif operation == "ratio_percent":
             result = (values[0] / values[1] * 100) if len(values) >= 2 and values[1] else None
+        elif operation == "ratio_scaled":
+            num, den = (ordered + [None, None])[:2]
+            result = (num / den * float(composite.get("scale") or 1)) if num is not None and den else None
         else:
             result = sum(values)
         return result, source_records
