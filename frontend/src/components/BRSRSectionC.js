@@ -108,11 +108,29 @@ const applyConfigOverrides = (rawConfig) => {
   }
   if (config.question_key === 'p3_union_membership' && config.table_config?.fixed_rows) {
     return { ...config, table_config: { ...config.table_config, fixed_rows: [
-      { key: 'perm_emp_total', label: 'Total Permanent Employees' },
+      { key: 'perm_emp_total', label: 'Total Permanent Employees', section_header: true },
       { key: 'perm_emp_male', label: 'Male', child: true }, { key: 'perm_emp_female', label: 'Female', child: true },
-      { key: 'perm_workers_total', label: 'Total Permanent Workers' },
+      { key: 'perm_workers_total', label: 'Total Permanent Workers', section_header: true },
       { key: 'perm_workers_male', label: 'Male', child: true }, { key: 'perm_workers_female', label: 'Female', child: true },
     ] } };
+  }
+  if (config.question_key === 'p3_safety_incidents' && config.table_config?.fixed_rows) {
+    const mk = (who, suffix) => [
+      { key: `ltifr_${suffix}`, label: 'Lost Time Injury Frequency Rate (LTIFR) (per one million-person hours worked)', child: true },
+      { key: `recordable_injuries_${suffix}`, label: 'Total recordable work-related injuries', child: true },
+      { key: `fatalities_${suffix}`, label: 'No. of fatalities', child: true },
+      { key: `high_consequence_${suffix}`, label: 'High consequence work-related injury or ill-health (excl. fatalities)', child: true },
+    ];
+    return { ...config, table_config: { ...config.table_config, fixed_rows: [
+      { key: 'employees_header', label: 'Employees', section_header: true }, ...mk('Employees', 'employees'),
+      { key: 'workers_header', label: 'Workers', section_header: true }, ...mk('Workers', 'workers'),
+    ] } };
+  }
+  if (config.question_key === 'p3_ohs_management_system' && config.conditional_fields) {
+    return { ...config, conditional_fields: config.conditional_fields.map(f => ({ ...f, show_when: 'yes' })) };
+  }
+  if (['p3_worker_hazard_reporting', 'p3_non_occupational_healthcare'].includes(config.question_key)) {
+    return { ...config, conditional_fields: [] };
   }
   if (['p3_training_details', 'performance_career_reviews'].includes(config.question_key) && config.table_config?.fixed_rows) {
     const rowsCfg = [
@@ -195,7 +213,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
           .then(r => r.data.statuses || {}).catch(() => ({})),
       ]);
 
-      setAllConfigs(configsRes);
+      setAllConfigs(configsRes.filter(c => c.question_key !== 'ltifr_employees_workers'));
       setAllResponses(responsesRes);
       setApprovalStatuses(statusesRes);
     } catch (err) {
