@@ -205,16 +205,16 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
   return (
     <div className="mt-3 space-y-4">
       {/* Mode Selection */}
-      <div className="p-3 bg-stone-50 rounded-lg">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
         <Label className="text-sm font-medium">Mode</Label>
-        <RadioGroup value={mode} onValueChange={handleModeChange} className="mt-2 flex gap-4">
+        <RadioGroup value={mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="together" id="mode-together" />
-            <Label htmlFor="mode-together" className="text-sm cursor-pointer">Fill All Principles Together</Label>
+            <Label htmlFor="mode-together" className="text-xs cursor-pointer">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="separate" id="mode-separate" />
-            <Label htmlFor="mode-separate" className="text-sm cursor-pointer">Fill Principle-wise Separately</Label>
+            <Label htmlFor="mode-separate" className="text-xs cursor-pointer">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
@@ -1320,11 +1320,11 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
         <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id="mode-all" />
-            <Label htmlFor="mode-all" className="text-sm">Fill All Principles Together</Label>
+            <Label htmlFor="mode-all" className="text-xs">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id="mode-wise" />
-            <Label htmlFor="mode-wise" className="text-sm">Fill Principle-wise Separately</Label>
+            <Label htmlFor="mode-wise" className="text-xs">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
@@ -1438,11 +1438,11 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
         <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id={`${config.question_key}-mode-all`} />
-            <Label htmlFor={`${config.question_key}-mode-all`} className="text-sm">Fill All Principles Together</Label>
+            <Label htmlFor={`${config.question_key}-mode-all`} className="text-xs">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id={`${config.question_key}-mode-wise`} />
-            <Label htmlFor={`${config.question_key}-mode-wise`} className="text-sm">Fill Principle-wise Separately</Label>
+            <Label htmlFor={`${config.question_key}-mode-wise`} className="text-xs">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
