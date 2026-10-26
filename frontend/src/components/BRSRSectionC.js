@@ -42,7 +42,8 @@ const PRINCIPLE_COLORS = {
 
 const LEADERSHIP_KEYS = new Set([
   'p1_value_chain_awareness', 'p1_conflict_management_process',
-  'env_life_cycle_assessment', 'env_lca_concerns_actions',
+  'env_life_cycle_assessment', 'env_lca_concerns_actions', 'env_recycled_input_material',
+  'env_reclaimed_products_packaging', 'p2_reclaimed_products_pct',
   'p3_life_insurance_package', 'p3_value_chain_statutory_dues', 'p3_rehabilitation_injured',
   'transition_assistance_programs', 'p3_value_chain_assessment', 'p3_value_chain_corrective',
   'p4_se_3', 'p4_se_4', 'p4_se_5',
@@ -71,6 +72,12 @@ const applyConfigOverrides = (config) => {
   if (config.question_key === 'p1_training_awareness_coverage' && config.table_config?.columns) {
     return { ...config, table_config: { ...config.table_config, columns: config.table_config.columns.map(c => ({ ...c, label: TRAINING_COLUMN_LABELS[c.key] || c.label })) } };
   }
+  if (config.question_key === 'env_sustainable_rd_capex' && config.table_config?.columns) {
+    return { ...config, table_config: { ...config.table_config, columns: config.table_config.columns.map(c => c.key === 'details' ? { ...c, label: 'Details of improvements in environmental and social impacts' } : c) } };
+  }
+  if (config.question_key === 'env_end_of_life_reclamation' && config.table_columns) {
+    return { ...config, table_columns: config.table_columns.map(c => c.key === 'product_category' ? { ...c, options: c.options.map(o => o === 'Plastics' ? 'Plastics (including packaging)' : o) } : c) };
+  }
   if (config.question_key === 'p1_conflict_of_interest_complaints' && config.table_config) {
     const num = { type: 'number' };
     const txt = { type: 'text' };
@@ -86,7 +93,7 @@ const applyConfigOverrides = (config) => {
       ],
     } };
   }
-  if (['p1_anticorruption_policy', 'p1_conflict_management_process'].includes(config.question_key) && config.conditional_fields) {
+  if (['p1_anticorruption_policy', 'p1_conflict_management_process', 'env_sustainable_sourcing'].includes(config.question_key) && config.conditional_fields) {
     return { ...config, conditional_fields: config.conditional_fields.map(f => ({ ...f, show_when: 'yes' })) };
   }
   return config;
