@@ -862,3 +862,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - ESLint passed and the progress endpoint was checked. No browser test, per the user.
 
 - Section A (`BRSRDetailsSection.js`, non-collapsible): removed the outer white bordered wrapper and its padding, so only the per-topic I–VII boxes show. ESLint passed, no browser test.
+
+## 2026-10-26 — BRSR layout fixes
+- Section A: Contact Person and Listing & Reporting Information now sit inside the "I. Details of the listed entity" box. The grey line between III and IV is removed.
+- Section B: the outer group card is removed and each question has its own white rounded box. Section C principles are rounded white cards.
+- Edit and save buttons now sit to the left of the status badge on each question.
+- "On this page" numerals fixed: Section B shows 1, 2 and Section C shows P1–P9. Before, `replace('P','')` stripped the first "P" from names such as "Policy and management processes".
+- ESLint passed. No browser test or testing agent, per the user.
