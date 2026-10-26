@@ -855,3 +855,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section A (`BRSRDetailsSection`, `BRSRYearlySections`, new `BRSRSectionEdit.js`) edits per section I–VII. Each section has its own Edit, Cancel, Save as Draft and Save/Submit. Status badges stay on each question. Saves post each changed question to `/esg-questionnaire/response` with status draft or saved. Yearly blocks were reordered to IV Employees, V Holding, VI CSR, VII Transparency.
 - New right-side "On this page" panel (`BRSRPageNav`) scrolls to `#brsr-group-<id>`. It is hidden when a section has fewer than 2 groups, so it does not show on Section B today.
 - Only ESLint and the progress endpoint were checked. No browser or testing-agent run, per the user.
+
+## 2026-10-26 — Section B groups and Section A boxes
+- Section B questions now carry `group`: "Policy and management processes" (6) and "Governance, leadership and oversight" (6). Applied to the local DB by `backend/scripts/set_brsr_section_b_groups.py` (backup in `/app/backups/`). Staging and Production still need the script run. Groups show as headings and in the "On this page" panel.
+- Section A topics I–VII each sit in a white rounded bordered box (`BRSRDetailsSection.js`, `BRSRYearlySections.js`).
+- ESLint passed and the progress endpoint was checked. No browser test, per the user.

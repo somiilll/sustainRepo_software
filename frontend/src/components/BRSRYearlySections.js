@@ -766,6 +766,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-4">
       <SectionHeading id="IV">{sectionBar('IV')}</SectionHeading>
       {/* 1. Employee & Worker Details */}
       {!hideSections.includes('employees_workers') && (canSeeQuestion('brsr_a_employees_workers') || canSeeQuestion('brsr_a_differently_abled')) && (
@@ -1005,6 +1006,8 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       </Collapsible>
       )}
 
+      </div>
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-4">
       <SectionHeading id="V">{sectionBar('V')}</SectionHeading>
       {/* 4. Holding/Subsidiary Companies */}
       {(canSeeQuestion('brsr_a_holding_subsidiary')) && (
@@ -1088,6 +1091,8 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       </Collapsible>
       )}
 
+      </div>
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-4">
       <SectionHeading id="VI">{sectionBar('VI')}</SectionHeading>
       {/* 3. CSR Applicability */}
       {(canSeeQuestion('brsr_a_csr_applicability')) && (
@@ -1132,6 +1137,8 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       </Collapsible>
       )}
 
+      </div>
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-4">
       <SectionHeading id="VII">{sectionBar('VII')}</SectionHeading>
       {/* 6. Complaints & Grievances */}
       {!hideSections.includes('complaints_grievances') && (canSeeQuestion('brsr_a_complaints_grievances')) && (
@@ -1348,6 +1355,8 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         </CollapsibleContent>
       </Collapsible>
       )}
+
+      </div>
 
       {/* History Modal */}
       <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>

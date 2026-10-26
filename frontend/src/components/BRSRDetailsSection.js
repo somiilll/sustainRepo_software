@@ -802,7 +802,7 @@ export default function BRSRDetailsSection({
          'brsr_a_paid_up_capital', 'brsr_a_contact_person', 'brsr_a_reporting_boundary',
          'brsr_a_assurance_provider', 'brsr_a_assurance_type'].includes(k)
       ))) && (statusFilter === 'all' || BASIC_FILTER_KEYS.some(matchesFilter)) && (
-      <div>
+      <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
         <div className="mb-4"><SectionHeading id="I">{sectionBar('I')}</SectionHeading></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CIN */}
@@ -1323,6 +1323,7 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-6">
             <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
             {(canSeeQuestion('brsr_a_business_activities')) && (
@@ -1504,6 +1505,8 @@ export default function BRSRDetailsSection({
             </div>
             )}
 
+            </div>
+            <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm space-y-6">
             <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
             {(canSeeQuestion('brsr_a_plants_offices')) && (
@@ -1685,6 +1688,7 @@ export default function BRSRDetailsSection({
               </div>
             </div>
             )}
+            </div>
           </div>
 
           {/* IV-VII. Year-Specific BRSR Sections (Employees, CSR, Holdings, Complaints) */}
