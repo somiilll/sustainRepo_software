@@ -160,9 +160,9 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
     // View mode
     return (
       <div className="mt-2 space-y-3">
-        <p className="text-sm"><strong>Mode:</strong> {mode === 'together' ? 'Fill All Principles Together' : 'Fill Principle-wise Separately'}</p>
+        <Badge variant="outline" className="mb-2">Mode: {mode === 'together' ? 'All Principles Together' : 'Principle-wise'}</Badge>
         {mode === 'together' ? (
-          <div className="pl-4 border-l-2 border-stone-200">
+          <div className="bg-stone-50 p-3 rounded">
             <p className="text-sm"><strong>Policies cover NGRBCs:</strong> {allTogether.covered === true ? 'Yes' : allTogether.covered === false ? 'No' : '-'}</p>
             {allTogether.covered === true && (
               <>
