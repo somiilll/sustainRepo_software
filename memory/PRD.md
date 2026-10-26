@@ -848,3 +848,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Orgs without an approval workflow do not see the Approved/Rejected chips, the approved segment, or the "· N approved" text.
 - Chips filter the question list in Section A (`BRSRDetailsSection`, `BRSRYearlySections`), Section B (`ESGQuestionnaire`) and Section C (`BRSRSectionC`, which auto-expands the principles that match).
 - Checked with a login, the progress endpoint, and one screenshot (desktop and mobile) before the approval-chip change. The approval-chip change was checked only with the endpoint and ESLint, not in the browser. No testing agent run, per the user.
+
+## 2026-10-26 — BRSR per-question and per-section editing, Draft filter, "On this page" panel
+- Progress API now also returns a `draft` status and `groups` (A: I–VII, B: question groups, C: P1–P9 with answered/total). A Draft chip and an amber bar segment were added. Drafts do not count as answered.
+- The global Edit button on the BRSR page is removed. Section B and C questions each have their own Edit button on the question row (`QuestionRenderer` with `perQuestionEdit`). While editing it shows Cancel, Save as Draft, and Save Response or Submit Response. Submit Response shows only when the org has an approval workflow and the user is not an admin. The old principle-level and global save buttons are removed.
+- Section A (`BRSRDetailsSection`, `BRSRYearlySections`, new `BRSRSectionEdit.js`) edits per section I–VII. Each section has its own Edit, Cancel, Save as Draft and Save/Submit. Status badges stay on each question. Saves post each changed question to `/esg-questionnaire/response` with status draft or saved. Yearly blocks were reordered to IV Employees, V Holding, VI CSR, VII Transparency.
+- New right-side "On this page" panel (`BRSRPageNav`) scrolls to `#brsr-group-<id>`. It is hidden when a section has fewer than 2 groups, so it does not show on Section B today.
+- Only ESLint and the progress endpoint were checked. No browser or testing-agent run, per the user.
