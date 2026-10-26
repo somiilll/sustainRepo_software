@@ -185,7 +185,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
           <div className="space-y-2">
             {NGRBC_PRINCIPLES.map(p => (
               <div key={p.key} className="pl-4 border-l-2 border-stone-200 py-1">
-                <p className="text-sm font-medium">{p.key}: {p.name}</p>
+                <p className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</p>
                 <p className="text-sm"><strong>Covered:</strong> {principleWise[p.key]?.covered === true ? 'Yes' : principleWise[p.key]?.covered === false ? 'No' : '-'}</p>
                 {principleWise[p.key]?.covered === true && (
                   <>
@@ -1357,43 +1357,30 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-x-auto border rounded-lg">
-            <Table className="w-full table-fixed min-w-[720px]">
-              <TableHeader>
-                <TableRow className="bg-stone-50">
-                  {NGRBC_PRINCIPLES.map((p) => (
-                    <TableHead key={p.key} className="text-center text-xs font-semibold border-r last:border-r-0" title={p.name}>{p.key}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  {NGRBC_PRINCIPLES.map((p) => {
-                    const pData = data.principles?.[p.key] || {};
-                    return (
-                      <TableCell key={p.key} className="p-2 border-r last:border-r-0">
-                        <RadioGroup
-                          value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
-                          onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
-                          className="flex flex-row items-center justify-center gap-3"
-                        >
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <RadioGroupItem value="yes" data-testid={`${config.question_key}-${p.key}-yes`} /> Yes
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <RadioGroupItem value="no" data-testid={`${config.question_key}-${p.key}-no`} /> No
-                          </label>
-                        </RadioGroup>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          {hasInlineReasons && NGRBC_PRINCIPLES.map((p) => {
+          {NGRBC_PRINCIPLES.map((p) => {
             const pData = data.principles?.[p.key] || {};
-            return pData.enabled === false ? <InlineReasonsForm key={p.key} pKey={p.key} pData={pData} /> : null;
+            return (
+              <div key={p.key} className="p-3 border rounded-lg">
+                <Label className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</Label>
+                <div className="mt-2">
+                  <RadioGroup
+                    value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
+                    onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
+                    className="flex flex-row gap-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="yes" id={`${config.question_key}-${p.key}-yes`} data-testid={`${config.question_key}-${p.key}-yes`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-yes`} className="text-sm">Yes</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="no" id={`${config.question_key}-${p.key}-no`} data-testid={`${config.question_key}-${p.key}-no`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-no`} className="text-sm">No</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                {hasInlineReasons && pData.enabled === false && <InlineReasonsForm pKey={p.key} pData={pData} />}
+              </div>
+            );
           })}
           <div className="p-4 border rounded-lg">
             <Label className="text-sm font-medium">Notes</Label>
@@ -1481,10 +1468,9 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
       ) : (
         <div className="space-y-3">
           {NGRBC_PRINCIPLES.map((p) => (
-            <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
+            <div key={p.key} className="p-3 border rounded-lg">
               <div className="mb-2">
-                <span className="font-medium text-sm">{p.key}</span>
-                <span className="text-xs text-text-muted ml-2">{p.name}</span>
+                <span className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</span>
               </div>
               <Textarea
                 value={data.principles?.[p.key] || ''}
@@ -1748,7 +1734,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
               <TableBody>
                 {NGRBC_PRINCIPLES.map(p => (
                   <TableRow key={p.key}>
-                    <TableCell className="font-medium text-sm">{p.key}</TableCell>
+                    <TableCell className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</TableCell>
                     {fields.filter(f => !f.conditional_on).map(f => (
                       <TableCell key={f.key} className="text-sm">
                         {data.principles?.[p.key]?.[f.key] || '-'}
@@ -1816,8 +1802,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
               {NGRBC_PRINCIPLES.map(p => (
                 <TableRow key={p.key}>
                   <TableCell className="font-medium text-sm sticky left-0 bg-stone-50 w-64 min-w-[16rem]">
-                    <div>{p.key}</div>
-                    <div className="text-xs text-text-muted font-normal">{p.name}</div>
+                    <div className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</div>
                   </TableCell>
                   {fields.map(f => (
                     <TableCell key={f.key} className="p-1">

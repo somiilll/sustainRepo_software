@@ -908,3 +908,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B: Yes/No radios sit on one row per principle in the P1–P9 table (table min-width 720px, scrolls on small screens). The independent-assessment principle-wise table's Principle column is wider (12rem) and shows the full principle name. ESLint passed; no tests run (user: no testing until told).
 
 - Section B: independent-assessment principle-wise table Principle column widened to 16rem. The P1–P9 Yes/No table for translated-to-procedures / value-chain questions has vertical lines between columns. ESLint passed; no tests run (user: no testing until told).
+
+- Section B principle-wise consistency: the translated-to-procedures / value-chain questions go back to Q1-style per-principle blocks (bordered box, violet "P3: Employee Wellbeing" title, Yes/No radios on one row, Notes box at the end). Every principle title in Section B (view mode, text principle question, tables) now uses the same violet "Pn: Name" style. ESLint passed; no tests run (user: no testing until told).
