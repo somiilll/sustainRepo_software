@@ -898,3 +898,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B review matrix: group bands and cells are centred; both subject columns have equal width (`table-fixed`); choosing "Any Other" for Frequency shows a "Please specify" text box (stored as `rows.<subject>.frequency_other.<principle>`; not yet mapped to the BRSR report). ESLint passed, no tests run, per the user.
 
 - Section B policy-coverage questions: removed the "Does policy cover this principle?" label per principle, and the green line before Board Approved / Web Link and the red line before Reasons (both modes). Section A IV: the workforce table titles (e.g. "a. Employees and workers (including differently abled)") are centred. ESLint passed, no tests run.
+
+- Section A IV workforce tables: table titles are left-aligned again; the group heading rows (Employees, Workers etc.) inside the tables are centred. ESLint passed, no tests run.

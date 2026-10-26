@@ -227,7 +227,7 @@ const WorkforceCompositionTable = ({ title, groups, details, setDetails, editabl
 
   return (
     <div className="space-y-2" data-testid={testId}>
-      <h5 className="text-center text-sm font-semibold text-stone-800">{title}</h5>
+      <h5 className="text-sm font-semibold text-stone-800">{title}</h5>
       <div className="overflow-x-auto border border-stone-200">
         <Table className="min-w-[760px] table-fixed">
           <TableHeader>
@@ -268,7 +268,7 @@ const WorkforceCompositionTable = ({ title, groups, details, setDetails, editabl
               const total = totalMale + totalFemale;
               return [
                 <TableRow key={`${group.key}-heading`} className="bg-emerald-50/60">
-                  <TableCell colSpan={7} className="text-xs font-bold uppercase text-emerald-900">{group.heading}</TableCell>
+                  <TableCell colSpan={7} className="text-center text-xs font-bold uppercase text-emerald-900">{group.heading}</TableCell>
                 </TableRow>,
                 ...detailRows,
                 <TableRow key={`${group.key}-total`} className="bg-stone-50 font-semibold">
