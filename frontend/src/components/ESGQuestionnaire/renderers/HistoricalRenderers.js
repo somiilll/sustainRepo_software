@@ -137,17 +137,32 @@ export function HistoricalMaterialPercentageTableRenderer({ config, value, onCha
     if (rows.length > 1) onChange(rows.filter((_, i) => i !== index));
   };
   
+  const renderHeader = (withAction) => {
+    const [first, ...rest] = columns;
+    const groupLabel = (rest[0]?.label || "").replace(/\s*\((Current|Previous) FY\)\s*$/i, "");
+    return (
+      <TableHeader>
+        <TableRow className="bg-stone-50">
+          <TableHead rowSpan={2} className="text-xs font-medium border-r" style={{ width: first?.width }}>{first?.label}</TableHead>
+          <TableHead colSpan={rest.length} className="text-xs font-medium text-center border-b">{groupLabel}</TableHead>
+          {withAction && <TableHead rowSpan={2} className="w-12"></TableHead>}
+        </TableRow>
+        <TableRow className="bg-stone-50">
+          {rest.map((col) => (
+            <TableHead key={col.key} className="text-xs font-medium text-center" style={{ width: col.width }}>
+              {isPreviousFyColumn(col.key) ? fyLabels.previous : fyLabels.current}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+    );
+  };
+
   if (!isEditing) {
     return (
       <div className="mt-2 overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-stone-50">
-              {columns.map((col) => (
-                <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+          {renderHeader(false)}
           <TableBody>
             {rows.map((row, idx) => (
               <TableRow key={idx}>
@@ -168,20 +183,7 @@ export function HistoricalMaterialPercentageTableRenderer({ config, value, onCha
     <div className="mt-2 space-y-2">
       <div className="overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-stone-50">
-              {columns.map((col) => (
-                <TableHead 
-                  key={col.key} 
-                  className="text-xs font-medium"
-                  style={{ width: col.width }}
-                >
-                  {getColumnLabel(col)}
-                </TableHead>
-              ))}
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
+          {renderHeader(true)}
           <TableBody>
             {rows.map((row, rowIdx) => (
               <TableRow key={rowIdx}>
@@ -193,7 +195,7 @@ export function HistoricalMaterialPercentageTableRenderer({ config, value, onCha
                       onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)}
                       className="h-8 text-xs"
                       step="0.01"
-                      placeholder={col.label}
+                      placeholder={col.key === columns[0]?.key ? col.label : '%'}
                     />
                   </TableCell>
                 ))}
