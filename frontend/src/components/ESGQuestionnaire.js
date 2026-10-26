@@ -242,7 +242,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
           {/* Yes follow-up */}
           {allTogether.covered === true && (
-            <div className="pl-4 border-l-2 border-green-300 space-y-3">
+            <div className="space-y-3">
               <div>
                 <Label className="text-sm font-medium">Has the policy been approved by the Board?</Label>
                 <RadioGroup 
@@ -274,7 +274,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
           {/* No follow-up - Reasons */}
           {allTogether.covered === false && (
-            <div className="pl-4 border-l-2 border-red-300 space-y-2">
+            <div className="space-y-2">
               <Label className="text-sm font-medium">If No, please provide reasons:</Label>
               {noReasons.map(reason => (
                 <div key={reason.key} className="flex items-start gap-2">
@@ -311,7 +311,6 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
               <Label className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</Label>
               
               <div className="mt-2">
-                <Label className="text-xs text-stone-600">Does policy cover this principle?</Label>
                 <RadioGroup 
                   value={principleWise[p.key]?.covered === true ? 'yes' : principleWise[p.key]?.covered === false ? 'no' : ''} 
                   onValueChange={(v) => handlePrincipleChange(p.key, 'covered', v === 'yes')}
@@ -330,7 +329,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
               {/* Yes follow-up for this principle */}
               {principleWise[p.key]?.covered === true && (
-                <div className="mt-2 pl-3 border-l-2 border-green-300 space-y-2">
+                <div className="mt-2 space-y-2">
                   <div>
                     <Label className="text-xs text-stone-600">Board Approved?</Label>
                     <RadioGroup 
@@ -362,7 +361,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
               {/* No follow-up - Reasons for this principle */}
               {principleWise[p.key]?.covered === false && (
-                <div className="mt-2 pl-3 border-l-2 border-red-300 space-y-1">
+                <div className="mt-2 space-y-1">
                   <Label className="text-xs text-stone-600">Reasons:</Label>
                   {noReasons.map(reason => (
                     <div key={reason.key} className="flex items-start gap-2">

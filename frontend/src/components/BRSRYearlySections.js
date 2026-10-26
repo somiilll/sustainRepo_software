@@ -227,7 +227,7 @@ const WorkforceCompositionTable = ({ title, groups, details, setDetails, editabl
 
   return (
     <div className="space-y-2" data-testid={testId}>
-      <h5 className="text-sm font-semibold text-stone-800">{title}</h5>
+      <h5 className="text-center text-sm font-semibold text-stone-800">{title}</h5>
       <div className="overflow-x-auto border border-stone-200">
         <Table className="min-w-[760px] table-fixed">
           <TableHeader>
