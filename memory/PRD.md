@@ -873,3 +873,6 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B: each group (heading + its question boxes) sits in a white box with a very light green border, bold heading, and larger gaps between groups and questions. Section C gap between principle boxes increased. ESLint passed, no browser test.
 
 - Removed the BRSR / "N questions" / Expand All|Collapse All / "N/M answered (P%)" header strip from Sections B and C (Section A had none). Hidden only when `perQuestionEdit` is on, so GRI questionnaires keep it. Section tab content top margin is now 0, so the first box lines up with the "On this page" panel. ESLint passed, no browser test.
+
+- Status badges: a response saved with an empty value no longer shows "Saved". `esg_questionnaire/service.py` (`/statuses`) now omits docs with status saved, no approval state and an empty value. `_has_reportable_value` ignores a default `country` when the other address fields are empty. Cause: an earlier bulk "Save BRSR Details" wrote blank values (Registered Address with only country India, Contact Person with empty strings) as `saved`.
+- Spacing: the cards in Sections B and C sit inside an unclassed `<span>` wrapper, so the parents' `space-y-*` did not apply. The cards now carry their own `mb-*` margins. Checked with the API and ESLint; no testing agent, per the user.
