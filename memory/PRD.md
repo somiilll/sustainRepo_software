@@ -894,3 +894,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B review matrix: only the two group headings keep colour (green for review-by, blue for frequency). P1–P9 sub-headers and body cells are back to the original colours, and the thick divider is removed. ESLint passed, no tests run.
 
 - Section B "Details of Review of NGRBCs": the matrix is transposed. Columns are now the two subjects (Performance against policies…, Compliance with statutory requirements…). Rows are P1–P9 under two coloured group rows ("Indicate whether review was undertaken by…" in green, "Frequency (…)" in blue). Stored data shape is unchanged (`rows[subject][review_by|frequency][principle]`). ESLint passed, no tests run, per the user.
+
+- Section B review matrix: group bands and cells are centred; both subject columns have equal width (`table-fixed`); choosing "Any Other" for Frequency shows a "Please specify" text box (stored as `rows.<subject>.frequency_other.<principle>`; not yet mapped to the BRSR report). ESLint passed, no tests run, per the user.

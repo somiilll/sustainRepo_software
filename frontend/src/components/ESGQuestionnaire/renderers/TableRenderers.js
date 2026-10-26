@@ -159,16 +159,27 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
 
   const renderCell = (row, groupKey, principle, options) => {
     const cellValue = data[row.key]?.[groupKey]?.[principle] || '';
-    if (!isEditing) return <span className="text-xs">{cellValue || '-'}</span>;
+    const otherText = data[row.key]?.frequency_other?.[principle] || '';
+    const showOther = groupKey === 'frequency' && cellValue === 'Any Other';
+    if (!isEditing) {
+      return <span className="text-xs">{cellValue || '-'}{showOther && otherText ? `: ${otherText}` : ''}</span>;
+    }
     return (
-      <Select value={cellValue} onValueChange={(nextValue) => updateCell(row.key, groupKey, principle, nextValue)}>
-        <SelectTrigger className="h-8 min-w-28 text-xs" data-testid={`brsr-review-${row.key}-${groupKey}-${principle}`}>
-          <SelectValue placeholder="Select" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-col items-center gap-1">
+        <Select value={cellValue} onValueChange={(nextValue) => updateCell(row.key, groupKey, principle, nextValue)}>
+          <SelectTrigger className="h-8 w-full text-xs" data-testid={`brsr-review-${row.key}-${groupKey}-${principle}`}>
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {showOther && (
+          <Input value={otherText} placeholder="Please specify"
+                 onChange={(e) => updateCell(row.key, 'frequency_other', principle, e.target.value)}
+                 className="h-8 text-xs" data-testid={`brsr-review-${row.key}-frequency-other-${principle}`} />
+        )}
+      </div>
     );
   };
 
@@ -181,12 +192,16 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
 
   return (
     <div className="mt-3 overflow-x-auto border border-stone-200" data-testid="brsr-ngrbc-review-matrix">
-      <Table className="w-full">
+      <Table className="w-full table-fixed">
+        <colgroup>
+          <col style={{ width: '90px' }} />
+          {rows.map((row) => <col key={row.key} />)}
+        </colgroup>
         <TableHeader>
           <TableRow className="bg-stone-100">
-            <TableHead className="w-24 border-r text-xs">Principle</TableHead>
+            <TableHead className="border-r text-center text-xs">Principle</TableHead>
             {rows.map((row) => (
-              <TableHead key={row.key} className="min-w-[220px] border-r text-xs" data-testid={`brsr-review-col-${row.key}`}>{row.label}</TableHead>
+              <TableHead key={row.key} className="border-r text-center text-xs" data-testid={`brsr-review-col-${row.key}`}>{row.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -194,15 +209,15 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
           {groups.map((group) => (
             <React.Fragment key={group.key}>
               <TableRow>
-                <TableCell colSpan={rows.length + 1} className={`text-xs font-semibold ${group.tone}`} data-testid={`brsr-review-group-${group.key}`}>
+                <TableCell colSpan={rows.length + 1} className={`text-center text-xs font-semibold ${group.tone}`} data-testid={`brsr-review-group-${group.key}`}>
                   {group.label}
                 </TableCell>
               </TableRow>
               {principles.map((principle) => (
                 <TableRow key={`${group.key}-${principle}`}>
-                  <TableCell className="border-r text-xs font-medium">{principle}</TableCell>
+                  <TableCell className="border-r text-center text-xs font-medium">{principle}</TableCell>
                   {rows.map((row) => (
-                    <TableCell key={`${group.key}-${principle}-${row.key}`} className="border-r p-1">
+                    <TableCell key={`${group.key}-${principle}-${row.key}`} className="border-r p-1 text-center">
                       {renderCell(row, group.key, principle, group.options)}
                     </TableCell>
                   ))}
