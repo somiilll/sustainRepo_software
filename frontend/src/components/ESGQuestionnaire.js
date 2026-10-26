@@ -1358,7 +1358,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
       ) : (
         <div className="space-y-4">
           <div className="overflow-x-auto border rounded-lg">
-            <Table className="w-full table-fixed">
+            <Table className="w-full table-fixed min-w-[720px]">
               <TableHeader>
                 <TableRow className="bg-stone-50">
                   {NGRBC_PRINCIPLES.map((p) => (
@@ -1375,7 +1375,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
                         <RadioGroup
                           value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
                           onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
-                          className="flex flex-col items-start gap-1.5 mx-auto w-fit"
+                          className="flex flex-row items-center justify-center gap-3"
                         >
                           <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                             <RadioGroupItem value="yes" data-testid={`${config.question_key}-${p.key}-yes`} /> Yes
@@ -1806,7 +1806,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs w-20 sticky left-0 bg-stone-100">Principle</TableHead>
+                <TableHead className="text-xs w-48 min-w-[12rem] sticky left-0 bg-stone-100">Principle</TableHead>
                 {fields.map(f => (
                   <TableHead key={f.key} className="text-xs min-w-[140px]">{f.label}</TableHead>
                 ))}
@@ -1815,9 +1815,9 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
             <TableBody>
               {NGRBC_PRINCIPLES.map(p => (
                 <TableRow key={p.key}>
-                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50">
+                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50 w-48 min-w-[12rem]">
                     <div>{p.key}</div>
-                    <div className="text-xs text-text-muted font-normal">{p.name.slice(0, 20)}...</div>
+                    <div className="text-xs text-text-muted font-normal">{p.name}</div>
                   </TableCell>
                   {fields.map(f => (
                     <TableCell key={f.key} className="p-1">
