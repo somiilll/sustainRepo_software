@@ -69,8 +69,34 @@ const HIDDEN_DESCRIPTION_KEYS = new Set([
   'env_life_cycle_assessment', 'env_lca_concerns_actions', 'env_recycled_input_material', 'env_reclaimed_products_packaging',
 ]);
 
+const WELLBEING_GROUPS = [
+  ['Health insurance', 'health_ins', 'B'], ['Accident insurance', 'accident_ins', 'C'],
+  ['Maternity benefits', 'maternity', 'D'], ['Paternity Benefits', 'paternity', 'E'],
+  ['Day Care facilities', 'daycare', 'F'],
+];
+
+const wellbeingOverride = (config, noun) => {
+  const section = (key, label) => ({ key, label, section_header: true });
+  const child = (key, label) => ({ key, label, child: true });
+  return { ...config, table_config: {
+    ...config.table_config,
+    fixed_rows: [
+      section('perm_header', `Permanent ${noun}`), child('perm_male', 'Male'), child('perm_female', 'Female'), child('perm_total', 'Total'),
+      section('other_header', `Other than Permanent ${noun}`), child('other_male', 'Male'), child('other_female', 'Female'), child('other_total', 'Total'),
+    ],
+    column_groups: [
+      { label: 'Total (A)', span_rows: true, columns: [{ key: 'total_a', label: 'Total (A)' }] },
+      ...WELLBEING_GROUPS.map(([label, k, letter]) => ({
+        label, columns: [{ key: `${k}_no`, label: `Number (${letter})` }, { key: `${k}_pct`, label: `% (${letter}/A)` }],
+      })),
+    ],
+  } };
+};
+
 const applyConfigOverrides = (rawConfig) => {
   const config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  if (config.question_key === 'p3_wellbeing_employees' && config.table_config) return wellbeingOverride(config, 'employees');
+  if (config.question_key === 'p3_wellbeing_workers' && config.table_config) return wellbeingOverride(config, 'workers');
   if (config.question_key === 'p1_fines_penalties') {
     return { ...config, question: 'Details of fines / penalties /punishment/ award/ compounding fees/ settlement amount paid in proceedings (by the entity or by directors / KMPs) with regulators/ law enforcement agencies/ judicial institutions, in the financial year, in the following format' };
   }

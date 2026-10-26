@@ -368,13 +368,13 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                   <TableRow className="bg-stone-100">
                     <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={2}>Category</TableHead>
                     {tableConfig.column_groups.map((group, gi) => (
-                      <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
+                      <TableHead key={gi} colSpan={group.columns.length} rowSpan={group.span_rows ? 2 : 1} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
                         {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
                       </TableHead>
                     ))}
                   </TableRow>
                   <TableRow className="bg-stone-50">
-                    {tableConfig.column_groups.flatMap((group) =>
+                    {tableConfig.column_groups.filter((group) => !group.span_rows).flatMap((group) =>
                       group.columns.map(col => (
                         <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
                       ))
@@ -393,9 +393,13 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
           )}
         </TableHeader>
         <TableBody>
-          {displayRows.map((row) => (
+          {displayRows.map((row) => row.section_header ? (
+            <TableRow key={row.key} className="bg-stone-50">
+              <TableCell colSpan={columns.length + 1} className="text-xs font-semibold text-center">{row.label}</TableCell>
+            </TableRow>
+          ) : (
             <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
-              <TableCell className={`text-xs font-medium ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>{row.label}</TableCell>
+              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>{row.label}</TableCell>
               {columns.map(col => (
                 <TableCell key={col.key} className="p-1">
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
