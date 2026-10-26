@@ -341,7 +341,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                     <TableRow className="bg-stone-50/80">
                       {tableConfig.column_groups.flatMap((group, gi) =>
                         (group.sub_groups || []).map((sg, si) => (
-                          <TableHead key={`${gi}-${si}`} colSpan={(sg.columns || []).length} className="text-[11px] font-semibold text-center border-b border-r last:border-r-0">
+                          <TableHead key={`${gi}-${si}`} colSpan={(sg.columns || []).length} rowSpan={sg.span_rows && showLevel3 ? 2 : 1} className="text-[11px] font-semibold text-center border-b border-r last:border-r-0">
                             {fyLabel(sg.label)}
                           </TableHead>
                         ))
@@ -351,7 +351,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                     {showLevel3 && (
                       <TableRow className="bg-stone-50">
                         {tableConfig.column_groups.flatMap((group) =>
-                          (group.sub_groups || []).flatMap((sg) =>
+                          (group.sub_groups || []).filter(sg => !sg.span_rows).flatMap((sg) =>
                             (sg.columns || []).map(col => (
                               <TableHead key={col.key} className="text-[10px] font-medium">{col.label}</TableHead>
                             ))

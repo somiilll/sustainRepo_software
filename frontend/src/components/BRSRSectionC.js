@@ -107,11 +107,33 @@ const applyConfigOverrides = (rawConfig) => {
       column_groups: [{ label: 'Permanent Employees', columns: emp }, { label: 'Permanent Workers', columns: wrk }] } };
   }
   if (config.question_key === 'p3_union_membership' && config.table_config?.fixed_rows) {
-    const rows = config.table_config.fixed_rows;
-    const at = (key, row) => { const i = rows.findIndex(r => r.key === key); return [...rows.slice(0, i + 1), row, ...rows.slice(i + 1)]; };
-    const withEmp = at('perm_emp_female', { key: 'perm_emp_total', label: 'Total Permanent Employees' });
-    const withBoth = [...withEmp.slice(0, withEmp.findIndex(r => r.key === 'perm_workers_female') + 1), { key: 'perm_workers_total', label: 'Total Permanent Workers' }, ...withEmp.slice(withEmp.findIndex(r => r.key === 'perm_workers_female') + 1)];
-    return { ...config, table_config: { ...config.table_config, fixed_rows: withBoth } };
+    return { ...config, table_config: { ...config.table_config, fixed_rows: [
+      { key: 'perm_emp_total', label: 'Total Permanent Employees' },
+      { key: 'perm_emp_male', label: 'Male', child: true }, { key: 'perm_emp_female', label: 'Female', child: true },
+      { key: 'perm_workers_total', label: 'Total Permanent Workers' },
+      { key: 'perm_workers_male', label: 'Male', child: true }, { key: 'perm_workers_female', label: 'Female', child: true },
+    ] } };
+  }
+  if (['p3_training_details', 'performance_career_reviews'].includes(config.question_key) && config.table_config?.fixed_rows) {
+    const rowsCfg = [
+      { key: 'emp_header', label: 'Employees', section_header: true },
+      { key: 'emp_male', label: 'Male', child: true }, { key: 'emp_female', label: 'Female', child: true }, { key: 'emp_total', label: 'Total', child: true },
+      { key: 'workers_header', label: 'Workers', section_header: true },
+      { key: 'workers_male', label: 'Male', child: true }, { key: 'workers_female', label: 'Female', child: true }, { key: 'workers_total', label: 'Total', child: true },
+    ];
+    if (config.question_key === 'performance_career_reviews') {
+      return { ...config, table_config: { ...config.table_config, fixed_rows: rowsCfg } };
+    }
+    const fyGroup = (label, p, letters) => ({
+      label,
+      sub_groups: [
+        { label: `Total (${letters[0]})`, span_rows: true, columns: [{ key: `${p}_total`, label: '' }] },
+        { label: 'On Health and safety measures', columns: [{ key: `${p}_hs_no`, label: `No. (${letters[1]})` }, { key: `${p}_hs_pct`, label: `% (${letters[1]}/${letters[0]})` }] },
+        { label: 'On Skill upgradation', columns: [{ key: `${p}_skill_no`, label: `No. (${letters[2]})` }, { key: `${p}_skill_pct`, label: `% (${letters[2]}/${letters[0]})` }] },
+      ],
+    });
+    return { ...config, table_config: { ...config.table_config, fixed_rows: rowsCfg,
+      column_groups: [fyGroup('FY _____ (Current Financial Year)', 'cur', ['A', 'B', 'C']), fyGroup('FY _____ (Previous Financial Year)', 'prev', ['D', 'E', 'F'])] } };
   }
   if (config.question_key === 'p3_wellbeing_employees' && config.table_config) return wellbeingOverride(config, 'employees');
   if (config.question_key === 'p3_wellbeing_workers' && config.table_config) return wellbeingOverride(config, 'workers');
