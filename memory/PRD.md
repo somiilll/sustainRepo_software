@@ -822,3 +822,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Confirmed live BoD Male and KMP Male KPI Definitions already have no BRSR reference/mapping while retaining their GRI references.
 - Added durable column-level workforce reference metadata so future workforce schema synchronization assigns A-21 only to Total and Female columns and does not re-add A-21 to Male KPI Definitions.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-23 — Config DB sync and P1 backlog
+- Local → Staging → Production (`sustainrepo`) config sync completed for `esg_kpi_definitions`, `esg_record_categories`, `kpi_framework_mappings`, `esg_question_configs`; empty `brsr_kpi_import_proposals` and `esg_org_configs` created. Backups are in `/app/backups/`. Backfilled `output_type: "number"` on `GHG_SCOPE_TOTAL` definitions, which fixed the Staging 500 on `/api/esg-kpi-definitions`.
+- User declined running `normalize_social_governance_units.py` and `fix_brsr_table_configs.py` for now.
+- **P1 (marked, no code change):** weighted annual data-breach PII % (summed PII breaches ÷ summed incidents × 100), and LPG/duplicate-fuel allowed-unit validation should prefer `fuel_id` over fuel name in `calc_engine/execution.py`. Details are in ROADMAP.md.

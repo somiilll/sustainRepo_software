@@ -77,7 +77,10 @@
 - Deliver through compatibility adapters and staged migrations so existing organization configuration, records, response history, formula snapshots, supplier submissions, and reports continue to work unchanged until explicitly migrated.
 
 ### Weighted Annual Data-Breach PII Percentage
-- Replace the current unweighted monthly average with `(summed breaches involving customer PII ÷ summed data-breach incidents) × 100` for BRSR P9. Current FY 2026–27 source values indicate `29 ÷ 157 × 100 = 18.471337%`.
+- Replace the current unweighted monthly average with `(summed breaches involving customer PII ÷ summed data-breach incidents) × 100` for BRSR P9. Current FY 2026–27 source values indicate `29 ÷ 157 × 100 = 18.471337%`. **Confirmed still open in the code as of this session.**
+
+### LPG / Duplicate-Fuel Allowed-Unit Validation
+- `backend/calc_engine/execution.py` `validate_input_unit` (unit_source == "fuel") looks the fuel up by `fuel_name`/`fuel_type` before `fuel_id`, so duplicate fuel names with different allowed units give false unit errors. Prefer `context.fuel_id`/`selectedFuelId` first, then fall back to name. **Confirmed still open in the code as of this session.**
 
 - Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
