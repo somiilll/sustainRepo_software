@@ -6,9 +6,9 @@ import { Button } from './ui/button';
 export const SECTION_A_KEYS = {
   I: ['cin', 'entity_name', 'year_of_incorporation', 'registered_address', 'corporate_address', 'email', 'telephone', 'website',
     'financial_year', 'stock_exchange', 'paid_up_capital', 'contact_person', 'reporting_boundary', 'assurance_provider',
-    'assurance_type', 'export_contribution', 'customer_types'],
+    'assurance_type'],
   II: ['business_activities', 'products_services'],
-  III: ['plants_offices', 'markets_served'],
+  III: ['plants_offices', 'markets_served', 'export_contribution', 'customer_types'],
   IV: ['employees_workers', 'differently_abled', 'women_representation', 'turnover_rate'],
   V: ['holding_subsidiary'],
   VI: ['csr_applicability'],

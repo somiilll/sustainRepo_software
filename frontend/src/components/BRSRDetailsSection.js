@@ -62,6 +62,12 @@ const EMPTY_BUSINESS_ACTIVITY = { description: '', main_activity: '', turnover_p
 const EMPTY_PRODUCT_SERVICE = { product_service: '', nic_code: '', turnover_percentage: 0 };
 const EMPTY_PLANT_OFFICE = { location_type: 'National', num_plants: 0, num_offices: 0 };
 const EMPTY_MARKET_SERVED = { location_type: 'National', number: 0 };
+const FIXED_LOCATIONS = ['National', 'International'];
+const normalizeFixedRows = (rows, empty) => FIXED_LOCATIONS.map((loc) => ({
+  ...empty,
+  ...(Array.isArray(rows) ? rows.find((r) => r.location_type === loc) : null),
+  location_type: loc,
+}));
 
 export default function BRSRDetailsSection({ 
   isEditing = false, 
@@ -132,8 +138,8 @@ export default function BRSRDetailsSection({
     products_services: [{ ...EMPTY_PRODUCT_SERVICE }],      // Q17
     
     // III. Operations (Q18-19)
-    plants_offices: [{ ...EMPTY_PLANT_OFFICE }],            // Q18
-    markets_served: [{ ...EMPTY_MARKET_SERVED }],           // Q19a
+    plants_offices: normalizeFixedRows([], EMPTY_PLANT_OFFICE),            // Q18
+    markets_served: normalizeFixedRows([], EMPTY_MARKET_SERVED),           // Q19a
     export_contribution_percentage: '',                      // Q19b
     customer_types_brief: '',                                // Q19c
     
@@ -226,12 +232,8 @@ export default function BRSRDetailsSection({
         products_services: initialData.products_services?.length > 0 
           ? initialData.products_services 
           : [{ ...EMPTY_PRODUCT_SERVICE }],
-        plants_offices: initialData.plants_offices?.length > 0 
-          ? initialData.plants_offices 
-          : [{ ...EMPTY_PLANT_OFFICE }],
-        markets_served: initialData.markets_served?.length > 0 
-          ? initialData.markets_served 
-          : [{ ...EMPTY_MARKET_SERVED }],
+        plants_offices: normalizeFixedRows(initialData.plants_offices, EMPTY_PLANT_OFFICE),
+        markets_served: normalizeFixedRows(initialData.markets_served, EMPTY_MARKET_SERVED),
       }));
     }
   }, [initialData]);
@@ -307,10 +309,10 @@ export default function BRSRDetailsSection({
       const markets = responses.brsr_a_markets_served;
       if (Array.isArray(markets)) {
         // New flat format - just the locations array
-        mapped.markets_served = markets;
+        mapped.markets_served = normalizeFixedRows(markets, EMPTY_MARKET_SERVED);
       } else if (markets.locations) {
         // Old nested format - extract locations
-        mapped.markets_served = markets.locations;
+        mapped.markets_served = normalizeFixedRows(markets.locations, EMPTY_MARKET_SERVED);
       }
     }
     
@@ -330,7 +332,7 @@ export default function BRSRDetailsSection({
       mapped.products_services = responses.brsr_a_products_services;
     }
     if (responses.brsr_a_plants_offices?.length > 0) {
-      mapped.plants_offices = responses.brsr_a_plants_offices;
+      mapped.plants_offices = normalizeFixedRows(responses.brsr_a_plants_offices, EMPTY_PLANT_OFFICE);
     }
     
     return mapped;
@@ -429,8 +431,8 @@ export default function BRSRDetailsSection({
           reporting_period: reportingPeriod,
           business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
           products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
-          plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
-          markets_served: [{ ...EMPTY_MARKET_SERVED }],
+          plants_offices: normalizeFixedRows([], EMPTY_PLANT_OFFICE),
+          markets_served: normalizeFixedRows([], EMPTY_MARKET_SERVED),
         }));
         setOriginalData({});
         setIsComplete(false);
@@ -446,8 +448,8 @@ export default function BRSRDetailsSection({
         reporting_period: reportingPeriod,
         business_activities: [{ ...EMPTY_BUSINESS_ACTIVITY }],
         products_services: [{ ...EMPTY_PRODUCT_SERVICE }],
-        plants_offices: [{ ...EMPTY_PLANT_OFFICE }],
-        markets_served: [{ ...EMPTY_MARKET_SERVED }],
+        plants_offices: normalizeFixedRows([], EMPTY_PLANT_OFFICE),
+        markets_served: normalizeFixedRows([], EMPTY_MARKET_SERVED),
       }));
     } finally {
       setLoading(false);
@@ -1154,47 +1156,6 @@ export default function BRSRDetailsSection({
               </div>
               )}
               
-              {/* Export Contribution - separate question key */}
-              {(canSeeQuestion('brsr_a_export_contribution')) && (
-              <div className="space-y-2">
-                {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
-                {inSection('I') && canEditQuestion('brsr_a_export_contribution') ? (
-                  <Input
-                    type="number"
-                    value={formData.export_contribution_percentage}
-                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_export_contribution')}
-                    placeholder="Enter percentage"
-                    min="0"
-                    max="100"
-                    data-testid="brsr-export-contribution"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2">
-                    {formData.export_contribution_percentage !== undefined ? `${formData.export_contribution_percentage}%` : '-'}
-                  </p>
-                )}
-              </div>
-              )}
-              
-              {/* Customer Types Brief - separate question key */}
-              {(canSeeQuestion('brsr_a_customer_types')) && (
-              <div className="space-y-2 md:col-span-2 lg:col-span-3">
-                {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
-                {inSection('I') && canEditQuestion('brsr_a_customer_types') ? (
-                  <Textarea
-                    value={formData.customer_types_brief}
-                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_customer_types')}
-                    placeholder="Describe the types of customers..."
-                    rows={3}
-                    data-testid="brsr-customer-types"
-                  />
-                ) : (
-                  <p className="text-sm text-text-secondary py-2 whitespace-pre-wrap">
-                    {formData.customer_types_brief || '-'}
-                  </p>
-                )}
-              </div>
-              )}
             </div>
 
           {/* BRSR Contact Person Section */}
@@ -1507,17 +1468,7 @@ export default function BRSRDetailsSection({
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Plants and Offices Operated', 'brsr_a_plants_offices', () => formData.plants_offices, true)}
-                {inSection('III') && canEditQuestion('brsr_a_plants_offices') && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addTableRow('plants_offices', EMPTY_PLANT_OFFICE, 'brsr_a_plants_offices')}
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Row
-                  </Button>
-                )}
+
               </div>
               <div className="border rounded-lg overflow-hidden">
                 <Table>
@@ -1526,29 +1477,14 @@ export default function BRSRDetailsSection({
                       <TableHead className="w-[40%]">Location</TableHead>
                       <TableHead className="w-[25%]">Number of Plants</TableHead>
                       <TableHead className="w-[25%]">Number of Offices</TableHead>
-                      {inSection('III') && canEditQuestion('brsr_a_plants_offices') && <TableHead className="w-[10%]">Action</TableHead>}
+                      
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.plants_offices.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {inSection('III') && canEditQuestion('brsr_a_plants_offices') ? (
-                            <Select
-                              value={row.location_type}
-                              onValueChange={(value) => handleTableRowChange('plants_offices', index, 'location_type', value, 'brsr_a_plants_offices')}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="National">National</SelectItem>
-                                <SelectItem value="International">International</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-sm">{row.location_type}</span>
-                          )}
+                          <span className="text-sm">{row.location_type}</span>
                         </TableCell>
                         <TableCell>
                           {inSection('III') && canEditQuestion('brsr_a_plants_offices') ? (
@@ -1578,19 +1514,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.num_offices}</span>
                           )}
                         </TableCell>
-                        {inSection('III') && canEditQuestion('brsr_a_plants_offices') && (
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTableRow('plants_offices', index, 'brsr_a_plants_offices')}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        )}
+
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1604,17 +1528,7 @@ export default function BRSRDetailsSection({
             <div>
               <div className="flex items-center justify-between mb-3">
                 {renderQuestionHeader('Markets Served by Entity', 'brsr_a_markets_served', () => formData.markets_served, true)}
-                {inSection('III') && canEditQuestion('brsr_a_markets_served') && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addTableRow('markets_served', EMPTY_MARKET_SERVED, 'brsr_a_markets_served')}
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Row
-                  </Button>
-                )}
+
               </div>
               <div className="border rounded-lg overflow-hidden">
                 <Table>
@@ -1622,31 +1536,16 @@ export default function BRSRDetailsSection({
                     <TableRow className="bg-stone-50">
                       <TableHead className="w-[60%]">Location</TableHead>
                       <TableHead className="w-[30%]">Number (States/Countries)</TableHead>
-                      {inSection('III') && canEditQuestion('brsr_a_markets_served') && <TableHead className="w-[10%]">Action</TableHead>}
+                      
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {formData.markets_served.map((row, index) => (
                       <TableRow key={index}>
                         <TableCell>
-                          {inSection('III') && canEditQuestion('brsr_a_markets_served') ? (
-                            <Select
-                              value={row.location_type}
-                              onValueChange={(value) => handleTableRowChange('markets_served', index, 'location_type', value, 'brsr_a_markets_served')}
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="National">National (No. of States)</SelectItem>
-                                <SelectItem value="International">International (No. of Countries)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-sm">
-                              {row.location_type === 'National' ? 'National (States)' : 'International (Countries)'}
-                            </span>
-                          )}
+                          <span className="text-sm">
+                            {row.location_type === 'National' ? 'National (No. of States)' : 'International (No. of Countries)'}
+                          </span>
                         </TableCell>
                         <TableCell>
                           {inSection('III') && canEditQuestion('brsr_a_markets_served') ? (
@@ -1662,19 +1561,7 @@ export default function BRSRDetailsSection({
                             <span className="text-sm">{row.number}</span>
                           )}
                         </TableCell>
-                        {inSection('III') && canEditQuestion('brsr_a_markets_served') && (
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeTableRow('markets_served', index, 'brsr_a_markets_served')}
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        )}
+
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1682,6 +1569,48 @@ export default function BRSRDetailsSection({
               </div>
             </div>
             )}
+
+              {/* Export Contribution - separate question key */}
+              {(canSeeQuestion('brsr_a_export_contribution')) && (
+              <div className="space-y-2">
+                {renderQuestionHeader('Export Contribution (% of Turnover)', 'brsr_a_export_contribution', () => formData.export_contribution_percentage, true)}
+                {inSection('III') && canEditQuestion('brsr_a_export_contribution') ? (
+                  <Input
+                    type="number"
+                    value={formData.export_contribution_percentage}
+                    onChange={(e) => handleInputChange('export_contribution_percentage', parseFloat(e.target.value) || 0, 'brsr_a_export_contribution')}
+                    placeholder="Enter percentage"
+                    min="0"
+                    max="100"
+                    data-testid="brsr-export-contribution"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary py-2">
+                    {formData.export_contribution_percentage !== undefined ? `${formData.export_contribution_percentage}%` : '-'}
+                  </p>
+                )}
+              </div>
+              )}
+              
+              {/* Customer Types Brief - separate question key */}
+              {(canSeeQuestion('brsr_a_customer_types')) && (
+              <div className="space-y-2">
+                {renderQuestionHeader('Brief on Types of Customers', 'brsr_a_customer_types', () => formData.customer_types_brief, true)}
+                {inSection('III') && canEditQuestion('brsr_a_customer_types') ? (
+                  <Textarea
+                    value={formData.customer_types_brief}
+                    onChange={(e) => handleInputChange('customer_types_brief', e.target.value, 'brsr_a_customer_types')}
+                    placeholder="Describe the types of customers..."
+                    rows={3}
+                    data-testid="brsr-customer-types"
+                  />
+                ) : (
+                  <p className="text-sm text-text-secondary py-2 whitespace-pre-wrap">
+                    {formData.customer_types_brief || '-'}
+                  </p>
+                )}
+              </div>
+              )}
             </div>
           </div>
 

@@ -878,3 +878,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Spacing: the cards in Sections B and C sit inside an unclassed `<span>` wrapper, so the parents' `space-y-*` did not apply. The cards now carry their own `mb-*` margins. Checked with the API and ESLint; no testing agent, per the user.
 
 - Section A box I: removed the "Listing & Reporting Information" heading, the Contact Person description text and its underline. Increased vertical spacing between blocks in boxes I, II, III (space-y-10) and IV–VII (space-y-8). ESLint passed, no browser test.
+
+- Section A III: Plants and Offices and Markets Served now always show two fixed rows, National and International (no Add Row, no delete, no location dropdown). Rows are normalized on load via `normalizeFixedRows`, so old data with extra or missing rows still lines up. The Export contribution and Brief on types of customers questions moved from I to below Markets Served in III. `SECTION_A_KEYS` (frontend) and `SECTION_A_GROUPS` (`progress_service.py`) were updated, so I is now 15 questions and III is 4. ESLint passed, no browser test.

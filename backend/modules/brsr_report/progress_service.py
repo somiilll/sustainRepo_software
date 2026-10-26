@@ -9,9 +9,9 @@ SECTIONS = ("section_a", "section_b", "section_c")
 STATUSES = ("pending", "draft", "saved", "approved", "rejected")
 A_PREFIX = "brsr_a_"
 SECTION_A_GROUPS = (
-    ("I", "Details of the listed entity", ["cin", "entity_name", "year_of_incorporation", "registered_address", "corporate_address", "email", "telephone", "website", "financial_year", "stock_exchange", "paid_up_capital", "contact_person", "reporting_boundary", "assurance_provider", "assurance_type", "export_contribution", "customer_types"]),
+    ("I", "Details of the listed entity", ["cin", "entity_name", "year_of_incorporation", "registered_address", "corporate_address", "email", "telephone", "website", "financial_year", "stock_exchange", "paid_up_capital", "contact_person", "reporting_boundary", "assurance_provider", "assurance_type"]),
     ("II", "Products and services", ["business_activities", "products_services"]),
-    ("III", "Operations", ["plants_offices", "markets_served"]),
+    ("III", "Operations", ["plants_offices", "markets_served", "export_contribution", "customer_types"]),
     ("IV", "Employees", ["employees_workers", "differently_abled", "women_representation", "turnover_rate"]),
     ("V", "Holding and subsidiaries", ["holding_subsidiary"]),
     ("VI", "CSR details", ["csr_applicability"]),
