@@ -40,6 +40,58 @@ const PRINCIPLE_COLORS = {
   P7: '#6366f1', P8: '#f97316', P9: '#ec4899',
 };
 
+const LEADERSHIP_KEYS = new Set([
+  'p1_value_chain_awareness', 'p1_conflict_management_process',
+  'env_life_cycle_assessment', 'env_lca_concerns_actions',
+  'p3_life_insurance_package', 'p3_value_chain_statutory_dues', 'p3_rehabilitation_injured',
+  'transition_assistance_programs', 'p3_value_chain_assessment', 'p3_value_chain_corrective',
+  'p4_se_3', 'p4_se_4', 'p4_se_5',
+  'p5_business_process_changes', 'p5_hr_due_diligence', 'p5_accessibility_differently_abled',
+  'p5_value_chain_hr_assessment', 'p5_value_chain_corrective',
+  'p6_water_stress_areas', 'env_assurance_water_stress', 'p6_scope3_emissions', 'env_assurance_ghg_scope3',
+  'env_biodiversity_impact', 'env_resource_efficiency_initiatives', 'env_business_continuity_disaster',
+  'env_value_chain_impacts', 'env_value_chain_assessment',
+  'public_policy_positions',
+  'p8_sia_corrective_actions', 'p8_csr_aspirational_districts', 'p8_preferential_procurement',
+  'p8_intellectual_property_traditional', 'p8_ip_corrective_actions', 'p8_csr_beneficiaries',
+  'p9_product_info_channels', 'p9_consumer_education', 'p9_service_disruption_mechanism',
+  'p9_product_info_beyond_legal', 'p9_consumer_satisfaction_survey',
+]);
+
+const TRAINING_COLUMN_LABELS = {
+  total: 'Total number of training and awareness programmes held',
+  trained: 'Topics / principles covered under the training and its impact',
+  pct: '%age of persons in respective category covered by the awareness programmes',
+};
+
+const applyConfigOverrides = (config) => {
+  if (config.question_key === 'p1_fines_penalties') {
+    return { ...config, question: 'Details of fines / penalties /punishment/ award/ compounding fees/ settlement amount paid in proceedings (by the entity or by directors / KMPs) with regulators/ law enforcement agencies/ judicial institutions, in the financial year, in the following format' };
+  }
+  if (config.question_key === 'p1_training_awareness_coverage' && config.table_config?.columns) {
+    return { ...config, table_config: { ...config.table_config, columns: config.table_config.columns.map(c => ({ ...c, label: TRAINING_COLUMN_LABELS[c.key] || c.label })) } };
+  }
+  if (config.question_key === 'p1_conflict_of_interest_complaints' && config.table_config) {
+    const num = { type: 'number' };
+    const txt = { type: 'text' };
+    return { ...config, table_config: {
+      ...config.table_config,
+      columns: [
+        { key: 'current_fy', label: 'Number', ...num }, { key: 'current_fy_remarks', label: 'Remarks', ...txt },
+        { key: 'previous_fy', label: 'Number', ...num }, { key: 'previous_fy_remarks', label: 'Remarks', ...txt },
+      ],
+      column_groups: [
+        { label: 'Current Financial Year', columns: [{ key: 'current_fy', label: 'Number' }, { key: 'current_fy_remarks', label: 'Remarks' }] },
+        { label: 'Previous Financial Year', columns: [{ key: 'previous_fy', label: 'Number' }, { key: 'previous_fy_remarks', label: 'Remarks' }] },
+      ],
+    } };
+  }
+  if (['p1_anticorruption_policy', 'p1_conflict_management_process'].includes(config.question_key) && config.conditional_fields) {
+    return { ...config, conditional_fields: config.conditional_fields.map(f => ({ ...f, show_when: 'yes' })) };
+  }
+  return config;
+};
+
 export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, reportingYear, liveKPIAutofillByQuestion = {}, statusFilter = 'all', questionProgress = {}, approvalEnabled = false, isAdmin = false, onSaved = null }) {
   const { getAuthHeader } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -189,6 +241,33 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     return null;
   };
 
+  const renderQuestion = (config) => (
+                    <QuestionRenderer
+                      key={config.question_key}
+                      config={config}
+                      value={mergeBRSRAutofill(allResponses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
+                      onChange={(val) => handleResponseChange(config.question_key, val)}
+                      isEditing={isEditing}
+                      allResponses={{
+                        ...allResponses,
+                        reporting_year: reportingYear,
+                        framework,
+                      }}
+                      historicalData={null}
+                      approvalStatus={approvalStatuses[config.question_key]}
+                      versionHistory={versionHistories[config.question_key]}
+                      onSaveQuestion={saveQuestion}
+                      perQuestionEdit
+                      approvalEnabled={approvalEnabled}
+                      isAdmin={isAdmin}
+                      onCancelEdit={fetchData}
+                      onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
+                      onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
+                      lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
+                      dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
+                    />
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -255,35 +334,15 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
 
             {isOpen && (
               <div className="border-t">
-                {/* Questions */}
-                <div className="px-5 py-4 space-y-1">
-                  {questions.map(config => (
-                    <QuestionRenderer
-                      key={config.question_key}
-                      config={config}
-                      value={mergeBRSRAutofill(allResponses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
-                      onChange={(val) => handleResponseChange(config.question_key, val)}
-                      isEditing={isEditing}
-                      allResponses={{
-                        ...allResponses,
-                        reporting_year: reportingYear,
-                        framework,
-                      }}
-                      historicalData={null}
-                      approvalStatus={approvalStatuses[config.question_key]}
-                      versionHistory={versionHistories[config.question_key]}
-                      onSaveQuestion={saveQuestion}
-                      perQuestionEdit
-                      approvalEnabled={approvalEnabled}
-                      isAdmin={isAdmin}
-                      onCancelEdit={fetchData}
-                      onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
-                      onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
-                      lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
-                      dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
-                    />
-                  ))}
-                </div>
+                {[['Essential Indicators', questions.filter(c => !LEADERSHIP_KEYS.has(c.question_key))],
+                  ['Leadership Indicators', questions.filter(c => LEADERSHIP_KEYS.has(c.question_key))]].map(([title, list]) => list.length > 0 && (
+                  <div key={title} className="px-5 py-4" data-testid={`principle-${p}-${title.split(' ')[0].toLowerCase()}-indicators`}>
+                    <h4 className="text-base font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">{title}</h4>
+                    <div className="space-y-1">
+                      {list.map(c => renderQuestion(applyConfigOverrides(c)))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

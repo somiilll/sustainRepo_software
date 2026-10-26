@@ -13,7 +13,9 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
   const fields = config.conditional_fields || [{ key: 'details', label: 'Details', type: 'textarea' }];
 
   const handleToggle = (val) => {
-    onChange({ ...data, has_value: val });
+    if (val) return onChange({ ...data, has_value: val });
+    const kept = Object.fromEntries(Object.entries(data.fields || {}).filter(([k]) => fields.find(f => f.key === k)?.show_when !== 'yes'));
+    onChange({ ...data, has_value: val, fields: kept });
   };
 
   const handleFieldChange = (key, val) => {

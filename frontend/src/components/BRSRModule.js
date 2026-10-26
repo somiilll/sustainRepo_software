@@ -111,8 +111,15 @@ export default function BRSRModule() {
     };
   }, [token, reportingPeriod, responseRefreshKey, loadProgress]);
 
+  const blockNegativeKey = (e) => {
+    if (e.target?.type === 'number' && (e.key === '-' || e.key === 'Subtract')) e.preventDefault();
+  };
+  const blockNegativePaste = (e) => {
+    if (e.target?.type === 'number' && (e.clipboardData?.getData('text') || '').includes('-')) e.preventDefault();
+  };
+
   return (
-    <div className="space-y-7">
+    <div className="space-y-7" onKeyDownCapture={blockNegativeKey} onPasteCapture={blockNegativePaste}>
       <ModulePageHeader
         title="BRSR Framework"
         icon={ClipboardList}
