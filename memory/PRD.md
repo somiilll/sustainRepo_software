@@ -830,3 +830,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## 2026-10-23 — Health & Safety Incidents entry layout
 - `HierarchicalFields.jsx`: the `incident_records_by_person_type` table now renders transposed: one row per metric, with **Employees** and **Workers** columns. Storage is unchanged (rows keyed by `person_type`), so KPI aggregation, BRSR mappings and saved records are unaffected. A row is dropped if all its metric cells are cleared. ESLint passed; no browser test was run, per the standing instruction.
+
+## 2026-10-23 — BRSR download menu
+- Removed the "KPI definitions & BRSR mappings" workbook option from `BRSRExportButton.jsx`; the Download menu now only offers PDF. The backend endpoint `/api/brsr-report/kpi-mappings.xlsx` is untouched. ESLint passed, no browser test.
+- Finding: the 27 BRSR mappings for Health & Safety Incidents KPIs (reference P3-E11) are all `needs_exact_destination` with no `question_key` or `answer_path`, so they do not fill the BRSR report's `p3_safety_incidents` table yet. The 3 rehabilitation KPIs (P3-L3) are in the same state.
