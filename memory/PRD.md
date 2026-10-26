@@ -902,3 +902,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section A IV workforce tables: table titles are left-aligned again; the group heading rows (Employees, Workers etc.) inside the tables are centred. ESLint passed, no tests run.
 
 - Section B inline Yes/No questions (translated-to-procedures, value chain; `PrincipleToggleRenderer`): the "Applicable to all principles?" label and the on/off switches are replaced by Yes/No radios, same as the NGRBC coverage question, in both all-together and principle-wise modes. Nothing is pre-selected until the user chooses. ESLint run; no tests, per the user.
+
+- Section B: `PrincipleToggleRenderer` (translated-to-procedures, value chain) principle-wise mode is now a P1–P9 column table with Yes/No radios per principle and a single "Notes" box at the end ("Description / Justification" renamed "Notes" in both modes). `PrincipleModeTableRenderer` (independent assessment) uses the same grey Mode bar as the first question; combined mode puts the label, the Yes/No radios and the agency-name input on one row. ESLint passed; no tests run (user: no testing until told).

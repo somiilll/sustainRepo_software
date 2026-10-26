@@ -1284,7 +1284,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
         {data.mode === 'all_together' ? (
           <div className="bg-stone-50 p-3 rounded">
             <p className="text-sm"><strong>Applicable:</strong> {data.all_enabled ? 'Yes' : 'No'}</p>
-            <p className="text-sm"><strong>Description:</strong> {data.all_description || '-'}</p>
+            <p className="text-sm"><strong>Notes:</strong> {data.all_description || '-'}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -1345,56 +1345,66 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
             </div>
           </RadioGroup>
           <div>
-            <Label className="text-sm font-medium">Description / Justification</Label>
+            <Label className="text-sm font-medium">Notes</Label>
             <Textarea
               value={data.all_description || ''}
               onChange={(e) => handleAllChange('all_description', e.target.value)}
-              placeholder="Describe how your policies cover all NGRBC principles..."
+              placeholder="Add notes..."
               rows={3}
               className="mt-1"
             />
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {NGRBC_PRINCIPLES.map((p) => {
-            const pData = data.principles?.[p.key] || { enabled: false, description: '', reasons: {}, other_reason: '' };
-            return (
-              <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-medium text-sm">{p.key}</span>
-                    <span className="text-xs text-text-muted ml-2">{p.name}</span>
-                  </div>
-                  <RadioGroup
-                    value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
-                    onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
-                    className="flex flex-row gap-4"
-                  >
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="yes" id={`${config.question_key}-${p.key}-yes`} />
-                      <Label htmlFor={`${config.question_key}-${p.key}-yes`} className="text-xs">Yes</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="no" id={`${config.question_key}-${p.key}-no`} />
-                      <Label htmlFor={`${config.question_key}-${p.key}-no`} className="text-xs">No</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-                <Textarea
-                  value={pData.description || ''}
-                  onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
-                  placeholder={`Description for ${p.key}...`}
-                  rows={2}
-                  className="text-sm"
-                />
-                {/* Inline reasons when No is selected */}
-                {hasInlineReasons && pData.enabled === false && (
-                  <InlineReasonsForm pKey={p.key} pData={pData} />
-                )}
-              </div>
-            );
+        <div className="space-y-4">
+          <div className="overflow-x-auto border rounded-lg">
+            <Table className="w-full table-fixed">
+              <TableHeader>
+                <TableRow className="bg-stone-50">
+                  {NGRBC_PRINCIPLES.map((p) => (
+                    <TableHead key={p.key} className="text-center text-xs font-semibold" title={p.name}>{p.key}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  {NGRBC_PRINCIPLES.map((p) => {
+                    const pData = data.principles?.[p.key] || {};
+                    return (
+                      <TableCell key={p.key} className="p-2">
+                        <RadioGroup
+                          value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
+                          onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
+                          className="flex flex-col items-start gap-1.5 mx-auto w-fit"
+                        >
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <RadioGroupItem value="yes" data-testid={`${config.question_key}-${p.key}-yes`} /> Yes
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <RadioGroupItem value="no" data-testid={`${config.question_key}-${p.key}-no`} /> No
+                          </label>
+                        </RadioGroup>
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          {hasInlineReasons && NGRBC_PRINCIPLES.map((p) => {
+            const pData = data.principles?.[p.key] || {};
+            return pData.enabled === false ? <InlineReasonsForm key={p.key} pKey={p.key} pData={pData} /> : null;
           })}
+          <div className="p-4 border rounded-lg">
+            <Label className="text-sm font-medium">Notes</Label>
+            <Textarea
+              value={data.all_description || ''}
+              onChange={(e) => handleAllChange('all_description', e.target.value)}
+              placeholder="Add notes..."
+              rows={3}
+              className="mt-1"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -1655,6 +1665,18 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
     const { key, label, type, options, conditional_on } = field;
     const fieldValue = value || '';
 
+    const isYesNo = type === 'select' && (options || []).length === 2 && options.includes('Yes') && options.includes('No');
+    if (isYesNo) {
+      return (
+        <RadioGroup value={fieldValue} onValueChange={onChangeField} className="flex flex-row gap-4">
+          {['Yes', 'No'].map((opt) => (
+            <label key={opt} className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <RadioGroupItem value={opt} /> {opt}
+            </label>
+          ))}
+        </RadioGroup>
+      );
+    }
     if (type === 'select') {
       return (
         <Select value={fieldValue} onValueChange={onChangeField}>
@@ -1748,28 +1770,30 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
   return (
     <div className="mt-3 space-y-4">
       {/* Mode Selection */}
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="combined" id={`${config.question_key}-combined`} />
-            <Label htmlFor={`${config.question_key}-combined`} className="text-sm">Report All Principles Together</Label>
+            <Label htmlFor={`${config.question_key}-combined`} className="text-xs">Report All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id={`${config.question_key}-wise`} />
-            <Label htmlFor={`${config.question_key}-wise`} className="text-sm">Report Principle-wise Separately</Label>
+            <Label htmlFor={`${config.question_key}-wise`} className="text-xs">Report Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
 
       {/* Combined Mode */}
       {data.mode === 'combined' && (
-        <div className="bg-stone-50 p-4 rounded-lg space-y-4">
+        <div className="p-4 border rounded-lg space-y-4">
           {fields.map(f => (
             shouldShowField(f, data.combined) && (
-              <div key={f.key}>
-                <Label className="text-sm mb-1 block">{f.label}</Label>
-                {renderField(f, data.combined?.[f.key], (val) => handleCombinedChange(f.key, val))}
+              <div key={f.key} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Label className="text-sm font-medium sm:w-64 shrink-0">{f.label}</Label>
+                <div className="flex-1 min-w-[200px]">
+                  {renderField(f, data.combined?.[f.key], (val) => handleCombinedChange(f.key, val))}
+                </div>
               </div>
             )
           ))}
