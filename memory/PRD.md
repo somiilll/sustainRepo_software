@@ -906,3 +906,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B: `PrincipleToggleRenderer` (translated-to-procedures, value chain) principle-wise mode is now a P1–P9 column table with Yes/No radios per principle and a single "Notes" box at the end ("Description / Justification" renamed "Notes" in both modes). `PrincipleModeTableRenderer` (independent assessment) uses the same grey Mode bar as the first question; combined mode puts the label, the Yes/No radios and the agency-name input on one row. ESLint passed; no tests run (user: no testing until told).
 
 - Section B: Yes/No radios sit on one row per principle in the P1–P9 table (table min-width 720px, scrolls on small screens). The independent-assessment principle-wise table's Principle column is wider (12rem) and shows the full principle name. ESLint passed; no tests run (user: no testing until told).
+
+- Section B: independent-assessment principle-wise table Principle column widened to 16rem. The P1–P9 Yes/No table for translated-to-procedures / value-chain questions has vertical lines between columns. ESLint passed; no tests run (user: no testing until told).

@@ -1362,7 +1362,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
               <TableHeader>
                 <TableRow className="bg-stone-50">
                   {NGRBC_PRINCIPLES.map((p) => (
-                    <TableHead key={p.key} className="text-center text-xs font-semibold" title={p.name}>{p.key}</TableHead>
+                    <TableHead key={p.key} className="text-center text-xs font-semibold border-r last:border-r-0" title={p.name}>{p.key}</TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
@@ -1371,7 +1371,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
                   {NGRBC_PRINCIPLES.map((p) => {
                     const pData = data.principles?.[p.key] || {};
                     return (
-                      <TableCell key={p.key} className="p-2">
+                      <TableCell key={p.key} className="p-2 border-r last:border-r-0">
                         <RadioGroup
                           value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
                           onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
@@ -1806,7 +1806,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs w-48 min-w-[12rem] sticky left-0 bg-stone-100">Principle</TableHead>
+                <TableHead className="text-xs w-64 min-w-[16rem] sticky left-0 bg-stone-100">Principle</TableHead>
                 {fields.map(f => (
                   <TableHead key={f.key} className="text-xs min-w-[140px]">{f.label}</TableHead>
                 ))}
@@ -1815,7 +1815,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
             <TableBody>
               {NGRBC_PRINCIPLES.map(p => (
                 <TableRow key={p.key}>
-                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50 w-48 min-w-[12rem]">
+                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50 w-64 min-w-[16rem]">
                     <div>{p.key}</div>
                     <div className="text-xs text-text-muted font-normal">{p.name}</div>
                   </TableCell>
