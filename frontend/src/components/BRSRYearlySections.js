@@ -1160,10 +1160,21 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <Table>
               <TableHeader>
                 <TableRow className="bg-stone-50">
-                  <TableHead className="text-xs min-w-[150px]">Category</TableHead>
-                  <TableHead className="text-xs text-center min-w-[80px]">Mechanism</TableHead>
-                  <TableHead className="text-xs min-w-[150px]">Policy Web-link</TableHead>
-                  <TableHead className="text-xs text-center">Filed</TableHead>
+                  <TableHead rowSpan={2} className="text-xs min-w-[150px]">Category</TableHead>
+                  <TableHead rowSpan={2} className="text-xs text-center min-w-[80px]">Mechanism</TableHead>
+                  <TableHead rowSpan={2} className="text-xs min-w-[150px]">Policy Web-link</TableHead>
+                  <TableHead colSpan={3} className="text-xs text-center border-l bg-emerald-50 text-emerald-900" data-testid="complaints-current-fy-header">
+                    Current FY ({reportingYear})
+                  </TableHead>
+                  <TableHead colSpan={3} className="text-xs text-center border-l bg-stone-100 text-stone-700" data-testid="complaints-previous-fy-header">
+                    Previous FY ({prevFY})
+                  </TableHead>
+                </TableRow>
+                <TableRow className="bg-stone-50">
+                  <TableHead className="text-xs text-center border-l">Filed</TableHead>
+                  <TableHead className="text-xs text-center">Pending</TableHead>
+                  <TableHead className="text-xs min-w-[120px]">Remarks</TableHead>
+                  <TableHead className="text-xs text-center border-l">Filed</TableHead>
                   <TableHead className="text-xs text-center">Pending</TableHead>
                   <TableHead className="text-xs min-w-[120px]">Remarks</TableHead>
                 </TableRow>
@@ -1206,7 +1217,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                         <span className="text-xs text-blue-600 underline">{row.policy_weblink || '-'}</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-l">
                       {inSection('VII') ? (
                         <Input type="number" min="0" value={row.current_fy_filed}
                           onChange={(e) => {
@@ -1238,6 +1249,39 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                           }}
                           className="h-7 text-xs" placeholder="Remarks" />
                       ) : <span className="text-xs">{row.current_fy_remarks || '-'}</span>}
+                    </TableCell>
+                    <TableCell className="border-l">
+                      {inSection('VII') ? (
+                        <Input type="number" min="0" value={row.previous_fy_filed}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].previous_fy_filed = parseInt(e.target.value) || 0;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs text-center w-16" />
+                      ) : <span className="text-xs">{row.previous_fy_filed}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {inSection('VII') ? (
+                        <Input type="number" min="0" value={row.previous_fy_pending}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].previous_fy_pending = parseInt(e.target.value) || 0;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs text-center w-16" />
+                      ) : <span className="text-xs">{row.previous_fy_pending}</span>}
+                    </TableCell>
+                    <TableCell>
+                      {inSection('VII') ? (
+                        <Input value={row.previous_fy_remarks}
+                          onChange={(e) => {
+                            const updated = [...complaintsGrievances];
+                            updated[idx].previous_fy_remarks = e.target.value;
+                            setComplaintsGrievances(updated);
+                          }}
+                          className="h-7 text-xs" placeholder="Remarks" />
+                      ) : <span className="text-xs">{row.previous_fy_remarks || '-'}</span>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1309,7 +1353,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     ) : <p className="text-xs mt-1">{issue.rationale || '-'}</p>}
                   </div>
                   <div>
-                    <Label className="text-xs">Mitigation Approach {issue.risk_or_opportunity === 'Risk' && <span className="text-red-500">*</span>}</Label>
+                    <Label className="text-xs">Approach to Adapt or Mitigate {issue.risk_or_opportunity === 'Risk' && <span className="text-red-500">*</span>}</Label>
                     {inSection('VII') ? (
                       <Textarea value={issue.mitigation_approach} onChange={(e) => {
                         const updated = [...materialIssues]; updated[idx].mitigation_approach = e.target.value; setMaterialIssues(updated);
@@ -1334,14 +1378,6 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                         {issue.financial_implication}
                       </Badge>
                     )}
-                  </div>
-                  <div>
-                    <Label className="text-xs">Financial Details</Label>
-                    {inSection('VII') ? (
-                      <Textarea value={issue.financial_details} onChange={(e) => {
-                        const updated = [...materialIssues]; updated[idx].financial_details = e.target.value; setMaterialIssues(updated);
-                      }} className="text-xs mt-1" rows={2} placeholder="Describe financial implications" />
-                    ) : <p className="text-xs mt-1">{issue.financial_details || '-'}</p>}
                   </div>
                 </div>
               </div>
