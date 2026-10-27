@@ -149,6 +149,9 @@ const applyConfigOverrides = (rawConfig) => {
       { key: 'corrective_action', label: 'Corrective Action Taken', type: 'text', width: '200px', show_when: showWhenNo },
     ] } };
   }
+  if (config.question_key === 'env_value_chain_assessment' && config.percentage_config) {
+    return { ...config, percentage_config: { ...config.percentage_config, description_field: null } };
+  }
   if (config.question_key === 'p6_energy_consumption' && config.table_config?.fixed_rows) {
     const renames = { ...stripSource(config, ' - From renewable sources'), ...stripSource(config, ' - From non-renewable sources') };
     return withSubHeaders(config, { renew_electricity: ['From renewable sources'], nonrenew_electricity: ['From non-renewable sources'] }, renames);
