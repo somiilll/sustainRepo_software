@@ -17,6 +17,7 @@ from .contracts import (
 )
 from .water_schema import apply_water_rules
 from shared.unit_registry import get_conversion_metadata
+from .history_presenter import FieldHistoryPresenter
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
@@ -2330,6 +2331,10 @@ class ESGRecordsService:
                 return raw_value
             return "Unknown"
         
+        category_id = next((v["snapshot"].get("category_id") for v in versions if isinstance(v.get("snapshot"), dict) and v["snapshot"].get("category_id")), None)
+        category = await self._categories.find_one({"id": category_id}, {"_id": 0, "fields": 1}) if category_id else None
+        presenter = FieldHistoryPresenter((category or {}).get("fields", []))
+
         # Process versions - compute field changes by comparing consecutive snapshots
         for i, v in enumerate(versions):
             if "snapshot" in v and isinstance(v["snapshot"], dict):
@@ -2349,21 +2354,21 @@ class ESGRecordsService:
             if not v.get("change_type"):
                 v["change_type"] = "created" if v.get("version") == 1 else "updated"
             
-            # Use stored changed_fields paths to compute diffs from snapshots
-            if v.get("field_diffs") is not None:
-                continue
             previous = previous_applied_version(versions, i)
-            if v.get("version", 1) > 1 and previous:
-                # Compute from snapshots using utility
-                prev_snapshot = previous.get("snapshot", {})
-                curr_snapshot = v.get("snapshot", {})
-                changes = compare_versions(prev_snapshot, curr_snapshot)
-                v["field_diffs"] = [
-                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
-                    for c in changes
-                ]
-            else:
-                v["field_diffs"] = []
+            previous_values = ((previous or {}).get("snapshot") or {}).get("field_values")
+            current_values = (v.get("snapshot") or {}).get("field_values")
+            if v.get("field_diffs") is None:
+                if v.get("version", 1) > 1 and previous:
+                    changes = compare_versions(previous.get("snapshot", {}), v.get("snapshot", {}))
+                    v["field_diffs"] = [
+                        {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
+                        for c in changes
+                    ]
+                else:
+                    v["field_diffs"] = []
+            for diff_key in ("field_diffs", "submitted_field_diffs", "approver_field_diffs"):
+                if v.get(diff_key):
+                    v[diff_key] = presenter.present(v[diff_key], previous_values, current_values)
         
         return versions
     
