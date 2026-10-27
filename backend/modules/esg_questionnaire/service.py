@@ -2012,6 +2012,7 @@ class ESGQuestionnaireService:
                 "saved": "Response Saved",
                 "created": "Response Created",
                 "updated": "Response Updated",
+                "kpi_synced": "Auto-updated from KPI",
             }
             entry["action_display"] = action_descriptions.get(action, action.replace("_", " ").title())
             

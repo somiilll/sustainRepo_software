@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
+from shared.audit_trail import AuditSource, audit_trail_service, planned_value_changes
 from shared.unit_registry import can_convert, convert
 from modules.kpi_engine.filters import FilterBuilder
 from modules.kpi_engine.utils import get_collection_for_section, parse_numeric_value
@@ -246,7 +247,7 @@ def _canonical_women_representation(
 
 
 class BRSRLiveKPIAutofillService:
-    async def sync(self, org_id: str, reporting_period: str) -> Dict[str, Any]:
+    async def sync(self, org_id: str, reporting_period: str, triggered_by: Optional[str] = None) -> Dict[str, Any]:
         mappings = await db.kpi_framework_mappings.find({
             "framework": "BRSR",
             "is_active": {"$ne": False},
@@ -407,7 +408,7 @@ class BRSRLiveKPIAutofillService:
             ) or {}
             existing_response = await db.organization_esg_responses.find_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
-                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "value": 1},
+                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "kpi_autofill_updated_at": 1, "value": 1},
             ) or {}
             current_dynamic_keys = {row["key"] for row in result.get("dynamic_rows") or []}
             previous_dynamic_keys = set(existing_response.get("kpi_autofill_dynamic_rows") or [])
@@ -463,6 +464,20 @@ class BRSRLiveKPIAutofillService:
                     else:
                         unset_fields = {k: v for k, v in unset_fields.items() if not k.startswith("value.others.")}
                 update["$unset"] = unset_fields
+            await audit_trail_service.record_system_changes(
+                framework="BRSR",
+                organization_id=org_id,
+                reporting_period=reporting_period,
+                question_key=question_key,
+                changes=planned_value_changes(existing_response.get("value"), set_fields, unset_fields),
+                source=AuditSource(
+                    type="kpi_sync",
+                    mapping_ids=[s["mapping_id"] for s in result["sources"] if s.get("mapping_id")],
+                    source_tags=[s["source_tag"] for s in result["sources"] if s.get("source_tag")],
+                    triggered_by_user_id=triggered_by,
+                ),
+                state_token=existing_response.get("kpi_autofill_updated_at"),
+            )
             await db.organization_esg_responses.update_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
                 update,

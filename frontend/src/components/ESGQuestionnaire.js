@@ -1005,6 +1005,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
         'approved': 'bg-emerald-100 text-emerald-700',
         'rejected': 'bg-red-100 text-red-700',
         'submitted': 'bg-amber-100 text-amber-700',
+        'kpi_synced': 'bg-sky-100 text-sky-700',
       };
       return badges[action] || 'bg-stone-100 text-stone-700';
     };
@@ -1019,7 +1020,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
           ? version.rejected_by_name || version.changed_by_name || version.created_by_name || version.created_by
           : version.changed_by_name || version.created_by_name || version.created_by;
       return {
-        label: isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
+        label: action === 'kpi_synced' ? 'Source' : isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
         name: actor && !String(actor).includes('@') ? actor : 'Unknown user',
       };
     };
@@ -1040,7 +1041,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
                 <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
-                      {v.change_type || 'Updated'}
+                      {v.change_type === 'kpi_synced' ? 'Auto-updated from KPI' : (v.change_type || 'Updated')}
                     </span>
                     <span className="text-stone-500">
                       {v.created_at ? formatDateTime(v.created_at) : '-'}

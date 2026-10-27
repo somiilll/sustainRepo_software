@@ -183,6 +183,12 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([("category", 1), ("subcategory", 1)], {}),
         ],
 
+        # Append-only audit trail (version history reads + idempotent system writes)
+        "question_audit_log": [
+            ([("organization_id", 1), ("reporting_period", 1), ("question_key", 1), ("timestamp", -1)], {}),
+            ([("idempotency_key", 1)], {"unique": True, "sparse": True}),
+        ],
+
         # Bulk upload jobs / staging / errors (job-scoped reads)
         "bulk_upload_jobs": [
             ([("id", 1)], {}),

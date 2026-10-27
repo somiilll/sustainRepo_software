@@ -72,6 +72,8 @@ def format_field_display_name(field_path: str) -> str:
     if len(parts) > 1 and parts[0] == "field_values":
         display_parts = parts[1:]
         last_part = " > ".join(p.replace("_", " ").title() for p in display_parts)
+    elif len(parts) > 1:
+        last_part = " > ".join(p.replace("_", " ").title() for p in parts)
     else:
         last_part = last_part.replace("_", " ").title()
     

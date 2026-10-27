@@ -88,7 +88,7 @@ async def sync_live_kpi_autofill(
     org_id = current_user.get("organization_id") or current_user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
-    return await brsr_live_kpi_autofill_service.sync(org_id, reporting_period)
+    return await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
 
 
 @router.get("/progress")
