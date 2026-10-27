@@ -66,10 +66,6 @@ const TRAINING_COLUMN_LABELS = {
   pct: '%age of persons in respective category covered by the awareness programmes',
 };
 
-const HIDDEN_DESCRIPTION_KEYS = new Set([
-  'env_life_cycle_assessment', 'env_lca_concerns_actions', 'env_recycled_input_material', 'env_reclaimed_products_packaging',
-]);
-
 const WELLBEING_GROUPS = [
   ['Health insurance', 'health_ins', 'B'], ['Accident insurance', 'accident_ins', 'C'],
   ['Maternity benefits', 'maternity', 'D'], ['Paternity Benefits', 'paternity', 'E'],
@@ -142,7 +138,7 @@ const stripSource = (config, suffix) => config.table_config.fixed_rows.reduce((a
   r.label.endsWith(suffix) ? { ...acc, [r.key]: r.label.slice(0, -suffix.length) } : acc), {});
 
 const applyConfigOverrides = (rawConfig) => {
-  let config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  let config = { ...rawConfig, description: '' };
   if (config.question_key === 'env_ecologically_sensitive_areas' && config.table_config?.columns) {
     const showWhenNo = { field: 'conditions_complied', value: 'no' };
     const base = config.table_config.columns.filter(c => c.key !== 'remarks');
