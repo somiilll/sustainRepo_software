@@ -35,6 +35,8 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
     onChange(newRows);
   };
 
+  const isHidden = (col, row) => col.show_when && row[col.show_when.field] !== col.show_when.value;
+
   const addRow = () => onChange([...rows, {}]);
   const removeRow = (index) => {
     if (rows.length > 1) onChange(rows.filter((_, i) => i !== index));
@@ -55,7 +57,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
             {rows.map((row, idx) => (
               <TableRow key={idx}>
                 {columns.map((col) => (
-                  <TableCell key={col.key} className="text-xs">{row[col.key] || '-'}</TableCell>
+                  <TableCell key={col.key} className="text-xs">{isHidden(col, row) ? '' : (row[col.key] || '-')}</TableCell>
                 ))}
               </TableRow>
             ))}
@@ -82,7 +84,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
               <TableRow key={rowIdx}>
                 {columns.map((col) => (
                   <TableCell key={col.key} className="p-1">
-                    {col.type === 'auto_increment' ? (
+                    {isHidden(col, row) ? null : col.type === 'auto_increment' ? (
                       <span className="text-xs font-medium">{rowIdx + 1}</span>
                     ) : col.type === 'yes_no' ? (
                       <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>

@@ -94,6 +94,7 @@ const wellbeingOverride = (config, noun) => {
 };
 
 const QUESTION_RENAMES = {
+  env_waste_management_practices_desc: 'Briefly describe the waste management practices adopted in your establishments. Describe the strategy adopted by your company to reduce usage of hazardous and toxic chemicals in your products and processes and the practices adopted to manage such wastes.',
   p5_remuneration_details: 'Details of Median remuneration / wages',
   p5_gross_wages_females: 'Gross wages paid to females as % of total wages paid by the entity',
   p5_hr_complaints: 'Number of Complaints on the following made by employees and workers:',
@@ -137,6 +138,15 @@ const stripSource = (config, suffix) => config.table_config.fixed_rows.reduce((a
 
 const applyConfigOverrides = (rawConfig) => {
   let config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  if (config.question_key === 'env_ecologically_sensitive_areas' && config.table_config?.columns) {
+    const showWhenNo = { field: 'conditions_complied', value: 'no' };
+    const base = config.table_config.columns.filter(c => c.key !== 'remarks');
+    return { ...config, table_config: { ...config.table_config, columns: [
+      ...base,
+      { key: 'reason', label: 'Reason thereof', type: 'text', width: '200px', show_when: showWhenNo },
+      { key: 'corrective_action', label: 'Corrective Action Taken', type: 'text', width: '200px', show_when: showWhenNo },
+    ] } };
+  }
   if (config.question_key === 'p6_energy_consumption' && config.table_config?.fixed_rows) {
     const renames = { ...stripSource(config, ' - From renewable sources'), ...stripSource(config, ' - From non-renewable sources') };
     return withSubHeaders(config, { renew_electricity: ['From renewable sources'], nonrenew_electricity: ['From non-renewable sources'] }, renames);
@@ -145,7 +155,21 @@ const applyConfigOverrides = (rawConfig) => {
     return withSubHeaders(config, { surface_water: ['Water withdrawal by source'] });
   }
   if (config.question_key === 'p6_water_discharged' && config.table_config?.fixed_rows) {
-    return withSubHeaders(config, { surface_no_treatment: ['Water discharge by destination and level of treatment'] }, { total_discharged: 'Total water discharged' });
+    const unit = { default_unit: 'kl' };
+    const block = (p, title, withLevels) => [
+      { key: `${p}_sub_header`, label: title, sub_header: true },
+      { key: `${p}_no_treatment`, label: 'No treatment', child: true, ...unit },
+      { key: `${p}_with_treatment`, label: 'With treatment – please specify level', child: true, ...unit },
+      ...(withLevels ? ['primary', 'secondary', 'tertiary'].map(l => ({ key: `${p}_${l}`, label: `${l[0].toUpperCase()}${l.slice(1)} treatment`, grandchild: true, ...unit })) : []),
+    ];
+    const rows = [
+      { key: 'discharge_sub_header', label: 'Water discharge by destination and level of treatment', sub_header: true },
+      ...block('surface', '(i) To Surface water', true), ...block('ground', '(ii) To Groundwater', true),
+      ...block('sea', '(iii) To Seawater', true), ...block('third_party', '(iv) Sent to third-parties', true),
+      ...block('others', '(v) Others', false),
+      { key: 'total_discharged', label: 'Total water discharged', ...unit },
+    ];
+    return { ...config, table_config: { ...config.table_config, fixed_rows: rows } };
   }
   if (config.question_key === 'p6_waste_management_details' && config.table_config?.fixed_rows) {
     const recovered = ['For each category of waste generated, total waste recovered through recycling, re-using or other recovery operations', 'Category of waste'];
