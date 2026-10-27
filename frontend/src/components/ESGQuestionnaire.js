@@ -2564,7 +2564,7 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
       </div>
       
       {showTable && (
-        <div className="space-y-2 border-l-2 border-emerald-200 pl-4">
+        <div className="space-y-2">
           <p className="text-xs text-text-muted mb-2">Provide details for each product/service assessed:</p>
           <div className="overflow-x-auto">
             <Table>
@@ -2773,7 +2773,7 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
             </div>
           </RadioGroup>
           {data.assurance?.conducted === 'yes' && (
-            <div className="mt-3 space-y-3 border-l-2 border-emerald-200 pl-4">
+            <div className="mt-3 space-y-3">
               <div>
                 <Label className="text-xs">Assurance Details</Label>
                 <Textarea
@@ -2857,7 +2857,7 @@ function YesNoWithNestedDetailsRenderer({ config, value, onChange, isEditing }) 
       </RadioGroup>
       
       {data.main_answer === showWhen && (
-        <div className="ml-4 space-y-3 border-l-2 border-emerald-200 pl-4">
+        <div className="space-y-3">
           {subQuestions.filter(shouldShowSubQuestion).map((sq) => (
             <div key={sq.key}>
               <Label className="text-xs font-medium">{sq.question}{sq.required && <span className="text-red-500 ml-1">*</span>}</Label>

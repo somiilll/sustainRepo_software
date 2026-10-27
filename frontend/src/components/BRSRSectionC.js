@@ -124,8 +124,37 @@ const minimumWageRows = () => {
   return [...block('Employees', 'emp'), ...block('Workers', 'workers')];
 };
 
+const withSubHeaders = (config, headers, renames = {}) => {
+  const rows = config.table_config.fixed_rows.flatMap((r) => [
+    ...(headers[r.key] || []).map((label, i) => ({ key: `${r.key}_sub_header_${i}`, label, sub_header: true })),
+    renames[r.key] ? { ...r, label: renames[r.key] } : r,
+  ]);
+  return { ...config, table_config: { ...config.table_config, fixed_rows: rows } };
+};
+
+const stripSource = (config, suffix) => config.table_config.fixed_rows.reduce((acc, r) => (
+  r.label.endsWith(suffix) ? { ...acc, [r.key]: r.label.slice(0, -suffix.length) } : acc), {});
+
 const applyConfigOverrides = (rawConfig) => {
   let config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  if (config.question_key === 'p6_energy_consumption' && config.table_config?.fixed_rows) {
+    const renames = { ...stripSource(config, ' - From renewable sources'), ...stripSource(config, ' - From non-renewable sources') };
+    return withSubHeaders(config, { renew_electricity: ['From renewable sources'], nonrenew_electricity: ['From non-renewable sources'] }, renames);
+  }
+  if (config.question_key === 'p6_water_disclosures' && config.table_config?.fixed_rows) {
+    return withSubHeaders(config, { surface_water: ['Water withdrawal by source'] });
+  }
+  if (config.question_key === 'p6_water_discharged' && config.table_config?.fixed_rows) {
+    return withSubHeaders(config, { surface_no_treatment: ['Water discharge by destination and level of treatment'] }, { total_discharged: 'Total water discharged' });
+  }
+  if (config.question_key === 'p6_waste_management_details' && config.table_config?.fixed_rows) {
+    const recovered = ['For each category of waste generated, total waste recovered through recycling, re-using or other recovery operations', 'Category of waste'];
+    const disposed = ['For each category of waste generated, total waste disposed by nature of disposal method', 'Category of waste'];
+    return withSubHeaders(config, { plastic_waste: ['Total Waste generated'], recovered_recycled: recovered, disposed_incineration: disposed }, {
+      recovered_recycled: '(i) Recycled', recovered_reused: '(ii) Re-used', recovered_other: '(iii) Other recovery operations', recovered_total: 'Total',
+      disposed_incineration: '(i) Incineration', disposed_landfilling: '(ii) Landfilling', disposed_other: '(iii) Other disposal operations', disposed_total: 'Total',
+    });
+  }
   if (QUESTION_RENAMES[config.question_key]) config = { ...config, question: QUESTION_RENAMES[config.question_key] };
   if (NO_DETAIL_KEYS.has(config.question_key)) return { ...config, conditional_fields: [] };
   if (config.question_key === 'p5_hr_training' && config.table_config) {
