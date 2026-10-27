@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, History, Loader2, RefreshCw, XCircle } from 'lucid
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -164,7 +165,6 @@ const ValueDisplay = ({ value, label, bgClass, borderClass }) => (
 
 /* ───────────── Event styling ───────────── */
 
-const formatDate = (ts) => (ts ? new Date(ts).toLocaleString() : 'Timestamp unavailable');
 
 const EVENT_STYLES = {
   APPROVED:  { label: 'Update Approved',        icon: CheckCircle2, tone: 'text-green-700 bg-green-50 border-green-200' },
@@ -201,6 +201,7 @@ const valueBg = (type, side) => {
 
 export const QuestionVersionHistory = ({ open, onOpenChange, framework, questionKey, reportingYear }) => {
   const { getAuthHeader } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -274,7 +275,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                         <Icon className="w-3 h-3 mr-1" />{style.label}
                       </Badge>
                       <time className="text-xs text-text-muted" data-testid={`question-timeline-event-time-${idx}`}>
-                        {formatDate(event.timestamp)}
+                        {event.timestamp ? formatDateTime(event.timestamp) : 'Timestamp unavailable'}
                       </time>
                     </div>
 

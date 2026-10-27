@@ -1,4 +1,5 @@
 """Read-only, reporting-year-safe timeline resolver for BRSR and GRI responses."""
+from datetime import datetime, timezone
 from typing import Any
 
 from shared.database.mongo import db
@@ -18,7 +19,10 @@ class QuestionResponseTimelineService:
 
     @staticmethod
     def _timestamp(value: Any) -> str | None:
-        return value.isoformat() if hasattr(value, "isoformat") else value
+        if isinstance(value, datetime):
+            value = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return value.isoformat()
+        return value
 
     @classmethod
     def build_timeline(
