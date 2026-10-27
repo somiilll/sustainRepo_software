@@ -126,6 +126,17 @@ const applyConfigOverrides = (rawConfig) => {
       { key: 'workers_header', label: 'Workers', section_header: true }, ...mk('Workers', 'workers'),
     ] } };
   }
+  if (config.question_key === 'p3_assessments_year' && config.table_config) {
+    return { ...config, table_config: { ...config.table_config, columns: [
+      { key: 'plants_offices_assessed', label: '% of your plants and offices that were assessed (by entity or statutory authorities or third parties)', type: 'number' },
+    ] } };
+  }
+  if (config.question_key === 'transition_assistance_programs') {
+    return { ...config, hide_conditional_text: true };
+  }
+  if (config.question_key === 'p4_se_4') {
+    return { ...config, conditional_fields: [{ key: 'details', label: 'Details', type: 'textarea', show_when: 'yes' }] };
+  }
   if (config.question_key === 'p3_ohs_management_system' && config.conditional_fields) {
     return { ...config, conditional_fields: config.conditional_fields.map(f => ({ ...f, show_when: 'yes' })) };
   }

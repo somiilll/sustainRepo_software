@@ -70,7 +70,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-emerald-50">
+            <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>{col.label}</TableHead>
               ))}
@@ -184,9 +184,9 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
   };
 
   const groups = [
-    { key: 'review_by', options: reviewOptions, tone: 'bg-emerald-50 text-emerald-900',
+    { key: 'review_by', options: reviewOptions, tone: 'bg-stone-100 text-stone-900',
       label: 'Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee' },
-    { key: 'frequency', options: frequencyOptions, tone: 'bg-sky-50 text-sky-900',
+    { key: 'frequency', options: frequencyOptions, tone: 'bg-stone-100 text-stone-900',
       label: 'Frequency (Annually / Half yearly / Quarterly / Any other – please specify)' },
   ];
 

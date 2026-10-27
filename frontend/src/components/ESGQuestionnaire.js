@@ -602,7 +602,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
                 <Label htmlFor={`${config.question_key}-no`}>No</Label>
               </div>
             </RadioGroup>
-            {yesNoVal.answer === 'yes' && (
+            {yesNoVal.answer === 'yes' && !config.hide_conditional_text && (
               <div>
                 <Label className="text-sm text-stone-600">{config.conditional_field_label || 'Please specify'}</Label>
                 <Input
@@ -619,7 +619,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
             <Badge variant="outline" className={`${yesNoVal.answer === 'yes' ? 'bg-green-50 text-green-700' : yesNoVal.answer === 'no' ? 'bg-red-50 text-red-700' : ''}`}>
               {yesNoVal.answer === 'yes' ? 'Yes' : yesNoVal.answer === 'no' ? 'No' : '-'}
             </Badge>
-            {yesNoVal.answer === 'yes' && yesNoVal.text && (
+            {yesNoVal.answer === 'yes' && !config.hide_conditional_text && yesNoVal.text && (
               <p className="text-sm text-stone-600 mt-1">{config.conditional_field_label}: {yesNoVal.text}</p>
             )}
           </div>
@@ -2569,7 +2569,7 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-emerald-50">
+                <TableRow className="bg-stone-50">
                   {columns.map((col) => (
                     <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>{col.label}</TableHead>
                   ))}
@@ -2717,13 +2717,13 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
     <div className="mt-2 space-y-4">
       {sections.map((section) => (
         <div key={section.title} className="overflow-x-auto">
-          <h4 className="text-xs font-semibold text-emerald-700 mb-2 bg-emerald-50 p-2 rounded">{section.title}</h4>
+          <h4 className="text-xs font-semibold text-stone-900 mb-2 bg-stone-100 p-2 rounded">{section.title}</h4>
           <Table>
             <TableHeader>
-              <TableRow className="bg-emerald-50">
+              <TableRow className="bg-stone-50">
                 <TableHead className="text-xs font-medium">Parameter</TableHead>
                 {columns.map((col) => (
-                  <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+                  <TableHead key={col.key} className={`text-xs font-medium text-center `}>
                     {col.label}
                     {col.historical_autofill && <Badge variant="outline" className="ml-1 text-[9px] bg-amber-100 text-amber-700">Prev FY</Badge>}
                   </TableHead>
@@ -2732,7 +2732,7 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
             </TableHeader>
             <TableBody>
               {section.rows.map((row) => (
-                <TableRow key={row.key} className={row.is_total ? 'bg-emerald-100' : ''}>
+                <TableRow key={row.key} className={row.is_total ? "bg-stone-100" : ""}>
                   <TableCell className="text-xs font-medium">{row.label}</TableCell>
                   {columns.map((col) => (
                     <TableCell key={col.key} className="p-1">
@@ -2740,7 +2740,7 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
                         type="number"
                         value={data.metrics?.[row.key]?.[col.key] ?? ''}
                         onChange={(e) => handleMetricChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                        className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                        className={`h-8 text-xs text-center `}
                         step="0.01"
                         min="0"
                         disabled={col.historical_autofill}
@@ -2916,7 +2916,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
           <TableRow className={bgClass}>
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>
                 {col.label}
               </TableHead>
             ))}
@@ -2924,7 +2924,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
         </TableHeader>
         <TableBody>
           {section.rows.map((row) => (
-            <TableRow key={row.key} className={row.is_total ? 'bg-blue-100 font-semibold' : ''}>
+            <TableRow key={row.key} className={row.is_total ? 'bg-stone-100 font-semibold' : ''}>
               <TableCell className="text-xs">{row.label}</TableCell>
               {columns.map((col) => (
                 <TableCell key={col.key} className="p-1">
@@ -2933,7 +2933,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
                       onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      className={`h-8 text-xs text-center `}
                       step="0.01"
                       min="0"
                       disabled={col.historical_autofill}
@@ -3028,7 +3028,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
             <TableHead className="text-xs font-medium">Destination</TableHead>
             <TableHead className="text-xs font-medium">Treatment</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -3054,7 +3054,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                       type="number"
                       value={data[`${dest.key}_${tt.key}`]?.[col.key] ?? ''}
                       onChange={(e) => handleChange(dest.key, tt.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />
@@ -3076,7 +3076,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                     newData[totalRow.key][col.key] = parseFloat(e.target.value) || 0;
                     onChange(newData);
                   }}
-                  className={`h-8 text-xs text-center font-semibold ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                  className={`h-8 text-xs text-center font-semibold `}
                   min="0"
                   disabled={col.historical_autofill}
                 />
@@ -3149,7 +3149,7 @@ function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, 
           <TableRow className="bg-violet-50">
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -3181,7 +3181,7 @@ function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, 
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
                       onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />
@@ -3282,13 +3282,13 @@ function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {section.rows.some(r => r.has_category) && <TableHead className="text-xs font-medium">Category</TableHead>}
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {section.rows.map((row) => (
-            <TableRow key={row.key} className={row.is_total ? 'bg-orange-100 font-semibold' : ''}>
+            <TableRow key={row.key} className={row.is_total ? 'bg-stone-100 font-semibold' : ''}>
               <TableCell className="text-xs">{row.label}</TableCell>
               {section.rows.some(r => r.has_category) && (
                 <TableCell className="p-1">
@@ -3311,7 +3311,7 @@ function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange
                       type="number"
                       value={data[`${section.key}_${row.key}`]?.[col.key] ?? ''}
                       onChange={(e) => handleChange(section.key, row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />

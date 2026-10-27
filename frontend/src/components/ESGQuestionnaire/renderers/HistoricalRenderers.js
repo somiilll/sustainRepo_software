@@ -438,7 +438,7 @@ export function HistoricalWasteManagementMatrixRenderer({ config, value, onChang
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-emerald-50">
+            <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead 
                   key={col.key} 
