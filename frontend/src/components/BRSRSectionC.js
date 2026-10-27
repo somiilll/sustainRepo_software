@@ -561,9 +561,9 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                 {[['Essential Indicators', questions.filter(c => !LEADERSHIP_KEYS.has(c.question_key))],
                   ['Leadership Indicators', questions.filter(c => LEADERSHIP_KEYS.has(c.question_key))]].map(([title, list]) => list.length > 0 && (
                   <div key={title} className="px-5 py-4" data-testid={`principle-${p}-${title.split(' ')[0].toLowerCase()}-indicators`}>
-                    <h4 className="text-base font-bold text-stone-900 border-b border-stone-200 pb-2 mb-4">{title}</h4>
+                    <h4 className="text-base font-bold text-stone-900 text-center bg-stone-100 rounded-md py-2 mb-4" data-testid={`principle-${p}-${title.split(" ")[0].toLowerCase()}-heading`}>{title}</h4>
                     <div className="space-y-1">
-                      {list.map(c => renderQuestion(applyConfigOverrides(c)))}
+                      {list.map((c, i) => { const cfg = applyConfigOverrides(c); return renderQuestion({ ...cfg, question: `${i + 1}. ${cfg.question}` }); })}
                     </div>
                   </div>
                 ))}

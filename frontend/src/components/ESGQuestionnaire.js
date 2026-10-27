@@ -60,7 +60,6 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Clock, Pencil } from 'lucide-react';
 import { 
   generateReportingYears, 
@@ -909,12 +908,8 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <Label className="text-sm font-medium text-text-primary">
-            {question}
-            {required && <span className="text-red-500 ml-1">*</span>}
+            {String(question).replace(/\s*\*+\s*$/, "")}
           </Label>
-          {description && (
-            <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
-          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           {perQuestionEdit && canEditQuestion && !localEditing && (
@@ -2650,7 +2645,7 @@ function YesNoWithNestedDetailsRenderer({ config, value, onChange, isEditing }) 
         <div className="space-y-3">
           {subQuestions.filter(shouldShowSubQuestion).map((sq) => (
             <div key={sq.key}>
-              <Label className="text-xs font-medium">{sq.question}{sq.required && <span className="text-red-500 ml-1">*</span>}</Label>
+              <Label className="text-xs font-medium">{sq.question}</Label>
               {sq.type === 'yes_no' ? (
                 <RadioGroup 
                   value={data.sub_answers?.[sq.key] || ''} 
@@ -3214,7 +3209,7 @@ function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing 
       </div>
       {descField.key && (
         <div>
-          <Label className="text-xs">{descField.label}{descField.required && <span className="text-red-500 ml-1">*</span>}</Label>
+          <Label className="text-xs">{descField.label}</Label>
           <Textarea
             value={data.description || ''}
             onChange={(e) => onChange({ ...data, description: e.target.value })}

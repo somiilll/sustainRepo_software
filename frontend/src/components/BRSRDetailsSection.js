@@ -558,7 +558,7 @@ export default function BRSRDetailsSection({
     return (
       <div className="flex items-center justify-between mb-1">
         <Label className="flex items-center gap-2">
-          {label} {required && <span className="text-red-500">*</span>}
+          {label}
           {renderQuestionStatus(questionKey)}
         </Label>
         <div className="flex items-center gap-1">

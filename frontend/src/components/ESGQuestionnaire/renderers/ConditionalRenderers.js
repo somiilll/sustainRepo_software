@@ -154,7 +154,7 @@ export function LongTextResponseRenderer({ config, value, onChange, isEditing })
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={config.placeholder || 'Enter your response...'}
-        rows={6}
+        rows={3}
         className="text-sm"
       />
     </div>

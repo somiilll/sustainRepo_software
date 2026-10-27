@@ -1170,7 +1170,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <TableHead rowSpan={2} className="text-xs min-w-[150px]">Category</TableHead>
                   <TableHead rowSpan={2} className="text-xs text-center min-w-[80px]">Mechanism</TableHead>
                   <TableHead rowSpan={2} className="text-xs min-w-[150px]">Policy Web-link</TableHead>
-                  <TableHead colSpan={3} className="text-xs text-center border-l bg-emerald-50 text-emerald-900" data-testid="complaints-current-fy-header">
+                  <TableHead colSpan={3} className="text-xs text-center border-l bg-stone-100 text-stone-700" data-testid="complaints-current-fy-header">
                     Current FY ({reportingYear})
                   </TableHead>
                   <TableHead colSpan={3} className="text-xs text-center border-l bg-stone-100 text-stone-700" data-testid="complaints-previous-fy-header">
@@ -1315,80 +1315,56 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         </CollapsibleTrigger>
         <CollapsibleContent className="p-4 pt-0 border-t">
           <div className="space-y-3">
-            {materialIssues.map((issue, idx) => (
-              <div key={idx} className="border rounded-lg p-3 bg-stone-50">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-xs font-medium text-stone-500">Issue #{idx + 1}</span>
-                  {inSection('VII') && canEditQuestion('brsr_a_material_issues') && materialIssues.length > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => setMaterialIssues(materialIssues.filter((_, i) => i !== idx))}
-                      className="h-6 w-6 p-0 text-red-500"><Trash2 className="w-3 h-3" /></Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Material Issue Identified</Label>
-                    {inSection('VII') && canEditQuestion('brsr_a_material_issues') ? (
-                      <Textarea value={issue.issue_identified} onChange={(e) => {
-                        const updated = [...materialIssues]; updated[idx].issue_identified = e.target.value; setMaterialIssues(updated);
-                      }} className="text-xs mt-1" rows={2} placeholder="Describe the material issue" />
-                    ) : <p className="text-xs mt-1">{issue.issue_identified || '-'}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs">Risk or Opportunity</Label>
-                    {inSection('VII') ? (
-                      <Select value={issue.risk_or_opportunity} onValueChange={(v) => {
-                        const updated = [...materialIssues]; updated[idx].risk_or_opportunity = v; setMaterialIssues(updated);
-                      }}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Risk">Risk</SelectItem>
-                          <SelectItem value="Opportunity">Opportunity</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant="outline" className={`text-xs mt-1 ${issue.risk_or_opportunity === 'Risk' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                        {issue.risk_or_opportunity}
-                      </Badge>
-                    )}
-                  </div>
-                  <div>
-                    <Label className="text-xs">Rationale for Identification</Label>
-                    {inSection('VII') ? (
-                      <Textarea value={issue.rationale} onChange={(e) => {
-                        const updated = [...materialIssues]; updated[idx].rationale = e.target.value; setMaterialIssues(updated);
-                      }} className="text-xs mt-1" rows={2} placeholder="Why was this identified?" />
-                    ) : <p className="text-xs mt-1">{issue.rationale || '-'}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs">Approach to Adapt or Mitigate {issue.risk_or_opportunity === 'Risk' && <span className="text-red-500">*</span>}</Label>
-                    {inSection('VII') ? (
-                      <Textarea value={issue.mitigation_approach} onChange={(e) => {
-                        const updated = [...materialIssues]; updated[idx].mitigation_approach = e.target.value; setMaterialIssues(updated);
-                      }} className="text-xs mt-1" rows={2} placeholder={issue.risk_or_opportunity === 'Risk' ? 'Required for risks' : 'Optional'} />
-                    ) : <p className="text-xs mt-1">{issue.mitigation_approach || '-'}</p>}
-                  </div>
-                  <div>
-                    <Label className="text-xs">Financial Implication</Label>
-                    {inSection('VII') ? (
-                      <Select value={issue.financial_implication} onValueChange={(v) => {
-                        const updated = [...materialIssues]; updated[idx].financial_implication = v; setMaterialIssues(updated);
-                      }}>
-                        <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Positive">Positive</SelectItem>
-                          <SelectItem value="Negative">Negative</SelectItem>
-                          <SelectItem value="Neutral">Neutral</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge variant="outline" className={`text-xs mt-1 ${issue.financial_implication === 'Positive' ? 'bg-green-50 text-green-700' : issue.financial_implication === 'Negative' ? 'bg-red-50 text-red-700' : ''}`}>
-                        {issue.financial_implication}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-stone-50">
+                    <TableHead className="text-xs w-10">#</TableHead>
+                    <TableHead className="text-xs">Material Issue Identified</TableHead>
+                    <TableHead className="text-xs w-36">Risk or Opportunity</TableHead>
+                    <TableHead className="text-xs">Rationale for Identification</TableHead>
+                    <TableHead className="text-xs">Approach to Adapt or Mitigate</TableHead>
+                    <TableHead className="text-xs w-36">Financial Implication</TableHead>
+                    {inSection('VII') && canEditQuestion('brsr_a_material_issues') && <TableHead className="w-10" />}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {materialIssues.map((issue, idx) => {
+                    const editing = inSection('VII') && canEditQuestion('brsr_a_material_issues');
+                    const setField = (field, value) => { const updated = [...materialIssues]; updated[idx] = { ...updated[idx], [field]: value }; setMaterialIssues(updated); };
+                    const textCell = (field, placeholder) => editing
+                      ? <Textarea value={issue[field] || ''} onChange={(e) => setField(field, e.target.value)} className="text-xs" rows={2} placeholder={placeholder} />
+                      : <span className="text-xs whitespace-pre-wrap">{issue[field] || '-'}</span>;
+                    const selectCell = (field, options) => editing
+                      ? (
+                        <Select value={issue[field]} onValueChange={(v) => setField(field, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                        </Select>
+                      ) : <span className="text-xs">{issue[field] || '-'}</span>;
+                    return (
+                      <TableRow key={idx} data-testid={`material-issue-row-${idx}`}>
+                        <TableCell className="text-xs text-stone-500">{idx + 1}</TableCell>
+                        <TableCell>{textCell('issue_identified', 'Describe the material issue')}</TableCell>
+                        <TableCell>{selectCell('risk_or_opportunity', ['Risk', 'Opportunity'])}</TableCell>
+                        <TableCell>{textCell('rationale', 'Why was this identified?')}</TableCell>
+                        <TableCell>{textCell('mitigation_approach', '')}</TableCell>
+                        <TableCell>{selectCell('financial_implication', ['Positive', 'Negative', 'Neutral'])}</TableCell>
+                        {editing && (
+                          <TableCell>
+                            {materialIssues.length > 1 && (
+                              <Button variant="ghost" size="sm" onClick={() => setMaterialIssues(materialIssues.filter((_, i) => i !== idx))} className="h-6 w-6 p-0 text-red-500">
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
             {inSection('VII') && canEditQuestion('brsr_a_material_issues') && (
               <Button variant="outline" size="sm" onClick={() => setMaterialIssues([...materialIssues, { ...DEFAULT_MATERIAL_ISSUE_ROW }])}>
                 <Plus className="w-3 h-3 mr-1" /> Add Issue

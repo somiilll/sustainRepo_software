@@ -240,6 +240,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     { key: 'current_fy', label: 'Current FY', type: 'number' },
     { key: 'previous_fy', label: 'Previous FY', type: 'number' }
   ];
+  const groupEndKeys = new Set((tableConfig.column_groups || []).flatMap((g) => (g.sub_groups ? g.sub_groups.map((sg) => sg.columns || []) : [g.columns || []]).map((cols) => cols[cols.length - 1]?.key).filter(Boolean)));
   // Normalize FY-suffixed data from backend to simple keys for rendering
   const normalizedValue = normalizeFYResponse(value);
   const data = normalizedValue || {};
@@ -355,7 +356,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                         {tableConfig.column_groups.flatMap((group) =>
                           (group.sub_groups || []).filter(sg => !sg.span_rows).flatMap((sg) =>
                             (sg.columns || []).map(col => (
-                              <TableHead key={col.key} className="text-[10px] font-medium">{col.label}</TableHead>
+                              <TableHead key={col.key} className={`text-[10px] font-medium ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>{col.label}</TableHead>
                             ))
                           )
                         )}
@@ -378,7 +379,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                   <TableRow className="bg-stone-50">
                     {tableConfig.column_groups.filter((group) => !group.span_rows).flatMap((group) =>
                       group.columns.map(col => (
-                        <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
+                        <TableHead key={col.key} className={`text-[11px] font-medium ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>{col.label}</TableHead>
                       ))
                     )}
                   </TableRow>
@@ -405,14 +406,14 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
             </TableRow>
           ) : (
             <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
-              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.grandchild ? 'pl-10' : ''} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>
+              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.grandchild ? 'pl-10' : ''}  ${tableConfig.column_groups ? "border-r" : ""} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>
                 {/please specify/i.test(row.label) && !isEditing && data[row.key]?.specify ? `${row.label.split(/\s*[–-]\s*please specify/i)[0]} – ${data[row.key].specify}` : row.label}
                 {/please specify/i.test(row.label) && isEditing && (
                   <Input value={data[row.key]?.specify ?? ''} onChange={(e) => handleCellChange(row.key, 'specify', e.target.value)} placeholder="Please specify" className="h-8 mt-1 text-sm font-normal" data-testid={`${config.question_key}-${row.key}-specify`} />
                 )}
               </TableCell>
               {columns.map(col => (
-                <TableCell key={col.key} className="p-1">
+                <TableCell key={col.key} className={`p-1 ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
                     <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? (col.key === 'unit' ? row.default_unit : '-') ?? '-'}</span>
                   ) : (
