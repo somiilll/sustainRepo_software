@@ -397,10 +397,9 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing: isEditingProp, perQuestionEdit = false, canEditQuestion = true, approvalEnabled = false, isAdmin = false, onCancelEdit = null, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
+export function QuestionRenderer({ config, value, onChange, isEditing: isEditingProp, perQuestionEdit = false, canEditQuestion = true, approvalEnabled = false, isAdmin = false, onCancelEdit = null, allResponses = {}, historicalData = null, approvalStatus = null, onSaveQuestion = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
-  const [showVersions, setShowVersions] = useState(false);
   const [localEditing, setLocalEditing] = useState(false);
   const isEditing = perQuestionEdit ? localEditing : isEditingProp;
   const [savingQuestion, setSavingQuestion] = useState(false);
@@ -870,226 +869,16 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
     );
   };
 
-  // Helper to render version history - detailed view with old/new values, approvals, rejections
-  const renderVersionHistory = () => {
-    if (onOpenTimeline) return null;
-    const hasHistory = versionHistory && versionHistory.length > 0;
-    
-    // Format complex values into human-readable text with conditional field handling
-    const formatValue = (val) => {
-      if (val === null || val === undefined) return '-';
-      if (typeof val === 'string') return val || '-';
-      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-      if (typeof val === 'number') return String(val);
-      
-      if (typeof val === 'object') {
-        const lines = [];
-        
-        // Handle mode-based responses (principle toggles, etc.)
-        if (val.mode) {
-          const modeLabels = {
-            'all_together': 'Report all principles together',
-            'combined': 'Report all principles together',
-            'individual': 'Report by individual principle',
-            'per_principle': 'Report by individual principle',
-          };
-          lines.push(`Mode: ${modeLabels[val.mode] || val.mode}`);
-          
-          // Handle all_together/combined mode
-          if (val.all_enabled !== undefined) {
-            lines.push(`Enabled: ${val.all_enabled ? 'Yes' : 'No'}`);
-          }
-          if (val.all_description) {
-            lines.push(`Description: ${val.all_description.slice(0, 100)}${val.all_description.length > 100 ? '...' : ''}`);
-          }
-          if (val.combined) {
-            // First pass: identify control fields (boolean fields that control visibility)
-            const controlFields = {};
-            Object.entries(val.combined).forEach(([k, v]) => {
-              if (typeof v === 'boolean') {
-                controlFields[k] = v;
-              } else if (typeof v === 'string') {
-                const lower = v.toLowerCase();
-                if (lower === 'yes' || lower === 'true') controlFields[k] = true;
-                else if (lower === 'no' || lower === 'false') controlFields[k] = false;
-              }
-            });
-            
-            // Second pass: show fields conditionally
-            Object.entries(val.combined).forEach(([k, v]) => {
-              // Skip empty values
-              if (v === null || v === undefined || v === '') return;
-              
-              // Check if this field depends on a control field
-              // Pattern: if field is like "agency_name" and "assessment_done" is false, skip it
-              const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
-              const possibleControls = [
-                `${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`,
-                `${fieldBase.replace(/_/g, '')}_done`, 'assessment_done', 'enabled'
-              ];
-              
-              const shouldSkip = possibleControls.some(ctrl => 
-                controlFields[ctrl] === false && k !== ctrl
-              );
-              
-              if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
-              
-              const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-              const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v;
-              lines.push(`${label}: ${displayVal}`);
-            });
-          }
-          
-          // Handle per-principle mode
-          if (val.principles && Object.keys(val.principles).length > 0) {
-            const enabledPrinciples = Object.entries(val.principles)
-              .filter(([_, p]) => p?.enabled)
-              .map(([k]) => k.toUpperCase());
-            if (enabledPrinciples.length > 0) {
-              lines.push(`Enabled Principles: ${enabledPrinciples.join(', ')}`);
-            }
-          }
-        }
-        // Handle table data (arrays)
-        else if (Array.isArray(val)) {
-          lines.push(`${val.length} row(s)`);
-          if (val.length > 0 && typeof val[0] === 'object') {
-            const firstRow = Object.entries(val[0]).slice(0, 3)
-              .map(([k, v]) => `${k}: ${v || '-'}`)
-              .join(', ');
-            lines.push(`First row: ${firstRow}${Object.keys(val[0]).length > 3 ? '...' : ''}`);
-          }
-        }
-        // Handle simple key-value objects
-        else {
-          // First pass: identify control fields
-          const controlFields = {};
-          Object.entries(val).forEach(([k, v]) => {
-            if (typeof v === 'boolean') {
-              controlFields[k] = v;
-            } else if (typeof v === 'string') {
-              const lower = v.toLowerCase();
-              if (lower === 'yes' || lower === 'true') controlFields[k] = true;
-              else if (lower === 'no' || lower === 'false') controlFields[k] = false;
-            }
-          });
-          
-          Object.entries(val).slice(0, 8).forEach(([k, v]) => {
-            if (k.startsWith('_')) return; // Skip internal fields
-            if (v === null || v === undefined || v === '') return; // Skip empty
-            
-            // Check conditional visibility
-            const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
-            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`, 'assessment_done'];
-            const shouldSkip = possibleControls.some(ctrl => controlFields[ctrl] === false && k !== ctrl);
-            if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
-            
-            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
-                              typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : 
-                              String(v || '-').slice(0, 50);
-            lines.push(`${label}: ${displayVal}`);
-          });
-        }
-        
-        return lines.length > 0 ? lines : ['-'];
-      }
-      
-      return [String(val)];
-    };
-
-    const getActionBadge = (action) => {
-      const badges = {
-        'created': 'bg-green-100 text-green-700',
-        'updated': 'bg-blue-100 text-blue-700',
-        'approved': 'bg-emerald-100 text-emerald-700',
-        'rejected': 'bg-red-100 text-red-700',
-        'submitted': 'bg-amber-100 text-amber-700',
-        'kpi_synced': 'bg-sky-100 text-sky-700',
-      };
-      return badges[action] || 'bg-stone-100 text-stone-700';
-    };
-
-    const getActorDetails = (version) => {
-      const action = version.change_type || '';
-      const isApproved = action === 'approved' || action === 'submission_approved';
-      const isRejected = action === 'rejected' || action === 'submission_rejected';
-      const actor = isApproved
-        ? version.approved_by_name || version.changed_by_name || version.created_by_name || version.created_by
-        : isRejected
-          ? version.rejected_by_name || version.changed_by_name || version.created_by_name || version.created_by
-          : version.changed_by_name || version.created_by_name || version.created_by;
-      return {
-        label: action === 'kpi_synced' ? 'Source' : isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
-        name: actor && !String(actor).includes('@') ? actor : 'Unknown user',
-      };
-    };
-
-    if (!hasHistory) return null;
-    
-    return (
-      <>
-        {showVersions && (
-          <div className="bg-stone-50 rounded-md p-3 space-y-3 text-xs mt-2 border">
-            <div className="font-medium text-stone-700 border-b pb-1 mb-2">Version History</div>
-            {versionHistory.slice(0, 10).map((v, i) => {
-              const oldLines = formatValue(v.old_value);
-              const newLines = formatValue(v.new_value);
-              const actor = getActorDetails(v);
-              
-              return (
-                <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
-                      {v.change_type === 'kpi_synced' ? 'Auto-updated from KPI' : (v.change_type || 'Updated')}
-                    </span>
-                    <span className="text-stone-500">
-                      {v.created_at ? formatDateTime(v.created_at) : '-'}
-                    </span>
-                  </div>
-                  <div className="text-stone-600 mb-2" data-testid={`question-history-actor-${i}`}>
-                    <span className="font-medium">{actor.label}:</span> {actor.name}
-                  </div>
-                  {v.change_type === 'rejected' && v.rejection_reason && (
-                    <div className="text-red-600 mb-2">
-                      <span className="font-medium">Reason:</span> {v.rejection_reason}
-                    </div>
-                  )}
-                  {(v.old_value !== undefined || v.new_value !== undefined) && (
-                    <div className="grid grid-cols-2 gap-3 text-stone-600">
-                      <div className="bg-red-50 p-2 rounded">
-                        <div className="font-medium text-red-700 mb-1">Previous Value:</div>
-                        {Array.isArray(oldLines) ? oldLines.map((line, j) => (
-                          <div key={j} className="text-stone-600">{line}</div>
-                        )) : <div>{oldLines}</div>}
-                      </div>
-                      <div className="bg-green-50 p-2 rounded">
-                        <div className="font-medium text-green-700 mb-1">New Value:</div>
-                        {Array.isArray(newLines) ? newLines.map((line, j) => (
-                          <div key={j} className="text-stone-600">{line}</div>
-                        )) : <div>{newLines}</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </>
-    );
-  };
-
   // Version history button for header
   const renderVersionHistoryButton = () => {
-    const hasHistory = versionHistory && versionHistory.length > 0;
     return (
       <Button
         variant="ghost"
         size="sm"
-        onClick={onOpenTimeline || handleToggleVersions}
-        className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
-        title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
+        data-testid={`question-history-btn-${config.question_key}`}
+        onClick={onOpenTimeline}
+        className="h-7 px-2 text-xs"
+        title="View history"
       >
         <Clock className="w-3 h-3" />
       </Button>
@@ -1113,14 +902,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
       setSavingDraft(false);
       setSavingQuestion(false);
     }
-  };
-
-  // Handle version history fetch and toggle
-  const handleToggleVersions = async () => {
-    if (!showVersions && onFetchVersionHistory && (!versionHistory || versionHistory.length === 0)) {
-      await onFetchVersionHistory();
-    }
-    setShowVersions(!showVersions);
   };
 
   return (
@@ -1198,7 +979,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
         </div>
       )}
       
-      {renderVersionHistory()}
     </div>
   );
 }
@@ -3487,7 +3267,6 @@ export default function ESGQuestionnaire({
   const [summary, setSummary] = useState(null);
   const [historicalData, setHistoricalData] = useState(null);
   const [questionStatuses, setQuestionStatuses] = useState({});
-  const [questionVersions, setQuestionVersions] = useState({});
   const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
 
   useEffect(() => {
@@ -3532,11 +3311,9 @@ export default function ESGQuestionnaire({
           { headers: getAuthHeader() }
         );
         setQuestionStatuses(statusesRes.data.statuses || {});
-        setQuestionVersions(statusesRes.data.versions || {});
       } catch (err) {
         console.warn('Failed to fetch question statuses:', err);
         setQuestionStatuses({});
-        setQuestionVersions({});
       }
 
       // Calculate filtered summary based on filtered configs
@@ -3602,7 +3379,6 @@ export default function ESGQuestionnaire({
           { headers: getAuthHeader() }
         );
         setQuestionStatuses(statusesRes.data.statuses || {});
-        setQuestionVersions(statusesRes.data.versions || {});
       } catch (err) {
         console.warn('Failed to refresh statuses:', err);
       }
@@ -3610,27 +3386,6 @@ export default function ESGQuestionnaire({
       console.error('Save question error:', error);
       toast.error(error.response?.data?.detail || 'Failed to save question');
       throw error;
-    }
-  };
-
-  // Fetch version history for a specific question
-  const fetchVersionHistory = async (questionKey) => {
-    try {
-      const res = await axios.get(
-        `${API}/esg-questionnaire/history/${questionKey}`,
-        { 
-          params: { reporting_period: reportingYear },
-          headers: getAuthHeader() 
-        }
-      );
-      setQuestionVersions(prev => ({
-        ...prev,
-        [questionKey]: res.data.history || []
-      }));
-      return res.data.history || [];
-    } catch (error) {
-      console.error('Failed to fetch version history:', error);
-      return [];
     }
   };
 
@@ -3761,9 +3516,7 @@ export default function ESGQuestionnaire({
                     }}
                     historicalData={historicalData}
                     approvalStatus={questionStatuses[config.question_key]}
-                    versionHistory={questionVersions[config.question_key]}
                     onSaveQuestion={saveQuestion}
-                    onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                     onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                     lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
                     dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}

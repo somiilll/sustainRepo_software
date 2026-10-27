@@ -538,32 +538,6 @@ async def reject_submission(
     return result
 
 
-@router.get("/history/{question_key}")
-async def get_question_history(
-    question_key: str,
-    reporting_period: str = Query(..., description="Reporting period (e.g., FY 2025-26)"),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Get version history for a specific question.
-    Returns all changes, assignments, and approvals.
-    """
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    history = await esg_questionnaire_service.get_question_history(
-        org_id=org_id,
-        question_key=question_key,
-        reporting_period=reporting_period
-    )
-    
-    return {
-        "question_key": question_key,
-        "reporting_period": reporting_period,
-        "history": history,
-        "total": len(history)
-    }
 
 
 # =============================================================================

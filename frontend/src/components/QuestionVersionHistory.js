@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { CheckCircle2, Clock, History, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, History, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
@@ -172,6 +172,7 @@ const EVENT_STYLES = {
   SUBMITTED: { label: 'Submitted for Approval',  icon: Clock,        tone: 'text-blue-700 bg-blue-50 border-blue-200' },
   CREATED:   { label: 'Response Created',        icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   UPDATED:   { label: 'Response Updated',        icon: History,      tone: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+  KPI_SYNCED: { label: 'Auto-updated from KPI',  icon: RefreshCw,    tone: 'text-sky-700 bg-sky-50 border-sky-200' },
 };
 
 const eventStyle = (type) =>
@@ -179,6 +180,7 @@ const eventStyle = (type) =>
 
 const actorLabel = (type) => {
   if (type === 'CREATED' || type === 'UPDATED') return 'Saved by';
+  if (type === 'KPI_SYNCED') return 'Source';
   return 'Requested by';
 };
 

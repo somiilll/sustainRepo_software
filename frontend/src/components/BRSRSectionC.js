@@ -347,7 +347,6 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
   const [allConfigs, setAllConfigs] = useState([]);
   const [allResponses, setAllResponses] = useState({});
   const [approvalStatuses, setApprovalStatuses] = useState({});
-  const [versionHistories, setVersionHistories] = useState({});
   const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
   const [expanded, setExpanded] = useState({});
 
@@ -451,28 +450,6 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     }
   };
 
-  // Fetch version history for a question
-  const fetchVersionHistory = async (questionKey) => {
-    try {
-      const headers = getAuthHeader();
-      const res = await axios.get(
-        `${API}/api/esg-questionnaire/history/${questionKey}`,
-        { 
-          params: { reporting_period: reportingYear },
-          headers 
-        }
-      );
-      setVersionHistories(prev => ({
-        ...prev,
-        [questionKey]: res.data.history || []
-      }));
-      return res.data.history || [];
-    } catch (error) {
-      console.error('Failed to fetch version history:', error);
-      return [];
-    }
-  };
-
   // Get status badge for a principle
   const getPrincipleStatus = (principle) => {
     const questions = grouped[principle] || [];
@@ -504,13 +481,11 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                       }}
                       historicalData={null}
                       approvalStatus={approvalStatuses[config.question_key]}
-                      versionHistory={versionHistories[config.question_key]}
                       onSaveQuestion={saveQuestion}
                       perQuestionEdit
                       approvalEnabled={approvalEnabled}
                       isAdmin={isAdmin}
                       onCancelEdit={fetchData}
-                      onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                       onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                       lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
                       dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
