@@ -2402,7 +2402,7 @@ function TableRenderer({ config, value, onChange, isEditing }) {
             {rows.map((row, idx) => (
               <TableRow key={idx}>
                 {columns.map((col) => (
-                  <TableCell key={col.key} className="text-xs">{row[col.key] ?? '-'}</TableCell>
+                  <TableCell key={col.key} className="text-xs">{col.other_key && row[col.key] === 'Others' && row[col.other_key] ? `Others – ${row[col.other_key]}` : (row[col.key] ?? '-')}</TableCell>
                 ))}
               </TableRow>
             ))}
@@ -2438,12 +2438,17 @@ function TableRenderer({ config, value, onChange, isEditing }) {
                         </SelectContent>
                       </Select>
                     ) : col.type === 'select' ? (
-                      <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
-                        <SelectContent>
-                          {col.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-1">
+                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                          <SelectContent>
+                            {col.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {col.other_key && row[col.key] === 'Others' && (
+                          <Input value={row[col.other_key] || ''} onChange={(e) => handleCellChange(rowIdx, col.other_key, e.target.value)} placeholder="Please specify" className="h-8 text-xs" />
+                        )}
+                      </div>
                     ) : col.type === 'number' ? (
                       <Input
                         type="number"

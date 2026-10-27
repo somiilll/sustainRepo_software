@@ -54,6 +54,7 @@ const LEADERSHIP_KEYS = new Set([
   'env_value_chain_impacts', 'env_value_chain_assessment',
   'public_policy_positions',
   'p8_sia_corrective_actions', 'p8_csr_aspirational_districts', 'p8_preferential_procurement',
+  'p8_marginalized_groups_procured', 'p8_marginalized_procurement_pct',
   'p8_intellectual_property_traditional', 'p8_ip_corrective_actions', 'p8_csr_beneficiaries',
   'p9_product_info_channels', 'p9_consumer_education', 'p9_service_disruption_mechanism',
   'p9_product_info_beyond_legal', 'p9_consumer_satisfaction_survey',
@@ -94,6 +95,8 @@ const wellbeingOverride = (config, noun) => {
 };
 
 const QUESTION_RENAMES = {
+  p8_msme_domestic_sourcing: 'Percentage of input material (inputs to total inputs by value) sourced from suppliers:',
+  p8_sia_corrective_actions: 'Provide details of actions taken to mitigate any negative social impacts identified in the Social Impact Assessments (Reference: Question 1 of Essential Indicators)',
   p6_water_stress_areas: 'Water withdrawal, consumption and discharge in areas of water stress',
   env_value_chain_impacts: 'Disclose significant adverse environmental impacts arising from the value chain and adaptation or mitigation measures taken.',
   env_waste_management_practices_desc: 'Briefly describe the waste management practices adopted in your establishments. Describe the strategy adopted by your company to reduce usage of hazardous and toxic chemicals in your products and processes and the practices adopted to manage such wastes.',
@@ -105,7 +108,7 @@ const QUESTION_RENAMES = {
   p5_value_chain_corrective: 'Provide details of any corrective actions taken or underway to address significant risks/concerns arising from value chain partner assessments at question above',
 };
 
-const NO_DETAIL_KEYS = new Set(['p5_hr_focal_point', 'p5_hr_business_agreements', 'p5_accessibility_differently_abled']);
+const NO_DETAIL_KEYS = new Set(['p5_hr_focal_point', 'p5_hr_business_agreements', 'p5_accessibility_differently_abled', 'p8_preferential_procurement']);
 
 const wageFyGroup = (label, p, letters) => ({
   label,
@@ -148,6 +151,9 @@ const applyConfigOverrides = (rawConfig) => {
       { key: 'reason', label: 'Reason thereof', type: 'text', width: '200px', show_when: showWhenNo },
       { key: 'corrective_action', label: 'Corrective Action Taken', type: 'text', width: '200px', show_when: showWhenNo },
     ] } };
+  }
+  if (config.question_key === 'public_policy_positions' && config.table_columns) {
+    return { ...config, table_columns: config.table_columns.map(c => (c.key === 'frequency_of_review' ? { ...c, other_key: 'frequency_of_review_other' } : c)) };
   }
   if (config.question_key === 'env_value_chain_assessment' && config.percentage_config) {
     return { ...config, percentage_config: { ...config.percentage_config, description_field: null } };
