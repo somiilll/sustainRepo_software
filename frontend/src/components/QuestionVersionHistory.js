@@ -34,6 +34,7 @@ const isTabularObject = (v) => {
   const vals = Object.values(v);
   if (vals.length === 0) return false;
   if (!vals.every((x) => x && typeof x === 'object' && !Array.isArray(x))) return false;
+  if (!vals.every((x) => Object.values(x).every((cell) => cell === null || typeof cell !== 'object'))) return false;
   const sets = vals.map((x) => new Set(Object.keys(x)));
   const union = new Set(sets.flatMap((s) => [...s]));
   const avg = sets.reduce((s, ks) => s + [...union].filter((k) => ks.has(k)).length, 0) / sets.length;
