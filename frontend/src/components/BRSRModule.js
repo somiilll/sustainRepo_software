@@ -119,7 +119,7 @@ export default function BRSRModule() {
   };
 
   return (
-    <div className="space-y-7" onKeyDownCapture={blockNegativeKey} onPasteCapture={blockNegativePaste}>
+    <div className="space-y-7 brsr-report" onKeyDownCapture={blockNegativeKey} onPasteCapture={blockNegativePaste}>
       <ModulePageHeader
         title="BRSR Framework"
         icon={ClipboardList}
@@ -148,7 +148,7 @@ export default function BRSRModule() {
       <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} />
       <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6">
       <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">
 
         {/* Section A - General Disclosures */}
