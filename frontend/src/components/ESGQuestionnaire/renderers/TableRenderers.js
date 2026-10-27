@@ -252,7 +252,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     const baseRows = fixedRows.filter((row) => !(row.key === 'others' && standaloneRows.length > 0));
     const positionedRows = baseRows.flatMap((row) => [
       row,
-      ...childRows.filter((child) => child.parent_key === row.key),
+      ...childRows.filter((child) => child.parent_key === row.key).map((child) => ({ ...child, label: child.label.split(': ').pop() })),
     ]);
     return [...positionedRows, ...standaloneRows];
   })();
@@ -424,6 +424,35 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+export function WaterStressCompositeRenderer(props) {
+  const { value, onChange, isEditing } = props;
+  const data = normalizeFYResponse(value) || {};
+  const fields = [
+    { key: 'area_name', label: 'Name of the area' },
+    { key: 'nature_of_operations', label: 'Nature of operations' },
+  ];
+  return (
+    <div className="mt-2 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {fields.map((f) => (
+          <div key={f.key}>
+            <p className="text-sm font-medium mb-1">{f.label}</p>
+            {isEditing ? (
+              <Input value={data[f.key] ?? ''} onChange={(e) => onChange({ ...data, [f.key]: e.target.value })} className="h-8 text-sm" placeholder={f.label} data-testid={`water-stress-${f.key}`} />
+            ) : (
+              <p className="text-sm">{data[f.key] || '-'}</p>
+            )}
+          </div>
+        ))}
+      </div>
+      <div>
+        <p className="text-sm font-medium mb-1">Water withdrawal, consumption and discharge</p>
+        <FYComparisonTableRenderer {...props} value={data} />
+      </div>
     </div>
   );
 }

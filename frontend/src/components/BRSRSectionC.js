@@ -94,6 +94,8 @@ const wellbeingOverride = (config, noun) => {
 };
 
 const QUESTION_RENAMES = {
+  p6_water_stress_areas: 'Water withdrawal, consumption and discharge in areas of water stress',
+  env_value_chain_impacts: 'Disclose significant adverse environmental impacts arising from the value chain and adaptation or mitigation measures taken.',
   env_waste_management_practices_desc: 'Briefly describe the waste management practices adopted in your establishments. Describe the strategy adopted by your company to reduce usage of hazardous and toxic chemicals in your products and processes and the practices adopted to manage such wastes.',
   p5_remuneration_details: 'Details of Median remuneration / wages',
   p5_gross_wages_females: 'Gross wages paid to females as % of total wages paid by the entity',
@@ -156,20 +158,42 @@ const applyConfigOverrides = (rawConfig) => {
   }
   if (config.question_key === 'p6_water_discharged' && config.table_config?.fixed_rows) {
     const unit = { default_unit: 'kl' };
-    const block = (p, title, withLevels) => [
+    const block = (p, title) => [
       { key: `${p}_sub_header`, label: title, sub_header: true },
       { key: `${p}_no_treatment`, label: 'No treatment', child: true, ...unit },
       { key: `${p}_with_treatment`, label: 'With treatment – please specify level', child: true, ...unit },
-      ...(withLevels ? ['primary', 'secondary', 'tertiary'].map(l => ({ key: `${p}_${l}`, label: `${l[0].toUpperCase()}${l.slice(1)} treatment`, grandchild: true, ...unit })) : []),
     ];
     const rows = [
       { key: 'discharge_sub_header', label: 'Water discharge by destination and level of treatment', sub_header: true },
-      ...block('surface', '(i) To Surface water', true), ...block('ground', '(ii) To Groundwater', true),
-      ...block('sea', '(iii) To Seawater', true), ...block('third_party', '(iv) Sent to third-parties', true),
-      ...block('others', '(v) Others', false),
+      ...block('surface', '(i) To Surface water'), ...block('ground', '(ii) To Groundwater'),
+      ...block('sea', '(iii) To Seawater'), ...block('third_party', '(iv) Sent to third-parties'),
+      ...block('others', '(v) Others'),
       { key: 'total_discharged', label: 'Total water discharged', ...unit },
     ];
     return { ...config, table_config: { ...config.table_config, fixed_rows: rows } };
+  }
+  if (config.question_key === 'p6_water_stress_areas' && config.table_config?.fixed_rows) {
+    const unit = { default_unit: 'kl' };
+    const byKey = Object.fromEntries(config.table_config.fixed_rows.map(r => [r.key, r]));
+    const pick = (key, label) => ({ ...byKey[key], label: label || byKey[key].label });
+    const discharge = (title, no, withT) => [
+      { key: `${no}_sub_header`, label: title, sub_header: true },
+      pick(no, 'No treatment'), pick(withT, 'With treatment – please specify level'),
+    ].map(r => (r.sub_header ? r : { ...r, child: true, ...unit }));
+    const rows = [
+      { key: 'withdrawal_sub_header', label: 'Water withdrawal by source', sub_header: true },
+      pick('surface_water', '(i) Surface water'), pick('groundwater', '(ii) Groundwater'), pick('third_party', '(iii) Third party water'),
+      pick('seawater', '(iv) Seawater / desalinated water'), pick('others_withdrawal', '(v) Others'),
+      pick('total_withdrawal'), pick('total_consumption'), pick('intensity_turnover'), pick('intensity_optional'),
+      { key: 'water_stress_discharge_sub_header', label: 'Water discharge by destination and level of treatment', sub_header: true },
+      ...discharge('(i) To Surface water', 'discharge_surface_no', 'discharge_surface_with'),
+      ...discharge('(ii) To Groundwater', 'discharge_ground_no', 'discharge_ground_with'),
+      ...discharge('(iii) To Seawater', 'discharge_sea_no', 'discharge_sea_with'),
+      ...discharge('(iv) Sent to third-parties', 'discharge_third_no', 'discharge_third_with'),
+      ...discharge('(v) Others', 'discharge_others_no', 'discharge_others_with'),
+      pick('total_discharged', 'Total water discharged'),
+    ];
+    return { ...config, type: 'water_stress_composite', table_config: { ...config.table_config, fixed_rows: rows } };
   }
   if (config.question_key === 'p6_waste_management_details' && config.table_config?.fixed_rows) {
     const recovered = ['For each category of waste generated, total waste recovered through recycling, re-using or other recovery operations', 'Category of waste'];

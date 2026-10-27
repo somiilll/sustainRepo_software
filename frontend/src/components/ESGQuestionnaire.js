@@ -10,6 +10,7 @@ import { normalizeAllResponses } from './ESGQuestionnaire/utils/fyNormalization'
 import {
   DynamicTableRenderer,
   FYComparisonTableRenderer,
+  WaterStressCompositeRenderer,
   FixedRowTableRenderer,
   GroupedMatrixTableRenderer,
   ConditionalYesNoTextRenderer,
@@ -739,6 +740,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
 
       case 'fy_comparison_table':
         return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
+
+      case 'water_stress_composite':
+        return <WaterStressCompositeRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
 
       case 'grouped_matrix_table':
         return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} />;

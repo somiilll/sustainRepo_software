@@ -457,6 +457,11 @@ class BRSRLiveKPIAutofillService:
                 },
             }
             if unset_fields:
+                if "value.others" in unset_fields:
+                    if any(k.startswith("value.others.") for k in set_fields):
+                        del unset_fields["value.others"]
+                    else:
+                        unset_fields = {k: v for k, v in unset_fields.items() if not k.startswith("value.others.")}
                 update["$unset"] = unset_fields
             await db.organization_esg_responses.update_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
