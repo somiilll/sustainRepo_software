@@ -93,8 +93,64 @@ const wellbeingOverride = (config, noun) => {
   } };
 };
 
+const QUESTION_RENAMES = {
+  p5_remuneration_details: 'Details of Median remuneration / wages',
+  p5_gross_wages_females: 'Gross wages paid to females as % of total wages paid by the entity',
+  p5_hr_complaints: 'Number of Complaints on the following made by employees and workers:',
+  p5_sexual_harassment_complaints: 'Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013',
+  p5_hr_corrective_actions: 'Provide details of any corrective actions taken or underway to address significant risks/concerns arising from the assessments at question above',
+  p5_value_chain_corrective: 'Provide details of any corrective actions taken or underway to address significant risks/concerns arising from value chain partner assessments at question above',
+};
+
+const NO_DETAIL_KEYS = new Set(['p5_hr_focal_point', 'p5_hr_business_agreements', 'p5_accessibility_differently_abled']);
+
+const wageFyGroup = (label, p, letters) => ({
+  label,
+  sub_groups: [
+    { label: `Total (${letters[0]})`, span_rows: true, columns: [{ key: `${p}_total`, label: '' }] },
+    { label: 'Equal to Minimum Wage', columns: [{ key: `${p}_equal_no`, label: `No. (${letters[1]})` }, { key: `${p}_equal_pct`, label: `% (${letters[1]}/${letters[0]})` }] },
+    { label: 'More than Minimum Wage', columns: [{ key: `${p}_more_no`, label: `No. (${letters[2]})` }, { key: `${p}_more_pct`, label: `% (${letters[2]}/${letters[0]})` }] },
+  ],
+});
+
+const minimumWageRows = () => {
+  const block = (title, p) => [
+    { key: `${p}_header`, label: title, section_header: true },
+    { key: `${p}_perm_header`, label: 'Permanent', sub_header: true },
+    { key: `${p}_perm_male`, label: 'Male', grandchild: true }, { key: `${p}_perm_female`, label: 'Female', grandchild: true },
+    { key: `${p}_other_header`, label: 'Other than Permanent', sub_header: true },
+    { key: `${p}_other_male`, label: 'Male', grandchild: true }, { key: `${p}_other_female`, label: 'Female', grandchild: true },
+  ];
+  return [...block('Employees', 'emp'), ...block('Workers', 'workers')];
+};
+
 const applyConfigOverrides = (rawConfig) => {
-  const config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  let config = HIDDEN_DESCRIPTION_KEYS.has(rawConfig.question_key) ? { ...rawConfig, description: '' } : rawConfig;
+  if (QUESTION_RENAMES[config.question_key]) config = { ...config, question: QUESTION_RENAMES[config.question_key] };
+  if (NO_DETAIL_KEYS.has(config.question_key)) return { ...config, conditional_fields: [] };
+  if (config.question_key === 'p5_hr_training' && config.table_config) {
+    const rows = [
+      { key: 'emp_header', label: 'Employees', section_header: true },
+      { key: 'emp_permanent', label: 'Permanent', child: true }, { key: 'emp_other', label: 'Other than permanent', child: true }, { key: 'emp_total', label: 'Total Employees', child: true },
+      { key: 'workers_header', label: 'Workers', section_header: true },
+      { key: 'workers_permanent', label: 'Permanent', child: true }, { key: 'workers_other', label: 'Other than permanent', child: true }, { key: 'workers_total', label: 'Total Workers', child: true },
+    ];
+    const relabel = (c) => ({ ...c, label: c.label.replace('No. covered', 'No. of employees / workers covered') });
+    return { ...config, table_config: { ...config.table_config, fixed_rows: rows,
+      columns: config.table_config.columns.map(relabel),
+      column_groups: config.table_config.column_groups.map(g => ({ ...g, columns: g.columns.map(relabel) })) } };
+  }
+  if (config.question_key === 'p5_minimum_wages' && config.table_config) {
+    return { ...config, table_config: { ...config.table_config, fixed_rows: minimumWageRows(),
+      column_groups: [wageFyGroup('FY _____ (Current Financial Year)', 'cur', ['A', 'B', 'C']), wageFyGroup('FY _____ (Previous Financial Year)', 'prev', ['D', 'E', 'F'])] } };
+  }
+  if (config.question_key === 'p5_remuneration_details' && config.table_config) {
+    const med = 'Median remuneration/salary/wages';
+    const colsFor = (g) => [{ key: `${g}_number`, label: 'Number', type: 'number' }, { key: `${g}_median`, label: med, type: 'number' }];
+    return { ...config, table_config: { ...config.table_config,
+      columns: [...colsFor('male'), ...colsFor('female')],
+      column_groups: [{ label: 'Male', columns: colsFor('male') }, { label: 'Female', columns: colsFor('female') }] } };
+  }
   if (config.question_key === 'p3_equal_opportunity_policy') {
     return { ...config, conditional_fields: [{ key: 'web_link', label: 'Web Link', type: 'url', show_when: 'yes' }] };
   }

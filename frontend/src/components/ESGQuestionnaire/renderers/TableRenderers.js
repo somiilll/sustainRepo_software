@@ -397,9 +397,18 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
             <TableRow key={row.key} className="bg-stone-50">
               <TableCell colSpan={columns.length + 1} className="text-xs font-semibold text-center">{row.label}</TableCell>
             </TableRow>
+          ) : row.sub_header ? (
+            <TableRow key={row.key}>
+              <TableCell colSpan={columns.length + 1} className="text-xs font-semibold pl-6">{row.label}</TableCell>
+            </TableRow>
           ) : (
             <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
-              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>{row.label}</TableCell>
+              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.grandchild ? 'pl-10' : ''} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>
+                {/please specify/i.test(row.label) && !isEditing && data[row.key]?.specify ? `${row.label.split(/\s*[–-]\s*please specify/i)[0]} – ${data[row.key].specify}` : row.label}
+                {/please specify/i.test(row.label) && isEditing && (
+                  <Input value={data[row.key]?.specify ?? ''} onChange={(e) => handleCellChange(row.key, 'specify', e.target.value)} placeholder="Please specify" className="h-8 mt-1 text-sm font-normal" data-testid={`${config.question_key}-${row.key}-specify`} />
+                )}
+              </TableCell>
               {columns.map(col => (
                 <TableCell key={col.key} className="p-1">
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
