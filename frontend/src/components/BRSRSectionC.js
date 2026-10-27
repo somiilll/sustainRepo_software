@@ -108,7 +108,7 @@ const QUESTION_RENAMES = {
   p5_value_chain_corrective: 'Provide details of any corrective actions taken or underway to address significant risks/concerns arising from value chain partner assessments at question above',
 };
 
-const NO_DETAIL_KEYS = new Set(['p5_hr_focal_point', 'p5_hr_business_agreements', 'p5_accessibility_differently_abled', 'p8_preferential_procurement']);
+const NO_DETAIL_KEYS = new Set(['p5_hr_focal_point', 'p5_hr_business_agreements', 'p5_accessibility_differently_abled', 'p8_preferential_procurement', 'p9_consumer_satisfaction_survey']);
 
 const wageFyGroup = (label, p, letters) => ({
   label,
@@ -335,7 +335,7 @@ const applyConfigOverrides = (rawConfig) => {
       ],
     } };
   }
-  if (['p1_anticorruption_policy', 'p1_conflict_management_process', 'env_sustainable_sourcing'].includes(config.question_key) && config.conditional_fields) {
+  if (['p1_anticorruption_policy', 'p1_conflict_management_process', 'env_sustainable_sourcing', 'cyber_security_policy', 'p9_product_info_beyond_legal'].includes(config.question_key) && config.conditional_fields) {
     return { ...config, conditional_fields: config.conditional_fields.map(f => ({ ...f, show_when: 'yes' })) };
   }
   return config;
