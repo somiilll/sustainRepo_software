@@ -258,7 +258,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
 
             {timeline.events.length === 0 ? (
               <div className="py-8 text-center text-text-muted" data-testid="question-version-history-empty">
-                No safely linked history is available for this question and reporting year.
+                No version history is available for this question
               </div>
             ) : (
               timeline.events.map((event, idx) => {
