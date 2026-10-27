@@ -52,6 +52,7 @@ import {
   CollapsibleTrigger,
 } from './ui/collapsible';
 import { Textarea } from './ui/textarea';
+import { QuestionVersionHistory } from './QuestionVersionHistory';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -333,6 +334,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
   const [reportingYear, setReportingYear] = useState(propReportingYear || generateReportingYears()[0]);
   const [availableYears, setAvailableYears] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyFor, setHistoryFor] = useState(null);
   const [historicalData, setHistoricalData] = useState([]);
   
   // Update reportingYear when prop changes
@@ -750,7 +752,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     onCancel={() => { onEditSection(null); fetchYearlyData(); }}
                     approvalEnabled={approvalEnabled} isAdmin={isAdmin} />
   );
-  const statusOf = (key) => <QuestionStatusBadge status={questionStatuses[key]} />;
+  const historyBtn = (key) => (
+    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="View history" onClick={() => setHistoryFor(key)} data-testid={`question-history-btn-${key}`}>
+      <History className="h-4 w-4 text-gray-500" />
+    </Button>
+  );
+  const statusOf = (key) => <>{<QuestionStatusBadge status={questionStatuses[key]} />}{historyBtn(key)}</>;
 
   // Check if user has ANY yearly section assigned
   const hasAnyYearlyAssignment = isAdmin || (assignedQuestionKeys && assignedQuestionKeys.some(k => 
@@ -776,7 +783,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="flex items-center gap-2">
               {openSections.employees ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               <Users className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>{statusOf('brsr_a_employees_workers')}<QuestionStatusBadge status={questionStatuses['brsr_a_differently_abled']} label="Differently abled" />
+              <span className="font-medium text-sm">Details of Employees and Workers (including differently abled)</span>{statusOf('brsr_a_employees_workers')}<QuestionStatusBadge status={questionStatuses['brsr_a_differently_abled']} label="Differently abled" />{historyBtn('brsr_a_differently_abled')}
             </div>
             <Badge variant="outline" className="text-xs">
               {(employeeDetails.permanent_male_employees || 0) + (employeeDetails.permanent_female_employees || 0) + 
@@ -1422,6 +1429,9 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
           </div>
         </DialogContent>
       </Dialog>
+      {historyFor && (
+        <QuestionVersionHistory open onOpenChange={(open) => !open && setHistoryFor(null)} framework="BRSR" questionKey={historyFor} reportingYear={reportingYear} />
+      )}
     </div>
   );
 }
