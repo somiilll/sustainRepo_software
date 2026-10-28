@@ -227,17 +227,17 @@ _INTERNAL_GRID_ROWS = [
     ("other_human_rights", "Other human-rights issues", _I + "other_human_rights_related_issues", "P5-E6", "2-25"),
 ]
 SPECS[INTERNAL] = [
-    _cnt("total_no_of_complaints_recieved", "Internal Complaints total", "Internal Complaints", brsr="A-25", gri=GRI_TOTAL,
+    _cnt("total_no_of_complaints_recieved", "Internal Complaints total", "Internal Complaints", brsr="A-25",
          kpi="Internal Complaints (Total)", old="SOC_NO_OF_COMPLAINTS", sum_of=[item[2] for item in _INTERNAL_GRID_ROWS if item[0] not in {"conflict_directors", "conflict_kmps", "posh", "posh_upheld"}]),
-    _cnt("no_of_pending_complaints", "Internal Complaints pending resolution at year end", "Internal Complaints", brsr="A-25", gri=GRI_TOTAL,
+    _cnt("no_of_pending_complaints", "Internal Complaints pending resolution at year end", "Internal Complaints", brsr="A-25",
          kpi="Internal Complaints - Pending (Total)"),
 ]
 for _row, _label, _filed, _brsr, _gri in _INTERNAL_GRID_ROWS:
     _level = 1 if _row in {"conflict_directors", "conflict_kmps", "posh"} else 2 if _row == "posh_upheld" else 0
     _parent = "no_of_complaints_regarding_conflict_of_interest" if _row in {"conflict_directors", "conflict_kmps"} else "no_of_posh_complaints" if _row == "posh_upheld" else "no_of_complaints_regarding_sexual_harassment" if _row == "posh" else None
-    SPECS[INTERNAL].append(_cnt(_filed, _label, "Internal Complaints", _level, _parent, brsr=_brsr, gri=_gri,
+    SPECS[INTERNAL].append(_cnt(_filed, _label, "Internal Complaints", _level, _parent, brsr=_brsr, gri=_gri if _row == "discrimination" else None,
                                 kpi=f"Internal Complaints - {_label.replace('of which: ', '')}"))
-    SPECS[INTERNAL].append(_cnt(f"internal_pending_{_row}", _label, "Internal Complaints", _level, _parent, brsr=_brsr, gri=_gri,
+    SPECS[INTERNAL].append(_cnt(f"internal_pending_{_row}", _label, "Internal Complaints", _level, _parent, brsr=_brsr,
                                 kpi=f"Internal Complaints Pending - {_label.replace('of which: ', '')}"))
 SPECS[INTERNAL] += [
     _cnt("disciplinary_action_bod", "BoD", "Disciplinary action taken for the charges of bribery / corruption", gri="205-3", kpi="Disciplinary Action - BoD", show_with_legacy_ui=True),
@@ -249,19 +249,19 @@ SPECS[INTERNAL] += [
 _C = "no_of_complaints_on_"
 _CP = "pending_resolution_"
 _CONSUMER_ROWS = [
-    ("data_privacy", "Data privacy", "P9-E3", "418-1-a", "SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
-    ("advertising", "Advertising", "P9-E3", "417-3", "SOC_NO_OF_ADVERTISING_COMPLAINTS"),
-    ("cyber_security", "Cyber-security", "P9-E3", "418-1", "SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
+    ("data_privacy", "Data privacy", "P9-E3", None, "SOC_NO_OF_DATA_PRIVACY_COMPLAINTS"),
+    ("advertising", "Advertising", "P9-E3", None, "SOC_NO_OF_ADVERTISING_COMPLAINTS"),
+    ("cyber_security", "Cyber-security", "P9-E3", None, "SOC_NO_OF_CYBERSECURITY_COMPLAINTS"),
     ("delivery_of_essential_services", "Delivery of essential services", "P9-E3", None, "SOC_NO_OF_DELIVERY_OF_ESSENTIAL_SERVICES_COM"),
-    ("restrictive_trade_practices", "Restrictive Trade Practices", "P9-E3", "206-1", "SOC_NO_OF_RESTRICTIVE_TRADE_PRACTICES"),
-    ("unfair_trade_practices", "Unfair Trade Practices", "P9-E3", "206-1", "SOC_NO_OF_UNFAIR_TRADE_PRACTICES"),
+    ("restrictive_trade_practices", "Restrictive Trade Practices", "P9-E3", None, "SOC_NO_OF_RESTRICTIVE_TRADE_PRACTICES"),
+    ("unfair_trade_practices", "Unfair Trade Practices", "P9-E3", None, "SOC_NO_OF_UNFAIR_TRADE_PRACTICES"),
     ("other", "Other", "P9-E3", None, None),
 ]
 SPECS[CONSUMER] = [
-    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Consumer Complaints", brsr="A-25; P9-E3", gri="2-25",
+    _cnt("total_no_of_complaints", "Total number of consumer complaints", "Consumer Complaints", brsr="A-25; P9-E3",
          kpi="Consumer Complaints (Total)", old="SOC_NO_OF_COMPLAINTS_FROM_CUSTOMERS",
          sum_of=[_C + key if key != "other" else "no_of_other_consumer_complaints" for key, *_ in _CONSUMER_ROWS]),
-    _cnt("total_consumer_complaints_pending_resolution", "Total number pending resolution at year end", "Consumer Complaints", brsr="A-25; P9-E3", gri="2-25",
+    _cnt("total_consumer_complaints_pending_resolution", "Total number pending resolution at year end", "Consumer Complaints", brsr="A-25; P9-E3",
          kpi="Consumer Complaints Pending Resolution (Total)", sum_of=[_CP + key for key, *_ in _CONSUMER_ROWS]),
 ]
 for _key, _label, _brsr, _gri, _old in _CONSUMER_ROWS:
@@ -572,9 +572,9 @@ _BT = "no_of_incidents_of_data_breach"
 _BP = "no_of_data_breach_which_involved_personally_identifiable_information_of_customers"
 _PC = "total_substantiated_privacy_complaints"
 SPECS[BREACH] = [
-    F(_BT, "Data-breach incidents (Total)", group="Data Breaches", brsr="P9-E7 (a)", gri="418-1-b",
+    F(_BT, "Data-breach incidents (Total)", group="Data Breaches", brsr="P9-E7 (a)",
       kpi="Data-breach Incidents (Total)", old="GOV_NO_OF_DATA_BREACH_INCIDENTS"),
-    F(_BP, "of which: Involving customer PII", group="Data Breaches", level=1, parent=_BT, brsr="P9-E7 (b)", gri="418-1-b",
+    F(_BP, "of which: Involving customer PII", group="Data Breaches", level=1, parent=_BT, brsr="P9-E7 (b)",
       kpi="Data-breach Incidents - Involving Customer PII", old="GOV_NO_OF_DATA_BREACH_INCIDENTS_WITH_PERSONA", le=_BT),
     F("percentage_data_breach_involving_customer_pii", "% of breaches involving customer PII", group="Data Breaches", level=1,
       parent=_BT, brsr="P9-E7 (b)", percent=True, agg="avg", kpi="% Data Breaches Involving Customer PII", ratio=(_BP, _BT, 100)),
