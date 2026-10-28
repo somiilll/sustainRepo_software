@@ -1190,7 +1190,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "start_age_u30",
-    "label": "Employees at start of year (Under 30)",
+    "label": "Under 30 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1199,7 +1199,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "start_age_3050",
-    "label": "Employees at start of year (30-50)",
+    "label": "30-50 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1208,7 +1208,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "start_age_o50",
-    "label": "Employees at start of year (Over 50)",
+    "label": "Over 50 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1226,7 +1226,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "end_age_u30",
-    "label": "Employees at end of year (Under 30)",
+    "label": "Under 30 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1235,7 +1235,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "end_age_3050",
-    "label": "Employees at end of year (30-50)",
+    "label": "30-50 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1244,7 +1244,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "end_age_o50",
-    "label": "Employees at end of year (Over 50)",
+    "label": "Over 50 age",
     "group": "Headcount",
     "level": 1,
     "brsr": null,
@@ -1262,7 +1262,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_u30",
-    "label": "Under 30",
+    "label": "Under 30 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1271,7 +1271,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_3050",
-    "label": "30-50",
+    "label": "30-50 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1280,7 +1280,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_o50",
-    "label": "Over 50",
+    "label": "Over 50 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1296,12 +1296,18 @@ export const WORKFORCE_GRID_CONFIGS = {
     "total": "employees_at_the_start_of_the_year"
    },
    "start_age_u30": {
+    "female": "emp_to_start_age_u30_female",
+    "male": "emp_to_start_age_u30_male",
     "total": "emp_to_start_age_u30_total"
    },
    "start_age_3050": {
+    "female": "emp_to_start_age_3050_female",
+    "male": "emp_to_start_age_3050_male",
     "total": "emp_to_start_age_3050_total"
    },
    "start_age_o50": {
+    "female": "emp_to_start_age_o50_female",
+    "male": "emp_to_start_age_o50_male",
     "total": "emp_to_start_age_o50_total"
    },
    "end": {
@@ -1310,12 +1316,18 @@ export const WORKFORCE_GRID_CONFIGS = {
     "total": "employees_at_the_end_of_the_year"
    },
    "end_age_u30": {
+    "female": "emp_to_end_age_u30_female",
+    "male": "emp_to_end_age_u30_male",
     "total": "emp_to_end_age_u30_total"
    },
    "end_age_3050": {
+    "female": "emp_to_end_age_3050_female",
+    "male": "emp_to_end_age_3050_male",
     "total": "emp_to_end_age_3050_total"
    },
    "end_age_o50": {
+    "female": "emp_to_end_age_o50_female",
+    "male": "emp_to_end_age_o50_male",
     "total": "emp_to_end_age_o50_total"
    },
    "left": {
@@ -1324,12 +1336,18 @@ export const WORKFORCE_GRID_CONFIGS = {
     "total": "employees_who_left_during_the_reporting_period"
    },
    "age_u30": {
+    "female": "emp_to_age_u30_female",
+    "male": "emp_to_age_u30_male",
     "total": "emp_to_age_u30_total"
    },
    "age_3050": {
+    "female": "emp_to_age_3050_female",
+    "male": "emp_to_age_3050_male",
     "total": "emp_to_age_3050_total"
    },
    "age_o50": {
+    "female": "emp_to_age_o50_female",
+    "male": "emp_to_age_o50_male",
     "total": "emp_to_age_o50_total"
    }
   },

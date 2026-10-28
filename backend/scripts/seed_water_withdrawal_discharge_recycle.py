@@ -352,13 +352,13 @@ async def sync_workforce(db, now, only=None):
                 suffix = {"female": " (Female)", "male": " (Male)", "total": ""}[col]
                 column_brsr = brsr_for_col(r, col)
                 fields.append({
-                    "field_key": k, "label": f"{r['label']} - {col.capitalize()}", "type": "number", "required": False,
+                    "field_key": k, "label": f"{r['full']} - {col.capitalize()}", "type": "number", "required": False,
                     "placeholder": "", "options": [], "default_value": None, "validation": {"min": 0}, "has_unit": False,
                     "allowed_units": [], "default_unit": None, "table_columns": [], "table_min_rows": 1, "table_max_rows": 10,
                     "group": r["group"], "level": r["level"], "parent_key": None, "sum_parents": [],
                     "grid_row": r["row"], "grid_col": col, "brsr_reference": column_brsr, "gri_disclosure": r["gri"]})
                 meta[k] = {"group": r["group"], "level": r["level"], "parent_key": None, "order": len(fields)}
-                rows_kpi.append({"key": k, "name": f"{sub} - {r['label']}{suffix}", "brsr": column_brsr, "gri": r["gri"],
+                rows_kpi.append({"key": k, "name": f"{sub} - {r['full']}{suffix}", "brsr": column_brsr, "gri": r["gri"],
                                  "old_code": None, "unit": False, "section": "social"})
         for tkey, tlabel, tgroup, tcols in spec.get("extra_tables", []):
             fields.append({"field_key": tkey, "label": tlabel, "type": "table", "required": False, "placeholder": "",

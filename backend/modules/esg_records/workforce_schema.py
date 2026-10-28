@@ -10,8 +10,8 @@ FM = ["female", "male"]
 AGE = [("age_u30", "Under 30", "age"), ("age_3050", "30-50", "age"), ("age_o50", "Over 50", "age")]
 
 
-def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None, brsr_by_col=None):
-    return {"row": row, "label": label, "group": group, "level": level, "brsr": brsr, "gri": gri,
+def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None, brsr_by_col=None, full=None):
+    return {"row": row, "label": label, "full": full or label, "group": group, "level": level, "brsr": brsr, "gri": gri,
             "sum_of": sum_of, "le": le, "eq": eq, "cols": cols, "brsr_by_col": brsr_by_col}
 
 
@@ -28,8 +28,9 @@ _TO_START_AGES = [f"start_{r}" for r, _l, _t in AGE]
 _TO_END_AGES = [f"end_{r}" for r, _l, _t in AGE]
 
 
-def _turnover_ages(prefix, base):
-    return [R(f"{prefix}_{r}", f"{base} ({label})", "Headcount", 1, gri="401-1-b", cols=["total"]) for r, label, _t in AGE]
+def _turnover_ages(prefix, base, group="Headcount"):
+    row_key = (lambda r: f"{prefix}_{r}") if prefix else (lambda r: r)
+    return [R(row_key(r), f"{label} age", group, 1, gri="401-1-b", full=f"{base} ({label} age)") for r, label, _t in AGE]
 
 
 SPECS: Dict[str, Dict[str, Any]] = {
@@ -113,7 +114,7 @@ SPECS: Dict[str, Dict[str, Any]] = {
         R("end", "Employees at end of year", "Headcount", 0, "A-22", "401-1-b", eq=[_TO_END_AGES]),
         *_turnover_ages("end", "Employees at end of year"),
         R("left", "Employees leaving (Total)", "Employees Leaving", 0, "A-22", "401-1-b", eq=[["age_u30", "age_3050", "age_o50"]]),
-        *_ages("401-1-b", "Employees Leaving", ["total"]),
+        *_turnover_ages("", "Employees leaving", "Employees Leaving"),
     ], "extra_tables": [("employee_leavers_by_region", "Region - leavers (by region)", "By Region", [
         {"key": "region", "label": "Region", "type": "text", "gri_disclosure": "401-1-b"},
         {"key": "leavers", "label": "Leavers", "type": "number", "gri_disclosure": "401-1-b"}])]},
@@ -247,7 +248,7 @@ def build_rules(sub: str) -> Dict[str, Any]:
 
 
 GRID_RULES = {sub.lower(): build_rules(sub) for sub in SPECS}
-GRID_LABELS = {sub.lower(): {key(sub, r["row"], c): f"{r['label']} - {c.capitalize()}" for r in s["rows"] for c in row_cols(s, r)}
+GRID_LABELS = {sub.lower(): {key(sub, r["row"], c): f"{r['full']} - {c.capitalize()}" for r in s["rows"] for c in row_cols(s, r)}
                for sub, s in SPECS.items()}
 
 
