@@ -42,9 +42,9 @@ async def run() -> Dict[str, Any]:
         "mappings": await db.kpi_framework_mappings.find({"framework": "BRSR"}, {"_id": 0}).to_list(20000),
     }, default=str, indent=2), encoding="utf-8")
 
-    e11 = derived_common("Health & Safety", "P3-E11 Reporting", "P3-E11", COUNT)
-    l3 = derived_common("Health & Safety", "P3-L3 Reporting", "P3-L3", COUNT)
-    ltifr_common = derived_common("Health & Safety", "P3-E11 Reporting", "P3-E11", LTIFR_UNIT)
+    e11 = derived_common("Health & Safety", "Health & Safety Incidents", "P3-E11", COUNT)
+    l3 = derived_common("Health & Safety", "Health & Safety Incidents", "P3-L3", COUNT)
+    ltifr_common = derived_common("Health & Safety", "Health & Safety Incidents", "P3-E11", LTIFR_UNIT)
     count = 0
     for label, prefix, row in GROUPS:
         lost = await by_code(f"{INC}{prefix}_LOST_TIME")

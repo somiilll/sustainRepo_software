@@ -718,7 +718,7 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         sources = [await find_definition(name) for name in names]
         group, gender = key
         headcounts[key] = await upsert_definition(f"P3-E8 Eligible {group} - {gender}", {
-            **derived_common("Training", "P3-E8 Reporting", "P3-E8", {
+            **derived_common("Training", "General Training", "P3-E8", {
                 "default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False}),
             "source_type": "composite", "source_config": {"composite": {
                 "operation": "sum", "source_kpi_ids": [source["id"] for source in sources]}},
@@ -747,7 +747,7 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
                 row = row_keys[(group, gender)]
                 await upsert_mapping(source, "p3_training_details", f"rows.{row}.{field_prefix}_no", "P3-E8", now)
                 coverage = await upsert_definition(f"P3-E8 Training Coverage - {group} - {topic} - {gender}", {
-                    **derived_common("Training", "P3-E8 Reporting", "P3-E8", {
+                    **derived_common("Training", "General Training", "P3-E8", {
                         "default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False}),
                     "source_type": "composite", "source_config": {"composite": {
                         "operation": "ratio_percent", "source_kpi_ids": [source["id"], headcounts[(group, gender)]["id"]]}},
