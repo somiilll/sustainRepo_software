@@ -1189,11 +1189,65 @@ export const WORKFORCE_GRID_CONFIGS = {
     "sumOf": null
    },
    {
+    "key": "start_age_u30",
+    "label": "Employees at start of year (Under 30)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "start_age_3050",
+    "label": "Employees at start of year (30-50)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "start_age_o50",
+    "label": "Employees at start of year (Over 50)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
     "key": "end",
     "label": "Employees at end of year",
     "group": "Headcount",
     "level": 0,
     "brsr": "A-22",
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_u30",
+    "label": "Employees at end of year (Under 30)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_3050",
+    "label": "Employees at end of year (30-50)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_o50",
+    "label": "Employees at end of year (Over 50)",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
     "gri": "401-1-b",
     "sumOf": null
    },
@@ -1241,10 +1295,28 @@ export const WORKFORCE_GRID_CONFIGS = {
     "male": "male_employees_at_the_start_of_the_year",
     "total": "employees_at_the_start_of_the_year"
    },
+   "start_age_u30": {
+    "total": "emp_to_start_age_u30_total"
+   },
+   "start_age_3050": {
+    "total": "emp_to_start_age_3050_total"
+   },
+   "start_age_o50": {
+    "total": "emp_to_start_age_o50_total"
+   },
    "end": {
     "female": "female_employees_at_the_end_of_the_year",
     "male": "male_employees_at_the_end_of_the_year",
     "total": "employees_at_the_end_of_the_year"
+   },
+   "end_age_u30": {
+    "total": "emp_to_end_age_u30_total"
+   },
+   "end_age_3050": {
+    "total": "emp_to_end_age_3050_total"
+   },
+   "end_age_o50": {
+    "total": "emp_to_end_age_o50_total"
    },
    "left": {
     "female": "female_employees_who_left_during_the_reporting_period",
@@ -1262,6 +1334,24 @@ export const WORKFORCE_GRID_CONFIGS = {
    }
   },
   "validations": [
+   {
+    "type": "sum_equals",
+    "rows": [
+     "start_age_u30",
+     "start_age_3050",
+     "start_age_o50"
+    ],
+    "target": "start"
+   },
+   {
+    "type": "sum_equals",
+    "rows": [
+     "end_age_u30",
+     "end_age_3050",
+     "end_age_o50"
+    ],
+    "target": "end"
+   },
    {
     "type": "sum_equals",
     "rows": [

@@ -24,6 +24,14 @@ def _ages(gri, group="By Age Group", cols=None):
     return [R(r, label, group, 1, gri=gri, cols=cols) for r, label, _t in AGE]
 
 
+_TO_START_AGES = [f"start_{r}" for r, _l, _t in AGE]
+_TO_END_AGES = [f"end_{r}" for r, _l, _t in AGE]
+
+
+def _turnover_ages(prefix, base):
+    return [R(f"{prefix}_{r}", f"{base} ({label})", "Headcount", 1, gri="401-1-b", cols=["total"]) for r, label, _t in AGE]
+
+
 SPECS: Dict[str, Dict[str, Any]] = {
     "New Employees/Worker": {"cfg": "NEW_HIRES_CONFIG", "prefix": "new_hires", "cols": FMT, "editable_auto_totals": True, "rows": [
         R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"],
@@ -100,8 +108,10 @@ SPECS: Dict[str, Dict[str, Any]] = {
          "kpi": "Senior Management Hired from Local Community (%)"},
     ]},
     "Employee Turnover": {"cfg": "EMPLOYEE_TURNOVER_CONFIG", "prefix": "emp_to", "cols": FMT, "rows": [
-        R("start", "Employees at start of year", "Headcount", 0, "A-22", "401-1-b"),
-        R("end", "Employees at end of year", "Headcount", 0, "A-22", "401-1-b"),
+        R("start", "Employees at start of year", "Headcount", 0, "A-22", "401-1-b", eq=[_TO_START_AGES]),
+        *_turnover_ages("start", "Employees at start of year"),
+        R("end", "Employees at end of year", "Headcount", 0, "A-22", "401-1-b", eq=[_TO_END_AGES]),
+        *_turnover_ages("end", "Employees at end of year"),
         R("left", "Employees leaving (Total)", "Employees Leaving", 0, "A-22", "401-1-b", eq=[["age_u30", "age_3050", "age_o50"]]),
         *_ages("401-1-b", "Employees Leaving", ["total"]),
     ], "extra_tables": [("employee_leavers_by_region", "Region - leavers (by region)", "By Region", [
