@@ -429,7 +429,6 @@ GEN_TRAINING = ("Training", "General Training")
 SEC_TRAINING = ("Training", "Security Training")
 ACPC = ("Anti-corruption", "Anti-Corruption Policy Communication")
 ACCI = ("Anti-corruption", "Confirmed Corruption Incidents")
-COMPETITIVE = ("Competitive Behaviour ", "Anti-Competitive Behaviour & Anti-Trust Cases")
 AP_DAYS = ("Financial & Procurement Metrics", "Accounts Payable Days")
 LOCAL_PROCUREMENT = ("Financial & Procurement Metrics", "Local Procurement")
 VIOLATIONS = ("Incidents", "Incidents of Violations")
@@ -520,8 +519,7 @@ for _retired_entry in (EXTERNAL, OHS_EMP, OHS_WRK, PRODUCT_HS, SEC_TRAINING):
     SPECS.pop(_retired_entry, None)
 
 SPECS[ACPC] = [
-    F("number_communicated", "People communicated (Total)", group="Total", gri="205-2", kpi="Anti-corruption Policy - People Communicated (Total)",
-      old="GOV_NO_OF_PEOPLE_COMMUNICATED_ABOUT_ANTICORR",
+    F("number_communicated", "People communicated (Total)", group="Total", gri="205-2",
       sum_of=["no_of_board_of_directors_communicated", "no_of_key_management_personnel_communicated", "no_of_employee_communicated",
               "no_of_business_partner_communicated"]),
     F("no_of_board_of_directors_communicated", "Board members", group="By Group", level=1, parent="number_communicated", gri="205-2-a",
@@ -548,15 +546,6 @@ SPECS[ACCI] = [
       gri="205-3-c", kpi="Corruption - Business Partner Contracts Not Renewed"),
     F("no_of_public_legal_cases_regarding_corruption_against_org_employee", "Public legal cases regarding corruption",
       group="Legal Cases", level=1, parent=_CT, gri="205-3-d", kpi="Corruption - Public Legal Cases"),
-]
-
-_AC = "total_no_of_cases"
-SPECS[COMPETITIVE] = [
-    F(_AC, "Anti-competitive behaviour cases (Total)", group="Total", brsr="P7-E2", gri="206-1-a",
-      kpi="Anti-competitive Behaviour Cases (Total)"),
-    F("no_of_public_legal_cases_regarding_anti_competitive_and_violations_of_anti_trust_and_monopoly_legislation",
-      "of which: Public legal cases - anti-competitive behaviour, anti-trust, monopoly", group="Total", level=1, parent=_AC,
-      gri="206-1-a", kpi="Anti-competitive Behaviour - Public Legal Cases", le=_AC),
 ]
 
 SPECS[AP_DAYS] = [
