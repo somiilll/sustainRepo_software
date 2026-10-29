@@ -593,11 +593,9 @@ SPECS[BREACH] = [
 _NC = "no_of_cases"
 _NC_OUT = ["non_compliance_result_in_a_fine_or_penalty", "non_compliance_result_in_a_warning", "non_compliance_with_voluntary_codes"]
 _NC_TYPES = {
-    "Laws & regulations - general": {"gri": "2-27-a", "brsr": "P1-E2"},
-    "Environmental laws": {"gri": "2-27-a", "brsr": "P6-E13"},
-    "Product & service health and safety": {"gri": "416-2-a"},
-    "Product & service information and labelling": {"gri": "417-2-a"},
-    "Marketing communications": {"gri": "417-3-a"},
+    "Health and Safety impacts of products and services": {"gri": "416-2-a"},
+    "Product and Service Information and Labeling": {"gri": "417-2-a"},
+    "Marketing Communications (including advertising, promotion, and sponsorship)": {"gri": "417-3-a"},
 }
 SPECS[NONCOMPLIANCE] = [
     F(_NC, "Non-compliance cases (Total)", group="Total", brsr="P1-E2; P6-E13",
