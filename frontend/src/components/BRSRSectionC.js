@@ -62,6 +62,12 @@ const LEADERSHIP_KEYS = new Set([
 
 const ASSURANCE_NOTE_TEXT = 'Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.';
 const isAssuranceNote = (config) => config.question_key.startsWith('env_assurance_');
+const CONTINUATION_KEYS = new Set([
+  'p3_wellbeing_workers', 'p3_wellbeing_spending', 'p3_hazard_identification', 'p3_worker_hazard_reporting', 'p3_non_occupational_healthcare',
+  'p5_gross_wages_females', 'top_trade_associations', 'p8_marginalized_groups_procured', 'p8_marginalized_procurement_pct',
+  'p9_data_breaches_pii_pct', 'p9_data_breaches_impact', 'p9_consumer_satisfaction_survey',
+]);
+const isUnnumbered = (config) => isAssuranceNote(config) || CONTINUATION_KEYS.has(config.question_key);
 
 const TRAINING_COLUMN_LABELS = {
   total: 'Total number of training and awareness programmes held',
@@ -562,10 +568,12 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                   <div key={title} className="px-5 py-4" data-testid={`principle-${p}-${title.split(' ')[0].toLowerCase()}-indicators`}>
                     <h4 className="text-base font-bold text-stone-900 text-center bg-stone-100 rounded-md py-2 mb-4" data-testid={`principle-${p}-${title.split(" ")[0].toLowerCase()}-heading`}>{title}</h4>
                     <div className="space-y-1">
-                      {list.map((c, i) => {
+                      {list.map((c) => {
                         const cfg = applyConfigOverrides(c);
                         if (isAssuranceNote(c)) return renderQuestion({ ...cfg, question: ASSURANCE_NOTE_TEXT });
-                        const number = list.slice(0, i + 1).filter(q => !isAssuranceNote(q)).length;
+                        if (isUnnumbered(c)) return renderQuestion(cfg);
+                        const full = allQuestions.filter(q => LEADERSHIP_KEYS.has(q.question_key) === (title === 'Leadership Indicators'));
+                        const number = full.slice(0, full.findIndex(q => q.question_key === c.question_key) + 1).filter(q => !isUnnumbered(q)).length;
                         return renderQuestion({ ...cfg, question: `${number}. ${cfg.question}` });
                       })}
                     </div>
