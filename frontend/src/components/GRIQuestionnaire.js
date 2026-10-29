@@ -73,7 +73,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
   const [reportingPeriod, setReportingPeriod] = useState(null);
-  const [liveValues, setLiveValues] = useState({});
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
@@ -109,13 +108,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       fetchOrganization();
     }
   }, [token]);
-
-  useEffect(() => {
-    if (!reportingPeriod || !token) return;
-    axios.get(`${API}/api/esg-questionnaire/gri-live-emissions`, { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } })
-      .then((res) => setLiveValues(res.data.values || {}))
-      .catch(() => setLiveValues({}));
-  }, [reportingPeriod, token, getAuthHeader]);
 
   // Fetch GRI disclosures for this section
   const fetchDisclosures = useCallback(async () => {
