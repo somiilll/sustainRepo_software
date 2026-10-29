@@ -115,8 +115,8 @@ def _build_stream(sub: str) -> Dict[str, Any]:
         for tcode, tlabel, sfx in cfg["through"]:
             tkey = f"{total_key}_{tcode}"
             through_keys.append(tkey)
-            add(tkey, f"{'Hazardous' if is_haz else 'Non-hazardous'} Waste {title} - {tlabel}", None, f"{gri_x}-{sfx}", group, 2,
-                total_key, label=f"{title} through {tlabel}")
+            add(tkey, f"{'Hazardous' if is_haz else 'Non-hazardous'} Waste {title} - {tlabel}", None, f"{gri_x}-{sfx}",
+                f"{group} - {title} through:", 2, total_key, label=tlabel)
         if through_keys:
             quality.append((through_keys, total_key))
 
@@ -129,7 +129,7 @@ def _build_stream(sub: str) -> Dict[str, Any]:
         for place, gri in zip(("onsite", "offsite"), cfg["loc"]):
             lkey = f"waste_{verb}_{place}"
             loc_keys.append(lkey)
-            add(lkey, f"Waste {title} - {place.capitalize()}", None, gri, cfg["op_group"], 1, label=f"{title} {place}")
+            add(lkey, f"Waste {title} - {place.capitalize()}", None, gri, f"{title}:", 1, label=place.capitalize())
         quality.append((loc_keys, "quantity"))
 
     sums.append(("quantity", [haz_total, non_total]))
@@ -176,6 +176,15 @@ def waste_tree_meta(sub: str) -> Dict[str, Dict[str, Any]]:
 def apply_spill_rules(field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Count the spill rows and total their volume (converted to the chosen total unit)."""
     rows = field_values.get(SPILL_TABLE_KEY) or []
+    if not rows:
+        for key in (SPILL_COUNT_KEY, SPILL_TOTAL_KEY):
+            try:
+                value = float(field_values.get(key)) if field_values.get(key) not in (None, "") else None
+            except (TypeError, ValueError):
+                raise ValueError(f"{key.replace('_', ' ').capitalize()} must be a number")
+            if value is not None and value < 0:
+                raise ValueError(f"{key.replace('_', ' ').capitalize()} cannot be negative")
+        return field_values
     if not isinstance(rows, list):
         raise ValueError("Spill records must be a list")
     clean = [r for r in rows if isinstance(r, dict) and any(v not in (None, "") for v in r.values())]

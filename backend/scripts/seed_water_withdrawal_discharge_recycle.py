@@ -238,19 +238,14 @@ def spill_fields(existing_unit_field):
     gri = "306-3 (2016)-a"
     fields = [
         {**base, "field_key": SPILL_COUNT_KEY, "label": "Number of significant spills", "has_unit": False,
-         "allowed_units": [], "default_unit": None, "validation": {"min": 0, "step": 1},
-         "table_summary": {"source": SPILL_TABLE_KEY, "op": "count"}},
+         "allowed_units": [], "default_unit": None, "validation": {"min": 0, "step": 1}},
         {**base, "field_key": SPILL_TOTAL_KEY, "label": "Total volume of significant spills", "has_unit": True,
-         "allowed_units": ["Litres", "KiloLitres"], "default_unit": "Litres",
-         "table_summary": {"source": SPILL_TABLE_KEY, "op": "sum", "column": "volume", "unit_column": "volume_unit"}},
-        {**base, "field_key": SPILL_TABLE_KEY, "type": "table", "label": "Spill records (one row per significant spill)",
-         "has_unit": False, "allowed_units": [], "default_unit": None, "validation": {},
-         "table_columns": SPILL_COLUMNS, "table_min_rows": 0, "table_max_rows": 50},
+         "allowed_units": ["Litres", "KiloLitres"], "default_unit": "Litres"},
     ]
     for f in fields:
         m = meta[f["field_key"]]
         f.update({"group": m["group"], "level": m["level"], "parent_key": None, "sum_parents": [],
-                  "brsr_reference": None, "gri_disclosure": gri if f["field_key"] != SPILL_TABLE_KEY else None})
+                  "brsr_reference": None, "gri_disclosure": gri})
     return fields
 
 
