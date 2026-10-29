@@ -8,6 +8,7 @@ from modules.kpi_engine.aggregators import Aggregator
 from modules.kpi_engine.filters import FilterBuilder
 from modules.kpi_engine.ghg_adapter import calculate_ghg_kpi
 from modules.kpi_engine.utils import get_collection_for_section, parse_numeric_value
+from modules.brsr_report.org_value_sources import base_year_value, org_profile_value
 from shared.database.mongo import db
 
 
@@ -253,6 +254,14 @@ async def calculate_kpi_contribution(
     if source_type == "constant":
         value = ((kpi.get("source_config") or {}).get("constant") or {}).get("value")
         return (float(value), [{"id": f"constant:{kpi_id}", "field_values": {"value": value}}]) if value is not None else (None, [])
+
+    if source_type in {"base_year", "org_profile"}:
+        config = (kpi.get("source_config") or {}).get(source_type) or {}
+        if source_type == "base_year":
+            value = await base_year_value(org_id, config.get("scope"))
+        else:
+            value = await org_profile_value(org_id, config.get("field"), reporting_period)
+        return (value, [{"id": f"{source_type}:{kpi_id}", "field_values": {"value": value}}]) if value is not None else (None, [])
 
     if source_type == "composite":
         composite = (kpi.get("source_config") or {}).get("composite") or {}
