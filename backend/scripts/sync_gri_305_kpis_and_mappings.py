@@ -94,6 +94,8 @@ async def mapping_specs():
     cats = [(await kpi_id_by_code(f"GHG_SCOPE3_C{n}"), f"C{n} {name}") for n, name in enumerate(CATEGORY_NAMES, 1)]
     return [
         ("102-5", "d", "ii", [(ids["b1"], "Scope 1 in base year"), (ids["bb"], "Biogenic (direct) in base year")]),
+        ("102-6", "d", "ii", [(ids["b2"], "Scope 2 in base year")]),
+        ("102-7", "d", "ii", [(ids["b3"], "Scope 3 in base year")]),
         ("305-1", "a", None, [(ids["s1"], "Scope 1")]),
         ("305-1", "b", None, [(ids["s1"], "CO2e")] + gases),
         ("305-1", "c", None, [(ids["bio_d"], "Biogenic (direct)")]),
