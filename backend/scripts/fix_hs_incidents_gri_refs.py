@@ -9,11 +9,15 @@ from shared.database.mongo import db
 BACKUP_DIR = "/app/backups"
 SUB = "Health & Safety Incidents"
 WANTED = {
+    **{
     f"H&S - {who} - {name}": [code.format(w=w)]
     for who, w in (("Employees", "a"), ("Workers", "b"))
     for name, code in (("From work-related ill health", "403-10-{w}-i"), ("From work-related injury", "403-9-{w}-i"),
                        ("High-consequence injuries (excl. fatalities)", "403-9-{w}-ii"), ("Hours worked", "403-9-{w}-v"),
                        ("Recordable work-related ill-health cases", "403-10-{w}-ii"), ("Recordable work-related injuries", "403-9-{w}-iii"))
+    },
+    **{f"Rate of Fatalities as a Result of Work-related Injury - {who}": [f"403-9-{w}-i"] for who, w in (("Employees", "a"), ("Workers", "b"))},
+    **{f"Rate of High-consequence Work-related Injuries (excl. Fatalities) - {who}": [f"403-9-{w}-ii"] for who, w in (("Employees", "a"), ("Workers", "b"))},
 }
 
 
