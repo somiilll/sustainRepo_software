@@ -26,7 +26,7 @@ async def upsert_kpi(code, name, sub, now, unit="tCO2e", **extra):
     kpi_id = existing["id"] if existing else str(uuid.uuid4())
     doc = {"id": kpi_id, "metric_code": code, "metric_name": name, "short_name": name, "description": f"Live {name} from approved GHG records.",
            "section": "environment", "category_name": "GHG Emissions", "subcategory": sub, "aggregation_type": "sum",
-           "unit_config": {"default_unit": unit, "allowed_units": [unit], "allow_unit_conversion": False}, "status": "active",
+           "unit_config": {"default_unit": unit, "allowed_units": [unit], "allow_unit_conversion": False}, "status": "active", "output_type": "number",
            "metadata": {"source_module": "ghg"}, "visibility": _visibility(), "updated_at": now, **extra}
     if existing:
         await db.esg_kpi_definitions.update_one({"id": kpi_id}, {"$set": doc})

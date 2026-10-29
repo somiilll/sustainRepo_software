@@ -910,3 +910,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Section B: independent-assessment principle-wise table Principle column widened to 16rem. The P1–P9 Yes/No table for translated-to-procedures / value-chain questions has vertical lines between columns. ESLint passed; no tests run (user: no testing until told).
 
 - Section B principle-wise consistency: the translated-to-procedures / value-chain questions go back to Q1-style per-principle blocks (bordered box, violet "P3: Employee Wellbeing" title, Yes/No radios on one row, Notes box at the end). Every principle title in Section B (view mode, text principle question, tables) now uses the same violet "Pn: Name" style. ESLint passed; no tests run (user: no testing until told).
+
+## Changelog (latest)
+- GRI GHG KPI sync script now sets output_type=number; 44 existing GHG KPI records patched. KPI definitions API fix not verified by testing (user chose no testing).
+- Roadmap: PII breach percentage weighted formula, LPG fuel_id lookup, question_audit_log retention, run all local DB scripts on Staging/Prod.
