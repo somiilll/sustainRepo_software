@@ -173,6 +173,19 @@ async def delete_question_config(
 # GRI Disclosure Endpoints
 # =============================================================================
 
+@router.get("/gri-live-emissions")
+async def get_gri_live_emissions(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    """Read-only live GHG values for GRI 102-5/102-6/102-7 responses, keyed by question or response key."""
+    from modules.esg_questionnaire.gri_live_emissions import live_gri_emission_values
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return {"values": await live_gri_emission_values(org_id, reporting_period)}
+
+
 @router.get("/gri/{section}")
 async def get_gri_disclosures(
     section: str,

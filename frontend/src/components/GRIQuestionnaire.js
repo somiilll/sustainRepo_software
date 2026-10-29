@@ -56,6 +56,13 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * @param {string} section - 'environment' | 'social' | 'governance'
  * @param {boolean} isEditing - Whether in edit mode
  */
+const LiveValueBlock = ({ text, testId }) => (
+  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200" data-testid={testId}>
+    <span className="text-[11px] font-medium text-emerald-700 uppercase tracking-wide">Live from emissions data (read-only)</span>
+    <p className="text-sm text-text-primary whitespace-pre-wrap mt-1">{text}</p>
+  </div>
+);
+
 export default function GRIQuestionnaire({ section, isEditing = false }) {
   const { getAuthHeader, token } = useAuth();
   const { formatDateTime } = useDateFormatter();
@@ -66,6 +73,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
   const [reportingPeriod, setReportingPeriod] = useState(null);
+  const [liveValues, setLiveValues] = useState({});
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
@@ -101,6 +109,13 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       fetchOrganization();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!reportingPeriod || !token) return;
+    axios.get(`${API}/api/esg-questionnaire/gri-live-emissions`, { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } })
+      .then((res) => setLiveValues(res.data.values || {}))
+      .catch(() => setLiveValues({}));
+  }, [reportingPeriod, token, getAuthHeader]);
 
   // Fetch GRI disclosures for this section
   const fetchDisclosures = useCallback(async () => {
@@ -582,6 +597,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </div>
         </div>
         
+        {hasSubQuestions && liveValues[question.question_key] && (
+          <div className="ml-8"><LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} /></div>
+        )}
         {hasSubQuestions ? (
           // Render sub-questions with individual textareas
           <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
@@ -607,7 +625,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                   </div>
                 </div>
                 
-                {isEditing ? (
+                {liveValues[sub.response_key] ? (
+                  <LiveValueBlock text={liveValues[sub.response_key]} testId={`live-${sub.response_key}`} />
+                ) : isEditing ? (
                   <div className="space-y-2">
                     <Textarea
                       value={responses[sub.response_key] || ''}
@@ -695,7 +715,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </div>
         ) : (
           // Simple question without sub-parts
-          isEditing ? (
+          liveValues[question.question_key] ? (
+            <LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} />
+          ) : isEditing ? (
             <div className="space-y-2">
               <Textarea
                 value={responses[question.question_key] || ''}
