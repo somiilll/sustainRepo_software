@@ -472,8 +472,6 @@ SPECS[GEN_TRAINING] = [
       kpi="Training Attendees (Total) - Male", sum_of=[t[4] for t in _TOPICS]),
     F("total_attendees", "Attendees (Total)", group="Totals", brsr="P3-E8", gri="404-1-a",
       sum_of=["no_of_female_attendees", "no_of_male_attendees"]),
-    F("total_training_hours_by_topic", "Training hours (Total)", units=["Hours"], group="Totals", gri="404-1",
-      kpi="Training Hours (Total)", sum_of=[f"training_hours_{topic[0]}" for topic in _TOPICS]),
     F("training_recipient_type", "Who was the training for?", type="dropdown", group="Training Audience",
       options=["Board of Directors", "Key Managerial Personnel", "Vendor", "Contractor", "Permanent Employee",
                "Other than Permanent Employee", "Permanent Worker", "Other than Permanent Worker"]),
@@ -486,19 +484,7 @@ for _slug, _label, _tk, _fk, _mk, _br, _gr in _TOPICS:
         F(_mk, "Attendees - Male", group=_g, brsr=_br, gri=_gr, kpi=f"Trainings - {_label} - Male Attendees"),
         F(TRAINING_TOPIC_TOTALS[_slug]["total_key"], "Attendees - Total", group=_g, brsr=_br, gri=_gr,
           sum_of=[_fk, _mk]),
-        F(f"training_hours_{_slug}", "Training hours", units=["Hours"], group=_g, level=1,
-          parent="total_training_hours_by_topic", brsr=_br, gri=_gr, kpi=f"Training Hours - {_label}"),
     ]
-SPECS[GEN_TRAINING] += [
-    F("total_training_hours_female", "Total training hours - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Total Training Hours - Female", show_with_legacy_ui=True),
-    F("total_training_hours_male", "Total training hours - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Total Training Hours - Male", show_with_legacy_ui=True),
-    F("average_training_hours_female", "Average hours per employee - Female", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Average Training Hours per Employee - Female", agg="avg", show_with_legacy_ui=True),
-    F("average_training_hours_male", "Average hours per employee - Male", units=["Hours"], group="Training Hours", gri="404-1-a",
-      kpi="Average Training Hours per Employee - Male", agg="avg", show_with_legacy_ui=True),
-]
 
 SPECS[SEC_TRAINING] = [
     F("no_of_trainings_done", "Security trainings completed", group="Totals", gri="410-1",
