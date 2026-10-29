@@ -9,7 +9,7 @@ from shared.database.mongo import db
 BACKUP_DIR = "/app/backups"
 SUB = "New Employees/Worker"
 WANTED = {
-    **{f"{SUB} - {who} - {age}": ["401-1-a"] for who in ("Employees", "Workers") for age in ("Under 30", "30-50", "Over 50")},
+    **{f"{SUB} - {who} - {age}": ["401-1-a"] for who in ("Employees",) for age in ("Under 30", "30-50", "Over 50")},
     "No. of workers hired": ["102-3-e"],
     f"{SUB} - Employees": ["401-1-a"],
     f"{SUB} - Employees (Female)": ["401-1-a", "102-3-a-i"],
@@ -43,7 +43,7 @@ async def main():
         await db.esg_kpi_definitions.update_one(
             {"id": kpi["id"]}, {"$set": {"framework_references": [_ref(c) for c in codes] + refs, "gri_disclosure": gri}})
         value_field = (kpi.get("source_config") or {}).get("records", {}).get("value_field")
-        if value_field and (gri or value_field not in field_gri):
+        if value_field and kpi["metric_name"] != "No. of workers hired" and (gri or value_field not in field_gri):
             field_gri[value_field] = gri
     for field in category["fields"]:
         if field["field_key"] in field_gri:
