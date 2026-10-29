@@ -914,3 +914,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Changelog (latest)
 - GRI GHG KPI sync script now sets output_type=number; 44 existing GHG KPI records patched. KPI definitions API fix not verified by testing (user chose no testing).
 - Roadmap: PII breach percentage weighted formula, LPG fuel_id lookup, question_audit_log retention, run all local DB scripts on Staging/Prod.
+- GRI 305 + base-year/intensity KPIs and 102-5/6/7-d-ii base-year mappings added locally via scripts/sync_gri_305_kpis_and_mappings.py (not run on Staging/Prod). Removed gri-live-emissions endpoint.
+- Restored Material category (3 subcategories, 9 KPIs) from 2026-10-21 backup via scripts/restore_material_category.py; 'Material' re-added to Others in ESGRecordsDataEntry.js. Not UI-tested (user: no testing).
