@@ -60,6 +60,9 @@ const LEADERSHIP_KEYS = new Set([
   'p9_product_info_beyond_legal', 'p9_consumer_satisfaction_survey',
 ]);
 
+const ASSURANCE_NOTE_TEXT = 'Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.';
+const isAssuranceNote = (config) => config.question_key.startsWith('env_assurance_');
+
 const TRAINING_COLUMN_LABELS = {
   total: 'Total number of training and awareness programmes held',
   trained: 'Topics / principles covered under the training and its impact',
@@ -559,7 +562,12 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
                   <div key={title} className="px-5 py-4" data-testid={`principle-${p}-${title.split(' ')[0].toLowerCase()}-indicators`}>
                     <h4 className="text-base font-bold text-stone-900 text-center bg-stone-100 rounded-md py-2 mb-4" data-testid={`principle-${p}-${title.split(" ")[0].toLowerCase()}-heading`}>{title}</h4>
                     <div className="space-y-1">
-                      {list.map((c, i) => { const cfg = applyConfigOverrides(c); return renderQuestion({ ...cfg, question: `${i + 1}. ${cfg.question}` }); })}
+                      {list.map((c, i) => {
+                        const cfg = applyConfigOverrides(c);
+                        if (isAssuranceNote(c)) return renderQuestion({ ...cfg, question: ASSURANCE_NOTE_TEXT });
+                        const number = list.slice(0, i + 1).filter(q => !isAssuranceNote(q)).length;
+                        return renderQuestion({ ...cfg, question: `${number}. ${cfg.question}` });
+                      })}
                     </div>
                   </div>
                 ))}
