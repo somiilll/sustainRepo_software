@@ -378,6 +378,20 @@ METRIC_TO_GHG_MAPPING = {
 }
 
 
+GRI_GHG_METRICS = {}
+for _scope in ("scope1", "scope2", "scope3"):
+    for _gas in ("co2", "ch4", "n2o"):
+        GRI_GHG_METRICS[f"gri_{_scope}_{_gas}"] = {"scope": _scope, "category": None, "aggregation": "sum", "value_field": f"{_gas}_emissions",
+                                                    "unit": "t", "description": f"{_scope} {_gas.upper()} emissions"}
+for _n in range(1, 16):
+    GRI_GHG_METRICS[f"gri_scope3_c{_n}"] = {"scope": "scope3", "category": f"C{_n}", "aggregation": "sum", "description": f"Scope 3 category {_n}"}
+    GRI_GHG_METRICS[f"gri_biogenic_c{_n}"] = {"scope": "biogenic", "category": f"C{_n}", "aggregation": "sum", "description": f"Biogenic category {_n}"}
+for _kind in ("direct", "indirect"):
+    GRI_GHG_METRICS[f"gri_biogenic_{_kind}"] = {"scope": "biogenic", "category": None, "aggregation": "sum", "biogenic_kind": _kind,
+                                                 "description": f"Biogenic ({_kind}) emissions"}
+METRIC_TO_GHG_MAPPING.update(GRI_GHG_METRICS)
+
+
 def get_metric_mapping(metric_key: str) -> dict | None:
     """
     Get GHG mapping for a metric key.
