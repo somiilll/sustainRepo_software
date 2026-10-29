@@ -38,7 +38,7 @@ _NH_WRK_AGES = [f"workers_{r}" for r, _l, _t in AGE]
 
 
 def _nh_ages(prefix, who):
-    return [R(f"{prefix}_{r}", label, f"By Age Group - {who}", 1, gri="401-1-a", cols=["total"], full=f"{who} - {label}")
+    return [R(f"{prefix}_{r}", label, f"By Age Group - {who}", 1, gri="401-1-a", full=f"{who} - {label}")
             for r, label, _t in AGE]
 
 

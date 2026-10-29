@@ -195,21 +195,33 @@ export const WORKFORCE_GRID_CONFIGS = {
     "total": "new_hires_workers_other_than_permanent"
    },
    "employees_age_u30": {
+    "female": "new_hires_employees_age_u30_female",
+    "male": "new_hires_employees_age_u30_male",
     "total": "new_hires_employees_age_u30_total"
    },
    "employees_age_3050": {
+    "female": "new_hires_employees_age_3050_female",
+    "male": "new_hires_employees_age_3050_male",
     "total": "new_hires_employees_age_3050_total"
    },
    "employees_age_o50": {
+    "female": "new_hires_employees_age_o50_female",
+    "male": "new_hires_employees_age_o50_male",
     "total": "new_hires_employees_age_o50_total"
    },
    "workers_age_u30": {
+    "female": "new_hires_workers_age_u30_female",
+    "male": "new_hires_workers_age_u30_male",
     "total": "new_hires_workers_age_u30_total"
    },
    "workers_age_3050": {
+    "female": "new_hires_workers_age_3050_female",
+    "male": "new_hires_workers_age_3050_male",
     "total": "new_hires_workers_age_3050_total"
    },
    "workers_age_o50": {
+    "female": "new_hires_workers_age_o50_female",
+    "male": "new_hires_workers_age_o50_male",
     "total": "new_hires_workers_age_o50_total"
    }
   },
