@@ -3,7 +3,7 @@ from typing import Optional
 from shared.database.mongo import db
 from shared.utils.period_utils import detect_type, extract_year, period_variants
 
-BASE_YEAR_SCOPE_GROUPS = {"scope1": "scope12", "scope2": "scope12", "scope3": "scope3"}
+BASE_YEAR_SCOPE_GROUPS = {"scope1": "scope12", "scope2": "scope12", "scope3": "scope3", "biogenic": "scope12"}
 
 
 async def base_year_value(org_id: str, scope: str) -> Optional[float]:

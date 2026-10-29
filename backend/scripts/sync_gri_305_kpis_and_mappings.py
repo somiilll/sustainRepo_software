@@ -56,6 +56,10 @@ async def build_kpis(now):
             source_type="base_year", source_config={"base_year": {"scope": scope}}, description=f"{label} emissions in the organization's configured GHG base year.",
             metadata={"source_module": "ghg_base_year"})
     s1, s2 = await kpi_id_by_code("GHG_SCOPE1_TOTAL"), await kpi_id_by_code("GHG_SCOPE2_TOTAL")
+    ids["base_biogenic_direct"] = await upsert(
+        "GHG_BASE_YEAR_BIOGENIC_DIRECT", "Biogenic (direct) emissions in base year", "GHG Emissions", "Base Year Emissions", now, "tCO2e",
+        source_type="base_year", source_config={"base_year": {"scope": "biogenic"}},
+        description="Biogenic (direct) emissions in the organization's configured GHG base year.", metadata={"source_module": "ghg_base_year"})
     ids["scope12"] = await upsert(
         "GHG_SCOPE1_SCOPE2_TOTAL", "Total Scope 1 + Scope 2 emissions", "GHG Emissions", "Total Scope 1 + Scope 2 emissions", now, "tCO2e",
         source_type="composite", source_config={"composite": {"operation": "sum", "source_kpi_ids": [s1, s2]}},
@@ -85,10 +89,11 @@ async def build_kpis(now):
 async def mapping_specs():
     ids = {k: await kpi_id_by_code(c) for k, c in {
         "s1": "GHG_SCOPE1_TOTAL", "s2": "GHG_SCOPE2_TOTAL", "s3": "GHG_SCOPE3_TOTAL", "bio_d": "GHG_BIOGENIC_DIRECT", "bio_i": "GHG_BIOGENIC_INDIRECT",
-        "b1": "GHG_BASE_YEAR_SCOPE1", "b2": "GHG_BASE_YEAR_SCOPE2", "b3": "GHG_BASE_YEAR_SCOPE3"}.items()}
+        "b1": "GHG_BASE_YEAR_SCOPE1", "b2": "GHG_BASE_YEAR_SCOPE2", "b3": "GHG_BASE_YEAR_SCOPE3", "bb": "GHG_BASE_YEAR_BIOGENIC_DIRECT"}.items()}
     gases = [(await kpi_id_by_code(f"GHG_SCOPE1_{g.upper()}"), label) for g, label in GASES]
     cats = [(await kpi_id_by_code(f"GHG_SCOPE3_C{n}"), f"C{n} {name}") for n, name in enumerate(CATEGORY_NAMES, 1)]
     return [
+        ("102-5", "d", "ii", [(ids["b1"], "Scope 1 in base year"), (ids["bb"], "Biogenic (direct) in base year")]),
         ("305-1", "a", None, [(ids["s1"], "Scope 1")]),
         ("305-1", "b", None, [(ids["s1"], "CO2e")] + gases),
         ("305-1", "c", None, [(ids["bio_d"], "Biogenic (direct)")]),
