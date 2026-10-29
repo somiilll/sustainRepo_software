@@ -3,6 +3,7 @@ export const WORKFORCE_GRID_CONFIGS = {
  "New Employees/Worker": {
   "key": "new_hires",
   "title": "New Employees/Worker",
+  "unit": null,
   "editableAutoTotals": true,
   "columns": [
    {
@@ -98,27 +99,54 @@ export const WORKFORCE_GRID_CONFIGS = {
     "sumOf": null
    },
    {
-    "key": "age_u30",
+    "key": "employees_age_u30",
     "label": "Under 30",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
     "sumOf": null
    },
    {
-    "key": "age_3050",
+    "key": "employees_age_3050",
     "label": "30-50",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
     "sumOf": null
    },
    {
-    "key": "age_o50",
+    "key": "employees_age_o50",
     "label": "Over 50",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_u30",
+    "label": "Under 30",
+    "group": "By Age Group - Workers",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_3050",
+    "label": "30-50",
+    "group": "By Age Group - Workers",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_o50",
+    "label": "Over 50",
+    "group": "By Age Group - Workers",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
@@ -166,31 +194,43 @@ export const WORKFORCE_GRID_CONFIGS = {
     "male": "new_hires_workers_other_male",
     "total": "new_hires_workers_other_than_permanent"
    },
-   "age_u30": {
-    "female": "new_hires_age_u30_female",
-    "male": "new_hires_age_u30_male",
-    "total": "no_of_employees_worker_under_30"
+   "employees_age_u30": {
+    "total": "new_hires_employees_age_u30_total"
    },
-   "age_3050": {
-    "female": "new_hires_age_3050_female",
-    "male": "new_hires_age_3050_male",
-    "total": "no_of_employees_worker_30_50"
+   "employees_age_3050": {
+    "total": "new_hires_employees_age_3050_total"
    },
-   "age_o50": {
-    "female": "new_hires_age_o50_female",
-    "male": "new_hires_age_o50_male",
-    "total": "no_of_employees_worker_over_50"
+   "employees_age_o50": {
+    "total": "new_hires_employees_age_o50_total"
+   },
+   "workers_age_u30": {
+    "total": "new_hires_workers_age_u30_total"
+   },
+   "workers_age_3050": {
+    "total": "new_hires_workers_age_3050_total"
+   },
+   "workers_age_o50": {
+    "total": "new_hires_workers_age_o50_total"
    }
   },
   "validations": [
    {
     "type": "sum_equals",
     "rows": [
-     "age_u30",
-     "age_3050",
-     "age_o50"
+     "employees_age_u30",
+     "employees_age_3050",
+     "employees_age_o50"
     ],
-    "target": "total"
+    "target": "employees"
+   },
+   {
+    "type": "sum_equals",
+    "rows": [
+     "workers_age_u30",
+     "workers_age_3050",
+     "workers_age_o50"
+    ],
+    "target": "workers"
    }
   ]
  },

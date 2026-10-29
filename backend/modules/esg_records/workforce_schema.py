@@ -33,17 +33,28 @@ def _turnover_ages(prefix, base, group="Headcount"):
     return [R(row_key(r), f"{label} age", group, 1, gri="401-1-b", full=f"{base} ({label} age)") for r, label, _t in AGE]
 
 
+_NH_EMP_AGES = [f"employees_{r}" for r, _l, _t in AGE]
+_NH_WRK_AGES = [f"workers_{r}" for r, _l, _t in AGE]
+
+
+def _nh_ages(prefix, who):
+    return [R(f"{prefix}_{r}", label, f"By Age Group - {who}", 1, gri="401-1-a", cols=["total"], full=f"{who} - {label}")
+            for r, label, _t in AGE]
+
+
 SPECS: Dict[str, Dict[str, Any]] = {
     "New Employees/Worker": {"cfg": "NEW_HIRES_CONFIG", "prefix": "new_hires", "cols": FMT, "editable_auto_totals": True, "rows": [
-        R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"],
-          eq=[["age_u30", "age_3050", "age_o50"]]),
-        R("employees", "Employees", "By Employment Type", 1, gri="401-1-a; 102-3-a", sum_of=["employees_permanent", "employees_other"]),
+        R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"]),
+        R("employees", "Employees", "By Employment Type", 1, gri="401-1-a; 102-3-a", sum_of=["employees_permanent", "employees_other"],
+          eq=[_NH_EMP_AGES]),
         R("employees_permanent", "Employees - Permanent", "By Employment Type", 2, gri="102-3-a-ii"),
         R("employees_other", "Employees - Other than permanent", "By Employment Type", 2, gri="102-3-a-ii"),
-        R("workers", "Workers", "By Employment Type", 1, gri="102-3-e", sum_of=["workers_permanent", "workers_other"]),
+        R("workers", "Workers", "By Employment Type", 1, gri="102-3-e", sum_of=["workers_permanent", "workers_other"],
+          eq=[_NH_WRK_AGES]),
         R("workers_permanent", "Workers - Permanent", "By Employment Type", 2, gri="102-3-e"),
         R("workers_other", "Workers - Other than permanent", "By Employment Type", 2, gri="102-3-e"),
-        *_ages("401-1-a", "By Age Group"),
+        *_nh_ages("employees", "Employees"),
+        *_nh_ages("workers", "Workers"),
     ]},
     "Terminated Employees": {"cfg": "TERMINATED_EMPLOYEES_CONFIG", "prefix": "term_emp", "cols": FMT, "editable_auto_totals": True, "rows": [
         R("total", "Employees terminated (Total)", "Total", 0, "A-22", "102-3-b; 401-1-b",
@@ -137,9 +148,6 @@ LEGACY_FIELD_KEYS = {
         "workers": {"total": "new_hires_workers"},
         "workers_permanent": {"total": "new_hires_workers_permanent"},
         "workers_other": {"total": "new_hires_workers_other_than_permanent"},
-        "age_u30": {"total": "no_of_employees_worker_under_30"},
-        "age_3050": {"total": "no_of_employees_worker_30_50"},
-        "age_o50": {"total": "no_of_employees_worker_over_50"},
     },
     "Terminated Employees": {
         "total": {"female": "female", "male": "male", "total": "no_of_people_terminated"},
