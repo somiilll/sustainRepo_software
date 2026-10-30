@@ -637,9 +637,9 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         )}
         {hasSubQuestions ? (
           // Render sub-questions with individual textareas
-          <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
+          <div className="ml-8 flex flex-col gap-8 border-l-2 border-blue-100 pl-4">
             {question.sub_questions.map((sub) => (
-              <div key={sub.response_key} className="space-y-2">
+              <div key={sub.response_key} className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <Label className="text-sm text-text-secondary flex items-start gap-2 flex-1">
                     <span className="text-blue-600 font-mono text-xs shrink-0 w-6 pt-0.5">{sub.sub_key}.</span>
