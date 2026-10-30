@@ -1,0 +1,209 @@
+"""Config-driven HTML rendering of saved BRSR answers (tables, principle matrices, scalars) for Sections B and C."""
+import html
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
+PRINCIPLES = [f"P{i}" for i in range(1, 10)]
+LEADERSHIP_KEYS = {
+    'p1_value_chain_awareness', 'p1_conflict_management_process', 'env_life_cycle_assessment', 'env_lca_concerns_actions', 'env_recycled_input_material',
+    'env_reclaimed_products_packaging', 'p2_reclaimed_products_pct', 'p3_life_insurance_package', 'p3_value_chain_statutory_dues', 'p3_rehabilitation_injured',
+    'transition_assistance_programs', 'p3_value_chain_assessment', 'p3_value_chain_corrective', 'p4_se_3', 'p4_se_4', 'p4_se_5',
+    'p5_business_process_changes', 'p5_hr_due_diligence', 'p5_accessibility_differently_abled', 'p5_value_chain_hr_assessment', 'p5_value_chain_corrective',
+    'p6_water_stress_areas', 'env_assurance_water_stress', 'p6_scope3_emissions', 'env_assurance_ghg_scope3', 'env_biodiversity_impact',
+    'env_resource_efficiency_initiatives', 'env_business_continuity_disaster', 'env_value_chain_impacts', 'env_value_chain_assessment', 'public_policy_positions',
+    'p8_sia_corrective_actions', 'p8_csr_aspirational_districts', 'p8_preferential_procurement', 'p8_marginalized_groups_procured', 'p8_marginalized_procurement_pct',
+    'p8_intellectual_property_traditional', 'p8_ip_corrective_actions', 'p8_csr_beneficiaries', 'p9_product_info_channels', 'p9_consumer_education',
+    'p9_service_disruption_mechanism', 'p9_product_info_beyond_legal', 'p9_consumer_satisfaction_survey',
+}
+CONTINUATION_KEYS = {
+    'p3_wellbeing_workers', 'p3_wellbeing_spending', 'p3_hazard_identification', 'p3_worker_hazard_reporting', 'p3_non_occupational_healthcare',
+    'p5_gross_wages_females', 'top_trade_associations', 'p8_marginalized_groups_procured', 'p8_marginalized_procurement_pct',
+    'p9_data_breaches_pii_pct', 'p9_data_breaches_impact', 'p9_consumer_satisfaction_survey',
+}
+ASSURANCE_NOTE = 'Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.'
+QUESTION_RENAMES = {
+    'p8_msme_domestic_sourcing': 'Percentage of input material (inputs to total inputs by value) sourced from suppliers:',
+    'p6_water_stress_areas': 'Water withdrawal, consumption and discharge in areas of water stress',
+    'p5_remuneration_details': 'Details of Median remuneration / wages',
+    'p5_gross_wages_females': 'Gross wages paid to females as % of total wages paid by the entity',
+    'p5_hr_complaints': 'Number of Complaints on the following made by employees and workers:',
+}
+WELLBEING_GROUPS = [('Health insurance', 'health_ins', 'B'), ('Accident insurance', 'accident_ins', 'C'), ('Maternity benefits', 'maternity', 'D'),
+                    ('Paternity Benefits', 'paternity', 'E'), ('Day Care facilities', 'daycare', 'F')]
+
+
+def is_unnumbered(key: str) -> bool:
+    return key.startswith('env_assurance_') or key in CONTINUATION_KEYS
+
+
+def esc(value: Any) -> str:
+    return html.escape(str(value)).replace('\n', '<br>')
+
+
+def _empty(value: Any) -> bool:
+    if value is None or value == '' or value == [] or value == {}:
+        return True
+    if isinstance(value, dict):
+        return all(_empty(v) for v in value.values())
+    if isinstance(value, list):
+        return all(_empty(v) for v in value)
+    return False
+
+
+def _scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return 'Yes' if value else 'No'
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value)) if abs(value) >= 1000 else f'{value:g}'
+    if isinstance(value, str) and value.lower() in ('yes', 'no'):
+        return value.capitalize()
+    return esc(value)
+
+
+def _collect_labels(node: Any, labels: Dict[str, str]) -> None:
+    if isinstance(node, dict):
+        key, label = node.get('key') or node.get('name'), node.get('label')
+        if isinstance(key, str) and isinstance(label, str):
+            labels.setdefault(key, label)
+        for child in node.values():
+            _collect_labels(child, labels)
+    elif isinstance(node, list):
+        for child in node:
+            _collect_labels(child, labels)
+
+
+class AnswerRenderer:
+    def __init__(self, reporting_period: str, previous_fy: str):
+        self.current_fy, self.previous_fy = reporting_period, previous_fy
+
+    def _fy_fix(self, label: str) -> str:
+        label = re.sub(r'FY\s*_{2,}\s*\(Current Financial Year\)', f'FY {self.current_fy} (Current Financial Year)', label)
+        label = re.sub(r'FY\s*_{2,}\s*\(Previous Financial Year\)', f'FY {self.previous_fy} (Previous Financial Year)', label)
+        return re.sub(r'FY\s*_{2,}\s*\(Year prior to Previous Financial Year\)', 'FY (Year prior to Previous Financial Year)', label)
+
+    def _label(self, part: str, labels: Dict[str, str]) -> str:
+        return self._fy_fix(self._label_raw(part, labels))
+
+    def _label_raw(self, part: str, labels: Dict[str, str]) -> str:
+        if part in labels:
+            return labels[part]
+        if part == 'current_fy':
+            return f'FY {self.current_fy}'.replace('FY FY', 'FY')
+        if part == 'previous_fy':
+            return f'FY {self.previous_fy}'.replace('FY FY', 'FY')
+        for suffix in ('_current_fy', '_previous_fy'):
+            if part.endswith(suffix) and part[: -len(suffix)] in labels:
+                return f'{labels[part[: -len(suffix)]]} ({self._label(suffix[1:], labels)})'
+        return re.sub(r'\s+', ' ', part.replace('_', ' ').replace('.', ' ')).strip().title()
+
+    def _path_label(self, path: Tuple[str, ...], labels: Dict[str, str]) -> str:
+        joined = '_'.join(path)
+        if joined in labels:
+            return self._fy_fix(labels[joined])
+        return ' - '.join(self._label(p, labels) for p in path)
+
+    def _flatten(self, value: Any, prefix: Tuple[str, ...] = ()) -> Dict[Tuple[str, ...], Any]:
+        if isinstance(value, dict):
+            out: Dict[Tuple[str, ...], Any] = {}
+            for key, child in value.items():
+                out.update(self._flatten(child, prefix + (str(key),)))
+            return out
+        return {prefix: value}
+
+    @staticmethod
+    def _order(keys: List[str], labels: Dict[str, str]) -> List[str]:
+        index = {k: i for i, k in enumerate(labels)}
+        return sorted(keys, key=lambda k: (index.get(k.split('.')[0], index.get(re.sub(r'_(current|previous)_fy$', '', k), 10 ** 6)), keys.index(k)))
+
+    def _table(self, header: List[str], rows: List[List[str]], first_col: str = '') -> str:
+        head = ''.join(f'<th>{esc(h)}</th>' for h in [first_col] + header)
+        body = ''.join('<tr>' + f'<td>{r[0]}</td>' + ''.join(f'<td class="text-center answer-cell">{c}</td>' for c in r[1:]) + '</tr>' for r in rows)
+        return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+    def _principle_matrix(self, value: Dict[str, Any], labels: Dict[str, str]) -> str:
+        per = value.get('principles') or value.get('principle_wise') or {}
+        shared = value.get('all_together') or value.get('combined')
+        if not shared:
+            shared = {k[4:]: v for k, v in value.items() if k.startswith('all_') and not isinstance(v, dict)}
+        together = value.get('mode') == 'together' or (_empty(per) and not _empty(shared))
+        columns = {p: (shared if together else per.get(p)) for p in PRINCIPLES}
+        columns = {p: (v if isinstance(v, dict) else {'answer': v}) for p, v in columns.items() if not _empty(v) or together}
+        flat = {p: self._flatten(v) for p, v in columns.items()}
+        paths = list(dict.fromkeys(path for f in flat.values() for path in f if not _empty(f[path])))
+        if not paths:
+            return ''
+        rows = [[esc(self._path_label(path, labels))] + [_scalar(f.get(path)) if not _empty(f.get(path)) else '' for f in flat.values()] for path in paths]
+        return self._table(list(flat), rows, 'Disclosure')
+
+    def _dict_of_dicts(self, value: Dict[str, Any], labels: Dict[str, str], config: Dict[str, Any]) -> str:
+        table_config = config.get('table_config') or {}
+        fixed_rows = table_config.get('fixed_rows') or []
+        row_keys = [r['key'] for r in fixed_rows if r.get('key') in value] + [k for k in value if k not in {r.get('key') for r in fixed_rows}]
+        flats = {rk: self._flatten(value[rk]) if isinstance(value[rk], dict) else {('value',): value[rk]} for rk in row_keys}
+        col_paths = list(dict.fromkeys(p for f in flats.values() for p in f if not _empty(f[p])))
+        col_keys = {p: '.'.join(p) for p in col_paths}
+        ordered = self._order([col_keys[p] for p in col_paths], labels)
+        col_paths = sorted(col_paths, key=lambda p: ordered.index(col_keys[p]))
+        rows = [[esc(labels.get(rk) or self._label(rk, labels))] + [_scalar(flats[rk][p]) if not _empty(flats[rk].get(p)) else '' for p in col_paths] for rk in row_keys if not _empty(value[rk])]
+        if not rows:
+            return ''
+        return self._table([self._path_label(p, labels) if p != ('value',) else 'Answer' for p in col_paths], rows)
+
+    def _list_table(self, rows: List[Any], labels: Dict[str, str]) -> str:
+        if all(not isinstance(r, dict) for r in rows):
+            return esc(', '.join(str(r) for r in rows if not _empty(r)))
+        flats = [self._flatten(r) if isinstance(r, dict) else {('value',): r} for r in rows if not _empty(r)]
+        cols = list(dict.fromkeys(p for f in flats for p in f))
+        body = [[_scalar(f.get(p)) if not _empty(f.get(p)) else '' for p in cols] for f in flats]
+        return self._table([self._path_label(p, labels) for p in cols], [[str(i + 1)] + r for i, r in enumerate(body)], 'S. No.')
+
+    def _mixed(self, value: Dict[str, Any], labels: Dict[str, str], config: Dict[str, Any]) -> str:
+        scalars = {k: v for k, v in value.items() if not isinstance(v, (list, dict)) and not _empty(v)}
+        nested = {k: v for k, v in value.items() if isinstance(v, (list, dict)) and not _empty(v)}
+        out = ''
+        if scalars:
+            out += self._table(['Response'], [[esc(self._label(k, labels)), _scalar(v)] for k, v in scalars.items()], 'Field')
+        for key, child in nested.items():
+            sub = self.render(config, child, labels, heading=self._label(key, labels))
+            out += sub
+        return out
+
+    def render(self, config: Dict[str, Any], value: Any, labels: Optional[Dict[str, str]] = None, heading: str = '') -> str:
+        if labels is None:
+            labels = {}
+            _collect_labels({k: v for k, v in config.items() if k not in ('question', 'description', 'answer_paths')}, labels)
+        if _empty(value):
+            return '' if heading else '<div class="answer-cell">&ndash;</div>'
+        if isinstance(value, dict) and set(value) == {'rows'} and isinstance(value['rows'], dict):
+            value = value['rows']
+        title = f'<div class="q-text"><b>{esc(heading)}</b></div>' if heading and heading != 'Rows' else ''
+        if isinstance(value, dict):
+            if any(k in value for k in ('principles', 'principle_wise', 'all_together', 'combined')) or any(k.startswith('all_') for k in value):
+                body = self._principle_matrix(value, labels)
+            elif all(isinstance(v, dict) or _empty(v) for v in value.values()) and (config.get('table_config') or all(isinstance(v, dict) for v in value.values() if not _empty(v))):
+                body = self._dict_of_dicts(value, labels, config)
+            elif isinstance(value.get('rows'), list) and not any(k for k in value if k not in ('rows', 'answer')):
+                answer = f'<p>{_scalar(value["answer"])}</p>' if not _empty(value.get('answer')) else ''
+                body = answer + self._list_table(value['rows'], labels)
+            else:
+                body = self._mixed(value, labels, config)
+        elif isinstance(value, list):
+            body = self._list_table(value, labels)
+        else:
+            body = f'<div class="answer-cell">{_scalar(value)}</div>'
+        return title + (body or '<div class="answer-cell">&ndash;</div>')
+
+
+def wellbeing_override(config: Dict[str, Any]) -> Dict[str, Any]:
+    key = config.get('question_key')
+    if key not in ('p3_wellbeing_employees', 'p3_wellbeing_workers'):
+        return config
+    noun = 'employees' if key.endswith('employees') else 'workers'
+    labels = {'perm_male': f'Permanent {noun} - Male', 'perm_female': f'Permanent {noun} - Female', 'perm_total': f'Permanent {noun} - Total',
+              'other_male': f'Other than Permanent {noun} - Male', 'other_female': f'Other than Permanent {noun} - Female', 'other_total': f'Other than Permanent {noun} - Total',
+              'total_a': 'Total (A)'}
+    for label, k, letter in WELLBEING_GROUPS:
+        labels[f'{k}_no'] = f'{label} - Number ({letter})'
+        labels[f'{k}_pct'] = f'{label} - % ({letter}/A)'
+    return {**config, 'table_config': {'fixed_rows': [{'key': k, 'label': v} for k, v in labels.items() if k.startswith(('perm', 'other'))],
+                                      'columns': [{'key': k, 'label': v} for k, v in labels.items() if not k.startswith(('perm', 'other'))]}}

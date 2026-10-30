@@ -137,6 +137,8 @@ async def generate_brsr_report(
         )
         section_a_data = section_a_result.get('responses', {}) if section_a_result else {}
         
+        section_a_configs = await esg_questionnaire_service.list_question_configs(framework='BRSR', section='section_a')
+        
         # Get Section B configs and data
         section_b_configs = await esg_questionnaire_service.list_question_configs(
             framework='BRSR',
@@ -168,6 +170,7 @@ async def generate_brsr_report(
             organization=organization,
             reporting_period=reporting_period,
             section_a_data=section_a_data,
+            section_a_configs=section_a_configs if isinstance(section_a_configs, list) else [],
             section_b_data=section_b_data,
             section_b_configs=section_b_configs if isinstance(section_b_configs, list) else [],
             section_c_data=section_c_data,
@@ -258,6 +261,8 @@ async def preview_brsr_html(
         )
         section_a_data = section_a_result.get('responses', {}) if section_a_result else {}
         
+        section_a_configs = await esg_questionnaire_service.list_question_configs(framework='BRSR', section='section_a')
+        
         # Get Section B configs and data
         section_b_configs = await esg_questionnaire_service.list_question_configs(
             framework='BRSR',
@@ -289,6 +294,7 @@ async def preview_brsr_html(
             organization=organization,
             reporting_period=reporting_period,
             section_a_data=section_a_data,
+            section_a_configs=section_a_configs if isinstance(section_a_configs, list) else [],
             section_b_data=section_b_data,
             section_b_configs=section_b_configs if isinstance(section_b_configs, list) else [],
             section_c_data=section_c_data,
