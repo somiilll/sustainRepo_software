@@ -642,7 +642,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
               <div key={sub.response_key} className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <Label className="text-sm text-text-secondary flex items-start gap-2 flex-1">
-                    <span className="text-blue-600 font-mono text-xs shrink-0 w-6 pt-0.5">{sub.sub_key}.</span>
+                    <span className="text-blue-600 font-mono text-sm leading-relaxed shrink-0 w-6">{sub.sub_key}.</span>
                     <span className="flex-1 leading-relaxed">{sub.label}</span>
                   </Label>
                   <div className="flex items-center gap-1 shrink-0">
