@@ -204,11 +204,6 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         }
       });
       setResponses(initialResponses);
-      
-      // Open first disclosure by default
-      if (grouped.length > 0) {
-        setOpenDisclosures({ [grouped[0].disclosure_id]: true });
-      }
     } catch (error) {
       console.error('Failed to fetch GRI disclosures:', error);
       toast.error('Failed to load GRI disclosures');
