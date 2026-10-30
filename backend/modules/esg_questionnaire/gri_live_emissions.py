@@ -16,7 +16,7 @@ APPROACH_LABELS = {
     "control_both": "Operational and financial control approach",
     "control": "Control approach",
 }
-REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync"]
+REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync", "gri_kpi_ref_sync"]
 BOUNDARY_KEYS = ("gri_102_5_e", "gri_102_6_e", "gri_102_7_e", "gri_305_1_f", "gri_305_2_f")
 
 
