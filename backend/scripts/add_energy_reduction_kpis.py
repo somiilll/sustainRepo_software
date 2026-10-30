@@ -73,8 +73,8 @@ async def main():
         "ENERGY_REDUCTION_TOTAL", "Total Energy Reduction", "Total Energy Reduction", now, **composite([ids[(key, "total")] for key, _ in TYPES]))
 
     await db.kpi_framework_mappings.delete_many({"framework": "GRI", "review_source": REVIEW_SOURCE, "reference": {"$in": ["103-5-a", "103-5-a-i", "103-5-a-ii"]}})
-    for kpi_key, reference, path, label in [(("all", "total"), "103-5-a", None, "Total energy reduction"),
-                                            (("all", "initiatives"), "103-5-a-i", "i", "Reduction from conservation and efficiency initiatives"),
+    await db.esg_kpi_definitions.update_one({"id": ids[("all", "total")]}, {"$set": {"framework_references": [], "gri_disclosure": None}})
+    for kpi_key, reference, path, label in [(("all", "initiatives"), "103-5-a-i", "i", "Reduction from conservation and efficiency initiatives"),
                                             (("all", "other"), "103-5-a-ii", "ii", "Reduction from other factors")]:
         kpi = await db.esg_kpi_definitions.find_one({"id": ids[kpi_key]}, {"_id": 0})
         refs = [{"framework": "GRI", "reference": reference, "question_key": "gri_103_5_a", "answer_path": path, "reference_type": "exact", "mapping_status": "exact_destination"}]
@@ -86,7 +86,7 @@ async def main():
             "display_order": 0, "aggregation_rule": "sum", "destination_unit": "J", "include_unit": True, "mapping_status": "exact_destination",
             "mapping_role": "direct_destination", "is_active": True, "period_column_strategy": "reporting_year_filter", "reporting_period_source": "runtime_filter",
             "review_source": REVIEW_SOURCE})
-    print(f"form fields={len(fields)} kpis={len(ids)} mappings=3")
+    print(f"form fields={len(fields)} kpis={len(ids)} mappings=2")
 
 
 if __name__ == "__main__":
