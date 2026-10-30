@@ -408,6 +408,7 @@ class ESGQuestionnaireService:
                 "is_required": config.get("is_required", False),
                 "validation_rules": config.get("validation_rules"),
                 "visibility_conditions": config.get("visibility_conditions"),
+                "static_note": config.get("static_note"),
             }
             
             if sub_questions:

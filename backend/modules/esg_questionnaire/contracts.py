@@ -126,6 +126,7 @@ class QuestionConfigUpdate(BaseModel):
     order: Optional[int] = None
     group: Optional[str] = None
     conditional: Optional[Dict[str, Any]] = None
+    static_note: Optional[str] = None
 
 
 class QuestionConfigResponse(QuestionConfig):

@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { StaticNoteBlock } from './StaticNoteBlock';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -64,7 +65,8 @@ const LiveValueBlock = ({ text, testId }) => (
 );
 
 export default function GRIQuestionnaire({ section, isEditing = false }) {
-  const { getAuthHeader, token } = useAuth();
+  const { getAuthHeader, token, user } = useAuth();
+  const canEditNotes = user?.role === 'admin' || user?.role === 'super_admin';
   const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
@@ -717,6 +719,8 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           // Simple question without sub-parts
           liveValues[question.question_key] ? (
             <LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} />
+          ) : question.static_note ? (
+            <StaticNoteBlock questionKey={question.question_key} text={question.static_note} canEdit={canEditNotes} getAuthHeader={getAuthHeader} onSaved={fetchDisclosures} />
           ) : isEditing ? (
             <div className="space-y-2">
               <Textarea
