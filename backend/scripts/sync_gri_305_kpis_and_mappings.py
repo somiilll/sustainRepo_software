@@ -122,6 +122,12 @@ async def mapping_specs():
 
 
 async def build_mappings(now):
+    stale = await db.kpi_framework_mappings.find({"framework": "GRI", "review_source": REVIEW_SOURCE}, {"_id": 0, "kpi_id": 1, "reference": 1}).to_list(None)
+    for old in stale:
+        kpi = await db.esg_kpi_definitions.find_one({"id": old["kpi_id"]}, {"_id": 0, "framework_references": 1})
+        refs = [r for r in (kpi or {}).get("framework_references") or [] if not (r.get("framework") == "GRI" and r.get("reference") == old["reference"])]
+        await db.esg_kpi_definitions.update_one({"id": old["kpi_id"]}, {"$set": {
+            "framework_references": refs, "gri_disclosure": "; ".join(dict.fromkeys(r["reference"] for r in refs if r["framework"] == "GRI")) or None}})
     removed = (await db.kpi_framework_mappings.delete_many({"framework": "GRI", "review_source": REVIEW_SOURCE})).deleted_count
     created = 0
     for disclosure, letter, roman, kpis in await mapping_specs():
@@ -156,6 +162,7 @@ async def main():
         json.dump(mappings, file, default=str)
     ids, intensities = await build_kpis(now)
     removed, created = await build_mappings(now)
+    await db.esg_kpi_definitions.update_many({"metric_code": {"$regex": "^INTENSITY_.*_PER_PRODUCTION$"}}, {"$set": {"framework_references": [], "gri_disclosure": None}})
     print(f"kpis={len(ids)} intensity={intensities} mappings removed={removed} created={created}")
 
 
