@@ -56,16 +56,14 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Supports sub_questions with individual input fields for each sub-part
  * 
  * @param {string} section - 'environment' | 'social' | 'governance'
- * @param {boolean} isEditing - Whether in edit mode
  */
 const LiveValueBlock = ({ text, testId }) => (
-  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200" data-testid={testId}>
-    <span className="text-[11px] font-medium text-emerald-700 uppercase tracking-wide">Live from your data (read-only)</span>
-    <p className="text-sm text-text-primary whitespace-pre-wrap mt-1">{text}</p>
+  <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]" data-testid={testId}>
+    <p className="text-sm text-text-primary whitespace-pre-wrap">{text}</p>
   </div>
 );
 
-export default function GRIQuestionnaire({ section, isEditing = false, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, materialOnly, onSaved }) {
+export default function GRIQuestionnaire({ section, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, materialOnly, onSaved }) {
   const { getAuthHeader, token, user } = useAuth();
   const canEditNotes = user?.role === 'admin' || user?.role === 'super_admin';
   const { formatDateTime } = useDateFormatter();
@@ -73,6 +71,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [openTopics, setOpenTopics] = useState({});
+  const [editingTopics, setEditingTopics] = useState({});
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
@@ -582,7 +581,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
   };
 
   // Render a single question (with or without sub-questions)
-  const renderQuestion = (question, qIndex) => {
+  const renderQuestion = (question, qIndex, isEditing) => {
     const hasSubQuestions = question.sub_questions && question.sub_questions.length > 0;
     
     return (
@@ -866,9 +865,11 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
         const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
         if (!visibleCount) return null;
+        const isEditing = !!editingTopics[topic.slug];
         const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
         return (
-          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality}
+          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality} editing={isEditing}
+            onToggleEdit={() => setEditingTopics((prev) => ({ ...prev, [topic.slug]: !prev[topic.slug] }))}
             open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>
       {topic.disclosures.map(disclosure => {
         const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);
@@ -961,7 +962,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
                     </div>
                   )}
                   
-                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex, isEditing))}
 
                   {/* Save Buttons */}
                   {isEditing && (

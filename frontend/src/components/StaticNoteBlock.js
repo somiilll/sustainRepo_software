@@ -27,9 +27,9 @@ export const StaticNoteBlock = ({ questionKey, text, canEdit, getAuthHeader, onS
   };
 
   return (
-    <div className="p-3 bg-sky-50 rounded-lg border border-sky-200" data-testid={`static-note-${questionKey}`}>
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-sky-700 uppercase tracking-wide">Methodology note</span>
+    <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]" data-testid={`static-note-${questionKey}`}>
+      <div className="flex items-start justify-between gap-2">
+        {!editing && <p className="text-sm text-text-primary whitespace-pre-wrap">{text}</p>}
         {canEdit && !editing && (
           <Button variant="ghost" size="sm" onClick={() => { setDraft(text); setEditing(true); }} data-testid={`static-note-edit-${questionKey}`}>
             <Pencil className="w-4 h-4" />
@@ -44,9 +44,7 @@ export const StaticNoteBlock = ({ questionKey, text, canEdit, getAuthHeader, onS
             <Button size="sm" variant="outline" onClick={() => setEditing(false)} data-testid={`static-note-cancel-${questionKey}`}>Cancel</Button>
           </div>
         </div>
-      ) : (
-        <p className="text-sm text-text-primary whitespace-pre-wrap mt-1">{text}</p>
-      )}
+      ) : null}
     </div>
   );
 };

@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { Leaf, Users, Shield, Globe, Pencil, X } from 'lucide-react';
+import { Leaf, Users, Shield, Globe } from 'lucide-react';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
@@ -33,7 +33,6 @@ export default function GRIModule() {
   const [activeTab, setActiveTab] = useState('environment');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
   const [progress, setProgress] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [materialOnly, setMaterialOnly] = useState(true);
@@ -85,7 +84,6 @@ export default function GRIModule() {
     <TabsContent value={section} className="mt-0">
       <GRIQuestionnaire
         section={section}
-        isEditing={isEditing}
         reportingPeriod={reportingPeriod}
         materialOnly={materialOnly}
         statusFilter={statusFilter}
@@ -110,15 +108,6 @@ export default function GRIModule() {
         iconClassName="border-sky-200 bg-sky-50 text-sky-800"
         testId="gri-framework"
         aside={<>
-          <Button
-            variant={isEditing ? 'outline' : 'default'}
-            size="sm"
-            onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
-            data-testid="gri-edit-toggle"
-          >
-            {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
-          </Button>
           <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
             <SelectTrigger className="w-40 bg-white" data-testid="gri-reporting-period-selector">

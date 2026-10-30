@@ -759,3 +759,8 @@
 ## February 2026
 - EmissionEntryForm refactoring (F1-F6 complete, -32.2% code reduction)
 - Emissions.js modularization (E1-E3 complete, -4.7% code reduction)
+
+## GRI per-topic Edit + unstyled answers
+- GRITopicCard has per-topic Edit/Done button; GRIQuestionnaire keeps editingTopics state; global edit toggle removed from GRIModule.
+- LiveValueBlock and StaticNoteBlock now plain white bordered boxes (no "Live from your data"/"Methodology note" labels or colored backgrounds).
+- Lint clean; NOT tested by testing agent or screenshot (user chose "fix only, don't test").
