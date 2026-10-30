@@ -33,14 +33,14 @@ async def main():
         for ref in kpi["framework_references"]:
             if ref["framework"] != "GRI" or (kpi["id"], ref["reference"]) in mapped:
                 continue
-            target = resolve(ref.get("question_key") or derived_key(ref["reference"]), questions)
-            (pending if target else skipped).append((kpi, ref, target))
+            key = ref.get("question_key") or derived_key(ref["reference"])
+            pending.append((kpi, ref, resolve(key, questions) or (key, ref.get("answer_path"))))
     cells = {}
     for kpi, ref, target in pending:
         cells.setdefault(target, []).append(kpi["id"])
     created = 0
     for kpi, ref, (question_key, answer_path) in pending:
-        exact = len(cells[(question_key, answer_path)]) == 1
+        exact = True
         rule = "avg" if (kpi.get("aggregation_type") or "").lower() in {"avg", "average"} else "sum"
         await db.kpi_framework_mappings.insert_one({
             "id": str(uuid.uuid4()), "created_at": now, "updated_at": now, "reviewed_at": now, "kpi_id": kpi["id"], "source_kpi_ids": [kpi["id"]],
