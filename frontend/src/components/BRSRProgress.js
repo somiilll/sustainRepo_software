@@ -17,10 +17,10 @@ const STATUS_META = [
 const SEGMENT_ORDER = ['approved', 'saved', 'draft', 'rejected', 'pending'];
 const colorOf = (key) => STATUS_META.find((s) => s.key === key).color;
 
-export function BRSRSectionCards({ progress, activeTab, onSelect }) {
+export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SECTION_META, prefix = 'brsr' }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid="brsr-section-cards">
-      {SECTION_META.map(({ key, label, subtitle, icon: Icon, testId }) => {
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid={`${prefix}-section-cards`}>
+      {sections.map(({ key, label, subtitle, icon: Icon, testId }) => {
         const active = activeTab === key;
         const percent = progress?.sections?.[key]?.percent ?? 0;
         return (
@@ -66,8 +66,8 @@ function ProgressRing({ percent }) {
   );
 }
 
-export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter }) {
-  const meta = SECTION_META.find((s) => s.key === activeTab);
+export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter, sections = SECTION_META, prefix = 'brsr' }) {
+  const meta = sections.find((s) => s.key === activeTab);
   const section = progress?.sections?.[activeTab];
   if (!section) return null;
   const { counts, total } = section;
@@ -76,18 +76,18 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter 
   const chips = [{ key: 'all', label: 'All', count: total }, ...visibleStatuses.map((s) => ({ ...s, count: counts[s.key] }))];
   return (
     <div className="rounded-xl border border-stone-200 bg-white px-5 py-4 flex flex-col gap-4 lg:flex-row lg:items-center"
-         data-testid="brsr-progress-panel">
+         data-testid={`${prefix}-progress-panel`}>
       <div className="flex items-center gap-4 lg:w-72 shrink-0">
         <ProgressRing percent={section.percent} />
         <div>
-          <p className="font-semibold text-stone-900" data-testid="brsr-progress-title">{meta.label} progress</p>
-          <p className="text-sm text-stone-500" data-testid="brsr-progress-summary">
+          <p className="font-semibold text-stone-900" data-testid={`${prefix}-progress-title`}>{meta.label} progress</p>
+          <p className="text-sm text-stone-500" data-testid={`${prefix}-progress-summary`}>
             {section.answered} of {total} answered{approvalEnabled ? ` · ${counts.approved} approved` : ''}
           </p>
         </div>
       </div>
       <div className="flex-1 min-w-0 space-y-3">
-        <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-stone-100" data-testid="brsr-progress-bar">
+        <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-stone-100" data-testid={`${prefix}-progress-bar`}>
           {SEGMENT_ORDER.filter((key) => approvalEnabled || !['approved', 'rejected'].includes(key)).map((key) => (
             <div key={key} style={{ width: `${total ? (counts[key] / total) * 100 : 0}%`, backgroundColor: colorOf(key) }} />
           ))}
@@ -96,7 +96,7 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter 
           {chips.map(({ key, label, count, color }) => {
             const active = statusFilter === key;
             return (
-              <button key={key} type="button" onClick={() => onFilter(key)} data-testid={`brsr-filter-${key}`}
+              <button key={key} type="button" onClick={() => onFilter(key)} data-testid={`${prefix}-filter-${key}`}
                       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors duration-200 ${
                         active ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'}`}>
                 {color && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
@@ -111,12 +111,12 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter 
   );
 }
 
-export function BRSRPageNav({ progress, activeTab }) {
+export function BRSRPageNav({ progress, activeTab, prefix = 'brsr' }) {
   const groups = progress?.sections?.[activeTab]?.groups || [];
   if (groups.length < 2) return null;
   const goTo = (id) => document.getElementById(`brsr-group-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return (
-    <aside className="hidden lg:block" data-testid="brsr-page-nav">
+    <aside className="hidden lg:block" data-testid={`${prefix}-page-nav`}>
       <div className="sticky top-24 rounded-xl border border-stone-200 bg-white p-4 max-h-[calc(100vh-7rem)] overflow-y-auto">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-stone-500">On this page</p>
         <ul className="space-y-1">
@@ -124,7 +124,7 @@ export function BRSRPageNav({ progress, activeTab }) {
             const percent = g.total ? Math.round((g.answered / g.total) * 100) : 0;
             return (
               <li key={g.id}>
-                <button type="button" onClick={() => goTo(g.id)} data-testid={`brsr-nav-${g.id}`}
+                <button type="button" onClick={() => goTo(g.id)} data-testid={`${prefix}-nav-${g.id}`}
                         className="w-full rounded-lg px-2 py-2 text-left transition-colors duration-200 hover:bg-stone-50">
                   <div className="flex items-center gap-2">
                     <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-md bg-stone-100 px-1 text-xs font-semibold text-stone-700">

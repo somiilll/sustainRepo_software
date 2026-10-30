@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useDateFormatter } from '../hooks/useDateFormatter';
@@ -64,7 +64,7 @@ const LiveValueBlock = ({ text, testId }) => (
   </div>
 );
 
-export default function GRIQuestionnaire({ section, isEditing = false }) {
+export default function GRIQuestionnaire({ section, isEditing = false, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, onSaved }) {
   const { getAuthHeader, token, user } = useAuth();
   const canEditNotes = user?.role === 'admin' || user?.role === 'super_admin';
   const { formatDateTime } = useDateFormatter();
@@ -74,7 +74,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
-  const [reportingPeriod, setReportingPeriod] = useState(null);
+  const [reportingPeriod, setReportingPeriod] = useState(externalPeriod || null);
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
   const [liveValues, setLiveValues] = useState({});
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
@@ -118,6 +120,10 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       .then((res) => setLiveValues(res.data.values || {}))
       .catch(() => setLiveValues({}));
   }, [reportingPeriod, token, getAuthHeader]);
+
+  useEffect(() => {
+    if (externalPeriod) setReportingPeriod(externalPeriod);
+  }, [externalPeriod, reportingYears]);
 
   // Fetch GRI disclosures for this section
   const fetchDisclosures = useCallback(async () => {
@@ -199,6 +205,10 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       setLoading(false);
     }
   }, [getAuthHeader, section, reportingPeriod, filterByMateriality]);
+
+  useEffect(() => {
+    if (Object.values(saving).every((value) => !value)) onSavedRef.current?.();
+  }, [saving]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -899,7 +909,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </div>
           
           {/* Reporting Year Selector */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {!externalPeriod && <div className="flex items-center gap-2 flex-shrink-0">
             <Calendar className="w-4 h-4 text-blue-600" />
             <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
               <SelectTrigger 
@@ -916,18 +926,21 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}
         </div>
       </Card>
 
       {/* Collapsible Disclosures */}
       {disclosures.map(disclosure => {
+        const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);
+        if (!visibleQuestions.length) return null;
         const completion = getDisclosureCompletion(disclosure);
         const isOpen = openDisclosures[disclosure.disclosure_id];
         
         return (
           <Collapsible
             key={disclosure.disclosure_id}
+            id={`brsr-group-${disclosure.disclosure_id}`}
             open={isOpen}
             onOpenChange={() => toggleDisclosure(disclosure.disclosure_id)}
           >
@@ -1009,7 +1022,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     </div>
                   )}
                   
-                  {disclosure.questions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
 
                   {/* Save Buttons */}
                   {isEditing && (

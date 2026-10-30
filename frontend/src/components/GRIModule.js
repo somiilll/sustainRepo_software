@@ -1,138 +1,139 @@
 /**
  * GRI Module Component
- * 
- * Global Reporting Initiative Standards module.
- * Tabs:
- * - Tracking: My Tasks + Admin Tracker for disclosures
- * - Environment: GRI 300 series
- * - Social: GRI 400 series
- * - Governance: GRI 200 series
+ *
+ * Global Reporting Initiative Standards module, laid out like the BRSR module:
+ * section cards with progress, a progress panel with status filters, tabs and a page nav.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { 
-  Leaf,
-  Users,
-  Shield,
-  Pencil,
-  X
-} from 'lucide-react';
+import { Leaf, Users, Shield, Globe, Pencil, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
-import TrackingModule from './TrackingModule';
 import GRIQuestionnaire from './GRIQuestionnaire';
+import { ModulePageHeader } from './ModulePageHeader';
+import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+const GRI_SECTIONS = [
+  { key: 'environment', label: 'Environment', subtitle: 'Environmental disclosures', icon: Leaf, testId: 'gri-environment-tab' },
+  { key: 'social', label: 'Social', subtitle: 'Social disclosures', icon: Users, testId: 'gri-social-tab' },
+  { key: 'governance', label: 'Governance', subtitle: 'Governance disclosures', icon: Shield, testId: 'gri-governance-tab' },
+];
+
 export default function GRIModule() {
   const { token } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState('environment');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Initialize reporting years
+  const loadProgress = useCallback(async () => {
+    if (!token || !reportingPeriod) return;
+    try {
+      const response = await axios.get(`${API}/api/esg-questionnaire/gri-progress`, {
+        params: { reporting_period: reportingPeriod },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProgress(response.data);
+    } catch (error) {
+      console.error('Failed to load GRI progress:', error);
+    }
+  }, [token, reportingPeriod]);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setStatusFilter('all');
+  };
+
+  useEffect(() => {
+    loadProgress();
+    const interval = window.setInterval(loadProgress, 30000);
+    window.addEventListener('focus', loadProgress);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', loadProgress);
+    };
+  }, [loadProgress]);
+
   useEffect(() => {
     const fetchOrgAndSetYears = async () => {
+      let yearType = 'financial_year';
       try {
-        const res = await axios.get(`${API}/api/organizations/my`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const yearType = res.data.reporting_year_type || 'financial_year';
-        const years = generateReportingYears(yearType, 5);
-        setReportingYears(years);
-        setReportingPeriod(getCurrentReportingYear(yearType));
+        const res = await axios.get(`${API}/api/organizations/my`, { headers: { Authorization: `Bearer ${token}` } });
+        yearType = res.data.reporting_year_type || yearType;
       } catch (error) {
-        const years = generateReportingYears('financial_year', 5);
-        setReportingYears(years);
-        setReportingPeriod(getCurrentReportingYear('financial_year'));
+        console.error('Failed to fetch organization:', error);
       }
+      setReportingYears(generateReportingYears(yearType, 5));
+      setReportingPeriod(getCurrentReportingYear(yearType));
     };
-    
-    if (token) {
-      fetchOrgAndSetYears();
-    }
+    if (token) fetchOrgAndSetYears();
   }, [token]);
 
+  const renderSection = (section) => (
+    <TabsContent value={section} className="mt-0">
+      <GRIQuestionnaire
+        section={section}
+        isEditing={isEditing}
+        reportingPeriod={reportingPeriod}
+        statusFilter={statusFilter}
+        questionProgress={progress?.sections?.[section]?.questions || {}}
+        onSaved={loadProgress}
+      />
+    </TabsContent>
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header with Reporting Period */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">GRI Framework</h1>
-          <p className="text-text-muted mt-1">Global Reporting Initiative Standards</p>
-        </div>
-        
-        <div className="flex items-center gap-3">
+    <div className="space-y-7 gri-report">
+      <ModulePageHeader
+        title="GRI Framework"
+        icon={Globe}
+        iconClassName="border-sky-200 bg-sky-50 text-sky-800"
+        testId="gri-framework"
+        aside={<>
           <Button
             variant={isEditing ? 'outline' : 'default'}
             size="sm"
             onClick={() => setIsEditing(!isEditing)}
             className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
+            data-testid="gri-edit-toggle"
           >
             {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
           </Button>
           <Label className="text-sm whitespace-nowrap">Reporting Period:</Label>
           <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-            <SelectTrigger className="w-40 bg-white">
+            <SelectTrigger className="w-40 bg-white" data-testid="gri-reporting-period-selector">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
-              {reportingYears.map(year => (
-                <SelectItem key={year} value={year}>{year}</SelectItem>
+              {reportingYears.map((year) => (
+                <SelectItem key={year} value={year} data-testid={`gri-reporting-period-option-${year}`}>{year}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </>}
+      />
+
+      <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} sections={GRI_SECTIONS} prefix="gri-report" />
+      <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} sections={GRI_SECTIONS} prefix="gri-report" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6">
+        <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">
+          {reportingPeriod && GRI_SECTIONS.map(({ key }) => (
+            <React.Fragment key={key}>{renderSection(key)}</React.Fragment>
+          ))}
+        </Tabs>
+        <BRSRPageNav progress={progress} activeTab={activeTab} prefix="gri-report" />
       </div>
-
-      {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-stone-100 p-1 rounded-lg">
-          <TabsTrigger value="environment" className="gap-2" data-testid="gri-environment-tab">
-            <Leaf className="w-4 h-4" />
-            Environment
-          </TabsTrigger>
-          <TabsTrigger value="social" className="gap-2" data-testid="gri-social-tab">
-            <Users className="w-4 h-4" />
-            Social
-          </TabsTrigger>
-          <TabsTrigger value="governance" className="gap-2" data-testid="gri-governance-tab">
-            <Shield className="w-4 h-4" />
-            Governance
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Environment - GRI 300 */}
-        <TabsContent value="environment" className="mt-6">
-          <GRIQuestionnaire 
-            section="environment"
-            isEditing={isEditing}
-          />
-        </TabsContent>
-
-        {/* Social - GRI 400 */}
-        <TabsContent value="social" className="mt-6">
-          <GRIQuestionnaire 
-            section="social"
-            isEditing={isEditing}
-          />
-        </TabsContent>
-
-        {/* Governance - GRI 200 */}
-        <TabsContent value="governance" className="mt-6">
-          <GRIQuestionnaire 
-            section="governance"
-            isEditing={isEditing}
-          />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

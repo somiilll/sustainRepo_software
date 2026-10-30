@@ -225,6 +225,43 @@ async def get_gri_disclosures(
     return result
 
 
+GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "saved": "saved", "pending_approval": "saved",
+                       "in_progress": "draft", "draft": "draft", "rejected": "rejected"}
+
+
+@router.get("/gri-progress")
+async def get_gri_progress(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    """Per-section GRI question status counts and per-disclosure progress, shaped like the BRSR progress payload."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
+    statuses = ("pending", "draft", "saved", "approved", "rejected")
+    sections = {}
+    for section in ("environment", "social", "governance"):
+        result = await esg_questionnaire_service.get_gri_disclosures(
+            org_id=org_id, section=section, reporting_period=reporting_period, user_id=current_user.get("id"),
+            filter_by_assignment=not is_admin, filter_by_materiality=False)
+        counts, questions, groups = {k: 0 for k in statuses}, {}, {}
+        for question in result["questions"]:
+            status = GRI_PROGRESS_STATUS.get(question.get("status"), "pending")
+            questions[question["question_key"]] = status
+            counts[status] += 1
+            group = groups.setdefault(question["disclosure_id"], {"id": question["disclosure_id"], "numeral": question["disclosure_id"],
+                                                                   "label": question.get("disclosure_name") or "", "total": 0, "answered": 0})
+            group["total"] += 1
+            group["answered"] += status in ("saved", "approved")
+        total = len(questions)
+        answered = counts["saved"] + counts["approved"]
+        sections[section] = {"questions": questions, "counts": counts, "total": total, "answered": answered,
+                             "percent": round(answered / total * 100) if total else 0, "groups": list(groups.values())}
+    approval_enabled = await esg_questionnaire_service._has_approval_workflow_enabled(org_id)
+    return {"reporting_period": reporting_period, "approval_enabled": approval_enabled, "sections": sections}
+
+
 @router.post("/response")
 async def save_gri_response(
     data: dict,
