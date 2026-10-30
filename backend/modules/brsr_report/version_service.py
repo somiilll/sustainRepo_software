@@ -1,7 +1,7 @@
 """Immutable BRSR report versions: frozen answers + stored PDF per download (append-only)."""
 import hashlib
 import json
-import re
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -9,7 +9,9 @@ from typing import Any, Dict, List
 from r2_storage import get_r2_storage
 from shared.database.mongo import db
 
-BUCKET = "mis_reports"
+BUCKET = "framework_reports"
+FALLBACK_BUCKET = "mis_reports"
+logger = logging.getLogger(__name__)
 
 
 def _sha256(data: bytes) -> str:
@@ -35,17 +37,22 @@ async def create_version(org_id: str, reporting_period: str, user: Dict[str, Any
     counter = await db.brsr_report_version_counters.find_one_and_update(
         {"org_id": org_id, "reporting_period": reporting_period}, {"$inc": {"last_version": 1}}, upsert=True, return_document=True)
     version = counter["last_version"]
-    period_safe = re.sub(r"[^A-Za-z0-9-]+", "_", reporting_period)
-    key = f"brsr_report_versions/{org_id}/{period_safe}/v{version}.pdf"
     filename = f"{base_filename}_v{version}.pdf"
-    upload = await get_r2_storage().upload_file(pdf_bytes, filename, BUCKET, "application/pdf", organization_id=org_id, object_key=key)
+    key = f"{org_id}/{filename}"
+    bucket_type = BUCKET
+    try:
+        upload = await get_r2_storage().upload_file(pdf_bytes, filename, BUCKET, "application/pdf", organization_id=org_id, object_key=key)
+    except Exception as exc:
+        logger.warning("framework_reports bucket unavailable (%s); storing BRSR report in %s", exc, FALLBACK_BUCKET)
+        bucket_type = FALLBACK_BUCKET
+        upload = await get_r2_storage().upload_file(pdf_bytes, filename, FALLBACK_BUCKET, "application/pdf", organization_id=org_id, object_key=key)
     if not upload.get("success"):
         raise RuntimeError(f"Could not store BRSR report PDF: {upload.get('error')}")
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": str(uuid.uuid4()), "org_id": org_id, "reporting_period": reporting_period, "version": version, "created_at": now,
         "created_by": {"id": user.get("id"), "name": user.get("full_name") or user.get("name"), "email": user.get("email")},
-        "filename": filename, "pdf": {"bucket_type": BUCKET, "key": key, "sha256": _sha256(pdf_bytes), "size": len(pdf_bytes)},
+        "filename": filename, "pdf": {"bucket_type": bucket_type, "key": key, "sha256": _sha256(pdf_bytes), "size": len(pdf_bytes)},
         "answers": answers, "answers_sha256": _sha256(_canonical(answers)), "organization_snapshot": organization,
         "audit_pointers": await _audit_pointers(org_id, reporting_period), "audit_cutoff": now,
     }

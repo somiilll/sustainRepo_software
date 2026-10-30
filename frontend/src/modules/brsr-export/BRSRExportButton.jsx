@@ -30,12 +30,12 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
 
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" className="gap-2" onClick={exportPDF} disabled={isExporting} data-testid="brsr-export-btn">
+      <Button size="sm" className="gap-2 bg-[#1f7a4d] text-white hover:bg-[#186540]" onClick={exportPDF} disabled={isExporting} data-testid="brsr-export-btn">
         {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
         {isExporting ? (progress || 'Generating...') : 'Generate Report'}
       </Button>
       {isAdmin && versionCount > 0 && (
-        <Button variant="outline" size="sm" className="gap-2" onClick={() => setVersionsOpen(true)} data-testid="brsr-export-versions">
+        <Button size="sm" className="gap-2 bg-stone-800 text-white hover:bg-stone-900" onClick={() => setVersionsOpen(true)} data-testid="brsr-export-versions">
           <History className="w-4 h-4" />
           View BRSR Report Versions
         </Button>

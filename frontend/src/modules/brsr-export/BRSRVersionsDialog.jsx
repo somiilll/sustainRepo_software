@@ -52,14 +52,13 @@ export function BRSRVersionsDialog({ open, onOpenChange, reportingPeriod }) {
           <p className="text-sm text-stone-500 py-6 text-center" data-testid="brsr-versions-empty">No report has been downloaded for this period yet.</p>
         ) : (
           <table className="w-full text-sm" data-testid="brsr-versions-table">
-            <thead><tr className="text-left text-stone-500 border-b"><th className="py-2">Version</th><th>Downloaded</th><th>By</th><th>Fingerprint</th><th /></tr></thead>
+            <thead><tr className="text-left text-stone-500 border-b"><th className="py-2">Version</th><th>Downloaded</th><th>By</th><th /></tr></thead>
             <tbody>
               {versions.map((v) => (
                 <tr key={v.id} className="border-b" data-testid={`brsr-version-row-${v.version}`}>
                   <td className="py-2 font-semibold">v{v.version}</td>
                   <td>{formatDateTime(v.created_at)}</td>
                   <td>{v.created_by?.name || v.created_by?.email || '-'}</td>
-                  <td className="font-mono text-xs" title={v.pdf?.sha256}>{(v.pdf?.sha256 || '').slice(0, 10)}</td>
                   <td className="text-right">
                     <Button size="sm" variant="outline" onClick={() => download(v)} disabled={downloading === v.version} data-testid={`brsr-version-download-${v.version}`}>
                       {downloading === v.version ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
