@@ -4,6 +4,7 @@ ESG Questionnaire Router
 API endpoints for config-driven ESG questionnaire system.
 """
 
+import re
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -250,8 +251,8 @@ async def get_gri_progress(
             status = GRI_PROGRESS_STATUS.get(question.get("status"), "pending")
             questions[question["question_key"]] = status
             counts[status] += 1
-            group = groups.setdefault(question["disclosure_id"], {"id": question["disclosure_id"], "numeral": question["disclosure_id"],
-                                                                   "label": question.get("disclosure_name") or "", "total": 0, "answered": 0})
+            topic = question.get("material_topic") or "General disclosures"
+            group = groups.setdefault(topic, {"id": re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-"), "numeral": None, "label": topic, "total": 0, "answered": 0})
             group["total"] += 1
             group["answered"] += status in ("saved", "approved")
         total = len(questions)

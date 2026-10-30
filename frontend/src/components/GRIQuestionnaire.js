@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useDateFormatter } from '../hooks/useDateFormatter';
@@ -45,6 +45,7 @@ import {
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { StaticNoteBlock } from './StaticNoteBlock';
+import { GRITopicCard, topicSlug } from './GRITopicCard';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -71,10 +72,20 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
+  const [openTopics, setOpenTopics] = useState({});
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
   const [reportingPeriod, setReportingPeriod] = useState(externalPeriod || null);
+  const topics = useMemo(() => {
+    const byName = new Map();
+    disclosures.forEach((disclosure) => {
+      const name = disclosure.material_topic || 'General disclosures';
+      if (!byName.has(name)) byName.set(name, { name, slug: topicSlug(name), standard: disclosure.material_topic_id || '', disclosures: [] });
+      byName.get(name).disclosures.push(disclosure);
+    });
+    return [...byName.values()];
+  }, [disclosures]);
   const onSavedRef = useRef(onSaved);
   onSavedRef.current = onSaved;
   const [liveValues, setLiveValues] = useState({});
@@ -930,8 +941,29 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         </div>
       </Card>
 
-      {/* Collapsible Disclosures */}
-      {disclosures.map(disclosure => {
+      <div className="flex items-center justify-between" data-testid="gri-topics-header">
+        <h2 className="text-lg font-semibold text-text-primary">Topics and disclosures</h2>
+        <div className="flex items-center gap-2 text-sm">
+          <Button variant="ghost" size="sm" data-testid="gri-expand-all" onClick={() => {
+            setOpenTopics(Object.fromEntries(topics.map((t) => [t.slug, true])));
+            setOpenDisclosures(Object.fromEntries(disclosures.map((d) => [d.disclosure_id, true])));
+          }}>Expand all</Button>
+          <Button variant="ghost" size="sm" data-testid="gri-collapse-all" onClick={() => {
+            setOpenTopics(Object.fromEntries(topics.map((t) => [t.slug, false])));
+            setOpenDisclosures({});
+          }}>Collapse all</Button>
+        </div>
+      </div>
+
+      {topics.map((topic) => {
+        const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
+        const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
+        if (!visibleCount) return null;
+        const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
+        return (
+          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality}
+            open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>
+      {topic.disclosures.map(disclosure => {
         const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);
         if (!visibleQuestions.length) return null;
         const completion = getDisclosureCompletion(disclosure);
@@ -940,7 +972,6 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         return (
           <Collapsible
             key={disclosure.disclosure_id}
-            id={`brsr-group-${disclosure.disclosure_id}`}
             open={isOpen}
             onOpenChange={() => toggleDisclosure(disclosure.disclosure_id)}
           >
@@ -1061,6 +1092,9 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
               </CollapsibleContent>
             </Card>
           </Collapsible>
+        );
+      })}
+          </GRITopicCard>
         );
       })}
 
