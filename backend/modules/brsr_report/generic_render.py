@@ -74,7 +74,7 @@ def _collect_labels(node: Any, labels: Dict[str, str]) -> None:
 
 class AnswerRenderer:
     def __init__(self, reporting_period: str, previous_fy: str):
-        self.current_fy, self.previous_fy = reporting_period, previous_fy
+        self.current_fy, self.previous_fy = (re.sub(r'^FY\s*', '', str(v)) for v in (reporting_period, previous_fy))
 
     def _fy_fix(self, label: str) -> str:
         label = re.sub(r'FY\s*_{2,}\s*\(Current Financial Year\)', f'FY {self.current_fy} (Current Financial Year)', label)
@@ -168,12 +168,126 @@ class AnswerRenderer:
             out += sub
         return out
 
+
+    def _cell(self, value: Any) -> str:
+        if _empty(value):
+            return ''
+        if isinstance(value, (dict, list)):
+            return esc(', '.join(f'{k}: {v}' for k, v in value.items()) if isinstance(value, dict) else ', '.join(str(v) for v in value))
+        return _scalar(value)
+
+    @staticmethod
+    def _lookup(row: Any, key: str) -> Any:
+        if not isinstance(row, dict):
+            return None
+        candidates = [(None, key), (None, f'{key}_current_fy'), (None, f'{key}_current')]
+        for prefix, fy, plain in (('cur_', 'current_fy', True), ('prev_', 'previous_fy', False)):
+            if key.startswith(prefix):
+                base = key[len(prefix):]
+                candidates += [(fy, base), (None, f'{base}_{fy}')] + ([(None, base)] if plain else [])
+        for fy, name in candidates:
+            source = row.get(fy) if fy else row
+            if isinstance(source, dict) and name in source and not _empty(source[name]):
+                return source[name]
+        return None
+
+    def _fixed_grid(self, config: Dict[str, Any], value: Any) -> str:
+        tc = config['table_config']
+        data = value.get('rows') if isinstance(value, dict) and isinstance(value.get('rows'), dict) else (value if isinstance(value, dict) else {})
+        groups = tc.get('column_groups') or []
+
+        def leaf_sets(group):
+            return group.get('sub_groups') or [{'label': None, 'columns': group.get('columns', [])}]
+        columns = [c for g in groups for sub in leaf_sets(g) for c in sub['columns']] if groups else tc.get('columns') or []
+        first = esc(tc.get('row_header') or config.get('row_header') or '')
+        fy = lambda text: esc(self._fy_fix(text))
+        if groups:
+            depth = 3 if any(g.get('sub_groups') for g in groups) else 2
+            rows_html = [[f'<th rowspan="{depth}">{first}</th>'], [], []]
+            for g in groups:
+                n = sum(len(sub['columns']) for sub in leaf_sets(g))
+                if g.get('span_rows'):
+                    rows_html[0].append(f'<th rowspan="{depth}">{fy(g["label"])}</th>')
+                    continue
+                rows_html[0].append(f'<th colspan="{n}">{fy(g["label"])}</th>')
+                for sub in leaf_sets(g):
+                    if g.get('sub_groups'):
+                        no_leaf = all(not c.get('label') for c in sub['columns'])
+                        rows_html[1].append(f'<th colspan="{len(sub["columns"])}"' + (' rowspan="2"' if no_leaf else '') + f'>{fy(sub["label"])}</th>')
+                        if not no_leaf:
+                            rows_html[2] += [f'<th>{fy(c["label"])}</th>' for c in sub['columns']]
+                    else:
+                        rows_html[1 if depth == 2 else 1] += [f'<th{" rowspan=2" if depth == 3 else ""}>{fy(c["label"])}</th>' for c in sub['columns']]
+            head = ''.join(f'<tr>{"".join(r)}</tr>' for r in rows_html[:depth])
+        else:
+            head = '<tr>' + f'<th>{first}</th>' + ''.join(f'<th>{fy(c["label"])}</th>' for c in columns) + '</tr>'
+        body = ''
+        for row in tc['fixed_rows']:
+            if row.get('section_header'):
+                body += f'<tr class="category-header"><td colspan="{len(columns) + 1}">{esc(row["label"])}</td></tr>'
+                continue
+            raw = data.get(row['key'])
+            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else (raw if c is columns[0] else None))}</td>' for c in columns)
+            pad = ' style="padding-left:14px"' if row.get('child') else ''
+            body += f'<tr><td{pad}>{esc(row["label"])}</td>{cells}</tr>'
+        fixed = {r['key'] for r in tc['fixed_rows']}
+        for key, raw in data.items():
+            if key in fixed or _empty(raw):
+                continue
+            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else (raw if c is columns[0] else None))}</td>' for c in columns)
+            body += f'<tr><td>{esc(self._label(key, {}))}</td>{cells}</tr>'
+        return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+
+    def _grouped_grid(self, config: Dict[str, Any], value: Any) -> str:
+        tc = config['table_config']
+        data = value.get('value') if isinstance(value, dict) and isinstance(value.get('value'), dict) else (value if isinstance(value, dict) else {})
+        columns = tc.get('columns') or []
+        head = '<tr><th>Parameter</th><th>Metrics</th>' + ''.join(f'<th>{esc(self._fy_fix(c["label"]))}</th>' for c in columns) + '</tr>'
+        body = ''
+        for group in tc.get('groups') or []:
+            rows = group.get('rows') or []
+            for i, row in enumerate(rows):
+                raw = ((data.get(group['key']) or {}).get(row['key'])) if isinstance(data.get(group['key']), dict) else None
+                label = f'<td rowspan="{len(rows)}">{esc(group["label"])}</td>' if i == 0 else ''
+                cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else None)}</td>' for c in columns)
+                body += f'<tr>{label}<td>{esc(row["label"])}</td>{cells}</tr>'
+        return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+
+    def _list_grid(self, columns: List[Dict[str, Any]], rows: Any, min_rows: int = 1) -> str:
+        rows = [r for r in (rows if isinstance(rows, list) else []) if not _empty(r)]
+        head = '<tr><th class="col-sno">S. No.</th>' + ''.join(f'<th>{esc(self._fy_fix(c.get("label", c.get("key", ""))))}</th>' for c in columns) + '</tr>'
+        body = ''.join(f'<tr><td class="text-center">{i + 1}</td>' + ''.join(f'<td class="answer-cell">{self._cell(r.get(c["key"]) if isinstance(r, dict) else None)}</td>' for c in columns) + '</tr>' for i, r in enumerate(rows))
+        if not rows:
+            body = ''.join('<tr><td class="text-center">&nbsp;</td>' + '<td class="answer-cell"></td>' * len(columns) + '</tr>' for _ in range(min_rows))
+        return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+
+    def _skeleton(self, config: Dict[str, Any], value: Any) -> Optional[str]:
+        tc = config.get('table_config') or {}
+        kind = config.get('type')
+        if tc.get('fixed_rows') and (tc.get('columns') or tc.get('column_groups')) and all('columns' in g for g in tc.get('column_groups') or []):
+            return self._fixed_grid(config, value)
+        if kind == 'grouped_matrix_table' and tc.get('groups'):
+            return self._grouped_grid(config, value)
+        if kind == 'multi_table' and config.get('tables_config'):
+            data = value if isinstance(value, dict) else {}
+            data = data.get('value') if isinstance(data.get('value'), dict) else data
+            return ''.join(f'<div class="q-text"><b>{esc(t["label"])}</b></div>' + self._list_grid(t.get('columns') or [], data.get(t['key'])) for t in config['tables_config'])
+        columns = config.get('table_columns') or tc.get('columns')
+        if kind in ('table', 'dynamic_table') and columns:
+            rows = value.get('rows') or value.get('value') if isinstance(value, dict) else value
+            return self._list_grid(columns, rows)
+        return None
+
     def render(self, config: Dict[str, Any], value: Any, labels: Optional[Dict[str, str]] = None, heading: str = '') -> str:
         if labels is None:
             labels = {}
             _collect_labels({k: v for k, v in config.items() if k not in ('question', 'description', 'answer_paths')}, labels)
+        if not heading:
+            grid = self._skeleton(config, value)
+            if grid is not None:
+                return grid
         if _empty(value):
-            return '' if heading else '<div class="answer-cell">&ndash;</div>'
+            return '' if heading else '<div class="answer-value">&nbsp;</div>'
         if isinstance(value, dict) and set(value) == {'rows'} and isinstance(value['rows'], dict):
             value = value['rows']
         title = f'<div class="q-text"><b>{esc(heading)}</b></div>' if heading and heading != 'Rows' else ''
@@ -191,7 +305,7 @@ class AnswerRenderer:
             body = self._list_table(value, labels)
         else:
             body = f'<div class="answer-cell">{_scalar(value)}</div>'
-        return title + (body or '<div class="answer-cell">&ndash;</div>')
+        return title + (body or '<div class="answer-value">&nbsp;</div>')
 
 
 def wellbeing_override(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -199,11 +313,11 @@ def wellbeing_override(config: Dict[str, Any]) -> Dict[str, Any]:
     if key not in ('p3_wellbeing_employees', 'p3_wellbeing_workers'):
         return config
     noun = 'employees' if key.endswith('employees') else 'workers'
-    labels = {'perm_male': f'Permanent {noun} - Male', 'perm_female': f'Permanent {noun} - Female', 'perm_total': f'Permanent {noun} - Total',
-              'other_male': f'Other than Permanent {noun} - Male', 'other_female': f'Other than Permanent {noun} - Female', 'other_total': f'Other than Permanent {noun} - Total',
-              'total_a': 'Total (A)'}
-    for label, k, letter in WELLBEING_GROUPS:
-        labels[f'{k}_no'] = f'{label} - Number ({letter})'
-        labels[f'{k}_pct'] = f'{label} - % ({letter}/A)'
-    return {**config, 'table_config': {'fixed_rows': [{'key': k, 'label': v} for k, v in labels.items() if k.startswith(('perm', 'other'))],
-                                      'columns': [{'key': k, 'label': v} for k, v in labels.items() if not k.startswith(('perm', 'other'))]}}
+    section = lambda k, label: {'key': k, 'label': label, 'section_header': True}
+    child = lambda k, label: {'key': k, 'label': label, 'child': True}
+    rows = [section('perm_header', f'Permanent {noun}'), child('perm_male', 'Male'), child('perm_female', 'Female'), child('perm_total', 'Total'),
+            section('other_header', f'Other than Permanent {noun}'), child('other_male', 'Male'), child('other_female', 'Female'), child('other_total', 'Total')]
+    groups = [{'label': 'Total (A)', 'span_rows': True, 'columns': [{'key': 'total_a', 'label': 'Total (A)'}]}] + [
+        {'label': label, 'columns': [{'key': f'{k}_no', 'label': f'Number ({letter})'}, {'key': f'{k}_pct', 'label': f'% ({letter}/A)'}]}
+        for label, k, letter in WELLBEING_GROUPS]
+    return {**config, 'table_config': {**(config.get('table_config') or {}), 'fixed_rows': rows, 'column_groups': groups}}
