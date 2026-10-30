@@ -170,6 +170,8 @@ async def _table_dimension_values(
         total = 0.0
         for value, unit in group["entries"]:
             total += convert(value, unit, output_unit) if can_convert(unit, output_unit) else value
+        if (kpi.get("aggregation_type") or "").lower() in {"avg", "average"}:
+            total /= len(group["entries"])
         results[key] = {"label": group["label"], "value": round(total, 6), "unit": output_unit,
                         "source_count": group["source_count"]}
     return results
@@ -287,6 +289,20 @@ class BRSRLiveKPIAutofillService:
             table_kpi = next((definitions_by_id.get(kpi_id) for kpi_id in mapping_kpi_ids
                               if definitions_by_id.get(kpi_id) and
                               (((definitions_by_id[kpi_id].get("source_config") or {}).get("records") or {}).get("table"))), None)
+            row_table = mapping.get("row_table") or {}
+            if mapping.get("dynamic_rows") and table_kpi and row_table.get("dimension_key") and row_table.get("value_key"):
+                current_rows = await _table_dimension_values(table_kpi, org_id, reporting_period, mapping.get("destination_unit"))
+                question_result["value"] = [
+                    {row_table["dimension_key"]: row["label"], row_table["value_key"]: row["value"]}
+                    for _key, row in sorted(current_rows.items())
+                ]
+                question_result["locked_paths"].append("$")
+                question_result["sources"].append({
+                    "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"), "answer_path": base_path,
+                    "current_source_count": sum(row.get("source_count", 0) for row in current_rows.values()),
+                    "previous_source_count": 0,
+                })
+                continue
             if mapping.get("dynamic_rows") and table_kpi:
                 question_result["has_dynamic_mapping"] = True
                 destination_unit = mapping.get("destination_unit")

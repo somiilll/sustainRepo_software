@@ -18,7 +18,7 @@ async def main():
     os.makedirs("/app/backups", exist_ok=True)
     with open(f"/app/backups/reclaimed_products_{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H%M%S')}.json", "w") as file:
         json.dump(average, file, default=str)
-    refs = [{"framework": "BRSR", "reference": "P2-L5", "question_key": "p2_reclaimed_products_pct", "answer_path": None, "reference_type": "exact"},
+    refs = [{"framework": "BRSR", "reference": "P2-L5", "question_key": "p2_reclaimed_products_pct", "answer_path": "value", "reference_type": "exact"},
             {"framework": "GRI", "reference": "301-3-a", "question_key": "gri_301_3_a", "answer_path": None, "reference_type": "exact"}]
     doc = {k: v for k, v in average.items() if k not in {"id", "created_at", "created_by", "created_by_name", "updated_by", "updated_by_name", "tree_group", "tree_level", "tree_order", "tree_parent_key"}}
     doc.update({
@@ -43,6 +43,20 @@ async def main():
         {"category": CATEGORY, "subcategory": SUB},
         {"$set": {"fields.$[f].brsr_reference": None, "fields.$[f].gri_disclosure": None}},
         array_filters=[{"f.field_key": "average_percentage_reclaimed_products"}])
+    kpi = await db.esg_kpi_definitions.find_one({"metric_code": CODE}, {"_id": 0})
+    await db.kpi_framework_mappings.delete_many({"source_metric_code": CODE})
+    common = {"kpi_id": kpi["id"], "source_kpi_ids": [kpi["id"]], "source_metric_code": CODE, "source_metric_name": kpi["metric_name"],
+              "source_category": CATEGORY, "source_subcategory": SUB, "source_sub_subcategory": "", "source_tag": f"{CATEGORY} → {SUB}",
+              "aggregation_rule": "avg", "destination_unit": "%", "include_unit": False, "mapping_status": "exact_destination", "mapping_role": "direct_destination",
+              "dynamic_rows": True, "dimension_field": "product_category", "is_active": True, "reporting_period_source": "runtime_filter",
+              "review_source": "reclaimed_products_script", "reviewed_at": now, "created_at": now, "updated_at": now}
+    await db.kpi_framework_mappings.insert_one({
+        "id": str(uuid.uuid4()), **common, "framework": "BRSR", "reference": "P2-L5", "question_key": "p2_reclaimed_products_pct", "answer_path": "value",
+        "destination_label": "Reclaimed products and their packaging materials (as percentage of products sold) for each product category.",
+        "period_column_strategy": "response_period_document", "row_table": {"dimension_key": "product_category", "value_key": "reclaimed_pct"}})
+    await db.kpi_framework_mappings.insert_one({
+        "id": str(uuid.uuid4()), **common, "framework": "GRI", "reference": "301-3-a", "question_key": "gri_301_3_a", "answer_path": None,
+        "display_label": "% reclaimed products and packaging by product category", "display_order": 0, "period_column_strategy": "reporting_year_filter"})
     print("done")
 
 

@@ -758,7 +758,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
         return <DualConditionalYesNoRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'table':
-        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
+        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed && !lockedAnswerPaths.includes('$')} />;
 
       // Environment Q70-74 Renderer Types
       case 'yes_no_with_dynamic_table':
