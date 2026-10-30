@@ -97,8 +97,8 @@ async def mapping_specs():
         "b1": "GHG_BASE_YEAR_SCOPE1", "b2": "GHG_BASE_YEAR_SCOPE2", "b3": "GHG_BASE_YEAR_SCOPE3", "bb": "GHG_BASE_YEAR_BIOGENIC_DIRECT"}.items()}
     gases = [(await kpi_id_by_code(f"GHG_SCOPE1_{g.upper()}"), label) for g, label in GASES]
     intensity = {k: await kpi_id_by_code(f"INTENSITY_{k}") for k in ("ENERGY_PER_REVENUE", "ENERGY_PER_PRODUCTION", "GHG_PER_REVENUE", "GHG_PER_PRODUCTION")}
-    energy = [(intensity["ENERGY_PER_REVENUE"], "Energy intensity per revenue"), (intensity["ENERGY_PER_PRODUCTION"], "Energy intensity per production")]
-    ghg_int = [(intensity["GHG_PER_REVENUE"], "GHG intensity per revenue"), (intensity["GHG_PER_PRODUCTION"], "GHG intensity per production")]
+    energy = [(intensity["ENERGY_PER_REVENUE"], "Energy intensity per revenue")]
+    ghg_int = [(intensity["GHG_PER_REVENUE"], "GHG intensity per revenue")]
     cats = [(await kpi_id_by_code(f"GHG_SCOPE3_C{n}"), f"C{n} {name}") for n, name in enumerate(CATEGORY_NAMES, 1)]
     return [
         ("102-5", "d", "ii", [(ids["b1"], "Scope 1 in base year"), (ids["bb"], "Biogenic (direct) in base year")]),
