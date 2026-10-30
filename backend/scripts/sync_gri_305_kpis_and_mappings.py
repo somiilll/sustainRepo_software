@@ -15,7 +15,7 @@ DENOMINATORS = [
 ]
 INTENSITIES = [
     ("GHG", "GHG emissions intensity (Scope 1 + 2)", "GHG_SCOPE1_SCOPE2_TOTAL"),
-    ("ENERGY", "Energy intensity", "BRSR_TOTAL_ENERGY_CONSUMPTION_RENEWABLE_NON_RENEWABLE"),
+    ("ENERGY", "Energy intensity", "ENERGY_TOTAL_WITHIN_ORGANIZATION"),
     ("WATER_WITHDRAWAL", "Water withdrawal intensity", "ENV_QUANTITY_LITRES_WITHDRAWN"),
     ("WATER_CONSUMPTION", "Water consumption intensity", "ENV_WATER_CONSUPTION"),
     ("WATER_DISCHARGE", "Water discharge intensity", "ENV_QUANTITY_LITRES_DISCHARGED"),
@@ -64,6 +64,11 @@ async def build_kpis(now):
         "GHG_SCOPE1_SCOPE2_TOTAL", "Total Scope 1 + Scope 2 emissions", "GHG Emissions", "Total Scope 1 + Scope 2 emissions", now, "tCO2e",
         source_type="composite", source_config={"composite": {"operation": "sum", "source_kpi_ids": [s1, s2]}},
         formula_config={"formula_type": "sum", "dependencies": [s1, s2]}, description="Sum of total Scope 1 and Scope 2 emissions.")
+    energy_parts = [await kpi_id_by_code(f"ENV_TOTAL_ENERGY_CONSUMPTION_{part}") for part in ("FUEL", "ELECTRICITY", "HEATING", "COOLING", "STEAM")]
+    ids["energy_total"] = await upsert(
+        "ENERGY_TOTAL_WITHIN_ORGANIZATION", "Total energy consumption (Fuel + Electricity + Heating + Cooling + Steam)", "Energy", "Energy Totals", now, "J",
+        source_type="composite", source_config={"composite": {"operation": "sum", "source_kpi_ids": energy_parts}},
+        formula_config={"formula_type": "sum", "dependencies": energy_parts}, description="Sum of fuel, electricity, heating, cooling and steam energy consumption.")
     denominators = {}
     for code, name, field, unit, _key, _label in DENOMINATORS:
         denominators[code] = await upsert(
@@ -71,7 +76,7 @@ async def build_kpis(now):
             description=f"Yearly {field.replace('_', ' ')} entered under Organization Details for the reporting period.", metadata={"source_module": "organization_details"})
     created = 0
     for key, name, numerator_code in INTENSITIES:
-        numerator = ids["scope12"] if numerator_code == "GHG_SCOPE1_SCOPE2_TOTAL" else await kpi_id_by_code(numerator_code)
+        numerator = ids["scope12"] if numerator_code == "GHG_SCOPE1_SCOPE2_TOTAL" else ids["energy_total"] if numerator_code == "ENERGY_TOTAL_WITHIN_ORGANIZATION" else await kpi_id_by_code(numerator_code)
         if not numerator:
             print("missing numerator KPI", numerator_code)
             continue
@@ -91,11 +96,18 @@ async def mapping_specs():
         "s1": "GHG_SCOPE1_TOTAL", "s2": "GHG_SCOPE2_TOTAL", "s3": "GHG_SCOPE3_TOTAL", "bio_d": "GHG_BIOGENIC_DIRECT", "bio_i": "GHG_BIOGENIC_INDIRECT",
         "b1": "GHG_BASE_YEAR_SCOPE1", "b2": "GHG_BASE_YEAR_SCOPE2", "b3": "GHG_BASE_YEAR_SCOPE3", "bb": "GHG_BASE_YEAR_BIOGENIC_DIRECT"}.items()}
     gases = [(await kpi_id_by_code(f"GHG_SCOPE1_{g.upper()}"), label) for g, label in GASES]
+    intensity = {k: await kpi_id_by_code(f"INTENSITY_{k}") for k in ("ENERGY_PER_REVENUE", "ENERGY_PER_PRODUCTION", "GHG_PER_REVENUE", "GHG_PER_PRODUCTION")}
+    energy = [(intensity["ENERGY_PER_REVENUE"], "Energy intensity per revenue"), (intensity["ENERGY_PER_PRODUCTION"], "Energy intensity per production")]
+    ghg_int = [(intensity["GHG_PER_REVENUE"], "GHG intensity per revenue"), (intensity["GHG_PER_PRODUCTION"], "GHG intensity per production")]
     cats = [(await kpi_id_by_code(f"GHG_SCOPE3_C{n}"), f"C{n} {name}") for n, name in enumerate(CATEGORY_NAMES, 1)]
     return [
         ("102-5", "d", "ii", [(ids["b1"], "Scope 1 in base year"), (ids["bb"], "Biogenic (direct) in base year")]),
         ("102-6", "d", "ii", [(ids["b2"], "Scope 2 in base year")]),
         ("102-7", "d", "ii", [(ids["b3"], "Scope 3 in base year")]),
+        ("302-3", "a", None, energy),
+        ("103-4", "a", None, energy),
+        ("305-4", "a", None, ghg_int),
+        ("102-8", "a", None, ghg_int),
         ("305-1", "a", None, [(ids["s1"], "Scope 1")]),
         ("305-1", "b", None, [(ids["s1"], "CO2e")] + gases),
         ("305-1", "c", None, [(ids["bio_d"], "Biogenic (direct)")]),
