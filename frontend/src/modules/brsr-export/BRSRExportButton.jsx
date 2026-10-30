@@ -4,7 +4,7 @@
  * Download button for generating BRSR reports in PDF format.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import {
   DropdownMenu,
@@ -12,14 +12,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
-import { Download, FileText, Loader2, ChevronDown } from 'lucide-react';
+import { Download, FileText, Loader2, ChevronDown, History } from 'lucide-react';
 import { useBRSRExport } from './useBRSRExport';
+import { BRSRVersionsDialog } from './BRSRVersionsDialog';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function BRSRExportButton({ reportingPeriod, organization }) {
   const { exportPDF, isExporting, progress } = useBRSRExport({
     reportingPeriod,
     organization
   });
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   if (isExporting) {
     return (
@@ -31,6 +36,7 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2" data-testid="brsr-export-btn">
@@ -44,6 +50,12 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
           <FileText className="w-4 h-4 text-red-600" />
           Download as PDF
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => setVersionsOpen(true)} className="gap-2 cursor-pointer" data-testid="brsr-export-versions">
+            <History className="w-4 h-4 text-stone-600" />
+            Report versions
+          </DropdownMenuItem>
+        )}
         {/* Word export can be added later */}
         {/* <DropdownMenuItem onClick={exportWord} className="gap-2 cursor-pointer">
           <FileText className="w-4 h-4 text-blue-600" />
@@ -51,6 +63,8 @@ export function BRSRExportButton({ reportingPeriod, organization }) {
         </DropdownMenuItem> */}
       </DropdownMenuContent>
     </DropdownMenu>
+    {isAdmin && <BRSRVersionsDialog open={versionsOpen} onOpenChange={setVersionsOpen} reportingPeriod={reportingPeriod} />}
+    </>
   );
 }
 

@@ -769,3 +769,6 @@
 - POST /api/esg-questionnaire/gri-live-kpi-autofill persists KPI-derived GRI answers + kpi_synced audit entries; GRI section/progress GETs are read-only. GRIModule calls it once per reporting period before loading.
 - BRSR live-kpi-autofill changed GET -> POST (BRSRModule.js updated).
 - Unique index on organization_esg_responses (org_id, question_key, reporting_year, framework) + unique audit idempotency_key prevent duplicates under parallel calls. Verified: 6 parallel POSTs -> 40 audit entries, 40 responses.
+
+## BRSR report versions
+- POST /api/brsr-report/generate/{period} syncs KPI values (saved + audited) then creates an immutable version (frozen answers + sha256 + PDF in R2 bucket_type mis_reports + per-question audit pointers). Admin: GET /versions/{period}, GET /versions/{period}/{n}/download (integrity-checked). UI: Download menu -> Report versions (admin).

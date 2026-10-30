@@ -30,8 +30,9 @@ export function useBRSRExport({ reportingPeriod, organization }) {
       const headers = getAuthHeader();
 
       // Call backend endpoint to generate PDF
-      const response = await axios.get(
+      const response = await axios.post(
         `${API}/api/brsr-report/generate/${encodeURIComponent(reportingPeriod)}`,
+        null,
         {
           headers,
           responseType: 'blob', // Important: expect binary data
