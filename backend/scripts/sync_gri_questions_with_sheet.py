@@ -96,6 +96,8 @@ async def main():
     for index, item in enumerate(load_sheet()):
         key = f"gri_{item['did'].replace('-', '_')}_{item['letter']}"
         siblings = await db.esg_question_configs.find({"framework": "GRI", "disclosure_id": item["did"]}, {"_id": 0}).to_list(None)
+        if not siblings:
+            siblings = await db.esg_question_configs.find({"framework": "GRI", "question_key": {"$regex": f"^gri_{item['did'].split('-')[0]}_"}}, {"_id": 0}).to_list(None)
         order = ord(item["letter"][0]) - 96
         existing = next((s for s in siblings if s["question_key"] == key), None)
         if existing:
