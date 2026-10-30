@@ -45,12 +45,11 @@ def composite(ids):
 
 async def main():
     now = datetime.now(timezone.utc).isoformat()
-    fields = []
+    fields = [field("total_energy_reduction", "Total Energy Reduction", "Total Energy Reduction", 0, None, None)]
     for key, label in TYPES:
-        group = f"{label} energy reduced"
-        fields.append(field(f"{key}_reduction", f"{label} energy reduced (Total)", group, 0, None, "103-5-a"))
-        for cause_key, cause_label, ref in CAUSES:
-            fields.append(field(f"{key}_reduction_{cause_key}", f"Reduction due to {cause_label}", group, 1, f"{key}_reduction", ref))
+        fields.append(field(f"{key}_reduction", f"{label} energy reduced", "Total Energy Reduction", 1, "total_energy_reduction", None))
+    for cause_key, cause_label, ref in CAUSES:
+        fields.append(field(f"reduction_due_to_{cause_key}", f"Reduction due to {cause_label}", "Reduction due to", 0, None, ref))
     category = {"section": "environment", "category": "Energy", "subcategory": SUB, "sub_subcategory": "", "frameworks": [],
                 "allowed_reporting_types": ["monthly", "daily", "quarterly", "yearly"], "fields": fields, "is_active": True, "order": 14, "updated_at": now}
     if await db.esg_record_categories.find_one({"category": "Energy", "subcategory": SUB}, {"_id": 0, "id": 1}):
@@ -58,17 +57,14 @@ async def main():
     else:
         await db.esg_record_categories.insert_one({"id": str(uuid.uuid4()), "created_at": now, "created_by": None, "updated_by": None, **category})
 
+    await db.esg_kpi_definitions.update_many({"metric_code": {"$in": [f"ENERGY_REDUCTION_{k.upper()}_{c}" for k, _ in TYPES for c in ("INITIATIVES", "OTHER")]}},
+                                             {"$set": {"status": "archived", "updated_at": now}})
     ids = {}
     for key, label in TYPES:
-        group = f"{label} energy reduced"
-        ids[(key, "total")] = await upsert_kpi(f"ENERGY_REDUCTION_{key.upper()}_TOTAL", f"Energy Reduction - {label} (Total)", group, now, **records(f"{key}_reduction"))
-        for cause_key, cause_label, _ref in CAUSES:
-            ids[(key, cause_key)] = await upsert_kpi(
-                f"ENERGY_REDUCTION_{key.upper()}_{cause_key.upper()}", f"Energy Reduction - {label} - {cause_label}", group, now, **records(f"{key}_reduction_{cause_key}"))
+        ids[(key, "total")] = await upsert_kpi(f"ENERGY_REDUCTION_{key.upper()}_TOTAL", f"{label} Energy Reduced", "Total Energy Reduction", now, **records(f"{key}_reduction"))
     for cause_key, cause_label, _ref in CAUSES:
         ids[("all", cause_key)] = await upsert_kpi(
-            f"ENERGY_REDUCTION_DUE_TO_{cause_key.upper()}_TOTAL", f"Total Energy Reduction due to {cause_label}", "Total Energy Reduction", now,
-            **composite([ids[(key, cause_key)] for key, _ in TYPES]))
+            f"ENERGY_REDUCTION_DUE_TO_{cause_key.upper()}_TOTAL", f"Energy Reduction due to {cause_label}", "Reduction due to", now, **records(f"reduction_due_to_{cause_key}"))
     ids[("all", "total")] = await upsert_kpi(
         "ENERGY_REDUCTION_TOTAL", "Total Energy Reduction", "Total Energy Reduction", now, **composite([ids[(key, "total")] for key, _ in TYPES]))
 
