@@ -1,4 +1,4 @@
-"""Map KPIs to GRI 2-7-a, 2-7-b (i permanent, ii temporary) and 2-9-c (v gender) (idempotent, tagged gri_2_autofill_sync). Run: python -m scripts.add_gri2_autofill_mappings"""
+"""Map KPIs to GRI 2-27-a (i fines), 2-7-a, 2-7-b (i permanent, ii temporary) and 2-9-c (v gender) (idempotent, tagged gri_2_autofill_sync). Run: python -m scripts.add_gri2_autofill_mappings"""
 import asyncio
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +9,7 @@ REVIEW_SOURCE = "gri_2_autofill_sync"
 DIVERSITY = "Employee Diversity - "
 BOARD = "Board of Directors Diversity - Board of Directors (Total)"
 PLAN = [
+    ("2-27-a", "gri_2_27_a", "i", [("Non-compliance - Resulting in Fine / Penalty", "Resulting in Fine / Penalty")]),
     ("2-7-a", "gri_2_7_a", None, [(DIVERSITY + "Total Employees", "Total"), (DIVERSITY + "Total Employees (Female)", "Female"), (DIVERSITY + "Total Employees (Male)", "Male")]),
     ("2-7-b", "gri_2_7_b", "i", [(DIVERSITY + "Permanent employees", "Total"), (DIVERSITY + "Permanent employees (Female)", "Female"), (DIVERSITY + "Permanent employees (Male)", "Male")]),
     ("2-7-b", "gri_2_7_b", "ii", [(DIVERSITY + "Temporary", "Total"), (DIVERSITY + "Temporary (Female)", "Female"), (DIVERSITY + "Temporary (Male)", "Male")]),
