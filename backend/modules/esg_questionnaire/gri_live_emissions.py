@@ -17,7 +17,7 @@ APPROACH_LABELS = {
     "control_both": "Operational and financial control approach",
     "control": "Control approach",
 }
-REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync", "gri_kpi_ref_sync"]
+REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync", "gri_kpi_ref_sync", "gri_2_autofill_sync"]
 BOUNDARY_KEYS = ("gri_102_5_e", "gri_102_6_e", "gri_102_7_e", "gri_305_1_f", "gri_305_2_f")
 
 
@@ -80,6 +80,11 @@ async def _compute_live_values(org_id: str, reporting_period: str):
     for key in BOUNDARY_KEYS:
         values[key] = boundaries
         sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
+    address = ", ".join(str(org[f]).strip() for f in ("corporate_address", "city", "state", "country", "pincode") if org.get(f))
+    for key, text in {"gri_2_1_a": org.get("name"), "gri_2_1_c": address, "gri_2_1_d": org.get("country")}.items():
+        if text:
+            values[key] = str(text).strip()
+            sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
     return values, sources
 
 
