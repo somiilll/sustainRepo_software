@@ -1,4 +1,5 @@
 """Read-only live GRI answers built from GRI KPI framework mappings (GHG, base year, intensity) plus organization-detail text."""
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -20,6 +21,16 @@ REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync", "gri_kpi_ref_sync"]
 BOUNDARY_KEYS = ("gri_102_5_e", "gri_102_6_e", "gri_102_7_e", "gri_305_1_f", "gri_305_2_f")
 
 
+PLAIN_SECTIONS = ("social", "governance")
+
+
+def _short_label(label: str) -> str:
+    groups = re.findall(r"\(([^()]+)\)", label)
+    if groups:
+        return groups[-1].strip()
+    return label.rsplit(" - ", 1)[-1].strip()
+
+
 def _fmt(value: float) -> str:
     return f"{value:.6g}" if abs(value) < 1 else f"{value:,.2f}"
 
@@ -39,8 +50,9 @@ async def _compute_live_values(org_id: str, reporting_period: str):
     mappings = await db.kpi_framework_mappings.find(
         {"framework": "GRI", "is_active": True, "review_source": {"$in": REVIEW_SOURCES}}, {"_id": 0}).sort("display_order", 1).to_list(None)
     kpis = {k["id"]: k for k in await db.esg_kpi_definitions.find({"id": {"$in": [m["kpi_id"] for m in mappings]}}, {"_id": 0}).to_list(None)}
-    sub_question_keys = {q["question_key"] async for q in db.esg_question_configs.find(
-        {"question_key": {"$in": list({m["question_key"] for m in mappings})}, "input_type": "sub_questions"}, {"_id": 0, "question_key": 1})}
+    question_configs = {q["question_key"]: q async for q in db.esg_question_configs.find(
+        {"question_key": {"$in": list({m["question_key"] for m in mappings})}}, {"_id": 0, "question_key": 1, "input_type": 1, "section": 1})}
+    sub_question_keys = {k for k, q in question_configs.items() if q.get("input_type") == "sub_questions"}
     lines: Dict[str, list] = {}
     sources: Dict[str, Dict[str, set]] = {}
     for mapping in mappings:
@@ -55,7 +67,10 @@ async def _compute_live_values(org_id: str, reporting_period: str):
         source = sources.setdefault(key, {"mapping_ids": set(), "source_tags": set()})
         source["mapping_ids"].add(mapping.get("id"))
         source["source_tags"].add(label)
-        lines.setdefault(key, []).append(f"{label}: {_fmt(float(value)) + (' ' + unit if unit else '') if value is not None else 'no data'}")
+        if (question_configs.get(mapping["question_key"]) or {}).get("section") in PLAIN_SECTIONS:
+            lines.setdefault(key, []).append(f"{_short_label(label)} - {_fmt(float(value)) if value is not None else ''}")
+        else:
+            lines.setdefault(key, []).append(f"{label}: {_fmt(float(value)) + (' ' + unit if unit else '') if value is not None else 'no data'}")
     values = {key: "\n".join(rows) for key, rows in lines.items()}
 
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0}) or {}
