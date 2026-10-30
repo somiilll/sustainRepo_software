@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { Leaf, Users, Shield, Globe } from 'lucide-react';
+import { Leaf, Users, Shield, Globe, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
@@ -22,6 +22,7 @@ import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const GRI_SECTIONS = [
+  { key: 'general', label: 'GRI 2: General Disclosure', subtitle: 'General disclosures', icon: BookOpen, testId: 'gri-general-tab' },
   { key: 'environment', label: 'Environment', subtitle: 'Environmental disclosures', icon: Leaf, testId: 'gri-environment-tab' },
   { key: 'social', label: 'Social', subtitle: 'Social disclosures', icon: Users, testId: 'gri-social-tab' },
   { key: 'governance', label: 'Governance', subtitle: 'Governance disclosures', icon: Shield, testId: 'gri-governance-tab' },
@@ -30,7 +31,7 @@ const GRI_SECTIONS = [
 export default function GRIModule() {
   const { token } = useAuth();
 
-  const [activeTab, setActiveTab] = useState('environment');
+  const [activeTab, setActiveTab] = useState('general');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [progress, setProgress] = useState(null);

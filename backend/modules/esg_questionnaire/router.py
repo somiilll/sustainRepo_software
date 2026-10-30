@@ -256,7 +256,7 @@ async def get_gri_progress(
     is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
     statuses = ("pending", "draft", "saved", "approved", "rejected")
     sections = {}
-    for section in ("environment", "social", "governance"):
+    for section in ("general", "environment", "social", "governance"):
         result = await esg_questionnaire_service.get_gri_disclosures(
             org_id=org_id, section=section, reporting_period=reporting_period, user_id=current_user.get("id"),
             filter_by_assignment=not is_admin, filter_by_materiality=material_only)

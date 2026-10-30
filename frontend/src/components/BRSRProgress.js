@@ -19,7 +19,7 @@ const colorOf = (key) => STATUS_META.find((s) => s.key === key).color;
 
 export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SECTION_META, prefix = 'brsr' }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-testid={`${prefix}-section-cards`}>
+    <div className={`grid grid-cols-1 gap-4 ${sections.length > 3 ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-3'}`} data-testid={`${prefix}-section-cards`}>
       {sections.map(({ key, label, subtitle, icon: Icon, testId }) => {
         const active = activeTab === key;
         const percent = progress?.sections?.[key]?.percent ?? 0;

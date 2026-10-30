@@ -57,7 +57,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Renders GRI disclosures in collapsible format with questions grouped by disclosure
  * Supports sub_questions with individual input fields for each sub-part
  * 
- * @param {string} section - 'environment' | 'social' | 'governance'
+ * @param {string} section - 'general' | 'environment' | 'social' | 'governance'
  */
 const LiveValueBlock = ({ text, testId }) => (
   <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]" data-testid={testId}>
@@ -567,16 +567,9 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
     let completed = 0;
     
     disclosure.questions.forEach(q => {
-      if (q.sub_questions && q.sub_questions.length > 0) {
-        total += q.sub_questions.length;
-        completed += q.sub_questions.filter(sub => 
-          sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved'
-        ).length;
-      } else {
-        total += 1;
-        if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
-          completed += 1;
-        }
+      total += 1;
+      if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
+        completed += 1;
       }
     });
     
@@ -885,7 +878,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         if (!visibleCount) return null;
                 const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
         return (
-          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality}
+          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality && section !== 'general'}
             open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>
       {topic.disclosures.map(disclosure => {
         const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);

@@ -21,7 +21,7 @@ REVIEW_SOURCES = ["gri_ghg_sync", "gri_305_sync", "gri_kpi_ref_sync"]
 BOUNDARY_KEYS = ("gri_102_5_e", "gri_102_6_e", "gri_102_7_e", "gri_305_1_f", "gri_305_2_f")
 
 
-PLAIN_SECTIONS = ("social", "governance")
+PLAIN_SECTIONS = ("general", "social", "governance")
 
 
 def _short_label(label: str) -> str:

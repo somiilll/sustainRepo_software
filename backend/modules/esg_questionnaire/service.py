@@ -4,6 +4,7 @@ ESG Questionnaire Service
 Business logic for config-driven ESG questionnaire system.
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -237,6 +238,7 @@ class ESGQuestionnaireService:
             },
             {"_id": 0}
         ).sort([("disclosure_id", 1), ("question_order", 1)]).to_list(500)
+        configs.sort(key=lambda c: ([int(p) if p.isdigit() else 0 for p in re.split(r"[-.]", c.get("disclosure_id") or "")], c.get("question_order", 0)))
         
         if not configs:
             return {
@@ -246,8 +248,8 @@ class ESGQuestionnaireService:
                 "total": 0
             }
         
-        # If filtering by materiality, get material topic codes
-        if filter_by_materiality:
+        # General disclosures (GRI 2) apply to every organization, so materiality never filters them
+        if filter_by_materiality and section != "general":
             from modules.materiality.service import materiality_service
             material_codes = await materiality_service.get_material_topic_codes_for_org(org_id)
             if material_codes:
