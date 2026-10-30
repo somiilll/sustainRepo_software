@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 
+from .section_c_overrides import apply_overrides
 from .generic_render import (ASSURANCE_NOTE, LEADERSHIP_KEYS, PRINCIPLES, QUESTION_RENAMES, AnswerRenderer, esc, is_unnumbered, wellbeing_override)
 
 
@@ -1163,7 +1164,7 @@ class BRSRHTMLTemplate:
         return html
 
     def _render_question(self, config: Dict[str, Any], value: Any, number: str = '') -> str:
-        config = wellbeing_override(config)
+        config = apply_overrides(wellbeing_override(config))
         question = QUESTION_RENAMES.get(config['question_key'], config.get('question', ''))
         if config['question_key'].startswith('env_assurance_'):
             question = ASSURANCE_NOTE

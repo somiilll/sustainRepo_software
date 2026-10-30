@@ -184,7 +184,8 @@ class AnswerRenderer:
         for prefix, fy, plain in (('cur_', 'current_fy', True), ('prev_', 'previous_fy', False)):
             if key.startswith(prefix):
                 base = key[len(prefix):]
-                candidates += [(fy, base), (None, f'{base}_{fy}')] + ([(None, base)] if plain else [])
+                short = 'current' if fy == 'current_fy' else 'previous'
+                candidates += [(fy, base), (None, f'{base}_{fy}'), (None, f'{short}_{base}'), (None, f'{prefix[:-1]}_{base}' if prefix != short + '_' else f'{short}_{base}')] + ([(None, base)] if plain else [])
         for fy, name in candidates:
             source = row.get(fy) if fy else row
             if isinstance(source, dict) and name in source and not _empty(source[name]):
@@ -221,26 +222,55 @@ class AnswerRenderer:
             head = ''.join(f'<tr>{"".join(r)}</tr>' for r in rows_html[:depth])
         else:
             head = '<tr>' + f'<th>{first}</th>' + ''.join(f'<th>{fy(c["label"])}</th>' for c in columns) + '</tr>'
+        fixed = {r['key'] for r in tc['fixed_rows']}
+        extras = {k: v for k, v in data.items() if k not in fixed and not _empty(v)}
+        attached: Dict[str, List[str]] = {}
+        for row in tc['fixed_rows']:
+            match = re.match(r'(.+?)_with(?:_treatment)?$', row['key'])
+            if match:
+                keys = [k for k in extras if k.startswith(match.group(1) + '_') and k not in attached.get('__all__', [])]
+                attached[row['key']] = keys
+                attached.setdefault('__all__', []).extend(keys)
+        span = len(columns) + 1
+
+        def data_row(label: str, raw: Any, indent: int = 0) -> str:
+            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else (raw if c is columns[0] else None))}</td>' for c in columns)
+            pad = f' style="padding-left:{indent}px"' if indent else ''
+            return f'<tr><td{pad}>{esc(label)}</td>{cells}</tr>'
         body = ''
         for row in tc['fixed_rows']:
             if row.get('section_header'):
-                body += f'<tr class="category-header"><td colspan="{len(columns) + 1}">{esc(row["label"])}</td></tr>'
+                body += f'<tr class="category-header"><td colspan="{span}">{esc(row["label"])}</td></tr>'
+                continue
+            if row.get('sub_header'):
+                body += f'<tr><td colspan="{span}"><b>{esc(row["label"])}</b></td></tr>'
                 continue
             raw = data.get(row['key'])
-            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else (raw if c is columns[0] else None))}</td>' for c in columns)
-            pad = ' style="padding-left:14px"' if row.get('child') else ''
-            body += f'<tr><td{pad}>{esc(row["label"])}</td>{cells}</tr>'
-        fixed = {r['key'] for r in tc['fixed_rows']}
-        for key, raw in data.items():
-            if key in fixed or _empty(raw):
+            if row['key'] == 'others' and _empty(raw) and extras:
                 continue
-            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else (raw if c is columns[0] else None))}</td>' for c in columns)
-            body += f'<tr><td>{esc(self._label(key, {}))}</td>{cells}</tr>'
+            indent = 28 if row.get('grandchild') else 14 if row.get('child') else 0
+            body += data_row(row['label'], raw, indent)
+            for extra in attached.get(row['key'], []):
+                body += data_row(self._extra_label(extra, row['key']), extras[extra], indent + 14)
+        used = set(attached.get('__all__', []))
+        for key, raw in extras.items():
+            if key not in used:
+                body += data_row(self._extra_label(key), raw)
         return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+
+    @staticmethod
+    def _extra_label(key: str, parent: str = '') -> str:
+        base = re.match(r'(.+?)_with(?:_treatment)?$', parent)
+        if base and key.startswith(base.group(1) + '_'):
+            key = key[len(base.group(1)) + 1:]
+        key = re.sub(r'_[0-9a-f]{8}$', '', key)
+        return re.sub(r'\s+', ' ', key.replace('_', ' ')).strip().capitalize()
 
     def _grouped_grid(self, config: Dict[str, Any], value: Any) -> str:
         tc = config['table_config']
         data = value.get('value') if isinstance(value, dict) and isinstance(value.get('value'), dict) else (value if isinstance(value, dict) else {})
+        if isinstance(data.get('rows'), dict):
+            data = data['rows']
         columns = tc.get('columns') or []
         head = '<tr><th>Parameter</th><th>Metrics</th>' + ''.join(f'<th>{esc(self._fy_fix(c["label"]))}</th>' for c in columns) + '</tr>'
         body = ''
@@ -264,8 +294,14 @@ class AnswerRenderer:
     def _skeleton(self, config: Dict[str, Any], value: Any) -> Optional[str]:
         tc = config.get('table_config') or {}
         kind = config.get('type')
-        if tc.get('fixed_rows') and (tc.get('columns') or tc.get('column_groups')) and all('columns' in g for g in tc.get('column_groups') or []):
-            return self._fixed_grid(config, value)
+        if tc.get('fixed_rows') and (tc.get('columns') or tc.get('column_groups')) and all(('columns' in g or 'sub_groups' in g) for g in tc.get('column_groups') or []):
+            grid = self._fixed_grid(config, value)
+            fields = config.get('water_stress_fields')
+            if fields:
+                data = value if isinstance(value, dict) else {}
+                intro = ''.join(f'<p style="margin:4px 0">({"i" * (i + 1)}) {esc(label)}: <b>{esc(data.get(k) or "")}</b></p>' for i, (k, label) in enumerate(fields))
+                grid = intro + '<p style="margin:4px 0">(iii) Water withdrawal, consumption and discharge in the following format:</p>' + grid
+            return grid
         if kind == 'grouped_matrix_table' and tc.get('groups'):
             return self._grouped_grid(config, value)
         if kind == 'multi_table' and config.get('tables_config'):
