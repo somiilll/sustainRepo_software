@@ -64,13 +64,15 @@ async def _compute_live_values(org_id: str, reporting_period: str):
         value, _records = await calculate_kpi_contribution(kpi, org_id, reporting_period, mapping.get("aggregation_rule") or "sum")
         unit = mapping.get("destination_unit") or (kpi.get("unit_config") or {}).get("default_unit") or ""
         label = mapping.get("display_label") or kpi["metric_name"]
+        if value is None:
+            continue
         source = sources.setdefault(key, {"mapping_ids": set(), "source_tags": set()})
         source["mapping_ids"].add(mapping.get("id"))
         source["source_tags"].add(label)
         if (question_configs.get(mapping["question_key"]) or {}).get("section") in PLAIN_SECTIONS:
-            lines.setdefault(key, []).append(f"{_short_label(label)} - {_fmt(float(value)) if value is not None else ''}")
+            lines.setdefault(key, []).append(f"{_short_label(label)} - {_fmt(float(value))}")
         else:
-            lines.setdefault(key, []).append(f"{label}: {_fmt(float(value)) + (' ' + unit if unit else '') if value is not None else 'no data'}")
+            lines.setdefault(key, []).append(f"{label}: {_fmt(float(value))}{' ' + unit if unit else ''}")
     values = {key: "\n".join(rows) for key, rows in lines.items()}
 
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0}) or {}
@@ -96,10 +98,9 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by:
         for key in keys:
             section_by_key[key] = config.get("section")
     wanted = {key: value for key, value in values.items() if key in section_by_key}
-    if not wanted:
-        return {"reporting_period": reporting_period, "updated": 0}
     existing = {doc["question_key"]: doc async for doc in db.organization_esg_responses.find(
-        {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI", "question_key": {"$in": list(wanted)}},
+        {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI",
+         "question_key": {"$in": list(section_by_key)}, "kpi_autofill_updated_at": {"$exists": True}},
         {"_id": 0, "question_key": 1, "value": 1, "kpi_autofill_updated_at": 1})}
     now = datetime.now(timezone.utc).isoformat()
     updated = 0
@@ -118,5 +119,16 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by:
             changes=[PathChange(path="value", old=old, new=value)], scalar=True, state_token=existing.get(key, {}).get("kpi_autofill_updated_at"),
             source=AuditSource(type="kpi_sync", mapping_ids=[m for m in sources[key]["mapping_ids"] if m],
                                source_tags=list(sources[key]["source_tags"]), triggered_by_user_id=triggered_by))
+        updated += 1
+    for key, doc in existing.items():
+        if key in wanted or doc.get("value") in (None, ""):
+            continue
+        await db.organization_esg_responses.update_one(
+            {"org_id": org_id, "question_key": key, "reporting_year": reporting_period, "framework": "GRI"},
+            {"$set": {"value": "", "status": "pending", "kpi_autofill_updated_at": now, "updated_at": now}})
+        await audit_trail_service.record_system_changes(
+            framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
+            changes=[PathChange(path="value", old=doc["value"], new=None)], scalar=True, state_token=doc.get("kpi_autofill_updated_at"),
+            source=AuditSource(type="kpi_sync", triggered_by_user_id=triggered_by))
         updated += 1
     return {"reporting_period": reporting_period, "updated": updated}
