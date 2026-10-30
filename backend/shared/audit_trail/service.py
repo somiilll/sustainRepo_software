@@ -37,6 +37,7 @@ class AuditTrailService:
         state_token: str | None = None,
         action: AuditAction = AuditAction.KPI_SYNCED,
         actor: AuditActor = KPI_SYNC_ACTOR,
+        scalar: bool = False,
     ) -> str | None:
         """Append one entry describing system-applied answer changes. Returns the entry id, or None if nothing to record.
 
@@ -46,8 +47,8 @@ class AuditTrailService:
         if not changes:
             return None
         change_details = {
-            "old_value": unflatten({change.path: change.old for change in changes}),
-            "new_value": unflatten({change.path: change.new for change in changes}),
+            "old_value": changes[0].old if scalar else unflatten({change.path: change.old for change in changes}),
+            "new_value": changes[0].new if scalar else unflatten({change.path: change.new for change in changes}),
             "change_kind": _change_kind(changes).value,
             "changed_paths": [change.path for change in changes],
         }

@@ -1,7 +1,12 @@
 """Read-only live GRI answers built from GRI KPI framework mappings (GHG, base year, intensity) plus organization-detail text."""
-from typing import Any, Dict, Optional
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 from modules.brsr_report.proposal_calculator import calculate_kpi_contribution
+from shared.audit_trail.diff import PathChange
+from shared.audit_trail.models import AuditSource
+from shared.audit_trail.service import audit_trail_service
 from shared.database.mongo import db
 
 APPROACH_LABELS = {
@@ -30,13 +35,14 @@ def _boundaries(org: Dict[str, Any]) -> str:
     return "\n".join(parts) or "Organizational boundaries are not specified in the organization details."
 
 
-async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[str, str]:
+async def _compute_live_values(org_id: str, reporting_period: str):
     mappings = await db.kpi_framework_mappings.find(
         {"framework": "GRI", "is_active": True, "review_source": {"$in": REVIEW_SOURCES}}, {"_id": 0}).sort("display_order", 1).to_list(None)
     kpis = {k["id"]: k for k in await db.esg_kpi_definitions.find({"id": {"$in": [m["kpi_id"] for m in mappings]}}, {"_id": 0}).to_list(None)}
     sub_question_keys = {q["question_key"] async for q in db.esg_question_configs.find(
         {"question_key": {"$in": list({m["question_key"] for m in mappings})}, "input_type": "sub_questions"}, {"_id": 0, "question_key": 1})}
     lines: Dict[str, list] = {}
+    sources: Dict[str, Dict[str, set]] = {}
     for mapping in mappings:
         kpi = kpis.get(mapping["kpi_id"])
         if not kpi:
@@ -46,6 +52,9 @@ async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[s
         value, _records = await calculate_kpi_contribution(kpi, org_id, reporting_period, mapping.get("aggregation_rule") or "sum")
         unit = mapping.get("destination_unit") or (kpi.get("unit_config") or {}).get("default_unit") or ""
         label = mapping.get("display_label") or kpi["metric_name"]
+        source = sources.setdefault(key, {"mapping_ids": set(), "source_tags": set()})
+        source["mapping_ids"].add(mapping.get("id"))
+        source["source_tags"].add(label)
         lines.setdefault(key, []).append(f"{label}: {_fmt(float(value)) + (' ' + unit if unit else '') if value is not None else 'no data'}")
     values = {key: "\n".join(rows) for key, rows in lines.items()}
 
@@ -53,4 +62,42 @@ async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[s
     boundaries = _boundaries(org)
     for key in BOUNDARY_KEYS:
         values[key] = boundaries
-    return values
+        sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
+    return values, sources
+
+
+async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[str, str]:
+    return (await _compute_live_values(org_id, reporting_period))[0]
+
+
+async def sync_gri_live_values(org_id: str, reporting_period: str, configs: List[Dict[str, Any]], triggered_by: Optional[str] = None) -> None:
+    """Persist KPI-derived GRI answers and log each change to the audit trail so version history shows them."""
+    values, sources = await _compute_live_values(org_id, reporting_period)
+    section_by_key: Dict[str, str] = {}
+    for config in configs:
+        keys = [f"{config['question_key']}_{sub['sub_key']}" for sub in config.get("sub_questions") or []] or [config["question_key"]]
+        for key in keys:
+            section_by_key[key] = config.get("section")
+    wanted = {key: value for key, value in values.items() if key in section_by_key}
+    if not wanted:
+        return
+    existing = {doc["question_key"]: doc async for doc in db.organization_esg_responses.find(
+        {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI", "question_key": {"$in": list(wanted)}},
+        {"_id": 0, "question_key": 1, "value": 1})}
+    now = datetime.now(timezone.utc).isoformat()
+    for key, value in wanted.items():
+        old = existing.get(key, {}).get("value")
+        if old == value:
+            continue
+        await db.organization_esg_responses.update_one(
+            {"org_id": org_id, "question_key": key, "reporting_year": reporting_period, "framework": "GRI"},
+            {"$set": {"value": value, "status": "saved", "section": section_by_key[key], "organization_id": org_id,
+                      "kpi_autofill_updated_at": now, "updated_at": now},
+             "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}},
+            upsert=True)
+        await audit_trail_service.record_system_changes(
+            framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
+            changes=[PathChange(path="value", old=old, new=value)], scalar=True, state_token=str(old),
+            source=AuditSource(type="kpi_sync", mapping_ids=[m for m in sources[key]["mapping_ids"] if m],
+                               source_tags=list(sources[key]["source_tags"]), triggered_by_user_id=triggered_by))
+

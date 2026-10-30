@@ -340,6 +340,9 @@ class ESGQuestionnaireService:
             else:
                 all_response_keys.append(q_key)
         
+        from modules.esg_questionnaire.gri_live_emissions import sync_gri_live_values
+        await sync_gri_live_values(org_id, reporting_period, configs, user_id)
+
         # Fetch responses from unified organization_esg_responses collection (flat storage)
         responses_cursor = self._responses.find(
             {
@@ -352,17 +355,10 @@ class ESGQuestionnaireService:
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
 
-        from modules.esg_questionnaire.gri_live_emissions import live_gri_emission_values
-        live_values = await live_gri_emission_values(org_id, reporting_period)
         for config in configs:
-            if config.get("sub_questions"):
-                keys = [f"{config['question_key']}_{sub['sub_key']}" for sub in config["sub_questions"]]
-            else:
-                keys = [config["question_key"]]
-            for key in keys:
-                auto_value = live_values.get(key) or (config.get("static_note") if not config.get("sub_questions") else None)
-                if auto_value and key not in responses_map:
-                    responses_map[key] = {"question_key": key, "value": auto_value, "status": "saved"}
+            key = config["question_key"]
+            if config.get("static_note") and not config.get("sub_questions") and key not in responses_map:
+                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "saved"}
         
         # Fetch user's drafts from esg_response_drafts
         user_drafts_map = {}
