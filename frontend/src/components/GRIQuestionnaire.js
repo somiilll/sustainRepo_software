@@ -65,7 +65,7 @@ const LiveValueBlock = ({ text, testId }) => (
   </div>
 );
 
-export default function GRIQuestionnaire({ section, isEditing = false, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, onSaved }) {
+export default function GRIQuestionnaire({ section, isEditing = false, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, materialOnly, onSaved }) {
   const { getAuthHeader, token, user } = useAuth();
   const canEditNotes = user?.role === 'admin' || user?.role === 'super_admin';
   const { formatDateTime } = useDateFormatter();
@@ -92,7 +92,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
-  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
+  const filterByMateriality = materialOnly ?? true;
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -852,95 +852,6 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
 
   return (
     <div className="space-y-4">
-      {/* Overall Progress Summary */}
-      {(() => {
-        const overall = disclosures.reduce((acc, d) => {
-          const c = getDisclosureCompletion(d);
-          acc.total += c.total;
-          acc.completed += c.completed;
-          return acc;
-        }, { total: 0, completed: 0 });
-        const overallPct = overall.total > 0 ? Math.round((overall.completed / overall.total) * 100) : 0;
-        const completedDisclosures = disclosures.filter(d => getDisclosureCompletion(d).percentage === 100).length;
-
-        return (
-          <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border" data-testid="gri-progress-summary">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-sm font-semibold text-stone-800">
-                  {section === 'environment' ? 'GRI 300 – Environment' : section === 'social' ? 'GRI 400 – Social' : 'GRI 200 – Governance'}
-                </p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  {disclosures.length} disclosures · {overall.total} questions · {completedDisclosures} disclosures complete
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {overallPct === 100
-                ? <CheckCircle2 className="w-5 h-5 text-green-600" />
-                : <Circle className="w-5 h-5 text-stone-300" />}
-              <div className="w-32 h-2 rounded-full bg-stone-200 overflow-hidden">
-                <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${overallPct}%` }} />
-              </div>
-              <span className="text-sm font-medium tabular-nums text-stone-700 w-20 text-right">
-                {overall.completed}/{overall.total} ({overallPct}%)
-              </span>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Header with Reporting Year Selector */}
-      <Card className="p-4 bg-blue-50/50 border-blue-100">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-2 flex-1">
-            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-blue-800">
-                <strong>GRI Standards:</strong> Complete the disclosures below based on your organization&apos;s material topics.
-                Click on each disclosure to expand and fill in the required information.
-              </p>
-            </div>
-          </div>
-          
-          {/* Materiality Filter Toggle */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setFilterByMateriality(!filterByMateriality)}
-              className={`h-9 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
-                filterByMateriality 
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                  : 'bg-stone-100 text-stone-600 border border-stone-200'
-              }`}
-              data-testid="materiality-filter-toggle"
-            >
-              <div className={`w-3 h-3 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
-              {filterByMateriality ? 'Material Topics' : 'All Topics'}
-            </button>
-          </div>
-          
-          {/* Reporting Year Selector */}
-          {!externalPeriod && <div className="flex items-center gap-2 flex-shrink-0">
-            <Calendar className="w-4 h-4 text-blue-600" />
-            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-              <SelectTrigger 
-                className="w-[180px] h-9 bg-white border-blue-200 text-sm"
-                data-testid="gri-reporting-year-selector"
-              >
-                <SelectValue placeholder="Select Year" />
-              </SelectTrigger>
-              <SelectContent>
-                {reportingYears.map(year => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>}
-        </div>
-      </Card>
-
       <div className="flex items-center justify-between" data-testid="gri-topics-header">
         <h2 className="text-lg font-semibold text-text-primary">Topics and disclosures</h2>
         <div className="flex items-center gap-2 text-sm">
@@ -955,6 +866,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         </div>
       </div>
 
+      <div className="space-y-6" data-testid="gri-topic-list">
       {topics.map((topic) => {
         const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
         const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
@@ -1097,6 +1009,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
           </GRITopicCard>
         );
       })}
+      </div>
 
       {/* Version History Dialog */}
       <Dialog open={false}>

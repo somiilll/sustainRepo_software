@@ -233,6 +233,7 @@ GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "sa
 @router.get("/gri-progress")
 async def get_gri_progress(
     reporting_period: str = Query(..., min_length=4),
+    material_only: bool = Query(True),
     current_user: dict = Depends(get_current_user),
 ):
     """Per-section GRI question status counts and per-disclosure progress, shaped like the BRSR progress payload."""
@@ -245,7 +246,7 @@ async def get_gri_progress(
     for section in ("environment", "social", "governance"):
         result = await esg_questionnaire_service.get_gri_disclosures(
             org_id=org_id, section=section, reporting_period=reporting_period, user_id=current_user.get("id"),
-            filter_by_assignment=not is_admin, filter_by_materiality=False)
+            filter_by_assignment=not is_admin, filter_by_materiality=material_only)
         counts, questions, groups = {k: 0 for k in statuses}, {}, {}
         for question in result["questions"]:
             status = GRI_PROGRESS_STATUS.get(question.get("status"), "pending")

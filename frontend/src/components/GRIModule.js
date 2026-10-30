@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from './ui/label';
 import { Leaf, Users, Shield, Globe, Pencil, X } from 'lucide-react';
 import { Button } from './ui/button';
+import { Switch } from './ui/switch';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
 import GRIQuestionnaire from './GRIQuestionnaire';
 import { ModulePageHeader } from './ModulePageHeader';
@@ -35,19 +36,20 @@ export default function GRIModule() {
   const [isEditing, setIsEditing] = useState(false);
   const [progress, setProgress] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [materialOnly, setMaterialOnly] = useState(true);
 
   const loadProgress = useCallback(async () => {
     if (!token || !reportingPeriod) return;
     try {
       const response = await axios.get(`${API}/api/esg-questionnaire/gri-progress`, {
-        params: { reporting_period: reportingPeriod },
+        params: { reporting_period: reportingPeriod, material_only: materialOnly },
         headers: { Authorization: `Bearer ${token}` },
       });
       setProgress(response.data);
     } catch (error) {
       console.error('Failed to load GRI progress:', error);
     }
-  }, [token, reportingPeriod]);
+  }, [token, reportingPeriod, materialOnly]);
 
   const selectTab = (tab) => {
     setActiveTab(tab);
@@ -85,11 +87,19 @@ export default function GRIModule() {
         section={section}
         isEditing={isEditing}
         reportingPeriod={reportingPeriod}
+        materialOnly={materialOnly}
         statusFilter={statusFilter}
         questionProgress={progress?.sections?.[section]?.questions || {}}
         onSaved={loadProgress}
       />
     </TabsContent>
+  );
+
+  const materialSwitch = (
+    <label className="inline-flex items-center gap-3 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-700 cursor-pointer" data-testid="gri-material-toggle-label">
+      <Switch checked={materialOnly} onCheckedChange={setMaterialOnly} data-testid="gri-material-toggle" />
+      Material topics only
+    </label>
   );
 
   return (
@@ -124,7 +134,7 @@ export default function GRIModule() {
       />
 
       <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} sections={GRI_SECTIONS} prefix="gri-report" />
-      <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} sections={GRI_SECTIONS} prefix="gri-report" />
+      <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} sections={GRI_SECTIONS} prefix="gri-report" trailing={materialSwitch} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6">
         <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">

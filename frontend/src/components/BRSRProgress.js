@@ -66,7 +66,7 @@ function ProgressRing({ percent }) {
   );
 }
 
-export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter, sections = SECTION_META, prefix = 'brsr' }) {
+export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter, sections = SECTION_META, prefix = 'brsr', trailing = null }) {
   const meta = sections.find((s) => s.key === activeTab);
   const section = progress?.sections?.[activeTab];
   if (!section) return null;
@@ -107,6 +107,7 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter,
           })}
         </div>
       </div>
+      {trailing && <div className="shrink-0 lg:self-start">{trailing}</div>}
     </div>
   );
 }

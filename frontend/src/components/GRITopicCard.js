@@ -27,7 +27,7 @@ export const GRITopicCard = ({ topic, answered, total, showMaterial, open, onTog
         </div>
         {open ? <ChevronUp className="w-5 h-5 text-stone-400 shrink-0" /> : <ChevronDown className="w-5 h-5 text-stone-400 shrink-0" />}
       </button>
-      {open && <div className="border-t border-stone-100 p-3 sm:p-4 space-y-3 bg-stone-50/50">{children}</div>}
+      {open && <div className="border-t border-stone-100 p-3 sm:p-5 space-y-4 bg-stone-50/50">{children}</div>}
     </section>
   );
 };
