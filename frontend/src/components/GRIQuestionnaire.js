@@ -39,6 +39,8 @@ import {
   History,
   Clock,
   FileEdit,
+  Pencil,
+  X,
   Send,
   Trash2
 } from 'lucide-react';
@@ -71,7 +73,8 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [openTopics, setOpenTopics] = useState({});
-  const [editingTopics, setEditingTopics] = useState({});
+  const [editingQuestions, setEditingQuestions] = useState({});
+  const toggleQuestionEdit = (key) => setEditingQuestions((prev) => ({ ...prev, [key]: !prev[key] }));
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
@@ -581,8 +584,11 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
   };
 
   // Render a single question (with or without sub-questions)
-  const renderQuestion = (question, qIndex, isEditing) => {
+  const renderQuestion = (question, qIndex) => {
     const hasSubQuestions = question.sub_questions && question.sub_questions.length > 0;
+    const isEditing = !!editingQuestions[question.question_key];
+    const isLiveOnly = !hasSubQuestions && !!liveValues[question.question_key];
+    const canEditQuestion = !isLiveOnly && (!question.static_note || canEditNotes);
     
     return (
       <div key={question.question_key} className="space-y-3">
@@ -600,6 +606,18 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
           
           {/* Status Badge & History Button */}
           <div className="flex items-center gap-2 shrink-0">
+            {canEditQuestion && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleQuestionEdit(question.question_key)}
+                className={`h-7 px-2 text-xs ${isEditing ? 'text-red-600 hover:text-red-700' : 'text-stone-500 hover:text-blue-600'}`}
+                title={isEditing ? 'Done editing' : 'Edit answer'}
+                data-testid={`edit-${question.question_key}`}
+              >
+                {isEditing ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+              </Button>
+            )}
             {getStatusBadge(question.status)}
             {!hasSubQuestions && <Button
               variant="ghost"
@@ -735,7 +753,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
           liveValues[question.question_key] ? (
             <LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} />
           ) : question.static_note ? (
-            <StaticNoteBlock questionKey={question.question_key} text={question.static_note} canEdit={canEditNotes} getAuthHeader={getAuthHeader} onSaved={fetchDisclosures} />
+            <StaticNoteBlock questionKey={question.question_key} text={question.static_note} editing={isEditing} onClose={() => toggleQuestionEdit(question.question_key)} getAuthHeader={getAuthHeader} onSaved={fetchDisclosures} />
           ) : isEditing ? (
             <div className="space-y-2">
               <Textarea
@@ -865,14 +883,13 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
         const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
         if (!visibleCount) return null;
-        const isEditing = !!editingTopics[topic.slug];
-        const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
+                const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
         return (
-          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality} editing={isEditing}
-            onToggleEdit={() => setEditingTopics((prev) => ({ ...prev, [topic.slug]: !prev[topic.slug] }))}
+          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality}
             open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>
       {topic.disclosures.map(disclosure => {
         const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);
+        const isEditing = visibleQuestions.some((q) => editingQuestions[q.question_key]);
         if (!visibleQuestions.length) return null;
         const completion = getDisclosureCompletion(disclosure);
         const isOpen = openDisclosures[disclosure.disclosure_id];
@@ -962,7 +979,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                     </div>
                   )}
                   
-                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex, isEditing))}
+                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
 
                   {/* Save Buttons */}
                   {isEditing && (
