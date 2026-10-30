@@ -18,6 +18,9 @@ RENAMES = {
 }
 REPLACED = ["gri_102_1_a", "gri_102_1_b", "gri_102_2_b", "gri_102_3_e", "gri_102_9_b", "gri_102_10_c", "gri_101_5_a", "gri_101_5_c", "gri_101_5_d",
             "gri_403_9_a", "gri_403_9_b", "gri_403_9_c", "gri_403_10_a", "gri_403_10_b", "gri_406_1_b", "gri_411_1_b"]
+ALIGN_TEXT = ["gri_102_4_b", "gri_102_5_b", "gri_102_6_b", "gri_102_7_b", "gri_404_1_a", "gri_405_1_a", "gri_405_1_b", "gri_407_1_a", "gri_413_1_a"]
+DROP_SUB_QUESTIONS = {"gri_102_4_b", "gri_102_5_b", "gri_102_6_b", "gri_102_7_b"}
+MIGRATION = "gri_sheet_sync_v1"
 SHEETS = ["100 series", "200 series", "300 series", "400 series"]
 
 
@@ -49,22 +52,27 @@ async def main():
     now = datetime.now(timezone.utc).isoformat()
     force = "--force" in sys.argv
     collections = await data_collections()
-    risky = []
-    for key in list(RENAMES) + REPLACED:
-        for coll in collections:
-            if key in REPLACED and await db[coll].count_documents({"question_key": key}):
-                risky.append((key, coll))
-    if risky and not force:
-        print("saved answers exist under questions that would be replaced; rerun with --force after review:", risky)
-        return
-    for old in RENAMES:
-        for coll in ["esg_question_configs", *collections]:
-            await db[coll].update_many({"question_key": old}, {"$set": {"question_key": f"tmp:{old}"}})
-    deleted = (await db.esg_question_configs.delete_many({"question_key": {"$in": REPLACED}})).deleted_count
-    for old, new in RENAMES.items():
-        for coll in ["esg_question_configs", *collections]:
-            await db[coll].update_many({"question_key": f"tmp:{old}"}, {"$set": {"question_key": new}})
-        await db.esg_question_configs.update_one({"question_key": new}, {"$set": {"updated_at": now}})
+    if await db.script_migrations.find_one({"name": MIGRATION}):
+        print("structural renames/replacements already applied; skipping")
+        deleted = 0
+    else:
+        risky = []
+        for key in list(RENAMES) + REPLACED:
+            for coll in collections:
+                if key in REPLACED and await db[coll].count_documents({"question_key": key}):
+                    risky.append((key, coll))
+        if risky and not force:
+            print("saved answers exist under questions that would be replaced; rerun with --force after review:", risky)
+            return
+        for old in RENAMES:
+            for coll in ["esg_question_configs", *collections]:
+                await db[coll].update_many({"question_key": old}, {"$set": {"question_key": f"tmp:{old}"}})
+        deleted = (await db.esg_question_configs.delete_many({"question_key": {"$in": REPLACED}})).deleted_count
+        for old, new in RENAMES.items():
+            for coll in ["esg_question_configs", *collections]:
+                await db[coll].update_many({"question_key": f"tmp:{old}"}, {"$set": {"question_key": new}})
+            await db.esg_question_configs.update_one({"question_key": new}, {"$set": {"updated_at": now}})
+        await db.script_migrations.insert_one({"name": MIGRATION, "applied_at": now})
     created = 0
     for index, item in enumerate(load_sheet()):
         key = f"gri_{item['did'].replace('-', '_')}_{item['letter']}"
@@ -80,7 +88,14 @@ async def main():
                     "input_type": "textarea", "is_required": False, "question_order": order, "created_at": now, "updated_at": now})
         await db.esg_question_configs.insert_one(doc)
         created += 1
-    print(f"renamed={len(RENAMES)} deleted={deleted} created={created}")
+    by_key = {f"gri_{i['did'].replace('-', '_')}_{i['letter']}": i for i in load_sheet()}
+    for key in ALIGN_TEXT:
+        update = {"$set": {"description": clean(by_key[key]["text"]), "updated_at": now}}
+        if key in DROP_SUB_QUESTIONS:
+            update["$set"]["input_type"] = "textarea"
+            update["$unset"] = {"sub_questions": ""}
+        await db.esg_question_configs.update_one({"question_key": key}, update)
+    print(f"renamed={len(RENAMES)} deleted={deleted} created={created} aligned={len(ALIGN_TEXT)}")
 
 
 if __name__ == "__main__":
