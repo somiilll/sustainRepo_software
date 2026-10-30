@@ -833,14 +833,13 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
 
   // Helper to render approval status badge
   const renderStatusBadge = () => {
-    if (!approvalStatus) return null;
     
     // Priority: approval_status (workflow state) > status (save state)
     // Only show approval_status if it's a workflow status (pending_approval/approved/rejected)
     // Otherwise fall back to status (draft/saved)
     const workflowStatuses = ['pending_approval', 'approved', 'rejected'];
-    const approvalState = approvalStatus.approval_status;
-    const saveState = approvalStatus.status;
+    const approvalState = approvalStatus?.approval_status;
+    const saveState = approvalStatus?.status || 'pending';
     
     // Use workflow status if it exists and is valid, otherwise use save state
     const status = (approvalState && workflowStatuses.includes(approvalState)) 

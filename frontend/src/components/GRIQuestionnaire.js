@@ -646,7 +646,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                     <span className="flex-1 leading-relaxed">{sub.label}</span>
                   </Label>
                   <div className="flex items-center gap-1 shrink-0">
-                    {sub.response_status && sub.response_status !== 'pending' && getStatusBadge(sub.response_status)}
+                    {getStatusBadge(sub.response_status || 'pending')}
                     <Button
                       variant="ghost"
                       size="sm"

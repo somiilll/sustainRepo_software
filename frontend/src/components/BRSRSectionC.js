@@ -18,6 +18,14 @@ import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
 import { mergeBRSRAutofill } from '../utils/brsrAutofill';
 
+
+const hasReportableValue = (v) => {
+  if (v === undefined || v === null || v === '') return false;
+  if (Array.isArray(v)) return v.some(hasReportableValue);
+  if (typeof v === 'object') return Object.values(v).some(hasReportableValue);
+  return true;
+};
+
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const SECTION = 'section_c';
@@ -399,8 +407,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
   const summary = useMemo(() => {
     const total = allConfigs.length;
     const answered = allConfigs.filter(c => {
-      const v = allResponses[c.question_key];
-      return v !== undefined && v !== null && v !== '';
+      return hasReportableValue(allResponses[c.question_key]);
     }).length;
     return { total, answered, pct: total > 0 ? Math.round((answered / total) * 100) : 0 };
   }, [allConfigs, allResponses]);
@@ -518,8 +525,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
         if (statusFilter !== 'all' && questions.length === 0) return null;
         const isOpen = statusFilter !== 'all' || !!expanded[p];
         const answeredInP = allQuestions.filter(c => {
-          const v = allResponses[c.question_key];
-          return v !== undefined && v !== null && v !== '';
+          return hasReportableValue(allResponses[c.question_key]);
         }).length;
         const color = PRINCIPLE_COLORS[p] || '#78716c';
         const principleStatus = getPrincipleStatus(p);
