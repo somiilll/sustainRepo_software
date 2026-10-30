@@ -90,7 +90,7 @@ export default function BRSRModule() {
     const loadLiveKPIAutofill = async () => {
       if (!token || !reportingPeriod) return;
       try {
-        const response = await axios.get(`${API}/api/brsr-report/live-kpi-autofill`, {
+        const response = await axios.post(`${API}/api/brsr-report/live-kpi-autofill`, null, {
           params: { reporting_period: reportingPeriod },
           headers: { Authorization: `Bearer ${token}` },
         });

@@ -34,11 +34,12 @@ export default function GRIModule() {
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
   const [progress, setProgress] = useState(null);
+  const [syncedPeriod, setSyncedPeriod] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [materialOnly, setMaterialOnly] = useState(true);
 
   const loadProgress = useCallback(async () => {
-    if (!token || !reportingPeriod) return;
+    if (!token || !reportingPeriod || syncedPeriod !== reportingPeriod) return;
     try {
       const response = await axios.get(`${API}/api/esg-questionnaire/gri-progress`, {
         params: { reporting_period: reportingPeriod, material_only: materialOnly },
@@ -48,7 +49,18 @@ export default function GRIModule() {
     } catch (error) {
       console.error('Failed to load GRI progress:', error);
     }
-  }, [token, reportingPeriod, materialOnly]);
+  }, [token, reportingPeriod, syncedPeriod, materialOnly]);
+
+  useEffect(() => {
+    if (!token || !reportingPeriod) return;
+    let active = true;
+    axios.post(`${API}/api/esg-questionnaire/gri-live-kpi-autofill`, null, {
+      params: { reporting_period: reportingPeriod },
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch((error) => console.error('Failed to sync GRI KPI values:', error))
+      .finally(() => { if (active) setSyncedPeriod(reportingPeriod); });
+    return () => { active = false; };
+  }, [token, reportingPeriod]);
 
   const selectTab = (tab) => {
     setActiveTab(tab);
@@ -82,14 +94,14 @@ export default function GRIModule() {
 
   const renderSection = (section) => (
     <TabsContent value={section} className="mt-0">
-      <GRIQuestionnaire
+      {syncedPeriod === reportingPeriod && <GRIQuestionnaire
         section={section}
         reportingPeriod={reportingPeriod}
         materialOnly={materialOnly}
         statusFilter={statusFilter}
         questionProgress={progress?.sections?.[section]?.questions || {}}
         onSaved={loadProgress}
-      />
+      />}
     </TabsContent>
   );
 

@@ -764,3 +764,8 @@
 - GRITopicCard has per-topic Edit/Done button; GRIQuestionnaire keeps editingTopics state; global edit toggle removed from GRIModule.
 - LiveValueBlock and StaticNoteBlock now plain white bordered boxes (no "Live from your data"/"Methodology note" labels or colored backgrounds).
 - Lint clean; NOT tested by testing agent or screenshot (user chose "fix only, don't test").
+
+## KPI autofill as POST (GRI + BRSR)
+- POST /api/esg-questionnaire/gri-live-kpi-autofill persists KPI-derived GRI answers + kpi_synced audit entries; GRI section/progress GETs are read-only. GRIModule calls it once per reporting period before loading.
+- BRSR live-kpi-autofill changed GET -> POST (BRSRModule.js updated).
+- Unique index on organization_esg_responses (org_id, question_key, reporting_year, framework) + unique audit idempotency_key prevent duplicates under parallel calls. Verified: 6 parallel POSTs -> 40 audit entries, 40 responses.

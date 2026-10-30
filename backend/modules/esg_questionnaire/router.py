@@ -187,6 +187,19 @@ async def get_gri_live_emissions(
     return {"values": await live_gri_emission_values(org_id, reporting_period)}
 
 
+@router.post("/gri-live-kpi-autofill")
+async def sync_gri_live_kpi_autofill(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist KPI-derived GRI answers and log changes to the audit trail (write path; GRI reads are read-only)."""
+    from modules.esg_questionnaire.gri_live_emissions import sync_gri_live_values
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+
+
 @router.get("/gri/{section}")
 async def get_gri_disclosures(
     section: str,

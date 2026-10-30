@@ -80,7 +80,7 @@ async def download_kpi_brsr_mappings(
     )
 
 
-@router.get("/live-kpi-autofill")
+@router.post("/live-kpi-autofill")
 async def sync_live_kpi_autofill(
     reporting_period: str = Query(..., min_length=4),
     current_user: dict = Depends(get_current_user),

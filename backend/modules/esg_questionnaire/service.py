@@ -340,9 +340,6 @@ class ESGQuestionnaireService:
             else:
                 all_response_keys.append(q_key)
         
-        from modules.esg_questionnaire.gri_live_emissions import sync_gri_live_values
-        await sync_gri_live_values(org_id, reporting_period, configs, user_id)
-
         # Fetch responses from unified organization_esg_responses collection (flat storage)
         responses_cursor = self._responses.find(
             {

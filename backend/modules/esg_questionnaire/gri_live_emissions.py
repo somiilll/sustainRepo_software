@@ -70,8 +70,10 @@ async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[s
     return (await _compute_live_values(org_id, reporting_period))[0]
 
 
-async def sync_gri_live_values(org_id: str, reporting_period: str, configs: List[Dict[str, Any]], triggered_by: Optional[str] = None) -> None:
+async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by: Optional[str] = None) -> Dict[str, Any]:
     """Persist KPI-derived GRI answers and log each change to the audit trail so version history shows them."""
+    configs = await db.esg_question_configs.find(
+        {"framework": "GRI", "hidden": {"$ne": True}}, {"_id": 0, "question_key": 1, "section": 1, "sub_questions": 1}).to_list(None)
     values, sources = await _compute_live_values(org_id, reporting_period)
     section_by_key: Dict[str, str] = {}
     for config in configs:
@@ -80,11 +82,12 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, configs: List
             section_by_key[key] = config.get("section")
     wanted = {key: value for key, value in values.items() if key in section_by_key}
     if not wanted:
-        return
+        return {"reporting_period": reporting_period, "updated": 0}
     existing = {doc["question_key"]: doc async for doc in db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI", "question_key": {"$in": list(wanted)}},
-        {"_id": 0, "question_key": 1, "value": 1})}
+        {"_id": 0, "question_key": 1, "value": 1, "kpi_autofill_updated_at": 1})}
     now = datetime.now(timezone.utc).isoformat()
+    updated = 0
     for key, value in wanted.items():
         old = existing.get(key, {}).get("value")
         if old == value:
@@ -97,7 +100,8 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, configs: List
             upsert=True)
         await audit_trail_service.record_system_changes(
             framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
-            changes=[PathChange(path="value", old=old, new=value)], scalar=True, state_token=str(old),
+            changes=[PathChange(path="value", old=old, new=value)], scalar=True, state_token=existing.get(key, {}).get("kpi_autofill_updated_at"),
             source=AuditSource(type="kpi_sync", mapping_ids=[m for m in sources[key]["mapping_ids"] if m],
                                source_tags=list(sources[key]["source_tags"]), triggered_by_user_id=triggered_by))
-
+        updated += 1
+    return {"reporting_period": reporting_period, "updated": updated}
