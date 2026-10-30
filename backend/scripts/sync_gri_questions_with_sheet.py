@@ -53,7 +53,7 @@ def parse_parts(text):
     parts = []
     for n, marker in enumerate(seq):
         end = seq[n + 1].start() if n + 1 < len(seq) else len(text)
-        parts.append(re.sub(r"[;,.]?\s*(and|or)?\s*$", "", text[marker.start():end].strip()))
+        parts.append(re.sub(r"[;,.]?\s*(and|or)?\s*$", "", text[marker.end():end].strip()))
     return text[:seq[0].start()].strip(), parts
 
 

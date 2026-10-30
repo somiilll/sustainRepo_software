@@ -641,9 +641,9 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
             {question.sub_questions.map((sub) => (
               <div key={sub.response_key} className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <Label className="text-sm text-text-secondary flex items-start gap-2">
-                    <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
-                    <span>{sub.label}</span>
+                  <Label className="text-sm text-text-secondary flex items-start gap-2 flex-1">
+                    <span className="text-blue-600 font-mono text-xs shrink-0 w-6 pt-0.5">{sub.sub_key}.</span>
+                    <span className="flex-1 leading-relaxed">{sub.label}</span>
                   </Label>
                   <div className="flex items-center gap-1 shrink-0">
                     {sub.response_status && sub.response_status !== 'pending' && getStatusBadge(sub.response_status)}
