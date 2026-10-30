@@ -7,7 +7,7 @@ export const topicSlug = (name) => (name || 'general').toLowerCase().replace(/[^
 export const GRITopicCard = ({ topic, answered, total, showMaterial, open, onToggle, children }) => {
   const percent = total ? Math.round((answered / total) * 100) : 0;
   return (
-    <section id={`brsr-group-${topic.slug}`} className="rounded-3xl border border-stone-200 bg-white shadow-sm overflow-hidden" data-testid={`gri-topic-${topic.slug}`}>
+    <section id={`brsr-group-${topic.slug}`} className="rounded-3xl border border-stone-200 bg-white shadow-sm overflow-hidden scroll-mt-24 mb-6" data-testid={`gri-topic-${topic.slug}`}>
       <button type="button" onClick={onToggle} className="w-full flex items-center gap-4 p-5 text-left hover:bg-stone-50 transition-colors" data-testid={`gri-topic-toggle-${topic.slug}`}>
         <div className="w-12 h-12 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
           <Layers className="w-5 h-5" />

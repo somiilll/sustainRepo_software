@@ -884,6 +884,7 @@ export default function GRIQuestionnaire({ section, isEditing = false, reporting
         return (
           <Collapsible
             key={disclosure.disclosure_id}
+            className="mb-4"
             open={isOpen}
             onOpenChange={() => toggleDisclosure(disclosure.disclosure_id)}
           >
