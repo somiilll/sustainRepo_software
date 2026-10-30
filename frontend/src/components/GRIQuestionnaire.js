@@ -979,7 +979,9 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                     </div>
                   )}
                   
-                  {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  <div className="flex flex-col gap-8">
+                    {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  </div>
 
                   {/* Save Buttons */}
                   {isEditing && (
