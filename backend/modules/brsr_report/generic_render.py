@@ -60,6 +60,24 @@ def _scalar(value: Any) -> str:
     return esc(value)
 
 
+def _canon(key: str) -> str:
+    key = re.sub(r'_(current|previous)_fy$', '', str(key))
+    return re.sub(r'(^|_)wrk(_|$)', r'\1workers\2', key).replace('_', '')
+
+
+def _pick(data: Any, key: str) -> Any:
+    """Find a value by key, tolerating legacy spellings (wrk_/workers_, thirdparty/third_party) and an _current_fy suffix."""
+    if not isinstance(data, dict):
+        return None
+    if key in data and not _empty(data[key]):
+        return data[key]
+    target = _canon(key)
+    for name, value in data.items():
+        if _canon(name) == target and not _empty(value):
+            return value
+    return data.get(key)
+
+
 def _collect_labels(node: Any, labels: Dict[str, str]) -> None:
     if isinstance(node, dict):
         key, label = node.get('key') or node.get('name'), node.get('label')
@@ -222,8 +240,8 @@ class AnswerRenderer:
             head = ''.join(f'<tr>{"".join(r)}</tr>' for r in rows_html[:depth])
         else:
             head = '<tr>' + f'<th>{first}</th>' + ''.join(f'<th>{fy(c["label"])}</th>' for c in columns) + '</tr>'
-        fixed = {r['key'] for r in tc['fixed_rows']}
-        extras = {k: v for k, v in data.items() if k not in fixed and not _empty(v)}
+        fixed = {_canon(r['key']) for r in tc['fixed_rows']}
+        extras = {k: v for k, v in data.items() if _canon(k) not in fixed and not _empty(v)}
         attached: Dict[str, List[str]] = {}
         for row in tc['fixed_rows']:
             match = re.match(r'(.+?)_with(?:_treatment)?$', row['key'])
@@ -245,7 +263,7 @@ class AnswerRenderer:
             if row.get('sub_header'):
                 body += f'<tr><td colspan="{span}"><b>{esc(row["label"])}</b></td></tr>'
                 continue
-            raw = data.get(row['key'])
+            raw = _pick(data, row['key'])
             if row['key'] == 'others' and _empty(raw) and extras:
                 continue
             indent = 28 if row.get('grandchild') else 14 if row.get('child') else 0
@@ -277,7 +295,7 @@ class AnswerRenderer:
         for group in tc.get('groups') or []:
             rows = group.get('rows') or []
             for i, row in enumerate(rows):
-                raw = ((data.get(group['key']) or {}).get(row['key'])) if isinstance(data.get(group['key']), dict) else None
+                raw = _pick(_pick(data, group['key']), row['key'])
                 label = f'<td rowspan="{len(rows)}">{esc(group["label"])}</td>' if i == 0 else ''
                 cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"]) if isinstance(raw, dict) else None)}</td>' for c in columns)
                 body += f'<tr>{label}<td>{esc(row["label"])}</td>{cells}</tr>'
