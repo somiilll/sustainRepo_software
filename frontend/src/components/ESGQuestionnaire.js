@@ -2081,6 +2081,7 @@ function YesNoDetailMatrixRenderer({ config, value, onChange, isEditing }) {
 function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
   const categories = config.categories || [{ key: 'employees', label: 'Employees' }, { key: 'workers', label: 'Workers' }];
   const data = value || {};
+  const yesNoOnly = config.question_key === 'p3_life_insurance_package';
 
   const handleChange = (catKey, field, val) => {
     const newData = { ...data };
@@ -2100,7 +2101,7 @@ function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
                 {data[cat.key]?.has_value ? 'Yes' : 'No'}
               </Badge>
             </div>
-            {data[cat.key]?.has_value && data[cat.key]?.details && (
+            {!yesNoOnly && data[cat.key]?.has_value && data[cat.key]?.details && (
               <p className="text-sm mt-1 ml-4">{data[cat.key].details}</p>
             )}
           </div>
@@ -2130,7 +2131,7 @@ function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
               </div>
             </RadioGroup>
           </div>
-          {data[cat.key]?.has_value && (
+          {!yesNoOnly && data[cat.key]?.has_value && (
             <Textarea
               value={data[cat.key]?.details || ''}
               onChange={(e) => handleChange(cat.key, 'details', e.target.value)}
