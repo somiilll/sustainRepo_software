@@ -292,11 +292,12 @@ class BRSRLiveKPIAutofillService:
             row_table = mapping.get("row_table") or {}
             if mapping.get("dynamic_rows") and table_kpi and row_table.get("dimension_key") and row_table.get("value_key"):
                 current_rows = await _table_dimension_values(table_kpi, org_id, reporting_period, mapping.get("destination_unit"))
-                question_result["value"] = [
-                    {row_table["dimension_key"]: row["label"], row_table["value_key"]: row["value"]}
-                    for _key, row in sorted(current_rows.items())
-                ]
-                question_result["locked_paths"].append("$")
+                if current_rows:
+                    question_result["value"] = [
+                        {row_table["dimension_key"]: row["label"], row_table["value_key"]: row["value"]}
+                        for _key, row in sorted(current_rows.items())
+                    ]
+                    question_result["locked_paths"].append("$")
                 question_result["sources"].append({
                     "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"), "answer_path": base_path,
                     "current_source_count": sum(row.get("source_count", 0) for row in current_rows.values()),

@@ -138,6 +138,21 @@ class AnswerRenderer:
         body = ''.join('<tr>' + f'<td>{r[0]}</td>' + ''.join(f'<td class="text-center answer-cell">{c}</td>' for c in r[1:]) + '</tr>' for r in rows)
         return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
+
+    def _inline_yes_no(self, config: Dict[str, Any], value: Any) -> Optional[str]:
+        if not isinstance(value, dict):
+            return None
+        if config.get('type') == 'dual_conditional_yes_no' or (value and all(isinstance(v, dict) and 'has_value' in v for v in value.values())):
+            names = {c['key']: c['label'] for c in config.get('categories') or []}
+            return ''.join(f'<p style="margin:3px 0">{esc(names.get(k) or self._label(k, {}))}: <b>{"Yes" if v.get("has_value") else "No"}</b></p>'
+                           for k, v in value.items() if isinstance(v, dict) and 'has_value' in v)
+        if 'answer' in value and all(not isinstance(v, (dict, list)) for v in value.values()):
+            answer = _scalar(value['answer'])
+            extra = [str(v) for k, v in value.items() if k != 'answer' and not _empty(v)]
+            text = f'{answer}, {", ".join(extra)}' if answer == 'Yes' and extra else answer
+            return f'<p style="margin:3px 0">{esc(text) if "&" not in text else text}</p>'
+        return None
+
     def _principle_matrix(self, value: Dict[str, Any], labels: Dict[str, str]) -> str:
         per = value.get('principles') or value.get('principle_wise') or {}
         shared = value.get('all_together') or value.get('combined')
@@ -150,8 +165,22 @@ class AnswerRenderer:
         paths = list(dict.fromkeys(path for f in flat.values() for path in f if not _empty(f[path])))
         if not paths:
             return ''
+        is_link = lambda path: bool(re.search(r'web_?link|weblink', '_'.join(path), re.I))
+        link_paths = [path for path in paths if is_link(path)]
+        paths = [path for path in paths if not is_link(path)]
         rows = [[esc(self._path_label(path, labels))] + [_scalar(f.get(path)) if not _empty(f.get(path)) else '' for f in flat.values()] for path in paths]
-        return self._table(list(flat), rows, 'Disclosure')
+        table = self._table(list(flat), rows, 'Disclosure') if rows else ''
+        links = ''
+        for path in link_paths:
+            label = esc(self._path_label(path, labels))
+            values = {p: f.get(path) for p, f in flat.items() if not _empty(f.get(path))}
+            if together:
+                first = next(iter(values.values()), '')
+                links += f'<p style="margin:6px 0;word-break:break-all"><b>{label}:</b> {_scalar(first)}</p>'
+            else:
+                links += f'<p style="margin:6px 0 2px"><b>{label}</b></p>' + ''.join(
+                    f'<p style="margin:2px 0 2px 12px;word-break:break-all">{esc(p)}: {_scalar(v)}</p>' for p, v in values.items())
+        return table + links
 
     def _dict_of_dicts(self, value: Dict[str, Any], labels: Dict[str, str], config: Dict[str, Any]) -> str:
         table_config = config.get('table_config') or {}
@@ -345,6 +374,9 @@ class AnswerRenderer:
         if isinstance(value, dict) and set(value) == {'rows'} and isinstance(value['rows'], dict):
             value = value['rows']
         title = f'<div class="q-text"><b>{esc(heading)}</b></div>' if heading and heading != 'Rows' else ''
+        inline_text = self._inline_yes_no(config, value) if not heading else None
+        if inline_text is not None:
+            return title + inline_text
         if isinstance(value, dict):
             if any(k in value for k in ('principles', 'principle_wise', 'all_together', 'combined')) or any(k.startswith('all_') for k in value):
                 body = self._principle_matrix(value, labels)
