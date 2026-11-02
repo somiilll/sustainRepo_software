@@ -1148,9 +1148,9 @@ class BRSRHTMLTemplate:
     def _a_config(self, key: str) -> Dict[str, Any]:
         return self.section_a_configs.get(key) or {'question_key': key}
 
-    def _a_block(self, key: str, number: str, question: str = '') -> str:
+    def _a_block(self, key: str, number: str, question: Optional[str] = None) -> str:
         config = self._a_config(key)
-        text = question or config.get('question', '')
+        text = config.get('question', '') if question is None else question
         return (f'<div class="question-item"><span class="q-num">{esc(number)}</span> <span class="q-text">{esc(text)}</span></div>'
                 + self.answer_renderer.render(config, self.section_a.get(key)))
 
@@ -1159,8 +1159,7 @@ class BRSRHTMLTemplate:
                 + self._a_block('brsr_a_holding_subsidiary', '23.', '(a) Names of holding / subsidiary / associate companies / joint ventures'))
 
     def _render_section_a_csr(self) -> str:
-        return '<div class="subsection-header">VI. CSR Details</div>' + self._a_block(
-            'brsr_a_csr_applicability', '24.', '(i) Whether CSR is applicable as per section 135 of Companies Act, 2013: (Yes/No)\n(ii) Turnover (in Rs.)\n(iii) Net worth (in Rs.)')
+        return '<div class="subsection-header">VI. CSR Details</div>' + self._a_block('brsr_a_csr_applicability', '24.', '')
 
     def _render_section_a_transparency(self) -> str:
         return ('<div class="subsection-header">VII. Transparency and Disclosures Compliances</div>'
