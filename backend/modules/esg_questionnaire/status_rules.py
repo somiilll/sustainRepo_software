@@ -5,15 +5,12 @@ DUAL_YES_NO_CATEGORIES = {"p3_life_insurance_package": ("employees", "workers")}
 UNTOUCHED_DEFAULT_KEYS = {"brsr_a_complaints_grievances"}
 
 
+COLUMN_OPTIONAL_KEYS = ("remark", "weblink", "web_link", "url", "note", "comment", "description", "unit", "specify")
 OPTIONAL_KEYS = ("remark", "weblink", "web_link", "url", "note", "comment", "description", "detail", "reason", "unit", "total", "specify", "name_of")
 
 
 def _leaves(node: Any, key: str = ""):
-    if key.endswith(("_previous_fy", "previous_fy", "prior_fy")):
-        return
     if isinstance(node, dict):
-        if "current_fy" in node and any(k.endswith("previous_fy") or k == "previous_fy" for k in node):
-            node = {"current_fy": node["current_fy"]}
         mode = node.get("mode")
         for k, v in node.items():
             if str(k) == "country" and len(node) > 1:
@@ -26,6 +23,21 @@ def _leaves(node: Any, key: str = ""):
             yield from _leaves(item, key)
     elif not any(part in key.lower() for part in OPTIONAL_KEYS):
         yield node
+
+
+def _cell_filled(value: Any) -> bool:
+    return not (value is None or (isinstance(value, str) and not value.strip()))
+
+
+def partially_filled_by_config(value: Any, table_config: Optional[Dict[str, Any]]) -> Optional[bool]:
+    """Fixed-row tables: every row x column of the config is an expected cell (missing cells count as empty).
+    Returns None when the config has no fixed rows (caller falls back to checking the stored cells)."""
+    rows = [r for r in (table_config or {}).get("fixed_rows") or [] if "optional" not in f'{r.get("key")} {r.get("label")}'.lower()]
+    columns = [c["key"] for c in (table_config or {}).get("columns") or [] if not any(p in c["key"].lower() for p in COLUMN_OPTIONAL_KEYS)]
+    if not rows or not columns or not isinstance(value, dict):
+        return None
+    cells = [_cell_filled((value.get(r["key"]) or {}).get(c) if isinstance(value.get(r["key"]), dict) else None) for r in rows for c in columns]
+    return any(cells) and not all(cells)
 
 
 def partially_filled(value: Any) -> bool:
@@ -46,7 +58,7 @@ def _empty(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
 
-def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
+def adjusted_status(doc: Dict[str, Any], table_config: Optional[Dict[str, Any]] = None) -> Optional[str]:
     """Return 'pending' (never filled in), 'in_progress' (partly answered) or None (keep stored status)."""
     if not doc or doc.get("status") != "saved" or doc.get("approval_status") in ("approved", "rejected", "pending_approval"):
         return None
@@ -61,12 +73,13 @@ def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
         answers = value if isinstance(value, dict) else {}
         if any(not isinstance((answers.get(c) or {}).get("has_value"), bool) for c in categories):
             return "in_progress"
-    if partially_filled(value) and key not in UNTOUCHED_DEFAULT_KEYS:
+    by_config = partially_filled_by_config(value, table_config)
+    if (by_config if by_config is not None else partially_filled(value)) and key not in UNTOUCHED_DEFAULT_KEYS:
         return "in_progress"
     return None
 
 
-def resolved_status(doc: Optional[Dict[str, Any]]) -> str:
+def resolved_status(doc: Optional[Dict[str, Any]], table_config: Optional[Dict[str, Any]] = None) -> str:
     """The one status of a question: pending / draft / in_progress / saved / approved / rejected."""
     from modules.brsr_report.live_kpi_autofill import _has_reportable_value
     if not doc:
@@ -76,7 +89,7 @@ def resolved_status(doc: Optional[Dict[str, Any]]) -> str:
         return approval
     if doc.get("status") == "draft":
         return "draft"
-    adjusted = adjusted_status(doc)
+    adjusted = adjusted_status(doc, table_config)
     if adjusted:
         return adjusted
     saved = doc.get("status") == "saved" or approval == "pending_approval"

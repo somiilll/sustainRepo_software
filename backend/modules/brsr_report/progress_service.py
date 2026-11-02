@@ -50,7 +50,7 @@ def _group_definitions(section: str, configs: list) -> list:
 async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
     configs = await db.esg_question_configs.find(
         {"frameworks": {"$in": ["BRSR", "brsr"]}, "section": {"$in": list(SECTIONS)}, "hidden": {"$ne": True}},
-        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1},
+        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1},
     ).sort("order", 1).to_list(1000)
     docs = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": {"$in": ["BRSR", "brsr"]}},
@@ -60,7 +60,7 @@ async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
 
     sections: Dict[str, Any] = {s: {"questions": {}, "counts": {k: 0 for k in STATUSES}} for s in SECTIONS}
     for config in configs:
-        status = question_status(by_key.get(config["question_key"]))
+        status = question_status(by_key.get(config["question_key"]), config.get("table_config"))
         section = sections[config["section"]]
         section["questions"][config["question_key"]] = status
         section["counts"][status] += 1

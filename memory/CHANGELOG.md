@@ -798,3 +798,8 @@
 - `esg_questionnaire/status_rules.py::adjusted_status` is the one place that decides pending / in_progress / saved for a saved answer (auto-fill coverage, dual yes/no, untouched defaults, and partly filled multi-cell answers: some required cells filled, others empty; 0/False count as filled; remarks/links/totals/details, previous-FY blocks and inactive mode branches are ignored). Used by BRSR progress, question statuses and GRI disclosures. Stored `status` is never rewritten.
 - BRSR Section C "answered" counts now come from the API status (saved/approved) instead of a frontend value check.
 - Backlog: persist a `resolved_status` field for dashboard / gap-analysis queries; remove default 0 values from forms that pre-fill them.
+
+## Stored resolved_status + zero defaults
+- `resolved_status` stored on every response (`esg_questionnaire/status_store.py`), refreshed on save, auto-fill syncs, link pushes and progress loads; admin backfill `POST /api/esg-questionnaire/admin/refresh-resolved-statuses`.
+- Fixed-row tables are checked against `table_config` (rows x columns, previous FY included; unit/remark/link columns and "optional" rows ignored).
+- Section A defaults removed (null), Section B/C number inputs write null (not 0) when cleared.

@@ -3552,8 +3552,9 @@ class ESGQuestionnaireService:
         # First, get all question_keys for this section from configs
         section_configs = await self._configs.find(
             {"frameworks": {"$in": [framework.upper(), framework.lower(), framework]}, "section": section},
-            {"_id": 0, "question_key": 1}
+            {"_id": 0, "question_key": 1, "table_config": 1}
         ).to_list(500)
+        table_config_by_key = {c["question_key"]: c.get("table_config") for c in section_configs}
         section_question_keys = [c["question_key"] for c in section_configs]
         
         if not section_question_keys:
@@ -3592,7 +3593,7 @@ class ESGQuestionnaireService:
                 # Add direct question status (a "saved" doc with an empty value is still pending)
                 from modules.brsr_report.live_kpi_autofill import _has_reportable_value
                 from modules.esg_questionnaire.status_rules import adjusted_status
-                adjusted = adjusted_status(doc)
+                adjusted = adjusted_status(doc, table_config_by_key.get(qk))
                 empty_saved = (
                     doc.get("status") == "saved"
                     and doc.get("approval_status") in (None, "not_required")

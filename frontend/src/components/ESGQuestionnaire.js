@@ -646,8 +646,8 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
         return editingAllowed ? (
           <Input
             type="number"
-            value={value || ''}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            value={value ?? ''}
+            onChange={(e) => onChange((e.target.value === '' ? null : parseFloat(e.target.value)))}
             placeholder={placeholder || '0'}
             className="mt-2 w-40"
           />
@@ -2232,7 +2232,7 @@ function TableRenderer({ config, value, onChange, isEditing }) {
                       <Input
                         type="number"
                         value={row[col.key] ?? ''}
-                        onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                         className="h-8 text-xs"
                       />
                     ) : (
@@ -2389,7 +2389,7 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
                             <Input
                               type="number"
                               value={row[col.key] ?? ''}
-                              onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                               className="h-8 text-xs"
                               step="0.01"
                             />
@@ -2527,7 +2527,7 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
                       <Input
                         type="number"
                         value={data.metrics?.[row.key]?.[col.key] ?? ''}
-                        onChange={(e) => handleMetricChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleMetricChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                         className={`h-8 text-xs text-center `}
                         step="0.01"
                         min="0"
@@ -2720,7 +2720,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
                     <Input
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                       className={`h-8 text-xs text-center `}
                       step="0.01"
                       min="0"
@@ -2841,7 +2841,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                     <Input
                       type="number"
                       value={data[`${dest.key}_${tt.key}`]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(dest.key, tt.key, col.key, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleChange(dest.key, tt.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                       className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
@@ -2861,7 +2861,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                   onChange={(e) => {
                     const newData = { ...data };
                     if (!newData[totalRow.key]) newData[totalRow.key] = {};
-                    newData[totalRow.key][col.key] = parseFloat(e.target.value) || 0;
+                    newData[totalRow.key][col.key] = (e.target.value === '' ? null : parseFloat(e.target.value));
                     onChange(newData);
                   }}
                   className={`h-8 text-xs text-center font-semibold `}
@@ -2968,7 +2968,7 @@ function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, 
                     <Input
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                       className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
@@ -3022,7 +3022,7 @@ function LinkedGHGMetricsMatrixRenderer({ config, value, onChange, isEditing }) 
                         onChange={(e) => {
                           const newData = { ...data };
                           if (!newData[row.key]) newData[row.key] = {};
-                          newData[row.key][col.key] = col.type === 'text' ? e.target.value : parseFloat(e.target.value) || 0;
+                          newData[row.key][col.key] = col.type === 'text' ? e.target.value : (e.target.value === '' ? null : parseFloat(e.target.value));
                           onChange(newData);
                         }}
                         className="h-8 text-xs text-center"
@@ -3098,7 +3098,7 @@ function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange
                     <Input
                       type="number"
                       value={data[`${section.key}_${row.key}`]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(section.key, row.key, col.key, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleChange(section.key, row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                       className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
@@ -3201,7 +3201,7 @@ function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing 
         <Input
           type="number"
           value={data.percentage ?? ''}
-          onChange={(e) => onChange({ ...data, percentage: parseFloat(e.target.value) || 0 })}
+          onChange={(e) => onChange({ ...data, percentage: (e.target.value === '' ? null : parseFloat(e.target.value)) })}
           min={percentageConfig.min || 0}
           max={percentageConfig.max || 100}
           step="0.1"

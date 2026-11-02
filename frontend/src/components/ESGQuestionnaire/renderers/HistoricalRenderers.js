@@ -461,7 +461,7 @@ export function HistoricalWasteManagementMatrixRenderer({ config, value, onChang
                         <Input 
                           type="number" 
                           value={getDisplayValue(row, col.key, rowIdx)} 
-                          onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)} 
+                          onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))} 
                           className={`h-8 text-xs ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : ''}`} 
                           step="0.01" 
                           placeholder="0" 
