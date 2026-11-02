@@ -18,6 +18,7 @@ from modules.esg_questionnaire.contracts import (
 from modules.esg_questionnaire.service import esg_questionnaire_service
 from modules.esg_questionnaire.timeline_service import question_response_timeline_service
 
+from modules.esg_questionnaire.status_store import refresh_resolved_status
 router = APIRouter(prefix="/esg-questionnaire", tags=["ESG Questionnaire"])
 
 
@@ -200,6 +201,7 @@ async def sync_gri_live_kpi_autofill(
     result = await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
     from modules.framework_links.service import sync_linked_values
     await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    await refresh_resolved_status({"org_id": org_id})
     return result
 
 
@@ -256,6 +258,7 @@ async def get_gri_progress(
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
+    await refresh_resolved_status({"org_id": org_id})
     is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
     statuses = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
     sections = {}
@@ -373,6 +376,8 @@ async def save_gri_response(
         is_admin=is_admin,
     )
     
+    await refresh_resolved_status({"org_id": current_user.get("organization_id"), "question_key": question_key})
+
     # Handle submitted for approval response
     if result.get("submitted_for_approval"):
         return {
@@ -1246,3 +1251,12 @@ async def get_ngrbc_principles(
         "principles": NGRBC_PRINCIPLES,
         "description": "National Guidelines on Responsible Business Conduct"
     }
+
+
+@router.post("/admin/refresh-resolved-statuses")
+async def refresh_all_resolved_statuses(current_user: dict = Depends(get_current_user)):
+    """Recompute the stored resolved status of existing answers (super admin: every organization; admin: own organization)."""
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    query = {} if current_user.get("role") == "super_admin" else {"org_id": current_user.get("organization_id")}
+    return {"updated": await refresh_resolved_status(query)}

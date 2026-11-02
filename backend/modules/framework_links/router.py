@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from modules.auth.dependencies import get_current_user
 from shared.database.mongo import db
 from . import service
+from modules.esg_questionnaire.status_store import refresh_resolved_status
 
 router = APIRouter(prefix="/framework-links", tags=["Framework Links"])
 REQUIRED = ("framework_a", "question_key_a", "framework_b", "question_key_b")
@@ -111,6 +112,7 @@ async def check_links(body: CheckRequest, current_user: dict = Depends(get_curre
 async def push_links(body: PushRequest, current_user: dict = Depends(get_current_user)):
     pushed = await service.push_values(_org_id(current_user), current_user, body.framework.upper(), body.reporting_period,
                                        [t.model_dump() for t in body.targets])
+    await refresh_resolved_status({"org_id": _org_id(current_user)})
     return {"updated": pushed}
 
 

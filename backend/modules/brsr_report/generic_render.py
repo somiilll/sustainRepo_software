@@ -37,6 +37,8 @@ def is_unnumbered(key: str) -> bool:
 
 
 def esc(value: Any) -> str:
+    if value is None:
+        return ''
     return html.escape(str(value)).replace('\n', '<br>')
 
 

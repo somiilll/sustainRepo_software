@@ -26,6 +26,7 @@ from .live_kpi_autofill import brsr_live_kpi_autofill_service
 from .progress_service import brsr_progress
 from . import version_service
 from modules.framework_links.service import sync_linked_values
+from modules.esg_questionnaire.status_store import refresh_resolved_status
 from .version_service import CONTENT_TYPES
 from .docx_builder import html_to_docx
 
@@ -94,6 +95,7 @@ async def sync_live_kpi_autofill(
         raise HTTPException(status_code=400, detail="User not associated with an organization")
     result = await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
     linked = await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    await refresh_resolved_status({"org_id": org_id})
     return {**result, "linked_updated": linked["updated"]}
 
 
@@ -105,6 +107,7 @@ async def get_brsr_progress(
     org_id = current_user.get("organization_id") or current_user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
+    await refresh_resolved_status({"org_id": org_id})
     return await brsr_progress(org_id, reporting_period)
 
 

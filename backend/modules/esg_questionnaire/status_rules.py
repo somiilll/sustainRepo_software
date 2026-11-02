@@ -64,3 +64,20 @@ def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
     if partially_filled(value) and key not in UNTOUCHED_DEFAULT_KEYS:
         return "in_progress"
     return None
+
+
+def resolved_status(doc: Optional[Dict[str, Any]]) -> str:
+    """The one status of a question: pending / draft / in_progress / saved / approved / rejected."""
+    from modules.brsr_report.live_kpi_autofill import _has_reportable_value
+    if not doc:
+        return "pending"
+    approval = doc.get("approval_status")
+    if approval in ("approved", "rejected"):
+        return approval
+    if doc.get("status") == "draft":
+        return "draft"
+    adjusted = adjusted_status(doc)
+    if adjusted:
+        return adjusted
+    saved = doc.get("status") == "saved" or approval == "pending_approval"
+    return "saved" if saved and _has_reportable_value(doc.get("value")) else "pending"

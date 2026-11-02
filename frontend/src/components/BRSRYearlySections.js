@@ -80,22 +80,24 @@ const getPreviousFY = (currentFY) => {
 };
 
 // Default structures
+const numOrNull = (raw) => (raw === '' ? null : Number(raw));
+
 const DEFAULT_EMPLOYEE_DETAILS = {
-  permanent_male_employees: 0, permanent_female_employees: 0,
-  other_than_permanent_male_employees: 0, other_than_permanent_female_employees: 0,
-  diff_abled_permanent_male_employees: 0, diff_abled_permanent_female_employees: 0,
-  diff_abled_other_permanent_male_employees: 0, diff_abled_other_permanent_female_employees: 0,
-  permanent_male_workers: 0, permanent_female_workers: 0,
-  other_than_permanent_male_workers: 0, other_than_permanent_female_workers: 0,
-  diff_abled_permanent_male_workers: 0, diff_abled_permanent_female_workers: 0,
-  diff_abled_other_permanent_male_workers: 0, diff_abled_other_permanent_female_workers: 0,
+  permanent_male_employees: null, permanent_female_employees: null,
+  other_than_permanent_male_employees: null, other_than_permanent_female_employees: null,
+  diff_abled_permanent_male_employees: null, diff_abled_permanent_female_employees: null,
+  diff_abled_other_permanent_male_employees: null, diff_abled_other_permanent_female_employees: null,
+  permanent_male_workers: null, permanent_female_workers: null,
+  other_than_permanent_male_workers: null, other_than_permanent_female_workers: null,
+  diff_abled_permanent_male_workers: null, diff_abled_permanent_female_workers: null,
+  diff_abled_other_permanent_male_workers: null, diff_abled_other_permanent_female_workers: null,
 };
 
-const DEFAULT_CSR = { is_applicable: false, turnover_inr: 0, net_worth_inr: 0 };
+const DEFAULT_CSR = { is_applicable: false, turnover_inr: null, net_worth_inr: null };
 
 const DEFAULT_TURNOVER_RATE = {
-  permanent_employees_male: 0, permanent_employees_female: 0,
-  permanent_workers_male: 0, permanent_workers_female: 0,
+  permanent_employees_male: null, permanent_employees_female: null,
+  permanent_workers_male: null, permanent_workers_female: null,
 };
 
 const mapTurnoverPeriod = (period = {}) => ({
@@ -126,11 +128,11 @@ const DEFAULT_GRIEVANCE_ROW = {
   category: "Communities",
   has_grievance_mechanism: false,
   policy_weblink: "",
-  current_fy_filed: 0,
-  current_fy_pending: 0,
+  current_fy_filed: null,
+  current_fy_pending: null,
   current_fy_remarks: "",
-  previous_fy_filed: 0,
-  previous_fy_pending: 0,
+  previous_fy_filed: null,
+  previous_fy_pending: null,
   previous_fy_remarks: ""
 };
 
@@ -220,8 +222,8 @@ const WorkforceCompositionTable = ({ title, groups, details, setDetails, editabl
     <Input
       type="number"
       min="0"
-      value={details[field] || 0}
-      onChange={(event) => setDetails((previous) => ({ ...previous, [field]: parseInt(event.target.value, 10) || 0 }))}
+      value={details[field] ?? ''}
+      onChange={(event) => setDetails((previous) => ({ ...previous, [field]: numOrNull(event.target.value) }))}
       className="h-8 min-w-16 text-center text-xs"
       data-testid={inputTestId}
     />
@@ -863,15 +865,15 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   <TableCell className="text-xs font-medium">{row.category}</TableCell>
                   <TableCell>
                     {inSection('IV') && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.total`) ? (
-                      <Input type="number" min="0" value={row.total} onChange={(e) => {
-                        const updated = [...womenRepresentation]; updated[idx].total = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
+                      <Input type="number" min="0" value={row.total ?? ''} onChange={(e) => {
+                        const updated = [...womenRepresentation]; updated[idx].total = numOrNull(e.target.value); setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-total`} />
                     ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.total`) ? `brsr-women-${row.key}-total-kpi-autofill` : undefined}>{row.total}</div>}
                   </TableCell>
                   <TableCell>
                     {inSection('IV') && canEditQuestion('brsr_a_women_representation') && !womenLockedPaths.has(`${row.key}.number_of_females`) ? (
-                      <Input type="number" min="0" value={row.number_of_females} onChange={(e) => {
-                        const updated = [...womenRepresentation]; updated[idx].number_of_females = parseInt(e.target.value) || 0; setWomenRepresentation(updated);
+                      <Input type="number" min="0" value={row.number_of_females ?? ''} onChange={(e) => {
+                        const updated = [...womenRepresentation]; updated[idx].number_of_females = numOrNull(e.target.value); setWomenRepresentation(updated);
                       }} className="h-8 text-center text-xs" data-testid={`brsr-women-${row.key}-female`} />
                     ) : <div className="text-center text-xs tabular-nums" data-testid={womenLockedPaths.has(`${row.key}.number_of_females`) ? `brsr-women-${row.key}-female-kpi-autofill` : undefined}>{row.number_of_females}</div>}
                   </TableCell>
@@ -925,45 +927,45 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   {/* Current - Editable */}
                   <TableCell className="border-l">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_male ?? ''}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell>
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_employees_female ?? ''}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_employees_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_employees_female}%</span>}
                   </TableCell>
                   {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_male}
-                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_male ?? ''}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_female}
-                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_employees_female ?? ''}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_employees_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_employees_female}%</span>}
                   </TableCell>
                   {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_male}
-                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_male ?? ''}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_employees_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_female}
-                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_employees_female ?? ''}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_employees_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_employees_female}%</span>}
                   </TableCell>
@@ -974,45 +976,45 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                   {/* Current - Editable */}
                   <TableCell className="border-l">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_male}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_male ?? ''}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell>
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_female}
-                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={turnoverRate.permanent_workers_female ?? ''}
+                        onChange={(e) => setTurnoverRate(p => ({ ...p, permanent_workers_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{turnoverRate.permanent_workers_female}%</span>}
                   </TableCell>
                   {/* Previous - Editable */}
                   <TableCell className="border-l bg-stone-50">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_male}
-                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_male ?? ''}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-50">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_female}
-                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={prevYearTurnover.permanent_workers_female ?? ''}
+                        onChange={(e) => setPrevYearTurnover(p => ({ ...p, permanent_workers_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{prevYearTurnover.permanent_workers_female}%</span>}
                   </TableCell>
                   {/* Prior - Editable */}
                   <TableCell className="border-l bg-stone-100">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_male}
-                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_male: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_male ?? ''}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_male: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_workers_male}%</span>}
                   </TableCell>
                   <TableCell className="bg-stone-100">
                     {inSection('IV') ? (
-                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_female}
-                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_female: parseFloat(e.target.value) || 0 }))}
+                      <Input type="number" min="0" max="100" step="0.1" value={priorYearTurnover.permanent_workers_female ?? ''}
+                        onChange={(e) => setPriorYearTurnover(p => ({ ...p, permanent_workers_female: numOrNull(e.target.value) }))}
                         className="h-7 text-xs text-center w-16" />
                     ) : <span className="text-xs">{priorYearTurnover.permanent_workers_female}%</span>}
                   </TableCell>
@@ -1077,8 +1079,8 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     </TableCell>
                     <TableCell>
                       {inSection('V') ? (
-                        <Input type="number" min="0" max="100" value={row.shares_held_percentage} onChange={(e) => {
-                          const updated = [...holdingEntities]; updated[idx].shares_held_percentage = parseFloat(e.target.value) || 0; setHoldingEntities(updated);
+                        <Input type="number" min="0" max="100" value={row.shares_held_percentage ?? ''} onChange={(e) => {
+                          const updated = [...holdingEntities]; updated[idx].shares_held_percentage = numOrNull(e.target.value); setHoldingEntities(updated);
                         }} className="h-7 text-xs text-center" />
                       ) : <span className="text-xs">{row.shares_held_percentage}%</span>}
                     </TableCell>
@@ -1142,13 +1144,13 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
             <div className="p-3 border rounded">
               <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Turnover (INR)</Label>
               {inSection('VI') && canEditQuestion('brsr_a_csr_applicability') ? (
-                <Input type="number" min="0" value={csrApplicability.turnover_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-turnover-input" />
+                <Input type="number" min="0" value={csrApplicability.turnover_inr ?? ''} onChange={(e) => setCSRApplicability(p => ({ ...p, turnover_inr: numOrNull(e.target.value) }))} className="h-8 mt-1" data-testid="brsr-csr-turnover-input" />
               ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-turnover-value">{formatINR(csrApplicability.turnover_inr)}</p>}
             </div>
             <div className="p-3 border rounded">
               <Label className="text-xs flex items-center gap-1"><IndianRupee className="w-3 h-3" /> Net Worth (INR)</Label>
               {inSection('VI') && canEditQuestion('brsr_a_csr_applicability') ? (
-                <Input type="number" min="0" value={csrApplicability.net_worth_inr} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: parseFloat(e.target.value) || 0 }))} className="h-8 mt-1" data-testid="brsr-csr-net-worth-input" />
+                <Input type="number" min="0" value={csrApplicability.net_worth_inr ?? ''} onChange={(e) => setCSRApplicability(p => ({ ...p, net_worth_inr: numOrNull(e.target.value) }))} className="h-8 mt-1" data-testid="brsr-csr-net-worth-input" />
               ) : <p className="text-sm font-medium mt-1" data-testid="brsr-csr-net-worth-value">{formatINR(csrApplicability.net_worth_inr)}</p>}
             </div>
           </div>
@@ -1238,10 +1240,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     </TableCell>
                     <TableCell className="border-l">
                       {inSection('VII') ? (
-                        <Input type="number" min="0" value={row.current_fy_filed}
+                        <Input type="number" min="0" value={row.current_fy_filed ?? ''}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
-                            updated[idx].current_fy_filed = parseInt(e.target.value) || 0;
+                            updated[idx].current_fy_filed = numOrNull(e.target.value);
                             setComplaintsGrievances(updated);
                           }}
                           className="h-7 text-xs text-center w-16" />
@@ -1249,10 +1251,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     </TableCell>
                     <TableCell>
                       {inSection('VII') ? (
-                        <Input type="number" min="0" value={row.current_fy_pending}
+                        <Input type="number" min="0" value={row.current_fy_pending ?? ''}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
-                            updated[idx].current_fy_pending = parseInt(e.target.value) || 0;
+                            updated[idx].current_fy_pending = numOrNull(e.target.value);
                             setComplaintsGrievances(updated);
                           }}
                           className="h-7 text-xs text-center w-16" />
@@ -1271,10 +1273,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     </TableCell>
                     <TableCell className="border-l">
                       {inSection('VII') ? (
-                        <Input type="number" min="0" value={row.previous_fy_filed}
+                        <Input type="number" min="0" value={row.previous_fy_filed ?? ''}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
-                            updated[idx].previous_fy_filed = parseInt(e.target.value) || 0;
+                            updated[idx].previous_fy_filed = numOrNull(e.target.value);
                             setComplaintsGrievances(updated);
                           }}
                           className="h-7 text-xs text-center w-16" />
@@ -1282,10 +1284,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
                     </TableCell>
                     <TableCell>
                       {inSection('VII') ? (
-                        <Input type="number" min="0" value={row.previous_fy_pending}
+                        <Input type="number" min="0" value={row.previous_fy_pending ?? ''}
                           onChange={(e) => {
                             const updated = [...complaintsGrievances];
-                            updated[idx].previous_fy_pending = parseInt(e.target.value) || 0;
+                            updated[idx].previous_fy_pending = numOrNull(e.target.value);
                             setComplaintsGrievances(updated);
                           }}
                           className="h-7 text-xs text-center w-16" />
