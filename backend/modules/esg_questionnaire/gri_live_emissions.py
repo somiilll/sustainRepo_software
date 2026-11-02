@@ -81,8 +81,7 @@ async def _compute_live_values(org_id: str, reporting_period: str):
         values[key] = boundaries
         sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
     address = ", ".join(str(org[f]).strip() for f in ("corporate_address", "city", "state", "country", "pincode") if org.get(f))
-    for key, text in {"gri_2_1_a": org.get("name"), "gri_2_1_c": address, "gri_2_1_d": org.get("country"),
-                      "gri_2_3_a": f"Reporting period: {reporting_period}", "gri_2_3_b": f"Reporting period: {reporting_period}"}.items():
+    for key, text in {"gri_2_1_a": org.get("name"), "gri_2_1_c": address, "gri_2_1_d": org.get("country")}.items():
         if text:
             values[key] = str(text).strip()
             sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
@@ -93,10 +92,32 @@ async def live_gri_emission_values(org_id: str, reporting_period: str) -> Dict[s
     return (await _compute_live_values(org_id, reporting_period))[0]
 
 
+PREFILL_KEYS = ("gri_2_3_a", "gri_2_3_b")
+
+
+async def _prefill_editable_answers(org_id: str, reporting_period: str, triggered_by: Optional[str]) -> int:
+    """Seed editable text answers once (only when no answer exists yet); later edits are never overwritten."""
+    key_filter = {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI", "question_key": {"$in": list(PREFILL_KEYS)}}
+    await db.organization_esg_responses.update_many({**key_filter, "kpi_autofill_updated_at": {"$exists": True}}, {"$unset": {"kpi_autofill_updated_at": ""}})
+    present = {doc["question_key"] async for doc in db.organization_esg_responses.find(key_filter, {"_id": 0, "question_key": 1})}
+    now = datetime.now(timezone.utc).isoformat()
+    text = f"Reporting period: {reporting_period}"
+    for key in (k for k in PREFILL_KEYS if k not in present):
+        await db.organization_esg_responses.insert_one({
+            "id": str(uuid.uuid4()), "org_id": org_id, "organization_id": org_id, "framework": "GRI", "section": "general", "question_key": key,
+            "reporting_year": reporting_period, "value": text, "status": "saved", "prefilled_at": now, "created_at": now, "updated_at": now})
+        await audit_trail_service.record_system_changes(
+            framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
+            changes=[PathChange(path="value", old=None, new=text)], scalar=True, state_token=now,
+            source=AuditSource(type="kpi_sync", source_tags=["Reporting period"], triggered_by_user_id=triggered_by))
+    return len([k for k in PREFILL_KEYS if k not in present])
+
+
 async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by: Optional[str] = None) -> Dict[str, Any]:
     """Persist KPI-derived GRI answers and log each change to the audit trail so version history shows them."""
     configs = await db.esg_question_configs.find(
         {"framework": "GRI", "hidden": {"$ne": True}}, {"_id": 0, "question_key": 1, "section": 1, "sub_questions": 1}).to_list(None)
+    prefilled = await _prefill_editable_answers(org_id, reporting_period, triggered_by)
     values, sources = await _compute_live_values(org_id, reporting_period)
     section_by_key: Dict[str, str] = {}
     for config in configs:
@@ -137,4 +158,4 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by:
             changes=[PathChange(path="value", old=doc["value"], new=None)], scalar=True, state_token=doc.get("kpi_autofill_updated_at"),
             source=AuditSource(type="kpi_sync", triggered_by_user_id=triggered_by))
         updated += 1
-    return {"reporting_period": reporting_period, "updated": updated}
+    return {"reporting_period": reporting_period, "updated": updated + prefilled}
