@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -423,6 +423,12 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     fetchYearlyData();
   }, [reportingYear]);
 
+  const baselineRef = useRef({});
+  useEffect(() => {
+    if (loading) return;
+    baselineRef.current = Object.fromEntries(Object.entries(mapFormDataToResponses()).map(([k, v]) => [k, JSON.stringify(v)]));
+  }, [loading]);
+
   // Map ESG responses to yearly section form data
   const mapResponsesToFormData = (responses) => {
     // Employee/worker details
@@ -661,7 +667,10 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       const currentResponses = mapFormDataToResponses();
 
       // Save current year data via ESG Questionnaire API
-      await Promise.all(SECTION_A_KEYS[id].filter((k) => k in currentResponses).map((k) => axios.post(
+      const alreadySaved = (k) => questionStatuses[k]?.status && questionStatuses[k].status !== 'pending';
+      const toSave = SECTION_A_KEYS[id].filter((k) => k in currentResponses
+        && (alreadySaved(k) || JSON.stringify(currentResponses[k]) !== baselineRef.current[k]));
+      await Promise.all(toSave.map((k) => axios.post(
         `${API}/esg-questionnaire/response`,
         { question_key: k, value: currentResponses[k], reporting_period: reportingYear, status },
         { headers: getAuthHeader() }
