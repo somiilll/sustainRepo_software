@@ -782,3 +782,9 @@
 - BRSR "Generate Report" is now a PDF / Word (.docx) dropdown (`modules/brsr_report/docx_builder.py` converts the report HTML to Word). Every generated version stores both PDF and Word in R2; version history has PDF and Word download buttons (older versions only have PDF).
 - New `modules/gri_report` (`/api/gri-report/generate|versions|download`): GRI report organised by GRI standard and disclosure number (material topics only), same dropdown + "View GRI Report Versions" on the GRI page. `version_service` is now shared (`framework="BRSR"|"GRI"`, collections `gri_report_versions`).
 - Status rules: untouched Complaints & Grievances = pending; partly answered life-insurance dual yes/no = in_progress (`esg_questionnaire/status_rules.py`).
+
+## Cross-framework answer links (BRSR <-> GRI)
+- Pair list lives in `framework_question_links` (two-way). Admin loads it via `POST /api/framework-links/upload` (Excel columns: framework_a, question_key_a, framework_b, question_key_b, optional path_a, path_b, active; optional `replace_all`).
+- Autofill (`framework_links/service.py: sync_linked_values`) runs inside the BRSR/GRI live-KPI sync endpoints and report generation: fills only empty or still-untouched auto-filled answers; typed answers and KPI-filled answers are never overwritten. Dict answers (e.g. contact person) are joined to text for text targets; text -> dict targets are skipped unless a path is given.
+- After saving a linked question, `LinkedFrameworksProvider` (modules/framework-links) shows "Save the same response in the linked framework?" (tick per target, No keeps as is). Auto-filled answers show a "From BRSR/GRI" tag. Audit timeline shows "Updated from linked framework".
+- API-tested with temporary data (removed). Browser flow of the prompt dialog NOT tested (user asked to stop testing). The pair list is currently empty until the user sends it.
