@@ -197,7 +197,10 @@ async def sync_gri_live_kpi_autofill(
     org_id = current_user.get("organization_id") or current_user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
-    return await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    result = await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    from modules.framework_links.service import sync_linked_values
+    await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    return result
 
 
 @router.get("/gri/{section}")

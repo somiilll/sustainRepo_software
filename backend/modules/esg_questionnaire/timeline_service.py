@@ -77,6 +77,15 @@ class QuestionResponseTimelineService:
                     source="question_audit_log",
                     evidence_state=TimelineEvidenceState.FOUND_PARTIAL if detail.get("submitted_by") is None else TimelineEvidenceState.FOUND,
                 ))
+            elif action == "framework_linked":
+                events.append(QuestionTimelineEvent(
+                    event_type="FRAMEWORK_LINKED",
+                    timestamp=cls._timestamp(audit.get("timestamp")),
+                    requester=cls._actor(approver_data.get("name"), approver_data.get("email")),
+                    submitted_value=detail.get("old_value"),
+                    final_value=detail.get("new_value"),
+                    source="question_audit_log",
+                ))
             elif action == "kpi_synced":
                 events.append(QuestionTimelineEvent(
                     event_type="KPI_SYNCED",

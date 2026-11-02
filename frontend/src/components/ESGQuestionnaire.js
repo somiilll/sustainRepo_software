@@ -1,3 +1,4 @@
+import { useLinkedFrameworks, LinkedFromTag } from '../modules/framework-links';
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -935,6 +936,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
             </>
           )}
           {renderStatusBadge()}
+          <LinkedFromTag questionKey={config.question_key} />
           {renderVersionHistoryButton()}
         </div>
       </div>
@@ -3353,6 +3355,7 @@ export default function ESGQuestionnaire({
     setResponses(prev => ({ ...prev, [questionKey]: value }));
   };
 
+  const { promptAfterSave } = useLinkedFrameworks();
   // Question-level save (saves only the specified question)
   const saveQuestion = async (questionKey, value, status = 'saved') => {
     try {
@@ -3368,6 +3371,7 @@ export default function ESGQuestionnaire({
       );
       toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
       if (onSaved) onSaved();
+      if (status === 'saved') promptAfterSave([questionKey]);
       // Refresh statuses after save
       try {
         const statusesRes = await axios.get(

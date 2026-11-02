@@ -1,3 +1,4 @@
+import { useLinkedFrameworks, LinkedFromTag } from '../modules/framework-links';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -264,6 +265,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
   };
 
   // Save single response (with status) - Last save wins logic
+  const { promptAfterSave } = useLinkedFrameworks();
   const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
@@ -295,6 +297,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
       }
       // Refresh to get updated status
       await fetchDisclosures();
+      if (status === 'saved') promptAfterSave([responseKey]);
     } catch (error) {
       console.error('Failed to save response:', error);
       toast.error('Failed to save response');
@@ -484,6 +487,9 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
       
       // Refresh to get updated statuses
       await fetchDisclosures();
+      if (status === 'saved') {
+        promptAfterSave(disclosure.questions.flatMap((q) => (q.sub_questions?.length ? q.sub_questions.map((sub) => sub.response_key) : [q.question_key])));
+      }
     } catch (error) {
       console.error('Failed to save disclosure:', error);
       toast.error('Failed to save responses');
@@ -612,6 +618,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
               </Button>
             )}
             {getStatusBadge(question.status)}
+            <LinkedFromTag questionKey={question.question_key} />
             {!hasSubQuestions && <Button
               variant="ghost"
               size="sm"
@@ -640,6 +647,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                   </Label>
                   <div className="flex items-center gap-1 shrink-0">
                     {getStatusBadge(sub.response_status || 'pending')}
+                    <LinkedFromTag questionKey={sub.response_key} />
                     <Button
                       variant="ghost"
                       size="sm"

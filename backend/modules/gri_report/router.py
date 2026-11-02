@@ -12,6 +12,7 @@ from modules.brsr_report.service import BRSRReportService
 from modules.brsr_report.version_service import CONTENT_TYPES
 from modules.esg_questionnaire.gri_live_emissions import sync_gri_live_values
 from modules.esg_questionnaire.service import esg_questionnaire_service
+from modules.framework_links.service import sync_linked_values
 from shared.database.mongo import db
 from .templates import build_gri_html
 
@@ -38,6 +39,7 @@ async def generate_gri_report(reporting_period: str, format: str = FORMAT, curre
     org_id = _org_id(current_user)
     try:
         await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+        await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
         organization = await db.organizations.find_one({"id": org_id}, {"_id": 0}) or {}
         questions = []
         for section in SECTIONS:

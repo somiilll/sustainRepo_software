@@ -1,3 +1,4 @@
+import { useLinkedFrameworks, LinkedFromTag } from '../modules/framework-links';
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -423,6 +424,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
     fetchYearlyData();
   }, [reportingYear]);
 
+  const { promptAfterSave } = useLinkedFrameworks();
   const baselineRef = useRef({});
   useEffect(() => {
     if (loading) return;
@@ -675,6 +677,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         { question_key: k, value: currentResponses[k], reporting_period: reportingYear, status },
         { headers: getAuthHeader() }
       )));
+      if (status === 'saved') promptAfterSave(toSave);
       
       // Save previous years' turnover data (only if changed)
       const prevYearResponses = {
@@ -766,7 +769,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
       <History className="h-4 w-4 text-gray-500" />
     </Button>
   );
-  const statusOf = (key) => <>{<QuestionStatusBadge status={questionStatuses[key]} />}{historyBtn(key)}</>;
+  const statusOf = (key) => <>{<QuestionStatusBadge status={questionStatuses[key]} />}<LinkedFromTag questionKey={key} />{historyBtn(key)}</>;
 
   // Check if user has ANY yearly section assigned
   const hasAnyYearlyAssignment = isAdmin || (assignedQuestionKeys && assignedQuestionKeys.some(k => 

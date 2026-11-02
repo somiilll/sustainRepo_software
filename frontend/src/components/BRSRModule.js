@@ -23,6 +23,7 @@ import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
+import { LinkedFrameworksProvider } from '../modules/framework-links';
 import { ModulePageHeader } from './ModulePageHeader';
 import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
 
@@ -96,6 +97,7 @@ export default function BRSRModule() {
         });
         if (active) setLiveKPIAutofill(response.data.values_by_question || {});
         if (active) loadProgress();
+        if (active && response.data.linked_updated) setResponseRefreshKey((k) => k + 1);
       } catch (error) {
         console.error('Failed to sync live BRSR KPI values:', error);
       }
@@ -119,6 +121,7 @@ export default function BRSRModule() {
   };
 
   return (
+    <LinkedFrameworksProvider framework="BRSR" reportingPeriod={reportingPeriod} syncKey={responseRefreshKey}>
     <div className="space-y-7 brsr-report" onKeyDownCapture={blockNegativeKey} onPasteCapture={blockNegativePaste}>
       <ModulePageHeader
         title="BRSR Framework"
@@ -199,5 +202,6 @@ export default function BRSRModule() {
       <BRSRPageNav progress={progress} activeTab={activeTab} />
       </div>
     </div>
+    </LinkedFrameworksProvider>
   );
 }

@@ -288,6 +288,10 @@ api_router.include_router(brsr_report_router, tags=["BRSR Report"], dependencies
 from modules.gri_report.router import router as gri_report_router
 api_router.include_router(gri_report_router, tags=["GRI Report"], dependencies=[Depends(require_entitlement("reporting"))])
 
+# Cross-framework answer links (BRSR <-> GRI)
+from modules.framework_links.router import router as framework_links_router
+api_router.include_router(framework_links_router, dependencies=[Depends(require_entitlement("reporting"))])
+
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
 api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"], dependencies=[Depends(require_entitlement("uploads"))])

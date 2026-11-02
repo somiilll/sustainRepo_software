@@ -19,6 +19,7 @@ import GRIQuestionnaire from './GRIQuestionnaire';
 import { ModulePageHeader } from './ModulePageHeader';
 import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
 import { BRSRExportButton } from '../modules/brsr-export';
+import { LinkedFrameworksProvider } from '../modules/framework-links';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -115,6 +116,7 @@ export default function GRIModule() {
   );
 
   return (
+    <LinkedFrameworksProvider framework="GRI" reportingPeriod={reportingPeriod} syncKey={syncedPeriod}>
     <div className="space-y-7 gri-report">
       <ModulePageHeader
         title="GRI Framework"
@@ -149,5 +151,6 @@ export default function GRIModule() {
         <BRSRPageNav progress={progress} activeTab={activeTab} prefix="gri-report" />
       </div>
     </div>
+    </LinkedFrameworksProvider>
   );
 }

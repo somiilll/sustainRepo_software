@@ -9,6 +9,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { QuestionRenderer } from './ESGQuestionnaire';
+import { useLinkedFrameworks } from '../modules/framework-links';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import {
@@ -429,6 +430,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
   const collapseAll = () => setExpanded({});
 
   // Save individual question
+  const { promptAfterSave } = useLinkedFrameworks();
   const saveQuestion = async (questionKey, value, status = 'saved') => {
     try {
       const headers = getAuthHeader();
@@ -444,6 +446,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       );
       toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
       if (onSaved) onSaved();
+      if (status === 'saved') promptAfterSave([questionKey]);
       
       // Refresh status for this question
       try {

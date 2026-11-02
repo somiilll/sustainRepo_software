@@ -174,6 +174,7 @@ const EVENT_STYLES = {
   CREATED:   { label: 'Response Created',        icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   UPDATED:   { label: 'Response Updated',        icon: History,      tone: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
   KPI_SYNCED: { label: 'Auto-updated from KPI',  icon: RefreshCw,    tone: 'text-sky-700 bg-sky-50 border-sky-200' },
+  FRAMEWORK_LINKED: { label: 'Updated from linked framework', icon: RefreshCw, tone: 'text-violet-700 bg-violet-50 border-violet-200' },
 };
 
 const eventStyle = (type) =>
@@ -181,7 +182,7 @@ const eventStyle = (type) =>
 
 const actorLabel = (type) => {
   if (type === 'CREATED' || type === 'UPDATED') return 'Saved by';
-  if (type === 'KPI_SYNCED') return 'Source';
+  if (type === 'KPI_SYNCED' || type === 'FRAMEWORK_LINKED') return 'Source';
   return 'Requested by';
 };
 

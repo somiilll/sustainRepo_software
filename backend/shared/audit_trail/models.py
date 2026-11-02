@@ -5,6 +5,7 @@ from typing import Any
 
 class AuditAction(str, Enum):
     KPI_SYNCED = "kpi_synced"
+    FRAMEWORK_LINKED = "framework_linked"
 
 
 class ChangeKind(str, Enum):

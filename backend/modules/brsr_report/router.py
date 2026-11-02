@@ -25,6 +25,7 @@ from .mapping_excel import build_kpi_brsr_mapping_excel
 from .live_kpi_autofill import brsr_live_kpi_autofill_service
 from .progress_service import brsr_progress
 from . import version_service
+from modules.framework_links.service import sync_linked_values
 from .version_service import CONTENT_TYPES
 from .docx_builder import html_to_docx
 
@@ -91,7 +92,9 @@ async def sync_live_kpi_autofill(
     org_id = current_user.get("organization_id") or current_user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
-    return await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
+    result = await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
+    linked = await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    return {**result, "linked_updated": linked["updated"]}
 
 
 @router.get("/progress")
@@ -129,6 +132,7 @@ async def generate_brsr_report(
     
     try:
         await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
+        await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
         organization = await get_organization(org_id)
         
         # Get Section A data
