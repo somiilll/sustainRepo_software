@@ -99,6 +99,7 @@ import { ConnectivityProvider } from './contexts/ConnectivityContext';
 import { ConnectivityStatusBanner } from './components/ConnectivityStatusBanner';
 import { initializeCategoryModules } from './modules/emissions';
 import { useModuleAccess } from './hooks/useModuleAccess';
+import { isGhgOnlyCustomer } from './config/moduleNavigationAccess';
 
 // Initialize the emissions Category Registry once at app boot.
 // Pure registration step — does not alter any existing business logic.
@@ -172,7 +173,7 @@ const AppRoutes = () => {
   if (isCustomerUser && moduleAccessLoading) {
     return <div className="flex min-h-screen items-center justify-center" data-testid="ghg-user-access-loading"><div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" /></div>;
   }
-  const isGhgOnlyUser = isCustomerUser && hasAccess('environment.ghg');
+  const isGhgOnlyUser = isCustomerUser && isGhgOnlyCustomer(hasAccess);
   const defaultRoute = user?.role === 'super_admin'
     ? '/super-admin'
     : user?.user_type === 'supplier' || user?.org_type === 'supplier'

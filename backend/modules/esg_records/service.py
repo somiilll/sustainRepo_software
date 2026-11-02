@@ -1762,6 +1762,7 @@ class ESGRecordsService:
         filters: RecordListFilters,
         assigned_categories: Optional[List[tuple]] = None,
         user_id: Optional[str] = None,
+        visibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         List records with filtering and pagination.
@@ -1867,6 +1868,9 @@ class ESGRecordsService:
                 else:
                     query["$or"] = category_conditions
         
+        if visibility:
+            query = {"$and": [query, visibility]}
+
         # Count total
         total = await collection.count_documents(query)
         
@@ -2397,6 +2401,7 @@ class ESGRecordsService:
         category: str = None,
         subcategory: str = None,
         category_list: List[str] = None,
+        visibility: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Get record statistics for an organization.
         
@@ -2414,6 +2419,8 @@ class ESGRecordsService:
             base_filter["category"] = category
         if subcategory:
             base_filter["subcategory"] = subcategory
+        if visibility:
+            base_filter = {"$and": [base_filter, visibility]}
         
         # Total records
         total = await collection.count_documents(base_filter)

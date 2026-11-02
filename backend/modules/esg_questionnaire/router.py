@@ -996,13 +996,24 @@ async def get_responses(
         reporting_year=reporting_year,
         section=section
     )
+    visible_responses = responses.get("responses", {}) if responses else {}
+    if current_user.get("role", "user") not in ["admin", "super_admin"]:
+        assigned = await esg_questionnaire_service.list_question_configs(
+            framework=framework, section=section, org_id=org_id,
+            user_id=current_user.get("id"), filter_by_assignment=True,
+        )
+        assigned_keys = [c["question_key"] for c in assigned]
+        visible_responses = {
+            key: value for key, value in visible_responses.items()
+            if any(key == assigned_key or key.startswith(f"{assigned_key}_") for assigned_key in assigned_keys)
+        }
     
     return {
         "org_id": org_id,
         "framework": framework,
         "section": section,
         "reporting_year": reporting_year,
-        "responses": responses.get("responses", {}) if responses else {},
+        "responses": visible_responses,
         "created_at": responses.get("created_at") if responses else None,
         "updated_at": responses.get("updated_at") if responses else None,
     }
