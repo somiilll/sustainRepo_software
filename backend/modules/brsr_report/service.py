@@ -66,11 +66,7 @@ class BRSRReportService:
                         'right': '20mm'
                     },
                     display_header_footer=True,
-                    header_template='''
-                        <div style="font-family: Arial, sans-serif; font-size: 10px; width: 100%; text-align: right; padding-right: 20mm; color: #000;">
-                            Annexure II
-                        </div>
-                    ''',
+                    header_template='<div></div>',
                     footer_template='''
                         <div style="font-family: Arial, sans-serif; font-size: 10px; width: 100%; text-align: center; color: #000;">
                             <span class="pageNumber"></span>

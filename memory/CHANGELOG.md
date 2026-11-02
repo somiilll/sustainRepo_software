@@ -772,3 +772,8 @@
 
 ## BRSR report versions
 - POST /api/brsr-report/generate/{period} syncs KPI values (saved + audited) then creates an immutable version (frozen answers + sha256 + PDF in R2 bucket_type mis_reports + per-question audit pointers). Admin: GET /versions/{period}, GET /versions/{period}/{n}/download (integrity-checked). UI: Download menu -> Report versions (admin).
+
+## BRSR PDF – SEBI format pass (Annexure II)
+- "Annexure II" now only on page 1 (header removed from service.py; label in body). Roman-numeral sub-headings in own column with underlined text. Essential/Leadership Indicators centre-aligned.
+- Fonts raised (effective ~+3pt): fixed Chromium shrink-to-fit caused by a 900px-wide complaints table; wide tables auto-get `dense`/`medium` classes.
+- Official SEBI wording for Section B/C questions, sub-parts and key table labels in `modules/brsr_report/sebi_wording.py` (PDF only; DB configs untouched). Section A Q24/Q26 wording fixed. Section B numbered 1-12 per SEBI. Verified programmatically against the uploaded SEBI PDF (0 mismatches). Not run through testing agent (user: no testing).

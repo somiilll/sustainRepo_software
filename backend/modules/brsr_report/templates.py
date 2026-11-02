@@ -8,11 +8,13 @@ Only the data values are dynamic - layout, fonts, spacing, tables are IDENTICAL 
 Based on official MCA/SEBI BRSR Annexure II document (July 2023 Updated Version).
 """
 
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 
 from .section_c_overrides import apply_overrides
+from .sebi_wording import SECTION_B_NUMBERS, SEBI_QUESTIONS, SUBPART_MARKERS, relabel
 from .generic_render import (ASSURANCE_NOTE, LEADERSHIP_KEYS, PRINCIPLES, QUESTION_RENAMES, AnswerRenderer, esc, is_unnumbered, wellbeing_override)
 
 
@@ -100,7 +102,7 @@ class BRSRHTMLTemplate:
         
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 10pt;
+            font-size: 11pt;
             line-height: 1.4;
             color: #000000;
             background: #FFFFFF;
@@ -109,15 +111,16 @@ class BRSRHTMLTemplate:
         /* Annexure label - right aligned */
         .annexure-label {
             text-align: right;
-            font-size: 10pt;
+            font-size: 11pt;
             font-weight: bold;
+            font-style: italic;
             margin-bottom: 15px;
         }
         
         /* Document title - centered, bold */
         .doc-title {
             text-align: center;
-            font-size: 12pt;
+            font-size: 13pt;
             font-weight: bold;
             margin-bottom: 20px;
             text-transform: uppercase;
@@ -125,7 +128,7 @@ class BRSRHTMLTemplate:
         
         /* Section headers - Bold, uppercase */
         .section-header {
-            font-size: 11pt;
+            font-size: 12pt;
             font-weight: bold;
             margin: 25px 0 15px 0;
             text-transform: uppercase;
@@ -133,14 +136,17 @@ class BRSRHTMLTemplate:
         
         /* Roman numeral subsection headers */
         .subsection-header {
-            font-size: 10pt;
+            display: flex;
+            font-size: 11pt;
             font-weight: bold;
             margin: 18px 0 10px 0;
         }
+        .subsection-header .rn { flex: 0 0 40px; }
+        .subsection-header .rt { text-decoration: underline; }
         
         /* Principle headers - Bold text without background */
         .principle-header {
-            font-size: 10pt;
+            font-size: 11pt;
             font-weight: bold;
             background-color: transparent;
             color: #000000;
@@ -150,7 +156,8 @@ class BRSRHTMLTemplate:
         
         /* Indicator type headers (Essential/Leadership) - Bold, underlined */
         .indicator-header {
-            font-size: 10pt;
+            font-size: 11pt;
+            text-align: center;
             font-weight: bold;
             text-decoration: underline;
             margin: 15px 0 10px 0;
@@ -197,7 +204,7 @@ class BRSRHTMLTemplate:
             width: 100%;
             border-collapse: collapse;
             margin: 10px 0 15px 0;
-            font-size: 9pt;
+            font-size: 10pt;
         }
         
         th, td {
@@ -206,6 +213,10 @@ class BRSRHTMLTemplate:
             text-align: left;
             vertical-align: top;
         }
+
+        table.dense th, table.dense td { font-size: 8.5pt; padding: 4px 3px; }
+        table.wrap th, table.wrap td { overflow-wrap: anywhere; }
+        table.medium th, table.medium td { font-size: 9pt; padding: 4px 4px; }
         
         th {
             font-weight: bold;
@@ -250,12 +261,12 @@ class BRSRHTMLTemplate:
         
         .intro-text { 
             margin: 10px 0 15px 0; 
-            font-size: 10pt;
+            font-size: 11pt;
             text-align: justify;
         }
         
         .note-text { 
-            font-size: 9pt; 
+            font-size: 10pt; 
             font-style: italic; 
             margin: 8px 0;
         }
@@ -599,7 +610,8 @@ class BRSRHTMLTemplate:
     {self.render_section_c()}
 </body>
 </html>'''
-        return html
+        html = re.sub(r'<table>(.*?)</table>', lambda m: (lambda n: '<table class="dense">' if n >= 9 else '<table class="medium">' if n >= 6 else '<table>')(max((len(re.findall(r'<t[hd][ >]', r)) for r in m.group(1).split('<tr')), default=0)) + m.group(1) + '</table>', html, flags=re.S)
+        return re.sub(r'<div class="subsection-header">([IVX]+)\. (.*?)</div>', r'<div class="subsection-header"><span class="rn">\1.</span><span class="rt">\2</span></div>', html)
     
     def render_section_a(self) -> str:
         """
@@ -614,6 +626,7 @@ class BRSRHTMLTemplate:
         contact_str = f"{contact_name}, Tel: {contact_tel}, Email: {contact_email}" if contact_name else ''
         
         html = f'''
+        <div class="annexure-label">Annexure II</div>
         <div class="doc-title">BUSINESS RESPONSIBILITY &amp; SUSTAINABILITY REPORTING FORMAT</div>
         
         <div class="section-header">SECTION A: GENERAL DISCLOSURES</div>
@@ -1146,11 +1159,12 @@ class BRSRHTMLTemplate:
                 + self._a_block('brsr_a_holding_subsidiary', '23.', '(a) Names of holding / subsidiary / associate companies / joint ventures'))
 
     def _render_section_a_csr(self) -> str:
-        return '<div class="subsection-header">VI. CSR Details</div>' + self._a_block('brsr_a_csr_applicability', '24.')
+        return '<div class="subsection-header">VI. CSR Details</div>' + self._a_block(
+            'brsr_a_csr_applicability', '24.', '(i) Whether CSR is applicable as per section 135 of Companies Act, 2013: (Yes/No)\n(ii) Turnover (in Rs.)\n(iii) Net worth (in Rs.)')
 
     def _render_section_a_transparency(self) -> str:
         return ('<div class="subsection-header">VII. Transparency and Disclosures Compliances</div>'
-                + self._a_block('brsr_a_complaints_grievances', '25.') + self._a_block('brsr_a_material_issues', '26.'))
+                + self._a_block('brsr_a_complaints_grievances', '25.') + self._a_block('brsr_a_material_issues', '26.', 'Overview of the entity’s material responsible business conduct issues\nPlease indicate material responsible business conduct and sustainability issues pertaining to environmental and social matters that present a risk or an opportunity to your business, rationale for identifying the same, approach to adapt or mitigate the risk along-with its financial implications, as per the following format'))
 
     def render_section_b(self) -> str:
         """SECTION B rendered from the saved answers and question configs."""
@@ -1160,17 +1174,19 @@ class BRSRHTMLTemplate:
         <p class="intro-text">This section is aimed at helping entities demonstrate the structures, policies and processes put in place towards adopting the NGRBC Principles and Core Elements.</p>
         '''
         for config in sorted(self.section_b_configs, key=lambda c: c.get('order', 0)):
-            html += self._render_question(config, self.section_b_data.get(config['question_key']), f"{config.get('disclosure_number', '')}.")
+            html += self._render_question(config, self.section_b_data.get(config['question_key']), SECTION_B_NUMBERS.get(config['question_key'], ''))
         return html
 
     def _render_question(self, config: Dict[str, Any], value: Any, number: str = '') -> str:
-        config = apply_overrides(wellbeing_override(config))
-        question = QUESTION_RENAMES.get(config['question_key'], config.get('question', ''))
-        if config['question_key'].startswith('env_assurance_'):
+        config = relabel(apply_overrides(wellbeing_override(config)))
+        key = config['question_key']
+        question = SEBI_QUESTIONS[key] if key in SEBI_QUESTIONS else QUESTION_RENAMES.get(key, config.get('question', ''))
+        if key.startswith('env_assurance_'):
             question = ASSURANCE_NOTE
+        number = number or SUBPART_MARKERS.get(key, '')
         label = f'<span class="q-num">{esc(number)}</span> ' if number else ''
-        return (f'<div class="question-item">{label}<span class="q-text">{esc(question)}</span></div>'
-                + self.answer_renderer.render(config, value))
+        heading = f'<div class="question-item">{label}<span class="q-text">{esc(question)}</span></div>' if question else ''
+        return heading + self.answer_renderer.render(config, value)
 
     def render_section_c(self) -> str:
         """SECTION C: PRINCIPLE WISE PERFORMANCE DISCLOSURE rendered from saved answers and question configs."""

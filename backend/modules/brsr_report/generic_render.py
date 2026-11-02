@@ -18,7 +18,7 @@ LEADERSHIP_KEYS = {
 CONTINUATION_KEYS = {
     'p3_wellbeing_workers', 'p3_wellbeing_spending', 'p3_hazard_identification', 'p3_worker_hazard_reporting', 'p3_non_occupational_healthcare',
     'p5_gross_wages_females', 'top_trade_associations', 'p8_marginalized_groups_procured', 'p8_marginalized_procurement_pct',
-    'p9_data_breaches_pii_pct', 'p9_data_breaches_impact', 'p9_consumer_satisfaction_survey',
+    'p9_data_breaches_pii_pct', 'p9_data_breaches_impact',
 }
 ASSURANCE_NOTE = 'Note: Indicate if any independent assessment/ evaluation/assurance has been carried out by an external agency? (Y/N) If yes, name of the external agency.'
 QUESTION_RENAMES = {
@@ -156,15 +156,16 @@ class AnswerRenderer:
             cells = ''.join(f'<td class="text-center answer-cell">{self._cell(getter(data[p]))}</td>' for p in principles)
             pad = f' style="padding-left:{indent}px"' if indent else ''
             return f'<tr><td{pad}>{esc(label)}</td>{cells}</tr>'
-        body = row('Whether your entity\'s policy/policies cover each principle and its core elements of the NGRBCs. (Yes/No)', lambda d: d.get('covered'))
-        body += ''.join(row(f['label'], lambda d, k=f['key']: d.get(k), 14) for f in follow)
+        body = row('1. a. Whether your entity’s policy/policies cover each principle and its core elements of the NGRBCs. (Yes/No)', lambda d: d.get('covered'))
+        body += ''.join(row(f"{chr(98 + i)}. {f['label']}", lambda d, k=f['key']: d.get(k), 14) for i, f in enumerate(follow))
         reasons = cfg.get('no_reasons') or []
         if reasons:
-            body += f'<tr><td colspan="{len(principles) + 1}"><b>If answer to question (1) above is "No" i.e. not all Principles are covered by a policy, reasons to be stated:</b></td></tr>'
+            body += f'<tr><td colspan="{len(principles) + 1}"><b>12. If answer to question (1) above is “No” i.e. not all Principles are covered by a policy, reasons to be stated:</b></td></tr>'
             body += ''.join(row(r['label'], lambda d, k=r['key']: (d.get('reasons') or {}).get(k), 14) for r in reasons)
-        head = '<tr><th>Disclosure</th>' + ''.join(f'<th>{esc(p)}</th>' for p in principles) + '</tr>'
+        head = '<tr><th>Policy and management processes</th>' + ''.join(f'<th>{esc(p)}</th>' for p in principles) + '</tr>'
         out = f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
         for link in links:
+            link = {**link, 'label': f"{chr(98 + len(follow))}. {link['label']}"}
             if together:
                 out += f'<p style="margin:6px 0;word-break:break-all"><b>{esc(link["label"])}:</b> {self._cell(shared.get(link["key"]))}</p>'
             else:
@@ -403,7 +404,7 @@ class AnswerRenderer:
             raw = _pick(data, slug)
             cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"] + suffix))}</td>' for suffix in ('', '__prev') for c in cols)
             body += f'<tr><td>{esc(name)}</td>{cells}</tr>'
-        return f'<table><thead><tr>{top}</tr><tr>{sub}</tr></thead><tbody>{body}</tbody></table>'
+        return f'<table class="dense wrap"><thead><tr>{top}</tr><tr>{sub}</tr></thead><tbody>{body}</tbody></table>'
 
     def _blank_from_paths(self, config: Dict[str, Any]) -> Optional[str]:
         paths = config.get('answer_paths') or []
