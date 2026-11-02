@@ -243,7 +243,7 @@ async def get_gri_disclosures(
 
 
 GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "saved": "saved", "pending_approval": "saved",
-                       "in_progress": "draft", "draft": "draft", "rejected": "rejected"}
+                       "in_progress": "in_progress", "draft": "draft", "rejected": "rejected"}
 
 
 @router.get("/gri-progress")
@@ -257,7 +257,7 @@ async def get_gri_progress(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
-    statuses = ("pending", "draft", "saved", "approved", "rejected")
+    statuses = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
     sections = {}
     for section in ("general", "environment", "social", "governance"):
         result = await esg_questionnaire_service.get_gri_disclosures(

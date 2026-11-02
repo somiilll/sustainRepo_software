@@ -788,3 +788,8 @@
 - Autofill (`framework_links/service.py: sync_linked_values`) runs inside the BRSR/GRI live-KPI sync endpoints and report generation: fills only empty or still-untouched auto-filled answers; typed answers and KPI-filled answers are never overwritten. Dict answers (e.g. contact person) are joined to text for text targets; text -> dict targets are skipped unless a path is given.
 - After saving a linked question, `LinkedFrameworksProvider` (modules/framework-links) shows "Save the same response in the linked framework?" (tick per target, No keeps as is). Auto-filled answers show a "From BRSR/GRI" tag. Audit timeline shows "Updated from linked framework".
 - API-tested with temporary data (removed). Browser flow of the prompt dialog NOT tested (user asked to stop testing). The pair list is currently empty until the user sends it.
+
+## Auto-fill coverage (complete / partial)
+- Link table rows have `coverage_a_to_b` / `coverage_b_to_a` (Excel columns of the same names, or `coverage` for both; default partial). Autofills store `auto_fill: {coverage, synced_at}`.
+- Partial auto-fills (and GRI 2-3 a/b prefill) show **In progress** until a person saves the question (their save changes `updated_at`; the tag also disappears). Complete ones show Saved. Status rule: `esg_questionnaire/status_rules.py`, used by GRI disclosures, BRSR progress and question statuses.
+- GRI progress panel now has its own In progress count (was merged into Draft).

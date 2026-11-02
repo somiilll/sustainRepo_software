@@ -46,6 +46,11 @@ def _require_admin(user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only admins can manage framework links")
 
 
+def coverage(record: Dict[str, str], column: str) -> str:
+    value = (record.get(column) or record.get("coverage") or "partial").lower()
+    return "complete" if value == "complete" else "partial"
+
+
 async def _question_exists(framework: str, key: str) -> bool:
     return bool(await service._config(framework, key))
 
@@ -58,7 +63,8 @@ async def list_links(current_user: dict = Depends(get_current_user)):
 
 @router.post("/upload")
 async def upload_links(file: UploadFile = File(...), replace_all: bool = Query(False), current_user: dict = Depends(get_current_user)):
-    """Excel columns: framework_a, question_key_a, framework_b, question_key_b, [path_a], [path_b], [active]."""
+    """Excel columns: framework_a, question_key_a, framework_b, question_key_b, [path_a], [path_b], [coverage_a_to_b], [coverage_b_to_a], [coverage], [active].
+    coverage = complete | partial (default partial): partial auto-fills show "In progress" until a person saves them."""
     _require_admin(current_user)
     rows = list(load_workbook(io.BytesIO(await file.read()), read_only=True, data_only=True).active.iter_rows(values_only=True))
     if not rows:
@@ -82,6 +88,7 @@ async def upload_links(file: UploadFile = File(...), replace_all: bool = Query(F
         else:
             parsed.append({"framework_a": fa, "key_a": ka, "path_a": record.get("path_a") or None,
                            "framework_b": fb, "key_b": kb, "path_b": record.get("path_b") or None,
+                           "coverage_a_to_b": coverage(record, "coverage_a_to_b"), "coverage_b_to_a": coverage(record, "coverage_b_to_a"),
                            "active": record.get("active", "").lower() not in ("no", "false", "0")})
     if errors:
         raise HTTPException(status_code=422, detail={"message": "Nothing was saved. Fix these rows and upload again.", "errors": errors[:50]})

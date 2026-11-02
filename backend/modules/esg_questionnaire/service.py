@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
+from modules.esg_questionnaire.status_rules import adjusted_status
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
     QuestionConfigUpdate,
@@ -349,7 +350,7 @@ class ESGQuestionnaireService:
                 "question_key": {"$in": all_response_keys},
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1, "approval_status": 1}
+            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1, "approval_status": 1, "auto_fill": 1}
         )
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
@@ -423,6 +424,7 @@ class ESGQuestionnaireService:
                 question_data["sub_questions"] = []
                 has_any_saved = False
                 has_any_draft = False
+                has_any_auto_partial = False
                 has_any_pending_approval = False
                 has_any_user_draft = False
                 has_any_approved = False
@@ -472,6 +474,11 @@ class ESGQuestionnaireService:
                         display_status = "rejected"
                         all_approved = False
                         all_saved_or_approved = False
+                    elif sub_status == "saved" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
+                        display_status = "in_progress"
+                        has_any_auto_partial = True
+                        all_approved = False
+                        all_saved_or_approved = False
                     elif sub_status == "saved":
                         display_status = "saved"
                         has_any_saved = True
@@ -509,6 +516,8 @@ class ESGQuestionnaireService:
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
                 elif (has_any_saved or has_any_approved) and not all_have_value:
+                    question_data["status"] = "in_progress"
+                elif has_any_auto_partial:
                     question_data["status"] = "in_progress"
                 elif has_any_draft:
                     question_data["status"] = "draft"
@@ -550,7 +559,7 @@ class ESGQuestionnaireService:
                 elif response_approval == "rejected":
                     question_data["status"] = "rejected"
                 elif response.get("status") == "saved":
-                    question_data["status"] = "saved"
+                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "saved"
                 elif response.get("status") == "draft":
                     question_data["status"] = "draft"
                 else:
@@ -3563,7 +3572,7 @@ class ESGQuestionnaireService:
             },
             {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1, "value": 1,
              "submitted_at": 1, "submitted_by": 1, "approved_at": 1, "approved_by": 1,
-             "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1}
+             "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1, "updated_at": 1, "auto_fill": 1}
         ).to_list(1000)
         
         # Build status map from question-level documents

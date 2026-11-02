@@ -66,7 +66,7 @@ async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
     ).sort("order", 1).to_list(1000)
     docs = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": {"$in": ["BRSR", "brsr"]}},
-        {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1},
+        {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1, "updated_at": 1, "auto_fill": 1},
     ).to_list(2000)
     by_key = {doc["question_key"]: doc for doc in docs if doc.get("question_key")}
 

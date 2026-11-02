@@ -99,13 +99,17 @@ async def _prefill_editable_answers(org_id: str, reporting_period: str, triggere
     """Seed editable text answers once (only when no answer exists yet); later edits are never overwritten."""
     key_filter = {"org_id": org_id, "reporting_year": reporting_period, "framework": "GRI", "question_key": {"$in": list(PREFILL_KEYS)}}
     await db.organization_esg_responses.update_many({**key_filter, "kpi_autofill_updated_at": {"$exists": True}}, {"$unset": {"kpi_autofill_updated_at": ""}})
-    present = {doc["question_key"] async for doc in db.organization_esg_responses.find(key_filter, {"_id": 0, "question_key": 1})}
     now = datetime.now(timezone.utc).isoformat()
     text = f"Reporting period: {reporting_period}"
+    await db.organization_esg_responses.update_many(
+        {**key_filter, "value": text, "auto_fill": {"$exists": False}, "updated_by": {"$exists": False}},
+        [{"$set": {"auto_fill": {"coverage": "partial", "synced_at": "$updated_at"}}}])
+    present = {doc["question_key"] async for doc in db.organization_esg_responses.find(key_filter, {"_id": 0, "question_key": 1})}
     for key in (k for k in PREFILL_KEYS if k not in present):
         await db.organization_esg_responses.insert_one({
             "id": str(uuid.uuid4()), "org_id": org_id, "organization_id": org_id, "framework": "GRI", "section": "general", "question_key": key,
-            "reporting_year": reporting_period, "value": text, "status": "saved", "prefilled_at": now, "created_at": now, "updated_at": now})
+            "reporting_year": reporting_period, "value": text, "status": "saved", "prefilled_at": now, "created_at": now, "updated_at": now,
+            "auto_fill": {"coverage": "partial", "synced_at": now}})
         await audit_trail_service.record_system_changes(
             framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
             changes=[PathChange(path="value", old=None, new=text)], scalar=True, state_token=now,

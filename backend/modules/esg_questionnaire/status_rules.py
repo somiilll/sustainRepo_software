@@ -9,11 +9,20 @@ def _is_blank_row(row: Any) -> bool:
     return isinstance(row, dict) and all(not v for k, v in row.items() if k != "category")
 
 
+def _empty(value: Any) -> bool:
+    if isinstance(value, (dict, list)):
+        return all(_empty(v) for v in (value.values() if isinstance(value, dict) else value))
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
     """Return 'pending' (never filled in), 'in_progress' (partly answered) or None (keep stored status)."""
     if not doc or doc.get("status") != "saved" or doc.get("approval_status") in ("approved", "rejected", "pending_approval"):
         return None
     key, value = doc.get("question_key"), doc.get("value")
+    auto = doc.get("auto_fill") or {}
+    if auto.get("coverage") == "partial" and doc.get("updated_at") == auto.get("synced_at") and not _empty(value):
+        return "in_progress"
     if key in UNTOUCHED_DEFAULT_KEYS and isinstance(value, list) and all(_is_blank_row(r) for r in value):
         return "pending"
     categories = DUAL_YES_NO_CATEGORIES.get(key)

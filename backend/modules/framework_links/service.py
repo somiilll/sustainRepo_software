@@ -86,9 +86,11 @@ async def _directions() -> List[Dict[str, Any]]:
     out = []
     async for link in db.framework_question_links.find({"active": {"$ne": False}}, {"_id": 0}):
         out.append({"id": link["id"], "src_fw": link["framework_a"], "src_key": link["key_a"], "src_path": link.get("path_a"),
-                    "tgt_fw": link["framework_b"], "tgt_key": link["key_b"], "tgt_path": link.get("path_b")})
+                    "tgt_fw": link["framework_b"], "tgt_key": link["key_b"], "tgt_path": link.get("path_b"),
+                    "coverage": link.get("coverage_a_to_b") or "partial"})
         out.append({"id": link["id"], "src_fw": link["framework_b"], "src_key": link["key_b"], "src_path": link.get("path_b"),
-                    "tgt_fw": link["framework_a"], "tgt_key": link["key_a"], "tgt_path": link.get("path_a")})
+                    "tgt_fw": link["framework_a"], "tgt_key": link["key_a"], "tgt_path": link.get("path_a"),
+                    "coverage": link.get("coverage_b_to_a") or "partial"})
     return out
 
 
@@ -99,7 +101,7 @@ async def _doc(org_id: str, framework: str, key: str, period: str) -> Optional[D
 
 def _is_auto(doc: Optional[Dict[str, Any]]) -> bool:
     link = (doc or {}).get("linked_from")
-    return bool(link) and link.get("value_sha") == _sha(doc.get("value"))
+    return bool(link) and link.get("value_sha") == _sha(doc.get("value")) and doc.get("updated_at") == (doc.get("auto_fill") or {}).get("synced_at")
 
 
 async def _write(org_id: str, period: str, direction: Dict[str, Any], new_value: Any, old_doc: Optional[Dict[str, Any]],
@@ -113,8 +115,10 @@ async def _write(org_id: str, period: str, direction: Dict[str, Any], new_value:
     unset = {}
     if auto:
         fields["linked_from"] = {"framework": direction["src_fw"], "question_key": direction["src_key"], "value_sha": _sha(new_value)}
+        fields["auto_fill"] = {"coverage": direction.get("coverage") or "partial", "synced_at": now}
     else:
         unset["linked_from"] = ""
+        unset["auto_fill"] = ""
     update = {"$set": fields, "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}}
     if unset:
         update["$unset"] = unset
