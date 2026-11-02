@@ -81,7 +81,8 @@ async def _compute_live_values(org_id: str, reporting_period: str):
         values[key] = boundaries
         sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
     address = ", ".join(str(org[f]).strip() for f in ("corporate_address", "city", "state", "country", "pincode") if org.get(f))
-    for key, text in {"gri_2_1_a": org.get("name"), "gri_2_1_c": address, "gri_2_1_d": org.get("country")}.items():
+    for key, text in {"gri_2_1_a": org.get("name"), "gri_2_1_c": address, "gri_2_1_d": org.get("country"),
+                      "gri_2_3_a": f"Reporting period: {reporting_period}", "gri_2_3_b": f"Reporting period: {reporting_period}"}.items():
         if text:
             values[key] = str(text).strip()
             sources[key] = {"mapping_ids": set(), "source_tags": {"Organization details"}}
