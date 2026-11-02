@@ -3582,6 +3582,8 @@ class ESGQuestionnaireService:
             if in_section:
                 # Add direct question status (a "saved" doc with an empty value is still pending)
                 from modules.brsr_report.live_kpi_autofill import _has_reportable_value
+                from modules.esg_questionnaire.status_rules import adjusted_status
+                adjusted = adjusted_status(doc)
                 empty_saved = (
                     doc.get("status") == "saved"
                     and doc.get("approval_status") in (None, "not_required")
@@ -3589,9 +3591,9 @@ class ESGQuestionnaireService:
                     and not doc.get("sub_responses")
                     and not _has_reportable_value(doc.get("value"))
                 )
-                if (doc.get("status") or doc.get("approval_status")) and not empty_saved:
+                if (doc.get("status") or doc.get("approval_status")) and not empty_saved and adjusted != "pending":
                     statuses[qk] = {
-                        "status": doc.get("status"),
+                        "status": adjusted or doc.get("status"),
                         "approval_status": doc.get("approval_status"),
                         "submitted_at": doc.get("submitted_at"),
                         "submitted_by": doc.get("submitted_by"),

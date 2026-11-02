@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 from shared.database.mongo import db
 from modules.esg_questionnaire.service import esg_questionnaire_service
+from modules.esg_questionnaire.status_rules import adjusted_status
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
@@ -32,6 +33,9 @@ def question_status(doc: Dict[str, Any]) -> str:
         return approval
     if doc.get("status") == "draft":
         return "draft"
+    adjusted = adjusted_status(doc)
+    if adjusted:
+        return adjusted
     saved = doc.get("status") == "saved" or approval == "pending_approval"
     return "saved" if saved and _has_reportable_value(doc.get("value")) else "pending"
 

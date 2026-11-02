@@ -852,7 +852,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
       pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
-      draft: { label: 'In progress', className: 'bg-blue-100 text-blue-800' },
+      draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
       saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
       pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };

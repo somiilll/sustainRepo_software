@@ -25,7 +25,7 @@ const BADGES = {
   approved: ['Approved', 'bg-green-100 text-green-800'],
   rejected: ['Rejected', 'bg-red-100 text-red-800'],
   pending_approval: ['Awaiting Approval', 'bg-amber-100 text-amber-800'],
-  draft: ['In progress', 'bg-amber-100 text-amber-800'],
+  draft: ['Draft', 'bg-amber-100 text-amber-800'],
   saved: ['Saved', 'bg-blue-100 text-blue-800'],
 };
 
