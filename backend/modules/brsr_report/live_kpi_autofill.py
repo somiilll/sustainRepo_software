@@ -51,6 +51,8 @@ def _period_answer_paths(mapping: Dict[str, Any], base_path: str) -> tuple:
             "pending": ("cur_pending", "prev_pending"),
             "remarks": ("cur_remarks", "prev_remarks"),
             "total": ("cur_total", "prev_total"),
+            "covered": ("cur_covered", "prev_covered"),
+            "pct": ("cur_pct", "prev_pct"),
             "hs_no": ("cur_hs_no", "prev_hs_no"),
             "hs_pct": ("cur_hs_pct", "prev_hs_pct"),
             "skill_no": ("cur_skill_no", "prev_skill_no"),

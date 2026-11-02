@@ -739,7 +739,52 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
     for row_key, source in p5_headcount_sources.items():
         await upsert_mapping(source, "p5_hr_training", f"rows.{row_key}.total", "P5-E1", now)
 
-    mapped = [*headcounts.values(), *topic_total_kpis]
+    hr_female = "no_of_female_attendees_for_trainings_on_human_right_issues"
+    hr_male = "no_of_male_attendees_trainings_on_human_right_issues"
+    hr_row_types = {
+        "emp_permanent": ["Permanent Employee"],
+        "emp_other": ["Other than Permanent Employee"],
+        "emp_total": groups["Employees"],
+        "workers_permanent": ["Permanent Worker"],
+        "workers_other": ["Other than Permanent Worker"],
+        "workers_total": groups["Workers"],
+    }
+    hr_mapped = []
+    for row_key, recipient_types in hr_row_types.items():
+        label = row_key.replace("_", " ")
+        covered = await upsert_definition(f"P5-E1 Human Rights Training - {label}", {
+            **derived_common("Training", "General Training", "P5-E1", {
+                "default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False}),
+            "source_type": "calculated", "source_config": {"calculated": {"input_fields": [hr_female, hr_male]}},
+            "value_field": "", "aggregation_type": "formula",
+            "formula_config": {"formula_type": "expression", "formula_definition": f"{hr_female} + {hr_male}",
+                               "dependencies": [hr_female, hr_male]},
+            "filters": [{"field_key": "training_recipient_type", "operator": "in", "value": recipient_types}],
+            "dimensions": ["organization", "training_recipient_type", "training_topic"],
+            "metadata": {"calculation_scope": "per_record_then_period_aggregate", "period_aggregation": "sum",
+                         "recipient_types": recipient_types, "topic": "Human Rights"},
+        }, now)
+        await upsert_mapping(covered, "p5_hr_training", f"rows.{row_key}.covered", "P5-E1", now)
+        pct = await upsert_definition(f"P5-E1 Human Rights Training Coverage - {label}", {
+            **derived_common("Training", "General Training", "P5-E1", {
+                "default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False}),
+            "source_type": "composite", "source_config": {"composite": {
+                "operation": "ratio_percent", "source_kpi_ids": [covered["id"], p5_headcount_sources[row_key]["id"]]}},
+            "value_field": "", "aggregation_type": "formula",
+            "formula_config": {"formula_type": "ratio", "formula_definition": "trained / eligible * 100",
+                               "dependencies": [covered["id"], p5_headcount_sources[row_key]["id"]]},
+            "dimensions": ["organization", "training_recipient_type", "training_topic"],
+            "metadata": {"topic": "Human Rights", "recipient_types": recipient_types},
+        }, now)
+        await upsert_mapping(pct, "p5_hr_training", f"rows.{row_key}.pct", "P5-E1", now)
+        hr_mapped.extend([covered, pct])
+    for metric_name in ("Trainings - Human Rights - Number of Trainings", "Trainings - Human Rights - Female Attendees",
+                        "Trainings - Human Rights - Male Attendees"):
+        raw_hr = await db.esg_kpi_definitions.find_one({"metric_name": metric_name, "status": {"$ne": "archived"}}, {"_id": 0})
+        if raw_hr:
+            await remove_brsr_reference(raw_hr, "P5-E1", now)
+
+    mapped = [*headcounts.values(), *topic_total_kpis, *hr_mapped]
     for group, recipient_types in groups.items():
         for topic, field_prefix in (("Health & Safety", "hs"), ("Skill Upgradation", "skill")):
             for gender in ("Female", "Male", "Total"):

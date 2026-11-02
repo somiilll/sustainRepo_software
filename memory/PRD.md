@@ -916,3 +916,6 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Roadmap: PII breach percentage weighted formula, LPG fuel_id lookup, question_audit_log retention, run all local DB scripts on Staging/Prod.
 - GRI 305 + base-year/intensity KPIs and 102-5/6/7-d-ii base-year mappings added locally via scripts/sync_gri_305_kpis_and_mappings.py (not run on Staging/Prod). Removed gri-live-emissions endpoint.
 - Restored Material category (3 subcategories, 9 KPIs) from 2026-10-21 backup via scripts/restore_material_category.py; 'Material' re-added to Others in ESGRecordsDataEntry.js. Not UI-tested (user: no testing).
+
+## 2026 - BRSR P5-E1 human rights training autofill
+- Added KPI mappings p5_hr_training rows.*.covered / rows.*.pct (sync_brsr_derived_reporting_kpis.py sync_training) and cur_/prev_ covered+pct column mapping in live_kpi_autofill.py. Verified via backend script; no E2E test run.
