@@ -22,9 +22,12 @@ If facility_id is null, it's an organization-level assignment.
 
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
+import logging
 import uuid
 from shared.database.mongo import db
 from .assignees_service import assignment_assignees_service
+
+logger = logging.getLogger(__name__)
 
 
 class AssignmentServiceV2:
@@ -286,7 +289,8 @@ class AssignmentServiceV2:
             new_end = data.get("end_date")
             new_frequency = data.get("filling_frequency")
             new_requires_approval = data.get("requires_approval", False)
-            new_approver = data.get("approver_id")
+            new_chain = data.get("approval_chain", [])
+            new_approver = data.get("approver_id") or (new_chain[0] if new_chain else None)
             
             if new_start != existing.get("start_date"):
                 changes["start_date"] = {"old": existing.get("start_date"), "new": new_start}
@@ -322,6 +326,11 @@ class AssignmentServiceV2:
                 {"id": assignment_id},
                 {"$set": update_fields}
             )
+
+            if "approver_id" in changes or new_chain != (existing.get("approval_chain") or []):
+                await self._reresolve_pending_approvers(
+                    assignment_id, data.get("organization_id"), new_approver, new_chain
+                )
             
             # =========================================================================
             # SMART TASK HANDLING on assignment edit
@@ -606,6 +615,39 @@ class AssignmentServiceV2:
         )
         
         return True
+
+    async def _reresolve_pending_approvers(
+        self, assignment_id: str, org_id: str, approver_id: Optional[str], approval_chain: list
+    ) -> None:
+        """Point open approval requests of this assignment at the assignment's current approvers."""
+        chain_ids = [a if isinstance(a, str) else (a or {}).get("approver_id") for a in (approval_chain or [])]
+        approver_ids = [a for a in chain_ids if a] or ([approver_id] if approver_id else [])
+        if not approver_ids:
+            return
+        pending = await db["approval_requests"].find(
+            {"workflow_id": f"assignment_{assignment_id}", "status": {"$in": ["pending", "in_review"]}},
+            {"_id": 0, "id": 1, "current_level": 1, "current_approvers": 1, "entity_id": 1},
+        ).to_list(1000)
+        for req in pending:
+            level = min(req.get("current_level") or 1, len(approver_ids))
+            new_approvers = [approver_ids[level - 1]]
+            if new_approvers == req.get("current_approvers"):
+                continue
+            await db["approval_requests"].update_one(
+                {"id": req["id"]},
+                {"$set": {"current_approvers": new_approvers, "current_level": level,
+                          "total_levels": len(approver_ids), "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            try:
+                from shared.notifications import create_notification
+                await create_notification(
+                    user_id=new_approvers[0], org_id=org_id, title="Approval Required",
+                    message="A submission was reassigned to you for approval",
+                    notification_type="approval", link="/workflow/approver-queue",
+                    metadata={"request_id": req["id"], "entity_id": req.get("entity_id")},
+                )
+            except Exception:
+                logger.warning("Failed to notify reassigned approver", exc_info=True)
 
     async def _handle_assignment_edit_tasks(
         self,

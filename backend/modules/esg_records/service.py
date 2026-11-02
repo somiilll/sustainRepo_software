@@ -10,6 +10,7 @@ import re
 import uuid
 from fastapi import HTTPException
 from shared.database.mongo import db
+from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, CreateRecordRequest, 
@@ -237,7 +238,7 @@ class ESGRecordsService:
                 )
             # Check if this assignment requires approval
             if assignment:
-                requires_approval = assignment.get("requires_approval", False)
+                requires_approval = assignment_requires_approval(assignment)
             
             # PERIOD VALIDATION: Check if user has a task for this reporting period
             if not allow_without_assignment and data.reporting_period:
@@ -1438,7 +1439,7 @@ class ESGRecordsService:
         )
         
         if assignment:
-            requires_approval = assignment.get("requires_approval", False)
+            requires_approval = assignment_requires_approval(assignment)
             print(f"Found assignment {assignment.get('id')} for {current.get('category')}/{current.get('subcategory')}, requires_approval={requires_approval}")
         else:
             print(f"No assignment found for {current.get('category')}/{current.get('subcategory')}, facility={current.get('facility_id')}")

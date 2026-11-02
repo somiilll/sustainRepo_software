@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
+from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 from modules.esg_questionnaire.status_rules import adjusted_status
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
@@ -3088,7 +3089,7 @@ class ESGQuestionnaireService:
                     if not assignment:
                         parts = parent_key.rsplit("_", 1)
             
-            requires_approval = assignment.get("requires_approval", False) if assignment else False
+            requires_approval = assignment_requires_approval(assignment)
             now_iso = datetime.now(timezone.utc).isoformat()
             
             # Check existing response from unified collection

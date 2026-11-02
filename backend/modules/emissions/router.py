@@ -52,6 +52,7 @@ from modules.emissions.contracts import (
 )
 from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
+from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 from shared.helpers.audit_helpers import compute_field_changes, get_input_label_map_from_db
 from shared.helpers.uploaded_files import delete_unreferenced_emission_files, delete_uploaded_files, extract_uploaded_file_ids
 from shared.utils.density_units import normalize_density_dynamic_values
@@ -1257,7 +1258,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 scope=record_data.scope,
                 facility_id=record_data.facility_id,
             )
-            if assignment and assignment.get("requires_approval", False):
+            if assignment_requires_approval(assignment):
                 requires_approval = True
         except Exception:
             log_event(logger, logging.WARNING, "ghg.emission.assignment_check", action="ghg.emission.create", outcome="degraded",
@@ -1541,7 +1542,7 @@ async def update_emission_record(
             facility_id=record_data.facility_id,
         )
         
-        if assignment and assignment.get("requires_approval", False):
+        if assignment_requires_approval(assignment):
             if existing_request:
                 # Option B: In-place update of existing pending request
                 await _update_existing_approval_request(
