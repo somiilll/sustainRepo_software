@@ -1,132 +1,108 @@
 {
-  "project_title": "SustainRepo Review Response Workspace Redesign",
-  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST ESG ANALYTICS",
+  "project_title": "SustainRepo Modern Premium GRI Standards Report Redesign",
+  "archetype": "EXECUTIVE ESG REPORTING / SWISS HIGH-CONTRAST DOCUMENT ARCHETYPE",
+  "document_type": "PDF (Chromium HTML Print CSS A4) and Word (.docx via python-docx)",
+  "user_feedback_addressed": [
+    "1. GRI headings (e.g., 'GRI 418: Customer Privacy') changed to Dark Blue (#1E3A8A).",
+    "2. Answer boxes/bordered containers completely removed; replaced with clean left-indented plain text paragraphs and optional subtle left accent rules.",
+    "3. First-page title block headings center-aligned with modern premium typography, dark navy color palette, and subtle decorative accent divider.",
+    "4. Overall report transformed from dull monochrome into a modern, executive premium publication standard for both PDF and Word formats."
+  ],
   "typography": {
-    "heading_font": "Cabinet Grotesk, Outfit, sans-serif",
-    "body_font": "IBM Plex Sans, Inter, sans-serif",
-    "mono_font": "JetBrains Mono, Source Code Pro, monospace",
-    "scales": {
-      "h1_page_title": "text-2xl font-bold tracking-tight text-slate-900 md:text-3xl",
-      "h2_question_title": "text-lg font-bold tracking-tight text-slate-950 md:text-xl leading-snug",
-      "h3_section_header": "text-sm font-semibold uppercase tracking-wider text-slate-700",
-      "body_main": "text-sm text-slate-800 leading-relaxed",
-      "body_secondary": "text-xs text-slate-500",
-      "badge_text": "text-xs font-semibold tracking-wide uppercase"
+    "font_family_primary": "Arial, Helvetica, sans-serif",
+    "font_family_docx": "Arial",
+    "font_sizes_pt": {
+      "cover_title": "20pt",
+      "cover_org_name": "14pt",
+      "cover_meta": "11pt",
+      "cover_reference": "10pt",
+      "gri_standard_heading": "13pt",
+      "disclosure_subheading": "11pt",
+      "question_label": "10.5pt",
+      "subquestion_label": "10pt",
+      "answer_body": "10.5pt",
+      "placeholder_text": "10pt"
+    },
+    "font_weights": {
+      "bold": "700",
+      "semibold": "600",
+      "regular": "400",
+      "italic": "italic"
     }
   },
   "colors": {
-    "pillars": {
-      "environment": {
-        "bg": "bg-emerald-50/80",
-        "border": "border-emerald-200",
-        "text": "text-emerald-900",
-        "accent": "bg-emerald-600",
-        "badge": "bg-emerald-100 text-emerald-800 border-emerald-300"
-      },
-      "social": {
-        "bg": "bg-sky-50/80",
-        "border": "border-sky-200",
-        "text": "text-sky-900",
-        "accent": "bg-sky-600",
-        "badge": "bg-sky-100 text-sky-800 border-sky-300"
-      },
-      "governance": {
-        "bg": "bg-purple-50/80",
-        "border": "border-purple-200",
-        "text": "text-purple-900",
-        "accent": "bg-purple-600",
-        "badge": "bg-purple-100 text-purple-800 border-purple-300"
-      }
+    "hex": {
+      "primary_dark_blue": "#1E3A8A",
+      "heading_navy": "#0F172A",
+      "text_dark_slate": "#1E293B",
+      "text_body": "#334155",
+      "text_muted": "#64748B",
+      "border_accent": "#CBD5E1",
+      "border_highlight": "#2563EB",
+      "bg_light_tint": "#F8FAFC"
     },
-    "statuses": {
-      "accepted": {
-        "bg": "bg-emerald-500/10",
-        "active_bg": "bg-emerald-600",
-        "border": "border-emerald-500",
-        "text": "text-emerald-700",
-        "active_text": "text-white"
-      },
-      "needs_clarification": {
-        "bg": "bg-amber-500/10",
-        "active_bg": "bg-amber-500",
-        "border": "border-amber-500",
-        "text": "text-amber-800",
-        "active_text": "text-white"
-      },
-      "rejected": {
-        "bg": "bg-rose-500/10",
-        "active_bg": "bg-rose-600",
-        "border": "border-rose-500",
-        "text": "text-rose-700",
-        "active_text": "text-white"
-      },
-      "submitted": {
-        "bg": "bg-teal-50",
-        "border": "border-teal-300",
-        "text": "text-teal-800"
-      }
-    },
-    "scoring_guidance": {
-      "bg": "bg-gradient-to-r from-sky-50 via-indigo-50/50 to-blue-50",
-      "border": "border-sky-200",
-      "title_text": "text-sky-950 font-bold",
-      "badge": "bg-sky-100 text-sky-800 border-sky-300"
-    },
-    "surfaces": {
-      "card_bg": "bg-white",
-      "card_border": "border-slate-200",
-      "sidebar_bg": "bg-slate-50/60",
-      "timeline_line": "bg-slate-200",
-      "hover_bg": "hover:bg-slate-100/80"
+    "rgb_tuple_docx": {
+      "primary_dark_blue": "RGBColor(0x1E, 0x3A, 0x8A)",
+      "heading_navy": "RGBColor(0x0F, 0x17, 0x2A)",
+      "text_dark_slate": "RGBColor(0x1E, 0x29, 0x3B)",
+      "text_body": "RGBColor(0x33, 0x41, 0x55)",
+      "text_muted": "RGBColor(0x64, 0x74, 0x8B)"
     }
   },
-  "visual_enhancers": {
-    "borders_and_radius": "Rounded-xl for outer cards, rounded-lg for sub-elements, concentric inner padding p-4 to p-6.",
-    "shadows": "shadow-[0_4px_20px_rgba(0,0,0,0.03)] for cards, hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]",
-    "question_badge": "Inverted rounded-full circle icon with bold white number on vibrant pillar background or sky blue background",
-    "mcq_distribution_bar": "Animated percentage fill bars with supplier response highlighted using ring-2 ring-emerald-500 and distinct badge"
-  },
-  "grids_and_layouts": {
-    "page_container": "max-w-[1600px] mx-auto px-4 py-6 space-y-6",
-    "top_summary_grid": "grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6",
-    "workspace_layout": "grid grid-cols-1 xl:grid-cols-[18rem_minmax(0,1fr)_22rem] gap-6 items-start",
-    "main_panel_stack": "space-y-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6",
-    "sidebar_panel_stack": "space-y-6"
+  "layout_and_styles": {
+    "page_setup": "@page { size: A4; margin: 20mm 18mm 20mm 18mm; }",
+    "cover_title_block": {
+      "alignment": "center",
+      "doc_title": "text-align: center; font-size: 20pt; font-weight: bold; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 10px 0;",
+      "org_name": "text-align: center; font-size: 14pt; font-weight: 700; color: #1E3A8A; margin: 4px 0 6px 0;",
+      "reporting_period": "text-align: center; font-size: 11pt; color: #475569; font-weight: 500; margin: 2px 0 4px 0;",
+      "reference_statement": "text-align: center; font-size: 10pt; font-style: italic; color: #64748B; margin: 2px 0 20px 0;",
+      "accent_divider": "width: 80px; height: 3px; background-color: #1E3A8A; margin: 16px auto 24px auto; border-radius: 2px;"
+    },
+    "gri_standard_heading": {
+      "selector": ".section-header",
+      "css": "font-size: 13pt; font-weight: bold; color: #1E3A8A; margin: 28px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #1E3A8A; page-break-after: avoid;",
+      "docx_mapping": "Bold 13pt Arial, RGBColor(0x1E, 0x3A, 0x8A), bottom border / rule, space_before=Pt(20), space_after=Pt(6), keep_with_next=True"
+    },
+    "disclosure_subheading": {
+      "selector": ".subsection-header",
+      "css": "display: flex; align-items: baseline; font-size: 11pt; font-weight: bold; color: #0F172A; margin: 18px 0 8px 0; padding-bottom: 3px; border-bottom: 1px solid #E2E8F0; page-break-after: avoid;",
+      "number_span": "flex: 0 0 65px; font-weight: bold; color: #1E3A8A;",
+      "title_span": "color: #0F172A; font-weight: bold;"
+    },
+    "question_items": {
+      "question_item_css": "margin: 10px 0 4px 0; font-weight: 600; color: #1E293B; page-break-after: avoid;",
+      "q_num_css": "display: inline-block; min-width: 28px; font-weight: bold; color: #1E3A8A;",
+      "sub_label_css": "margin: 8px 0 4px 28px; font-size: 10pt; font-weight: 600; color: #334155; page-break-after: avoid;"
+    },
+    "answer_values": {
+      "box_removed": true,
+      "css": "padding: 4px 0 4px 12px; margin: 2px 0 10px 28px; border-left: 2px solid #E2E8F0; color: #1E293B; font-size: 10.5pt; line-height: 1.5; white-space: normal;",
+      "sub_css": "margin-left: 48px; border-left: 2px solid #CBD5E1;",
+      "empty_placeholder_css": "color: #64748B; font-style: italic; font-size: 10pt;"
+    }
   },
   "component_structure": {
-    "SupplierResponseReviewPage": "/app/frontend/src/modules/supplier-assessment/SupplierResponseReviewPage.jsx",
-    "ResponseReviewSidebar": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewSidebar.jsx",
-    "ResponseReviewQuestionPanel": "/app/frontend/src/modules/supplier-assessment/components/ResponseReviewQuestionPanel.jsx",
-    "ResponseAnswerHistory": "/app/frontend/src/modules/supplier-assessment/components/ResponseAnswerHistory.jsx",
-    "OtherResponsesDistribution": "/app/frontend/src/modules/supplier-assessment/components/OtherResponsesDistribution.jsx"
+    "GRIReportTemplates": "/app/backend/modules/gri_report/templates.py",
+    "GRIReportRouter": "/app/backend/modules/gri_report/router.py",
+    "DocxBuilder": "/app/backend/modules/brsr_report/docx_builder.py"
   },
   "instructions_to_main_agent": [
-    "1. Redesign SupplierResponseReviewPage.jsx: Enhance top header with colorful ESG pillar stat blocks (Environment, Social, Governance) in vibrant cards, supplier and questionnaire metadata cards with clear icons, and responsive tab buttons.",
-    "2. Redesign ResponseReviewSidebar.jsx: Upgrade taxonomy navigation with pillar badges, progress pill counters for category reviewed ratios, active category state with left accent bar and colored icons.",
-    "3. Redesign ResponseReviewQuestionPanel.jsx to match screenshot density and color alignment:",
-    "   a) Question header with circular numbered badge (e.g. ①) and title, plus question type tags.",
-    "   b) Supplier Response card: Styled option choices or formatted text answer with vibrant 'Submitted' status badge.",
-    "   c) Evidence preview block: File container showing PDF icon, original filename, file size, upload timestamp, and bright Preview / Download buttons.",
-    "   d) Scoring Guidance block: High-visibility electric blue / sky gradient card displaying points criteria per option or rule.",
-    "   e) Full-width Reviewer Assessment panel:",
-    "      - Status choices for Accept (emerald), Needs Clarification (amber), Reject (rose) with radio-style button cards.",
-    "      - Reviewer Score input with '/ max_points' label.",
-    "      - Reviewer Comment textarea with character count indicator (e.g. 132/500).",
-    "      - CTAs: 'Save Review' (primary button) and 'Save & Next ->' (accent button that saves review and advances to next question).",
-    "   f) Footer and top navigation bar with Previous and Next question controls.",
-    "4. Redesign ResponseAnswerHistory.jsx: Vertical timeline with connected line, color-coded event icons (v1 submission, reviewer feedback, v2 supplier revision, final decision), author tags, answer snapshots, and timestamp details.",
-    "5. Implement OtherResponsesDistribution.jsx component (or include within sidebar/panel): Visual percentage distribution bars for MCQ questions showing peer supplier response proportions, clearly labeling '(Supplier's response)' on the supplier's selection.",
-    "6. Ensure all existing data hooks, API calls (save review, open evidence, fetch response), and test IDs (data-testid) are strictly maintained.",
-    "7. All components use JavaScript (.jsx files)."
+    "1. Update `/app/backend/modules/gri_report/templates.py`:",
+    "   a) Redesign cover page header block with centered layout, dark navy doc title (#0F172A), dark blue company name (#1E3A8A), muted period info (#475569), italicized GRI reference statement (#64748B), and a clean centered 3px blue accent line (#1E3A8A).",
+    "   b) Update GRI Standard headings (e.g. 'GRI 418: Customer Privacy') to use Dark Blue font color (#1E3A8A) with a matching 2px solid dark blue bottom border.",
+    "   c) Redesign disclosure sub-headings (e.g. '305-1 Direct (Scope 1) GHG emissions') with clean typography, min 65px disclosure number in dark blue (#1E3A8A) and title in dark slate (#0F172A) with a subtle #E2E8F0 bottom divider.",
+    "   d) REMOVE the border box around `.answer-value`. Replace with clean left margin/indentation (28px for main, 48px for sub) and a subtle left accent line (`border-left: 2px solid #E2E8F0`), padding `4px 0 4px 12px`.",
+    "   e) Render empty/unreported responses as `<span class=\"empty\">Not reported</span>` styled in italicized slate gray (#64748B).",
+    "2. Update `/app/backend/modules/brsr_report/docx_builder.py` (or html_to_docx converter):",
+    "   a) Ensure docx paragraph generator maps GRI standard section headers to dark blue (RGBColor(0x1E, 0x3A, 0x8A)) 13pt bold headers with bottom borders.",
+    "   b) Center-align cover title and subtitle paragraphs.",
+    "   c) Remove box/cell borders on answer paragraphs in Word docx, rendering them as indented plain text with optional left indent.",
+    "3. Run Python unit tests or verification scripts for GRI report generation to ensure both PDF and Word generation succeed without errors."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "data_testid_rule": "MUST add data-testid to every interactive button, input, tab, badge, and section container.",
-    "file_format": "Use JS / JSX components strictly. Do not create TS/TSX files.",
-    "toast_library": "Use sonner for notifications.",
-    "contrast_and_accessibility": "Ensure high text contrast against tinted card backgrounds. Interactive buttons must have clear focus rings.",
-    "micro_interactions": "Smooth transition-colors and hover effects on decision buttons, file download cards, and category items."
+    "data_testid_rule": "MUST maintain data-testid on any UI components in frontend if GRI report download buttons or preview modals are modified.",
+    "file_format": "Use Python templates in backend and JS/JSX files in frontend strictly.",
+    "toast_library": "Use sonner for notifications in frontend."
   }
-},
-overwrite: true,
-path: "/app/design_guidelines.json"
 }

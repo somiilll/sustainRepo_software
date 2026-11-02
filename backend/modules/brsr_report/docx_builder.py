@@ -9,7 +9,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 
 BODY_PT = 11
 HEADING_PT = {"doc-title": 14, "section-header": 13}
@@ -19,12 +19,14 @@ def _clean(text: str) -> str:
     return " ".join((text or "").split())
 
 
-def _add_inline(paragraph, element, size: float, bold=False, italic=False, underline=False):
-    def run(text, b, i):
+def _add_inline(paragraph, element, size: float, bold=False, italic=False, underline=False, color=None):
+    def run(text, b, i, c=color):
         if text and _clean(text):
             r = paragraph.add_run(text)
             r.font.size = Pt(size)
             r.bold, r.italic, r.underline = b, i, underline or None
+            if c:
+                r.font.color.rgb = RGBColor.from_string(c)
     run(_normalise(element.text), bold, italic)
     for child in element:
         if not isinstance(child.tag, str):
@@ -33,7 +35,9 @@ def _add_inline(paragraph, element, size: float, bold=False, italic=False, under
         if child.tag == "br":
             paragraph.add_run().add_break()
         else:
-            _add_inline(paragraph, child, size, bold or child.tag in ("b", "strong", "th"), italic or child.tag in ("i", "em"), underline)
+            muted = "empty" in (child.get("class") or "").split()
+            _add_inline(paragraph, child, size, bold or child.tag in ("b", "strong", "th"), italic or muted or child.tag in ("i", "em"),
+                        underline, "64748B" if muted else color)
         run(_normalise(child.tail), bold, italic)
 
 
@@ -43,14 +47,80 @@ def _normalise(text):
     return (" " if text[0].isspace() else "") + " ".join(text.split()) + (" " if text[-1].isspace() and text.strip() else "")
 
 
-def _paragraph(doc, element, size=BODY_PT, bold=False, align=None, italic=False, underline=False, space_before=0, space_after=4):
+def _paragraph(doc, element, size=BODY_PT, bold=False, align=None, italic=False, underline=False, space_before=0, space_after=4, color=None):
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(space_before)
     p.paragraph_format.space_after = Pt(space_after)
     if align is not None:
         p.alignment = align
-    _add_inline(p, element, size, bold, italic, underline)
+    _add_inline(p, element, size, bold, italic, underline, color)
     return p
+
+
+def _border(paragraph, side: str, size: int, color: str, space: int = 4):
+    borders = paragraph._p.get_or_add_pPr().find(qn("w:pBdr"))
+    if borders is None:
+        borders = OxmlElement("w:pBdr")
+        paragraph._p.get_or_add_pPr().append(borders)
+    edge = OxmlElement(f"w:{side}")
+    for name, value in (("val", "single"), ("sz", str(size)), ("space", str(space)), ("color", color)):
+        edge.set(qn(f"w:{name}"), value)
+    borders.append(edge)
+
+
+def _gri_block(doc, el, cls):
+    """Styled blocks of the GRI report (colours follow the report design guidelines)."""
+    navy, blue, slate, body = "0F172A", "1E3A8A", "1E293B", "334155"
+    centre = WD_ALIGN_PARAGRAPH.CENTER
+    if "gri-title" in cls:
+        return _paragraph(doc, el, 22, bold=True, align=centre, space_before=40, space_after=10, color=navy)
+    if "gri-org" in cls:
+        return _paragraph(doc, el, 15, bold=True, align=centre, space_after=4, color=blue)
+    if "gri-period" in cls:
+        return _paragraph(doc, el, 11.5, align=centre, space_after=2, color="475569")
+    if "gri-ref" in cls:
+        return _paragraph(doc, el, 10, italic=True, align=centre, space_after=6, color="64748B")
+    if "gri-divider" in cls:
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = p.paragraph_format.right_indent = Cm(6.5)
+        p.paragraph_format.space_after = Pt(18)
+        _border(p, "bottom", 24, blue, 1)
+        return p
+    if "std-header" in cls:
+        p = _paragraph(doc, el, 14, bold=True, space_before=22, space_after=8, color=blue)
+        p.paragraph_format.keep_with_next = True
+        _border(p, "bottom", 12, blue)
+        return p
+    if "disc-header" in cls:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before, p.paragraph_format.space_after = Pt(14), Pt(6)
+        p.paragraph_format.keep_with_next = True
+        p.paragraph_format.tab_stops.add_tab_stop(Cm(2.0))
+        _add_inline(p, el.xpath(".//span[@class='rn']")[0], 11, bold=True, color=blue)
+        p.add_run("\t")
+        _add_inline(p, el.xpath(".//span[@class='rt']")[0], 11, bold=True, color=navy)
+        _border(p, "bottom", 4, "E2E8F0")
+        return p
+    if "gq-item" in cls or "gq-sub" in cls:
+        sub = "gq-sub" in cls
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before, p.paragraph_format.space_after = Pt(8), Pt(2)
+        p.paragraph_format.left_indent = Cm(1.9 if sub else 1.0)
+        p.paragraph_format.first_line_indent = Cm(-0.9)
+        p.paragraph_format.tab_stops.add_tab_stop(Cm(1.9 if sub else 1.0))
+        p.paragraph_format.keep_with_next = True
+        num = el.xpath(".//span[@class='q-num']")
+        if num:
+            _add_inline(p, num[0], 10, bold=True, color=blue)
+            p.add_run("\t")
+        for text in el.xpath(".//span[@class='q-text']"):
+            _add_inline(p, text, 10 if sub else 10.5, bold=not sub, color=body if sub else slate)
+        return p
+    if "gq-answer" in cls:
+        p = _paragraph(doc, el, 10.5, space_before=1, space_after=8, color=slate)
+        p.paragraph_format.left_indent = Cm(1.9 if "sub" in cls else 1.0)
+        _border(p, "left", 12, "CBD5E1", 8)
+        return p
 
 
 def _shade(cell, fill: str):
@@ -114,6 +184,8 @@ def _block(doc, el):
         return _table(doc, el)
     if "page-break" in cls:
         return doc.add_page_break()
+    if any(c.startswith(("gri-", "std-", "disc-", "gq-")) for c in cls):
+        return _gri_block(doc, el, cls)
     if "annexure-label" in cls:
         return _paragraph(doc, el, BODY_PT, bold=True, italic=True, align=WD_ALIGN_PARAGRAPH.RIGHT)
     if "doc-title" in cls:
