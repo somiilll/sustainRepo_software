@@ -163,12 +163,13 @@ class BRSRHTMLTemplate:
         }
         
         .q-num {
-            font-weight: normal;
+            font-weight: bold;
             display: inline;
         }
         
         .q-text {
             display: inline;
+            font-weight: bold;
         }
         
         /* Sub-labels for (a), (b), (c) etc */
@@ -613,7 +614,6 @@ class BRSRHTMLTemplate:
         contact_str = f"{contact_name}, Tel: {contact_tel}, Email: {contact_email}" if contact_name else ''
         
         html = f'''
-        <div class="annexure-label">Annexure II</div>
         <div class="doc-title">BUSINESS RESPONSIBILITY &amp; SUSTAINABILITY REPORTING FORMAT</div>
         
         <div class="section-header">SECTION A: GENERAL DISCLOSURES</div>

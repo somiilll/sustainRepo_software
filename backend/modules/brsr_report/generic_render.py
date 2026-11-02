@@ -174,8 +174,12 @@ class AnswerRenderer:
 
     def _fields_table(self, config: Dict[str, Any], value: Any) -> str:
         data = value if isinstance(value, dict) else {}
-        rows = ''.join(f'<tr><td>{esc(f["label"])}</td><td class="answer-cell">{self._cell(data.get(f["key"]))}</td></tr>' for f in (config.get('config') or {}).get('fields') or [])
-        return f'<table><tbody>{rows}</tbody></table>'
+        out = ''
+        for index, field in enumerate((config.get('config') or {}).get('fields') or []):
+            marker = ('i' * (index + 1)) if index < 3 else str(index + 1)
+            out += (f'<div class="question-item"><span class="q-num">({marker})</span> <span class="q-text">{esc(field["label"])}</span></div>'
+                    f'<div class="answer-value">{self._cell(data.get(field["key"])) or "&nbsp;"}</div>')
+        return out
 
     def _inline_yes_no(self, config: Dict[str, Any], value: Any) -> Optional[str]:
         if not isinstance(value, dict):
