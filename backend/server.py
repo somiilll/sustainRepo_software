@@ -284,6 +284,10 @@ api_router.include_router(sustainability_config_router, tags=["Sustainability Co
 from modules.brsr_report.router import router as brsr_report_router
 api_router.include_router(brsr_report_router, tags=["BRSR Report"], dependencies=[Depends(require_entitlement("reporting"))])
 
+# GRI Report Generation Module (PDF + Word, versioned)
+from modules.gri_report.router import router as gri_report_router
+api_router.include_router(gri_report_router, tags=["GRI Report"], dependencies=[Depends(require_entitlement("reporting"))])
+
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
 api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"], dependencies=[Depends(require_entitlement("uploads"))])

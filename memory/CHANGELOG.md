@@ -777,3 +777,8 @@
 - "Annexure II" now only on page 1 (header removed from service.py; label in body). Roman-numeral sub-headings in own column with underlined text. Essential/Leadership Indicators centre-aligned.
 - Fonts raised (effective ~+3pt): fixed Chromium shrink-to-fit caused by a 900px-wide complaints table; wide tables auto-get `dense`/`medium` classes.
 - Official SEBI wording for Section B/C questions, sub-parts and key table labels in `modules/brsr_report/sebi_wording.py` (PDF only; DB configs untouched). Section A Q24/Q26 wording fixed. Section B numbered 1-12 per SEBI. Verified programmatically against the uploaded SEBI PDF (0 mismatches). Not run through testing agent (user: no testing).
+
+## Word + PDF reports, GRI report, version history
+- BRSR "Generate Report" is now a PDF / Word (.docx) dropdown (`modules/brsr_report/docx_builder.py` converts the report HTML to Word). Every generated version stores both PDF and Word in R2; version history has PDF and Word download buttons (older versions only have PDF).
+- New `modules/gri_report` (`/api/gri-report/generate|versions|download`): GRI report organised by GRI standard and disclosure number (material topics only), same dropdown + "View GRI Report Versions" on the GRI page. `version_service` is now shared (`framework="BRSR"|"GRI"`, collections `gri_report_versions`).
+- Status rules: untouched Complaints & Grievances = pending; partly answered life-insurance dual yes/no = in_progress (`esg_questionnaire/status_rules.py`).

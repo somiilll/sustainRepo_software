@@ -18,6 +18,7 @@ import { generateReportingYears, getCurrentReportingYear } from '../utils/report
 import GRIQuestionnaire from './GRIQuestionnaire';
 import { ModulePageHeader } from './ModulePageHeader';
 import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
+import { BRSRExportButton } from '../modules/brsr-export';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -132,6 +133,7 @@ export default function GRIModule() {
               ))}
             </SelectContent>
           </Select>
+          <BRSRExportButton framework="gri" reportingPeriod={reportingPeriod} />
         </>}
       />
 

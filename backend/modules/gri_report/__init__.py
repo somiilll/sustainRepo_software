@@ -1,0 +1,1 @@
+"""GRI report generator module."""

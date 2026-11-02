@@ -25,6 +25,8 @@ from .mapping_excel import build_kpi_brsr_mapping_excel
 from .live_kpi_autofill import brsr_live_kpi_autofill_service
 from .progress_service import brsr_progress
 from . import version_service
+from .version_service import CONTENT_TYPES
+from .docx_builder import html_to_docx
 
 router = APIRouter(prefix="/brsr-report", tags=["BRSR Report"])
 
@@ -112,6 +114,7 @@ async def get_organization(org_id: str) -> dict:
 @router.post("/generate/{reporting_period}")
 async def generate_brsr_report(
     reporting_period: str,
+    format: str = Query("pdf", pattern="^(pdf|docx)$"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -182,6 +185,7 @@ async def generate_brsr_report(
         
         # Generate PDF using Playwright
         pdf_bytes = await BRSRReportService.generate_pdf(html_content)
+        docx_bytes = html_to_docx(html_content)
         
         # Create filename
         org_name = organization.get('name', 'Organization').replace(' ', '_').replace('/', '-')
@@ -189,13 +193,13 @@ async def generate_brsr_report(
         saved = await version_service.create_version(
             org_id, reporting_period, current_user, organization,
             {"section_a": section_a_data, "section_b": section_b_data, "section_c": section_c_data},
-            pdf_bytes, f"BRSR_Report_{org_name}_{period_safe}")
-        filename = saved["filename"]
+            {"pdf": pdf_bytes, "docx": docx_bytes}, f"BRSR_Report_{org_name}_{period_safe}")
+        filename = saved["filenames"][format]
         
         # Return as streaming response
         return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
+            io.BytesIO(pdf_bytes if format == "pdf" else docx_bytes),
+            media_type=CONTENT_TYPES[format],
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"'
             }
@@ -223,16 +227,17 @@ async def list_report_versions(reporting_period: str, current_user: dict = Depen
 
 
 @router.get("/versions/{reporting_period}/{version}/download")
-async def download_report_version(reporting_period: str, version: int, current_user: dict = Depends(get_current_user)):
+async def download_report_version(reporting_period: str, version: int, format: str = Query("pdf", pattern="^(pdf|docx)$"),
+                                  current_user: dict = Depends(get_current_user)):
     org_id = _require_admin(current_user)
     try:
-        stored = await version_service.load_version_pdf(org_id, reporting_period, version)
+        stored = await version_service.load_version_file(org_id, reporting_period, version, format)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     if not stored:
         raise HTTPException(status_code=404, detail="Report version not found")
     content, filename = stored
-    return StreamingResponse(io.BytesIO(content), media_type="application/pdf",
+    return StreamingResponse(io.BytesIO(content), media_type=CONTENT_TYPES[format],
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
