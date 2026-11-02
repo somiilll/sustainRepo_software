@@ -284,3 +284,7 @@
 - **C3 DEFRA 2026 factors:** added 50 year-2026 C3 copies with approved factors, one Bioethanol record, and normalized Heat/Steam source `DEFRA`; 2025 source records remain unchanged.
 - **C4 DEFRA 2026 factors:** added 70 matched year-2026 C4 DEFRA copies using the approved factors; 20 unmatched HGV/freight input rows remain pending catalog metadata/template definition.
 - **C6 DEFRA 2026 factors:** added 42 year-2026 Business Travel DEFRA copies using approved flight, ferry, road, taxi, bus, and rail factors; 2025 source records remain unchanged.
+## P2 – Per-company control of KPI→BRSR/GRI autofill
+- Setting (per company, optionally per question) to turn KPI autofill off, or keep the KPI value as a suggestion that the company can overwrite.
+- Existing saved answers stay as they are; overwritten values get a "manual" source tag and are covered by audit log / version history.
+- Needs: company setting, autofill skip logic, editable questions in BRSR/GRI forms, "manual override" label.
