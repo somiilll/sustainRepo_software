@@ -139,6 +139,44 @@ class AnswerRenderer:
         return f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
+
+    def _ngrbc_matrix(self, config: Dict[str, Any], value: Any) -> str:
+        """B-1/12 policy matrix: always the full structure (coverage, follow-ups and the reasons shown when not covered)."""
+        cfg = config.get('config') or {}
+        value = value if isinstance(value, dict) else {}
+        per = value.get('principle_wise') or value.get('principles') or {}
+        shared = value.get('all_together') or value.get('combined') or {}
+        together = value.get('mode') == 'together' or (_empty(per) and not _empty(shared))
+        principles = cfg.get('principles') or PRINCIPLES
+        data = {p: (shared if together else (per.get(p) if isinstance(per.get(p), dict) else {})) for p in principles}
+        follow = [f for f in cfg.get('yes_followup') or [] if not re.search(r'web_?link', f['key'], re.I)]
+        links = [f for f in cfg.get('yes_followup') or [] if re.search(r'web_?link', f['key'], re.I)]
+
+        def row(label, getter, indent=0):
+            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(getter(data[p]))}</td>' for p in principles)
+            pad = f' style="padding-left:{indent}px"' if indent else ''
+            return f'<tr><td{pad}>{esc(label)}</td>{cells}</tr>'
+        body = row('Whether your entity\'s policy/policies cover each principle and its core elements of the NGRBCs. (Yes/No)', lambda d: d.get('covered'))
+        body += ''.join(row(f['label'], lambda d, k=f['key']: d.get(k), 14) for f in follow)
+        reasons = cfg.get('no_reasons') or []
+        if reasons:
+            body += f'<tr><td colspan="{len(principles) + 1}"><b>If answer to question (1) above is "No" i.e. not all Principles are covered by a policy, reasons to be stated:</b></td></tr>'
+            body += ''.join(row(r['label'], lambda d, k=r['key']: (d.get('reasons') or {}).get(k), 14) for r in reasons)
+        head = '<tr><th>Disclosure</th>' + ''.join(f'<th>{esc(p)}</th>' for p in principles) + '</tr>'
+        out = f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+        for link in links:
+            if together:
+                out += f'<p style="margin:6px 0;word-break:break-all"><b>{esc(link["label"])}:</b> {self._cell(shared.get(link["key"]))}</p>'
+            else:
+                out += f'<p style="margin:6px 0 2px"><b>{esc(link["label"])}</b></p>' + ''.join(
+                    f'<p style="margin:2px 0 2px 12px;word-break:break-all">{esc(p)}: {self._cell(data[p].get(link["key"]))}</p>' for p in principles)
+        return out
+
+    def _fields_table(self, config: Dict[str, Any], value: Any) -> str:
+        data = value if isinstance(value, dict) else {}
+        rows = ''.join(f'<tr><td>{esc(f["label"])}</td><td class="answer-cell">{self._cell(data.get(f["key"]))}</td></tr>' for f in (config.get('config') or {}).get('fields') or [])
+        return f'<table><tbody>{rows}</tbody></table>'
+
     def _inline_yes_no(self, config: Dict[str, Any], value: Any) -> Optional[str]:
         if not isinstance(value, dict):
             return None
@@ -226,6 +264,14 @@ class AnswerRenderer:
     @staticmethod
     def _lookup(row: Any, key: str) -> Any:
         if not isinstance(row, dict):
+            return None
+        if key.endswith('__prev'):
+            base = key[:-6]
+            candidates = [(None, f'{base}_previous_fy'), (None, f'{base}_prev'), ('previous_fy', base)]
+            for fy, name in candidates:
+                source = row.get(fy) if fy else row
+                if isinstance(source, dict) and name in source and not _empty(source[name]):
+                    return source[name]
             return None
         candidates = [(None, key), (None, f'{key}_current_fy'), (None, f'{key}_current')]
         for prefix, fy, plain in (('cur_', 'current_fy', True), ('prev_', 'previous_fy', False)):
@@ -338,6 +384,41 @@ class AnswerRenderer:
             body = ''.join('<tr><td class="text-center">&nbsp;</td>' + '<td class="answer-cell"></td>' * len(columns) + '</tr>' for _ in range(min_rows))
         return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
 
+
+    def _complaints_grid(self, config: Dict[str, Any], value: Any) -> str:
+        cfg = config.get('config') or {}
+        data = (value.get('rows') if isinstance(value, dict) and isinstance(value.get('rows'), dict) else value) if isinstance(value, dict) else {}
+        cols = cfg.get('columns_per_fy') or []
+        fy = lambda text: esc(self._fy_fix(text))
+        top = '<th rowspan="2">Stakeholder group from whom complaint is received</th>' + ''.join(
+            f'<th colspan="{len(cols)}">FY {esc(year)} ({title} Financial Year)</th>' for year, title in ((self.current_fy, 'Current'), (self.previous_fy, 'Previous')))
+        sub = ''.join(f'<th>{fy(c["label"])}</th>' for _ in range(2) for c in cols)
+        body = ''
+        for name in cfg.get('stakeholder_categories') or []:
+            slug = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+            raw = _pick(data, slug)
+            cells = ''.join(f'<td class="text-center answer-cell">{self._cell(self._lookup(raw, c["key"] + suffix))}</td>' for suffix in ('', '__prev') for c in cols)
+            body += f'<tr><td>{esc(name)}</td>{cells}</tr>'
+        return f'<table><thead><tr>{top}</tr><tr>{sub}</tr></thead><tbody>{body}</tbody></table>'
+
+    def _blank_from_paths(self, config: Dict[str, Any]) -> Optional[str]:
+        paths = config.get('answer_paths') or []
+        list_cols = list(dict.fromkeys(p.split('[].', 1)[1] for p in paths if p.startswith('rows[].')))
+        if list_cols:
+            answer = '<p style="margin:3px 0">Yes / No: ______</p>' if 'answer' in paths else ''
+            return answer + self._list_grid([{'key': c, 'label': self._label(c, {})} for c in list_cols], [], 1)
+        principle_rows = list(dict.fromkeys(m.group(1) for p in paths for m in [re.match(r'principles\.P1\.(.+)$', p)] if m))
+        if principle_rows:
+            head = '<tr><th>Disclosure</th>' + ''.join(f'<th>{p}</th>' for p in PRINCIPLES) + '</tr>'
+            body = ''.join(f'<tr><td>{esc(self._label(r, {}))}</td>' + '<td class="answer-cell"></td>' * 9 + '</tr>' for r in principle_rows)
+            return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+        review = list(dict.fromkeys((m.group(1), m.group(2)) for p in paths for m in [re.match(r'rows\.([a-z_]+)\.([a-z_]+)\.P1$', p)] if m))
+        if review:
+            head = '<tr><th>Subject for Review</th><th>Details</th>' + ''.join(f'<th>{p}</th>' for p in PRINCIPLES) + '</tr>'
+            body = ''.join(f'<tr><td>{esc(self._label(r, {}))}</td><td>{esc(self._label(f, {}))}</td>' + '<td class="answer-cell"></td>' * 9 + '</tr>' for r, f in review)
+            return f'<table><thead>{head}</thead><tbody>{body}</tbody></table>'
+        return None
+
     def _skeleton(self, config: Dict[str, Any], value: Any) -> Optional[str]:
         tc = config.get('table_config') or {}
         kind = config.get('type')
@@ -355,7 +436,17 @@ class AnswerRenderer:
             data = value if isinstance(value, dict) else {}
             data = data.get('value') if isinstance(data.get('value'), dict) else data
             return ''.join(f'<div class="q-text"><b>{esc(t["label"])}</b></div>' + self._list_grid(t.get('columns') or [], data.get(t['key'])) for t in config['tables_config'])
-        columns = config.get('table_columns') or tc.get('columns')
+        if kind == 'ngrbc_policy_matrix':
+            return self._ngrbc_matrix(config, value)
+        if kind == 'complaints_grievances_matrix' and (config.get('config') or {}).get('columns_per_fy'):
+            return self._complaints_grid(config, value)
+        if _empty(value) and kind in ('principle_mode_table', 'ngrbc_review_matrix', 'conditional_yes_no_table'):
+            blank = self._blank_from_paths(config)
+            if blank:
+                return blank
+        if kind == 'csr_details' and (config.get('config') or {}).get('fields'):
+            return self._fields_table(config, value)
+        columns = config.get('table_columns') or tc.get('columns') or (config.get('config') or {}).get('columns')
         if kind in ('table', 'dynamic_table') and columns:
             rows = value.get('rows') or value.get('value') if isinstance(value, dict) else value
             return self._list_grid(columns, rows)
