@@ -1913,6 +1913,8 @@ async def sync_base_year_emissions(
     scope_group: str,
     current_user: dict = Depends(get_current_user)
 ):
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can manage base year emissions")
     return await sync_base_year_emissions_for_entity(
         entity_type=entity_type,
         entity_id=entity_id,

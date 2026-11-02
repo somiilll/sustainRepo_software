@@ -163,35 +163,16 @@ class KPIAccessHelper:
             reporting_period=reporting_period,
         )
         
-        # If no assignments exist for GHG, check if ANY assignments exist
+        # No GHG assignment for this user means no GHG access (including sinks)
         if not assignments:
-            any_ghg_assignments = await self._assignments.count_documents({
-                "organization_id": organization_id,
-                "category": GHG_CATEGORY,
-                "entity_type": "record_category",
-                **({"reporting_period": reporting_period} if reporting_period else {}),
-            })
-            
-            if any_ghg_assignments == 0:
-                # No GHG assignments at all - full access (default open)
-                return {
-                    "has_full_access": True,
-                    "allowed_scopes": ["scope1", "scope2", "scope3", "biogenic"],
-                    "allowed_subcategories": list(GHG_SUBCATEGORY_TO_SCOPE.keys()),
-                    "facility_restrictions": {},
-                    "period_restrictions": {},
-                    "has_sinks_access": True,
-                }
-            else:
-                # GHG assignments exist but not for this user - no access
-                return {
-                    "has_full_access": False,
-                    "allowed_scopes": [],
-                    "allowed_subcategories": [],
-                    "facility_restrictions": {},
-                    "period_restrictions": {},
-                    "has_sinks_access": False,
-                }
+            return {
+                "has_full_access": False,
+                "allowed_scopes": [],
+                "allowed_subcategories": [],
+                "facility_restrictions": {},
+                "period_restrictions": {},
+                "has_sinks_access": False,
+            }
         
         # Process assignments to determine allowed scopes
         allowed_scopes = set()
