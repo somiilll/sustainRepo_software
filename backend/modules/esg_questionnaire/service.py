@@ -590,67 +590,32 @@ class ESGQuestionnaireService:
         except Exception:
             return False
     
+    async def _find_question_assignment(
+        self, org_id: str, question_key: str, reporting_period: str
+    ) -> Optional[Dict[str, Any]]:
+        """Question assignment for this key, falling back to parent keys for sub-parts."""
+        key = question_key
+        while key:
+            assignment = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_id": key,
+                "entity_type": "question",
+                "reporting_period": reporting_period,
+            }, {"_id": 0})
+            if assignment:
+                return assignment
+            key = key.rsplit("_", 1)[0] if "_" in key else None
+        return None
+
     async def _has_approver_assigned(
-        self, 
-        org_id: str, 
-        question_key: str, 
+        self,
+        org_id: str,
+        question_key: str,
         reporting_period: str
     ) -> bool:
-        """
-        Check if there's an approver assigned to this question or its section.
-        Returns True if approval workflow is enabled AND approver is assigned.
-        
-        For subpart questions (e.g., gri_101_2_a_iii), also checks parent assignments (gri_101_2_a).
-        """
-        # Check if there's an assignment with requires_approval=True for this question
-        assignment = await db.esg_assignments.find_one({
-            "organization_id": org_id,
-            "entity_id": question_key,
-            "entity_type": "question",
-            "reporting_period": reporting_period,
-            "requires_approval": True,
-        }, {"_id": 0, "id": 1})
-        
-        if assignment:
-            return True
-        
-        # Check parent question assignments for subparts (e.g., gri_101_2_a_iii -> gri_101_2_a)
-        if "_" in question_key:
-            parts = question_key.rsplit("_", 1)
-            while len(parts) > 1:
-                parent_key = parts[0]
-                parent_assignment = await db.esg_assignments.find_one({
-                    "organization_id": org_id,
-                    "entity_id": parent_key,
-                    "entity_type": "question",
-                    "reporting_period": reporting_period,
-                    "requires_approval": True,
-                }, {"_id": 0, "id": 1})
-                
-                if parent_assignment:
-                    return True
-                parts = parent_key.rsplit("_", 1)
-        
-        # Also check section-level assignment
-        # Extract section from question_key (e.g., "gri_302_1_a" -> get section from config)
-        config = await self._configs.find_one(
-            {"question_key": question_key},
-            {"_id": 0, "section": 1}
-        )
-        
-        if config and config.get("section"):
-            section_assignment = await db.esg_assignments.find_one({
-                "organization_id": org_id,
-                "entity_id": config["section"],
-                "entity_type": "section",
-                "reporting_period": reporting_period,
-                "requires_approval": True,
-            }, {"_id": 0, "id": 1})
-            
-            if section_assignment:
-                return True
-        
-        return False
+        """True when the question's assignment requires approval and has an approver."""
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        return assignment_requires_approval(assignment)
 
     async def _should_use_direct_save(
         self,
@@ -877,46 +842,15 @@ class ESGQuestionnaireService:
         # ALSO create an approval_request for unified Approver Queue
         # This ensures both GRI and BRSR show up in the same queue
         
-        # Resolve current_approvers so the request shows up in /api/approval-workflows/requests
-        # Look up assigned approvers from esg_assignments, fall back to org admins
-        current_approvers = []
-        assignments = await db["esg_assignments"].find(
-            {
-                "organization_id": org_id,
-                "entity_id": question_key,
-                "approver_ids": {"$exists": True, "$ne": []},
-            },
-            {"_id": 0, "approver_ids": 1}
-        ).to_list(10)
-        for a in assignments:
-            current_approvers.extend(a.get("approver_ids", []))
-        
-        if not current_approvers:
-            # Also check section-level assignments
-            section_name = question_config.get("section") if question_config else None
-            if section_name:
-                section_assignments = await db["esg_assignments"].find(
-                    {
-                        "organization_id": org_id,
-                        "section": {"$in": [section_name, section_name.lower(), section_name.upper()]},
-                        "approver_ids": {"$exists": True, "$ne": []},
-                    },
-                    {"_id": 0, "approver_ids": 1}
-                ).to_list(10)
-                for a in section_assignments:
-                    current_approvers.extend(a.get("approver_ids", []))
-        
-        if not current_approvers:
-            # Fall back to org admins so the request is always visible to someone
-            admin_users = await db.users.find(
-                {
-                    "organization_id": org_id,
-                    "role": {"$in": ["admin", "super_admin"]},
-                    "is_deleted": {"$ne": True},
-                },
-                {"_id": 0, "id": 1}
-            ).to_list(50)
-            current_approvers = [u["id"] for u in admin_users]
+        # Approvers come from the question's assignment (chain level 1, else approver_id)
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        first_approver = None
+        if assignment:
+            chain = assignment.get("approval_chain") or []
+            first = chain[0] if chain else assignment.get("approver_id")
+            first_approver = first if isinstance(first, str) or first is None else first.get("approver_id")
+            first_approver = first_approver or assignment.get("approver_id")
+        current_approvers = [first_approver] if first_approver else []
         
         current_approvers = list(set(current_approvers))
         
@@ -1123,7 +1057,8 @@ class ESGQuestionnaireService:
             assignments = await db["esg_assignments"].find(
                 {
                     "organization_id": org_id,
-                    "approver_ids": approver_user_id,
+                    "entity_type": "question",
+                    "$or": [{"approver_id": approver_user_id}, {"approval_chain": approver_user_id}],
                 },
                 {"_id": 0, "entity_id": 1, "section": 1}
             ).to_list(500)

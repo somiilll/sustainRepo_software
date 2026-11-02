@@ -23,6 +23,7 @@ If facility_id is null, it's an organization-level assignment.
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 import logging
+import re
 import uuid
 from shared.database.mongo import db
 from .assignees_service import assignment_assignees_service
@@ -329,7 +330,8 @@ class AssignmentServiceV2:
 
             if "approver_id" in changes or new_chain != (existing.get("approval_chain") or []):
                 await self._reresolve_pending_approvers(
-                    assignment_id, data.get("organization_id"), new_approver, new_chain
+                    assignment_id, data.get("organization_id"), new_approver, new_chain,
+                    question_key=existing.get("entity_id") if existing.get("entity_type") == "question" else None,
                 )
             
             # =========================================================================
@@ -617,15 +619,20 @@ class AssignmentServiceV2:
         return True
 
     async def _reresolve_pending_approvers(
-        self, assignment_id: str, org_id: str, approver_id: Optional[str], approval_chain: list
+        self, assignment_id: str, org_id: str, approver_id: Optional[str], approval_chain: list,
+        question_key: Optional[str] = None,
     ) -> None:
         """Point open approval requests of this assignment at the assignment's current approvers."""
         chain_ids = [a if isinstance(a, str) else (a or {}).get("approver_id") for a in (approval_chain or [])]
         approver_ids = [a for a in chain_ids if a] or ([approver_id] if approver_id else [])
         if not approver_ids:
             return
+        match = {"workflow_id": f"assignment_{assignment_id}"}
+        if question_key:
+            match = {"organization_id": org_id, "entity_type": "esg_response", "$or": [
+                {"entity_id": question_key}, {"entity_id": {"$regex": f"^{re.escape(question_key)}_"}}]}
         pending = await db["approval_requests"].find(
-            {"workflow_id": f"assignment_{assignment_id}", "status": {"$in": ["pending", "in_review"]}},
+            {**match, "status": {"$in": ["pending", "in_review"]}},
             {"_id": 0, "id": 1, "current_level": 1, "current_approvers": 1, "entity_id": 1},
         ).to_list(1000)
         for req in pending:
