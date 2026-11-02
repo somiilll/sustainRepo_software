@@ -793,3 +793,8 @@
 - Link table rows have `coverage_a_to_b` / `coverage_b_to_a` (Excel columns of the same names, or `coverage` for both; default partial). Autofills store `auto_fill: {coverage, synced_at}`.
 - Partial auto-fills (and GRI 2-3 a/b prefill) show **In progress** until a person saves the question (their save changes `updated_at`; the tag also disappears). Complete ones show Saved. Status rule: `esg_questionnaire/status_rules.py`, used by GRI disclosures, BRSR progress and question statuses.
 - GRI progress panel now has its own In progress count (was merged into Draft).
+
+## Single status resolver (BRSR/GRI)
+- `esg_questionnaire/status_rules.py::adjusted_status` is the one place that decides pending / in_progress / saved for a saved answer (auto-fill coverage, dual yes/no, untouched defaults, and partly filled multi-cell answers: some required cells filled, others empty; 0/False count as filled; remarks/links/totals/details, previous-FY blocks and inactive mode branches are ignored). Used by BRSR progress, question statuses and GRI disclosures. Stored `status` is never rewritten.
+- BRSR Section C "answered" counts now come from the API status (saved/approved) instead of a frontend value check.
+- Backlog: persist a `resolved_status` field for dashboard / gap-analysis queries; remove default 0 values from forms that pre-fill them.

@@ -5,6 +5,37 @@ DUAL_YES_NO_CATEGORIES = {"p3_life_insurance_package": ("employees", "workers")}
 UNTOUCHED_DEFAULT_KEYS = {"brsr_a_complaints_grievances"}
 
 
+OPTIONAL_KEYS = ("remark", "weblink", "web_link", "url", "note", "comment", "description", "detail", "reason", "unit", "total", "specify", "name_of")
+
+
+def _leaves(node: Any, key: str = ""):
+    if key.endswith(("_previous_fy", "previous_fy", "prior_fy")):
+        return
+    if isinstance(node, dict):
+        if "current_fy" in node and any(k.endswith("previous_fy") or k == "previous_fy" for k in node):
+            node = {"current_fy": node["current_fy"]}
+        mode = node.get("mode")
+        for k, v in node.items():
+            if str(k) == "country" and len(node) > 1:
+                continue
+            if (mode == "principle_wise" and str(k).startswith("all_")) or (mode == "all" and str(k) == "principles") or k == "mode":
+                continue
+            yield from _leaves(v, str(k))
+    elif isinstance(node, list):
+        for item in node:
+            yield from _leaves(item, key)
+    elif not any(part in key.lower() for part in OPTIONAL_KEYS):
+        yield node
+
+
+def partially_filled(value: Any) -> bool:
+    """True when a multi-cell answer has some required cells filled and others empty (0 and False count as filled)."""
+    if not isinstance(value, (dict, list)):
+        return False
+    cells = [not (leaf is None or (isinstance(leaf, str) and not leaf.strip())) for leaf in _leaves(value)]
+    return len(cells) > 1 and any(cells) and not all(cells)
+
+
 def _is_blank_row(row: Any) -> bool:
     return isinstance(row, dict) and all(not v for k, v in row.items() if k != "category")
 
@@ -30,4 +61,6 @@ def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
         answers = value if isinstance(value, dict) else {}
         if any(not isinstance((answers.get(c) or {}).get("has_value"), bool) for c in categories):
             return "in_progress"
+    if partially_filled(value) and key not in UNTOUCHED_DEFAULT_KEYS:
+        return "in_progress"
     return None

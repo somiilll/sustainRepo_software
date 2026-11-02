@@ -405,13 +405,12 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     ['P1','P2','P3','P4','P5','P6','P7','P8','P9'].filter(p => grouped[p]?.length > 0),
   [grouped]);
 
+  const isComplete = (key) => ['saved', 'approved'].includes(questionProgress[key]);
   const summary = useMemo(() => {
     const total = allConfigs.length;
-    const answered = allConfigs.filter(c => {
-      return hasReportableValue(allResponses[c.question_key]);
-    }).length;
+    const answered = allConfigs.filter(c => isComplete(c.question_key)).length;
     return { total, answered, pct: total > 0 ? Math.round((answered / total) * 100) : 0 };
-  }, [allConfigs, allResponses]);
+  }, [allConfigs, questionProgress]);
 
   const handleResponseChange = (questionKey, value) => {
     setAllResponses(prev => ({ ...prev, [questionKey]: value }));
@@ -527,9 +526,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
           : allQuestions.filter(c => questionProgress[c.question_key] === statusFilter);
         if (statusFilter !== 'all' && questions.length === 0) return null;
         const isOpen = statusFilter !== 'all' || !!expanded[p];
-        const answeredInP = allQuestions.filter(c => {
-          return hasReportableValue(allResponses[c.question_key]);
-        }).length;
+        const answeredInP = allQuestions.filter(c => isComplete(c.question_key)).length;
         const color = PRINCIPLE_COLORS[p] || '#78716c';
         const principleStatus = getPrincipleStatus(p);
 
