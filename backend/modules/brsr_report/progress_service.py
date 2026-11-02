@@ -7,7 +7,7 @@ from modules.esg_questionnaire.status_rules import adjusted_status
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
-STATUSES = ("pending", "draft", "saved", "approved", "rejected")
+STATUSES = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
 A_PREFIX = "brsr_a_"
 SECTION_A_GROUPS = (
     ("I", "Details of the listed entity", ["cin", "entity_name", "year_of_incorporation", "registered_address", "corporate_address", "email", "telephone", "website", "financial_year", "stock_exchange", "paid_up_capital", "contact_person", "reporting_boundary", "assurance_provider", "assurance_type"]),

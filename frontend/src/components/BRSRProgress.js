@@ -10,11 +10,12 @@ const SECTION_META = [
 const STATUS_META = [
   { key: 'pending', label: 'Pending', color: '#c4c8cc' },
   { key: 'draft', label: 'Draft', color: '#c98a1a' },
+  { key: 'in_progress', label: 'In progress', color: '#d9b44a' },
   { key: 'saved', label: 'Saved', color: '#3b6aa0' },
   { key: 'approved', label: 'Approved', color: '#1f7a4d' },
   { key: 'rejected', label: 'Rejected', color: '#b03a3a' },
 ];
-const SEGMENT_ORDER = ['approved', 'saved', 'draft', 'rejected', 'pending'];
+const SEGMENT_ORDER = ['approved', 'saved', 'in_progress', 'draft', 'rejected', 'pending'];
 const colorOf = (key) => STATUS_META.find((s) => s.key === key).color;
 
 export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SECTION_META, prefix = 'brsr' }) {

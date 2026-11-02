@@ -352,15 +352,6 @@ async def save_gri_response(
                 detail=f"You are not assigned to question '{question_key}'"
             )
     
-    # Dual yes/no questions stay "draft" (in progress) until every category is explicitly answered
-    if status == "saved":
-        from shared.database.mongo import db as _db
-        dual = await _db.esg_question_configs.find_one({"question_key": question_key, "type": "dual_conditional_yes_no"}, {"_id": 0, "categories": 1})
-        if dual:
-            cats = [c["key"] for c in dual.get("categories") or [{"key": "employees"}, {"key": "workers"}]]
-            answers = value if isinstance(value, dict) else {}
-            if any(not isinstance((answers.get(c) or {}).get("has_value"), bool) for c in cats):
-                status = "draft"
 
     # Determine the actual status that will be saved
     # Empty values should be marked as "pending", not "saved" or "draft"

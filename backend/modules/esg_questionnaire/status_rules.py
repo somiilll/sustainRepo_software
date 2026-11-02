@@ -10,7 +10,7 @@ def _is_blank_row(row: Any) -> bool:
 
 
 def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
-    """Return 'pending' (never filled in), 'draft' (partly answered) or None (keep stored status)."""
+    """Return 'pending' (never filled in), 'in_progress' (partly answered) or None (keep stored status)."""
     if not doc or doc.get("status") != "saved" or doc.get("approval_status") in ("approved", "rejected", "pending_approval"):
         return None
     key, value = doc.get("question_key"), doc.get("value")
@@ -20,5 +20,5 @@ def adjusted_status(doc: Dict[str, Any]) -> Optional[str]:
     if categories:
         answers = value if isinstance(value, dict) else {}
         if any(not isinstance((answers.get(c) or {}).get("has_value"), bool) for c in categories):
-            return "draft"
+            return "in_progress"
     return None
