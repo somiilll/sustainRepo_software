@@ -880,12 +880,16 @@ async def delete_record(
         raise HTTPException(status_code=404, detail="Record not found")
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
     
+    # Assigned approvers delete directly, like admins
+    approver_delete = user_role not in ("admin", "super_admin") and await is_category_approver(
+        org_id, user_id, existing.get("category", ""), existing.get("subcategory"))
     deleted = await esg_records_service.delete_record(
         section=section,
         record_id=record_id,
         org_id=org_id,
         user_id=user_id,
         user_role=user_role,
+        force_delete=approver_delete,
     )
     
     if not deleted:

@@ -375,7 +375,7 @@ export default function ApproverQueue() {
         }
       }
       
-      setHistoryItems(allHistory.filter((item, i) => allHistory.findIndex(
+      setHistoryItems(allHistory.filter((item) => item.status !== 'cancelled').filter((item, i, visible) => visible.findIndex(
         (o) => o.entity_id === item.entity_id && o.status === item.status && o.updated_at === item.updated_at,
       ) === i));
     } catch (error) {
