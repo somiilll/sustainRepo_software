@@ -27,6 +27,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ProposalFieldList from './ProposalFieldList';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -240,6 +241,11 @@ export default function MultiProposalReview({
     }
   };
 
+  // A first submission is itself the pending record, so there is nothing approved to compare against yet
+  const hasApprovedValues = !!approvedRecord && !(entityType === 'esg_record'
+    && ['pending_approval', 'rejected', 'draft'].includes(approvedRecord.approval_status));
+  const useFormLayout = entityType === 'esg_record' && fieldConfig?.fields?.length > 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -290,7 +296,7 @@ export default function MultiProposalReview({
       )}
 
       {/* Current Approved Record Card */}
-      {approvedRecord && (
+      {hasApprovedValues && (
         <Card className="border-green-200 bg-green-50/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -338,7 +344,9 @@ export default function MultiProposalReview({
                 return String(val);
               };
               
-              return (
+              return useFormLayout ? (
+                <ProposalFieldList fields={fieldConfig.fields} values={displayValues} testId="approved-field-list" />
+              ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {getDisplayFieldEntries(displayValues).map(([key, value]) => (
                     <div key={key} className="space-y-1">
@@ -399,6 +407,7 @@ export default function MultiProposalReview({
           
           // Get the comparison values for emission records
           const getApprovedFieldValue = (key) => {
+            if (!hasApprovedValues) return undefined;
             if (entityType === 'emission_record') {
               return approvedRecord?.dynamic_field_values?.[key] 
                 || approvedRecord?.inputs?.[key]
@@ -459,6 +468,16 @@ export default function MultiProposalReview({
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Field Values */}
+                {useFormLayout ? (
+                  <div className="p-4 bg-stone-50 rounded-lg">
+                    <ProposalFieldList
+                      fields={fieldConfig.fields}
+                      values={fieldValues}
+                      approvedValues={hasApprovedValues ? approvedRecord.field_values : null}
+                      testId={`proposal-field-list-${proposal.id}`}
+                    />
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-stone-50 rounded-lg">
                   {getDisplayFieldEntries(fieldValues).map(([key, value]) => {
                     const approvedValue = getApprovedFieldValue(key);
@@ -481,6 +500,7 @@ export default function MultiProposalReview({
                     );
                   })}
                 </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-2 border-t">
