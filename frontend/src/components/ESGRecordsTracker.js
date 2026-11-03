@@ -588,7 +588,7 @@ export default function ESGRecordsTracker({
         const config = {
           type: freq,
           time: assignForm.due_time || '17:00',
-          timezone: assignForm.timezone || 'Asia/Kolkata',
+          timezone: organization?.timezone || 'Asia/Kolkata',
         };
         
         if (freq === 'monthly' || freq === 'quarterly' || freq === 'half_yearly' || freq === 'yearly') {
@@ -633,7 +633,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: assignForm.start_date || null,
             end_date: assignForm.end_date || null,
-            timezone: assignForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: assignForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: assignForm.reminder_enabled,
@@ -670,7 +670,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: assignForm.start_date || null,
             end_date: assignForm.end_date || null,
-            timezone: assignForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: assignForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: assignForm.reminder_enabled,
@@ -725,7 +725,7 @@ export default function ESGRecordsTracker({
         const config = {
           type: freq,
           time: wizardForm.due_time || '17:00',
-          timezone: wizardForm.timezone || 'Asia/Kolkata',
+          timezone: organization?.timezone || 'Asia/Kolkata',
         };
         
         if (['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(freq)) {
@@ -774,7 +774,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: wizardForm.start_date || null,
             end_date: wizardForm.end_date || null,
-            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: wizardForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: wizardForm.reminder_enabled,
@@ -811,7 +811,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: wizardForm.start_date || null,
             end_date: wizardForm.end_date || null,
-            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: wizardForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: wizardForm.reminder_enabled,

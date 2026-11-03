@@ -18,11 +18,10 @@ import {
 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
-import { FREQUENCIES, TIMEZONES } from './useAssignmentWizard';
+import { FREQUENCIES } from './useAssignmentWizard';
 
 export function StepReview({ form, summary, facilities, users }) {
   const frequencyLabel = FREQUENCIES.find(f => f.value === form.filling_frequency)?.label || form.filling_frequency;
-  const timezoneLabel = TIMEZONES.find(tz => tz.value === form.timezone)?.label || form.timezone;
 
   return (
     <div className="space-y-4">
@@ -117,7 +116,6 @@ export function StepReview({ form, summary, facilities, users }) {
               <DetailRow label="Day of Week" value={capitalizeFirst(form.due_day_of_week)} />
             )}
             <DetailRow label="Due Time" value={formatTime(form.due_time)} />
-            <DetailRow label="Timezone" value={timezoneLabel} />
           </div>
         </DetailSection>
 

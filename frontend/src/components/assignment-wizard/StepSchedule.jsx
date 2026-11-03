@@ -23,7 +23,7 @@ import {
   SelectValue 
 } from '../ui/select';
 import { cn } from '@/lib/utils';
-import { TIMEZONES, ALL_FREQUENCIES, DAYS_OF_WEEK } from './useAssignmentWizard';
+import { ALL_FREQUENCIES, DAYS_OF_WEEK } from './useAssignmentWizard';
 
 export function StepSchedule({
   form,
@@ -151,7 +151,7 @@ export function StepSchedule({
 
       {/* Due Schedule Card */}
       {form.filling_frequency && (
-        <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-3">
+        <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-3">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-600" />
             <span className="text-sm font-medium text-amber-800">Due Schedule</span>
@@ -227,24 +227,6 @@ export function StepSchedule({
                 onChange={(e) => updateForm({ due_time: e.target.value })}
                 className="h-8"
               />
-            </div>
-
-            {/* Timezone */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-text-muted">Timezone</Label>
-              <Select 
-                value={form.timezone} 
-                onValueChange={(v) => updateForm({ timezone: v })}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIMEZONES.map(tz => (
-                    <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
