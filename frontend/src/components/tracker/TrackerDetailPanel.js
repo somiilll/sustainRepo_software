@@ -144,18 +144,16 @@ function AssignmentTab({ a, ctx, canEdit, onEditAssignment }) {
   );
   return (
     <div className="pt-4" data-testid="tracker-tab-assignment">
-      {onEditAssignment && (
-        <div className="mb-4 flex justify-end">
-          <button onClick={onEditAssignment} className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-sm font-medium text-stone-800 hover:bg-stone-50" data-testid="edit-assignment-btn">
-            <Pencil className="h-3.5 w-3.5" />Edit assignment
-          </button>
-        </div>
-      )}
       <div className="grid gap-6 md:grid-cols-3">
         <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Data entry</h5><ul className="space-y-2">{a.assignees.length ? a.assignees.map(person) : <Empty>No assignees</Empty>}</ul></div>
         <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Approvers</h5><ul className="space-y-2">{a.requires_approval ? (a.approvers.length ? a.approvers.map(person) : <Empty>No approver set</Empty>) : <Empty>Approval not required</Empty>}</ul></div>
-        <div className="space-y-1 text-sm text-stone-700">
+        <div className="relative space-y-1 text-sm text-stone-700">
           <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Schedule</h5>
+          {onEditAssignment && (
+            <button onClick={onEditAssignment} className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-sm font-medium text-stone-800 hover:bg-stone-50" data-testid="edit-assignment-btn">
+              <Pencil className="h-3.5 w-3.5" />Edit assignment
+            </button>
+          )}
           <p>Starts {fmt(a.start_date)}</p><p>Ends {fmt(a.end_date)}</p>
           {a.facilities.length > 0 && <p>Facilities: {a.facilities.map((f) => f.name).join(', ')}</p>}
         </div>
