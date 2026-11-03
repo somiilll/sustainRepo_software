@@ -23,6 +23,7 @@ const INITIAL_FORM_STATE = {
   due_time: '17:00',
   timezone: 'Asia/Kolkata',
   due_day_of_month: 15,
+  due_month_offset: 0,
   due_day_of_week: 'friday',
   
   // Step 3: Options

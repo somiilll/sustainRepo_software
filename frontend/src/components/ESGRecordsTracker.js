@@ -210,6 +210,7 @@ export default function ESGRecordsTracker({
     filling_frequency: '',
     due_time: '17:00', // Default 5 PM
     due_day_of_month: 1,
+    due_month_offset: 0,
     due_day_of_week: 'monday',
     // Legacy/reminder fields
     reminder_enabled: false,
@@ -528,6 +529,7 @@ export default function ESGRecordsTracker({
       filling_frequency: firstAssignment.filling_frequency || '',
       due_time: dueConfig.time || '17:00',
       due_day_of_month: dueConfig.day_of_month || 1,
+      due_month_offset: dueConfig.month_offset || 0,
       due_day_of_week: dueConfig.day_of_week || 'monday',
       // Legacy fields
       reminder_enabled: !!(firstAssignment.reminder_enabled || firstAssignment.reminder_config?.frequency),
@@ -591,6 +593,7 @@ export default function ESGRecordsTracker({
         
         if (freq === 'monthly' || freq === 'quarterly' || freq === 'half_yearly' || freq === 'yearly') {
           config.day_of_month = parseInt(assignForm.due_day_of_month) || 1;
+          config.month_offset = parseInt(assignForm.due_month_offset) || 0;
         }
         if (freq === 'weekly') {
           config.day_of_week = assignForm.due_day_of_week || 'monday';
@@ -727,6 +730,7 @@ export default function ESGRecordsTracker({
         
         if (['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(freq)) {
           config.day_of_month = parseInt(wizardForm.due_day_of_month) || 15;
+          config.month_offset = parseInt(wizardForm.due_month_offset) || 0;
         }
         if (freq === 'weekly') {
           config.day_of_week = wizardForm.due_day_of_week || 'friday';

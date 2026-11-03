@@ -178,6 +178,26 @@ export function StepSchedule({
               </div>
             )}
 
+            {['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(form.filling_frequency) && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-muted">Due In</Label>
+                <Select
+                  value={String(form.due_month_offset ?? 0)}
+                  onValueChange={(v) => updateForm({ due_month_offset: parseInt(v) })}
+                >
+                  <SelectTrigger className="h-8" data-testid="due-month-offset-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Same month as period end</SelectItem>
+                    {[1, 2, 3].map(n => (
+                      <SelectItem key={n} value={String(n)}>{n} month{n > 1 ? 's' : ''} after period end</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Day of Week (for weekly) */}
             {form.filling_frequency === 'weekly' && (
               <div className="space-y-1.5">

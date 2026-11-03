@@ -26,6 +26,12 @@ import logging
 from shared.database.mongo import db
 from shared.utils.period_keys import period_query_clause
 
+
+def _due_on(period_end, day, month_offset):
+    from modules.esg_records.task_engine import due_on
+    return due_on(period_end, day, month_offset)
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -1100,12 +1106,12 @@ class CompletionService:
         if facility_id:
             # Facility-level assignment
             return await self._calculate_facility_level(
-                org_id, category, subcategory, facility_id, periods, due_day, include_period_details
+                org_id, category, subcategory, facility_id, periods, due_day, due_config.get("month_offset", 0), include_period_details
             )
         else:
             # Org-level assignment
             return await self._calculate_org_level(
-                org_id, category, subcategory, facilities, periods, due_day, include_period_details
+                org_id, category, subcategory, facilities, periods, due_day, due_config.get("month_offset", 0), include_period_details
             )
     
     async def _calculate_facility_level(
@@ -1116,6 +1122,7 @@ class CompletionService:
         facility_id: str,
         periods: List[Dict],
         due_day: int,
+        month_offset: int,
         include_details: bool,
     ) -> ProgressResult:
         """Calculate progress for facility-level assignment."""
@@ -1144,7 +1151,7 @@ class CompletionService:
                 # Check if overdue
                 period_end = period.get("period_end")
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:
@@ -1175,6 +1182,7 @@ class CompletionService:
         facilities: List[Dict],
         periods: List[Dict],
         due_day: int,
+        month_offset: int,
         include_details: bool,
     ) -> ProgressResult:
         """
@@ -1271,7 +1279,7 @@ class CompletionService:
                 
                 # Check if overdue
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += remaining
                     else:
@@ -1287,7 +1295,7 @@ class CompletionService:
                 result.total += 1
                 
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:
@@ -1365,7 +1373,7 @@ class CompletionService:
                 # Check if overdue
                 period_end = period.get("period_end")
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, due_config.get("month_offset", 0))
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:
