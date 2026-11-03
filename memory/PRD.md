@@ -930,5 +930,5 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Re-export after more local edits: `cd /app/backend && python -m scripts.export_catalog_bundle <new-version>`; the new version applies once on each environment at next deploy.
 
 ## Task status sync
-- esg_reporting_tasks.status is now a synced cache of completion_service.get_task_status (+ status_synced_at). Writers: task_engine.sync_task_status / sync_tasks_matching / refresh_overdue_tasks; triggers: task creation, record save/revert/delete, approval decisions, hourly cron POST /api/cron/sync-task-status (needs WEBHOOK_CRON_SECRET in env; .emergent/crons.yml).
+- esg_reporting_tasks.status is now a synced cache of completion_service.get_task_status (+ status_synced_at). Writers: task_engine.sync_task_status / sync_tasks_matching / refresh_overdue_tasks; triggers: task creation, record save/revert/delete, approval decisions, monthly cron (1st, 00:05 UTC) POST /api/cron/sync-task-status (needs WEBHOOK_CRON_SECRET in env; .emergent/crons.yml).
 - One-time startup migration task_status_sync_v1 (schema_migrations) deletes legacy tasks without status_synced_at and regenerates from assignments (no backfill script).
