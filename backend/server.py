@@ -3967,6 +3967,8 @@ from modules.cbam.api import operator as cbam_operator, workflow as cbam_workflo
 from modules.cbam.api.routes import public as cbam_public, router as cbam_router
 for _cbam_router in (cbam_router, cbam_workflow.router, cbam_operator.router):
     app.include_router(_cbam_router, tags=["CBAM"], dependencies=[Depends(require_entitlement("cbam"))])
+from modules.cron_jobs.router import router as cron_jobs_router
+app.include_router(cron_jobs_router)
 for _cbam_public in (cbam_public, cbam_workflow.public, cbam_operator.public):
     app.include_router(_cbam_public, tags=["CBAM public portals"])
 
@@ -4019,6 +4021,11 @@ async def startup_event():
         await apply_bundle_once()
     except Exception:
         logging.getLogger(__name__).exception("Catalog bundle sync failed")
+    from modules.esg_records.task_engine import migrate_to_synced_task_status
+    try:
+        await migrate_to_synced_task_status(db)
+    except Exception:
+        logging.getLogger(__name__).exception("Task status migration failed")
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
     from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes

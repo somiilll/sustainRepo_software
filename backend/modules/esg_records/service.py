@@ -1103,6 +1103,8 @@ class ESGRecordsService:
                 {"id": task["id"]},
                 {"$set": update_doc}
             )
+            from .task_engine import sync_task_status
+            await sync_task_status(db, task["id"])
         except Exception as e:
             # Don't fail record creation if task update fails
             print(f"Warning: Failed to mark task as submitted: {e}")
@@ -1151,6 +1153,8 @@ class ESGRecordsService:
                 }}
             )
             
+            from .task_engine import sync_tasks_matching
+            await sync_tasks_matching(db, task_query)
             if result.modified_count > 0:
                 print(f"Updated task timestamp for {category}/{subcategory} period={period_key}")
         except Exception as e:
@@ -2132,6 +2136,8 @@ class ESGRecordsService:
                 {"id": task["id"]},
                 {"$set": update_doc}
             )
+            from .task_engine import sync_task_status
+            await sync_task_status(db, task["id"])
             
             print(f"Cleared task {task['id']} audit fields after record deletion")
         except Exception as e:

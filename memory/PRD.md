@@ -928,3 +928,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Catalog bundle sync (staging)
 - backend/modules/catalog_sync + backend/data/catalog_bundle/bundle.json.gz (939 KPIs, 827 KPI->BRSR/GRI mappings, 590 BRSR/GRI questions, 64 KPI categories). Applied once per bundle version per database at backend startup (marker in catalog_sync_log); local wins, extras removed (backed up in catalog_sync_backup).
 - Re-export after more local edits: `cd /app/backend && python -m scripts.export_catalog_bundle <new-version>`; the new version applies once on each environment at next deploy.
+
+## Task status sync
+- esg_reporting_tasks.status is now a synced cache of completion_service.get_task_status (+ status_synced_at). Writers: task_engine.sync_task_status / sync_tasks_matching / refresh_overdue_tasks; triggers: task creation, record save/revert/delete, approval decisions, hourly cron POST /api/cron/sync-task-status (needs WEBHOOK_CRON_SECRET in env; .emergent/crons.yml).
+- One-time startup migration task_status_sync_v1 (schema_migrations) deletes legacy tasks without status_synced_at and regenerates from assignments (no backfill script).

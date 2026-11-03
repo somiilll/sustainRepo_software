@@ -483,7 +483,7 @@ async def generate_tasks_for_assignment(
             tasks_existing += 1
         else:
             # Create new task (organizational obligation)
-            # NOTE: Status is NOT stored - it's computed on-the-fly by CompletionService
+            # NOTE: status is computed by CompletionService and synced onto the task (sync_task_status)
             task_id = str(uuid.uuid4())
             
             task_doc = {
@@ -523,6 +523,7 @@ async def generate_tasks_for_assignment(
             }
             
             await db["esg_reporting_tasks"].insert_one(task_doc)
+            await sync_task_status(db, task_doc["id"])
             tasks_created += 1
         
         # V2: Create assignee entries for ALL assignees from esg_assignment_assignees
@@ -689,6 +690,7 @@ async def _generate_question_tasks(
             }
             
             await db["esg_reporting_tasks"].insert_one(task_doc)
+            await sync_task_status(db, task_doc["id"])
             tasks_created += 1
         
         # Create assignee entries
@@ -1109,22 +1111,60 @@ async def get_task_summary(
     return summary
 
 
+async def sync_task_status(db: AsyncIOMotorDatabase, task_id: str) -> Optional[str]:
+    """Compute a task's status from data (CompletionService) and store it on the task."""
+    from modules.esg_assignments.completion_service import completion_service
+
+    task = await db["esg_reporting_tasks"].find_one({"id": task_id}, {"_id": 0})
+    if not task:
+        return None
+    status = (await completion_service.get_task_status(task)).value
+    await db["esg_reporting_tasks"].update_one(
+        {"id": task_id},
+        {"$set": {"status": status, "status_synced_at": datetime.now(tz.utc)}},
+    )
+    return status
+
+
+async def sync_tasks_matching(db: AsyncIOMotorDatabase, query: Dict[str, Any]) -> int:
+    """Re-sync status of every task matching the query."""
+    task_ids = [t["id"] async for t in db["esg_reporting_tasks"].find(query, {"_id": 0, "id": 1})]
+    for task_id in task_ids:
+        await sync_task_status(db, task_id)
+    return len(task_ids)
+
+
 async def refresh_overdue_tasks(
     db: AsyncIOMotorDatabase,
     organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    DEPRECATED: Task status (including overdue) is now computed from data.
-    
-    Overdue status is determined by CompletionService.get_task_status() which
-    checks if due_at < now AND no data exists.
-    
-    This function is kept for backwards compatibility but does nothing.
-    The overdue calculation is done in completion_service.py lines 682-690.
-    """
-    # No-op: Status is computed, not stored
-    return {"marked_overdue": 0, "note": "Status is now computed dynamically"}
+    """Re-sync every task's stored status; due dates passing change status without any record event."""
+    query = {"organization_id": organization_id} if organization_id else {}
+    synced = await sync_tasks_matching(db, query)
+    return {"synced": synced}
 
+
+async def migrate_to_synced_task_status(db: AsyncIOMotorDatabase) -> None:
+    """One-time: drop tasks that never had a synced status and regenerate them from the assignments."""
+    marker = "task_status_sync_v1"
+    try:
+        await db["schema_migrations"].insert_one({"_id": marker, "started_at": datetime.now(tz.utc)})
+    except Exception:
+        return
+    stale = {"status_synced_at": {"$exists": False}}
+    stale_ids = [t["id"] async for t in db["esg_reporting_tasks"].find(stale, {"_id": 0, "id": 1})]
+    await db["esg_task_assignees"].delete_many({"task_id": {"$in": stale_ids}})
+    await db["esg_reporting_tasks"].delete_many(stale)
+    regenerated = 0
+    async for assignment in db["esg_assignments"].find(
+        {"lifecycle_status": {"$nin": ["cancelled", "orphaned"]}}, {"_id": 0}
+    ):
+        await generate_tasks_for_assignment(db, assignment)
+        regenerated += 1
+    await db["schema_migrations"].update_one(
+        {"_id": marker},
+        {"$set": {"finished_at": datetime.now(tz.utc), "deleted_tasks": len(stale_ids), "regenerated_assignments": regenerated}},
+    )
 
 
 async def remove_assignee_for_assignment(

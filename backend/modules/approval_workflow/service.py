@@ -1039,6 +1039,8 @@ class ApprovalWorkflowService:
                                     task_query,
                                     {"$set": {"updated_at": _now_iso()}}
                                 )
+                                from modules.esg_records.task_engine import sync_tasks_matching
+                                await sync_tasks_matching(db, task_query)
                                 logger.info(f"Updated task timestamp after record deletion")
                 except Exception as e:
                     logger.error(f"Failed to process delete approval: {e}")
@@ -1179,6 +1181,8 @@ class ApprovalWorkflowService:
                                 task_query,
                                 {"$set": task_update}
                             )
+                            from modules.esg_records.task_engine import sync_tasks_matching
+                            await sync_tasks_matching(db, task_query)
                             logger.info(f"Updated {task_update_result.modified_count} task(s) audit fields, completed_by={approver.get('id')}")
                             
                 except Exception as e:
@@ -1781,6 +1785,8 @@ class ApprovalWorkflowService:
                     {"id": entity_id, "organization_id": org_id},
                     {"$set": task_update}
                 )
+                from modules.esg_records.task_engine import sync_task_status
+                await sync_task_status(db, entity_id)
         except Exception as e:
             print(f"Warning: Failed to update source entity on rejection: {e}")
 
