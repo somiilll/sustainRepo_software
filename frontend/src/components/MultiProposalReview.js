@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Calendar,
   Paperclip,
+  Building2,
   Upload,
   X,
 } from 'lucide-react';
@@ -107,6 +108,7 @@ export default function MultiProposalReview({
   const [processing, setProcessing] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [approvedRecord, setApprovedRecord] = useState(null);
+  const [dataLevel, setDataLevel] = useState('');
   const [fieldConfig, setFieldConfig] = useState(null);
   const [actionComment, setActionComment] = useState('');
   
@@ -175,6 +177,7 @@ export default function MultiProposalReview({
       );
       setProposals(proposalsRes.data.proposals || []);
       setApprovedRecord(proposalsRes.data.current_record || null);
+      setDataLevel(proposalsRes.data.data_level || '');
       
       // Fetch KPI field config for human-readable labels
       if (proposalsRes.data.current_record?.category_id) {
@@ -547,6 +550,12 @@ export default function MultiProposalReview({
                     <span className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
                       {formatReportingPeriod(reportingPeriod)}
+                    </span>
+                  )}
+                  {dataLevel && (
+                    <span className="flex items-center gap-1" data-testid="proposal-data-level">
+                      <Building2 className="w-4 h-4" />
+                      {dataLevel}
                     </span>
                   )}
                 </div>

@@ -151,7 +151,8 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
             "period_key": key, "label": group[0].get("period_label") or key, "status": status,
             "period_start": _iso(group[0].get("period_start")), "period_end": _iso(group[0].get("period_end")),
             "due_at": _iso(group[0].get("due_at")), "opens_at": _iso(group[0].get("period_start")),
-            "facilities": by_facility, **context,
+            "facilities": by_facility,
+            "in_progress": status == "overdue" and any(f["status"] in ("completed", "pending_approval") for f in by_facility), **context,
         })
 
     assignee_rows = await db.esg_assignment_assignees.find(

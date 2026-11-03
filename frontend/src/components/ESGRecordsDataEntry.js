@@ -864,6 +864,7 @@ export default function ESGRecordsDataEntry({
     
     setEditData({
       field_values: fieldValues,
+      category: record.category || '',
       subcategory: record.subcategory || '',
       notes: record.notes || '',
       source_of_information: record.source_of_information || '',

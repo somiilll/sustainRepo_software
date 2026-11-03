@@ -119,6 +119,12 @@ async def get_proposals_for_record(
             {"_id": 0}
         )
     
+    data_level = None
+    if current_record and entity_type == "esg_record":
+        facility_id = current_record.get("facility_id")
+        facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0, "name": 1}) if facility_id else None
+        data_level = f"Facility {facility['name']}" if facility else "Organization level"
+
     if is_admin:
         # Return all pending proposals
         proposals = await proposal_service.get_all_pending_proposals(
@@ -130,6 +136,7 @@ async def get_proposals_for_record(
             "count": len(proposals),
             "is_approver_view": True,
             "current_record": current_record,
+            "data_level": data_level,
         }
     else:
         # Return only user's proposal
@@ -143,6 +150,7 @@ async def get_proposals_for_record(
             "count": 1 if proposal else 0,
             "is_approver_view": False,
             "current_record": current_record,
+            "data_level": data_level,
         }
 
 

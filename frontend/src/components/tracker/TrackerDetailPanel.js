@@ -58,7 +58,7 @@ function PeriodCard({ period, section }) {
   } else if (period.status === 'rejected') {
     context = <p className="text-xs text-red-700">Sent back to {period.submitted_by_name || 'the submitter'} for changes</p>;
   } else if (period.status === 'overdue') {
-    context = <p className="text-xs text-red-700" data-testid={`period-context-${period.period_key}`}>Due date passed on {fmt(period.due_at)} with no data submitted</p>;
+    context = null;
   } else {
     context = <p className="text-xs text-stone-500">Collection opens {fmt(period.opens_at)}</p>;
   }
@@ -66,8 +66,15 @@ function PeriodCard({ period, section }) {
     <div className={`flex min-w-0 flex-col rounded-xl border bg-white p-4 ${cfg.card}`} data-testid={`period-card-${period.period_key}`}>
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-heading text-lg font-semibold text-stone-900">{period.label}</h4>
-        <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cfg.pill}`} data-testid={`period-status-${period.period_key}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />{cfg.label}
+        <span className="flex flex-wrap justify-end gap-1">
+          {period.in_progress && (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700" data-testid={`period-in-progress-${period.period_key}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />In progress
+            </span>
+          )}
+          <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cfg.pill}`} data-testid={`period-status-${period.period_key}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />{cfg.label}
+          </span>
         </span>
       </div>
       <p className="mt-1 text-xs text-stone-500">{range(period.period_start, period.period_end)}</p>
