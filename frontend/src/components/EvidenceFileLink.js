@@ -1,19 +1,27 @@
 import React from 'react';
 import { toast } from 'sonner';
 import { getEvidenceFileId } from '../lib/draftEvidence';
-import { openSecureFile } from '../lib/secureFileAccess';
+import { downloadSecureFile, isPreviewableFile, openSecureFile } from '../lib/secureFileAccess';
 
-/** "View" link for an evidence item: local drafts open their blob, saved files open through the authenticated file API. */
-export default function EvidenceFileLink({ evidence, className = 'text-xs text-blue-600 hover:underline', testId, children = 'View' }) {
-  if (evidence?.is_draft && evidence.preview_url) {
-    return <a href={evidence.preview_url} target="_blank" rel="noopener noreferrer" className={className} data-testid={testId}>{children}</a>;
-  }
+const LINK = 'text-xs text-blue-600 hover:underline';
+
+/** View (PDF / images only) and Download links for an evidence item; Word, Excel etc. are download-only. */
+export default function EvidenceFileLink({ evidence, testId }) {
   const fileId = getEvidenceFileId(evidence);
-  if (!fileId) return null;
+  const local = evidence?.is_draft && evidence.preview_url;
+  if (!local && !fileId) return null;
+  const filename = evidence.filename || evidence.name || 'evidence';
+  const fail = () => toast.error('Unable to open evidence file');
+  const canView = isPreviewableFile({ ...evidence, name: filename });
+
   return (
-    <button type="button" className={className} data-testid={testId}
-            onClick={() => openSecureFile(fileId).catch(() => toast.error('Unable to open evidence file'))}>
-      {children}
-    </button>
+    <span className="inline-flex items-center gap-3">
+      {canView && (local
+        ? <a href={evidence.preview_url} target="_blank" rel="noopener noreferrer" className={LINK} data-testid={testId}>View</a>
+        : <button type="button" className={LINK} data-testid={testId} onClick={() => openSecureFile(fileId).catch(fail)}>View</button>)}
+      {local
+        ? <a href={evidence.preview_url} download={filename} className={LINK} data-testid={`${testId}-download`}>Download</a>
+        : <button type="button" className={LINK} data-testid={`${testId}-download`} onClick={() => downloadSecureFile(fileId).catch(fail)}>Download</button>}
+    </span>
   );
 }

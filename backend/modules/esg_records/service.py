@@ -1496,11 +1496,24 @@ class ESGRecordsService:
             }
         
         # For records not requiring approval workflow or admin override: proceed with normal update
-        # Increment version
-        new_version = current["version"] + 1
+        # Versions only track saved states: drafts never bump the version, and the first save of a
+        # record that only ever existed as a draft is its creation, not an update.
+        is_draft_save = update_data.get("status", current.get("status")) == "draft"
+        last_saved = None if is_draft_save else await self._get_versions_collection(section).find_one(
+            {"record_id": record_id, "snapshot.status": {"$ne": "draft"}}, {"_id": 0}, sort=[("version", -1)]
+        )
+        is_first_save = not is_draft_save and last_saved is None
+        baseline = last_saved["snapshot"] if last_saved else None
+        if is_draft_save:
+            new_version = current["version"]
+        elif is_first_save:
+            new_version = 1
+        else:
+            new_version = last_saved["version"] + 1
         update_data["version"] = new_version
-        update_data["updated_by"] = user_id
-        update_data["updated_at"] = now
+        if not is_first_save:
+            update_data["updated_by"] = user_id
+            update_data["updated_at"] = now
         
         # OPTIMISTIC LOCKING: Check version hasn't changed since we read it
         # This prevents race conditions during concurrent updates
@@ -1621,7 +1634,7 @@ class ESGRecordsService:
             print("WARNING: should_create_approval=True but no assignment found!")
         
         # Create version snapshot with hierarchical field paths (paths only, not values); drafts are not versioned
-        field_changes = compare_versions(current, updated) if current else []
+        field_changes = compare_versions(baseline, updated) if baseline else []
         changed_field_paths = [c["field"] for c in field_changes]
         if updated.get("status") != "draft":
             await self._create_version_snapshot(
