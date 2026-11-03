@@ -20,7 +20,7 @@ from .contracts import (
 from .water_schema import apply_water_rules
 from shared.unit_registry import get_conversion_metadata
 from .history_presenter import FieldHistoryPresenter
-from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
+from .version_utils import compare_versions, deletion_version_event, get_changed_field_paths, format_field_display_name
 
 
 class RecordAccessError(ValueError):
@@ -1965,6 +1965,10 @@ class ESGRecordsService:
                 "deletion_requested_at": now,
             }}
         )
+        section = collection.name.removesuffix("_records")
+        await db[f"{section}_record_versions"].insert_one(deletion_version_event(
+            record, section=section, change_type="deletion_requested", actor_id=user_id, timestamp=now,
+            requested_by=user_id, requested_at=now))
         
         # Get approver info from assignment
         approver_id = assignment.get("approver_id")

@@ -1830,8 +1830,8 @@ export default function ESGRecordsDataEntry({
               versions.map((version, idx) => {
                 const approvalDiff = version.field_diffs?.find(diff => diff.field === 'approval_status');
                 const isApproved = version.change_type === 'approved' || approvalDiff?.new_value === 'approved';
-                const isRejected = version.change_type === 'rejected' || approvalDiff?.new_value === 'rejected';
-                const eventTitle = isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
+                const isRejected = version.change_type === 'rejected' || version.change_type === 'deletion_rejected' || approvalDiff?.new_value === 'rejected';
+                const eventTitle = version.change_type === 'deletion_rejected' ? 'Deletion Rejected' : version.change_type === 'deletion_requested' ? 'Deletion Requested' : isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
                 const hasApproverOverride = isApproved && version.approver_edited && (version.submitted_field_diffs || []).length > 0;
                 const visibleDiffs = hasApproverOverride ? [] : (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
                 return (

@@ -1577,6 +1577,13 @@ class ApprovalWorkflowService:
                             "deletion_requested_at": "",
                         }}
                     )
+                    from modules.esg_records.version_utils import deletion_version_event
+                    record = await db[collection_name].find_one({"id": entity_id, "is_current": True}, {"_id": 0})
+                    if record:
+                        await db[collection_name.replace("_records", "_record_versions")].insert_one(deletion_version_event(
+                            record, section=collection_name.replace("_records", ""), change_type="deletion_rejected",
+                            actor_id=rejector_id, timestamp=now, reason=comment,
+                            requested_by=request.get("submitted_by"), requested_at=request.get("submitted_at")))
                     logger.info(f"Delete rejected: Cleared pending_deletion on {collection_name} record {entity_id}")
                 return  # Don't continue to normal rejection handling
             
