@@ -62,6 +62,10 @@ export default function MultiProposalReview({
   // Edit dialog state
   const [editingProposal, setEditingProposal] = useState(null);
   const [editValues, setEditValues] = useState({});
+  const [inlineEdit, setInlineEdit] = useState(null);
+  const setInlineValues = (updater) => setInlineEdit((cur) => (
+    cur && { ...cur, values: typeof updater === 'function' ? updater(cur.values) : updater }
+  ));
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return '-';
@@ -220,6 +224,20 @@ export default function MultiProposalReview({
     setEditValues(flattenedValues);
   };
 
+  const handleSaveInline = async () => {
+    setProcessing(true);
+    try {
+      await axios.put(`${API}/api/proposals/${inlineEdit.id}`, { field_values: inlineEdit.values }, { headers: getAuthHeader() });
+      toast.success('Proposal updated');
+      setInlineEdit(null);
+      fetchProposals();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update proposal');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Save edited proposal
   const handleSaveEdit = async () => {
     if (!editingProposal) return;
@@ -363,17 +381,6 @@ export default function MultiProposalReview({
         </Card>
       )}
 
-      {/* Comment input for actions */}
-      <div className="space-y-2">
-        <Label>Comment (required for rejection)</Label>
-        <Textarea
-          value={actionComment}
-          onChange={(e) => setActionComment(e.target.value)}
-          placeholder="Enter comment or rejection reason..."
-          rows={2}
-        />
-      </div>
-
       {/* Proposal Cards */}
       <div className="space-y-4">
         {proposals.map((proposal, idx) => {
@@ -472,9 +479,9 @@ export default function MultiProposalReview({
                   <div className="p-4 bg-stone-50 rounded-lg">
                     <HierarchicalFields
                       fields={fieldConfig.fields}
-                      values={fieldValues}
-                      onChange={() => {}}
-                      readOnly
+                      values={inlineEdit?.id === proposal.id ? inlineEdit.values : fieldValues}
+                      onChange={inlineEdit?.id === proposal.id ? setInlineValues : () => {}}
+                      readOnly={inlineEdit?.id !== proposal.id}
                       testIdPrefix={`proposal-field-${proposal.id}`}
                     />
                   </div>
@@ -505,22 +512,35 @@ export default function MultiProposalReview({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-2 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(proposal)}
-                    disabled={processing}
-                  >
-                    <Edit2 className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
+                  {inlineEdit?.id === proposal.id ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setInlineEdit(null)} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={handleSaveInline} disabled={processing} data-testid={`save-edit-${proposal.id}`}>
+                        {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Save changes
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => (useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues } }) : openEditDialog(proposal))}
+                      disabled={processing || !!inlineEdit}
+                      data-testid={`edit-proposal-${proposal.id}`}
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
                   <div className="flex-1" />
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-red-600 border-red-200 hover:bg-red-50"
                     onClick={() => handleReject(proposal.id)}
-                    disabled={processing}
+                    disabled={processing || !!inlineEdit}
                   >
                     <XCircle className="w-4 h-4 mr-2" />
                     Reject
@@ -529,7 +549,7 @@ export default function MultiProposalReview({
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
                     onClick={() => handleApprove(proposal.id)}
-                    disabled={processing}
+                    disabled={processing || !!inlineEdit}
                   >
                     <CheckCircle2 className="w-4 h-4 mr-2" />
                     Approve
@@ -539,6 +559,18 @@ export default function MultiProposalReview({
             </Card>
           );
         })}
+      </div>
+
+      {/* Comment input for actions */}
+      <div className="space-y-2">
+        <Label>Comment (required for rejection)</Label>
+        <Textarea
+          value={actionComment}
+          onChange={(e) => setActionComment(e.target.value)}
+          placeholder="Enter comment or rejection reason..."
+          rows={2}
+          data-testid="proposal-action-comment"
+        />
       </div>
 
       {/* Edit Proposal Dialog */}
