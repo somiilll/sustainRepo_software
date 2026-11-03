@@ -57,10 +57,6 @@ function PeriodCard({ period, section }) {
     context = <p className="text-xs text-stone-600" data-testid={`period-context-${period.period_key}`}>Submitted by {period.submitted_by_name || 'user'} on {fmt(period.submitted_at, true)}</p>;
   } else if (period.status === 'rejected') {
     context = <p className="text-xs text-red-700">Sent back to {period.submitted_by_name || 'the submitter'} for changes</p>;
-  } else if (period.status === 'overdue') {
-    context = null;
-  } else {
-    context = <p className="text-xs text-stone-500">Collection opens {fmt(period.opens_at)}</p>;
   }
   return (
     <div className={`flex min-w-0 flex-col rounded-xl border bg-white p-4 ${cfg.card}`} data-testid={`period-card-${period.period_key}`}>
@@ -79,7 +75,7 @@ function PeriodCard({ period, section }) {
       </div>
       <p className="mt-1 text-xs text-stone-500">{range(period.period_start, period.period_end)}</p>
       <p className="mt-2 text-sm font-semibold text-stone-900">Due {fmt(period.due_at)}</p>
-      <div className="my-3 border-t border-stone-100" />
+      {context && <div className="my-3 border-t border-stone-100" />}
       {context}
       {period.facilities?.length > 0 && (
         <ul className="mt-3 space-y-1 border-t border-stone-100 pt-2" data-testid={`period-facilities-${period.period_key}`}>

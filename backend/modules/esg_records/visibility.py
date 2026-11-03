@@ -18,16 +18,28 @@ async def is_workflow_org(org_id: str) -> bool:
     return bool(settings.get("approval_workflow_enabled"))
 
 
+def _approver_match(user_id: str) -> list:
+    return [{"approver_id": user_id}, {"approval_chain": user_id}]
+
+
+async def is_category_approver(org_id: str, user_id: str, category: str, subcategory: Optional[str]) -> bool:
+    """True when the user is an approver on an assignment covering this category / subcategory."""
+    count = await _db.esg_assignments.count_documents({
+        "organization_id": org_id, "entity_type": "record_category", "category": category,
+        "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
+    })
+    return count > 0
+
+
 async def user_assigned_categories(org_id: str, user_id: str) -> list:
     assignee_rows = await _db.esg_assignment_assignees.find(
         {"user_id": user_id, "organization_id": org_id, "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}]},
         {"_id": 0, "assignment_id": 1},
     ).to_list(500)
     assignment_ids = [row["assignment_id"] for row in assignee_rows]
-    if not assignment_ids:
-        return []
     assignments = await _db.esg_assignments.find(
-        {"id": {"$in": assignment_ids}, "organization_id": org_id, "entity_type": "record_category"},
+        {"organization_id": org_id, "entity_type": "record_category",
+         "$or": [{"id": {"$in": assignment_ids}}, *_approver_match(user_id)]},
         {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1},
     ).to_list(500)
     return [(a.get("category"), a.get("subcategory"), a.get("sub_subcategory")) for a in assignments]

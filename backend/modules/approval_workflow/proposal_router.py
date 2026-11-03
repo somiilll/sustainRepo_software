@@ -139,6 +139,17 @@ async def get_proposals_for_record(
             "data_level": data_level,
         }
     else:
+        # Assigned approvers see the proposals waiting on them
+        pending = await proposal_service.get_all_pending_proposals(record_id=record_id, entity_type=entity_type)
+        approver_proposals = [p for p in pending if user_id in (p.get("current_approvers") or [])]
+        if approver_proposals:
+            return {
+                "proposals": approver_proposals,
+                "count": len(approver_proposals),
+                "is_approver_view": True,
+                "current_record": current_record,
+                "data_level": data_level,
+            }
         # Return only user's proposal
         proposal = await proposal_service.get_user_pending_proposal(
             record_id=record_id,
