@@ -936,3 +936,9 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## ESG Records Tracker redesign
 - Row: progress chips (Completed/Pending/Overdue). Expanded panel (TrackerDetailPanel.js) with tabs Periods, Assignment and approvers, Activity, Linked disclosures; real due rules/dates via GET /api/esg-records/tracker/detail/{assignment_id} (tracker_detail_service.py). Approve/Send back buttons are display-only.
 - NOT verified: user chose to skip checking; no screenshot or E2E test run. Backend and frontend start without errors in logs.
+
+## Tracker panel update
+- Removed FY label. Activity tab: avatar timeline sentences, scrollable (max-h 22rem). "Linked disclosures" replaced by "Linked entries" (current submitted records per period; View entry links to the section page).
+- Assignment and approvers: Reminders (7d before, on deadline, every 3d overdue) and Escalation (5d / 10d / don't notify, pick one) saved on all assignments of the subcategory via PUT /api/esg-records/tracker-detail/notifications (admin only; fields reminder_rules, escalation). Saved only, NO notifications are sent yet.
+- "Edit assignment" button inside the tab; row UserPlus icon only shown when the subcategory has no assignment. Calendar icon replaced by chevron in the actions column.
+- User said "dont test": only backend curl-checked; frontend not visually verified.

@@ -1,10 +1,9 @@
-"""Data for the tracker's expanded panel: periods, assignment, activity, linked disclosures."""
-import re
-from datetime import datetime
+"""Data for the tracker's expanded panel: periods, assignment, activity, linked entries."""
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
-from shared.utils.period_keys import period_query_clause
+from shared.utils.period_keys import MONTH_NAMES, period_key_from_reporting_period, period_query_clause
 
 FINAL_OK = ("completed",)
 
@@ -26,19 +25,19 @@ def due_rule_text(frequency: str, due_config: Optional[Dict[str, Any]]) -> str:
     return f"{text} at {time}" if time else text
 
 
-def fy_label(start: Optional[str], end: Optional[str], fallback: Optional[str]) -> str:
-    match = re.search(r"(\d{4})\D+(\d{2,4})", str(fallback or ""))
-    if match:
-        return f"FY {match.group(1)}–{match.group(2)[-2:]}"
-    if start and end:
-        return f"FY {str(start)[:4]}–{str(end)[2:4]}"
-    return ""
+def _key_label(key: Optional[str]) -> str:
+    parts = str(key or "").split("-")
+    if len(parts) == 2 and parts[1].isdigit() and len(parts[0]) == 4 and 1 <= int(parts[1]) <= 12:
+        return f"{MONTH_NAMES[int(parts[1]) - 1][:3]} {parts[0]}"
+    if len(parts) == 2:
+        return f"{parts[1]} {parts[0]}"
+    return str(key or "")
 
 
 async def _user_names(user_ids: List[str]) -> Dict[str, Dict[str, str]]:
     ids = [uid for uid in set(user_ids) if uid]
-    users = await db.users.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1}).to_list(200)
-    return {u["id"]: {"name": u.get("name") or u.get("email") or "User", "email": u.get("email", ""), "role": u.get("role", "")} for u in users}
+    users = await db.users.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1, "role": 1}).to_list(200)
+    return {u["id"]: {"name": u.get("full_name") or u.get("name") or u.get("email") or "User", "email": u.get("email", ""), "role": u.get("role", "")} for u in users}
 
 
 def _period_status(tasks: List[Dict[str, Any]]) -> str:
@@ -110,7 +109,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         {"assignment_id": {"$in": [a["id"] for a in assignments]}}, {"_id": 0}).sort("created_at", -1).to_list(30)
     requests = await db.approval_requests.find(
         {"organization_id": org_id, "entity_type": "esg_record", "entity_snapshot.category": category,
-         "entity_snapshot.subcategory": subcategory}, {"_id": 0}).sort("submitted_at", -1).to_list(30)
+         "entity_snapshot.subcategory": subcategory}, {"_id": 0}).sort("submitted_at", -1).to_list(100)
     names = await _user_names([r["user_id"] for r in assignee_rows] + approver_ids + [p.get("submitted_by") for p in periods]
                               + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments])
 
@@ -120,39 +119,81 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     facility_ids = {a.get("facility_id") for a in assignments if a.get("facility_id")}
     facilities = await db.facilities.find({"id": {"$in": list(facility_ids)}}, {"_id": 0, "id": 1, "name": 1}).to_list(200) if facility_ids else []
 
+    labels = {k: g[0].get("period_label") or k for k, g in by_period.items()}
+    section_records = await db[f"{section}_records"].find(
+        {"org_id": org_id, "category": category, "subcategory": subcategory, "status": {"$ne": "draft"}},
+        {"_id": 0, "id": 1, "reporting_period": 1, "facility_id": 1, "status": 1, "approval_status": 1, "is_current": 1,
+         "created_by": 1, "created_at": 1, "updated_by": 1, "updated_at": 1}).sort("updated_at", -1).to_list(200)
+    record_label: Dict[str, str] = {}
+    for rec in section_records:
+        key = period_key_from_reporting_period(rec.get("reporting_period") or {}, default_to_year=True)
+        record_label[rec["id"]] = labels.get(key) or _key_label(key)
+    rec_names = await _user_names([r.get("updated_by") or r.get("created_by") for r in section_records])
+
+    def actor_of(r: Dict[str, Any], key: str) -> str:
+        return r.get(key) or "Someone"
+
     activity: List[Dict[str, Any]] = []
     for r in requests:
-        activity.append({"at": _iso(r.get("submitted_at")), "title": "Submitted for approval", "actor": r.get("submitted_by_name") or ""})
+        label = record_label.get(r.get("entity_id"), "")
+        suffix = f" {label}" if label else " record"
+        activity.append({"at": _iso(r.get("submitted_at")), "kind": "submit", "actor": actor_of(r, "submitted_by_name"),
+                         "title": f"{actor_of(r, 'submitted_by_name')} submitted{suffix} for approval"})
         if r.get("status") in ("approved", "rejected") and r.get("resolved_at"):
-            activity.append({"at": _iso(r.get("resolved_at")), "title": "Approved" if r["status"] == "approved" else "Sent back",
-                             "actor": r.get("resolved_by_name") or ""})
+            verb = "approved" if r["status"] == "approved" else "sent back"
+            activity.append({"at": _iso(r.get("resolved_at")), "kind": "approve" if r["status"] == "approved" else "reject",
+                             "actor": actor_of(r, "resolved_by_name"), "title": f"{actor_of(r, 'resolved_by_name')} {verb}{suffix}"})
+    for a in assignments:
+        creator = names.get(a.get("created_by_user_id"), {}).get("name", "Someone")
+        people = [names.get(r["user_id"], {}).get("name") for r in assignee_rows if r["assignment_id"] == a["id"]]
+        text = f"{creator} assigned {subcategory}"
+        if people:
+            text += f" to {', '.join(p for p in people if p)}"
+        text += f", {a.get('filling_frequency', 'monthly').replace('_', '-')}"
+        approver = names.get(a.get("approver_id"), {}).get("name")
+        if a.get("requires_approval") and approver:
+            text += f", with {approver} as approver"
+        activity.append({"at": _iso(a.get("created_at")), "kind": "assign", "actor": creator, "title": text})
     for h in history:
-        activity.append({"at": _iso(h.get("created_at")), "title": f"Assignment {h.get('action', 'updated')}",
-                         "actor": names.get(h.get("changed_by_user_id"), {}).get("name", "")})
+        if h.get("action") == "created":
+            continue
+        who = names.get(h.get("changed_by_user_id"), {}).get("name", "Someone")
+        activity.append({"at": _iso(h.get("created_at")), "kind": "update", "actor": who,
+                         "title": f"{who} updated the assignment ({h.get('action', 'updated').replace('_', ' ')})"})
     activity.sort(key=lambda e: e["at"] or "", reverse=True)
 
-    mappings = await db.kpi_framework_mappings.find(
-        {"is_active": True, "source_category": category, "source_subcategory": subcategory},
-        {"_id": 0, "framework": 1, "question_key": 1, "reference": 1, "destination_label": 1}).to_list(500)
-    linked: Dict[tuple, Dict[str, Any]] = {}
-    for m in mappings:
-        linked.setdefault((m["framework"], m["question_key"]), {
-            "framework": m["framework"], "question_key": m["question_key"], "reference": m.get("reference"),
-            "title": (m.get("destination_label") or "")[:140], "kpi_count": 0})["kpi_count"] += 1
+    entries = [{
+        "record_id": rec["id"], "period_label": record_label.get(rec["id"], ""), "is_current": bool(rec.get("is_current")),
+        "status": rec.get("approval_status") if rec.get("approval_status") not in (None, "not_required") else rec.get("status"),
+        "submitted_by_name": rec_names.get(rec.get("updated_by") or rec.get("created_by"), {}).get("name"),
+        "submitted_at": _iso(rec.get("updated_at") or rec.get("created_at")),
+    } for rec in section_records if rec.get("is_current")]
 
     return {
         "has_assignment": True, "category": category, "subcategory": subcategory,
         "level": "Facility level" if any(a.get("assignment_level") == "facility" for a in assignments) else "Organization level",
         "frequency": frequency, "due_rule": due_rule_text(frequency, ref.get("due_config")),
-        "fy_label": fy_label(ref.get("start_date"), ref.get("end_date"), ref.get("reporting_period")),
         "periods": periods,
         "assignment": {
             "start_date": ref.get("start_date"), "end_date": ref.get("end_date"),
             "requires_approval": bool(ref.get("requires_approval")),
             "assignees": [{**names.get(r["user_id"], {"name": "User", "email": ""}), "id": r["user_id"]} for r in assignee_rows],
             "approvers": [{**names.get(i, {"name": "User", "email": ""}), "id": i} for i in dict.fromkeys(approver_ids)],
-            "facilities": facilities, "reminder_enabled": bool(ref.get("reminder_enabled")),
+            "facilities": facilities,
+            "reminder_rules": ref.get("reminder_rules") or [], "escalation": ref.get("escalation") or "none",
         },
-        "activity": activity[:30],
-        "linked_disclosures": sorted(linked.values(), key=lambda x: (x["framework"], x["question_key"])),
+        "activity": activity[:100],
+        "linked_entries": entries,
     }
+
+
+REMINDER_RULES = ("before_7d", "on_deadline", "overdue_every_3d")
+ESCALATIONS = ("overdue_5d", "overdue_10d", "none")
+
+
+async def save_notification_settings(org_id: str, category: str, subcategory: str, reminder_rules: List[str], escalation: str) -> int:
+    rules = [r for r in REMINDER_RULES if r in reminder_rules]
+    result = await db.esg_assignments.update_many(
+        {"organization_id": org_id, "category": category, "subcategory": subcategory},
+        {"$set": {"reminder_rules": rules, "escalation": escalation, "updated_at": datetime.now(timezone.utc)}})
+    return result.matched_count

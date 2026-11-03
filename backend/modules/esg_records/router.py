@@ -11,6 +11,7 @@ the original response is returned instead of processing again.
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
 from typing import Optional, List
+from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
 import hashlib
@@ -1687,6 +1688,35 @@ async def get_tracker_detail_endpoint(
     if section not in ("environment", "social", "governance"):
         raise HTTPException(status_code=400, detail="Invalid section")
     return await get_tracker_detail(org_id, section, category, subcategory)
+
+
+class TrackerNotificationSettings(BaseModel):
+    section: str
+    category: str
+    subcategory: str
+    reminder_rules: List[str] = []
+    escalation: str = "none"
+
+
+@router.put("/tracker-detail/notifications")
+async def save_tracker_notifications(
+    body: TrackerNotificationSettings,
+    current_user: dict = Depends(get_current_user),
+):
+    """Save reminder and escalation settings on every assignment of a subcategory (admins only)."""
+    from .tracker_detail_service import ESCALATIONS, REMINDER_RULES, save_notification_settings
+
+    if str(current_user.get("role", "")).lower() not in ("admin", "super_admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    if body.escalation not in ESCALATIONS or any(r not in REMINDER_RULES for r in body.reminder_rules):
+        raise HTTPException(status_code=400, detail="Invalid reminder or escalation option")
+    matched = await save_notification_settings(org_id, body.category, body.subcategory, body.reminder_rules, body.escalation)
+    if not matched:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return {"success": True}
 
 
 @router.get("/tasks/period-status/{assignment_id}")

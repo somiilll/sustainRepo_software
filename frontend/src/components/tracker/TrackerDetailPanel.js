@@ -1,11 +1,12 @@
 /**
- * Tracker expanded panel: Periods / Assignment and approvers / Activity / Linked disclosures.
+ * Tracker expanded panel: Periods / Assignment and approvers / Activity / Linked entries.
  * Data: GET /api/esg-records/tracker-detail (period status is the synced task status).
  */
 import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, Pencil, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -74,7 +75,64 @@ function PeriodCard({ period, section }) {
 
 const Empty = ({ children }) => <p className="py-6 text-sm text-stone-500">{children}</p>;
 
-function AssignmentTab({ a }) {
+const REMINDERS = [
+  { id: 'before_7d', label: '7 days before the deadline' },
+  { id: 'on_deadline', label: 'On the deadline day' },
+  { id: 'overdue_every_3d', label: 'Every 3 days while overdue' },
+];
+const ESCALATIONS = [
+  { id: 'overdue_5d', label: 'Notify the admin when 5 days overdue' },
+  { id: 'overdue_10d', label: 'Notify the admin when 10 days overdue' },
+  { id: 'none', label: "Don't notify" },
+];
+
+function NotificationSettings({ a, ctx, canEdit }) {
+  const { token } = useAuth();
+  const [rules, setRules] = useState(a.reminder_rules);
+  const [esc, setEsc] = useState(a.escalation);
+  const [saving, setSaving] = useState(false);
+  const dirty = esc !== a.escalation || REMINDERS.some((r) => rules.includes(r.id) !== a.reminder_rules.includes(r.id));
+  const toggle = (id) => setRules((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await axios.put(`${API}/api/esg-records/tracker-detail/notifications`, { ...ctx, reminder_rules: rules, escalation: esc }, { headers: { Authorization: `Bearer ${token}` } });
+      a.reminder_rules = rules; a.escalation = esc;
+      toast.success('Reminder settings saved');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Could not save settings'); }
+    setSaving(false);
+  };
+  const box = 'h-4 w-4 accent-emerald-600';
+  return (
+    <div className="mt-6 grid gap-6 border-t border-stone-100 pt-5 md:grid-cols-2" data-testid="tracker-notification-settings">
+      <div>
+        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Reminders</h5>
+        <div className="space-y-2">{REMINDERS.map((r) => (
+          <label key={r.id} className="flex items-center gap-2 text-sm text-stone-800">
+            <input type="checkbox" className={box} disabled={!canEdit} checked={rules.includes(r.id)} onChange={() => toggle(r.id)} data-testid={`reminder-${r.id}`} />{r.label}
+          </label>))}
+        </div>
+      </div>
+      <div>
+        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Escalation</h5>
+        <div className="space-y-2">{ESCALATIONS.map((r) => (
+          <label key={r.id} className="flex items-center gap-2 text-sm text-stone-800">
+            <input type="radio" name="tracker-escalation" className={box} disabled={!canEdit} checked={esc === r.id} onChange={() => setEsc(r.id)} data-testid={`escalation-${r.id}`} />{r.label}
+          </label>))}
+        </div>
+      </div>
+      {canEdit && (
+        <div className="md:col-span-2">
+          <button onClick={save} disabled={!dirty || saving} className="rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40" data-testid="save-notification-settings">
+            {saving ? 'Saving…' : 'Save settings'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssignmentTab({ a, ctx, canEdit, onEditAssignment }) {
   const person = (u) => (
     <li key={u.id} className="flex items-center gap-2 text-sm">
       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-semibold text-emerald-700">{(u.name || '?').slice(0, 1).toUpperCase()}</span>
@@ -82,46 +140,62 @@ function AssignmentTab({ a }) {
     </li>
   );
   return (
-    <div className="grid gap-6 pt-4 md:grid-cols-3" data-testid="tracker-tab-assignment">
-      <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Data entry</h5><ul className="space-y-2">{a.assignees.length ? a.assignees.map(person) : <Empty>No assignees</Empty>}</ul></div>
-      <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Approvers</h5><ul className="space-y-2">{a.requires_approval ? (a.approvers.length ? a.approvers.map(person) : <Empty>No approver set</Empty>) : <Empty>Approval not required</Empty>}</ul></div>
-      <div className="space-y-1 text-sm text-stone-700">
-        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Schedule</h5>
-        <p>Starts {fmt(a.start_date)}</p><p>Ends {fmt(a.end_date)}</p>
-        <p>Reminders {a.reminder_enabled ? 'on' : 'off'}</p>
-        {a.facilities.length > 0 && <p>Facilities: {a.facilities.map((f) => f.name).join(', ')}</p>}
+    <div className="pt-4" data-testid="tracker-tab-assignment">
+      {onEditAssignment && (
+        <div className="mb-4 flex justify-end">
+          <button onClick={onEditAssignment} className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-sm font-medium text-stone-800 hover:bg-stone-50" data-testid="edit-assignment-btn">
+            <Pencil className="h-3.5 w-3.5" />Edit assignment
+          </button>
+        </div>
+      )}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Data entry</h5><ul className="space-y-2">{a.assignees.length ? a.assignees.map(person) : <Empty>No assignees</Empty>}</ul></div>
+        <div><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Approvers</h5><ul className="space-y-2">{a.requires_approval ? (a.approvers.length ? a.approvers.map(person) : <Empty>No approver set</Empty>) : <Empty>Approval not required</Empty>}</ul></div>
+        <div className="space-y-1 text-sm text-stone-700">
+          <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Schedule</h5>
+          <p>Starts {fmt(a.start_date)}</p><p>Ends {fmt(a.end_date)}</p>
+          {a.facilities.length > 0 && <p>Facilities: {a.facilities.map((f) => f.name).join(', ')}</p>}
+        </div>
       </div>
+      <NotificationSettings a={a} ctx={ctx} canEdit={canEdit} />
     </div>
   );
 }
 
+const ACTOR_STYLE = { submit: 'bg-blue-100 text-blue-700', approve: 'bg-emerald-100 text-emerald-700', reject: 'bg-red-100 text-red-700', assign: 'bg-emerald-100 text-emerald-700', update: 'bg-stone-100 text-stone-600' };
+
 const ActivityTab = ({ items }) => (
-  <ol className="space-y-3 pt-4" data-testid="tracker-tab-activity">
+  <ol className="max-h-[22rem] overflow-y-auto pr-2 pt-4" data-testid="tracker-tab-activity">
     {items.length === 0 && <Empty>No activity yet</Empty>}
     {items.map((e, i) => (
-      <li key={`${e.at}-${i}`} className="flex gap-3 text-sm">
-        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-        <div><p className="text-stone-900">{e.title}{e.actor ? <span className="text-stone-500"> · {e.actor}</span> : null}</p><p className="text-xs text-stone-500">{fmt(e.at, true)}</p></div>
+      <li key={`${e.at}-${i}`} className="relative flex gap-4 pb-5" data-testid="activity-item">
+        {i < items.length - 1 && <span className="absolute left-[19px] top-10 h-[calc(100%-2.5rem)] w-px bg-stone-200" />}
+        <span className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${ACTOR_STYLE[e.kind] || ACTOR_STYLE.update}`}>{(e.actor || '?').slice(0, 1).toUpperCase()}</span>
+        <div className="min-w-0"><p className="text-base text-stone-900">{e.title}</p><p className="text-sm text-stone-500">{fmt(e.at, true)}</p></div>
       </li>
     ))}
   </ol>
 );
 
-const LinkedTab = ({ items }) => (
-  <ul className="divide-y divide-stone-100 pt-2" data-testid="tracker-tab-linked">
-    {items.length === 0 && <Empty>No BRSR or GRI disclosures are mapped to this category yet</Empty>}
-    {items.map((d) => (
-      <li key={`${d.framework}-${d.question_key}`} className="flex items-start gap-3 py-3 text-sm">
-        <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-700">{d.framework}</span>
-        <div className="min-w-0"><p className="font-medium text-stone-900">{d.reference || d.question_key}</p><p className="truncate text-xs text-stone-500">{d.title}</p></div>
-        <span className="ml-auto whitespace-nowrap text-xs text-stone-500">{d.kpi_count} KPI{d.kpi_count === 1 ? '' : 's'}</span>
+const ENTRY_STATUS = { completed: 'Completed', approved: 'Approved', pending: 'Awaiting approval', pending_approval: 'Awaiting approval', rejected: 'Sent back' };
+
+const LinkedTab = ({ items, section }) => (
+  <ul className="max-h-[22rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="tracker-tab-linked">
+    {items.length === 0 && <Empty>No records have been submitted for this assignment yet</Empty>}
+    {items.map((r) => (
+      <li key={r.record_id} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid="linked-entry">
+        <span className="font-medium text-stone-900">{r.period_label || 'Record'}</span>
+        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-700">{ENTRY_STATUS[r.status] || r.status}</span>
+        <span className="text-xs text-stone-500">{r.submitted_by_name ? `by ${r.submitted_by_name} · ` : ''}{fmt(r.submitted_at, true)}</span>
+        <Link to={`/${section}`} className="ml-auto text-xs font-medium text-emerald-700 hover:underline" data-testid="linked-entry-open">View entry</Link>
       </li>
     ))}
   </ul>
 );
 
-export default function TrackerDetailPanel({ section, category, subcategory, onClose }) {
-  const { token } = useAuth();
+export default function TrackerDetailPanel({ section, category, subcategory, version, onEditAssignment, onClose }) {
+  const { token, user } = useAuth();
+  const canEdit = ['admin', 'super_admin', 'superadmin'].includes(String(user?.role || '').toLowerCase());
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('periods');
   const [error, setError] = useState(false);
@@ -132,7 +206,7 @@ export default function TrackerDetailPanel({ section, category, subcategory, onC
     axios.get(`${API}/api/esg-records/tracker-detail`, { headers: { Authorization: `Bearer ${token}` }, params: { section, category, subcategory } })
       .then((r) => live && setData(r.data)).catch(() => live && setError(true));
     return () => { live = false; };
-  }, [token, section, category, subcategory]);
+  }, [token, section, category, subcategory, version]);
 
   if (error) return <p className="p-4 text-sm text-red-600">Could not load details.</p>;
   if (!data) return <div className="flex justify-center p-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>;
@@ -142,7 +216,7 @@ export default function TrackerDetailPanel({ section, category, subcategory, onC
     { id: 'periods', label: 'Periods', count: data.periods.length },
     { id: 'assignment', label: 'Assignment and approvers' },
     { id: 'activity', label: 'Activity', count: data.activity.length },
-    { id: 'linked', label: 'Linked disclosures', count: data.linked_disclosures.length },
+    { id: 'linked', label: 'Linked entries', count: data.linked_entries.length },
   ];
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="tracker-detail-panel">
@@ -152,8 +226,7 @@ export default function TrackerDetailPanel({ section, category, subcategory, onC
           <p className="text-xs text-stone-500" data-testid="tracker-detail-subtitle">{data.level} · {data.frequency.replace('_', '-').replace(/^./, (c) => c.toUpperCase())} · {data.due_rule}</p>
         </div>
         <div className="flex items-center gap-2">
-          {data.fy_label && <span className="rounded-full border border-stone-200 px-3 py-1 text-xs font-medium text-stone-700" data-testid="tracker-detail-fy">{data.fy_label}</span>}
-          {onClose && <button onClick={onClose} className="rounded-md p-1 text-stone-400 hover:bg-stone-100" aria-label="Close details" data-testid="tracker-detail-close"><X className="h-4 w-4" /></button>}
+                    {onClose && <button onClick={onClose} className="rounded-md p-1 text-stone-400 hover:bg-stone-100" aria-label="Close details" data-testid="tracker-detail-close"><X className="h-4 w-4" /></button>}
         </div>
       </div>
       <div className="mt-4 flex gap-5 overflow-x-auto border-b border-stone-200" role="tablist">
@@ -175,9 +248,9 @@ export default function TrackerDetailPanel({ section, category, subcategory, onC
           </div>
         </>
       )}
-      {tab === 'assignment' && <AssignmentTab a={data.assignment} />}
+      {tab === 'assignment' && <AssignmentTab a={data.assignment} ctx={{ section, category, subcategory }} canEdit={canEdit} onEditAssignment={onEditAssignment} />}
       {tab === 'activity' && <ActivityTab items={data.activity} />}
-      {tab === 'linked' && <LinkedTab items={data.linked_disclosures} />}
+      {tab === 'linked' && <LinkedTab items={data.linked_entries} section={section} />}
     </div>
   );
 }

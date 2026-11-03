@@ -1592,15 +1592,19 @@ export default function ESGRecordsTracker({
                                     expandedDetailedView === detailKey ? null : detailKey
                                   );
                                 }}
-                                title="View Period/Facility Details"
+                                title={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'Hide details' : 'Show details'}
                                 className={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'bg-emerald-100' : ''}
                                 data-testid={`view-details-${cat.category}-${subcat.subcategory}`}
                               >
-                                <Calendar className="w-4 h-4" />
+                                {expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? (
+                                  <ChevronDown className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
                               </Button>
                             )}
-                            {/* Assign button - Admin only */}
-                            {isUserAdmin && (
+                            {/* Assign button - Admin only; editing an existing assignment lives in the detail panel */}
+                            {isUserAdmin && !effectiveAssignment && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1638,6 +1642,13 @@ export default function ESGRecordsTracker({
                               section={section}
                               category={cat.category}
                               subcategory={subcat.subcategory}
+                              version={effectiveAssignment?.updated_at}
+                              onEditAssignment={isUserAdmin ? () => openAssignModal({
+                                category: cat.category,
+                                subcategory: subcat.subcategory,
+                                assignChildren: true,
+                                ...(subcat.assignment || {})
+                              }) : undefined}
                               onClose={() => setExpandedDetailedView(null)}
                             />
                           </TableCell>
