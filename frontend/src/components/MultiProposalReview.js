@@ -26,9 +26,12 @@ import {
   RefreshCw,
   Calendar,
   Paperclip,
+  Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import EvidenceFileLink from './EvidenceFileLink';
+import { createDraftEvidence, draftEvidence, persistedEvidence, revokeDraftEvidences, toEvidencePayload, uploadDraftEvidences } from '../lib/draftEvidence';
 import CategoryFieldsForm, { hasCategoryForm } from './CategoryFieldsForm';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -36,26 +39,48 @@ const API = process.env.REACT_APP_BACKEND_URL;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 
                 'July', 'August', 'September', 'October', 'November', 'December'];
 
-function ProposalAttachments({ source, notes, evidence }) {
-  if (!source && !notes && !evidence.length) return null;
+function ProposalAttachments({ source, notes, evidence, editing, onChange, onFiles }) {
+  const none = <span className="text-stone-400">-</span>;
   return (
     <div className="space-y-3 rounded-lg border border-stone-200 p-4 text-sm" data-testid="proposal-attachments">
-      {source && <div><p className="text-xs text-stone-500">Source of information</p><p className="font-medium text-stone-900">{source}</p></div>}
-      {notes && <div><p className="text-xs text-stone-500">Notes</p><p className="whitespace-pre-wrap text-stone-900">{notes}</p></div>}
-      {evidence.length > 0 && (
-        <div>
-          <p className="mb-1 flex items-center gap-1 text-xs text-stone-500"><Paperclip className="h-3.5 w-3.5" />Evidence files</p>
-          <ul className="space-y-1">
-            {evidence.map((ev, i) => (
-              <li key={ev.id || i} className="flex items-center gap-3 rounded-md bg-stone-50 px-2 py-1.5" data-testid="proposal-evidence-item">
-                <span className="flex-1 truncate text-stone-900">{ev.filename || ev.name || 'File'}</span>
-                {ev.file_size ? <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span> : null}
-                <EvidenceFileLink evidence={ev} testId={`proposal-evidence-view-${ev.id || i}`} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div>
+        <p className="mb-1 text-xs text-stone-500">Source of information</p>
+        {editing
+          ? <Input value={source || ''} onChange={(e) => onChange({ source: e.target.value })} placeholder="e.g., Utility Bill, Vendor Invoice..." data-testid="proposal-source-input" />
+          : <p className="font-medium text-stone-900" data-testid="proposal-source">{source || none}</p>}
+      </div>
+      <div>
+        <p className="mb-1 text-xs text-stone-500">Notes</p>
+        {editing
+          ? <Textarea value={notes || ''} onChange={(e) => onChange({ notes: e.target.value })} rows={3} placeholder="Additional notes..." data-testid="proposal-notes-input" />
+          : <p className="whitespace-pre-wrap text-stone-900" data-testid="proposal-notes">{notes || none}</p>}
+      </div>
+      <div>
+        <p className="mb-1 flex items-center gap-1 text-xs text-stone-500"><Paperclip className="h-3.5 w-3.5" />Evidence files</p>
+        {evidence.length === 0 && <p className="text-stone-400">No evidence files</p>}
+        <ul className="space-y-1">
+          {evidence.map((ev, i) => (
+            <li key={ev.id || i} className="flex items-center gap-3 rounded-md bg-stone-50 px-2 py-1.5" data-testid="proposal-evidence-item">
+              <span className="flex-1 truncate text-stone-900">{ev.filename || ev.name || 'File'}</span>
+              {ev.file_size ? <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span> : null}
+              <EvidenceFileLink evidence={ev} testId={`proposal-evidence-view-${ev.id || i}`} />
+              {editing && (
+                <button type="button" className="text-red-400 hover:text-red-600" aria-label="Remove evidence"
+                        onClick={() => onChange({ evidence: evidence.filter((_, idx) => idx !== i) })} data-testid={`proposal-evidence-remove-${ev.id || i}`}>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {editing && (
+          <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-50">
+            <Upload className="h-3.5 w-3.5" />Add evidence
+            <input type="file" multiple className="hidden" data-testid="proposal-evidence-upload"
+                   onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
+          </label>
+        )}
+      </div>
     </div>
   );
 }
@@ -76,7 +101,7 @@ export default function MultiProposalReview({
   onClose,
   onActionComplete,
 }) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -250,11 +275,50 @@ export default function MultiProposalReview({
     setEditValues(flattenedValues);
   };
 
+  const patchInline = (patch) => setInlineEdit((cur) => cur && { ...cur, ...patch });
+
+  const addInlineFiles = (files) => {
+    const added = [];
+    Array.from(files || []).forEach((file) => {
+      if (file.size > 5 * 1024 * 1024) toast.error(`${file.name} exceeds 5MB limit`);
+      else added.push(createDraftEvidence(file));
+    });
+    if (added.length) setInlineEdit((cur) => cur && { ...cur, evidence: [...cur.evidence, ...added] });
+  };
+
+  const cancelInline = () => {
+    revokeDraftEvidences(inlineEdit?.evidence);
+    setInlineEdit(null);
+  };
+
   const handleSaveInline = async () => {
     setProcessing(true);
     try {
-      await axios.put(`${API}/api/proposals/${inlineEdit.id}`, { field_values: inlineEdit.values }, { headers: getAuthHeader() });
+      const headers = getAuthHeader();
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(inlineEdit.evidence),
+        uploadUrl: `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id || '',
+        }),
+      });
+      if (uploadResult.failed.length) toast.error(`${uploadResult.failed.length} evidence file(s) could not be uploaded`);
+      await axios.put(`${API}/api/proposals/${inlineEdit.id}`, {
+        field_values: inlineEdit.values,
+        source_of_information: inlineEdit.source,
+        notes: inlineEdit.notes,
+        evidence_files: [...persistedEvidence(inlineEdit.evidence).map(toEvidencePayload), ...uploadResult.uploaded],
+      }, { headers });
       toast.success('Proposal updated');
+      revokeDraftEvidences(inlineEdit.evidence);
       setInlineEdit(null);
       fetchProposals();
     } catch (err) {
@@ -437,6 +501,12 @@ export default function MultiProposalReview({
           }
           
           const reportingPeriod = snapshot.reporting_period;
+          const fromRecord = (key) => (key in snapshot ? snapshot[key] : approvedRecord?.[key]);
+          const attachmentValues = {
+            source: fromRecord('source_of_information') || '',
+            notes: fromRecord('notes') || '',
+            evidence: fromRecord('evidence_files') || [],
+          };
           
           // Get the comparison values for emission records
           const getApprovedFieldValue = (key) => {
@@ -538,16 +608,19 @@ export default function MultiProposalReview({
                 )}
 
                 <ProposalAttachments
-                  source={'source_of_information' in snapshot ? snapshot.source_of_information : approvedRecord?.source_of_information}
-                  notes={'notes' in snapshot ? snapshot.notes : approvedRecord?.notes}
-                  evidence={('evidence_files' in snapshot ? snapshot.evidence_files : approvedRecord?.evidence_files) || []}
+                  editing={inlineEdit?.id === proposal.id}
+                  source={inlineEdit?.id === proposal.id ? inlineEdit.source : attachmentValues.source}
+                  notes={inlineEdit?.id === proposal.id ? inlineEdit.notes : attachmentValues.notes}
+                  evidence={inlineEdit?.id === proposal.id ? inlineEdit.evidence : attachmentValues.evidence}
+                  onChange={patchInline}
+                  onFiles={addInlineFiles}
                 />
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-2 border-t">
                   {inlineEdit?.id === proposal.id ? (
                     <>
-                      <Button variant="outline" size="sm" onClick={() => setInlineEdit(null)} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
+                      <Button variant="outline" size="sm" onClick={cancelInline} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
                         Cancel
                       </Button>
                       <Button size="sm" onClick={handleSaveInline} disabled={processing} data-testid={`save-edit-${proposal.id}`}>
@@ -559,7 +632,7 @@ export default function MultiProposalReview({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => (useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues } }) : openEditDialog(proposal))}
+                      onClick={() => (useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues }, ...attachmentValues }) : openEditDialog(proposal))}
                       disabled={processing || !!inlineEdit}
                       data-testid={`edit-proposal-${proposal.id}`}
                     >

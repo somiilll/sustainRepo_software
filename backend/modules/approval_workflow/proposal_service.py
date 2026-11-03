@@ -962,7 +962,7 @@ class ProposalService:
                 update_fields["field_values"] = apply_data["field_values"]
             
             # Copy other approved fields
-            for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes"]:
+            for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes", "source_of_information", "evidence_files"]:
                 if key in apply_data:
                     update_fields[key] = apply_data[key]
         

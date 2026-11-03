@@ -24,7 +24,8 @@ class ProposalEditRequest(BaseModel):
     """Request to edit a proposal (approver only)."""
     field_values: Optional[dict] = None
     notes: Optional[str] = None
-    # Add other editable fields as needed
+    source_of_information: Optional[str] = None
+    evidence_files: Optional[List[dict]] = None
 
 
 class ProposalApproveRequest(BaseModel):
@@ -198,6 +199,10 @@ async def edit_proposal(
         modified_data["field_values"] = data.field_values
     if data.notes is not None:
         modified_data["notes"] = data.notes
+    if data.source_of_information is not None:
+        modified_data["source_of_information"] = data.source_of_information
+    if data.evidence_files is not None:
+        modified_data["evidence_files"] = data.evidence_files
     
     if not modified_data:
         raise HTTPException(status_code=400, detail="No modifications provided")
