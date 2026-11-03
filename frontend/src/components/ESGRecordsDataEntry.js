@@ -337,6 +337,19 @@ export default function ESGRecordsDataEntry({
     fetchReportingYearType();
   }, [section]);
 
+  // With an approval workflow, facilities come from the user's assignments for the chosen metric
+  const metricCategory = mode === 'add' ? formData.category : editData?.category;
+  const metricSubcategory = mode === 'add' ? formData.subcategory : editData?.subcategory;
+  useEffect(() => {
+    if (!metricCategory || !metricSubcategory) return;
+    axios.get(`${API}/api/esg-assignments/kpi-access/facilities/list`, {
+      headers, params: { category: metricCategory, subcategory: metricSubcategory },
+    }).then((res) => {
+      if (res.data.approval_workflow_enabled) setFacilities(res.data.facilities || []);
+      else fetchFacilities();
+    }).catch((error) => console.error('Failed to fetch assigned facilities:', error));
+  }, [metricCategory, metricSubcategory]);
+
   const fetchReportingYearType = async () => {
     try {
       const res = await axios.get(`${API}/api/organizations/my`, { headers });

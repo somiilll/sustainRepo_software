@@ -616,8 +616,10 @@ async def get_accessible_facilities(
             subcategory=subcategory,
             reporting_period=reporting_period,
         )
-    
-    return {"facilities": facilities, "total": len(facilities)}
+
+    from modules.sustainability_config.service import resolve_organization_settings
+    settings = await resolve_organization_settings(current_user["organization_id"])
+    return {"facilities": facilities, "total": len(facilities), "approval_workflow_enabled": bool(settings.get("approval_workflow_enabled"))}
 
 
 # ============================================
