@@ -27,7 +27,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import ProposalFieldList from './ProposalFieldList';
+import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -244,7 +244,7 @@ export default function MultiProposalReview({
   // A first submission is itself the pending record, so there is nothing approved to compare against yet
   const hasApprovedValues = !!approvedRecord && !(entityType === 'esg_record'
     && ['pending_approval', 'rejected', 'draft'].includes(approvedRecord.approval_status));
-  const useFormLayout = entityType === 'esg_record' && fieldConfig?.fields?.length > 0;
+  const useFormLayout = entityType === 'esg_record' && hasFieldTree(fieldConfig?.fields);
 
   if (loading) {
     return (
@@ -345,7 +345,7 @@ export default function MultiProposalReview({
               };
               
               return useFormLayout ? (
-                <ProposalFieldList fields={fieldConfig.fields} values={displayValues} testId="approved-field-list" />
+                <HierarchicalFields fields={fieldConfig.fields} values={displayValues} onChange={() => {}} readOnly testIdPrefix="approved-field" />
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {getDisplayFieldEntries(displayValues).map(([key, value]) => (
@@ -470,11 +470,12 @@ export default function MultiProposalReview({
                 {/* Field Values */}
                 {useFormLayout ? (
                   <div className="p-4 bg-stone-50 rounded-lg">
-                    <ProposalFieldList
+                    <HierarchicalFields
                       fields={fieldConfig.fields}
                       values={fieldValues}
-                      approvedValues={hasApprovedValues ? approvedRecord.field_values : null}
-                      testId={`proposal-field-list-${proposal.id}`}
+                      onChange={() => {}}
+                      readOnly
+                      testIdPrefix={`proposal-field-${proposal.id}`}
                     />
                   </div>
                 ) : (
