@@ -123,14 +123,13 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         return {"has_assignment": False, "category": category, "subcategory": subcategory}
     ref = next((a for a in assignments if a.get("assignment_level") == "facility"), assignments[0])
     frequency = ref.get("filling_frequency", "monthly")
-    facility_ids = {a.get("facility_id") for a in assignments if a.get("facility_id")}
-    facilities = await db.facilities.find({"id": {"$in": list(facility_ids)}}, {"_id": 0, "id": 1, "name": 1}).to_list(200) if facility_ids else []
-    facility_name = {f["id"]: f.get("name") or "Facility" for f in facilities}
-    facility_of_assignment = {a["id"]: a.get("facility_id") for a in assignments}
 
     tasks = await db.esg_reporting_tasks.find(
         {"organization_id": org_id, "category": category, "subcategory": subcategory}, {"_id": 0}
     ).sort("period_key", 1).to_list(2000)
+    facility_ids = {a.get("facility_id") for a in assignments if a.get("facility_id")} | {t.get("facility_id") for t in tasks if t.get("facility_id")}
+    facilities = await db.facilities.find({"id": {"$in": list(facility_ids)}}, {"_id": 0, "id": 1, "name": 1}).to_list(200) if facility_ids else []
+    facility_name = {f["id"]: f.get("name") or "Facility" for f in facilities}
     by_period: Dict[str, List[Dict[str, Any]]] = {}
     for task in tasks:
         task["status"] = (await completion_service.get_task_status(task)).value
@@ -142,10 +141,16 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     periods: List[Dict[str, Any]] = []
     for key, group in by_period.items():
         status = _period_status(group)
-        by_facility = sorted(
-            ({"name": facility_name.get(facility_of_assignment.get(t.get("assignment_id")), "Facility"), "status": _period_status([t])}
-             for t in group if facility_of_assignment.get(t.get("assignment_id"))),
-            key=lambda f: f["name"])
+        by_facility = []
+        for fid in facility_ids:
+            task = next((t for t in group if t.get("facility_id") == fid), None)
+            if not task:
+                task = {**group[0], "facility_id": fid}
+                task["status"] = (await completion_service.get_task_status(task)).value
+                if task["status"] in ("pending", "backfill_pending") and _iso_utc(task.get("due_at")) < datetime.now(timezone.utc).isoformat():
+                    task["status"] = "overdue"
+            by_facility.append({"name": facility_name.get(fid, "Facility"), "status": _period_status([task])})
+        by_facility.sort(key=lambda f: f["name"])
         context = await _period_context(org_id, section, category, subcategory, key) if status != "pending" else {}
         periods.append({
             "period_key": key, "label": group[0].get("period_label") or key, "status": status,
