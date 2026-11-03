@@ -86,7 +86,6 @@ import {
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
 import TrackerDetailPanel from './tracker/TrackerDetailPanel';
-import TaskCountChips from './tracker/TaskCountChips';
 import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1556,7 +1555,6 @@ export default function ESGRecordsTracker({
                               <div className="text-xs text-text-muted mt-0.5">
                                 {subCompletedTasks} of {subTotalTasks} periods
                               </div>
-                              <TaskCountChips completed={subCompletedTasks} awaiting={subAwaiting} pending={subPendingTasks} testId={`sub-chips-${subcat.subcategory}`} />
                             </div>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
