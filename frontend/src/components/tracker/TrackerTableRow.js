@@ -31,6 +31,8 @@ const PERIOD_STATUS_COLORS = {
   overdue: 'bg-red-500',
   pending: 'bg-stone-200',
   backfill_pending: 'bg-amber-300',
+  pending_approval: 'bg-amber-400',
+  rejected: 'bg-orange-400',
 };
 
 export default function TrackerTableRow({

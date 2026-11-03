@@ -22,6 +22,15 @@ from .history_presenter import FieldHistoryPresenter
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
 
 
+
+def _period_key_candidates(period_key: str) -> List[str]:
+    """A monthly key ("2026-06") also matches its enclosing quarterly task ("2026-Q2")."""
+    parts = str(period_key).split("-")
+    if len(parts) == 2 and len(parts[0]) == 4 and parts[1].isdigit() and 1 <= int(parts[1]) <= 12:
+        return [period_key, f"{parts[0]}-Q{(int(parts[1]) - 1) // 3 + 1}"]
+    return [period_key]
+
+
 class RecordAccessError(ValueError):
     """Raised when a user is not permitted to submit an ESG record."""
 
@@ -559,7 +568,7 @@ class ESGRecordsService:
         task_query = {
             "organization_id": org_id,
             "category": category,
-            "period_key": period_key,
+            "period_key": {"$in": _period_key_candidates(period_key)},
         }
         if subcategory:
             task_query["subcategory"] = subcategory
@@ -1099,7 +1108,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": _period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -1202,7 +1211,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": _period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -2199,7 +2208,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": _period_key_candidates(period_key)},
                 "completed_at": {"$ne": None},  # Has been submitted at some point
             }
             if subcategory:

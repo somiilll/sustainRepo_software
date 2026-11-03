@@ -1671,115 +1671,6 @@ async def refresh_overdue_tasks(
     return result
 
 
-@router.post("/tasks/sync-with-data")
-async def sync_task_statuses_with_data_endpoint(
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_database),
-):
-    """
-    Sync task statuses with actual data records.
-    
-    For tasks that are not completed but have data in the corresponding
-    records collection, update the task status to completed.
-    
-    This fixes discrepancies where data was submitted but the task
-    wasn't updated (e.g., via bulk upload or before the task existed).
-    
-    Admin only.
-    """
-    from .task_engine import sync_task_statuses_with_data
-    
-    # Only admins can trigger this
-    if current_user.get("role") not in ["admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    result = await sync_task_statuses_with_data(db=db, organization_id=org_id)
-    
-    return result
-
-
-
-async def get_completion_by_category(
-    reporting_period: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
-):
-    """
-    Get task completion statistics grouped by category/subcategory.
-    Used for Enhanced Tracker Table to show completion % per row.
-    """
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    # Aggregation pipeline to group tasks by category
-    match_query = {"organization_id": org_id}
-    if reporting_period:
-        match_query["reporting_period"] = reporting_period
-    
-    pipeline = [
-        {"$match": match_query},
-        {"$group": {
-            "_id": {
-                "category": "$category",
-                "subcategory": "$subcategory",
-                "sub_subcategory": "$sub_subcategory",
-                "facility_id": "$facility_id",
-            },
-            "total": {"$sum": 1},
-            "backfill_pending": {"$sum": {"$cond": [{"$eq": ["$status", "backfill_pending"]}, 1, 0]}},
-            "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
-            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
-            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
-            "reopened": {"$sum": {"$cond": [{"$eq": ["$status", "reopened"]}, 1, 0]}},
-            "overdue": {"$sum": {"$cond": [{"$eq": ["$status", "overdue"]}, 1, 0]}},
-            "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
-            # Approval status breakdown
-            "pending_approval": {"$sum": {"$cond": [{"$eq": ["$approval_status", "pending_approval"]}, 1, 0]}},
-            "approved": {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
-        }},
-        {"$project": {
-            "_id": 0,
-            "category": "$_id.category",
-            "subcategory": "$_id.subcategory",
-            "sub_subcategory": "$_id.sub_subcategory",
-            "facility_id": "$_id.facility_id",
-            "total": 1,
-            "backfill_pending": 1,
-            "pending": 1,
-            "in_progress": 1,
-            "completed": 1,
-            "reopened": 1,
-            "overdue": 1,
-            "skipped": 1,
-            "pending_approval": 1,
-            "approved": 1,
-            # Operational completion = completed + skipped (user finished their work)
-            "operational_complete": {"$add": ["$completed", "$skipped"]},
-            "completion_pct": {
-                "$cond": [
-                    {"$eq": ["$total", 0]},
-                    0,
-                    {"$multiply": [
-                        {"$divide": [{"$add": ["$completed", "$skipped"]}, "$total"]},
-                        100
-                    ]}
-                ]
-            }
-        }},
-        {"$sort": {"category": 1, "subcategory": 1, "sub_subcategory": 1}}
-    ]
-    
-    results = await db["esg_reporting_tasks"].aggregate(pipeline).to_list(500)
-    
-    return {"completion_stats": results}
-
-
-
 @router.get("/tasks/period-status/{assignment_id}")
 async def get_period_fill_status(
     assignment_id: str,
@@ -1809,25 +1700,24 @@ async def get_period_fill_status(
             "subcategory": assignment.get("subcategory"),
             "sub_subcategory": assignment.get("sub_subcategory"),
         },
-        {"_id": 0, "period_key": 1, "period_label": 1, "status": 1, "due_at": 1, "is_backfill": 1}
+        {"_id": 0}
     ).sort("period_key", 1).to_list(1000)
 
-    now = datetime.now()
+    from modules.esg_assignments.completion_service import completion_service
+
     periods = []
     for t in tasks:
-        status = t.get("status", "pending")
+        status = (await completion_service.get_task_status(t)).value
         due_at = t.get("due_at")
-        is_overdue = status not in ("completed", "skipped") and due_at and due_at < now
-
         periods.append({
             "period_key": t["period_key"],
             "period_label": t.get("period_label", t["period_key"]),
             "status": status,
-            "is_overdue": is_overdue,
+            "is_overdue": status == "overdue",
             "due_at": due_at.isoformat() if due_at else None,
         })
 
-    filled = sum(1 for p in periods if p["status"] in ("completed", "skipped"))
+    filled = sum(1 for p in periods if p["status"] in ("completed", "pending_approval"))
     overdue = sum(1 for p in periods if p["is_overdue"])
 
     return {
@@ -1835,7 +1725,7 @@ async def get_period_fill_status(
         "total_periods": len(periods),
         "filled": filled,
         "overdue": overdue,
-        "pending": len(periods) - filled,
+        "pending": len(periods) - filled - overdue,
         "periods": periods,
     }
 

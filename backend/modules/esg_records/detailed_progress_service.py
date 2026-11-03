@@ -264,6 +264,7 @@ class DetailedProgressService:
                 "due_date": due_date,
                 "year": current.year,
                 "month": current.month,
+                "span_months": {"quarterly": 3, "half_yearly": 6, "yearly": 12}.get(frequency, 1),
                 "period_string": f"{current.year}-{current.month:02d}",
             })
             
@@ -353,8 +354,11 @@ class DetailedProgressService:
         """Check if a record exists for the given period and facility."""
         year = period["year"]
         month = period["month"]
-        period_string = period["period_string"]
-        
+        span = period.get("span_months", 1)
+        covered = {
+            (year + (month - 1 + offset) // 12, (month - 1 + offset) % 12 + 1) for offset in range(span)
+        }
+
         for record in records:
             # Check facility match
             if facility_id:
@@ -364,35 +368,41 @@ class DetailedProgressService:
                 # Org-level: should not have facility_id
                 if record.get("facility_id"):
                     continue
-            
-            # Check period match
+
             rp = record.get("reporting_period")
             if not rp:
                 continue
-            
-            # Handle string format (emission_records): "2026-07"
+
+            # String format (emission_records): "2026-07"
             if isinstance(rp, str):
-                if rp == period_string:
+                try:
+                    rp_year, rp_month = (int(part) for part in rp[:7].split("-"))
+                except ValueError:
+                    continue
+                if (rp_year, rp_month) in covered:
                     return True
-                # Try partial match
-                if rp.startswith(f"{year}-{month:02d}") or rp.startswith(f"{year}-{month}"):
-                    return True
-            
-            # Handle dict format (environment_records): {year: 2026, month: "7"}
+
+            # Dict format (environment/social/governance records): {year, month} or {year, quarter}
             elif isinstance(rp, dict):
-                rp_year = rp.get("year")
+                try:
+                    rp_year = int(rp.get("year"))
+                except (TypeError, ValueError):
+                    continue
                 rp_month = rp.get("month")
-                
-                if rp_year and rp_month:
-                    # Normalize
+                if rp_month:
                     try:
-                        rp_year_int = int(rp_year)
                         rp_month_int = int(rp_month) if str(rp_month).isdigit() else self._month_to_int(rp_month)
-                        if rp_year_int == year and rp_month_int == month:
-                            return True
                     except (ValueError, TypeError):
-                        pass
-        
+                        continue
+                    if (rp_year, rp_month_int) in covered:
+                        return True
+                elif rp.get("quarter"):
+                    quarter = int(str(rp["quarter"]).replace("Q", ""))
+                    if span == 3 and (rp_year, (quarter - 1) * 3 + 1) in covered:
+                        return True
+                elif span == 12 and rp_year == year:
+                    return True
+
         return False
     
     def _month_to_int(self, month_str: str) -> int:
