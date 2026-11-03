@@ -9,6 +9,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from shared.database.mongo import db
+from modules.esg_assignments.completion_service import DataChecker
+from shared.utils.period_keys import period_key_for_frequency
 
 
 class DetailedProgressService:
@@ -91,14 +93,6 @@ class DetailedProgressService:
         # For progress calculation, only use assigned facilities
         facilities = assigned_facilities
         
-        # Determine which collection to query
-        collection_name = self._get_collection_name(category, subcategory)
-        
-        # Get all records for this category/subcategory
-        records = await self._get_records(
-            org_id, category, subcategory, collection_name, facilities
-        )
-        
         # Build period status matrix
         period_statuses = []
         now = datetime.now(timezone.utc)
@@ -115,8 +109,8 @@ class DetailedProgressService:
                 # For each ASSIGNED facility, check if data exists for this period
                 facility_statuses = []
                 for fac in facilities:  # facilities = assigned_facilities only
-                    has_data = self._check_record_exists(
-                        records, period, fac["id"], collection_name
+                    has_data, _, _ = await DataChecker.check_exists(
+                        org_id, category, subcategory, fac["id"], period["key"]
                     )
                     facility_statuses.append({
                         "facility_id": fac["id"],
@@ -153,8 +147,8 @@ class DetailedProgressService:
                 )
             else:
                 # Org-level: check if org record exists
-                has_data = self._check_record_exists(
-                    records, period, None, collection_name
+                has_data, _, _ = await DataChecker.check_exists(
+                    org_id, category, subcategory, None, period["key"]
                 )
                 period_info["status"] = (
                     "completed" if has_data else
@@ -264,7 +258,7 @@ class DetailedProgressService:
                 "due_date": due_date,
                 "year": current.year,
                 "month": current.month,
-                "span_months": {"quarterly": 3, "half_yearly": 6, "yearly": 12}.get(frequency, 1),
+                "key": period_key_for_frequency(current, frequency),
                 "period_string": f"{current.year}-{current.month:02d}",
             })
             
@@ -275,146 +269,6 @@ class DetailedProgressService:
                 break
         
         return periods
-    
-    def _get_collection_name(self, category: str, subcategory: str) -> str:
-        """Determine which collection stores records for this category."""
-        cat_lower = (category or "").lower()
-        sub_lower = (subcategory or "").lower()
-        
-        # Emission records
-        if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
-            return "emission_records"
-        
-        # Social records
-        if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
-            return "social_records"
-        
-        # Governance records
-        if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
-            return "governance_records"
-        
-        # Default to environment
-        return "environment_records"
-    
-    async def _get_records(
-        self,
-        org_id: str,
-        category: str,
-        subcategory: str,
-        collection_name: str,
-        facilities: List[Dict]
-    ) -> List[Dict]:
-        """Get all relevant records for the category/subcategory."""
-        
-        if collection_name == "emission_records":
-            # emission_records has facility_id but no org_id
-            facility_ids = [f["id"] for f in facilities] if facilities else []
-            if not facility_ids:
-                # Get all facilities for this org
-                fac_docs = await self._db["facilities"].find(
-                    {"organization_id": org_id}, {"_id": 0, "id": 1}
-                ).to_list(500)
-                facility_ids = [f["id"] for f in fac_docs]
-            
-            query = {"facility_id": {"$in": facility_ids}}
-            
-            # Map category to scope for emission_records
-            if "scope 1" in subcategory.lower():
-                query["scope"] = "scope1"
-            elif "scope 2" in subcategory.lower():
-                query["scope"] = "scope2"
-            elif "scope 3" in subcategory.lower():
-                query["scope"] = "scope3"
-        else:
-            # Standard records have org_id
-            query = {
-                "$or": [
-                    {"org_id": org_id},
-                    {"organization_id": org_id},
-                ],
-                "category": {"$regex": f"^{category}$", "$options": "i"},
-            }
-            if subcategory:
-                query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        records = await self._db[collection_name].find(
-            query,
-            {"_id": 0, "facility_id": 1, "reporting_period": 1, "created_at": 1, "updated_at": 1}
-        ).to_list(5000)
-        
-        return records
-    
-    def _check_record_exists(
-        self,
-        records: List[Dict],
-        period: Dict,
-        facility_id: Optional[str],
-        collection_name: str
-    ) -> bool:
-        """Check if a record exists for the given period and facility."""
-        year = period["year"]
-        month = period["month"]
-        span = period.get("span_months", 1)
-        covered = {
-            (year + (month - 1 + offset) // 12, (month - 1 + offset) % 12 + 1) for offset in range(span)
-        }
-
-        for record in records:
-            # Check facility match
-            if facility_id:
-                if record.get("facility_id") != facility_id:
-                    continue
-            else:
-                # Org-level: should not have facility_id
-                if record.get("facility_id"):
-                    continue
-
-            rp = record.get("reporting_period")
-            if not rp:
-                continue
-
-            # String format (emission_records): "2026-07"
-            if isinstance(rp, str):
-                try:
-                    rp_year, rp_month = (int(part) for part in rp[:7].split("-"))
-                except ValueError:
-                    continue
-                if (rp_year, rp_month) in covered:
-                    return True
-
-            # Dict format (environment/social/governance records): {year, month} or {year, quarter}
-            elif isinstance(rp, dict):
-                try:
-                    rp_year = int(rp.get("year"))
-                except (TypeError, ValueError):
-                    continue
-                rp_month = rp.get("month")
-                if rp_month:
-                    try:
-                        rp_month_int = int(rp_month) if str(rp_month).isdigit() else self._month_to_int(rp_month)
-                    except (ValueError, TypeError):
-                        continue
-                    if (rp_year, rp_month_int) in covered:
-                        return True
-                elif rp.get("quarter"):
-                    quarter = int(str(rp["quarter"]).replace("Q", ""))
-                    if span == 3 and (rp_year, (quarter - 1) * 3 + 1) in covered:
-                        return True
-                elif span == 12 and rp_year == year:
-                    return True
-
-        return False
-    
-    def _month_to_int(self, month_str: str) -> int:
-        """Convert month name to integer."""
-        months = {
-            "january": 1, "february": 2, "march": 3, "april": 4,
-            "may": 5, "june": 6, "july": 7, "august": 8,
-            "september": 9, "october": 10, "november": 11, "december": 12,
-            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7,
-            "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-        }
-        return months.get(str(month_str).lower(), 0)
 
 
 # Default service instance

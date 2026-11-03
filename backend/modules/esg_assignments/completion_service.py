@@ -24,6 +24,7 @@ from enum import Enum
 import logging
 
 from shared.database.mongo import db
+from shared.utils.period_keys import period_query_clause
 
 logger = logging.getLogger(__name__)
 
@@ -184,35 +185,11 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
 # DATA EXISTENCE CHECKERS
 # =============================================================================
 
-_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
-
-def _month_values(month: int) -> list:
-    return [month, str(month), f"{month:02d}", _MONTH_NAMES[month - 1]]
-
-
 def _apply_period_filter(query: Dict[str, Any], period_key: str) -> None:
-    """Restrict a records query to a period key: YYYY-MM, YYYY-Q#, or YYYY."""
-    try:
-        if "-Q" in period_key:
-            year_text, quarter_text = period_key.split("-Q")
-            year, quarter = int(year_text), int(quarter_text)
-            first_month = (quarter - 1) * 3 + 1
-            months = [value for month in range(first_month, first_month + 3) for value in _month_values(month)]
-            period_condition = {"$or": [
-                {"reporting_period.year": year, "reporting_period.month": {"$in": months}},
-                {"reporting_period.year": year, "reporting_period.quarter": {"$in": [f"Q{quarter}", str(quarter), quarter]}},
-            ]}
-        elif "-" in period_key and len(period_key) == 7:
-            year_text, month_text = period_key.split("-")
-            year, month = int(year_text), int(month_text)
-            period_condition = {"reporting_period.year": year, "reporting_period.month": {"$in": _month_values(month)}}
-        else:
-            period_condition = {"reporting_period.year": int(period_key[:4])}
-    except (ValueError, IndexError):
-        return
-    query.setdefault("$and", []).append(period_condition)
-
+    """Restrict a records query to a period key (see esg_records.period_utils)."""
+    condition = period_query_clause(period_key)
+    if condition:
+        query.setdefault("$and", []).append(condition)
 
 
 class DataChecker:

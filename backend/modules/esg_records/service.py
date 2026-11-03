@@ -5,6 +5,7 @@ Handles business logic for ESG records with versioning support.
 """
 
 from typing import Optional, List, Dict, Any
+from shared.utils.period_keys import month_number, period_key_candidates, period_key_from_reporting_period
 from datetime import datetime, timezone
 import re
 import uuid
@@ -20,15 +21,6 @@ from .water_schema import apply_water_rules
 from shared.unit_registry import get_conversion_metadata
 from .history_presenter import FieldHistoryPresenter
 from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
-
-
-
-def _period_key_candidates(period_key: str) -> List[str]:
-    """A monthly key ("2026-06") also matches its enclosing quarterly task ("2026-Q2")."""
-    parts = str(period_key).split("-")
-    if len(parts) == 2 and len(parts[0]) == 4 and parts[1].isdigit() and 1 <= int(parts[1]) <= 12:
-        return [period_key, f"{parts[0]}-Q{(int(parts[1]) - 1) // 3 + 1}"]
-    return [period_key]
 
 
 class RecordAccessError(ValueError):
@@ -539,36 +531,16 @@ class ESGRecordsService:
         if not year:
             return True  # Can't validate without year
         
-        # Build period_key to match task's period_key
-        if rp_type == "monthly" and month:
-            # Convert month name to number
-            month_names = ["January", "February", "March", "April", "May", "June",
-                          "July", "August", "September", "October", "November", "December"]
-            if isinstance(month, str) and month.strip().isdigit():
-                month_num = int(month.strip())
-            elif isinstance(month, str) and month in month_names:
-                month_num = month_names.index(month) + 1
-            elif isinstance(month, int):
-                month_num = month
-            else:
-                return False
-            if not 1 <= month_num <= 12:
-                return False
-            period_key = f"{year}-{str(month_num).zfill(2)}"
-        elif rp_type == "quarterly" and quarter:
-            q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
-            period_key = f"{year}-Q{q}"
-        elif rp_type == "yearly":
-            period_key = str(year)
-        else:
-            # Default to yearly if type not specified
-            period_key = str(year)
+        if rp_type == "monthly" and month and month_number(month) is None:
+            return False
+        rp_dict = {"reporting_type": rp_type, "year": year, "month": month, "quarter": quarter}
+        period_key = period_key_from_reporting_period(rp_dict) or str(year)
         
         # Step 1: Find task IDs that match the period_key and category
         task_query = {
             "organization_id": org_id,
             "category": category,
-            "period_key": {"$in": _period_key_candidates(period_key)},
+            "period_key": {"$in": period_key_candidates(period_key)},
         }
         if subcategory:
             task_query["subcategory"] = subcategory
@@ -1069,37 +1041,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            if hasattr(reporting_period, 'model_dump'):
-                rp = reporting_period.model_dump()
-            else:
-                rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                # Month could be name like "January" or number
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    # Convert month name to number
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            elif rp_type == "daily":
-                period_key = rp.get("date")  # Expected format: YYYY-MM-DD
-            elif rp_type == "weekly":
-                period_key = rp.get("date")  # Use date for weekly as well
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -1108,7 +1051,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": {"$in": _period_key_candidates(period_key)},
+                "period_key": {"$in": period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -1179,31 +1122,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            if hasattr(reporting_period, 'model_dump'):
-                rp = reporting_period.model_dump()
-            else:
-                rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -1211,7 +1131,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": {"$in": _period_key_candidates(period_key)},
+                "period_key": {"$in": period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -2174,32 +2094,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            elif rp_type == "daily":
-                period_key = rp.get("date")
-            elif rp_type == "weekly":
-                period_key = rp.get("date")
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -2208,7 +2104,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": {"$in": _period_key_candidates(period_key)},
+                "period_key": {"$in": period_key_candidates(period_key)},
                 "completed_at": {"$ne": None},  # Has been submitted at some point
             }
             if subcategory:
