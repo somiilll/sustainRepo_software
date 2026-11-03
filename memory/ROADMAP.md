@@ -288,3 +288,9 @@
 - Setting (per company, optionally per question) to turn KPI autofill off, or keep the KPI value as a suggestion that the company can overwrite.
 - Existing saved answers stay as they are; overwritten values get a "manual" source tag and are covered by audit log / version history.
 - Needs: company setting, autofill skip logic, editable questions in BRSR/GRI forms, "manual override" label.
+
+## P0 - Tracker per-period breakdown shows stale overdue
+- `GET /api/esg-records/tasks/period-status/{assignment_id}` (esg_records/router.py) reads the stored `esg_reporting_tasks.status` and never checks data, so a quarter with a completed record (e.g. Q2) still shows overdue.
+- Fix: compute each period's status with `completion_service.get_task_status` so it matches the tracker row counts.
+- Also: `sync_task_statuses_with_data` is imported by the router but missing from `task_engine.py` (admin sync endpoint would fail); `refresh_overdue_tasks` is a stub.
+- Related (not fixed): progress due date uses `due_config.day_of_month` of the quarter's last month, ignoring `quarter_end`, so a quarter can show overdue before it ends.
