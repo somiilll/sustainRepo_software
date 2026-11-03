@@ -879,6 +879,7 @@ export default function ESGRecordsDataEntry({
       record_level: record.record_level || 'organization',
       // Track if viewing pending proposal
       _viewing_pending_proposal: hasPendingProposal,
+      _rejection_reason: record.approval_status === 'rejected' ? (record.rejection_reason || 'No reason given') : '',
     });
     
     // Fetch category config for dynamic fields
@@ -1701,7 +1702,7 @@ export default function ESGRecordsDataEntry({
                           </div>
                         </div>
                       ) : record.approval_status === 'rejected' ? (
-                        /* Rejected record - show rejection reason, no edit allowed */
+                        /* Rejected record - show rejection reason; editing and saving resubmits it for approval */
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <div className="text-right">
                             <div className="text-xs text-red-600 font-medium">Rejected</div>
@@ -1711,6 +1712,15 @@ export default function ESGRecordsDataEntry({
                               </div>
                             )}
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditModal(record)}
+                            title="Edit and resubmit"
+                            data-testid={`edit-metric-button-${record.id}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1959,6 +1969,16 @@ export default function ESGRecordsDataEntry({
             </div>
           </DialogHeader>
           <div className={`space-y-4 py-4 ${isReadOnlyRecord ? 'pointer-events-none opacity-75' : ''}`} aria-readonly={isReadOnlyRecord}>
+            {editData._rejection_reason && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3" data-testid="edit-metric-rejection-banner">
+                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-800">Rejected by approver</p>
+                  <p className="text-sm text-red-700 whitespace-pre-wrap">{editData._rejection_reason}</p>
+                  <p className="mt-1 text-xs text-red-600">Update the data and save to send it for approval again.</p>
+                </div>
+              </div>
+            )}
             {/* Pending Proposal Banner */}
             {editData._viewing_pending_proposal && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">

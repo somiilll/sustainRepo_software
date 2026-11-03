@@ -1218,26 +1218,8 @@ class ESGRecordsService:
             if deleted_result.deleted_count > 0:
                 print(f"Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
         
-        # =========================================================================
-        # RESUBMISSION RULE: Rejected records cannot be edited
-        # User must create a brand-new submission after rejection
-        # =========================================================================
-        if current.get("approval_status") == "rejected" and not is_admin_override:
-            # Coerce datetime fields to isoformat string to avoid JSON serialization errors
-            rejected_at = current.get("rejected_at")
-            if rejected_at and hasattr(rejected_at, 'isoformat'):
-                rejected_at = rejected_at.isoformat()
-            
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "REJECTED_RECORD_EDIT_NOT_ALLOWED",
-                    "message": "This record was rejected. You cannot edit a rejected record. Please create a new submission instead.",
-                    "rejection_reason": current.get("rejection_reason"),
-                    "rejected_at": rejected_at,
-                    "suggestion": "Create a new record with the corrected data.",
-                }
-            )
+        # A rejected record can be edited; saving it again resubmits it for approval
+        is_resubmission = current.get("approval_status") == "rejected" and not is_admin_override
         
         # =========================================================================
         # PENDING APPROVAL EDIT RULE: Allow in-place update of approval request
@@ -1405,6 +1387,12 @@ class ESGRecordsService:
                 update_data["status"] = incoming_status
                 changed_fields.append("status")
         
+        if is_resubmission and update_data.get("status", current.get("status")) != "draft":
+            update_data["status"] = "completed"
+            update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
+            update_data["rejection_reason"] = None
+            changed_fields.extend(["status", "approval_status"])
+        
         # =========================================================================
         # IMMUTABLE APPROVED DATA PRINCIPLE
         # If editing a record that requires approval:
@@ -1562,7 +1550,7 @@ class ESGRecordsService:
         
         print(f"Update record check: new_status={new_status}, old_status={old_status}, old_approval_status={old_approval_status}, changed_fields={changed_fields}")
         
-        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+        if new_status == "completed" and (old_status in ["rejected", "draft", "reopened", "pending"] or is_resubmission):
             # New submission
             should_create_approval = requires_approval
             print(f"Case 1: New submission, should_create_approval={should_create_approval}")
@@ -1573,7 +1561,7 @@ class ESGRecordsService:
         # In either case, proceed with normal update flow
         
         # If status changed to completed, mark the task as completed
-        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+        if new_status == "completed" and (old_status in ["rejected", "draft", "reopened", "pending"] or is_resubmission):
             await self._mark_task_completed(
                 org_id=current.get("org_id"),
                 user_id=user_id,
