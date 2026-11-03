@@ -827,7 +827,11 @@ async def get_bulk_progress_endpoint(
             if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
                 last_updated = progress.last_updated
         
-        awaiting = await db.esg_reporting_tasks.count_documents({**query, "status": "pending_approval"})
+        tasks = await db.esg_reporting_tasks.find(query, {"_id": 0}).to_list(2000)
+        awaiting = 0
+        for task in tasks:
+            if (await completion_service.get_task_status(task)).value == "pending_approval":
+                awaiting += 1
         result[key] = {
             "awaiting_approval_tasks": awaiting,
             "total": total,

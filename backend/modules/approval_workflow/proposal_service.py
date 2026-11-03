@@ -663,6 +663,8 @@ class ProposalService:
         except Exception as e:
             print(f"Warning: Failed to send approval notification: {e}")
         
+        await self._sync_task_status(proposal)
+        
         return {
             "success": True,
             "proposal_id": proposal_id,
@@ -782,10 +784,27 @@ class ProposalService:
         except Exception as e:
             print(f"Warning: Failed to send rejection notification: {e}")
         
+        await self._sync_task_status(proposal)
+        
         return {
             "success": True,
             "proposal_id": proposal_id,
         }
+    
+    async def _sync_task_status(self, proposal: Dict[str, Any]) -> None:
+        """Re-sync the stored status of the reporting tasks this proposal's record belongs to."""
+        if proposal.get("entity_type") != "esg_record":
+            return
+        snapshot = proposal.get("entity_snapshot") or {}
+        query = {"organization_id": proposal.get("organization_id"), "category": snapshot.get("category")}
+        for key in ("subcategory", "sub_subcategory"):
+            if snapshot.get(key):
+                query[key] = snapshot[key]
+        try:
+            from modules.esg_records.task_engine import sync_tasks_matching
+            await sync_tasks_matching(db, query)
+        except Exception as e:
+            print(f"Warning: Failed to sync task status: {e}")
     
     async def _apply_proposal_to_record(
         self,

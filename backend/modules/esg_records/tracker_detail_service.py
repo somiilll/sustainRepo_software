@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+from modules.esg_assignments.completion_service import completion_service
 from shared.database.mongo import db
 from shared.utils.period_keys import MONTH_NAMES, period_key_from_reporting_period, period_query_clause
 
@@ -128,6 +129,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     ).sort("period_key", 1).to_list(2000)
     by_period: Dict[str, List[Dict[str, Any]]] = {}
     for task in tasks:
+        task["status"] = (await completion_service.get_task_status(task)).value
         by_period.setdefault(task["period_key"], []).append(task)
 
     periods: List[Dict[str, Any]] = []
