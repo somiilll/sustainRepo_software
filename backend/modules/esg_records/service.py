@@ -1209,10 +1209,11 @@ class ESGRecordsService:
         # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit
         # =========================================================================
         if is_admin_override:
-            # Delete any pending approval requests for this record
+            # Delete pending create/edit requests; a pending delete request is rejected later with a reason
             deleted_result = await db.approval_requests.delete_many({
                 "entity_id": record_id,
                 "entity_type": "esg_record",
+                "request_type": {"$ne": "delete"},
                 "status": {"$in": ["pending", "in_review"]},
             })
             if deleted_result.deleted_count > 0:
