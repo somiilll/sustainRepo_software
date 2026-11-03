@@ -4014,6 +4014,11 @@ async def startup_event():
     from shared.database.indexes import ensure_indexes
     await ensure_indexes(db)
     await check_expired_subscriptions()
+    from modules.catalog_sync.service import apply_bundle_once
+    try:
+        await apply_bundle_once()
+    except Exception:
+        logging.getLogger(__name__).exception("Catalog bundle sync failed")
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
     from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes

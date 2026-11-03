@@ -924,3 +924,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Backend: backend/modules/cbam (ported from sustainrepo-cbam.zip). Routes /api/cbam/*, gated by entitlement "cbam" (default OFF, super admin toggles in Sustainability Config > Entitlements). Uses platform login; org admins write, others read-only (403 on writes). Demo data only (mock adapter), seeded lazily per org (cbam_org_meta marker). Data in cbam_* collections of the host DB. Public portals: /api/cbam/public/*.
 - Frontend: frontend/src/modules/cbam (TSX converted to JSX), route /cbam/*, public /cbam/supplier/:token and /cbam/verifier/:token, sidebar entry after PCF. Tailwind tokens (brand, ink, canvas, mint, line, scope1-3...) added to tailwind.config.js; module CSS scoped under .cbam-root.
 - Not tested beyond a smoke check (dashboard renders, API returns demo data). Supplier/verifier portals, read-only user flow, mobile layout, and exports unverified. Emails not sent (log-only).
+
+## Catalog bundle sync (staging)
+- backend/modules/catalog_sync + backend/data/catalog_bundle/bundle.json.gz (939 KPIs, 827 KPI->BRSR/GRI mappings, 590 BRSR/GRI questions, 64 KPI categories). Applied once per bundle version per database at backend startup (marker in catalog_sync_log); local wins, extras removed (backed up in catalog_sync_backup).
+- Re-export after more local edits: `cd /app/backend && python -m scripts.export_catalog_bundle <new-version>`; the new version applies once on each environment at next deploy.
