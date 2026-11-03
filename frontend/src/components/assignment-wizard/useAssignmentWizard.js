@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import axios from 'axios';
+import { parseReportingYear } from '../../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -377,7 +378,11 @@ export function useAssignmentWizard({
       step2Valid = hasAssignees && approvalOk;
     }
     
-    const step3Valid = form.start_date && form.filling_frequency;
+    const rp = parseReportingYear(reportingPeriod);
+    const lo = rp && (rp.yearType === 'calendar_year' ? `${rp.startYear}-01-01` : `${rp.startYear}-04-01`);
+    const hi = rp && (rp.yearType === 'calendar_year' ? `${rp.startYear}-12-31` : `${rp.endYear}-03-31`);
+    const inPeriod = (d) => !d || !rp || (d >= lo && d <= hi);
+    const step3Valid = form.start_date && form.filling_frequency && inPeriod(form.start_date) && inPeriod(form.end_date);
     
     const step4Valid = step1Valid && step2Valid && step3Valid;
 
@@ -387,7 +392,7 @@ export function useAssignmentWizard({
       2: step3Valid,
       3: step4Valid,
     };
-  }, [form, multiLevelApprovalEnabled]);
+  }, [form, multiLevelApprovalEnabled, reportingPeriod]);
 
   // Navigation
   const canGoNext = stepValidation[currentStep];

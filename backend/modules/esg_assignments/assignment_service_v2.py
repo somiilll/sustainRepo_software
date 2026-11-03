@@ -77,6 +77,28 @@ class AssignmentServiceV2:
             "reporting_period": data.get("reporting_period"),
         }
 
+    @staticmethod
+    def _validate_dates_within_reporting_period(data: Dict[str, Any]) -> None:
+        """Start/end dates must fall inside the assignment's reporting period (FY Apr-Mar or CY)."""
+        from fastapi import HTTPException
+        from datetime import date
+        if data.get("entity_type") == "question":
+            return
+        rp = str(data.get("reporting_period") or "")
+        if m := re.search(r"CY\s*(\d{4})", rp):
+            lo, hi = date(int(m[1]), 1, 1), date(int(m[1]), 12, 31)
+        elif m := re.search(r"FY\s*(\d{4})-(\d{4})", rp):
+            lo, hi = date(int(m[1]), 4, 1), date(int(m[2]), 3, 31)
+        else:
+            return
+        for key, label in (("start_date", "Start date"), ("end_date", "End date")):
+            raw = data.get(key)
+            if not raw:
+                continue
+            d = raw.date() if isinstance(raw, datetime) else date.fromisoformat(str(raw)[:10])
+            if not lo <= d <= hi:
+                raise HTTPException(status_code=400, detail=f"{label} must be within {rp} ({lo:%d %b %Y} – {hi:%d %b %Y})")
+
     async def _validate_no_assignment_conflict(self, data: Dict[str, Any]) -> None:
         """
         Validate that there's no conflicting assignment.
@@ -252,6 +274,7 @@ class AssignmentServiceV2:
         # =========================================================================
         # CONFLICT VALIDATION: Prevent org-level + facility-level overlap
         # =========================================================================
+        self._validate_dates_within_reporting_period(data)
         await self._validate_no_assignment_conflict(data)
         
         # Check for existing assignment

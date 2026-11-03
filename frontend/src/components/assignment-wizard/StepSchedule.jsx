@@ -23,6 +23,7 @@ import {
   SelectValue 
 } from '../ui/select';
 import { cn } from '@/lib/utils';
+import { parseReportingYear } from '../../utils/reportingYearUtils';
 import { ALL_FREQUENCIES, DAYS_OF_WEEK } from './useAssignmentWizard';
 
 export function StepSchedule({
@@ -36,6 +37,14 @@ export function StepSchedule({
     const allowed = frequencyConfig.allowed_frequencies || ALL_FREQUENCIES.map(f => f.value);
     return ALL_FREQUENCIES.filter(f => allowed.includes(f.value));
   }, [frequencyConfig.allowed_frequencies]);
+
+  const periodBounds = useMemo(() => {
+    const p = parseReportingYear(reportingPeriod);
+    if (!p) return null;
+    return p.yearType === 'calendar_year'
+      ? { min: `${p.startYear}-01-01`, max: `${p.startYear}-12-31` }
+      : { min: `${p.startYear}-04-01`, max: `${p.endYear}-03-31` };
+  }, [reportingPeriod]);
 
   // Parse dates for timeline
   const timeline = useMemo(() => {
@@ -87,6 +96,8 @@ export function StepSchedule({
               type="date"
               value={form.start_date}
               onChange={(e) => updateForm({ start_date: e.target.value })}
+              min={periodBounds?.min}
+              max={form.end_date || periodBounds?.max}
               className="h-9"
             />
           </div>
@@ -96,7 +107,8 @@ export function StepSchedule({
               type="date"
               value={form.end_date}
               onChange={(e) => updateForm({ end_date: e.target.value })}
-              min={form.start_date}
+              min={form.start_date || periodBounds?.min}
+              max={periodBounds?.max}
               className="h-9"
             />
           </div>
