@@ -154,6 +154,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     names = await _user_names([r["user_id"] for r in assignee_rows] + approver_ids + [p.get("submitted_by") for p in periods]
                               + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments]
                               + [i for h in history for i in (h.get("new_value") or {}).get("user_ids", [])]
+                              + [i for h in history for i in (h.get("previous_value") or {}).get("user_ids", [])]
                               + [r.get("submitted_by") for r in requests] + [r.get("resolved_by") for r in requests]
                               + [(v or {}).get("approver_id") for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict)])
 
@@ -212,8 +213,9 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         if action == "assignees_added" and new_value.get("user_ids") and (_iso_utc(h.get("created_at")) or "") > _plus_seconds(next((_iso_utc(a.get("created_at")) for a in assignments), ""), 10):
             added = ", ".join(names.get(i, {}).get("name", "User") for i in new_value["user_ids"])
             text = f"{who} added {added} for data entry"
-        elif action == "assignees_removed" and new_value.get("user_ids"):
-            text = f"{who} removed {', '.join(names.get(i, {}).get('name', 'User') for i in new_value['user_ids'])} from data entry"
+        elif action == "assignees_removed" and (h.get("previous_value") or {}).get("user_ids"):
+            removed = ", ".join(names.get(i, {}).get("name", "User") for i in h["previous_value"]["user_ids"])
+            text = f"{who} removed {removed} from data entry"
         elif action == "version_updated":
             changes = _assignment_changes(h.get("previous_value") or {}, new_value, names)
             if not changes:
