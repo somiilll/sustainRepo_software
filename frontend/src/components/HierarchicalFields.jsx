@@ -220,7 +220,8 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     return { byKey, children, sumChildren };
   }, [fields]);
 
-  const unitOf = (vals, key) => vals[`${key}_unit`] || byKey[key]?.default_unit || '';
+  const unitOf = (vals, key) => (byKey[key]?.has_unit || byKey[key]?.allowed_units?.length
+    ? vals[`${key}_unit`] || byKey[key]?.default_unit || '' : '');
   const unitFactor = (field, unit) => field?.unit_conversion?.factors?.[String(unit).toLowerCase()]
     ?? FALLBACK_UNIT_FACTORS[String(unit).toLowerCase()];
 
