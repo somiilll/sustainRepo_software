@@ -154,6 +154,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     names = await _user_names([r["user_id"] for r in assignee_rows] + approver_ids + [p.get("submitted_by") for p in periods]
                               + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments]
                               + [i for h in history for i in (h.get("new_value") or {}).get("user_ids", [])]
+                              + [r.get("submitted_by") for r in requests] + [r.get("resolved_by") for r in requests]
                               + [(v or {}).get("approver_id") for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict)])
 
     for p in periods:
@@ -174,7 +175,9 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     rec_names = await _user_names([r.get("updated_by") or r.get("created_by") for r in section_records])
 
     def actor_of(r: Dict[str, Any], key: str) -> str:
-        return r.get(key) or "Someone"
+        user_id = r.get("resolved_by" if key == "resolved_by_name" else "submitted_by")
+        last_step = (r.get("steps_completed") or [{}])[-1] if key == "resolved_by_name" else {}
+        return r.get(key) or names.get(user_id, {}).get("name") or last_step.get("actor_name") or "Someone"
 
     activity: List[Dict[str, Any]] = []
     for r in requests:
