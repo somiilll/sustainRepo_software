@@ -24,7 +24,7 @@ from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
 from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
-from .visibility import is_category_approver, is_workflow_org, own_or_facility_clause, resolve_record_visibility, scoped_dashboard_db
+from .visibility import is_category_approver, is_workflow_org, own_or_facility_clause, user_assigned_categories, resolve_record_visibility, scoped_dashboard_db
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
@@ -552,42 +552,9 @@ async def list_records(
     if not is_admin and not workflow_org:
         visibility = own_or_facility_clause(current_user)
     if workflow_org:
-        from shared.database.mongo import db
-        
-        # Step 1: Get assignment IDs where user is an active assignee (V2 architecture)
-        assignee_records = await db.esg_assignment_assignees.find(
-            {
-                "user_id": user_id,
-                "organization_id": org_id,
-                "$or": [
-                    {"removed_at": None},
-                    {"removed_at": {"$exists": False}},
-                ],
-            },
-            {"_id": 0, "assignment_id": 1}
-        ).to_list(500)
-        
-        assignment_ids = [a["assignment_id"] for a in assignee_records]
-        
-        # Step 2: Get assignments for those IDs
-        assignments = []
-        if assignment_ids:
-            assignments = await db.esg_assignments.find(
-                {
-                    "id": {"$in": assignment_ids},
-                    "organization_id": org_id,
-                    "entity_type": "record_category",
-                },
-                {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
-            ).to_list(500)
-        
-        if assignments:
-            # Build list of (category, subcategory, sub_subcategory) tuples user is assigned to
-            assigned_categories = [
-                (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
-                for a in assignments
-            ]
-        else:
+        # Categories where the user is an assignee or an assigned approver
+        assigned_categories = await user_assigned_categories(org_id, user_id)
+        if not assigned_categories:
             # User has no assignments - return empty
             return {
                 "records": [],
