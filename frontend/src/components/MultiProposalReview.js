@@ -553,7 +553,13 @@ export default function MultiProposalReview({
                     <User className="w-5 h-5 text-blue-600" />
                     Proposal by {proposal.submitted_by_name || `User ${idx + 1}`}
                   </CardTitle>
-                  <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  {historyProposal ? (
+                    <Badge className={historyProposal.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                      {historyProposal.status === 'approved' ? 'Approved' : 'Rejected'}
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-stone-500 mt-1">
                   <span className="flex items-center gap-1">

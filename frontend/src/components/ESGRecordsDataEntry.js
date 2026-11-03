@@ -1706,11 +1706,6 @@ export default function ESGRecordsDataEntry({
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <div className="text-right">
                             <div className="text-xs text-red-600 font-medium">Rejected</div>
-                            {record.rejection_reason && (
-                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
-                                {record.rejection_reason}
-                              </div>
-                            )}
                           </div>
                           <Button
                             variant="ghost"
@@ -1736,11 +1731,6 @@ export default function ESGRecordsDataEntry({
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
                           <div className="text-right">
                             <div className="text-xs text-red-600 font-medium">Rejected</div>
-                            {record.rejection_reason && (
-                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
-                                {record.rejection_reason}
-                              </div>
-                            )}
                           </div>
                           <Button
                             variant="ghost"
