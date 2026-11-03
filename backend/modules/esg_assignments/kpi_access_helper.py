@@ -283,6 +283,12 @@ class KPIAccessHelper:
             {"_id": 0, "assignment_id": 1}
         ).to_list(500)
         assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
+        approver_assignments = await self._assignments.find(
+            {"organization_id": organization_id, "category": category, "entity_type": "record_category",
+             "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+            {"_id": 0, "id": 1},
+        ).to_list(500)
+        assignment_ids_from_new = list({*assignment_ids_from_new, *(a["id"] for a in approver_assignments)})
         
         # Build base query for assignments
         base_query = {
