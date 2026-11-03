@@ -185,6 +185,11 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
 # DATA EXISTENCE CHECKERS
 # =============================================================================
 
+def counts_as_completed(has_data: bool, approval_status: Optional[str]) -> bool:
+    """A period is complete only when its data exists and is not rejected or awaiting approval."""
+    return bool(has_data) and approval_status not in ("rejected", "pending", "pending_approval")
+
+
 def _apply_period_filter(query: Dict[str, Any], period_key: str) -> None:
     """Restrict a records query to a period key (see esg_records.period_utils)."""
     condition = period_query_clause(period_key)
@@ -1126,10 +1131,10 @@ class CompletionService:
             result.total += 1
             
             # BUSINESS RULE: Rejected records do NOT count as completed for progress
-            # - pending_approval: counts as completed (work done, awaiting review)
+            # - pending_approval: NOT completed until approved
             # - approved: counts as completed
             # - rejected: does NOT count (needs resubmission)
-            is_completed_for_progress = has_data and approval_status != "rejected"
+            is_completed_for_progress = counts_as_completed(has_data, approval_status)
             
             if is_completed_for_progress:
                 result.completed += 1
@@ -1213,7 +1218,7 @@ class CompletionService:
             )
             
             # BUSINESS RULE: Rejected records do NOT count as completed for progress
-            org_counts_as_completed = has_org_record and org_approval_status != "rejected"
+            org_counts_as_completed = counts_as_completed(has_org_record, org_approval_status)
             
             facility_breakdown = []
             
@@ -1245,7 +1250,7 @@ class CompletionService:
                     )
                     
                     # BUSINESS RULE: Rejected records do NOT count as completed
-                    fac_counts_as_completed = has_fac_data and fac_approval_status != "rejected"
+                    fac_counts_as_completed = counts_as_completed(has_fac_data, fac_approval_status)
                     
                     if fac_counts_as_completed:
                         facilities_completed += 1
@@ -1350,7 +1355,7 @@ class CompletionService:
             result.total += 1
             
             # BUSINESS RULE: Rejected responses do NOT count as completed
-            is_completed_for_progress = has_data and approval_status != "rejected"
+            is_completed_for_progress = counts_as_completed(has_data, approval_status)
             
             if is_completed_for_progress:
                 result.completed += 1

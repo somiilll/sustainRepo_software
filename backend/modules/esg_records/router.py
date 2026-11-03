@@ -1717,7 +1717,8 @@ async def get_period_fill_status(
             "due_at": due_at.isoformat() if due_at else None,
         })
 
-    filled = sum(1 for p in periods if p["status"] in ("completed", "pending_approval"))
+    filled = sum(1 for p in periods if p["status"] == "completed")
+    awaiting = sum(1 for p in periods if p["status"] == "pending_approval")
     overdue = sum(1 for p in periods if p["is_overdue"])
 
     return {
@@ -1725,7 +1726,8 @@ async def get_period_fill_status(
         "total_periods": len(periods),
         "filled": filled,
         "overdue": overdue,
-        "pending": len(periods) - filled - overdue,
+        "pending_approval": awaiting,
+        "pending": len(periods) - filled - overdue - awaiting,
         "periods": periods,
     }
 

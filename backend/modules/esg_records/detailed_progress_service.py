@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from shared.database.mongo import db
-from modules.esg_assignments.completion_service import DataChecker
+from modules.esg_assignments.completion_service import DataChecker, counts_as_completed
 from shared.utils.period_keys import period_key_for_frequency
 
 
@@ -109,14 +109,20 @@ class DetailedProgressService:
                 # For each ASSIGNED facility, check if data exists for this period
                 facility_statuses = []
                 for fac in facilities:  # facilities = assigned_facilities only
-                    has_data, _, _ = await DataChecker.check_exists(
+                    has_data, _, approval_status = await DataChecker.check_exists(
                         org_id, category, subcategory, fac["id"], period["key"]
                     )
+                    done = counts_as_completed(has_data, approval_status)
+                    awaiting = has_data and approval_status in ("pending", "pending_approval")
                     facility_statuses.append({
                         "facility_id": fac["id"],
                         "facility_name": fac["name"],
-                        "status": "completed" if has_data else ("overdue" if period_info["is_overdue"] else "pending"),
-                        "has_data": has_data,
+                        "status": (
+                            "completed" if done else
+                            "pending_approval" if awaiting else
+                            "overdue" if period_info["is_overdue"] else "pending"
+                        ),
+                        "has_data": done,
                         "is_assigned": True,
                     })
                 
@@ -135,26 +141,31 @@ class DetailedProgressService:
                 # Aggregate status for the period (only count assigned facilities)
                 assigned_statuses = [fs for fs in facility_statuses if fs["is_assigned"]]
                 completed = sum(1 for fs in assigned_statuses if fs["has_data"])
+                awaiting_count = sum(1 for fs in assigned_statuses if fs["status"] == "pending_approval")
+                period_info["awaiting_approval_count"] = awaiting_count
                 period_info["completed_count"] = completed
                 period_info["total_count"] = len(assigned_statuses)  # Only count assigned
                 period_info["unassigned_count"] = len(unassigned_facilities)
                 period_info["status"] = (
                     "completed" if len(assigned_statuses) > 0 and completed == len(assigned_statuses) else
                     "partial" if completed > 0 else
+                    "pending_approval" if awaiting_count > 0 else
                     "overdue" if period_info["is_overdue"] and len(assigned_statuses) > 0 else 
                     "pending" if len(assigned_statuses) > 0 else
                     "no_assignments"
                 )
             else:
                 # Org-level: check if org record exists
-                has_data, _, _ = await DataChecker.check_exists(
+                has_data, _, approval_status = await DataChecker.check_exists(
                     org_id, category, subcategory, None, period["key"]
                 )
+                done = counts_as_completed(has_data, approval_status)
                 period_info["status"] = (
-                    "completed" if has_data else
+                    "completed" if done else
+                    "pending_approval" if has_data and approval_status in ("pending", "pending_approval") else
                     "overdue" if period_info["is_overdue"] else "pending"
                 )
-                period_info["has_data"] = has_data
+                period_info["has_data"] = done
             
             period_statuses.append(period_info)
         
@@ -175,6 +186,7 @@ class DetailedProgressService:
                 "partial": sum(1 for p in period_statuses if p.get("status") == "partial"),
                 "overdue": sum(1 for p in period_statuses if p["status"] == "overdue"),
                 "pending": sum(1 for p in period_statuses if p["status"] == "pending"),
+                "pending_approval": sum(1 for p in period_statuses if p["status"] == "pending_approval"),
                 "assigned_facilities": len(facilities),
                 "unassigned_facilities": len(unassigned_facilities),
             }
