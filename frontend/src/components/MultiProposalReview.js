@@ -101,6 +101,7 @@ export default function MultiProposalReview({
   section = 'environment',
   onClose,
   onActionComplete,
+  historyProposal = null,
 }) {
   const { getAuthHeader, user } = useAuth();
   
@@ -175,7 +176,7 @@ export default function MultiProposalReview({
         `${API}/api/proposals/record/${entityType}/${recordId}`,
         { headers }
       );
-      setProposals(proposalsRes.data.proposals || []);
+      setProposals(historyProposal ? [historyProposal] : (proposalsRes.data.proposals || []));
       setApprovedRecord(proposalsRes.data.current_record || null);
       setDataLevel(proposalsRes.data.data_level || '');
       
@@ -197,7 +198,7 @@ export default function MultiProposalReview({
     } finally {
       setLoading(false);
     }
-  }, [recordId, entityType, section, getAuthHeader]);
+  }, [recordId, entityType, section, getAuthHeader, historyProposal]);
 
   useEffect(() => {
     fetchProposals();
@@ -353,7 +354,7 @@ export default function MultiProposalReview({
   };
 
   // A first submission is itself the pending record, so there is nothing approved to compare against yet
-  const hasApprovedValues = !!approvedRecord && !(entityType === 'esg_record'
+  const hasApprovedValues = !historyProposal && !!approvedRecord && !(entityType === 'esg_record'
     && ['pending_approval', 'rejected', 'draft'].includes(approvedRecord.approval_status));
   const useFormLayout = entityType === 'esg_record' && hasCategoryForm(fieldConfig?.subcategory, fieldConfig?.fields);
 
@@ -380,6 +381,18 @@ export default function MultiProposalReview({
   return (
     <div className="space-y-6">
       {/* Header */}
+      {historyProposal ? (
+        <div className={`rounded-lg border p-4 ${historyProposal.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`} data-testid="history-status-banner">
+          <p className={`font-semibold ${historyProposal.status === 'approved' ? 'text-green-800' : 'text-red-800'}`}>
+            {historyProposal.status === 'approved' ? 'Approved' : 'Rejected'}
+            {historyProposal.resolved_by_name ? ` by ${historyProposal.resolved_by_name}` : ''}
+          </p>
+          <p className="text-sm text-stone-600">{formatDateTime(historyProposal.resolved_at || historyProposal.updated_at)}</p>
+          {historyProposal.status !== 'approved' && (historyProposal.rejection_reason || historyProposal.resolution_comment) && (
+            <p className="mt-2 text-sm text-red-700"><strong>Rejection reason:</strong> {historyProposal.rejection_reason || historyProposal.resolution_comment}</p>
+          )}
+        </div>
+      ) : (
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-stone-500">
@@ -391,6 +404,7 @@ export default function MultiProposalReview({
           Refresh
         </Button>
       </div>
+      )}
 
       {/* Alert for multiple proposals */}
       {proposals.length > 1 && (
@@ -626,6 +640,7 @@ export default function MultiProposalReview({
                 />
 
                 {/* Action Buttons */}
+                {!historyProposal && (
                 <div className="flex items-center gap-3 pt-2 border-t">
                   {inlineEdit?.id === proposal.id ? (
                     <>
@@ -670,6 +685,7 @@ export default function MultiProposalReview({
                     Approve
                   </Button>
                 </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -677,6 +693,7 @@ export default function MultiProposalReview({
       </div>
 
       {/* Comment input for actions */}
+      {!historyProposal && (
       <div className="space-y-2">
         <Label>Comment (required for rejection)</Label>
         <Textarea
@@ -687,6 +704,7 @@ export default function MultiProposalReview({
           data-testid="proposal-action-comment"
         />
       </div>
+      )}
 
       {/* Edit Proposal Dialog */}
       <Dialog open={!!editingProposal} onOpenChange={() => setEditingProposal(null)}>

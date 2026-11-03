@@ -725,7 +725,9 @@ export default function ApproverQueue() {
                 const displayName = item._disclosure_name || 
                   (isEmissionRecord 
                     ? `GHG ${item.entity_snapshot?.scope?.toUpperCase() || ''} - ${item.entity_snapshot?.category || 'Emissions'}`
-                    : item.entity_id || 'Unknown');
+                    : item.entity_type === 'esg_record'
+                      ? `${item.entity_snapshot?.category || 'Record'}${item.entity_snapshot?.subcategory ? ' → ' + item.entity_snapshot.subcategory : ''}`
+                      : item.entity_id || 'Unknown');
                 
                 return (
                   <Card 
@@ -893,7 +895,27 @@ export default function ApproverQueue() {
       ) : null}
       
       {/* History View Dialog - Read Only */}
-      {selectedHistoryItem && (
+      {selectedHistoryItem && selectedHistoryItem.entity_type === 'esg_record' && (
+        <Dialog open={true} onOpenChange={() => setSelectedHistoryItem(null)}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-stone-600" />
+                {selectedHistoryItem._historyStatus === 'approved' ? 'Approved' : 'Rejected'} Submission:{' '}
+                {selectedHistoryItem.entity_snapshot?.category}{selectedHistoryItem.entity_snapshot?.subcategory ? ` → ${selectedHistoryItem.entity_snapshot.subcategory}` : ''}
+              </DialogTitle>
+            </DialogHeader>
+            <MultiProposalReview
+              recordId={selectedHistoryItem.entity_id}
+              entityType="esg_record"
+              section={selectedHistoryItem.entity_subtype || 'environment'}
+              historyProposal={selectedHistoryItem}
+              onClose={() => setSelectedHistoryItem(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+      {selectedHistoryItem && selectedHistoryItem.entity_type !== 'esg_record' && (
         <Dialog open={true} onOpenChange={() => setSelectedHistoryItem(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -953,7 +975,9 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
   const displayName = item._disclosure_name || 
     (isEmissionRecord 
       ? `GHG ${snapshot.scope?.toUpperCase() || ''} - ${snapshot.category || 'Emissions'}`
-      : item.entity_id || 'Unknown');
+      : item.entity_type === 'esg_record'
+        ? `${snapshot.category || 'Record'}${snapshot.subcategory ? ' → ' + snapshot.subcategory : ''}`
+        : item.entity_id || 'Unknown');
   
   return (
     <div className="space-y-6">
