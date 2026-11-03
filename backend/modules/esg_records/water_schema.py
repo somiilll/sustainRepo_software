@@ -69,7 +69,8 @@ def withdrawal_rows() -> List[Dict[str, Any]]:
     rows.append(_row("water_withdrawal_in_water_stress_area", "Water Withdrawal in Water-stress Areas (Total)",
                      "P6-L1", "303-3-b", "ENV_QUANTITY_FROM_WATER_STRESS_AREA"))
     for code, label, _k, _s, rom, _o in W_SOURCES:
-        rows.append(_row(ws_w_key(code), f"Water Withdrawal in Water-stress Areas - {label}", f"P6-L1 {rom}", "303-3-b",
+        rows.append(_row(ws_w_key(code), f"Water Withdrawal in Water-stress Areas - {label}", f"P6-L1 {rom}",
+                         "303-3-b-iv" if code == "produced" else "303-3-b",
                          new_field=f"Through {label}"))
     return rows
 
@@ -302,7 +303,12 @@ def apply_water_rules(category: Optional[str], subcategory: Optional[str],
         total = normalised_sum(entered, parent)
         if total is None:
             continue
-        if parent in rules.get("auto_sum_parents", []) or values[parent] is None:
+        is_training_attendee_total = (
+            cat == "training"
+            and sub == "general training"
+            and (parent == "total_attendees" or parent.startswith("total_attendees_"))
+        )
+        if parent in rules.get("auto_sum_parents", []) or is_training_attendee_total or values[parent] is None:
             values[parent] = round(total, 6)
             out[parent] = values[parent]
             out[f"{parent}_unit"] = unit_of(parent)

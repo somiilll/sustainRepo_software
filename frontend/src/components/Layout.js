@@ -4,7 +4,7 @@ import axios from 'axios';
 import Sidebar from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
-import { getNavigationModuleForPath } from '../config/moduleNavigationAccess';
+import { getNavigationModuleForPath, isUserRestrictedKey } from '../config/moduleNavigationAccess';
 import { ModuleUnavailableState } from './ModuleUnavailableState';
 import { AlertTriangle, Menu, X } from 'lucide-react';
 import { isSupplierLockedRoute, SUPPLIER_PREMIUM_TOOLTIP } from '../config/supplierNavigation';
@@ -61,7 +61,7 @@ export default function Layout() {
   const isSupplierGhgPremiumRoute = location.pathname === '/facilities' || location.pathname.startsWith('/ghg');
   const isUnassignedSupplierGhgPremiumRoute = isSupplier && supplierModules !== null && !supplierGhgIsAssigned && isSupplierGhgPremiumRoute;
   const activeNavigationModule = getNavigationModuleForPath(location.pathname);
-  const isOrganisationModuleUnavailable = !isSupplier && user?.role !== 'super_admin' && !moduleAccessLoading && activeNavigationModule && !hasAccess(activeNavigationModule.key);
+  const isOrganisationModuleUnavailable = !isSupplier && user?.role !== 'super_admin' && !moduleAccessLoading && activeNavigationModule && (!hasAccess(activeNavigationModule.key) || isUserRestrictedKey(user?.role, activeNavigationModule.key));
 
   useEffect(() => {
     // Only check subscription for admin and user roles (not super_admin)
@@ -121,7 +121,8 @@ export default function Layout() {
 
   const isDashboardPage =
     location.pathname.includes('/dashboard') ||
-    location.pathname.endsWith('/analysis');
+    location.pathname.endsWith('/analysis') ||
+    ['/cbam', '/cbam/emissions', '/cbam/geography', '/cbam/holdings', '/cbam/simulator'].includes(location.pathname);
 
   return (
     <div className="flex h-screen overflow-hidden">

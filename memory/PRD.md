@@ -129,6 +129,13 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Retire Supplier Assessment request/context compatibility overrides after legacy request shapes are formally rejected and supplier workflows are fully regression-tested.
 
 ## Current Status — September 21, 2026
+- October 25, 2026 — Added 22 BRSR P3 Diversity mappings. Total (A) now fills for Employee/Worker Well-being, permanent Employee/Worker Union Membership, and Performance & Career Reviews from the corresponding Diversity KPIs. Current values include Employee Well-being permanent 122 male / 67 female / 189 total and Worker Well-being permanent 123 male / 21 female / 144 total. Section A now defaults Name of Listed Entity and Corporate Address from the organization profile without replacing saved BRSR values; generated reports also fall back to that profile. Source/data checks, compilation, and frontend lint passed; browser testing remains paused.
+- October 25, 2026 — Completed the Consumer Complaints UI/KPI split. The entry table now presents Restrictive Trade Practices and Unfair Trade Practices as separate rows and uses their distinct stored fields in totals. The two retired combined KPI definitions are soft-archived; four split received/pending KPI definitions are active. Lint and catalog verification passed; browser testing remains paused.
+- October 25, 2026 — Corrected Principle 9 consumer complaints and breach-count mapping. Consumer Complaint entry now has distinct Restrictive Trade Practices and Unfair Trade Practices fields; the existing combined historical 23 received / 0 pending was migrated to Restrictive by approved choice, with Unfair set to 0. P9 now maps those rows separately. Only Data-breach Incidents (Total) remains active for the BRSR instance-count question, restoring the FY 2026–27 value to 157. Source/data checks and compilation passed; browser testing remains paused.
+- October 25, 2026 — Completed Principle 6 unit fallback coverage. Static row defaults now supply kl, MT, or contextual intensity units when a source has no explicit unit; dynamic treatment rows retain their destination unit in live BRSR payloads; and Waste mappings/table rows now expose MT. Verified named rows: water consumption 1.41 kl, groundwater primary treatment 0.022 kl, total discharge 3.715 kl, water-stress consumption 0.089 kl, and waste generated 268 MT. Browser testing remains paused.
+- October 25, 2026 — Added a **Units** column to four Principle 6 BRSR tables: Energy Consumption & Intensity, Water Disclosures, Water Discharged, and Water-stress Areas. Resource mappings now persist/display their converted destination units (J for energy, kl for water); 52 active mappings were synced and current response samples carry the expected unit. Source/data verification passed; browser testing remains paused.
+- October 25, 2026 — Added P5 workforce count mappings and hardened Training attendee totals. Minimum Wages Total (A) now maps eight Diversity gender/type KPIs; Remuneration maps BoD, KMP, Employee, and Worker Male/Female counts. Synced FY 2026–27 values include permanent employees 122/67 and permanent workers 123/21, plus remuneration BoD 10/2, KMP 20/10, Employees 212/88, Workers 147/53 (male/female). General Training attendee totals are now server-derived from Female + Male, preventing stale frontend totals from causing validation failure; a submitted 899 against 230 + 660 is stored as 890. Source/data verification passed; browser testing remains paused.
+- October 25, 2026 — Corrected BRSR Principle 5 reporting and training-topic totals. P5 human-rights training now receives six Diversity-derived Total (A) denominators (Employees 189/111/300; Workers 144/56/200); report rendering reads the active P5 question keys; and POSH pending mappings no longer overwrite filed/upheld values (now 2 filed, 1 upheld). Each General Training topic now persists its Female + Male attendee total, with existing records backfilled and direct topic KPIs added. Verified Health & Safety 107, Human Rights 255, and Organisation Policies 135. Browser testing remains paused.
 - October 25, 2026 — Corrected Social/Governance unit handling and Training total attendees. Rule-driven count fields now resolve to their semantic unit (typically Number) instead of a Litres fallback; a backup-first migration updated 68 stored Social unit fields and found no Governance Litres fields to change. General Training now persists `total_attendees = female + male`; the KPI reads this stored value and supports numeric-string month values. Verified: safety error says Number, Social/Governance Litres audit is zero, and FY/monthly Training Total Attendees returns 890. Browser testing remains paused.
 - October 25, 2026 — Corrected and synced BRSR P3-E8 training reporting. Worker output paths now match the existing table rows (`workers_*`), restoring the current FY worker total (200) without renaming source KPI fields. Added the calculated **Training Attendees (Total)** KPI as female attendees + male attendees, and updated Training dashboard aggregation to use current General Training fields instead of retired legacy names. Source/data verification returned 200 worker total and 890 total attendees; browser testing remains paused.
 - October 25, 2026 — Improved ESG record validation feedback. Safe, non-technical HTTP 400 validation details up to 1,000 characters now reach the existing metric-entry toast, so multi-field rules such as Internal Complaints totals identify the conflicting values instead of falling back to a generic error. 401/403/422/429 and technical/internal errors remain generic. **SOURCE CHANGE COMPLETE; functional testing paused by user instruction.**
@@ -815,3 +822,109 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - Confirmed live BoD Male and KMP Male KPI Definitions already have no BRSR reference/mapping while retaining their GRI references.
 - Added durable column-level workforce reference metadata so future workforce schema synchronization assigns A-21 only to Total and Female columns and does not re-add A-21 to Male KPI Definitions.
 - Per user instruction, no tests, screenshots, linting, compilation checks, or testing-agent validation were run for this change.
+
+## 2026-10-23 — Config DB sync and P1 backlog
+- Local → Staging → Production (`sustainrepo`) config sync completed for `esg_kpi_definitions`, `esg_record_categories`, `kpi_framework_mappings`, `esg_question_configs`; empty `brsr_kpi_import_proposals` and `esg_org_configs` created. Backups are in `/app/backups/`. Backfilled `output_type: "number"` on `GHG_SCOPE_TOTAL` definitions, which fixed the Staging 500 on `/api/esg-kpi-definitions`.
+- User declined running `normalize_social_governance_units.py` and `fix_brsr_table_configs.py` for now.
+- **P1 (marked, no code change):** weighted annual data-breach PII % (summed PII breaches ÷ summed incidents × 100), and LPG/duplicate-fuel allowed-unit validation should prefer `fuel_id` over fuel name in `calc_engine/execution.py`. Details are in ROADMAP.md.
+
+## 2026-10-23 — Health & Safety Incidents entry layout
+- `HierarchicalFields.jsx`: the `incident_records_by_person_type` table now renders transposed: one row per metric, with **Employees** and **Workers** columns. Storage is unchanged (rows keyed by `person_type`), so KPI aggregation, BRSR mappings and saved records are unaffected. A row is dropped if all its metric cells are cleared. ESLint passed; no browser test was run, per the standing instruction.
+
+## 2026-10-23 — BRSR download menu
+- Removed the "KPI definitions & BRSR mappings" workbook option from `BRSRExportButton.jsx`; the Download menu now only offers PDF. The backend endpoint `/api/brsr-report/kpi-mappings.xlsx` is untouched. ESLint passed, no browser test.
+- Finding: the 27 BRSR mappings for Health & Safety Incidents KPIs (reference P3-E11) are all `needs_exact_destination` with no `question_key` or `answer_path`, so they do not fill the BRSR report's `p3_safety_incidents` table yet. The 3 rehabilitation KPIs (P3-L3) are in the same state.
+
+## 2026-10-26 — P3-E11 / P3-L3 BRSR mappings (local DB only)
+- New script `backend/scripts/sync_brsr_p3_safety_kpis.py` (backs up to `/app/backups/brsr_p3_safety_sync_*.json`, idempotent). It creates derived KPIs and exact mappings, for Employees and Workers:
+  - `p3_safety_incidents`: LTIFR (lost-time injuries ÷ hours worked × 1,000,000), recordable injuries, fatalities, and high-consequence injuries + recordable ill-health cases.
+  - `p3_rehabilitation_injured`: affected (high-consequence + ill-health + fatalities) and rehabilitated.
+- New composite operation `ratio_scaled` (with `scale`) in `proposal_calculator.py`. `live_kpi_autofill.py` now maps the `affected` and `rehabilitated` logical columns to `cur_/prev_` columns.
+- Self-tested with a temporary record, which was deleted afterwards. Employees: LTIFR 5, affected 7. Workers: LTIFR 3. Not run on Staging or Production; copy over with a backup first. No testing agent or browser test was run.
+
+## 2026-10-26 — BRSR section cards and progress panel
+- Reporting → BRSR now has three section cards (A, B, C) with a percent and progress bar, plus a progress panel: ring, "N of M answered", segmented bar, and filter chips (All, Pending, Saved, Approved, Rejected). There is no "In progress" status, per the user.
+- New `GET /api/brsr-report/progress?reporting_period=` (`brsr_report/progress_service.py`). A question is Approved or Rejected from `approval_status`; Saved when status is saved or pending_approval and the value is non-empty; otherwise Pending (drafts count as Pending). Answered = Saved + Approved. Hidden questions are excluded. It also returns `approval_enabled`: true if an approval workflow exists for the org or any question already has an approval state.
+- Orgs without an approval workflow do not see the Approved/Rejected chips, the approved segment, or the "· N approved" text.
+- Chips filter the question list in Section A (`BRSRDetailsSection`, `BRSRYearlySections`), Section B (`ESGQuestionnaire`) and Section C (`BRSRSectionC`, which auto-expands the principles that match).
+- Checked with a login, the progress endpoint, and one screenshot (desktop and mobile) before the approval-chip change. The approval-chip change was checked only with the endpoint and ESLint, not in the browser. No testing agent run, per the user.
+
+## 2026-10-26 — BRSR per-question and per-section editing, Draft filter, "On this page" panel
+- Progress API now also returns a `draft` status and `groups` (A: I–VII, B: question groups, C: P1–P9 with answered/total). A Draft chip and an amber bar segment were added. Drafts do not count as answered.
+- The global Edit button on the BRSR page is removed. Section B and C questions each have their own Edit button on the question row (`QuestionRenderer` with `perQuestionEdit`). While editing it shows Cancel, Save as Draft, and Save Response or Submit Response. Submit Response shows only when the org has an approval workflow and the user is not an admin. The old principle-level and global save buttons are removed.
+- Section A (`BRSRDetailsSection`, `BRSRYearlySections`, new `BRSRSectionEdit.js`) edits per section I–VII. Each section has its own Edit, Cancel, Save as Draft and Save/Submit. Status badges stay on each question. Saves post each changed question to `/esg-questionnaire/response` with status draft or saved. Yearly blocks were reordered to IV Employees, V Holding, VI CSR, VII Transparency.
+- New right-side "On this page" panel (`BRSRPageNav`) scrolls to `#brsr-group-<id>`. It is hidden when a section has fewer than 2 groups, so it does not show on Section B today.
+- Only ESLint and the progress endpoint were checked. No browser or testing-agent run, per the user.
+
+## 2026-10-26 — Section B groups and Section A boxes
+- Section B questions now carry `group`: "Policy and management processes" (6) and "Governance, leadership and oversight" (6). Applied to the local DB by `backend/scripts/set_brsr_section_b_groups.py` (backup in `/app/backups/`). Staging and Production still need the script run. Groups show as headings and in the "On this page" panel.
+- Section A topics I–VII each sit in a white rounded bordered box (`BRSRDetailsSection.js`, `BRSRYearlySections.js`).
+- ESLint passed and the progress endpoint was checked. No browser test, per the user.
+
+- Section A (`BRSRDetailsSection.js`, non-collapsible): removed the outer white bordered wrapper and its padding, so only the per-topic I–VII boxes show. ESLint passed, no browser test.
+
+## 2026-10-26 — BRSR layout fixes
+- Section A: Contact Person and Listing & Reporting Information now sit inside the "I. Details of the listed entity" box. The grey line between III and IV is removed.
+- Section B: the outer group card is removed and each question has its own white rounded box. Section C principles are rounded white cards.
+- Edit and save buttons now sit to the left of the status badge on each question.
+- "On this page" numerals fixed: Section B shows 1, 2 and Section C shows P1–P9. Before, `replace('P','')` stripped the first "P" from names such as "Policy and management processes".
+- ESLint passed. No browser test or testing agent, per the user.
+
+- Section B: each group (heading + its question boxes) sits in a white box with a very light green border, bold heading, and larger gaps between groups and questions. Section C gap between principle boxes increased. ESLint passed, no browser test.
+
+- Removed the BRSR / "N questions" / Expand All|Collapse All / "N/M answered (P%)" header strip from Sections B and C (Section A had none). Hidden only when `perQuestionEdit` is on, so GRI questionnaires keep it. Section tab content top margin is now 0, so the first box lines up with the "On this page" panel. ESLint passed, no browser test.
+
+- Status badges: a response saved with an empty value no longer shows "Saved". `esg_questionnaire/service.py` (`/statuses`) now omits docs with status saved, no approval state and an empty value. `_has_reportable_value` ignores a default `country` when the other address fields are empty. Cause: an earlier bulk "Save BRSR Details" wrote blank values (Registered Address with only country India, Contact Person with empty strings) as `saved`.
+- Spacing: the cards in Sections B and C sit inside an unclassed `<span>` wrapper, so the parents' `space-y-*` did not apply. The cards now carry their own `mb-*` margins. Checked with the API and ESLint; no testing agent, per the user.
+
+- Section A box I: removed the "Listing & Reporting Information" heading, the Contact Person description text and its underline. Increased vertical spacing between blocks in boxes I, II, III (space-y-10) and IV–VII (space-y-8). ESLint passed, no browser test.
+
+- Section A III: Plants and Offices and Markets Served now always show two fixed rows, National and International (no Add Row, no delete, no location dropdown). Rows are normalized on load via `normalizeFixedRows`, so old data with extra or missing rows still lines up. The Export contribution and Brief on types of customers questions moved from I to below Markets Served in III. `SECTION_A_KEYS` (frontend) and `SECTION_A_GROUPS` (`progress_service.py`) were updated, so I is now 15 questions and III is 4. ESLint passed, no browser test.
+
+- Section A spacing: replaced the container `space-y-*` in boxes I–III with explicit top margins on each block (`mt-6` first block after the heading, `mt-8` later blocks) and a uniform `mb-3` under table/contact headings. Checked the computed margins (24px or 32px) and one screenshot, not with the testing agent.
+
+- Section A VII: the Complaints & Grievances table now has "Current FY (<year>)" and "Previous FY (<year>)" column groups, each with Filed / Pending / Remarks. The previous-FY cells are editable and use the existing `previous_fy_*` fields. In Material Issues, "Mitigation Approach" is renamed "Approach to Adapt or Mitigate" and the "Financial Details" field is removed from the UI (stored data untouched). Checked in the browser with a Playwright DOM check and one screenshot; no testing agent.
+
+- Section B: the "Mode" label and both radio options sit in one row, with smaller option text (`ESGQuestionnaire.js`, all three mode selectors). The descriptions of `ngrbc_policy_matrix`, `policy_translated_to_procedures` and `policy_extend_to_value_chain` are cleared in the local DB by `backend/scripts/clear_brsr_section_b_descriptions.py` (backup in `/app/backups/`). Staging and Production still need this script. ESLint passed, no browser test, per the user.
+
+- Section B Q1 (NGRBC policy coverage) view mode now matches the other questions: a bordered "Mode: All Principles Together" chip, then the answer in a grey box. "Mode: All Principles Together" shows on unanswered questions because it is the default mode when nothing is saved; it is not saved data. ESLint passed. User instruction: no testing until told.
+
+- Section B: the "Review of NGRBCs" matrix now colours its two column groups differently (review-by in green, frequency in blue, with a thick divider before the frequency columns). The inline "translated to procedures" / "value chain" questions use the same edit layout as the NGRBC coverage question (grey Mode bar, bordered answer box, medium-weight labels). ESLint passed. No tests run, per the user.
+
+- Section B review matrix: only the two group headings keep colour (green for review-by, blue for frequency). P1–P9 sub-headers and body cells are back to the original colours, and the thick divider is removed. ESLint passed, no tests run.
+
+- Section B "Details of Review of NGRBCs": the matrix is transposed. Columns are now the two subjects (Performance against policies…, Compliance with statutory requirements…). Rows are P1–P9 under two coloured group rows ("Indicate whether review was undertaken by…" in green, "Frequency (…)" in blue). Stored data shape is unchanged (`rows[subject][review_by|frequency][principle]`). ESLint passed, no tests run, per the user.
+
+- Section B review matrix: group bands and cells are centred; both subject columns have equal width (`table-fixed`); choosing "Any Other" for Frequency shows a "Please specify" text box (stored as `rows.<subject>.frequency_other.<principle>`; not yet mapped to the BRSR report). ESLint passed, no tests run, per the user.
+
+- Section B policy-coverage questions: removed the "Does policy cover this principle?" label per principle, and the green line before Board Approved / Web Link and the red line before Reasons (both modes). Section A IV: the workforce table titles (e.g. "a. Employees and workers (including differently abled)") are centred. ESLint passed, no tests run.
+
+- Section A IV workforce tables: table titles are left-aligned again; the group heading rows (Employees, Workers etc.) inside the tables are centred. ESLint passed, no tests run.
+
+- Section B inline Yes/No questions (translated-to-procedures, value chain; `PrincipleToggleRenderer`): the "Applicable to all principles?" label and the on/off switches are replaced by Yes/No radios, same as the NGRBC coverage question, in both all-together and principle-wise modes. Nothing is pre-selected until the user chooses. ESLint run; no tests, per the user.
+
+- Section B: `PrincipleToggleRenderer` (translated-to-procedures, value chain) principle-wise mode is now a P1–P9 column table with Yes/No radios per principle and a single "Notes" box at the end ("Description / Justification" renamed "Notes" in both modes). `PrincipleModeTableRenderer` (independent assessment) uses the same grey Mode bar as the first question; combined mode puts the label, the Yes/No radios and the agency-name input on one row. ESLint passed; no tests run (user: no testing until told).
+
+- Section B: Yes/No radios sit on one row per principle in the P1–P9 table (table min-width 720px, scrolls on small screens). The independent-assessment principle-wise table's Principle column is wider (12rem) and shows the full principle name. ESLint passed; no tests run (user: no testing until told).
+
+- Section B: independent-assessment principle-wise table Principle column widened to 16rem. The P1–P9 Yes/No table for translated-to-procedures / value-chain questions has vertical lines between columns. ESLint passed; no tests run (user: no testing until told).
+
+- Section B principle-wise consistency: the translated-to-procedures / value-chain questions go back to Q1-style per-principle blocks (bordered box, violet "P3: Employee Wellbeing" title, Yes/No radios on one row, Notes box at the end). Every principle title in Section B (view mode, text principle question, tables) now uses the same violet "Pn: Name" style. ESLint passed; no tests run (user: no testing until told).
+
+## Changelog (latest)
+- GRI GHG KPI sync script now sets output_type=number; 44 existing GHG KPI records patched. KPI definitions API fix not verified by testing (user chose no testing).
+- Roadmap: PII breach percentage weighted formula, LPG fuel_id lookup, question_audit_log retention, run all local DB scripts on Staging/Prod.
+- GRI 305 + base-year/intensity KPIs and 102-5/6/7-d-ii base-year mappings added locally via scripts/sync_gri_305_kpis_and_mappings.py (not run on Staging/Prod). Removed gri-live-emissions endpoint.
+- Restored Material category (3 subcategories, 9 KPIs) from 2026-10-21 backup via scripts/restore_material_category.py; 'Material' re-added to Others in ESGRecordsDataEntry.js. Not UI-tested (user: no testing).
+
+## 2026 - BRSR P5-E1 human rights training autofill
+- Added KPI mappings p5_hr_training rows.*.covered / rows.*.pct (sync_brsr_derived_reporting_kpis.py sync_training) and cur_/prev_ covered+pct column mapping in live_kpi_autofill.py. Verified via backend script; no E2E test run.
+
+## CBAM module (below PCF)
+- Backend: backend/modules/cbam (ported from sustainrepo-cbam.zip). Routes /api/cbam/*, gated by entitlement "cbam" (default OFF, super admin toggles in Sustainability Config > Entitlements). Uses platform login; org admins write, others read-only (403 on writes). Demo data only (mock adapter), seeded lazily per org (cbam_org_meta marker). Data in cbam_* collections of the host DB. Public portals: /api/cbam/public/*.
+- Frontend: frontend/src/modules/cbam (TSX converted to JSX), route /cbam/*, public /cbam/supplier/:token and /cbam/verifier/:token, sidebar entry after PCF. Tailwind tokens (brand, ink, canvas, mint, line, scope1-3...) added to tailwind.config.js; module CSS scoped under .cbam-root.
+- Not tested beyond a smoke check (dashboard renders, API returns demo data). Supplier/verifier portals, read-only user flow, mobile layout, and exports unverified. Emails not sent (log-only).
+
+## Catalog bundle sync (staging)
+- backend/modules/catalog_sync + backend/data/catalog_bundle/bundle.json.gz (939 KPIs, 827 KPI->BRSR/GRI mappings, 590 BRSR/GRI questions, 64 KPI categories). Applied once per bundle version per database at backend startup (marker in catalog_sync_log); local wins, extras removed (backed up in catalog_sync_backup).
+- Re-export after more local edits: `cd /app/backend && python -m scripts.export_catalog_bundle <new-version>`; the new version applies once on each environment at next deploy.

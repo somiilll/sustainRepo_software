@@ -1,0 +1,494 @@
+{
+  "category": {
+    "id": "6d7b86be-5e5f-40ef-bf2a-39ac2ae09040",
+    "section": "social",
+    "category": "Complaints",
+    "subcategory": "Consumer Complaints",
+    "sub_subcategory": "",
+    "frameworks": [],
+    "allowed_reporting_types": [
+      "monthly",
+      "yearly",
+      "daily",
+      "quarterly"
+    ],
+    "fields": [
+      {
+        "field_key": "total_no_of_complaints",
+        "label": "Total number of consumer complaints",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 0,
+        "parent_key": null,
+        "sum_parents": [],
+        "brsr_reference": "A-25; P9-E3",
+        "gri_disclosure": "2-25",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "total_consumer_complaints_pending_resolution",
+        "label": "Total number pending resolution at year end",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 0,
+        "parent_key": null,
+        "sum_parents": [],
+        "brsr_reference": "A-25; P9-E3",
+        "gri_disclosure": "2-25",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_complaints_on_data_privacy",
+        "label": "Data privacy",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "418-1-a",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_data_privacy",
+        "label": "Data privacy",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "418-1-a",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_complaints_on_advertising",
+        "label": "Advertising",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "417-3",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_advertising",
+        "label": "Advertising",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "417-3",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_complaints_on_cyber_security",
+        "label": "Cyber-security",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "418-1",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_cyber_security",
+        "label": "Cyber-security",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "418-1",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_complaints_on_delivery_of_essential_services",
+        "label": "Delivery of essential services",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": null,
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_delivery_of_essential_services",
+        "label": "Delivery of essential services",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": null,
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_complaints_on_restrictive_unfair_trade_practices",
+        "label": "Restrictive / unfair trade practices",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "206-1",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_restrictive_unfair_trade_practices",
+        "label": "Restrictive / unfair trade practices",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": "206-1",
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "no_of_other_consumer_complaints",
+        "label": "Other",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_no_of_complaints",
+        "sum_parents": [
+          "total_no_of_complaints"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": null,
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      },
+      {
+        "field_key": "pending_resolution_other",
+        "label": "Other",
+        "type": "number",
+        "required": false,
+        "placeholder": "",
+        "options": [],
+        "default_value": null,
+        "validation": {
+          "min": 0
+        },
+        "has_unit": false,
+        "allowed_units": [],
+        "default_unit": null,
+        "table_columns": [],
+        "table_min_rows": 0,
+        "table_max_rows": 50,
+        "group": "Consumer Complaints",
+        "level": 1,
+        "parent_key": "total_consumer_complaints_pending_resolution",
+        "sum_parents": [
+          "total_consumer_complaints_pending_resolution"
+        ],
+        "brsr_reference": "P9-E3",
+        "gri_disclosure": null,
+        "legacy_only": false,
+        "hide_if_table_has_rows": null,
+        "show_with_legacy_ui": false
+      }
+    ],
+    "is_active": true,
+    "order": 2,
+    "created_at": "2026-06-22T05:36:33.753611+00:00",
+    "updated_at": "2026-10-21T09:57:47.660767+00:00",
+    "created_by": "8c76fa1c-b119-4175-8c96-76d61069416e",
+    "updated_by": "0f90c740-b807-41e1-8971-42005e1cfb3e"
+  },
+  "records": [
+    {
+      "id": "80eeb8f6-3704-4a26-b4f6-468875996496",
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "facility_id": null,
+      "record_level": "organization",
+      "section": "social",
+      "category_id": "6d7b86be-5e5f-40ef-bf2a-39ac2ae09040",
+      "category": "Complaints",
+      "subcategory": "Consumer Complaints",
+      "sub_subcategory": null,
+      "frameworks": [
+        "BRSR"
+      ],
+      "reporting_period": {
+        "reporting_type": "monthly",
+        "date": null,
+        "time": null,
+        "year": 2025,
+        "month": "6",
+        "quarter": null,
+        "year_type": null,
+        "financial_year": null,
+        "calendar_year": null
+      },
+      "field_values": {
+        "total_no_of_complaints": 246,
+        "total_consumer_complaints_pending_resolution": 27,
+        "no_of_complaints_on_data_privacy": 23,
+        "pending_resolution_data_privacy": 12,
+        "no_of_complaints_on_advertising": 12,
+        "pending_resolution_advertising": 10,
+        "no_of_complaints_on_cyber_security": 31,
+        "pending_resolution_cyber_security": 1,
+        "no_of_complaints_on_delivery_of_essential_services": 123,
+        "pending_resolution_delivery_of_essential_services": 3,
+        "no_of_complaints_on_restrictive_unfair_trade_practices": 23,
+        "pending_resolution_restrictive_unfair_trade_practices": 0,
+        "no_of_other_consumer_complaints": 34,
+        "pending_resolution_other": 1,
+        "no_of_complaints_on_delivery_of_essential_services_unit": "Number",
+        "no_of_complaints_on_advertising_unit": "Number",
+        "no_of_other_consumer_complaints_unit": "Number",
+        "no_of_complaints_on_cyber_security_unit": "Number",
+        "pending_resolution_other_unit": "Number",
+        "no_of_complaints_on_data_privacy_unit": "Number",
+        "no_of_complaints_on_restrictive_unfair_trade_practices_unit": "Number",
+        "pending_resolution_advertising_unit": "Number",
+        "total_consumer_complaints_pending_resolution_unit": "Number",
+        "pending_resolution_cyber_security_unit": "Number",
+        "pending_resolution_delivery_of_essential_services_unit": "Number",
+        "pending_resolution_restrictive_unfair_trade_practices_unit": "Number",
+        "pending_resolution_data_privacy_unit": "Number",
+        "total_no_of_complaints_unit": "Number"
+      },
+      "evidence_files": [],
+      "source_of_information": "",
+      "notes": "",
+      "status": "completed",
+      "approval_status": "not_required",
+      "version": 2,
+      "is_current": true,
+      "created_by": "e3e7ec7e-5b3d-4011-a752-40cd67be84c0",
+      "created_at": "2026-10-25T12:37:24.122660+00:00",
+      "updated_by": "e3e7ec7e-5b3d-4011-a752-40cd67be84c0",
+      "updated_at": "2026-10-25T12:38:04.490174+00:00"
+    }
+  ]
+}

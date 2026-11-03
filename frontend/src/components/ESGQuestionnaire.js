@@ -1,3 +1,4 @@
+import { useLinkedFrameworks, LinkedFromTag } from '../modules/framework-links';
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +11,7 @@ import { normalizeAllResponses } from './ESGQuestionnaire/utils/fyNormalization'
 import {
   DynamicTableRenderer,
   FYComparisonTableRenderer,
+  WaterStressCompositeRenderer,
   FixedRowTableRenderer,
   GroupedMatrixTableRenderer,
   ConditionalYesNoTextRenderer,
@@ -59,9 +61,7 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  Clock
-} from 'lucide-react';
+  Clock, Pencil } from 'lucide-react';
 import { 
   generateReportingYears, 
   getCurrentReportingYear,
@@ -161,9 +161,9 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
     // View mode
     return (
       <div className="mt-2 space-y-3">
-        <p className="text-sm"><strong>Mode:</strong> {mode === 'together' ? 'Fill All Principles Together' : 'Fill Principle-wise Separately'}</p>
+        <Badge variant="outline" className="mb-2">Mode: {mode === 'together' ? 'All Principles Together' : 'Principle-wise'}</Badge>
         {mode === 'together' ? (
-          <div className="pl-4 border-l-2 border-stone-200">
+          <div className="bg-stone-50 p-3 rounded">
             <p className="text-sm"><strong>Policies cover NGRBCs:</strong> {allTogether.covered === true ? 'Yes' : allTogether.covered === false ? 'No' : '-'}</p>
             {allTogether.covered === true && (
               <>
@@ -186,7 +186,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
           <div className="space-y-2">
             {NGRBC_PRINCIPLES.map(p => (
               <div key={p.key} className="pl-4 border-l-2 border-stone-200 py-1">
-                <p className="text-sm font-medium">{p.key}: {p.name}</p>
+                <p className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</p>
                 <p className="text-sm"><strong>Covered:</strong> {principleWise[p.key]?.covered === true ? 'Yes' : principleWise[p.key]?.covered === false ? 'No' : '-'}</p>
                 {principleWise[p.key]?.covered === true && (
                   <>
@@ -206,16 +206,16 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
   return (
     <div className="mt-3 space-y-4">
       {/* Mode Selection */}
-      <div className="p-3 bg-stone-50 rounded-lg">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
         <Label className="text-sm font-medium">Mode</Label>
-        <RadioGroup value={mode} onValueChange={handleModeChange} className="mt-2 flex gap-4">
+        <RadioGroup value={mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="together" id="mode-together" />
-            <Label htmlFor="mode-together" className="text-sm cursor-pointer">Fill All Principles Together</Label>
+            <Label htmlFor="mode-together" className="text-xs cursor-pointer">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="separate" id="mode-separate" />
-            <Label htmlFor="mode-separate" className="text-sm cursor-pointer">Fill Principle-wise Separately</Label>
+            <Label htmlFor="mode-separate" className="text-xs cursor-pointer">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
@@ -243,7 +243,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
           {/* Yes follow-up */}
           {allTogether.covered === true && (
-            <div className="pl-4 border-l-2 border-green-300 space-y-3">
+            <div className="space-y-3">
               <div>
                 <Label className="text-sm font-medium">Has the policy been approved by the Board?</Label>
                 <RadioGroup 
@@ -275,7 +275,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
           {/* No follow-up - Reasons */}
           {allTogether.covered === false && (
-            <div className="pl-4 border-l-2 border-red-300 space-y-2">
+            <div className="space-y-2">
               <Label className="text-sm font-medium">If No, please provide reasons:</Label>
               {noReasons.map(reason => (
                 <div key={reason.key} className="flex items-start gap-2">
@@ -312,7 +312,6 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
               <Label className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</Label>
               
               <div className="mt-2">
-                <Label className="text-xs text-stone-600">Does policy cover this principle?</Label>
                 <RadioGroup 
                   value={principleWise[p.key]?.covered === true ? 'yes' : principleWise[p.key]?.covered === false ? 'no' : ''} 
                   onValueChange={(v) => handlePrincipleChange(p.key, 'covered', v === 'yes')}
@@ -331,7 +330,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
               {/* Yes follow-up for this principle */}
               {principleWise[p.key]?.covered === true && (
-                <div className="mt-2 pl-3 border-l-2 border-green-300 space-y-2">
+                <div className="mt-2 space-y-2">
                   <div>
                     <Label className="text-xs text-stone-600">Board Approved?</Label>
                     <RadioGroup 
@@ -363,7 +362,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 
               {/* No follow-up - Reasons for this principle */}
               {principleWise[p.key]?.covered === false && (
-                <div className="mt-2 pl-3 border-l-2 border-red-300 space-y-1">
+                <div className="mt-2 space-y-1">
                   <Label className="text-xs text-stone-600">Reasons:</Label>
                   {noReasons.map(reason => (
                     <div key={reason.key} className="flex items-start gap-2">
@@ -398,10 +397,11 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
 }
 
 // Individual Question Renderer
-export function QuestionRenderer({ config, value, onChange, isEditing, allResponses = {}, historicalData = null, approvalStatus = null, versionHistory = null, onSaveQuestion = null, onFetchVersionHistory = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
+export function QuestionRenderer({ config, value, onChange, isEditing: isEditingProp, perQuestionEdit = false, canEditQuestion = true, approvalEnabled = false, isAdmin = false, onCancelEdit = null, allResponses = {}, historicalData = null, approvalStatus = null, onSaveQuestion = null, onOpenTimeline = null, lockedAnswerPaths = [], dynamicAutofillRows = [] }) {
   const { formatDateTime } = useDateFormatter();
   const { type, question, description, placeholder, options, table_columns, required, conditional, visible_if } = config;
-  const [showVersions, setShowVersions] = useState(false);
+  const [localEditing, setLocalEditing] = useState(false);
+  const isEditing = perQuestionEdit ? localEditing : isEditingProp;
   const [savingQuestion, setSavingQuestion] = useState(false);
   const valueIsLocked = lockedAnswerPaths.includes('$');
   const [savingDraft, setSavingDraft] = useState(false);
@@ -602,7 +602,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
                 <Label htmlFor={`${config.question_key}-no`}>No</Label>
               </div>
             </RadioGroup>
-            {yesNoVal.answer === 'yes' && (
+            {yesNoVal.answer === 'yes' && !config.hide_conditional_text && (
               <div>
                 <Label className="text-sm text-stone-600">{config.conditional_field_label || 'Please specify'}</Label>
                 <Input
@@ -619,7 +619,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
             <Badge variant="outline" className={`${yesNoVal.answer === 'yes' ? 'bg-green-50 text-green-700' : yesNoVal.answer === 'no' ? 'bg-red-50 text-red-700' : ''}`}>
               {yesNoVal.answer === 'yes' ? 'Yes' : yesNoVal.answer === 'no' ? 'No' : '-'}
             </Badge>
-            {yesNoVal.answer === 'yes' && yesNoVal.text && (
+            {yesNoVal.answer === 'yes' && !config.hide_conditional_text && yesNoVal.text && (
               <p className="text-sm text-stone-600 mt-1">{config.conditional_field_label}: {yesNoVal.text}</p>
             )}
           </div>
@@ -646,8 +646,8 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return editingAllowed ? (
           <Input
             type="number"
-            value={value || ''}
-            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            value={value ?? ''}
+            onChange={(e) => onChange((e.target.value === '' ? null : parseFloat(e.target.value)))}
             placeholder={placeholder || '0'}
             className="mt-2 w-40"
           />
@@ -740,6 +740,9 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       case 'fy_comparison_table':
         return <FYComparisonTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
 
+      case 'water_stress_composite':
+        return <WaterStressCompositeRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} lockedPaths={lockedAnswerPaths} dynamicRows={dynamicAutofillRows} />;
+
       case 'grouped_matrix_table':
         return <GroupedMatrixTableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} allResponses={allResponses} />;
 
@@ -756,7 +759,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         return <DualConditionalYesNoRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
 
       case 'table':
-        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed} />;
+        return <TableRenderer config={config} value={value} onChange={onChange} isEditing={editingAllowed && !lockedAnswerPaths.includes('$')} />;
 
       // Environment Q70-74 Renderer Types
       case 'yes_no_with_dynamic_table':
@@ -831,14 +834,13 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
 
   // Helper to render approval status badge
   const renderStatusBadge = () => {
-    if (!approvalStatus) return null;
     
     // Priority: approval_status (workflow state) > status (save state)
     // Only show approval_status if it's a workflow status (pending_approval/approved/rejected)
     // Otherwise fall back to status (draft/saved)
     const workflowStatuses = ['pending_approval', 'approved', 'rejected'];
-    const approvalState = approvalStatus.approval_status;
-    const saveState = approvalStatus.status;
+    const approvalState = approvalStatus?.approval_status;
+    const saveState = approvalStatus?.status || 'pending';
     
     // Use workflow status if it exists and is valid, otherwise use save state
     const status = (approvalState && workflowStatuses.includes(approvalState)) 
@@ -852,6 +854,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
+      in_progress: { label: 'In progress', className: 'bg-yellow-100 text-yellow-800' },
       saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
       pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };
@@ -866,225 +869,16 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     );
   };
 
-  // Helper to render version history - detailed view with old/new values, approvals, rejections
-  const renderVersionHistory = () => {
-    if (onOpenTimeline) return null;
-    const hasHistory = versionHistory && versionHistory.length > 0;
-    
-    // Format complex values into human-readable text with conditional field handling
-    const formatValue = (val) => {
-      if (val === null || val === undefined) return '-';
-      if (typeof val === 'string') return val || '-';
-      if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-      if (typeof val === 'number') return String(val);
-      
-      if (typeof val === 'object') {
-        const lines = [];
-        
-        // Handle mode-based responses (principle toggles, etc.)
-        if (val.mode) {
-          const modeLabels = {
-            'all_together': 'Report all principles together',
-            'combined': 'Report all principles together',
-            'individual': 'Report by individual principle',
-            'per_principle': 'Report by individual principle',
-          };
-          lines.push(`Mode: ${modeLabels[val.mode] || val.mode}`);
-          
-          // Handle all_together/combined mode
-          if (val.all_enabled !== undefined) {
-            lines.push(`Enabled: ${val.all_enabled ? 'Yes' : 'No'}`);
-          }
-          if (val.all_description) {
-            lines.push(`Description: ${val.all_description.slice(0, 100)}${val.all_description.length > 100 ? '...' : ''}`);
-          }
-          if (val.combined) {
-            // First pass: identify control fields (boolean fields that control visibility)
-            const controlFields = {};
-            Object.entries(val.combined).forEach(([k, v]) => {
-              if (typeof v === 'boolean') {
-                controlFields[k] = v;
-              } else if (typeof v === 'string') {
-                const lower = v.toLowerCase();
-                if (lower === 'yes' || lower === 'true') controlFields[k] = true;
-                else if (lower === 'no' || lower === 'false') controlFields[k] = false;
-              }
-            });
-            
-            // Second pass: show fields conditionally
-            Object.entries(val.combined).forEach(([k, v]) => {
-              // Skip empty values
-              if (v === null || v === undefined || v === '') return;
-              
-              // Check if this field depends on a control field
-              // Pattern: if field is like "agency_name" and "assessment_done" is false, skip it
-              const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
-              const possibleControls = [
-                `${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`,
-                `${fieldBase.replace(/_/g, '')}_done`, 'assessment_done', 'enabled'
-              ];
-              
-              const shouldSkip = possibleControls.some(ctrl => 
-                controlFields[ctrl] === false && k !== ctrl
-              );
-              
-              if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
-              
-              const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-              const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v;
-              lines.push(`${label}: ${displayVal}`);
-            });
-          }
-          
-          // Handle per-principle mode
-          if (val.principles && Object.keys(val.principles).length > 0) {
-            const enabledPrinciples = Object.entries(val.principles)
-              .filter(([_, p]) => p?.enabled)
-              .map(([k]) => k.toUpperCase());
-            if (enabledPrinciples.length > 0) {
-              lines.push(`Enabled Principles: ${enabledPrinciples.join(', ')}`);
-            }
-          }
-        }
-        // Handle table data (arrays)
-        else if (Array.isArray(val)) {
-          lines.push(`${val.length} row(s)`);
-          if (val.length > 0 && typeof val[0] === 'object') {
-            const firstRow = Object.entries(val[0]).slice(0, 3)
-              .map(([k, v]) => `${k}: ${v || '-'}`)
-              .join(', ');
-            lines.push(`First row: ${firstRow}${Object.keys(val[0]).length > 3 ? '...' : ''}`);
-          }
-        }
-        // Handle simple key-value objects
-        else {
-          // First pass: identify control fields
-          const controlFields = {};
-          Object.entries(val).forEach(([k, v]) => {
-            if (typeof v === 'boolean') {
-              controlFields[k] = v;
-            } else if (typeof v === 'string') {
-              const lower = v.toLowerCase();
-              if (lower === 'yes' || lower === 'true') controlFields[k] = true;
-              else if (lower === 'no' || lower === 'false') controlFields[k] = false;
-            }
-          });
-          
-          Object.entries(val).slice(0, 8).forEach(([k, v]) => {
-            if (k.startsWith('_')) return; // Skip internal fields
-            if (v === null || v === undefined || v === '') return; // Skip empty
-            
-            // Check conditional visibility
-            const fieldBase = k.replace(/_name$|_details$|_description$|_reason$|_value$/, '');
-            const possibleControls = [`${fieldBase}_done`, `${fieldBase}_conducted`, `${fieldBase}_enabled`, 'assessment_done'];
-            const shouldSkip = possibleControls.some(ctrl => controlFields[ctrl] === false && k !== ctrl);
-            if (shouldSkip && typeof v !== 'boolean' && !['yes','no','true','false'].includes(String(v).toLowerCase())) return;
-            
-            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            const displayVal = typeof v === 'boolean' ? (v ? 'Yes' : 'No') : 
-                              typeof v === 'object' ? JSON.stringify(v).slice(0, 30) : 
-                              String(v || '-').slice(0, 50);
-            lines.push(`${label}: ${displayVal}`);
-          });
-        }
-        
-        return lines.length > 0 ? lines : ['-'];
-      }
-      
-      return [String(val)];
-    };
-
-    const getActionBadge = (action) => {
-      const badges = {
-        'created': 'bg-green-100 text-green-700',
-        'updated': 'bg-blue-100 text-blue-700',
-        'approved': 'bg-emerald-100 text-emerald-700',
-        'rejected': 'bg-red-100 text-red-700',
-        'submitted': 'bg-amber-100 text-amber-700',
-      };
-      return badges[action] || 'bg-stone-100 text-stone-700';
-    };
-
-    const getActorDetails = (version) => {
-      const action = version.change_type || '';
-      const isApproved = action === 'approved' || action === 'submission_approved';
-      const isRejected = action === 'rejected' || action === 'submission_rejected';
-      const actor = isApproved
-        ? version.approved_by_name || version.changed_by_name || version.created_by_name || version.created_by
-        : isRejected
-          ? version.rejected_by_name || version.changed_by_name || version.created_by_name || version.created_by
-          : version.changed_by_name || version.created_by_name || version.created_by;
-      return {
-        label: isApproved ? 'Approved by' : isRejected ? 'Rejected by' : action === 'created' ? 'Created by' : 'Updated by',
-        name: actor && !String(actor).includes('@') ? actor : 'Unknown user',
-      };
-    };
-
-    if (!hasHistory) return null;
-    
-    return (
-      <>
-        {showVersions && (
-          <div className="bg-stone-50 rounded-md p-3 space-y-3 text-xs mt-2 border">
-            <div className="font-medium text-stone-700 border-b pb-1 mb-2">Version History</div>
-            {versionHistory.slice(0, 10).map((v, i) => {
-              const oldLines = formatValue(v.old_value);
-              const newLines = formatValue(v.new_value);
-              const actor = getActorDetails(v);
-              
-              return (
-                <div key={i} className="border-b border-stone-200 pb-3 last:border-0 last:pb-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getActionBadge(v.change_type)}`}>
-                      {v.change_type || 'Updated'}
-                    </span>
-                    <span className="text-stone-500">
-                      {v.created_at ? formatDateTime(v.created_at) : '-'}
-                    </span>
-                  </div>
-                  <div className="text-stone-600 mb-2" data-testid={`question-history-actor-${i}`}>
-                    <span className="font-medium">{actor.label}:</span> {actor.name}
-                  </div>
-                  {v.change_type === 'rejected' && v.rejection_reason && (
-                    <div className="text-red-600 mb-2">
-                      <span className="font-medium">Reason:</span> {v.rejection_reason}
-                    </div>
-                  )}
-                  {(v.old_value !== undefined || v.new_value !== undefined) && (
-                    <div className="grid grid-cols-2 gap-3 text-stone-600">
-                      <div className="bg-red-50 p-2 rounded">
-                        <div className="font-medium text-red-700 mb-1">Previous Value:</div>
-                        {Array.isArray(oldLines) ? oldLines.map((line, j) => (
-                          <div key={j} className="text-stone-600">{line}</div>
-                        )) : <div>{oldLines}</div>}
-                      </div>
-                      <div className="bg-green-50 p-2 rounded">
-                        <div className="font-medium text-green-700 mb-1">New Value:</div>
-                        {Array.isArray(newLines) ? newLines.map((line, j) => (
-                          <div key={j} className="text-stone-600">{line}</div>
-                        )) : <div>{newLines}</div>}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </>
-    );
-  };
-
   // Version history button for header
   const renderVersionHistoryButton = () => {
-    const hasHistory = versionHistory && versionHistory.length > 0;
     return (
       <Button
         variant="ghost"
         size="sm"
-        onClick={onOpenTimeline || handleToggleVersions}
-        className={`h-7 px-2 text-xs ${!hasHistory && !onFetchVersionHistory ? 'opacity-50' : ''}`}
-        title={hasHistory ? `${versionHistory.length} version(s)` : 'View history'}
+        data-testid={`question-history-btn-${config.question_key}`}
+        onClick={onOpenTimeline}
+        className="h-7 px-2 text-xs"
+        title="View history"
       >
         <Clock className="w-3 h-3" />
       </Button>
@@ -1101,18 +895,13 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
     }
     try {
       await onSaveQuestion(config.question_key, value, status);
+      setLocalEditing(false);
+    } catch (error) {
+      console.error('Question save failed:', error);
     } finally {
       setSavingDraft(false);
       setSavingQuestion(false);
     }
-  };
-
-  // Handle version history fetch and toggle
-  const handleToggleVersions = async () => {
-    if (!showVersions && onFetchVersionHistory && (!versionHistory || versionHistory.length === 0)) {
-      await onFetchVersionHistory();
-    }
-    setShowVersions(!showVersions);
   };
 
   return (
@@ -1120,15 +909,34 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <Label className="text-sm font-medium text-text-primary">
-            {question}
-            {required && <span className="text-red-500 ml-1">*</span>}
+            {String(question).replace(/\s*\*+\s*$/, "")}
           </Label>
-          {description && (
-            <HelpCircle className="w-4 h-4 text-text-muted flex-shrink-0" title={description} />
-          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {perQuestionEdit && canEditQuestion && !localEditing && (
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setLocalEditing(true)}
+                    data-testid={`edit-${config.question_key}`}>
+              <Pencil className="w-3 h-3 mr-1" /> Edit
+            </Button>
+          )}
+          {perQuestionEdit && localEditing && (
+            <>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={savingDraft || savingQuestion}
+                      onClick={() => { setLocalEditing(false); if (onCancelEdit) onCancelEdit(); }}
+                      data-testid={`cancel-${config.question_key}`}>Cancel</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={savingDraft || savingQuestion}
+                      onClick={() => handleSaveQuestion('draft')} data-testid={`save-draft-${config.question_key}`}>
+                {savingDraft ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />} Save as Draft
+              </Button>
+              <Button size="sm" className="h-7 px-2 text-xs bg-primary hover:bg-primary/90" disabled={savingDraft || savingQuestion}
+                      onClick={() => handleSaveQuestion('saved')} data-testid={`submit-${config.question_key}`}>
+                {savingQuestion ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                {approvalEnabled && !isAdmin ? 'Submit Response' : 'Save Response'}
+              </Button>
+            </>
+          )}
           {renderStatusBadge()}
+          <LinkedFromTag questionKey={config.question_key} />
           {renderVersionHistoryButton()}
         </div>
       </div>
@@ -1136,7 +944,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
       {renderInput()}
       
       {/* Question-level Save Draft and Submit buttons */}
-      {isEditing && onSaveQuestion && (
+      {isEditing && onSaveQuestion && !perQuestionEdit && (
         <div className="flex items-center gap-2 mt-3 pt-2 border-t border-stone-100">
           <Button
             variant="outline"
@@ -1168,7 +976,6 @@ export function QuestionRenderer({ config, value, onChange, isEditing, allRespon
         </div>
       )}
       
-      {renderVersionHistory()}
     </div>
   );
 }
@@ -1259,7 +1066,7 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
         {data.mode === 'all_together' ? (
           <div className="bg-stone-50 p-3 rounded">
             <p className="text-sm"><strong>Applicable:</strong> {data.all_enabled ? 'Yes' : 'No'}</p>
-            <p className="text-sm"><strong>Description:</strong> {data.all_description || '-'}</p>
+            <p className="text-sm"><strong>Notes:</strong> {data.all_description || '-'}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -1289,74 +1096,84 @@ function PrincipleToggleRenderer({ value, onChange, isEditing, config = {} }) {
 
   return (
     <div className="mt-3 space-y-4">
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id="mode-all" />
-            <Label htmlFor="mode-all" className="text-sm">Fill All Principles Together</Label>
+            <Label htmlFor="mode-all" className="text-xs">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id="mode-wise" />
-            <Label htmlFor="mode-wise" className="text-sm">Fill Principle-wise Separately</Label>
+            <Label htmlFor="mode-wise" className="text-xs">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
 
       {data.mode === 'all_together' ? (
-        <div className="bg-stone-50 p-4 rounded-lg space-y-3">
-          <div className="flex items-center gap-3">
-            <Label className="text-sm">Applicable to all principles?</Label>
-            <Switch
-              checked={data.all_enabled || false}
-              onCheckedChange={(v) => handleAllChange('all_enabled', v)}
-            />
-            <span className="text-sm">{data.all_enabled ? 'Yes' : 'No'}</span>
-          </div>
+        <div className="p-4 border rounded-lg space-y-4">
+          <RadioGroup
+            value={data.all_enabled === true ? 'yes' : data.all_enabled === false ? 'no' : ''}
+            onValueChange={(v) => handleAllChange('all_enabled', v === 'yes')}
+            className="flex flex-row gap-4"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="yes" id={`${config.question_key}-all-yes`} />
+              <Label htmlFor={`${config.question_key}-all-yes`} className="text-sm">Yes</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="no" id={`${config.question_key}-all-no`} />
+              <Label htmlFor={`${config.question_key}-all-no`} className="text-sm">No</Label>
+            </div>
+          </RadioGroup>
           <div>
-            <Label className="text-sm">Description / Justification</Label>
+            <Label className="text-sm font-medium">Notes</Label>
             <Textarea
               value={data.all_description || ''}
               onChange={(e) => handleAllChange('all_description', e.target.value)}
-              placeholder="Describe how your policies cover all NGRBC principles..."
+              placeholder="Add notes..."
               rows={3}
               className="mt-1"
             />
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {NGRBC_PRINCIPLES.map((p) => {
-            const pData = data.principles?.[p.key] || { enabled: false, description: '', reasons: {}, other_reason: '' };
+            const pData = data.principles?.[p.key] || {};
             return (
-              <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <span className="font-medium text-sm">{p.key}</span>
-                    <span className="text-xs text-text-muted ml-2">{p.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={pData.enabled || false}
-                      onCheckedChange={(v) => handlePrincipleChange(p.key, 'enabled', v)}
-                    />
-                    <span className="text-xs">{pData.enabled ? 'Yes' : 'No'}</span>
-                  </div>
+              <div key={p.key} className="p-3 border rounded-lg">
+                <Label className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</Label>
+                <div className="mt-2">
+                  <RadioGroup
+                    value={pData.enabled === true ? 'yes' : pData.enabled === false ? 'no' : ''}
+                    onValueChange={(v) => handlePrincipleChange(p.key, 'enabled', v === 'yes')}
+                    className="flex flex-row gap-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="yes" id={`${config.question_key}-${p.key}-yes`} data-testid={`${config.question_key}-${p.key}-yes`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-yes`} className="text-sm">Yes</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="no" id={`${config.question_key}-${p.key}-no`} data-testid={`${config.question_key}-${p.key}-no`} />
+                      <Label htmlFor={`${config.question_key}-${p.key}-no`} className="text-sm">No</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
-                <Textarea
-                  value={pData.description || ''}
-                  onChange={(e) => handlePrincipleChange(p.key, 'description', e.target.value)}
-                  placeholder={`Description for ${p.key}...`}
-                  rows={2}
-                  className="text-sm"
-                />
-                {/* Inline reasons when No is selected */}
-                {hasInlineReasons && pData.enabled === false && (
-                  <InlineReasonsForm pKey={p.key} pData={pData} />
-                )}
+                {hasInlineReasons && pData.enabled === false && <InlineReasonsForm pKey={p.key} pData={pData} />}
               </div>
             );
           })}
+          <div className="p-4 border rounded-lg">
+            <Label className="text-sm font-medium">Notes</Label>
+            <Textarea
+              value={data.all_description || ''}
+              onChange={(e) => handleAllChange('all_description', e.target.value)}
+              placeholder="Add notes..."
+              rows={3}
+              className="mt-1"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -1407,22 +1224,22 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
 
   return (
     <div className="mt-3 space-y-4">
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="all_together" id={`${config.question_key}-mode-all`} />
-            <Label htmlFor={`${config.question_key}-mode-all`} className="text-sm">Fill All Principles Together</Label>
+            <Label htmlFor={`${config.question_key}-mode-all`} className="text-xs">Fill All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id={`${config.question_key}-mode-wise`} />
-            <Label htmlFor={`${config.question_key}-mode-wise`} className="text-sm">Fill Principle-wise Separately</Label>
+            <Label htmlFor={`${config.question_key}-mode-wise`} className="text-xs">Fill Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
 
       {data.mode === 'all_together' ? (
-        <div className="bg-stone-50 p-4 rounded-lg">
+        <div className="p-4 border rounded-lg">
           <Textarea
             value={data.all_text || ''}
             onChange={(e) => handleAllTextChange(e.target.value)}
@@ -1433,10 +1250,9 @@ function PrincipleTextRenderer({ value, onChange, isEditing, config }) {
       ) : (
         <div className="space-y-3">
           {NGRBC_PRINCIPLES.map((p) => (
-            <div key={p.key} className="bg-stone-50 p-3 rounded-lg">
+            <div key={p.key} className="p-3 border rounded-lg">
               <div className="mb-2">
-                <span className="font-medium text-sm">{p.key}</span>
-                <span className="text-xs text-text-muted ml-2">{p.name}</span>
+                <span className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</span>
               </div>
               <Textarea
                 value={data.principles?.[p.key] || ''}
@@ -1617,6 +1433,18 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
     const { key, label, type, options, conditional_on } = field;
     const fieldValue = value || '';
 
+    const isYesNo = type === 'select' && (options || []).length === 2 && options.includes('Yes') && options.includes('No');
+    if (isYesNo) {
+      return (
+        <RadioGroup value={fieldValue} onValueChange={onChangeField} className="flex flex-row gap-4">
+          {['Yes', 'No'].map((opt) => (
+            <label key={opt} className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <RadioGroupItem value={opt} /> {opt}
+            </label>
+          ))}
+        </RadioGroup>
+      );
+    }
     if (type === 'select') {
       return (
         <Select value={fieldValue} onValueChange={onChangeField}>
@@ -1688,7 +1516,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
               <TableBody>
                 {NGRBC_PRINCIPLES.map(p => (
                   <TableRow key={p.key}>
-                    <TableCell className="font-medium text-sm">{p.key}</TableCell>
+                    <TableCell className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</TableCell>
                     {fields.filter(f => !f.conditional_on).map(f => (
                       <TableCell key={f.key} className="text-sm">
                         {data.principles?.[p.key]?.[f.key] || '-'}
@@ -1710,28 +1538,30 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
   return (
     <div className="mt-3 space-y-4">
       {/* Mode Selection */}
-      <div className="flex items-center gap-4">
-        <Label className="text-sm">Mode:</Label>
-        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex gap-4">
+      <div className="p-3 bg-stone-50 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Label className="text-sm font-medium">Mode</Label>
+        <RadioGroup value={data.mode} onValueChange={handleModeChange} className="flex flex-row flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <RadioGroupItem value="combined" id={`${config.question_key}-combined`} />
-            <Label htmlFor={`${config.question_key}-combined`} className="text-sm">Report All Principles Together</Label>
+            <Label htmlFor={`${config.question_key}-combined`} className="text-xs">Report All Principles Together</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="principle_wise" id={`${config.question_key}-wise`} />
-            <Label htmlFor={`${config.question_key}-wise`} className="text-sm">Report Principle-wise Separately</Label>
+            <Label htmlFor={`${config.question_key}-wise`} className="text-xs">Report Principle-wise Separately</Label>
           </div>
         </RadioGroup>
       </div>
 
       {/* Combined Mode */}
       {data.mode === 'combined' && (
-        <div className="bg-stone-50 p-4 rounded-lg space-y-4">
+        <div className="p-4 border rounded-lg space-y-4">
           {fields.map(f => (
             shouldShowField(f, data.combined) && (
-              <div key={f.key}>
-                <Label className="text-sm mb-1 block">{f.label}</Label>
-                {renderField(f, data.combined?.[f.key], (val) => handleCombinedChange(f.key, val))}
+              <div key={f.key} className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Label className="text-sm font-medium sm:w-64 shrink-0">{f.label}</Label>
+                <div className="flex-1 min-w-[200px]">
+                  {renderField(f, data.combined?.[f.key], (val) => handleCombinedChange(f.key, val))}
+                </div>
               </div>
             )
           ))}
@@ -1744,7 +1574,7 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs w-20 sticky left-0 bg-stone-100">Principle</TableHead>
+                <TableHead className="text-xs w-64 min-w-[16rem] sticky left-0 bg-stone-100">Principle</TableHead>
                 {fields.map(f => (
                   <TableHead key={f.key} className="text-xs min-w-[140px]">{f.label}</TableHead>
                 ))}
@@ -1753,9 +1583,8 @@ function PrincipleModeTableRenderer({ config, value, onChange, isEditing }) {
             <TableBody>
               {NGRBC_PRINCIPLES.map(p => (
                 <TableRow key={p.key}>
-                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50">
-                    <div>{p.key}</div>
-                    <div className="text-xs text-text-muted font-normal">{p.name.slice(0, 20)}...</div>
+                  <TableCell className="font-medium text-sm sticky left-0 bg-stone-50 w-64 min-w-[16rem]">
+                    <div className="text-sm font-semibold text-violet-700">{p.key}: {p.name}</div>
                   </TableCell>
                   {fields.map(f => (
                     <TableCell key={f.key} className="p-1">
@@ -2255,6 +2084,7 @@ function YesNoDetailMatrixRenderer({ config, value, onChange, isEditing }) {
 function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
   const categories = config.categories || [{ key: 'employees', label: 'Employees' }, { key: 'workers', label: 'Workers' }];
   const data = value || {};
+  const yesNoOnly = config.question_key === 'p3_life_insurance_package';
 
   const handleChange = (catKey, field, val) => {
     const newData = { ...data };
@@ -2271,10 +2101,10 @@ function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">{cat.label}:</span>
               <Badge variant="outline" className={data[cat.key]?.has_value ? 'bg-green-50 text-green-700' : ''}>
-                {data[cat.key]?.has_value ? 'Yes' : 'No'}
+                {typeof data[cat.key]?.has_value !== 'boolean' ? 'Not answered' : data[cat.key].has_value ? 'Yes' : 'No'}
               </Badge>
             </div>
-            {data[cat.key]?.has_value && data[cat.key]?.details && (
+            {!yesNoOnly && data[cat.key]?.has_value && data[cat.key]?.details && (
               <p className="text-sm mt-1 ml-4">{data[cat.key].details}</p>
             )}
           </div>
@@ -2290,7 +2120,7 @@ function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
           <div className="flex items-center justify-between mb-2">
             <Label className="text-sm font-medium">{cat.label}</Label>
             <RadioGroup 
-              value={data[cat.key]?.has_value ? 'yes' : 'no'} 
+              value={typeof data[cat.key]?.has_value !== 'boolean' ? '' : data[cat.key].has_value ? 'yes' : 'no'} 
               onValueChange={(v) => handleChange(cat.key, 'has_value', v === 'yes')}
               className="flex gap-3"
             >
@@ -2304,7 +2134,7 @@ function DualConditionalYesNoRenderer({ config, value, onChange, isEditing }) {
               </div>
             </RadioGroup>
           </div>
-          {data[cat.key]?.has_value && (
+          {!yesNoOnly && data[cat.key]?.has_value && (
             <Textarea
               value={data[cat.key]?.details || ''}
               onChange={(e) => handleChange(cat.key, 'details', e.target.value)}
@@ -2351,7 +2181,7 @@ function TableRenderer({ config, value, onChange, isEditing }) {
             {rows.map((row, idx) => (
               <TableRow key={idx}>
                 {columns.map((col) => (
-                  <TableCell key={col.key} className="text-xs">{row[col.key] ?? '-'}</TableCell>
+                  <TableCell key={col.key} className="text-xs">{col.other_key && row[col.key] === 'Others' && row[col.other_key] ? `Others – ${row[col.other_key]}` : (row[col.key] ?? '-')}</TableCell>
                 ))}
               </TableRow>
             ))}
@@ -2387,17 +2217,22 @@ function TableRenderer({ config, value, onChange, isEditing }) {
                         </SelectContent>
                       </Select>
                     ) : col.type === 'select' ? (
-                      <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
-                        <SelectContent>
-                          {col.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-1">
+                        <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                          <SelectContent>
+                            {col.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {col.other_key && row[col.key] === 'Others' && (
+                          <Input value={row[col.other_key] || ''} onChange={(e) => handleCellChange(rowIdx, col.other_key, e.target.value)} placeholder="Please specify" className="h-8 text-xs" />
+                        )}
+                      </div>
                     ) : col.type === 'number' ? (
                       <Input
                         type="number"
                         value={row[col.key] ?? ''}
-                        onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                         className="h-8 text-xs"
                       />
                     ) : (
@@ -2517,12 +2352,12 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
       </div>
       
       {showTable && (
-        <div className="space-y-2 border-l-2 border-emerald-200 pl-4">
+        <div className="space-y-2">
           <p className="text-xs text-text-muted mb-2">Provide details for each product/service assessed:</p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-emerald-50">
+                <TableRow className="bg-stone-50">
                   {columns.map((col) => (
                     <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>{col.label}</TableHead>
                   ))}
@@ -2554,7 +2389,7 @@ function YesNoWithDynamicTableRenderer({ config, value, onChange, isEditing }) {
                             <Input
                               type="number"
                               value={row[col.key] ?? ''}
-                              onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)}
+                              onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
                               className="h-8 text-xs"
                               step="0.01"
                             />
@@ -2670,13 +2505,13 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
     <div className="mt-2 space-y-4">
       {sections.map((section) => (
         <div key={section.title} className="overflow-x-auto">
-          <h4 className="text-xs font-semibold text-emerald-700 mb-2 bg-emerald-50 p-2 rounded">{section.title}</h4>
+          <h4 className="text-xs font-semibold text-stone-900 mb-2 bg-stone-100 p-2 rounded">{section.title}</h4>
           <Table>
             <TableHeader>
-              <TableRow className="bg-emerald-50">
+              <TableRow className="bg-stone-50">
                 <TableHead className="text-xs font-medium">Parameter</TableHead>
                 {columns.map((col) => (
-                  <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+                  <TableHead key={col.key} className={`text-xs font-medium text-center `}>
                     {col.label}
                     {col.historical_autofill && <Badge variant="outline" className="ml-1 text-[9px] bg-amber-100 text-amber-700">Prev FY</Badge>}
                   </TableHead>
@@ -2685,15 +2520,15 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
             </TableHeader>
             <TableBody>
               {section.rows.map((row) => (
-                <TableRow key={row.key} className={row.is_total ? 'bg-emerald-100' : ''}>
+                <TableRow key={row.key} className={row.is_total ? "bg-stone-100" : ""}>
                   <TableCell className="text-xs font-medium">{row.label}</TableCell>
                   {columns.map((col) => (
                     <TableCell key={col.key} className="p-1">
                       <Input
                         type="number"
                         value={data.metrics?.[row.key]?.[col.key] ?? ''}
-                        onChange={(e) => handleMetricChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                        className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                        onChange={(e) => handleMetricChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
+                        className={`h-8 text-xs text-center `}
                         step="0.01"
                         min="0"
                         disabled={col.historical_autofill}
@@ -2726,7 +2561,7 @@ function HistoricalEnvironmentalMetricsMatrixRenderer({ config, value, onChange,
             </div>
           </RadioGroup>
           {data.assurance?.conducted === 'yes' && (
-            <div className="mt-3 space-y-3 border-l-2 border-emerald-200 pl-4">
+            <div className="mt-3 space-y-3">
               <div>
                 <Label className="text-xs">Assurance Details</Label>
                 <Textarea
@@ -2810,10 +2645,10 @@ function YesNoWithNestedDetailsRenderer({ config, value, onChange, isEditing }) 
       </RadioGroup>
       
       {data.main_answer === showWhen && (
-        <div className="ml-4 space-y-3 border-l-2 border-emerald-200 pl-4">
+        <div className="space-y-3">
           {subQuestions.filter(shouldShowSubQuestion).map((sq) => (
             <div key={sq.key}>
-              <Label className="text-xs font-medium">{sq.question}{sq.required && <span className="text-red-500 ml-1">*</span>}</Label>
+              <Label className="text-xs font-medium">{sq.question}</Label>
               {sq.type === 'yes_no' ? (
                 <RadioGroup 
                   value={data.sub_answers?.[sq.key] || ''} 
@@ -2869,7 +2704,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
           <TableRow className={bgClass}>
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>
                 {col.label}
               </TableHead>
             ))}
@@ -2877,7 +2712,7 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
         </TableHeader>
         <TableBody>
           {section.rows.map((row) => (
-            <TableRow key={row.key} className={row.is_total ? 'bg-blue-100 font-semibold' : ''}>
+            <TableRow key={row.key} className={row.is_total ? 'bg-stone-100 font-semibold' : ''}>
               <TableCell className="text-xs">{row.label}</TableCell>
               {columns.map((col) => (
                 <TableCell key={col.key} className="p-1">
@@ -2885,8 +2720,8 @@ function HistoricalWaterMetricsMatrixRenderer({ config, value, onChange, isEditi
                     <Input
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      onChange={(e) => handleChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
+                      className={`h-8 text-xs text-center `}
                       step="0.01"
                       min="0"
                       disabled={col.historical_autofill}
@@ -2981,7 +2816,7 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
             <TableHead className="text-xs font-medium">Destination</TableHead>
             <TableHead className="text-xs font-medium">Treatment</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -3006,8 +2841,8 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                     <Input
                       type="number"
                       value={data[`${dest.key}_${tt.key}`]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(dest.key, tt.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      onChange={(e) => handleChange(dest.key, tt.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />
@@ -3026,10 +2861,10 @@ function HistoricalWaterDischargeMatrixRenderer({ config, value, onChange, isEdi
                   onChange={(e) => {
                     const newData = { ...data };
                     if (!newData[totalRow.key]) newData[totalRow.key] = {};
-                    newData[totalRow.key][col.key] = parseFloat(e.target.value) || 0;
+                    newData[totalRow.key][col.key] = (e.target.value === '' ? null : parseFloat(e.target.value));
                     onChange(newData);
                   }}
-                  className={`h-8 text-xs text-center font-semibold ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                  className={`h-8 text-xs text-center font-semibold `}
                   min="0"
                   disabled={col.historical_autofill}
                 />
@@ -3102,7 +2937,7 @@ function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, 
           <TableRow className="bg-violet-50">
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -3133,8 +2968,8 @@ function HistoricalEmissionsTableRenderer({ config, value, onChange, isEditing, 
                     <Input
                       type="number"
                       value={data[row.key]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      onChange={(e) => handleChange(row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />
@@ -3187,7 +3022,7 @@ function LinkedGHGMetricsMatrixRenderer({ config, value, onChange, isEditing }) 
                         onChange={(e) => {
                           const newData = { ...data };
                           if (!newData[row.key]) newData[row.key] = {};
-                          newData[row.key][col.key] = col.type === 'text' ? e.target.value : parseFloat(e.target.value) || 0;
+                          newData[row.key][col.key] = col.type === 'text' ? e.target.value : (e.target.value === '' ? null : parseFloat(e.target.value));
                           onChange(newData);
                         }}
                         className="h-8 text-xs text-center"
@@ -3235,13 +3070,13 @@ function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange
             <TableHead className="text-xs font-medium">Parameter</TableHead>
             {section.rows.some(r => r.has_category) && <TableHead className="text-xs font-medium">Category</TableHead>}
             {columns.map((col) => (
-              <TableHead key={col.key} className={`text-xs font-medium text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}>{col.label}</TableHead>
+              <TableHead key={col.key} className={`text-xs font-medium text-center `}>{col.label}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {section.rows.map((row) => (
-            <TableRow key={row.key} className={row.is_total ? 'bg-orange-100 font-semibold' : ''}>
+            <TableRow key={row.key} className={row.is_total ? 'bg-stone-100 font-semibold' : ''}>
               <TableCell className="text-xs">{row.label}</TableCell>
               {section.rows.some(r => r.has_category) && (
                 <TableCell className="p-1">
@@ -3263,8 +3098,8 @@ function HistoricalWasteManagementMasterMatrixRenderer({ config, value, onChange
                     <Input
                       type="number"
                       value={data[`${section.key}_${row.key}`]?.[col.key] ?? ''}
-                      onChange={(e) => handleChange(section.key, row.key, col.key, parseFloat(e.target.value) || 0)}
-                      className={`h-8 text-xs text-center ${col.historical_autofill ? 'bg-amber-50' : ''}`}
+                      onChange={(e) => handleChange(section.key, row.key, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))}
+                      className={`h-8 text-xs text-center `}
                       min="0"
                       disabled={col.historical_autofill}
                     />
@@ -3366,7 +3201,7 @@ function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing 
         <Input
           type="number"
           value={data.percentage ?? ''}
-          onChange={(e) => onChange({ ...data, percentage: parseFloat(e.target.value) || 0 })}
+          onChange={(e) => onChange({ ...data, percentage: (e.target.value === '' ? null : parseFloat(e.target.value)) })}
           min={percentageConfig.min || 0}
           max={percentageConfig.max || 100}
           step="0.1"
@@ -3377,7 +3212,7 @@ function PercentageWithDescriptionRenderer({ config, value, onChange, isEditing 
       </div>
       {descField.key && (
         <div>
-          <Label className="text-xs">{descField.label}{descField.required && <span className="text-red-500 ml-1">*</span>}</Label>
+          <Label className="text-xs">{descField.label}</Label>
           <Textarea
             value={data.description || ''}
             onChange={(e) => onChange({ ...data, description: e.target.value })}
@@ -3401,6 +3236,11 @@ export default function ESGQuestionnaire({
   excludePrinciples = null,
   yearType = 'financial_year',  // Organization's reporting year type
   liveKPIAutofillByQuestion = {},
+  statusFilter = 'all',
+  questionProgress = {},
+  perQuestionEdit = false,
+  approvalEnabled = false,
+  onSaved = null,
 }) {
   const { getAuthHeader, user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -3425,7 +3265,6 @@ export default function ESGQuestionnaire({
   const [summary, setSummary] = useState(null);
   const [historicalData, setHistoricalData] = useState(null);
   const [questionStatuses, setQuestionStatuses] = useState({});
-  const [questionVersions, setQuestionVersions] = useState({});
   const [timelineQuestionKey, setTimelineQuestionKey] = useState(null);
 
   useEffect(() => {
@@ -3470,11 +3309,9 @@ export default function ESGQuestionnaire({
           { headers: getAuthHeader() }
         );
         setQuestionStatuses(statusesRes.data.statuses || {});
-        setQuestionVersions(statusesRes.data.versions || {});
       } catch (err) {
         console.warn('Failed to fetch question statuses:', err);
         setQuestionStatuses({});
-        setQuestionVersions({});
       }
 
       // Calculate filtered summary based on filtered configs
@@ -3518,6 +3355,7 @@ export default function ESGQuestionnaire({
     setResponses(prev => ({ ...prev, [questionKey]: value }));
   };
 
+  const { promptAfterSave } = useLinkedFrameworks();
   // Question-level save (saves only the specified question)
   const saveQuestion = async (questionKey, value, status = 'saved') => {
     try {
@@ -3532,6 +3370,8 @@ export default function ESGQuestionnaire({
         { headers: getAuthHeader() }
       );
       toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
+      if (onSaved) onSaved();
+      if (status === 'saved') promptAfterSave([questionKey]);
       // Refresh statuses after save
       try {
         const statusesRes = await axios.get(
@@ -3539,34 +3379,13 @@ export default function ESGQuestionnaire({
           { headers: getAuthHeader() }
         );
         setQuestionStatuses(statusesRes.data.statuses || {});
-        setQuestionVersions(statusesRes.data.versions || {});
       } catch (err) {
         console.warn('Failed to refresh statuses:', err);
       }
     } catch (error) {
       console.error('Save question error:', error);
-      toast.error('Failed to save question');
-    }
-  };
-
-  // Fetch version history for a specific question
-  const fetchVersionHistory = async (questionKey) => {
-    try {
-      const res = await axios.get(
-        `${API}/esg-questionnaire/history/${questionKey}`,
-        { 
-          params: { reporting_period: reportingYear },
-          headers: getAuthHeader() 
-        }
-      );
-      setQuestionVersions(prev => ({
-        ...prev,
-        [questionKey]: res.data.history || []
-      }));
-      return res.data.history || [];
-    } catch (error) {
-      console.error('Failed to fetch version history:', error);
-      return [];
+      toast.error(error.response?.data?.detail || 'Failed to save question');
+      throw error;
     }
   };
 
@@ -3598,7 +3417,10 @@ export default function ESGQuestionnaire({
   }
 
   // Group questions by 'group' field
-  const groupedQuestions = configs.reduce((acc, config) => {
+  const visibleConfigs = statusFilter === 'all'
+    ? configs
+    : configs.filter((c) => questionProgress[c.question_key] === statusFilter);
+  const groupedQuestions = visibleConfigs.reduce((acc, config) => {
     const group = config.group || 'General';
     if (!acc[group]) acc[group] = [];
     acc[group].push(config);
@@ -3608,6 +3430,7 @@ export default function ESGQuestionnaire({
   return (
     <div className="space-y-6">
       {/* Header */}
+      {!perQuestionEdit && (
       <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border">
         <div className="flex items-center gap-4">
           <div>
@@ -3649,6 +3472,7 @@ export default function ESGQuestionnaire({
           </div>
         )}
       </div>
+      )}
 
       {/* Questions */}
       {configs.length === 0 ? (
@@ -3661,22 +3485,29 @@ export default function ESGQuestionnaire({
           <NoAssignmentMessage section={section} />
         )
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-8">
+          {visibleConfigs.length === 0 && (
+            <p className="text-center py-10 text-sm text-text-muted" data-testid="brsr-filter-empty">
+              No questions with this status.
+            </p>
+          )}
           {Object.entries(groupedQuestions).map(([group, questions]) => (
-            <div key={group} className="border rounded-lg bg-white">
+            <div key={group} id={`brsr-group-${group}`} className="scroll-mt-24 rounded-xl border border-emerald-100 bg-white p-5 space-y-5 mb-8">
               {group !== 'General' && (
-                <div className="px-4 py-3 bg-stone-50 border-b rounded-t-lg">
-                  <h3 className="font-medium text-sm">{group}</h3>
-                </div>
+                <h3 className="font-bold text-base text-text-primary px-1">{group}</h3>
               )}
-              <div className="p-4">
+              <div className="space-y-5">
                 {questions.map((config) => (
+                  <div key={config.question_key} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm mb-5 last:mb-0">
                   <QuestionRenderer
-                    key={config.question_key}
                     config={config}
                     value={mergeBRSRAutofill(responses[config.question_key], liveKPIAutofillByQuestion[config.question_key]?.value)}
                     onChange={(val) => handleResponseChange(config.question_key, val)}
                     isEditing={isEditing}
+                    perQuestionEdit={perQuestionEdit}
+                    approvalEnabled={approvalEnabled}
+                    isAdmin={isAdmin}
+                    onCancelEdit={fetchData}
                     allResponses={{ 
                       ...responses, 
                       reporting_year: reportingYear,
@@ -3685,13 +3516,12 @@ export default function ESGQuestionnaire({
                     }}
                     historicalData={historicalData}
                     approvalStatus={questionStatuses[config.question_key]}
-                    versionHistory={questionVersions[config.question_key]}
                     onSaveQuestion={saveQuestion}
-                    onFetchVersionHistory={() => fetchVersionHistory(config.question_key)}
                     onOpenTimeline={() => setTimelineQuestionKey(config.question_key)}
                     lockedAnswerPaths={liveKPIAutofillByQuestion[config.question_key]?.locked_paths || []}
                     dynamicAutofillRows={liveKPIAutofillByQuestion[config.question_key]?.dynamic_rows || []}
                   />
+                  </div>
                 ))}
               </div>
       <QuestionVersionHistory
@@ -3707,7 +3537,7 @@ export default function ESGQuestionnaire({
       )}
 
       {/* Save Button */}
-      {isEditing && configs.length > 0 && (
+      {isEditing && !perQuestionEdit && configs.length > 0 && (
         <div className="flex justify-end pt-4 border-t">
           <Button onClick={saveResponses} disabled={saving} className="bg-primary hover:bg-primary/90 text-white">
             {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Responses</>}

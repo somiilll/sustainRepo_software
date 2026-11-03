@@ -4,7 +4,6 @@ import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { getYearLabelsForTable, replaceYearPlaceholders } from '../../../utils/reportingYearUtils';
-import { normalizeFYResponse } from '../utils/fyNormalization';
 
 /**
  * Helper to get FY/CY labels based on reporting year and organization settings
@@ -138,17 +137,32 @@ export function HistoricalMaterialPercentageTableRenderer({ config, value, onCha
     if (rows.length > 1) onChange(rows.filter((_, i) => i !== index));
   };
   
+  const renderHeader = (withAction) => {
+    const [first, ...rest] = columns;
+    const groupLabel = (rest[0]?.label || "").replace(/\s*\((Current|Previous) FY\)\s*$/i, "");
+    return (
+      <TableHeader>
+        <TableRow className="bg-stone-50">
+          <TableHead rowSpan={2} className="text-xs font-medium border-r" style={{ width: first?.width }}>{first?.label}</TableHead>
+          <TableHead colSpan={rest.length} className="text-xs font-medium text-center border-b">{groupLabel}</TableHead>
+          {withAction && <TableHead rowSpan={2} className="w-12"></TableHead>}
+        </TableRow>
+        <TableRow className="bg-stone-50">
+          {rest.map((col) => (
+            <TableHead key={col.key} className="text-xs font-medium text-center" style={{ width: col.width }}>
+              {isPreviousFyColumn(col.key) ? fyLabels.previous : fyLabels.current}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+    );
+  };
+
   if (!isEditing) {
     return (
       <div className="mt-2 overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-stone-50">
-              {columns.map((col) => (
-                <TableHead key={col.key} className="text-xs font-medium">{getColumnLabel(col)}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+          {renderHeader(false)}
           <TableBody>
             {rows.map((row, idx) => (
               <TableRow key={idx}>
@@ -169,32 +183,19 @@ export function HistoricalMaterialPercentageTableRenderer({ config, value, onCha
     <div className="mt-2 space-y-2">
       <div className="overflow-x-auto">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-emerald-50">
-              {columns.map((col) => (
-                <TableHead 
-                  key={col.key} 
-                  className={`text-xs font-medium ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : ''}`} 
-                  style={{ width: col.width }}
-                >
-                  {getColumnLabel(col)}
-                </TableHead>
-              ))}
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
+          {renderHeader(true)}
           <TableBody>
             {rows.map((row, rowIdx) => (
               <TableRow key={rowIdx}>
                 {columns.map((col) => (
-                  <TableCell key={col.key} className={`p-1 ${isPreviousFyColumn(col.key) ? 'bg-amber-50/50' : ''}`}>
+                  <TableCell key={col.key} className="p-1">
                     <Input
                       type={col.type === 'number' ? 'number' : 'text'}
                       value={getDisplayValue(row, col.key, rowIdx)}
                       onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)}
-                      className={`h-8 text-xs ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : ''}`}
+                      className="h-8 text-xs"
                       step="0.01"
-                      placeholder={col.label}
+                      placeholder={col.key === columns[0]?.key ? col.label : '%'}
                     />
                   </TableCell>
                 ))}
@@ -228,9 +229,7 @@ export function HistoricalReclaimPercentageTableRenderer({ config, value, onChan
     return label;
   };
   
-  // Normalize FY-suffixed data from backend to simple keys for rendering
-  const normalizedValue = normalizeFYResponse(value);
-  const data = normalizedValue || rowCategories.reduce((acc, cat) => {
+  const data = (value && typeof value === 'object' && !Array.isArray(value) ? value : null) || rowCategories.reduce((acc, cat) => {
     acc[cat.key] = {};
     return acc;
   }, {});
@@ -261,9 +260,7 @@ export function HistoricalReclaimPercentageTableRenderer({ config, value, onChan
   };
   
   const handleCellChange = (rowKey, colKey, cellValue) => {
-    const newData = { ...data };
-    if (!newData[rowKey]) newData[rowKey] = {};
-    newData[rowKey][colKey] = cellValue;
+    const newData = { ...data, [rowKey]: { ...(data[rowKey] || {}), [colKey]: cellValue } };
     onChange(newData);
   };
   
@@ -313,23 +310,23 @@ export function HistoricalReclaimPercentageTableRenderer({ config, value, onChan
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-emerald-100">
+            <TableRow className="bg-stone-100">
               <TableHead rowSpan={2} className="text-xs font-medium border-r">Category</TableHead>
-              {columnGroups.map((group, idx) => (
+              {columnGroups.map((group) => (
                 <TableHead 
                   key={group.label} 
                   colSpan={group.columns.length} 
-                  className={`text-xs font-medium text-center border-r last:border-r-0 ${idx === 0 ? 'bg-emerald-100' : 'bg-amber-100'}`}
+                  className="text-xs font-medium text-center border-r last:border-r-0"
                 >
                   {getGroupLabel(group.label)}
                 </TableHead>
               ))}
             </TableRow>
-            <TableRow>
+            <TableRow className="bg-stone-50">
               {allColumns.map((col) => (
                 <TableHead 
                   key={col.key} 
-                  className={`text-xs font-medium text-center ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : 'bg-emerald-50'}`}
+                  className="text-xs font-medium text-center"
                 >
                   {col.label}
                 </TableHead>
@@ -339,15 +336,15 @@ export function HistoricalReclaimPercentageTableRenderer({ config, value, onChan
           <TableBody>
             {rowCategories.map((cat) => (
               <TableRow key={cat.key}>
-                <TableCell className="text-xs font-medium border-r bg-stone-50">{cat.label}</TableCell>
+                <TableCell className="text-xs font-medium border-r">{cat.label}</TableCell>
                 {allColumns.map((col) => (
-                  <TableCell key={col.key} className={`p-1 ${isPreviousFyColumn(col.key) ? 'bg-amber-50/50' : ''}`}>
+                  <TableCell key={col.key} className="p-1">
                     <div className="flex items-center justify-center">
                       <Input 
                         type="number" 
                         value={getDisplayValue(cat.key, col.key)} 
-                        onChange={(e) => handleCellChange(cat.key, col.key, parseFloat(e.target.value) || 0)} 
-                        className={`h-8 text-xs text-center w-20 ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : ''}`} 
+                        onChange={(e) => handleCellChange(cat.key, col.key, e.target.value)} 
+                        className="h-8 text-xs text-center w-20" 
                         step="0.01" 
                         placeholder="0" 
                       />
@@ -441,7 +438,7 @@ export function HistoricalWasteManagementMatrixRenderer({ config, value, onChang
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-emerald-50">
+            <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead 
                   key={col.key} 
@@ -464,7 +461,7 @@ export function HistoricalWasteManagementMatrixRenderer({ config, value, onChang
                         <Input 
                           type="number" 
                           value={getDisplayValue(row, col.key, rowIdx)} 
-                          onChange={(e) => handleCellChange(rowIdx, col.key, parseFloat(e.target.value) || 0)} 
+                          onChange={(e) => handleCellChange(rowIdx, col.key, (e.target.value === '' ? null : parseFloat(e.target.value)))} 
                           className={`h-8 text-xs ${isPreviousFyColumn(col.key) ? 'bg-amber-50' : ''}`} 
                           step="0.01" 
                           placeholder="0" 

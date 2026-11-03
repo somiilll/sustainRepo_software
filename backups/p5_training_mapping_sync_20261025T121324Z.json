@@ -1,0 +1,152 @@
+{
+  "mappings": [
+    {
+      "kpi_id": "42d5b2ef-1455-43ce-944f-b0a75db432f0",
+      "source_kpi_ids": [
+        "42d5b2ef-1455-43ce-944f-b0a75db432f0"
+      ],
+      "source_metric_code": "ENV_COMPLAINTS_INTERNAL_COMPLAINTS_NO_OF_POSH_COMPLAINTS_UPHELD",
+      "source_metric_name": "Internal Complaints - POSH complaints upheld",
+      "framework": "BRSR",
+      "reference": "P5-E7",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.posh_upheld",
+      "destination_label": "Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:",
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-22T11:54:48.003331+00:00",
+      "id": "69d45188-d610-464e-8b31-86aee5ed3b4e",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Complaints",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Internal Complaints",
+      "source_tag": "Complaints \u2192 Internal Complaints",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "d1182eec-9e97-4e3e-bbcc-24abbf0338a8",
+      "source_kpi_ids": [
+        "d1182eec-9e97-4e3e-bbcc-24abbf0338a8"
+      ],
+      "source_metric_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_POSH_UPHELD",
+      "source_metric_name": "Internal Complaints Pending - POSH complaints upheld",
+      "framework": "BRSR",
+      "reference": "P5-E7",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.posh_upheld",
+      "destination_label": "Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:",
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-22T11:54:48.003331+00:00",
+      "id": "8e8bcc99-fdd4-4d78-b569-1f45d0200e4a",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Complaints",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Internal Complaints",
+      "source_tag": "Complaints \u2192 Internal Complaints",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "7f53e960-1865-4d61-9b38-b2596a3a145b",
+      "source_kpi_ids": [
+        "7f53e960-1865-4d61-9b38-b2596a3a145b"
+      ],
+      "source_metric_code": "SOC_NO_OF_POSH_COMPLAINTS",
+      "source_metric_name": "Internal Complaints - POSH",
+      "framework": "BRSR",
+      "reference": "P5-E7",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.total_reported",
+      "destination_label": "Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:",
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-22T11:54:48.003331+00:00",
+      "id": "784aa30e-31cb-4745-b249-ddc499efe988",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Complaints",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Internal Complaints",
+      "source_tag": "Complaints \u2192 Internal Complaints",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "0ef40047-7619-44d8-b122-d74cf5a93010",
+      "source_kpi_ids": [
+        "0ef40047-7619-44d8-b122-d74cf5a93010"
+      ],
+      "source_metric_code": "SOC_COMPLAINTS_INTERNAL_COMPLAINTS_INTERNAL_PENDING_POSH",
+      "source_metric_name": "Internal Complaints Pending - POSH",
+      "framework": "BRSR",
+      "reference": "P5-E7",
+      "question_key": "p5_sexual_harassment_complaints",
+      "answer_path": "rows.total_reported",
+      "destination_label": "Complaints filed under the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013, in the following format:",
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-22T11:54:48.003331+00:00",
+      "id": "0248d0f1-3704-4e45-a616-29cf1218cf53",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Complaints",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Internal Complaints",
+      "source_tag": "Complaints \u2192 Internal Complaints",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    }
+  ],
+  "responses": [
+    {
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_year": "FY 2026-2027",
+      "question_key": "p5_sexual_harassment_complaints",
+      "created_at": "2026-10-22T11:14:27.912772+00:00",
+      "framework": "BRSR",
+      "id": "d3e16991-a644-462e-850c-d2d5da502775",
+      "kpi_autofill_dynamic_rows": [],
+      "kpi_autofill_updated_at": "2026-10-25T12:13:20.728502+00:00",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "section": "section_c",
+      "status": "saved",
+      "updated_at": "2026-10-25T12:13:20.728502+00:00",
+      "value": {
+        "posh_upheld": {
+          "current_fy": 0.0
+        },
+        "total_reported": {
+          "current_fy": 0.0
+        }
+      }
+    }
+  ]
+}

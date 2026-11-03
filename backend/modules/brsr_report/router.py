@@ -23,6 +23,12 @@ from .proposal_contracts import (
 from .proposal_service import brsr_import_proposal_service
 from .mapping_excel import build_kpi_brsr_mapping_excel
 from .live_kpi_autofill import brsr_live_kpi_autofill_service
+from .progress_service import brsr_progress
+from . import version_service
+from modules.framework_links.service import sync_linked_values
+from modules.esg_questionnaire.status_store import refresh_resolved_status
+from .version_service import CONTENT_TYPES
+from .docx_builder import html_to_docx
 
 router = APIRouter(prefix="/brsr-report", tags=["BRSR Report"])
 
@@ -79,7 +85,7 @@ async def download_kpi_brsr_mappings(
     )
 
 
-@router.get("/live-kpi-autofill")
+@router.post("/live-kpi-autofill")
 async def sync_live_kpi_autofill(
     reporting_period: str = Query(..., min_length=4),
     current_user: dict = Depends(get_current_user),
@@ -87,7 +93,22 @@ async def sync_live_kpi_autofill(
     org_id = current_user.get("organization_id") or current_user.get("org_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
-    return await brsr_live_kpi_autofill_service.sync(org_id, reporting_period)
+    result = await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
+    linked = await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    await refresh_resolved_status({"org_id": org_id})
+    return {**result, "linked_updated": linked["updated"]}
+
+
+@router.get("/progress")
+async def get_brsr_progress(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    await refresh_resolved_status({"org_id": org_id})
+    return await brsr_progress(org_id, reporting_period)
 
 
 async def get_organization(org_id: str) -> dict:
@@ -96,9 +117,10 @@ async def get_organization(org_id: str) -> dict:
     return org or {}
 
 
-@router.get("/generate/{reporting_period}")
+@router.post("/generate/{reporting_period}")
 async def generate_brsr_report(
     reporting_period: str,
+    format: str = Query("pdf", pattern="^(pdf|docx)$"),
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -112,7 +134,8 @@ async def generate_brsr_report(
         raise HTTPException(status_code=400, detail="User not associated with an organization")
     
     try:
-        # Get organization details
+        await brsr_live_kpi_autofill_service.sync(org_id, reporting_period, triggered_by=current_user.get("id"))
+        await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
         organization = await get_organization(org_id)
         
         # Get Section A data
@@ -123,6 +146,8 @@ async def generate_brsr_report(
             reporting_year=reporting_period
         )
         section_a_data = section_a_result.get('responses', {}) if section_a_result else {}
+        
+        section_a_configs = await esg_questionnaire_service.list_question_configs(framework='BRSR', section='section_a')
         
         # Get Section B configs and data
         section_b_configs = await esg_questionnaire_service.list_question_configs(
@@ -155,6 +180,7 @@ async def generate_brsr_report(
             organization=organization,
             reporting_period=reporting_period,
             section_a_data=section_a_data,
+            section_a_configs=section_a_configs if isinstance(section_a_configs, list) else [],
             section_b_data=section_b_data,
             section_b_configs=section_b_configs if isinstance(section_b_configs, list) else [],
             section_c_data=section_c_data,
@@ -166,16 +192,21 @@ async def generate_brsr_report(
         
         # Generate PDF using Playwright
         pdf_bytes = await BRSRReportService.generate_pdf(html_content)
+        docx_bytes = html_to_docx(html_content)
         
         # Create filename
         org_name = organization.get('name', 'Organization').replace(' ', '_').replace('/', '-')
         period_safe = reporting_period.replace(' ', '_').replace('/', '-')
-        filename = f"BRSR_Report_{org_name}_{period_safe}.pdf"
+        saved = await version_service.create_version(
+            org_id, reporting_period, current_user, organization,
+            {"section_a": section_a_data, "section_b": section_b_data, "section_c": section_c_data},
+            {"pdf": pdf_bytes, "docx": docx_bytes}, f"BRSR_Report_{org_name}_{period_safe}")
+        filename = saved["filenames"][format]
         
         # Return as streaming response
         return StreamingResponse(
-            io.BytesIO(pdf_bytes),
-            media_type="application/pdf",
+            io.BytesIO(pdf_bytes if format == "pdf" else docx_bytes),
+            media_type=CONTENT_TYPES[format],
             headers={
                 "Content-Disposition": f'attachment; filename="{filename}"'
             }
@@ -185,6 +216,36 @@ async def generate_brsr_report(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate BRSR report: {str(e)}")
+
+
+def _require_admin(current_user: dict) -> str:
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can view BRSR report versions")
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return org_id
+
+
+@router.get("/versions/{reporting_period}")
+async def list_report_versions(reporting_period: str, current_user: dict = Depends(get_current_user)):
+    org_id = _require_admin(current_user)
+    return {"reporting_period": reporting_period, "versions": await version_service.list_versions(org_id, reporting_period)}
+
+
+@router.get("/versions/{reporting_period}/{version}/download")
+async def download_report_version(reporting_period: str, version: int, format: str = Query("pdf", pattern="^(pdf|docx)$"),
+                                  current_user: dict = Depends(get_current_user)):
+    org_id = _require_admin(current_user)
+    try:
+        stored = await version_service.load_version_file(org_id, reporting_period, version, format)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if not stored:
+        raise HTTPException(status_code=404, detail="Report version not found")
+    content, filename = stored
+    return StreamingResponse(io.BytesIO(content), media_type=CONTENT_TYPES[format],
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.get("/preview/{reporting_period}")
@@ -212,6 +273,8 @@ async def preview_brsr_html(
         )
         section_a_data = section_a_result.get('responses', {}) if section_a_result else {}
         
+        section_a_configs = await esg_questionnaire_service.list_question_configs(framework='BRSR', section='section_a')
+        
         # Get Section B configs and data
         section_b_configs = await esg_questionnaire_service.list_question_configs(
             framework='BRSR',
@@ -243,6 +306,7 @@ async def preview_brsr_html(
             organization=organization,
             reporting_period=reporting_period,
             section_a_data=section_a_data,
+            section_a_configs=section_a_configs if isinstance(section_a_configs, list) else [],
             section_b_data=section_b_data,
             section_b_configs=section_b_configs if isinstance(section_b_configs, list) else [],
             section_c_data=section_c_data,

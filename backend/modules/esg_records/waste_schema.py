@@ -25,14 +25,20 @@ DISPOSAL_OPS = [
     ("other_disposal", "Other disposal operations", "(iii)", ["iv"], "waste_disposed_through_other_operations"),
 ]
 
+THROUGH_RECOVERY = [("recycled", "Recycled", "i"), ("reused", "Re-used", "ii"), ("other_recovery", "Other recovery operations", "iii")]
+THROUGH_DISPOSAL = [("incineration_with_energy", "Incineration (with energy)", "i"),
+                    ("incineration_without_energy", "Incineration (without energy)", "ii"),
+                    ("landfilling", "Landfilling", "iii"), ("other_disposal", "Other disposal operations", "iv")]
+
 STREAMS = {
     "Generated": {"verb": "generated", "title": "Generated", "gri": ("306-3-a", "306-3-a", "306-3-a"), "ops": [],
-                  "op_group": None, "loc": None},
+                  "op_group": None, "loc": None, "through": []},
     "Recovered / Diverted from disposal": {"verb": "recovered", "title": "Recovered", "gri": ("306-4-a", "306-4-b", "306-4-c"),
                                            "ops": RECOVERY_OPS, "op_group": "By Recovery Operation",
-                                           "loc": ("306-4-d-i", "306-4-d-ii")},
+                                           "loc": ("306-4-d-i", "306-4-d-ii"), "through": THROUGH_RECOVERY},
     "Disposal": {"verb": "disposed", "title": "Disposed", "gri": ("306-5-a", "306-5-b", "306-5-c"),
-                 "ops": DISPOSAL_OPS, "op_group": "By Disposal Operation", "loc": ("306-5-d-i", "306-5-d-ii")},
+                 "ops": DISPOSAL_OPS, "op_group": "By Disposal Operation", "loc": ("306-5-d-i", "306-5-d-ii"),
+                 "through": THROUGH_DISPOSAL},
 }
 
 OLD_CODES = {
@@ -105,10 +111,26 @@ def _build_stream(sub: str) -> Dict[str, Any]:
             ckey = f"{stem}_{verb}"
             add(ckey, f"{label} {title}", f"P6-E9 {rom}", f"{gri_x}, {gri_total}", group, 2, total_key, label=label)
         sums.append((total_key, [f"{stem}_{verb}" for _c, _l, _r, _h, stem in cats]))
+        through_keys = []
+        for tcode, tlabel, sfx in cfg["through"]:
+            tkey = f"{total_key}_{tcode}"
+            through_keys.append(tkey)
+            add(tkey, f"{'Hazardous' if is_haz else 'Non-hazardous'} Waste {title} - {tlabel}", None, f"{gri_x}-{sfx}",
+                f"{group} - {title} through:", 2, total_key, label=tlabel)
+        if through_keys:
+            quality.append((through_keys, total_key))
 
     for code, label, rom, sfx, okey in ops:
         gri = ", ".join([f"{gri_haz}-{s}" for s in sfx] + [f"{gri_non}-{s}" for s in sfx])
         add(okey, f"Waste {title} - {label}", f"P6-E9 {rom}", gri, cfg["op_group"], 1, label=label)
+
+    if cfg["loc"]:
+        loc_keys = []
+        for place, gri in zip(("onsite", "offsite"), cfg["loc"]):
+            lkey = f"waste_{verb}_{place}"
+            loc_keys.append(lkey)
+            add(lkey, f"Waste {title} - {place.capitalize()}", None, gri, f"{title}:", 1, label=place.capitalize())
+        quality.append((loc_keys, "quantity"))
 
     sums.append(("quantity", [haz_total, non_total]))
     return {"rows": rows, "tree": tree, "rules": {"root": "quantity", "sums": sums, "le": [], "quality": quality, "other": []}}
@@ -154,6 +176,15 @@ def waste_tree_meta(sub: str) -> Dict[str, Dict[str, Any]]:
 def apply_spill_rules(field_values: Dict[str, Any], is_draft: bool = False) -> Dict[str, Any]:
     """Count the spill rows and total their volume (converted to the chosen total unit)."""
     rows = field_values.get(SPILL_TABLE_KEY) or []
+    if not rows:
+        for key in (SPILL_COUNT_KEY, SPILL_TOTAL_KEY):
+            try:
+                value = float(field_values.get(key)) if field_values.get(key) not in (None, "") else None
+            except (TypeError, ValueError):
+                raise ValueError(f"{key.replace('_', ' ').capitalize()} must be a number")
+            if value is not None and value < 0:
+                raise ValueError(f"{key.replace('_', ' ').capitalize()} cannot be negative")
+        return field_values
     if not isinstance(rows, list):
         raise ValueError("Spill records must be a list")
     clean = [r for r in rows if isinstance(r, dict) and any(v not in (None, "") for v in r.values())]

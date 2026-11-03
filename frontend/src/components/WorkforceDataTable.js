@@ -124,6 +124,7 @@ function WorkforceDataTable({ config, fieldValues, onChange, isEditing }) {
     return validations.map(v => {
       if (v.type === 'sum_equals') {
         return columns.map(col => {
+          if (!v.rows.some(rk => tableData[rk]?.[col.key] != null)) return null;
           const sum = v.rows.reduce((s, rk) => s + (tableData[rk]?.[col.key] || 0), 0);
           const target = tableData[v.target]?.[col.key];
           if (target == null) return null;

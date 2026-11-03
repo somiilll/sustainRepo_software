@@ -54,6 +54,7 @@ class R2Storage:
             'software_images': os.environ.get('R2_BUCKET_SOFTWARE_IMAGES', 'software-image-dev'),
             'ocr_temp': os.environ.get('R2_BUCKET_OCR_TEMP', 'ocr-temp-invoices')
             , 'supplier_assessment': os.environ.get('R2_BUCKET_SUPPLIER_ASSESSMENT')
+            , 'framework_reports': os.environ.get('R2_BUCKET_FRAMEWORK_REPORTS', 'framework-reports-dev')
         }
     
     def _get_bucket(self, bucket_type: str) -> str:

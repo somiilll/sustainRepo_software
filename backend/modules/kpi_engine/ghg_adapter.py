@@ -9,6 +9,7 @@ its data source is the GHG module (emission_records) rather than ESG
 questionnaire records (environment_records).
 """
 
+import re
 from typing import Any, Dict, List, Optional
 from shared.database.mongo import db
 from modules.esg_targets.baseline_config import get_metric_mapping
@@ -80,6 +81,12 @@ def _matches_mapping(record: Dict[str, Any], mapping: Dict[str, Any]) -> bool:
     allowed_scopes = set(target_scope if isinstance(target_scope, list) else [target_scope])
     if target_scope and record.get("scope") not in allowed_scopes:
         return False
+
+    kind = mapping.get("biogenic_kind")
+    if kind:
+        indirect = bool(re.match(r"^C\d+", str(record.get("category") or "").strip()))
+        if indirect != (kind == "indirect"):
+            return False
 
     target_category = mapping.get("category")
     if not target_category:
@@ -160,8 +167,8 @@ async def calculate_ghg_kpi(
     total = 0.0
     valid_count = 0
     for rec in records:
-        val = rec.get("total_emissions")
-        if val is None:
+        val = rec.get(mapping["value_field"]) if mapping.get("value_field") else rec.get("total_emissions")
+        if val is None and not mapping.get("value_field"):
             val = rec.get("co2e_emissions") or 0
         try:
             total += float(val)
@@ -171,7 +178,7 @@ async def calculate_ghg_kpi(
 
     return format_result(
         value=round(total, 4) if valid_count > 0 else None,
-        unit="tCO2e",
+        unit=mapping.get("unit", "tCO2e"),
         record_count=len(records),
         aggregation_type="sum",
         metadata={

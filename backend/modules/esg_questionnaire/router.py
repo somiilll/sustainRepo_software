@@ -4,6 +4,7 @@ ESG Questionnaire Router
 API endpoints for config-driven ESG questionnaire system.
 """
 
+import re
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -17,6 +18,7 @@ from modules.esg_questionnaire.contracts import (
 from modules.esg_questionnaire.service import esg_questionnaire_service
 from modules.esg_questionnaire.timeline_service import question_response_timeline_service
 
+from modules.esg_questionnaire.status_store import refresh_resolved_status
 router = APIRouter(prefix="/esg-questionnaire", tags=["ESG Questionnaire"])
 
 
@@ -173,6 +175,36 @@ async def delete_question_config(
 # GRI Disclosure Endpoints
 # =============================================================================
 
+@router.get("/gri-live-emissions")
+async def get_gri_live_emissions(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    """Read-only live GHG values for GRI 102-5/102-6/102-7 responses, keyed by question or response key."""
+    from modules.esg_questionnaire.gri_live_emissions import live_gri_emission_values
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    return {"values": await live_gri_emission_values(org_id, reporting_period)}
+
+
+@router.post("/gri-live-kpi-autofill")
+async def sync_gri_live_kpi_autofill(
+    reporting_period: str = Query(..., min_length=4),
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist KPI-derived GRI answers and log changes to the audit trail (write path; GRI reads are read-only)."""
+    from modules.esg_questionnaire.gri_live_emissions import sync_gri_live_values
+    org_id = current_user.get("organization_id") or current_user.get("org_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    result = await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    from modules.framework_links.service import sync_linked_values
+    await sync_linked_values(org_id, reporting_period, triggered_by=current_user.get("id"))
+    await refresh_resolved_status({"org_id": org_id})
+    return result
+
+
 @router.get("/gri/{section}")
 async def get_gri_disclosures(
     section: str,
@@ -210,6 +242,45 @@ async def get_gri_disclosures(
     )
     
     return result
+
+
+GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "saved": "saved", "pending_approval": "saved",
+                       "in_progress": "in_progress", "draft": "draft", "rejected": "rejected"}
+
+
+@router.get("/gri-progress")
+async def get_gri_progress(
+    reporting_period: str = Query(..., min_length=4),
+    material_only: bool = Query(True),
+    current_user: dict = Depends(get_current_user),
+):
+    """Per-section GRI question status counts and per-disclosure progress, shaped like the BRSR progress payload."""
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    await refresh_resolved_status({"org_id": org_id})
+    is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
+    statuses = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
+    sections = {}
+    for section in ("general", "environment", "social", "governance"):
+        result = await esg_questionnaire_service.get_gri_disclosures(
+            org_id=org_id, section=section, reporting_period=reporting_period, user_id=current_user.get("id"),
+            filter_by_assignment=not is_admin, filter_by_materiality=material_only)
+        counts, questions, groups = {k: 0 for k in statuses}, {}, {}
+        for question in result["questions"]:
+            status = GRI_PROGRESS_STATUS.get(question.get("status"), "pending")
+            questions[question["question_key"]] = status
+            counts[status] += 1
+            topic = question.get("material_topic") or "General disclosures"
+            group = groups.setdefault(topic, {"id": re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-"), "numeral": None, "label": topic, "total": 0, "answered": 0})
+            group["total"] += 1
+            group["answered"] += status in ("saved", "approved")
+        total = len(questions)
+        answered = counts["saved"] + counts["approved"]
+        sections[section] = {"questions": questions, "counts": counts, "total": total, "answered": answered,
+                             "percent": round(answered / total * 100) if total else 0, "groups": list(groups.values())}
+    approval_enabled = await esg_questionnaire_service._has_approval_workflow_enabled(org_id)
+    return {"reporting_period": reporting_period, "approval_enabled": approval_enabled, "sections": sections}
 
 
 @router.post("/response")
@@ -287,6 +358,7 @@ async def save_gri_response(
                 detail=f"You are not assigned to question '{question_key}'"
             )
     
+
     # Determine the actual status that will be saved
     # Empty values should be marked as "pending", not "saved" or "draft"
     value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
@@ -304,6 +376,8 @@ async def save_gri_response(
         is_admin=is_admin,
     )
     
+    await refresh_resolved_status({"org_id": current_user.get("organization_id"), "question_key": question_key})
+
     # Handle submitted for approval response
     if result.get("submitted_for_approval"):
         return {
@@ -538,32 +612,6 @@ async def reject_submission(
     return result
 
 
-@router.get("/history/{question_key}")
-async def get_question_history(
-    question_key: str,
-    reporting_period: str = Query(..., description="Reporting period (e.g., FY 2025-26)"),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Get version history for a specific question.
-    Returns all changes, assignments, and approvals.
-    """
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    history = await esg_questionnaire_service.get_question_history(
-        org_id=org_id,
-        question_key=question_key,
-        reporting_period=reporting_period
-    )
-    
-    return {
-        "question_key": question_key,
-        "reporting_period": reporting_period,
-        "history": history,
-        "total": len(history)
-    }
 
 
 # =============================================================================
@@ -948,13 +996,24 @@ async def get_responses(
         reporting_year=reporting_year,
         section=section
     )
+    visible_responses = responses.get("responses", {}) if responses else {}
+    if current_user.get("role", "user") not in ["admin", "super_admin"]:
+        assigned = await esg_questionnaire_service.list_question_configs(
+            framework=framework, section=section, org_id=org_id,
+            user_id=current_user.get("id"), filter_by_assignment=True,
+        )
+        assigned_keys = [c["question_key"] for c in assigned]
+        visible_responses = {
+            key: value for key, value in visible_responses.items()
+            if any(key == assigned_key or key.startswith(f"{assigned_key}_") for assigned_key in assigned_keys)
+        }
     
     return {
         "org_id": org_id,
         "framework": framework,
         "section": section,
         "reporting_year": reporting_year,
-        "responses": responses.get("responses", {}) if responses else {},
+        "responses": visible_responses,
         "created_at": responses.get("created_at") if responses else None,
         "updated_at": responses.get("updated_at") if responses else None,
     }
@@ -1203,3 +1262,12 @@ async def get_ngrbc_principles(
         "principles": NGRBC_PRINCIPLES,
         "description": "National Guidelines on Responsible Business Conduct"
     }
+
+
+@router.post("/admin/refresh-resolved-statuses")
+async def refresh_all_resolved_statuses(current_user: dict = Depends(get_current_user)):
+    """Recompute the stored resolved status of existing answers (super admin: every organization; admin: own organization)."""
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    query = {} if current_user.get("role") == "super_admin" else {"org_id": current_user.get("organization_id")}
+    return {"updated": await refresh_resolved_status(query)}

@@ -12,7 +12,7 @@ async def ensure_turnover_configuration() -> None:
     now = datetime.now(timezone.utc).isoformat()
     await db.esg_kpi_definitions.update_many(
         {
-            "metric_name": {"$regex": "^(Employee|Worker) Turnover Rate ", "$options": "i"},
+            "metric_name": {"$regex": "^(Employee|Worker) Turnover Rate \\((Female|Male|Total)\\)$", "$options": "i"},
             "status": {"$ne": "archived"},
         },
         {

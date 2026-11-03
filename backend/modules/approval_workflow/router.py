@@ -269,7 +269,7 @@ async def get_request(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     # Add computed fields
-    request["can_approve"] = is_approver or is_super or (is_org_admin and user_id in request.get("current_approvers", []))
+    request["can_approve"] = is_approver or is_super or is_org_admin
     request["can_cancel"] = is_submitter or is_org_admin
     
     return request

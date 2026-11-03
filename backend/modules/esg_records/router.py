@@ -23,6 +23,7 @@ from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
 from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
+from .visibility import is_workflow_org, own_or_facility_clause, resolve_record_visibility, scoped_dashboard_db
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
@@ -58,17 +59,6 @@ async def _assert_record_category_access(org_id: str, section: ESG_SECTION, cate
     if entitlement:
         await assert_entitlement(org_id, entitlement)
     return entitlement
-
-
-def _dashboard_facility_scope(current_user: dict, requested_facilities: Optional[List[str]]) -> Optional[List[str]]:
-    """Keep dashboard metrics fail-closed for non-admin users and ignore unauthorized query filters."""
-    if current_user.get("role") in {"admin", "super_admin"}:
-        return requested_facilities
-    allowed = current_user.get("assigned_facilities")
-    if allowed is None:
-        return []
-    allowed_ids = set(allowed)
-    return [facility_id for facility_id in requested_facilities if facility_id in allowed_ids] if requested_facilities is not None else list(allowed_ids)
 
 
 # =============================================================================
@@ -556,7 +546,11 @@ async def list_records(
     # V2 Architecture: Query esg_assignment_assignees (many-to-many) instead of
     # the legacy assigned_to_user_id field on esg_assignments
     assigned_categories = None
-    if not is_admin:
+    visibility = None
+    workflow_org = (not is_admin) and await is_workflow_org(org_id)
+    if not is_admin and not workflow_org:
+        visibility = own_or_facility_clause(current_user)
+    if workflow_org:
         from shared.database.mongo import db
         
         # Step 1: Get assignment IDs where user is an active assignee (V2 architecture)
@@ -652,6 +646,7 @@ async def list_records(
         filters=filters,
         assigned_categories=assigned_categories,
         user_id=user_id,  # Pass user_id to enrich records with pending proposals
+        visibility=visibility,
     )
     
     # Get GHG-imported records if enabled and section is environment
@@ -727,6 +722,10 @@ async def list_records(
                 if r.get("subcategory", "").lower() == subcategory.lower()
             ]
         
+        if visibility and imported_records:
+            allowed_facilities = set(current_user.get("assigned_facilities") or [])
+            imported_records = [r for r in imported_records if r.get("facility_id") in allowed_facilities]
+
         # For non-admin users, filter GHG records by assigned categories too
         if assigned_categories and imported_records:
             filtered_imported = []
@@ -775,6 +774,7 @@ async def list_records(
                 org_id=org_id,
                 filters=unpaginated_filters,
                 assigned_categories=assigned_categories,
+                visibility=visibility,
             )
             native_records = unpaginated_result.get("records", [])
             
@@ -1002,6 +1002,7 @@ async def get_record_stats(
         category=category,
         subcategory=subcategory,
         category_list=category_list,
+        visibility=await resolve_record_visibility(current_user),
     )
     
     return stats
@@ -1082,7 +1083,7 @@ async def get_dashboard_metrics(
         except (ValueError, IndexError):
             pass
     
-    fac_list = _dashboard_facility_scope(current_user, fac_list)
+    db = await scoped_dashboard_db(db, current_user)
 
     # Get metrics from service
     service = get_dashboard_metrics_service(db)

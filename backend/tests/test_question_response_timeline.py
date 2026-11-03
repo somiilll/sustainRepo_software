@@ -30,3 +30,17 @@ def test_gri_rejection_is_year_scoped_and_exposes_reason():
     assert event.rejection_reason == "Evidence missing"
     assert timeline.excluded_unscoped_events == 1
     assert timeline.evidence_state.value == "FOUND_PARTIAL"
+
+def test_kpi_synced_audit_entry_appears_as_system_event_with_old_and_new_values():
+    timeline = QuestionResponseTimelineService.build_timeline(
+        framework="BRSR", question_key="p1_accounts_payables", reporting_year="FY 2026-2027",
+        current_response={"value": {"days_payables": {"current_fy": 0.77}}}, submissions=[],
+        audit_events=[{"action": "kpi_synced", "timestamp": "2026-10-27T06:58:34Z", "performed_by": {"type": "system", "name": "KPI Sync (System)"},
+                       "change_details": {"old_value": {"days_payables": {"current_fy": 0.02}}, "new_value": {"days_payables": {"current_fy": 0.77}}}}],
+        approval_requests=[], version_events=[],
+    )
+    event = timeline.events[0]
+    assert event.event_type == "KPI_SYNCED"
+    assert event.requester.name == "KPI Sync (System)"
+    assert event.submitted_value == {"days_payables": {"current_fy": 0.02}}
+    assert event.final_value == {"days_payables": {"current_fy": 0.77}}

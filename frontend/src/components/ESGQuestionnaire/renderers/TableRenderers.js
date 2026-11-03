@@ -35,6 +35,8 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
     onChange(newRows);
   };
 
+  const isHidden = (col, row) => col.show_when && row[col.show_when.field] !== col.show_when.value;
+
   const addRow = () => onChange([...rows, {}]);
   const removeRow = (index) => {
     if (rows.length > 1) onChange(rows.filter((_, i) => i !== index));
@@ -55,7 +57,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
             {rows.map((row, idx) => (
               <TableRow key={idx}>
                 {columns.map((col) => (
-                  <TableCell key={col.key} className="text-xs">{row[col.key] || '-'}</TableCell>
+                  <TableCell key={col.key} className="text-xs">{isHidden(col, row) ? '' : (row[col.key] || '-')}</TableCell>
                 ))}
               </TableRow>
             ))}
@@ -70,7 +72,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="bg-emerald-50">
+            <TableRow className="bg-stone-50">
               {columns.map((col) => (
                 <TableHead key={col.key} className="text-xs font-medium" style={{ width: col.width }}>{col.label}</TableHead>
               ))}
@@ -82,7 +84,7 @@ export function DynamicTableRenderer({ config, value, onChange, isEditing }) {
               <TableRow key={rowIdx}>
                 {columns.map((col) => (
                   <TableCell key={col.key} className="p-1">
-                    {col.type === 'auto_increment' ? (
+                    {isHidden(col, row) ? null : col.type === 'auto_increment' ? (
                       <span className="text-xs font-medium">{rowIdx + 1}</span>
                     ) : col.type === 'yes_no' ? (
                       <Select value={row[col.key] || ''} onValueChange={(v) => handleCellChange(rowIdx, col.key, v)}>
@@ -159,52 +161,71 @@ export function NGRBCReviewMatrixRenderer({ config, value, onChange, isEditing }
 
   const renderCell = (row, groupKey, principle, options) => {
     const cellValue = data[row.key]?.[groupKey]?.[principle] || '';
-    if (!isEditing) return <span className="text-xs">{cellValue || '-'}</span>;
+    const otherText = data[row.key]?.frequency_other?.[principle] || '';
+    const showOther = groupKey === 'frequency' && cellValue === 'Any Other';
+    if (!isEditing) {
+      return <span className="text-xs">{cellValue || '-'}{showOther && otherText ? `: ${otherText}` : ''}</span>;
+    }
     return (
-      <Select value={cellValue} onValueChange={(nextValue) => updateCell(row.key, groupKey, principle, nextValue)}>
-        <SelectTrigger className="h-8 min-w-28 text-xs" data-testid={`brsr-review-${row.key}-${groupKey}-${principle}`}>
-          <SelectValue placeholder="Select" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-col items-center gap-1">
+        <Select value={cellValue} onValueChange={(nextValue) => updateCell(row.key, groupKey, principle, nextValue)}>
+          <SelectTrigger className="h-8 w-full text-xs" data-testid={`brsr-review-${row.key}-${groupKey}-${principle}`}>
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {showOther && (
+          <Input value={otherText} placeholder="Please specify"
+                 onChange={(e) => updateCell(row.key, 'frequency_other', principle, e.target.value)}
+                 className="h-8 text-xs" data-testid={`brsr-review-${row.key}-frequency-other-${principle}`} />
+        )}
+      </div>
     );
   };
 
+  const groups = [
+    { key: 'review_by', options: reviewOptions, tone: 'bg-stone-100 text-stone-900',
+      label: 'Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee' },
+    { key: 'frequency', options: frequencyOptions, tone: 'bg-stone-100 text-stone-900',
+      label: 'Frequency (Annually / Half yearly / Quarterly / Any other – please specify)' },
+  ];
+
   return (
     <div className="mt-3 overflow-x-auto border border-stone-200" data-testid="brsr-ngrbc-review-matrix">
-      <Table className="min-w-[2200px]">
+      <Table className="w-full table-fixed">
+        <colgroup>
+          <col style={{ width: '90px' }} />
+          {rows.map((row) => <col key={row.key} />)}
+        </colgroup>
         <TableHeader>
           <TableRow className="bg-stone-100">
-            <TableHead rowSpan={2} className="sticky left-0 z-20 w-72 border-r bg-stone-100 text-xs">Subject for Review</TableHead>
-            <TableHead colSpan={principles.length} className="border-r text-center text-xs">
-              Indicate whether review was undertaken by Director / Committee of the Board / Any other Committee
-            </TableHead>
-            <TableHead colSpan={principles.length} className="text-center text-xs">
-              Frequency (Annually / Half yearly / Quarterly / Any other – please specify)
-            </TableHead>
-          </TableRow>
-          <TableRow className="bg-stone-50">
-            {principles.map((principle) => <TableHead key={`review-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
-            {principles.map((principle) => <TableHead key={`frequency-${principle}`} className="border-r text-center text-xs">{principle}</TableHead>)}
+            <TableHead className="border-r text-center text-xs">Principle</TableHead>
+            {rows.map((row) => (
+              <TableHead key={row.key} className="border-r text-center text-xs" data-testid={`brsr-review-col-${row.key}`}>{row.label}</TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.key}>
-              <TableCell className="sticky left-0 z-10 border-r bg-white text-xs font-medium">{row.label}</TableCell>
-              {principles.map((principle) => (
-                <TableCell key={`${row.key}-review-${principle}`} className="border-r p-1 text-center">
-                  {renderCell(row, 'review_by', principle, reviewOptions)}
+          {groups.map((group) => (
+            <React.Fragment key={group.key}>
+              <TableRow>
+                <TableCell colSpan={rows.length + 1} className={`text-center text-xs font-semibold ${group.tone}`} data-testid={`brsr-review-group-${group.key}`}>
+                  {group.label}
                 </TableCell>
-              ))}
+              </TableRow>
               {principles.map((principle) => (
-                <TableCell key={`${row.key}-frequency-${principle}`} className="border-r p-1 text-center">
-                  {renderCell(row, 'frequency', principle, frequencyOptions)}
-                </TableCell>
+                <TableRow key={`${group.key}-${principle}`}>
+                  <TableCell className="border-r text-center text-xs font-medium">{principle}</TableCell>
+                  {rows.map((row) => (
+                    <TableCell key={`${group.key}-${principle}-${row.key}`} className="border-r p-1 text-center">
+                      {renderCell(row, group.key, principle, group.options)}
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -219,6 +240,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     { key: 'current_fy', label: 'Current FY', type: 'number' },
     { key: 'previous_fy', label: 'Previous FY', type: 'number' }
   ];
+  const groupEndKeys = new Set((tableConfig.column_groups || []).flatMap((g) => (g.sub_groups ? g.sub_groups.map((sg) => sg.columns || []) : [g.columns || []]).map((cols) => cols[cols.length - 1]?.key).filter(Boolean)));
   // Normalize FY-suffixed data from backend to simple keys for rendering
   const normalizedValue = normalizeFYResponse(value);
   const data = normalizedValue || {};
@@ -231,7 +253,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
     const baseRows = fixedRows.filter((row) => !(row.key === 'others' && standaloneRows.length > 0));
     const positionedRows = baseRows.flatMap((row) => [
       row,
-      ...childRows.filter((child) => child.parent_key === row.key),
+      ...childRows.filter((child) => child.parent_key === row.key).map((child) => ({ ...child, label: child.label.split(': ').pop() })),
     ]);
     return [...positionedRows, ...standaloneRows];
   })();
@@ -322,7 +344,7 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                     <TableRow className="bg-stone-50/80">
                       {tableConfig.column_groups.flatMap((group, gi) =>
                         (group.sub_groups || []).map((sg, si) => (
-                          <TableHead key={`${gi}-${si}`} colSpan={(sg.columns || []).length} className="text-[11px] font-semibold text-center border-b border-r last:border-r-0">
+                          <TableHead key={`${gi}-${si}`} colSpan={(sg.columns || []).length} rowSpan={sg.span_rows && showLevel3 ? 2 : 1} className="text-[11px] font-semibold text-center border-b border-r last:border-r-0">
                             {fyLabel(sg.label)}
                           </TableHead>
                         ))
@@ -332,9 +354,9 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                     {showLevel3 && (
                       <TableRow className="bg-stone-50">
                         {tableConfig.column_groups.flatMap((group) =>
-                          (group.sub_groups || []).flatMap((sg) =>
+                          (group.sub_groups || []).filter(sg => !sg.span_rows).flatMap((sg) =>
                             (sg.columns || []).map(col => (
-                              <TableHead key={col.key} className="text-[10px] font-medium">{col.label}</TableHead>
+                              <TableHead key={col.key} className={`text-[10px] font-medium ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>{col.label}</TableHead>
                             ))
                           )
                         )}
@@ -349,15 +371,15 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
                   <TableRow className="bg-stone-100">
                     <TableHead className="text-xs font-semibold w-48 border-b border-r" rowSpan={2}>Category</TableHead>
                     {tableConfig.column_groups.map((group, gi) => (
-                      <TableHead key={gi} colSpan={group.columns.length} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
+                      <TableHead key={gi} colSpan={group.columns.length} rowSpan={group.span_rows ? 2 : 1} className="text-xs font-semibold text-center border-b border-r last:border-r-0">
                         {group.label.includes('Current') ? fyLabels.current : group.label.includes('Previous') ? fyLabels.previous : group.label}
                       </TableHead>
                     ))}
                   </TableRow>
                   <TableRow className="bg-stone-50">
-                    {tableConfig.column_groups.flatMap((group) =>
+                    {tableConfig.column_groups.filter((group) => !group.span_rows).flatMap((group) =>
                       group.columns.map(col => (
-                        <TableHead key={col.key} className="text-[11px] font-medium">{col.label}</TableHead>
+                        <TableHead key={col.key} className={`text-[11px] font-medium ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>{col.label}</TableHead>
                       ))
                     )}
                   </TableRow>
@@ -374,15 +396,28 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
           )}
         </TableHeader>
         <TableBody>
-          {displayRows.map((row) => (
+          {displayRows.map((row) => row.section_header ? (
+            <TableRow key={row.key} className="bg-stone-50">
+              <TableCell colSpan={columns.length + 1} className="text-xs font-semibold text-center">{row.label}</TableCell>
+            </TableRow>
+          ) : row.sub_header ? (
+            <TableRow key={row.key}>
+              <TableCell colSpan={columns.length + 1} className="text-xs font-semibold pl-6">{row.label}</TableCell>
+            </TableRow>
+          ) : (
             <TableRow key={row.key} data-testid={dynamicRows.some(dynamicRow => dynamicRow.key === row.key) ? `kpi-autofill-row-${config.question_key}-${row.key}` : undefined}>
-              <TableCell className={`text-xs font-medium ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>{row.label}</TableCell>
+              <TableCell className={`text-xs font-medium ${row.child ? 'pl-6' : ''} ${row.grandchild ? 'pl-10' : ''}  ${tableConfig.column_groups ? "border-r" : ""} ${row.indent ? 'pl-8 text-slate-600 before:mr-2 before:content-["↳"]' : ''}`}>
+                {/please specify/i.test(row.label) && !isEditing && data[row.key]?.specify ? `${row.label.split(/\s*[–-]\s*please specify/i)[0]} – ${data[row.key].specify}` : row.label}
+                {/please specify/i.test(row.label) && isEditing && (
+                  <Input value={data[row.key]?.specify ?? ''} onChange={(e) => handleCellChange(row.key, 'specify', e.target.value)} placeholder="Please specify" className="h-8 mt-1 text-sm font-normal" data-testid={`${config.question_key}-${row.key}-specify`} />
+                )}
+              </TableCell>
               {columns.map(col => (
-                <TableCell key={col.key} className="p-1">
+                <TableCell key={col.key} className={`p-1 ${groupEndKeys.has(col.key) ? "border-r" : ""}`}>
                   {!isEditing || locked.has(`${row.key}.${col.key}`) ? (
-                    <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? '-'}</span>
+                    <span className="text-sm" data-testid={locked.has(`${row.key}.${col.key}`) ? `kpi-autofill-${config.question_key}-${row.key}-${col.key}` : undefined}>{data[row.key]?.[col.key] ?? (col.key === 'unit' ? row.default_unit : '-') ?? '-'}</span>
                   ) : (
-                    <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? ''} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
+                    <Input type={col.type === 'number' ? 'number' : 'text'} value={data[row.key]?.[col.key] ?? (col.key === 'unit' ? row.default_unit : '')} onChange={(e) => handleCellChange(row.key, col.key, e.target.value)} className="h-8 text-sm" />
                   )}
                 </TableCell>
               ))}
@@ -390,6 +425,35 @@ export function FYComparisonTableRenderer({ config, value, onChange, isEditing, 
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+export function WaterStressCompositeRenderer(props) {
+  const { value, onChange, isEditing } = props;
+  const data = normalizeFYResponse(value) || {};
+  const fields = [
+    { key: 'area_name', label: 'Name of the area' },
+    { key: 'nature_of_operations', label: 'Nature of operations' },
+  ];
+  return (
+    <div className="mt-2 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {fields.map((f) => (
+          <div key={f.key}>
+            <p className="text-sm font-medium mb-1">{f.label}</p>
+            {isEditing ? (
+              <Input value={data[f.key] ?? ''} onChange={(e) => onChange({ ...data, [f.key]: e.target.value })} className="h-8 text-sm" placeholder={f.label} data-testid={`water-stress-${f.key}`} />
+            ) : (
+              <p className="text-sm">{data[f.key] || '-'}</p>
+            )}
+          </div>
+        ))}
+      </div>
+      <div>
+        <p className="text-sm font-medium mb-1">Water withdrawal, consumption and discharge</p>
+        <FYComparisonTableRenderer {...props} value={data} />
+      </div>
     </div>
   );
 }

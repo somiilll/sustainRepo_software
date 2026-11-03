@@ -554,5 +554,16 @@ class AssignmentResolver:
         return assignment
 
 
+def assignment_has_approver(assignment: Optional[Dict[str, Any]]) -> bool:
+    if not assignment:
+        return False
+    return bool(assignment.get("approver_id") or assignment.get("approval_chain") or assignment.get("approver_ids"))
+
+
+def assignment_requires_approval(assignment: Optional[Dict[str, Any]]) -> bool:
+    """Approval applies only when the assignment has it enabled AND an approver is set."""
+    return bool(assignment and assignment.get("requires_approval", False) and assignment_has_approver(assignment))
+
+
 # Singleton instance
 assignment_resolver = AssignmentResolver()

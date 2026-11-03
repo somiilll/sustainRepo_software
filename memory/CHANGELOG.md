@@ -1,4 +1,11 @@
 # October 25, 2026 — BRSR Turnover Rate and Unit Correction
+- Added 22 P3 Diversity mappings to populate Well-being, Union Membership, and Performance/Career Review Total (A) cells. Section A now defaults the Listed Entity name and Corporate Address from organization profile data, while retaining explicit saved BRSR answers; report rendering has the same corporate-address fallback.
+- Updated the Consumer Complaints entry table to display separate Restrictive Trade Practices and Unfair Trade Practices rows. Soft-archived the two retired combined KPI definitions; the four new split received/pending KPI definitions remain active.
+- Split Consumer Complaints into separate Restrictive Trade Practices and Unfair Trade Practices fields, then migrated the approved historic combined allocation to Restrictive (23 received / 0 pending) and mapped both P9 rows independently. Deactivated non-total data-breach mappings from the P9 count destination; only the 157 Data-breach Incidents total now populates it.
+- Completed P6 unit fallback coverage: static defaults now fill blank mapped-resource units, dynamic water-treatment rows retain kl, and Waste table rows/mappings display MT. Verified current rows: 1.41 kl consumption, 0.022 kl groundwater primary treatment, 3.715 kl total discharge, 0.089 kl water-stress consumption, and 268 MT waste generated.
+- Added **Units** columns to P6 Energy Consumption, Water Disclosures, Water Discharged, and Water-stress Areas. Active resource mappings now include their destination units so energy rows display J and water rows display kl; synced 52 active mappings and current report values.
+- Added 16 BRSR Principle 5 workforce-count mappings: eight Minimum Wages Total (A) denominators and eight Remuneration Male/Female numbers. General Training attendee totals are now canonical server-derived values from Female + Male, so stale client totals no longer trigger mismatch errors; 899 submitted with 230 female and 660 male resolves to 890.
+- Corrected BRSR Principle 5 training/POSH output: six Diversity denominator mappings now populate Human Rights Training Total (A); report templates use the active P5 keys; and stale pending-POSH mappings no longer overwrite filed/upheld values. Added stored Female + Male totals and direct KPIs for all eight General Training topics, then backfilled existing training records. Verified: POSH 2 filed / 1 upheld; topic totals 107 Health & Safety, 255 Human Rights, and 135 Organisation Policies.
 - Replaced the erroneous Social/Governance Litres fallback with semantic field units and normalized existing records through a backup-first migration: 68 Social fields updated and no Governance Litres values found. General Training now stores `total_attendees` from female + male values; the KPI sums that stored field and accepts numeric-string monthly periods. Verified total attendees: 890.
 - Corrected BRSR P3-E8 worker-row destinations from stale `wrk_*` paths to the table’s existing `workers_*` paths, then synced the current FY response; worker total now resolves to 200 without changing KPI field names. Added the calculated **Training Attendees (Total)** KPI and aligned Training dashboard aggregation with the saved female/male attendee fields. Source/data verification: 890 total attendees.
 - Extended safe HTTP 400 validation-message delivery to 1,000 characters. Existing ESG metric-entry toasts now show multi-field validation guidance—such as conflicting Internal Complaints totals—instead of the generic fallback; technical and authorization errors remain protected.
@@ -752,3 +759,47 @@
 ## February 2026
 - EmissionEntryForm refactoring (F1-F6 complete, -32.2% code reduction)
 - Emissions.js modularization (E1-E3 complete, -4.7% code reduction)
+
+## GRI per-topic Edit + unstyled answers
+- GRITopicCard has per-topic Edit/Done button; GRIQuestionnaire keeps editingTopics state; global edit toggle removed from GRIModule.
+- LiveValueBlock and StaticNoteBlock now plain white bordered boxes (no "Live from your data"/"Methodology note" labels or colored backgrounds).
+- Lint clean; NOT tested by testing agent or screenshot (user chose "fix only, don't test").
+
+## KPI autofill as POST (GRI + BRSR)
+- POST /api/esg-questionnaire/gri-live-kpi-autofill persists KPI-derived GRI answers + kpi_synced audit entries; GRI section/progress GETs are read-only. GRIModule calls it once per reporting period before loading.
+- BRSR live-kpi-autofill changed GET -> POST (BRSRModule.js updated).
+- Unique index on organization_esg_responses (org_id, question_key, reporting_year, framework) + unique audit idempotency_key prevent duplicates under parallel calls. Verified: 6 parallel POSTs -> 40 audit entries, 40 responses.
+
+## BRSR report versions
+- POST /api/brsr-report/generate/{period} syncs KPI values (saved + audited) then creates an immutable version (frozen answers + sha256 + PDF in R2 bucket_type mis_reports + per-question audit pointers). Admin: GET /versions/{period}, GET /versions/{period}/{n}/download (integrity-checked). UI: Download menu -> Report versions (admin).
+
+## BRSR PDF – SEBI format pass (Annexure II)
+- "Annexure II" now only on page 1 (header removed from service.py; label in body). Roman-numeral sub-headings in own column with underlined text. Essential/Leadership Indicators centre-aligned.
+- Fonts raised (effective ~+3pt): fixed Chromium shrink-to-fit caused by a 900px-wide complaints table; wide tables auto-get `dense`/`medium` classes.
+- Official SEBI wording for Section B/C questions, sub-parts and key table labels in `modules/brsr_report/sebi_wording.py` (PDF only; DB configs untouched). Section A Q24/Q26 wording fixed. Section B numbered 1-12 per SEBI. Verified programmatically against the uploaded SEBI PDF (0 mismatches). Not run through testing agent (user: no testing).
+
+## Word + PDF reports, GRI report, version history
+- BRSR "Generate Report" is now a PDF / Word (.docx) dropdown (`modules/brsr_report/docx_builder.py` converts the report HTML to Word). Every generated version stores both PDF and Word in R2; version history has PDF and Word download buttons (older versions only have PDF).
+- New `modules/gri_report` (`/api/gri-report/generate|versions|download`): GRI report organised by GRI standard and disclosure number (material topics only), same dropdown + "View GRI Report Versions" on the GRI page. `version_service` is now shared (`framework="BRSR"|"GRI"`, collections `gri_report_versions`).
+- Status rules: untouched Complaints & Grievances = pending; partly answered life-insurance dual yes/no = in_progress (`esg_questionnaire/status_rules.py`).
+
+## Cross-framework answer links (BRSR <-> GRI)
+- Pair list lives in `framework_question_links` (two-way). Admin loads it via `POST /api/framework-links/upload` (Excel columns: framework_a, question_key_a, framework_b, question_key_b, optional path_a, path_b, active; optional `replace_all`).
+- Autofill (`framework_links/service.py: sync_linked_values`) runs inside the BRSR/GRI live-KPI sync endpoints and report generation: fills only empty or still-untouched auto-filled answers; typed answers and KPI-filled answers are never overwritten. Dict answers (e.g. contact person) are joined to text for text targets; text -> dict targets are skipped unless a path is given.
+- After saving a linked question, `LinkedFrameworksProvider` (modules/framework-links) shows "Save the same response in the linked framework?" (tick per target, No keeps as is). Auto-filled answers show a "From BRSR/GRI" tag. Audit timeline shows "Updated from linked framework".
+- API-tested with temporary data (removed). Browser flow of the prompt dialog NOT tested (user asked to stop testing). The pair list is currently empty until the user sends it.
+
+## Auto-fill coverage (complete / partial)
+- Link table rows have `coverage_a_to_b` / `coverage_b_to_a` (Excel columns of the same names, or `coverage` for both; default partial). Autofills store `auto_fill: {coverage, synced_at}`.
+- Partial auto-fills (and GRI 2-3 a/b prefill) show **In progress** until a person saves the question (their save changes `updated_at`; the tag also disappears). Complete ones show Saved. Status rule: `esg_questionnaire/status_rules.py`, used by GRI disclosures, BRSR progress and question statuses.
+- GRI progress panel now has its own In progress count (was merged into Draft).
+
+## Single status resolver (BRSR/GRI)
+- `esg_questionnaire/status_rules.py::adjusted_status` is the one place that decides pending / in_progress / saved for a saved answer (auto-fill coverage, dual yes/no, untouched defaults, and partly filled multi-cell answers: some required cells filled, others empty; 0/False count as filled; remarks/links/totals/details, previous-FY blocks and inactive mode branches are ignored). Used by BRSR progress, question statuses and GRI disclosures. Stored `status` is never rewritten.
+- BRSR Section C "answered" counts now come from the API status (saved/approved) instead of a frontend value check.
+- Backlog: persist a `resolved_status` field for dashboard / gap-analysis queries; remove default 0 values from forms that pre-fill them.
+
+## Stored resolved_status + zero defaults
+- `resolved_status` stored on every response (`esg_questionnaire/status_store.py`), refreshed on save, auto-fill syncs, link pushes and progress loads; admin backfill `POST /api/esg-questionnaire/admin/refresh-resolved-statuses`.
+- Fixed-row tables are checked against `table_config` (rows x columns, previous FY included; unit/remark/link columns and "optional" rows ignored).
+- Section A defaults removed (null), Section B/C number inputs write null (not 0) when cleared.

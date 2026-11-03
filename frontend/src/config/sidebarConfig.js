@@ -159,6 +159,20 @@ const sidebarConfig = [
     path: '/pcf-studio',
   },
   {
+    key: 'cbam',
+    label: 'CBAM',
+    icon: 'Ship',
+    children: [
+      { key: 'cbam.analytics', label: 'Analytics', icon: 'Gauge', path: '/cbam' },
+      { key: 'cbam.imports', label: 'Import Lines', icon: 'PackageOpen', path: '/cbam/imports' },
+      { key: 'cbam.installations', label: 'Installations', icon: 'Factory', path: '/cbam/installations' },
+      { key: 'cbam.suppliers', label: 'Supplier Requests', icon: 'Truck', path: '/cbam/suppliers' },
+      { key: 'cbam.declarations', label: 'Declarations', icon: 'Receipt', path: '/cbam/declarations' },
+      { key: 'cbam.reference', label: 'Reference Data', icon: 'BookOpen', path: '/cbam/reference' },
+      { key: 'cbam.settings', label: 'Workflow Settings', icon: 'Settings2', path: '/cbam/settings' },
+    ],
+  },
+  {
     key: 'supplier_assessment',
     label: 'Supplier Assessment',
     icon: 'Truck',

@@ -23,6 +23,106 @@ const derivedValue = (row, { num, den }) => {
   return isEntered(row?.[num]) && d ? Math.round((Number(row[num]) / d) * 1e6) / 1e6 : '-';
 };
 
+const TRANSPOSED_TABLES = { incident_records_by_person_type: 'person_type' };
+const GROUP_LABELS = { Employee: 'Employees', Worker: 'Workers' };
+
+const GROUP_PREFIX = { Employee: 'emp', Worker: 'wrk' };
+
+// Rows come from the configured legacy tree (labels / level / parent), cells read & write the table rows.
+function buildMetricTree(field, fields, columns) {
+  const colKeys = new Set(columns.map((c) => c.key));
+  const byKey = Object.fromEntries(fields.map((f) => [f.field_key, f]));
+  const metrics = fields
+    .filter((f) => f.hide_if_table_has_rows === field.field_key && f.field_key.startsWith('emp_'))
+    .map((f) => {
+      const stem = f.field_key.slice(4);
+      return {
+        stem, level: f.level || 0, parent: f.parent_key ? f.parent_key.slice(4) : null,
+        label: byKey[`all_${stem}`]?.label || f.label, computed: !colKeys.has(stem),
+      };
+    });
+  return metrics.length ? metrics
+    : columns.map((c) => ({ stem: c.key, level: 0, parent: null, label: c.label, computed: false }));
+}
+
+function TransposedTable({ field, fields, rows, onChange, testIdPrefix, keyColumn }) {
+  const [collapsed, setCollapsed] = useState({});
+  const columns = field.table_columns || [];
+  const groups = (columns.find((c) => c.key === keyColumn)?.options || []);
+  const metrics = useMemo(() => buildMetricTree(field, fields, columns).filter((m) => m.stem !== keyColumn),
+    [field, fields, columns, keyColumn]);
+  const kids = (stem) => metrics.filter((m) => m.parent === stem);
+  const groupTitle = (g) => fields.find((f) => f.field_key.startsWith(`${GROUP_PREFIX[g]}_`)
+    && f.hide_if_table_has_rows === field.field_key)?.group || GROUP_LABELS[g] || g;
+  const rawValue = (g, stem) => rows.find((r) => r[keyColumn] === g)?.[stem];
+  const cellValue = (g, m) => {
+    if (!m.computed) return rawValue(g, m.stem) ?? '';
+    const parts = kids(m.stem).map((k) => rawValue(g, k.stem)).filter(isEntered);
+    return parts.length ? parts.reduce((t, v) => t + Number(v), 0) : '';
+  };
+  const setCell = (g, stem, value) => {
+    const exists = rows.some((r) => r[keyColumn] === g);
+    const next = exists
+      ? rows.map((r) => (r[keyColumn] === g ? { ...r, [stem]: value } : r))
+      : [...rows, { [keyColumn]: g, [stem]: value }];
+    onChange(next.filter((r) => Object.entries(r).some(([k, v]) => k !== keyColumn && isEntered(v))));
+  };
+  const hasValue = (stem) => groups.some((g) => isEntered(rawValue(g, stem)))
+    || kids(stem).some((k) => hasValue(k.stem));
+  const isOpen = (stem) => (collapsed[stem] === undefined ? hasValue(stem) : !collapsed[stem]);
+  const isShown = (m) => {
+    let p = m.parent;
+    while (p) {
+      if (!isOpen(p)) return false;
+      p = metrics.find((x) => x.stem === p)?.parent;
+    }
+    return true;
+  };
+  const testId = `${testIdPrefix}-${field.field_key}`;
+  return (
+    <div className="w-full overflow-x-auto border rounded-md" data-testid={`${testId}-table`}>
+      <table className="w-full text-sm">
+        <thead className="bg-stone-50">
+          <tr>
+            <th className="px-2 py-1.5 text-left font-medium text-xs">Metric</th>
+            {groups.map((g) => (
+              <th key={g} className="px-2 py-1.5 text-left font-medium text-xs min-w-[150px]">{groupTitle(g)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {metrics.filter(isShown).map((m) => (
+            <tr key={m.stem} className="border-t" data-testid={`${testId}-metric-${m.stem}`}>
+              <td className="px-2 py-1.5 text-xs" style={{ paddingLeft: 8 + m.level * 20 }}>
+                <div className="flex items-center gap-1">
+                  <span className="w-5 shrink-0">
+                    {kids(m.stem).length > 0 && (
+                      <button type="button" className="text-stone-500 hover:text-stone-800"
+                              onClick={() => setCollapsed((c) => ({ ...c, [m.stem]: isOpen(m.stem) }))}
+                              data-testid={`${testId}-${m.stem}-toggle`}>
+                        {isOpen(m.stem) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </span>
+                  {m.label}
+                </div>
+              </td>
+              {groups.map((g) => (
+                <td key={g} className="px-2 py-1.5">
+                  <Input type="number" min={0} value={cellValue(g, m)} disabled={m.computed}
+                         onChange={(e) => setCell(g, m.stem, e.target.value !== '' ? parseFloat(e.target.value) : '')}
+                         className="h-9 rounded-[10px] border-stone-300"
+                         data-testid={`${testId}-${m.stem}-${g.toLowerCase()}`} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
   const columns = field.table_columns || [];
   const setCell = (index, key, value) => onChange(rows.map((r, i) => (i === index ? { ...r, [key]: value } : r)));
@@ -291,8 +391,13 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     if (field.type === 'table') {
       rows.push(
         <div key={key} className="py-2" data-testid={`${testIdPrefix}-row-${key}`}>
-          <RepeatableTable field={field} rows={values?.[key] || []}
-                           onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          {TRANSPOSED_TABLES[key] ? (
+            <TransposedTable field={field} fields={fields} rows={values?.[key] || []} keyColumn={TRANSPOSED_TABLES[key]}
+                             onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          ) : (
+            <RepeatableTable field={field} rows={values?.[key] || []}
+                             onChange={(r) => handleTable(key, r)} testIdPrefix={testIdPrefix} />
+          )}
         </div>
       );
       return;

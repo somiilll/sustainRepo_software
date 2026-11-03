@@ -36,7 +36,10 @@ export function normalizeFYResponse(data, preferCurrentFY = true) {
         normalized[baseKey] = typeof value === 'object' ? normalizeFYResponse(value, preferCurrentFY) : value;
       }
     } else if (key.endsWith('_previous_fy')) {
-      const baseKey = key.slice(0, -12); // Remove '_previous_fy'
+      let baseKey = key.slice(0, -12); // Remove '_previous_fy'
+      // Last year's current-year values belong in this year's previous-year columns; older data is dropped
+      if (baseKey.startsWith('cur_')) baseKey = `prev_${baseKey.slice(4)}`;
+      else if (baseKey.startsWith('prev_')) continue;
       // Only set if we prefer previous FY or base key not set
       if (!preferCurrentFY || !(baseKey in normalized)) {
         normalized[baseKey] = typeof value === 'object' ? normalizeFYResponse(value, preferCurrentFY) : value;

@@ -10,8 +10,8 @@ FM = ["female", "male"]
 AGE = [("age_u30", "Under 30", "age"), ("age_3050", "30-50", "age"), ("age_o50", "Over 50", "age")]
 
 
-def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None, brsr_by_col=None):
-    return {"row": row, "label": label, "group": group, "level": level, "brsr": brsr, "gri": gri,
+def R(row, label, group, level=0, brsr=None, gri=None, sum_of=None, le=None, eq=None, cols=None, brsr_by_col=None, full=None):
+    return {"row": row, "label": label, "full": full or label, "group": group, "level": level, "brsr": brsr, "gri": gri,
             "sum_of": sum_of, "le": le, "eq": eq, "cols": cols, "brsr_by_col": brsr_by_col}
 
 
@@ -24,17 +24,37 @@ def _ages(gri, group="By Age Group", cols=None):
     return [R(r, label, group, 1, gri=gri, cols=cols) for r, label, _t in AGE]
 
 
+_TO_START_AGES = [f"start_{r}" for r, _l, _t in AGE]
+_TO_END_AGES = [f"end_{r}" for r, _l, _t in AGE]
+
+
+def _turnover_ages(prefix, base, group="Headcount"):
+    row_key = (lambda r: f"{prefix}_{r}") if prefix else (lambda r: r)
+    return [R(row_key(r), f"{label} age", group, 1, gri="401-1-b", full=f"{base} ({label} age)") for r, label, _t in AGE]
+
+
+_NH_EMP_AGES = [f"employees_{r}" for r, _l, _t in AGE]
+_NH_WRK_AGES = [f"workers_{r}" for r, _l, _t in AGE]
+
+
+def _nh_ages(prefix, who):
+    return [R(f"{prefix}_{r}", label, f"By Age Group - {who}", 1, gri="401-1-a", full=f"{who} - {label}")
+            for r, label, _t in AGE]
+
+
 SPECS: Dict[str, Dict[str, Any]] = {
     "New Employees/Worker": {"cfg": "NEW_HIRES_CONFIG", "prefix": "new_hires", "cols": FMT, "editable_auto_totals": True, "rows": [
-        R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"],
-          eq=[["age_u30", "age_3050", "age_o50"]]),
-        R("employees", "Employees", "By Employment Type", 1, gri="401-1-a; 102-3-a", sum_of=["employees_permanent", "employees_other"]),
+        R("total", "New hires (Total)", "Total", 0, gri="401-1-a; 102-3-a, 102-3-e", sum_of=["employees", "workers"]),
+        R("employees", "Employees", "By Employment Type", 1, gri="401-1-a; 102-3-a", sum_of=["employees_permanent", "employees_other"],
+          eq=[_NH_EMP_AGES]),
         R("employees_permanent", "Employees - Permanent", "By Employment Type", 2, gri="102-3-a-ii"),
         R("employees_other", "Employees - Other than permanent", "By Employment Type", 2, gri="102-3-a-ii"),
-        R("workers", "Workers", "By Employment Type", 1, gri="102-3-e", sum_of=["workers_permanent", "workers_other"]),
+        R("workers", "Workers", "By Employment Type", 1, gri="102-3-e", sum_of=["workers_permanent", "workers_other"],
+          eq=[_NH_WRK_AGES]),
         R("workers_permanent", "Workers - Permanent", "By Employment Type", 2, gri="102-3-e"),
         R("workers_other", "Workers - Other than permanent", "By Employment Type", 2, gri="102-3-e"),
-        *_ages("401-1-a", "By Age Group"),
+        *_nh_ages("employees", "Employees"),
+        *_nh_ages("workers", "Workers"),
     ]},
     "Terminated Employees": {"cfg": "TERMINATED_EMPLOYEES_CONFIG", "prefix": "term_emp", "cols": FMT, "editable_auto_totals": True, "rows": [
         R("total", "Employees terminated (Total)", "Total", 0, "A-22", "102-3-b; 401-1-b",
@@ -100,10 +120,12 @@ SPECS: Dict[str, Dict[str, Any]] = {
          "kpi": "Senior Management Hired from Local Community (%)"},
     ]},
     "Employee Turnover": {"cfg": "EMPLOYEE_TURNOVER_CONFIG", "prefix": "emp_to", "cols": FMT, "rows": [
-        R("start", "Employees at start of year", "Headcount", 0, "A-22", "401-1-b"),
-        R("end", "Employees at end of year", "Headcount", 0, "A-22", "401-1-b"),
+        R("start", "Employees at start of year", "Headcount", 0, "A-22", "401-1-b", eq=[_TO_START_AGES]),
+        *_turnover_ages("start", "Employees at start of year"),
+        R("end", "Employees at end of year", "Headcount", 0, "A-22", "401-1-b", eq=[_TO_END_AGES]),
+        *_turnover_ages("end", "Employees at end of year"),
         R("left", "Employees leaving (Total)", "Employees Leaving", 0, "A-22", "401-1-b", eq=[["age_u30", "age_3050", "age_o50"]]),
-        *_ages("401-1-b", "Employees Leaving", ["total"]),
+        *_turnover_ages("", "Employees leaving", "Employees Leaving"),
     ], "extra_tables": [("employee_leavers_by_region", "Region - leavers (by region)", "By Region", [
         {"key": "region", "label": "Region", "type": "text", "gri_disclosure": "401-1-b"},
         {"key": "leavers", "label": "Leavers", "type": "number", "gri_disclosure": "401-1-b"}])]},
@@ -126,9 +148,6 @@ LEGACY_FIELD_KEYS = {
         "workers": {"total": "new_hires_workers"},
         "workers_permanent": {"total": "new_hires_workers_permanent"},
         "workers_other": {"total": "new_hires_workers_other_than_permanent"},
-        "age_u30": {"total": "no_of_employees_worker_under_30"},
-        "age_3050": {"total": "no_of_employees_worker_30_50"},
-        "age_o50": {"total": "no_of_employees_worker_over_50"},
     },
     "Terminated Employees": {
         "total": {"female": "female", "male": "male", "total": "no_of_people_terminated"},
@@ -237,7 +256,7 @@ def build_rules(sub: str) -> Dict[str, Any]:
 
 
 GRID_RULES = {sub.lower(): build_rules(sub) for sub in SPECS}
-GRID_LABELS = {sub.lower(): {key(sub, r["row"], c): f"{r['label']} - {c.capitalize()}" for r in s["rows"] for c in row_cols(s, r)}
+GRID_LABELS = {sub.lower(): {key(sub, r["row"], c): f"{r['full']} - {c.capitalize()}" for r in s["rows"] for c in row_cols(s, r)}
                for sub, s in SPECS.items()}
 
 

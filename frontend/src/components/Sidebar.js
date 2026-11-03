@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
+import { isUserRestrictedKey, isGhgOnlyCustomer } from '../config/moduleNavigationAccess';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -91,7 +92,7 @@ function MenuItem(props) {
   if (!item.supplierOnly && item.key?.startsWith('supplier_assessment.') && (userType === 'supplier' || orgType === 'supplier')) return null;
   var isSupplier = userType === 'supplier' || orgType === 'supplier';
   var hasAnyRequiredAccess = !item.anyAccess || item.anyAccess.some(function(accessKey) { return hasAccess(accessKey); });
-  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key) || !hasAnyRequiredAccess);
+  var lockedForOrganisation = !isSupplier && (Boolean(item.orgDisabled) || !hasAccess(item.key) || !hasAnyRequiredAccess || isUserRestrictedKey(userRole, item.key));
   var supplierAccessibleItem = item.supplierOnly || ['dashboard', 'facilities', 'profile', 'supplier_assessment'].includes(item.key) || item.key === 'environment' || item.key?.startsWith('environment.ghg');
   var missingSupplierGhgAssignment = isSupplier && Array.isArray(supplierModules) && !supplierModules.includes('ghg') && SUPPLIER_GHG_REQUIRED_MENU_KEYS.has(item.key);
   var lockedForSupplier = inheritedLocked || missingSupplierGhgAssignment;
@@ -154,7 +155,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isSupplier = user?.user_type === 'supplier' || user?.org_type === 'supplier';
-  const isGhgOnlyUser = user?.role === 'user' && !isSupplier && hasAccess('environment.ghg');
+  const isGhgOnlyUser = user?.role === 'user' && !isSupplier && isGhgOnlyCustomer(hasAccess);
 
   // Fetch resolved org config for dynamic environment sidebar
   useEffect(() => {

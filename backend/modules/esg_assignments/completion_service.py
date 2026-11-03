@@ -184,6 +184,37 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
 # DATA EXISTENCE CHECKERS
 # =============================================================================
 
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+
+def _month_values(month: int) -> list:
+    return [month, str(month), f"{month:02d}", _MONTH_NAMES[month - 1]]
+
+
+def _apply_period_filter(query: Dict[str, Any], period_key: str) -> None:
+    """Restrict a records query to a period key: YYYY-MM, YYYY-Q#, or YYYY."""
+    try:
+        if "-Q" in period_key:
+            year_text, quarter_text = period_key.split("-Q")
+            year, quarter = int(year_text), int(quarter_text)
+            first_month = (quarter - 1) * 3 + 1
+            months = [value for month in range(first_month, first_month + 3) for value in _month_values(month)]
+            period_condition = {"$or": [
+                {"reporting_period.year": year, "reporting_period.month": {"$in": months}},
+                {"reporting_period.year": year, "reporting_period.quarter": {"$in": [f"Q{quarter}", str(quarter), quarter]}},
+            ]}
+        elif "-" in period_key and len(period_key) == 7:
+            year_text, month_text = period_key.split("-")
+            year, month = int(year_text), int(month_text)
+            period_condition = {"reporting_period.year": year, "reporting_period.month": {"$in": _month_values(month)}}
+        else:
+            period_condition = {"reporting_period.year": int(period_key[:4])}
+    except (ValueError, IndexError):
+        return
+    query.setdefault("$and", []).append(period_condition)
+
+
+
 class DataChecker:
     """
     Checks if data exists for a given org/category/subcategory/facility/period.
@@ -516,30 +547,7 @@ class DataChecker:
         if subcategory:
             query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
         
-        # Parse period_key (YYYY-MM or YYYY-QX or YYYY)
-        try:
-            if "-Q" in period_key:
-                # Quarterly: 2026-Q1
-                year = int(period_key.split("-Q")[0])
-                quarter = int(period_key.split("-Q")[1])
-                start_month = (quarter - 1) * 3 + 1
-                end_month = start_month + 2
-                query["$or"] = [
-                    {"reporting_period.year": year, "reporting_period.month": {"$in": [start_month, start_month + 1, end_month]}},
-                    {"reporting_period.year": year, "reporting_period.month": {"$in": [str(start_month), str(start_month + 1), str(end_month)]}},
-                ]
-            elif "-" in period_key and len(period_key) == 7:
-                # Monthly: 2026-07
-                year, month = period_key.split("-")
-                month_int = int(month)
-                query["reporting_period.year"] = int(year)
-                # Handle all month formats: integer (7), string with leading zero ("07"), string without ("7")
-                query["reporting_period.month"] = {"$in": [month_int, month, str(month_int)]}
-            else:
-                # Yearly: 2026
-                query["reporting_period.year"] = int(period_key[:4])
-        except (ValueError, IndexError):
-            pass
+        _apply_period_filter(query, period_key)
         
         # Get ALL records for this period and find the best approval_status
         records = await db.environment_records.find(
@@ -586,18 +594,7 @@ class DataChecker:
         if subcategory:
             query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
         
-        # Parse period
-        try:
-            if "-" in period_key and len(period_key) == 7:
-                year, month = period_key.split("-")
-                month_int = int(month)
-                query["reporting_period.year"] = int(year)
-                # Handle all month formats: integer (7), string with leading zero ("07"), string without ("7")
-                query["reporting_period.month"] = {"$in": [month_int, month, str(month_int)]}
-            else:
-                query["reporting_period.year"] = int(period_key[:4])
-        except (ValueError, IndexError):
-            pass
+        _apply_period_filter(query, period_key)
         
         # Get ALL records for this period and find the best approval_status
         records = await db.social_records.find(
@@ -640,6 +637,8 @@ class DataChecker:
         
         if subcategory:
             query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
+        
+        _apply_period_filter(query, period_key)
         
         # Get ALL records for this period and find the best approval_status
         records = await db.governance_records.find(

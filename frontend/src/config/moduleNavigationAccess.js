@@ -13,3 +13,9 @@ const navigationEntries = flattenNavigation(sidebarConfig).sort((left, right) =>
 export const isCoreNavigationKey = (key) => navigationEntries.some((entry) => entry.key === key && entry.accessScope === 'core');
 
 export const getNavigationModuleForPath = (pathname) => navigationEntries.find((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`)) || null;
+
+const USER_ENABLED_MODULES = ['dashboard', 'environment', 'social', 'governance', 'workflow', 'reporting', 'cbam', 'profile'];
+
+export const isUserRestrictedKey = (role, key) => role === 'user' && (key === 'environment.ghg.base_year' || !USER_ENABLED_MODULES.includes(String(key).split('.')[0]));
+
+export const isGhgOnlyCustomer = (hasAccess) => hasAccess('environment.ghg') && !hasAccess('social') && !hasAccess('governance') && !hasAccess('reporting');

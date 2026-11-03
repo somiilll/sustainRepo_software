@@ -11,15 +11,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Tabs, TabsContent } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { 
-  BarChart3,
-  Pencil,
-  X,
-  ClipboardList,
-  Building2
+  ClipboardList
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { generateReportingYears, getCurrentReportingYear } from '../utils/reportingYearUtils';
@@ -27,20 +23,44 @@ import ESGQuestionnaire from './ESGQuestionnaire';
 import BRSRSectionC from './BRSRSectionC';
 import BRSRDetailsSection from './BRSRDetailsSection';
 import { BRSRExportButton } from '../modules/brsr-export';
+import { LinkedFrameworksProvider } from '../modules/framework-links';
 import { ModulePageHeader } from './ModulePageHeader';
+import { BRSRSectionCards, BRSRProgressPanel, BRSRPageNav } from './BRSRProgress';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function BRSRModule() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   
   const [activeTab, setActiveTab] = useState('section_a');
   const [reportingPeriod, setReportingPeriod] = useState('');
   const [reportingYears, setReportingYears] = useState([]);
-  const [isEditing, setIsEditing] = useState(false);
   const [organization, setOrganization] = useState(null);
   const [responseRefreshKey, setResponseRefreshKey] = useState(0);
   const [liveKPIAutofill, setLiveKPIAutofill] = useState({});
+  const [progress, setProgress] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const loadProgress = React.useCallback(async () => {
+    if (!token || !reportingPeriod) return;
+    try {
+      const response = await axios.get(`${API}/api/brsr-report/progress`, {
+        params: { reporting_period: reportingPeriod },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProgress(response.data);
+    } catch (error) {
+      console.error('Failed to load BRSR progress:', error);
+    }
+  }, [token, reportingPeriod]);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setStatusFilter('all');
+  };
+
+  useEffect(() => { loadProgress(); }, [loadProgress, activeTab]);
 
   // Initialize reporting years
   useEffect(() => {
@@ -71,11 +91,13 @@ export default function BRSRModule() {
     const loadLiveKPIAutofill = async () => {
       if (!token || !reportingPeriod) return;
       try {
-        const response = await axios.get(`${API}/api/brsr-report/live-kpi-autofill`, {
+        const response = await axios.post(`${API}/api/brsr-report/live-kpi-autofill`, null, {
           params: { reporting_period: reportingPeriod },
           headers: { Authorization: `Bearer ${token}` },
         });
         if (active) setLiveKPIAutofill(response.data.values_by_question || {});
+        if (active) loadProgress();
+        if (active && response.data.linked_updated) setResponseRefreshKey((k) => k + 1);
       } catch (error) {
         console.error('Failed to sync live BRSR KPI values:', error);
       }
@@ -89,10 +111,18 @@ export default function BRSRModule() {
       window.clearInterval(interval);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, [token, reportingPeriod, responseRefreshKey]);
+  }, [token, reportingPeriod, responseRefreshKey, loadProgress]);
+
+  const blockNegativeKey = (e) => {
+    if (e.target?.type === 'number' && (e.key === '-' || e.key === 'Subtract')) e.preventDefault();
+  };
+  const blockNegativePaste = (e) => {
+    if (e.target?.type === 'number' && (e.clipboardData?.getData('text') || '').includes('-')) e.preventDefault();
+  };
 
   return (
-    <div className="space-y-7">
+    <LinkedFrameworksProvider framework="BRSR" reportingPeriod={reportingPeriod} syncKey={responseRefreshKey}>
+    <div className="space-y-7 brsr-report" onKeyDownCapture={blockNegativeKey} onPasteCapture={blockNegativePaste}>
       <ModulePageHeader
         title="BRSR Framework"
         icon={ClipboardList}
@@ -114,68 +144,64 @@ export default function BRSRModule() {
             reportingPeriod={reportingPeriod} 
             organization={organization}
           />
-          <Button
-            variant={isEditing ? 'outline' : 'default'}
-            size="sm"
-            onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? 'border-red-300 text-red-600 hover:bg-red-50' : ''}
-            data-testid="brsr-edit-toggle-button">
-            {isEditing ? <><X className="w-4 h-4 mr-1" /> Done</> : <><Pencil className="w-4 h-4 mr-1" /> Edit</>}
-          </Button>
         </>}
       />
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-stone-100 p-1 rounded-lg">
-          <TabsTrigger value="section_a" className="gap-2" data-testid="brsr-section-a-tab">
-            <Building2 className="w-4 h-4" />
-            Section A
-          </TabsTrigger>
-          <TabsTrigger value="section_b" className="gap-2" data-testid="brsr-section-b-tab">
-            <ClipboardList className="w-4 h-4" />
-            Section B
-          </TabsTrigger>
-          <TabsTrigger value="section_c" className="gap-2" data-testid="brsr-section-c-tab">
-            <BarChart3 className="w-4 h-4" />
-            Section C
-          </TabsTrigger>
-        </TabsList>
+      <BRSRSectionCards progress={progress} activeTab={activeTab} onSelect={selectTab} />
+      <BRSRProgressPanel progress={progress} activeTab={activeTab} statusFilter={statusFilter} onFilter={setStatusFilter} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6">
+      <Tabs value={activeTab} onValueChange={selectTab} className="min-w-0">
 
         {/* Section A - General Disclosures */}
-        <TabsContent value="section_a" className="mt-6">
+        <TabsContent value="section_a" className="mt-0">
           <BRSRDetailsSection
             key={`section-a-${responseRefreshKey}`}
-            isEditing={isEditing}
             isCollapsible={false}
             reportingPeriod={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_a?.questions || {}}
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            onSaved={loadProgress}
           />
         </TabsContent>
 
         {/* Section B - Management & Process Disclosures */}
-        <TabsContent value="section_b" className="mt-6">
+        <TabsContent value="section_b" className="mt-0">
           <ESGQuestionnaire
             key={`section-b-${responseRefreshKey}`}
             framework="BRSR"
             section="section_b"
-            isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_b?.questions || {}}
+            perQuestionEdit
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            onSaved={loadProgress}
           />
         </TabsContent>
 
         {/* Section C - Principle-wise Performance Disclosures */}
-        <TabsContent value="section_c" className="mt-6">
+        <TabsContent value="section_c" className="mt-0">
           <BRSRSectionC
             key={`section-c-${responseRefreshKey}`}
             framework="BRSR"
-            isEditing={isEditing}
             reportingYear={reportingPeriod}
             liveKPIAutofillByQuestion={liveKPIAutofill}
+            statusFilter={statusFilter}
+            questionProgress={progress?.sections?.section_c?.questions || {}}
+            approvalEnabled={Boolean(progress?.approval_enabled)}
+            isAdmin={isAdmin}
+            onSaved={loadProgress}
           />
         </TabsContent>
       </Tabs>
+      <BRSRPageNav progress={progress} activeTab={activeTab} />
+      </div>
     </div>
+    </LinkedFrameworksProvider>
   );
 }

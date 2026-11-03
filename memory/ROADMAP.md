@@ -11,6 +11,24 @@
 ### Training and Unit UI Verification
 - Verify Training Total Attendees updates and displays after editing female or male attendees, and verify Social/Governance count validation messages use Number rather than Litres. Browser testing is paused until explicitly authorized.
 
+### BRSR Principle 5 UI Verification
+- Verify P5 Human Rights Training shows all six Diversity denominators, POSH shows 2 filed and 1 upheld, and generated reports render the corrected P5 response keys. Browser testing is paused until explicitly authorized.
+
+### P5 Wages and Remuneration UI Verification
+- Verify Minimum Wages Total (A) and Remuneration Male/Female count cells show their synced Diversity values, while wage classifications and median-pay cells remain editable/manual. Browser testing is paused until explicitly authorized.
+
+### P6 Resource Units UI Verification
+- Verify all four updated Principle 6 tables render their Units column, with J on energy rows and kl on mapped water rows. Browser testing is paused until explicitly authorized.
+
+### P6 Waste Units UI Verification
+- Verify Waste Management renders its Units column with MT on physical waste rows, including generated, recovered, and disposed totals. Browser testing is paused until explicitly authorized.
+
+### Principle 9 UI Verification
+- Verify Consumer Complaints presents the new separate Restrictive and Unfair Trade inputs and that P9 displays 23/0 under Restrictive and 157 data-breach instances. Browser testing is paused until explicitly authorized.
+
+### Principle 3 and Section A UI Verification
+- Verify P3 Total (A) cells display locked Diversity values in all four updated tables and that Section A presents the organization name/corporate address when no BRSR-specific value is saved. Browser testing is paused until explicitly authorized.
+
 ### Avoided Green-Energy Emissions Verification
 - Verify renewable Scope 2 identification, facility/year factor resolution, kWh/MWh/GWh conversion, date and facility filtering, annual-period proration, equity allocation, empty states, and desktop/mobile KPI layout. Testing remains paused until explicitly authorized.
 
@@ -57,6 +75,12 @@
 - Replace module-specific conditionals with registries/strategies for source extraction, calculations, aggregation, transformations, rendering, scoring, and sync policies. Remove business rules duplicated across Python schemas, seed scripts, React configs, and live database documents.
 - Add an effective-configuration resolver with precedence: platform default → organization policy/version → program/framework/reporting-period override, plus an admin read-only explanation of the resolved rule and its provenance.
 - Deliver through compatibility adapters and staged migrations so existing organization configuration, records, response history, formula snapshots, supplier submissions, and reports continue to work unchanged until explicitly migrated.
+
+### Weighted Annual Data-Breach PII Percentage
+- Replace the current unweighted monthly average with `(summed breaches involving customer PII ÷ summed data-breach incidents) × 100` for BRSR P9. Current FY 2026–27 source values indicate `29 ÷ 157 × 100 = 18.471337%`. **Confirmed still open in the code as of this session.**
+
+### LPG / Duplicate-Fuel Allowed-Unit Validation
+- `backend/calc_engine/execution.py` `validate_input_unit` (unit_source == "fuel") looks the fuel up by `fuel_name`/`fuel_type` before `fuel_id`, so duplicate fuel names with different allowed units give false unit errors. Prefer `context.fuel_id`/`selectedFuelId` first, then fall back to name. **Confirmed still open in the code as of this session.**
 
 - Retire the overlapping broad Scope 3 `subcategory_selection` mapping for C8/C10/C11/C13/C14: prefer the formula-group-owned C8, C10/C13/C14, and C11 mappings, preserve the broad mapping only while a verified legacy formula version requires it, then archive/delete it.
 - Add inline Save validation errors to the monthly ledger so every affected field is shown at once rather than returning one toast at a time.
@@ -260,3 +284,13 @@
 - **C3 DEFRA 2026 factors:** added 50 year-2026 C3 copies with approved factors, one Bioethanol record, and normalized Heat/Steam source `DEFRA`; 2025 source records remain unchanged.
 - **C4 DEFRA 2026 factors:** added 70 matched year-2026 C4 DEFRA copies using the approved factors; 20 unmatched HGV/freight input rows remain pending catalog metadata/template definition.
 - **C6 DEFRA 2026 factors:** added 42 year-2026 Business Travel DEFRA copies using approved flight, ferry, road, taxi, bus, and rail factors; 2025 source records remain unchanged.
+## P2 – Per-company control of KPI→BRSR/GRI autofill
+- Setting (per company, optionally per question) to turn KPI autofill off, or keep the KPI value as a suggestion that the company can overwrite.
+- Existing saved answers stay as they are; overwritten values get a "manual" source tag and are covered by audit log / version history.
+- Needs: company setting, autofill skip logic, editable questions in BRSR/GRI forms, "manual override" label.
+
+## P0 - Tracker per-period breakdown shows stale overdue
+- `GET /api/esg-records/tasks/period-status/{assignment_id}` (esg_records/router.py) reads the stored `esg_reporting_tasks.status` and never checks data, so a quarter with a completed record (e.g. Q2) still shows overdue.
+- Fix: compute each period's status with `completion_service.get_task_status` so it matches the tracker row counts.
+- Also: `sync_task_statuses_with_data` is imported by the router but missing from `task_engine.py` (admin sync endpoint would fail); `refresh_overdue_tasks` is a stub.
+- Related (not fixed): progress due date uses `due_config.day_of_month` of the quarter's last month, ignoring `quarter_end`, so a quarter can show overdue before it ends.

@@ -284,6 +284,14 @@ api_router.include_router(sustainability_config_router, tags=["Sustainability Co
 from modules.brsr_report.router import router as brsr_report_router
 api_router.include_router(brsr_report_router, tags=["BRSR Report"], dependencies=[Depends(require_entitlement("reporting"))])
 
+# GRI Report Generation Module (PDF + Word, versioned)
+from modules.gri_report.router import router as gri_report_router
+api_router.include_router(gri_report_router, tags=["GRI Report"], dependencies=[Depends(require_entitlement("reporting"))])
+
+# Cross-framework answer links (BRSR <-> GRI)
+from modules.framework_links.router import router as framework_links_router
+api_router.include_router(framework_links_router, dependencies=[Depends(require_entitlement("reporting"))])
+
 # OCR Invoice Extractor Module (Scope 1 & 2 emissions from utility invoices)
 from modules.ocr_invoice.router import router as ocr_invoice_router
 api_router.include_router(ocr_invoice_router, prefix="/ocr-invoice", tags=["OCR Invoice"], dependencies=[Depends(require_entitlement("uploads"))])
@@ -1905,6 +1913,8 @@ async def sync_base_year_emissions(
     scope_group: str,
     current_user: dict = Depends(get_current_user)
 ):
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can manage base year emissions")
     return await sync_base_year_emissions_for_entity(
         entity_type=entity_type,
         entity_id=entity_id,
@@ -3953,6 +3963,13 @@ api_router.include_router(scope3_bulk_router)
 
 app.include_router(api_router)
 
+from modules.cbam.api import operator as cbam_operator, workflow as cbam_workflow
+from modules.cbam.api.routes import public as cbam_public, router as cbam_router
+for _cbam_router in (cbam_router, cbam_workflow.router, cbam_operator.router):
+    app.include_router(_cbam_router, tags=["CBAM"], dependencies=[Depends(require_entitlement("cbam"))])
+for _cbam_public in (cbam_public, cbam_workflow.public, cbam_operator.public):
+    app.include_router(_cbam_public, tags=["CBAM public portals"])
+
 from shared.security import limiter, rate_limit_exceeded_handler, SecurityHeadersMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -3997,6 +4014,11 @@ async def startup_event():
     from shared.database.indexes import ensure_indexes
     await ensure_indexes(db)
     await check_expired_subscriptions()
+    from modules.catalog_sync.service import apply_bundle_once
+    try:
+        await apply_bundle_once()
+    except Exception:
+        logging.getLogger(__name__).exception("Catalog bundle sync failed")
     await seed_scopes_and_categories(db)
     await seed_calc_engine(db)
     from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes

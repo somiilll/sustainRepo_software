@@ -4,18 +4,20 @@ ESG Questionnaire Service
 Business logic for config-driven ESG questionnaire system.
 """
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
+from modules.esg_assignments.assignment_resolver import assignment_requires_approval
+from modules.esg_questionnaire.status_rules import adjusted_status
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
     QuestionConfigUpdate,
     ESGResponseCreate,
     NGRBC_PRINCIPLES,
 )
-from modules.esg_records.version_utils import compare_versions, format_field_display_name
 
 
 class ESGQuestionnaireService:
@@ -238,6 +240,7 @@ class ESGQuestionnaireService:
             },
             {"_id": 0}
         ).sort([("disclosure_id", 1), ("question_order", 1)]).to_list(500)
+        configs.sort(key=lambda c: ([int(p) if p.isdigit() else 0 for p in re.split(r"[-.]", c.get("disclosure_id") or "")], c.get("question_order", 0)))
         
         if not configs:
             return {
@@ -247,8 +250,8 @@ class ESGQuestionnaireService:
                 "total": 0
             }
         
-        # If filtering by materiality, get material topic codes
-        if filter_by_materiality:
+        # General disclosures (GRI 2) apply to every organization, so materiality never filters them
+        if filter_by_materiality and section != "general":
             from modules.materiality.service import materiality_service
             material_codes = await materiality_service.get_material_topic_codes_for_org(org_id)
             if material_codes:
@@ -348,10 +351,15 @@ class ESGQuestionnaireService:
                 "question_key": {"$in": all_response_keys},
                 "reporting_year": reporting_period,
             },
-            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1, "approval_status": 1}
+            {"_id": 0, "question_key": 1, "value": 1, "status": 1, "updated_at": 1, "updated_by_name": 1, "approval_status": 1, "auto_fill": 1}
         )
         responses_list = await responses_cursor.to_list(1000)
         responses_map = {r["question_key"]: r for r in responses_list}
+
+        for config in configs:
+            key = config["question_key"]
+            if config.get("static_note") and not config.get("sub_questions") and key not in responses_map:
+                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "saved"}
         
         # Fetch user's drafts from esg_response_drafts
         user_drafts_map = {}
@@ -409,6 +417,7 @@ class ESGQuestionnaireService:
                 "is_required": config.get("is_required", False),
                 "validation_rules": config.get("validation_rules"),
                 "visibility_conditions": config.get("visibility_conditions"),
+                "static_note": config.get("static_note"),
             }
             
             if sub_questions:
@@ -416,6 +425,7 @@ class ESGQuestionnaireService:
                 question_data["sub_questions"] = []
                 has_any_saved = False
                 has_any_draft = False
+                has_any_auto_partial = False
                 has_any_pending_approval = False
                 has_any_user_draft = False
                 has_any_approved = False
@@ -465,6 +475,11 @@ class ESGQuestionnaireService:
                         display_status = "rejected"
                         all_approved = False
                         all_saved_or_approved = False
+                    elif sub_status == "saved" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
+                        display_status = "in_progress"
+                        has_any_auto_partial = True
+                        all_approved = False
+                        all_saved_or_approved = False
                     elif sub_status == "saved":
                         display_status = "saved"
                         has_any_saved = True
@@ -502,6 +517,8 @@ class ESGQuestionnaireService:
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
                     question_data["status"] = "saved"
                 elif (has_any_saved or has_any_approved) and not all_have_value:
+                    question_data["status"] = "in_progress"
+                elif has_any_auto_partial:
                     question_data["status"] = "in_progress"
                 elif has_any_draft:
                     question_data["status"] = "draft"
@@ -543,7 +560,7 @@ class ESGQuestionnaireService:
                 elif response_approval == "rejected":
                     question_data["status"] = "rejected"
                 elif response.get("status") == "saved":
-                    question_data["status"] = "saved"
+                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "saved"
                 elif response.get("status") == "draft":
                     question_data["status"] = "draft"
                 else:
@@ -573,67 +590,32 @@ class ESGQuestionnaireService:
         except Exception:
             return False
     
+    async def _find_question_assignment(
+        self, org_id: str, question_key: str, reporting_period: str
+    ) -> Optional[Dict[str, Any]]:
+        """Question assignment for this key, falling back to parent keys for sub-parts."""
+        key = question_key
+        while key:
+            assignment = await db.esg_assignments.find_one({
+                "organization_id": org_id,
+                "entity_id": key,
+                "entity_type": "question",
+                "reporting_period": reporting_period,
+            }, {"_id": 0})
+            if assignment:
+                return assignment
+            key = key.rsplit("_", 1)[0] if "_" in key else None
+        return None
+
     async def _has_approver_assigned(
-        self, 
-        org_id: str, 
-        question_key: str, 
+        self,
+        org_id: str,
+        question_key: str,
         reporting_period: str
     ) -> bool:
-        """
-        Check if there's an approver assigned to this question or its section.
-        Returns True if approval workflow is enabled AND approver is assigned.
-        
-        For subpart questions (e.g., gri_101_2_a_iii), also checks parent assignments (gri_101_2_a).
-        """
-        # Check if there's an assignment with requires_approval=True for this question
-        assignment = await db.esg_assignments.find_one({
-            "organization_id": org_id,
-            "entity_id": question_key,
-            "entity_type": "question",
-            "reporting_period": reporting_period,
-            "requires_approval": True,
-        }, {"_id": 0, "id": 1})
-        
-        if assignment:
-            return True
-        
-        # Check parent question assignments for subparts (e.g., gri_101_2_a_iii -> gri_101_2_a)
-        if "_" in question_key:
-            parts = question_key.rsplit("_", 1)
-            while len(parts) > 1:
-                parent_key = parts[0]
-                parent_assignment = await db.esg_assignments.find_one({
-                    "organization_id": org_id,
-                    "entity_id": parent_key,
-                    "entity_type": "question",
-                    "reporting_period": reporting_period,
-                    "requires_approval": True,
-                }, {"_id": 0, "id": 1})
-                
-                if parent_assignment:
-                    return True
-                parts = parent_key.rsplit("_", 1)
-        
-        # Also check section-level assignment
-        # Extract section from question_key (e.g., "gri_302_1_a" -> get section from config)
-        config = await self._configs.find_one(
-            {"question_key": question_key},
-            {"_id": 0, "section": 1}
-        )
-        
-        if config and config.get("section"):
-            section_assignment = await db.esg_assignments.find_one({
-                "organization_id": org_id,
-                "entity_id": config["section"],
-                "entity_type": "section",
-                "reporting_period": reporting_period,
-                "requires_approval": True,
-            }, {"_id": 0, "id": 1})
-            
-            if section_assignment:
-                return True
-        
-        return False
+        """True when the question's assignment requires approval and has an approver."""
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        return assignment_requires_approval(assignment)
 
     async def _should_use_direct_save(
         self,
@@ -860,46 +842,15 @@ class ESGQuestionnaireService:
         # ALSO create an approval_request for unified Approver Queue
         # This ensures both GRI and BRSR show up in the same queue
         
-        # Resolve current_approvers so the request shows up in /api/approval-workflows/requests
-        # Look up assigned approvers from esg_assignments, fall back to org admins
-        current_approvers = []
-        assignments = await db["esg_assignments"].find(
-            {
-                "organization_id": org_id,
-                "entity_id": question_key,
-                "approver_ids": {"$exists": True, "$ne": []},
-            },
-            {"_id": 0, "approver_ids": 1}
-        ).to_list(10)
-        for a in assignments:
-            current_approvers.extend(a.get("approver_ids", []))
-        
-        if not current_approvers:
-            # Also check section-level assignments
-            section_name = question_config.get("section") if question_config else None
-            if section_name:
-                section_assignments = await db["esg_assignments"].find(
-                    {
-                        "organization_id": org_id,
-                        "section": {"$in": [section_name, section_name.lower(), section_name.upper()]},
-                        "approver_ids": {"$exists": True, "$ne": []},
-                    },
-                    {"_id": 0, "approver_ids": 1}
-                ).to_list(10)
-                for a in section_assignments:
-                    current_approvers.extend(a.get("approver_ids", []))
-        
-        if not current_approvers:
-            # Fall back to org admins so the request is always visible to someone
-            admin_users = await db.users.find(
-                {
-                    "organization_id": org_id,
-                    "role": {"$in": ["admin", "super_admin"]},
-                    "is_deleted": {"$ne": True},
-                },
-                {"_id": 0, "id": 1}
-            ).to_list(50)
-            current_approvers = [u["id"] for u in admin_users]
+        # Approvers come from the question's assignment (chain level 1, else approver_id)
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        first_approver = None
+        if assignment:
+            chain = assignment.get("approval_chain") or []
+            first = chain[0] if chain else assignment.get("approver_id")
+            first_approver = first if isinstance(first, str) or first is None else first.get("approver_id")
+            first_approver = first_approver or assignment.get("approver_id")
+        current_approvers = [first_approver] if first_approver else []
         
         current_approvers = list(set(current_approvers))
         
@@ -1106,7 +1057,8 @@ class ESGQuestionnaireService:
             assignments = await db["esg_assignments"].find(
                 {
                     "organization_id": org_id,
-                    "approver_ids": approver_user_id,
+                    "entity_type": "question",
+                    "$or": [{"approver_id": approver_user_id}, {"approval_chain": approver_user_id}],
                 },
                 {"_id": 0, "entity_id": 1, "section": 1}
             ).to_list(500)
@@ -1874,182 +1826,6 @@ class ESGQuestionnaireService:
             "message": "Response saved successfully"
         }
     
-    async def get_question_history(
-        self,
-        org_id: str,
-        question_key: str,
-        reporting_period: str,
-    ) -> List[Dict[str, Any]]:
-        """
-        Get version history for a specific question.
-        Returns all audit log entries with computed field diffs.
-        
-        For parent questions with subparts (e.g., gri_101_2_a), also fetches
-        history for all subpart keys (gri_101_2_a_i, gri_101_2_a_ii, etc.)
-        """
-        # Build query to match exact key OR subpart keys (for parent questions)
-        query = {
-            "organization_id": org_id,
-            "reporting_period": reporting_period,
-            "$or": [
-                {"question_key": question_key},
-                {"question_key": {"$regex": f"^{question_key}_"}}  # Match subparts
-            ]
-        }
-        
-        cursor = db.question_audit_log.find(
-            query,
-            {"_id": 0}
-        ).sort("timestamp", -1)
-        
-        entries = await cursor.to_list(200)
-
-        actor_ids = {
-            performer.get("user_id")
-            for entry in entries
-            if isinstance((performer := entry.get("performed_by")), dict)
-            and performer.get("user_id")
-        }
-        actor_emails = {
-            performer.get("email") or performer.get("name")
-            for entry in entries
-            if isinstance((performer := entry.get("performed_by")), dict)
-            and "@" in (performer.get("email") or performer.get("name") or "")
-        }
-        actor_query = []
-        if actor_ids:
-            actor_query.append({"id": {"$in": list(actor_ids)}})
-        if actor_emails:
-            actor_query.append({"email": {"$in": list(actor_emails)}})
-        users_by_id = {}
-        users_by_email = {}
-        if actor_query:
-            actor_users = await db.users.find(
-                {"$or": actor_query},
-                {"_id": 0, "id": 1, "full_name": 1, "name": 1, "email": 1},
-            ).to_list(None)
-            users_by_id = {user["id"]: user for user in actor_users if user.get("id")}
-            users_by_email = {user["email"].lower(): user for user in actor_users if user.get("email")}
-
-        def resolve_actor_name(performed_by: Any) -> str:
-            performer = performed_by if isinstance(performed_by, dict) else {}
-            raw_value = performer.get("name") or performer.get("email") or str(performed_by or "")
-            user = users_by_id.get(performer.get("user_id"))
-            if not user and "@" in raw_value:
-                user = users_by_email.get(raw_value.lower())
-            if user:
-                return user.get("full_name") or user.get("name") or "Unknown user"
-            return raw_value if raw_value and "@" not in raw_value else "Unknown user"
-        
-        # Process each entry to add computed fields and normalize names for frontend
-        for entry in entries:
-            change_details = entry.get("change_details", {})
-            action = entry.get("action", "")
-            
-            # Normalize field names for frontend compatibility
-            entry["change_type"] = action or "updated"
-            entry["created_at"] = entry.get("timestamp")
-            performed_by = entry.get("performed_by", {})
-            actor_name = resolve_actor_name(performed_by)
-            entry["created_by"] = actor_name
-            entry["created_by_name"] = actor_name
-            entry["changed_by_name"] = actor_name
-            if action in {"approved", "submission_approved"}:
-                entry["approved_by_name"] = actor_name
-            if action in {"rejected", "submission_rejected"}:
-                entry["rejected_by_name"] = actor_name
-            entry["old_value"] = change_details.get("old_value") or change_details.get("original_value")
-            entry["new_value"] = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
-            if change_details.get("rejection_reason"):
-                entry["rejection_reason"] = change_details["rejection_reason"]
-            if change_details.get("was_merged"):
-                entry["was_merged"] = True
-            if change_details.get("submitted_by"):
-                entry["submitted_by_name"] = change_details["submitted_by"]
-            
-            # Extract old and new values based on action type
-            # Different actions store values in different keys
-            old_val = change_details.get("old_value") or change_details.get("original_value")
-            new_val = change_details.get("new_value") or change_details.get("final_value") or change_details.get("value")
-            
-            # Compute field_diffs for display
-            field_diffs = []
-            
-            if isinstance(old_val, dict) and isinstance(new_val, dict):
-                # Dict comparison
-                changes = compare_versions(old_val, new_val)
-                field_diffs = [
-                    {"field": c["field"], "display_name": format_field_display_name(c["field"]), "old_value": c["old"], "new_value": c["new"]}
-                    for c in changes
-                ]
-            elif old_val is not None or new_val is not None:
-                # Simple value - show if there's any change or new value
-                if old_val != new_val:
-                    field_diffs = [{
-                        "field": "value",
-                        "display_name": "Answer",
-                        "old_value": old_val,
-                        "new_value": new_val
-                    }]
-                elif new_val is not None and action in ["submitted_for_approval", "draft_updated", "saved"]:
-                    # Show the value even if no "old" value (first submission)
-                    field_diffs = [{
-                        "field": "value",
-                        "display_name": "Answer",
-                        "old_value": None,
-                        "new_value": new_val
-                    }]
-            
-            entry["field_diffs"] = field_diffs
-            
-            # Add human-readable action description
-            action_descriptions = {
-                "submission_approved": "Submission Approved",
-                "submission_rejected": "Submission Rejected",
-                "submitted_for_approval": "Submitted for Approval",
-                "draft_updated": "Draft Updated",
-                "draft_draft": "Draft Saved",
-                "saved": "Response Saved",
-                "created": "Response Created",
-                "updated": "Response Updated",
-            }
-            entry["action_display"] = action_descriptions.get(action, action.replace("_", " ").title())
-            
-            # Format performer name for display
-            performed_by = entry.get("performed_by", {})
-            if isinstance(performed_by, dict):
-                entry["performed_by_name"] = actor_name
-                entry["performed_by_email"] = performed_by.get("email", "")
-            else:
-                entry["performed_by_name"] = actor_name
-                entry["performed_by_email"] = ""
-            
-            # Add question label for subparts
-            q_key = entry.get("question_key", "")
-            if q_key:
-                # Extract subpart identifier (e.g., "i", "ii" from "gri_101_2_a_i")
-                parts = q_key.split("_")
-                if len(parts) > 4:
-                    subpart = parts[-1]  # Last part is the subpart (i, ii, iii, etc.)
-                    entry["subpart_label"] = f"Part {subpart}"
-                else:
-                    entry["subpart_label"] = None
-            
-            # Include submitted_by info for approval entries
-            if "submitted_by" in change_details:
-                entry["submitted_by_name"] = change_details["submitted_by"]
-            
-            # Include rejection reason if present
-            if "rejection_reason" in change_details:
-                entry["rejection_reason"] = change_details["rejection_reason"]
-            
-            # Include merge info
-            if change_details.get("was_merged"):
-                entry["was_merged"] = True
-                entry["merge_note"] = "Approver made changes to the submitted value"
-        
-        return entries
-
     # =========================================================================
     # Draft Management Methods (Per-User Drafts)
     # =========================================================================
@@ -3248,7 +3024,7 @@ class ESGQuestionnaireService:
                     if not assignment:
                         parts = parent_key.rsplit("_", 1)
             
-            requires_approval = assignment.get("requires_approval", False) if assignment else False
+            requires_approval = assignment_requires_approval(assignment)
             now_iso = datetime.now(timezone.utc).isoformat()
             
             # Check existing response from unified collection
@@ -3712,8 +3488,9 @@ class ESGQuestionnaireService:
         # First, get all question_keys for this section from configs
         section_configs = await self._configs.find(
             {"frameworks": {"$in": [framework.upper(), framework.lower(), framework]}, "section": section},
-            {"_id": 0, "question_key": 1}
+            {"_id": 0, "question_key": 1, "table_config": 1}
         ).to_list(500)
+        table_config_by_key = {c["question_key"]: c.get("table_config") for c in section_configs}
         section_question_keys = [c["question_key"] for c in section_configs]
         
         if not section_question_keys:
@@ -3730,9 +3507,9 @@ class ESGQuestionnaireService:
                     {"framework": framework},
                 ],
             },
-            {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1,
+            {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "sub_responses": 1, "value": 1,
              "submitted_at": 1, "submitted_by": 1, "approved_at": 1, "approved_by": 1,
-             "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1}
+             "rejected_at": 1, "rejected_by": 1, "rejection_reason": 1, "updated_at": 1, "auto_fill": 1}
         ).to_list(1000)
         
         # Build status map from question-level documents
@@ -3749,10 +3526,20 @@ class ESGQuestionnaireService:
                 in_section = any(sk.startswith(qk + "_") for sk in section_question_keys)
             
             if in_section:
-                # Add direct question status
-                if doc.get("status") or doc.get("approval_status"):
+                # Add direct question status (a "saved" doc with an empty value is still pending)
+                from modules.brsr_report.live_kpi_autofill import _has_reportable_value
+                from modules.esg_questionnaire.status_rules import adjusted_status
+                adjusted = adjusted_status(doc, table_config_by_key.get(qk))
+                empty_saved = (
+                    doc.get("status") == "saved"
+                    and doc.get("approval_status") in (None, "not_required")
+                    and "value" in doc
+                    and not doc.get("sub_responses")
+                    and not _has_reportable_value(doc.get("value"))
+                )
+                if (doc.get("status") or doc.get("approval_status")) and not empty_saved and adjusted != "pending":
                     statuses[qk] = {
-                        "status": doc.get("status"),
+                        "status": adjusted or doc.get("status"),
                         "approval_status": doc.get("approval_status"),
                         "submitted_at": doc.get("submitted_at"),
                         "submitted_by": doc.get("submitted_by"),

@@ -183,6 +183,25 @@ async def ensure_indexes(db: AsyncIOMotorDatabase):
             ([("category", 1), ("subcategory", 1)], {}),
         ],
 
+        # One response per org/question/period/framework so parallel KPI syncs cannot create duplicates
+        "organization_esg_responses": [
+            ([("org_id", 1), ("question_key", 1), ("reporting_year", 1), ("framework", 1)], {"unique": True}),
+        ],
+
+        # Immutable BRSR report versions (one per org/period/version)
+        "brsr_report_versions": [
+            ([("org_id", 1), ("reporting_period", 1), ("version", 1)], {"unique": True}),
+        ],
+        "brsr_report_version_counters": [
+            ([("org_id", 1), ("reporting_period", 1)], {"unique": True}),
+        ],
+
+        # Append-only audit trail (version history reads + idempotent system writes)
+        "question_audit_log": [
+            ([("organization_id", 1), ("reporting_period", 1), ("question_key", 1), ("timestamp", -1)], {}),
+            ([("idempotency_key", 1)], {"unique": True, "sparse": True}),
+        ],
+
         # Bulk upload jobs / staging / errors (job-scoped reads)
         "bulk_upload_jobs": [
             ([("id", 1)], {}),

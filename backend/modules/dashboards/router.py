@@ -18,6 +18,7 @@ from modules.emissions.contracts import EmissionRecordResponse
 from modules.emissions.access_policy import resolve_ghg_access_scope
 from modules.dashboards.avoided_emissions import calculate_avoided_green_energy_emissions
 from shared.database.mongo import db
+from modules.esg_records.visibility import scoped_dashboard_db
 from modules.dashboards.esg_analytics_service import get_esg_analytics
 from modules.dashboards.environment_detail_service import get_environment_detail
 from modules.dashboards.social_detail_service import get_social_detail
@@ -31,6 +32,7 @@ from shared.utils.emission_records import (
 )
 from shared.services.ghg_reporting import adjusted_numeric_value, display_round, facility_equity_factors
 router = APIRouter()
+_base_db = db
 
 
 @router.get("/dashboard/governance-detail")
@@ -45,7 +47,7 @@ async def get_dashboard_governance_detail(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
     selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
-    return await get_governance_detail(db, org_id, start_date, end_date, selected_facilities)
+    return await get_governance_detail(await scoped_dashboard_db(db, current_user), org_id, start_date, end_date, selected_facilities)
 
 
 @router.get("/dashboard/social-detail")
@@ -60,7 +62,7 @@ async def get_dashboard_social_detail(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
     selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
-    return await get_social_detail(db, org_id, start_date, end_date, selected_facilities)
+    return await get_social_detail(await scoped_dashboard_db(db, current_user), org_id, start_date, end_date, selected_facilities)
 
 
 @router.get("/dashboard/environment-detail")
@@ -75,7 +77,7 @@ async def get_dashboard_environment_detail(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
     selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
-    return await get_environment_detail(db, org_id, start_date, end_date, selected_facilities)
+    return await get_environment_detail(await scoped_dashboard_db(db, current_user), org_id, start_date, end_date, selected_facilities)
 
 
 @router.get("/dashboard/esg-analytics")
@@ -90,7 +92,7 @@ async def get_dashboard_esg_analytics(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
     selected_facilities = [item.strip() for item in facility_ids.split(",") if item.strip()] if facility_ids else None
-    return await get_esg_analytics(db, org_id, start_date, end_date, selected_facilities)
+    return await get_esg_analytics(await scoped_dashboard_db(db, current_user), org_id, start_date, end_date, selected_facilities)
 
 
 # Dashboard endpoints
@@ -1203,6 +1205,7 @@ async def get_esg_summary(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization")
     access_scope = await resolve_ghg_access_scope(current_user)
+    db = await scoped_dashboard_db(_base_db, current_user)
 
     now = datetime.now(timezone.utc)
     curr_year = year or now.year

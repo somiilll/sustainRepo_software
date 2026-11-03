@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useLinkedFrameworks, LinkedFromTag } from '../modules/framework-links';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useDateFormatter } from '../hooks/useDateFormatter';
@@ -39,11 +40,15 @@ import {
   History,
   Clock,
   FileEdit,
+  Pencil,
+  X,
   Send,
   Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { StaticNoteBlock } from './StaticNoteBlock';
+import { GRITopicCard, topicSlug } from './GRITopicCard';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -53,23 +58,44 @@ const API = process.env.REACT_APP_BACKEND_URL;
  * Renders GRI disclosures in collapsible format with questions grouped by disclosure
  * Supports sub_questions with individual input fields for each sub-part
  * 
- * @param {string} section - 'environment' | 'social' | 'governance'
- * @param {boolean} isEditing - Whether in edit mode
+ * @param {string} section - 'general' | 'environment' | 'social' | 'governance'
  */
-export default function GRIQuestionnaire({ section, isEditing = false }) {
-  const { getAuthHeader, token } = useAuth();
+const LiveValueBlock = ({ text, testId }) => (
+  <div className="p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]" data-testid={testId}>
+    <p className="text-sm text-text-primary whitespace-pre-wrap">{text}</p>
+  </div>
+);
+
+export default function GRIQuestionnaire({ section, reportingPeriod: externalPeriod, statusFilter = 'all', questionProgress = {}, materialOnly, onSaved }) {
+  const { getAuthHeader, token, user } = useAuth();
+  const canEditNotes = user?.role === 'admin' || user?.role === 'super_admin';
   const { formatDateTime } = useDateFormatter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [disclosures, setDisclosures] = useState([]);
+  const [openTopics, setOpenTopics] = useState({});
+  const [editingQuestions, setEditingQuestions] = useState({});
+  const toggleQuestionEdit = (key) => setEditingQuestions((prev) => ({ ...prev, [key]: !prev[key] }));
   const [responses, setResponses] = useState({});
   const [openDisclosures, setOpenDisclosures] = useState({});
   const [organization, setOrganization] = useState(null);
-  const [reportingPeriod, setReportingPeriod] = useState(null);
+  const [reportingPeriod, setReportingPeriod] = useState(externalPeriod || null);
+  const topics = useMemo(() => {
+    const byName = new Map();
+    disclosures.forEach((disclosure) => {
+      const name = disclosure.material_topic || 'General disclosures';
+      if (!byName.has(name)) byName.set(name, { name, slug: topicSlug(name), standard: disclosure.material_topic_id || '', disclosures: [] });
+      byName.get(name).disclosures.push(disclosure);
+    });
+    return [...byName.values()];
+  }, [disclosures]);
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+  const [liveValues, setLiveValues] = useState({});
   const [reportingYears, setReportingYears] = useState([]);
   const [historyDialog, setHistoryDialog] = useState({ open: false, questionKey: null, history: [] });
   const [userDrafts, setUserDrafts] = useState({});  // Drafts keyed by disclosure_id
-  const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics
+  const filterByMateriality = materialOnly ?? true;
 
   // Fetch organization data to get reporting_year_type
   useEffect(() => {
@@ -101,6 +127,17 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       fetchOrganization();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!reportingPeriod || !token) return;
+    axios.get(`${API}/api/esg-questionnaire/gri-live-emissions`, { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } })
+      .then((res) => setLiveValues(res.data.values || {}))
+      .catch(() => setLiveValues({}));
+  }, [reportingPeriod, token, getAuthHeader]);
+
+  useEffect(() => {
+    if (externalPeriod) setReportingPeriod(externalPeriod);
+  }, [externalPeriod, reportingYears]);
 
   // Fetch GRI disclosures for this section
   const fetchDisclosures = useCallback(async () => {
@@ -170,11 +207,6 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
         }
       });
       setResponses(initialResponses);
-      
-      // Open first disclosure by default
-      if (grouped.length > 0) {
-        setOpenDisclosures({ [grouped[0].disclosure_id]: true });
-      }
     } catch (error) {
       console.error('Failed to fetch GRI disclosures:', error);
       toast.error('Failed to load GRI disclosures');
@@ -182,6 +214,10 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       setLoading(false);
     }
   }, [getAuthHeader, section, reportingPeriod, filterByMateriality]);
+
+  useEffect(() => {
+    if (Object.values(saving).every((value) => !value)) onSavedRef.current?.();
+  }, [saving]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -229,6 +265,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   };
 
   // Save single response (with status) - Last save wins logic
+  const { promptAfterSave } = useLinkedFrameworks();
   const saveResponse = async (responseKey, status = 'saved') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
@@ -260,6 +297,7 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       }
       // Refresh to get updated status
       await fetchDisclosures();
+      if (status === 'saved') promptAfterSave([responseKey]);
     } catch (error) {
       console.error('Failed to save response:', error);
       toast.error('Failed to save response');
@@ -449,6 +487,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
       
       // Refresh to get updated statuses
       await fetchDisclosures();
+      if (status === 'saved') {
+        promptAfterSave(disclosure.questions.flatMap((q) => (q.sub_questions?.length ? q.sub_questions.map((sub) => sub.response_key) : [q.question_key])));
+      }
     } catch (error) {
       console.error('Failed to save disclosure:', error);
       toast.error('Failed to save responses');
@@ -532,16 +573,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
     let completed = 0;
     
     disclosure.questions.forEach(q => {
-      if (q.sub_questions && q.sub_questions.length > 0) {
-        total += q.sub_questions.length;
-        completed += q.sub_questions.filter(sub => 
-          sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved'
-        ).length;
-      } else {
-        total += 1;
-        if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
-          completed += 1;
-        }
+      total += 1;
+      if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
+        completed += 1;
       }
     });
     
@@ -551,6 +585,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
   // Render a single question (with or without sub-questions)
   const renderQuestion = (question, qIndex) => {
     const hasSubQuestions = question.sub_questions && question.sub_questions.length > 0;
+    const isEditing = !!editingQuestions[question.question_key];
+    const isLiveOnly = !hasSubQuestions && !!liveValues[question.question_key];
+    const canEditQuestion = !isLiveOnly && (!question.static_note || canEditNotes);
     
     return (
       <div key={question.question_key} className="space-y-3">
@@ -568,7 +605,20 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           
           {/* Status Badge & History Button */}
           <div className="flex items-center gap-2 shrink-0">
+            {canEditQuestion && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleQuestionEdit(question.question_key)}
+                className={`h-7 px-2 text-xs ${isEditing ? 'text-red-600 hover:text-red-700' : 'text-stone-500 hover:text-blue-600'}`}
+                title={isEditing ? 'Done editing' : 'Edit answer'}
+                data-testid={`edit-${question.question_key}`}
+              >
+                {isEditing ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+              </Button>
+            )}
             {getStatusBadge(question.status)}
+            <LinkedFromTag questionKey={question.question_key} />
             {!hasSubQuestions && <Button
               variant="ghost"
               size="sm"
@@ -582,18 +632,22 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </div>
         </div>
         
+        {hasSubQuestions && liveValues[question.question_key] && (
+          <div className="ml-8"><LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} /></div>
+        )}
         {hasSubQuestions ? (
           // Render sub-questions with individual textareas
-          <div className="ml-8 space-y-4 border-l-2 border-blue-100 pl-4">
+          <div className="ml-8 flex flex-col gap-8 border-l-2 border-blue-100 pl-4">
             {question.sub_questions.map((sub) => (
-              <div key={sub.response_key} className="space-y-2">
+              <div key={sub.response_key} className="flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
-                  <Label className="text-sm text-text-secondary flex items-start gap-2">
-                    <span className="text-blue-600 font-mono text-xs shrink-0">{sub.sub_key}.</span>
-                    <span>{sub.label}</span>
+                  <Label className="text-sm text-text-secondary flex items-start gap-2 flex-1">
+                    <span className="text-blue-600 font-mono text-sm leading-relaxed shrink-0 w-6">{sub.sub_key}.</span>
+                    <span className="flex-1 leading-relaxed">{sub.label}</span>
                   </Label>
                   <div className="flex items-center gap-1 shrink-0">
-                    {sub.response_status && sub.response_status !== 'pending' && getStatusBadge(sub.response_status)}
+                    {getStatusBadge(sub.response_status || 'pending')}
+                    <LinkedFromTag questionKey={sub.response_key} />
                     <Button
                       variant="ghost"
                       size="sm"
@@ -607,7 +661,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                   </div>
                 </div>
                 
-                {isEditing ? (
+                {liveValues[sub.response_key] ? (
+                  <LiveValueBlock text={liveValues[sub.response_key]} testId={`live-${sub.response_key}`} />
+                ) : isEditing ? (
                   <div className="space-y-2">
                     <Textarea
                       value={responses[sub.response_key] || ''}
@@ -695,7 +751,11 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </div>
         ) : (
           // Simple question without sub-parts
-          isEditing ? (
+          liveValues[question.question_key] ? (
+            <LiveValueBlock text={liveValues[question.question_key]} testId={`live-${question.question_key}`} />
+          ) : question.static_note ? (
+            <StaticNoteBlock questionKey={question.question_key} text={question.static_note} editing={isEditing} onClose={() => toggleQuestionEdit(question.question_key)} getAuthHeader={getAuthHeader} onSaved={fetchDisclosures} />
+          ) : isEditing ? (
             <div className="space-y-2">
               <Textarea
                 value={responses[question.question_key] || ''}
@@ -805,103 +865,40 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
 
   return (
     <div className="space-y-4">
-      {/* Overall Progress Summary */}
-      {(() => {
-        const overall = disclosures.reduce((acc, d) => {
-          const c = getDisclosureCompletion(d);
-          acc.total += c.total;
-          acc.completed += c.completed;
-          return acc;
-        }, { total: 0, completed: 0 });
-        const overallPct = overall.total > 0 ? Math.round((overall.completed / overall.total) * 100) : 0;
-        const completedDisclosures = disclosures.filter(d => getDisclosureCompletion(d).percentage === 100).length;
-
-        return (
-          <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border" data-testid="gri-progress-summary">
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-sm font-semibold text-stone-800">
-                  {section === 'environment' ? 'GRI 300 – Environment' : section === 'social' ? 'GRI 400 – Social' : 'GRI 200 – Governance'}
-                </p>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  {disclosures.length} disclosures · {overall.total} questions · {completedDisclosures} disclosures complete
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {overallPct === 100
-                ? <CheckCircle2 className="w-5 h-5 text-green-600" />
-                : <Circle className="w-5 h-5 text-stone-300" />}
-              <div className="w-32 h-2 rounded-full bg-stone-200 overflow-hidden">
-                <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${overallPct}%` }} />
-              </div>
-              <span className="text-sm font-medium tabular-nums text-stone-700 w-20 text-right">
-                {overall.completed}/{overall.total} ({overallPct}%)
-              </span>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Header with Reporting Year Selector */}
-      <Card className="p-4 bg-blue-50/50 border-blue-100">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-2 flex-1">
-            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-blue-800">
-                <strong>GRI Standards:</strong> Complete the disclosures below based on your organization&apos;s material topics.
-                Click on each disclosure to expand and fill in the required information.
-              </p>
-            </div>
-          </div>
-          
-          {/* Materiality Filter Toggle */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setFilterByMateriality(!filterByMateriality)}
-              className={`h-9 px-3 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${
-                filterByMateriality 
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                  : 'bg-stone-100 text-stone-600 border border-stone-200'
-              }`}
-              data-testid="materiality-filter-toggle"
-            >
-              <div className={`w-3 h-3 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
-              {filterByMateriality ? 'Material Topics' : 'All Topics'}
-            </button>
-          </div>
-          
-          {/* Reporting Year Selector */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Calendar className="w-4 h-4 text-blue-600" />
-            <Select value={reportingPeriod} onValueChange={setReportingPeriod}>
-              <SelectTrigger 
-                className="w-[180px] h-9 bg-white border-blue-200 text-sm"
-                data-testid="gri-reporting-year-selector"
-              >
-                <SelectValue placeholder="Select Year" />
-              </SelectTrigger>
-              <SelectContent>
-                {reportingYears.map(year => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="flex items-center justify-between" data-testid="gri-topics-header">
+        <h2 className="text-lg font-semibold text-text-primary">Topics and disclosures</h2>
+        <div className="flex items-center gap-2 text-sm">
+          <Button variant="ghost" size="sm" data-testid="gri-expand-all" onClick={() => {
+            setOpenTopics(Object.fromEntries(topics.map((t) => [t.slug, true])));
+            setOpenDisclosures(Object.fromEntries(disclosures.map((d) => [d.disclosure_id, true])));
+          }}>Expand all</Button>
+          <Button variant="ghost" size="sm" data-testid="gri-collapse-all" onClick={() => {
+            setOpenTopics(Object.fromEntries(topics.map((t) => [t.slug, false])));
+            setOpenDisclosures({});
+          }}>Collapse all</Button>
         </div>
-      </Card>
+      </div>
 
-      {/* Collapsible Disclosures */}
-      {disclosures.map(disclosure => {
+      <div className="space-y-6" data-testid="gri-topic-list">
+      {topics.map((topic) => {
+        const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
+        const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
+        if (!visibleCount) return null;
+                const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
+        return (
+          <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality && section !== 'general'}
+            open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>
+      {topic.disclosures.map(disclosure => {
+        const visibleQuestions = statusFilter === 'all' ? disclosure.questions : disclosure.questions.filter((q) => questionProgress[q.question_key] === statusFilter);
+        const isEditing = visibleQuestions.some((q) => editingQuestions[q.question_key]);
+        if (!visibleQuestions.length) return null;
         const completion = getDisclosureCompletion(disclosure);
         const isOpen = openDisclosures[disclosure.disclosure_id];
         
         return (
           <Collapsible
             key={disclosure.disclosure_id}
+            className="mb-4"
             open={isOpen}
             onOpenChange={() => toggleDisclosure(disclosure.disclosure_id)}
           >
@@ -983,7 +980,9 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
                     </div>
                   )}
                   
-                  {disclosure.questions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  <div className="flex flex-col gap-8">
+                    {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
+                  </div>
 
                   {/* Save Buttons */}
                   {isEditing && (
@@ -1024,6 +1023,10 @@ export default function GRIQuestionnaire({ section, isEditing = false }) {
           </Collapsible>
         );
       })}
+          </GRITopicCard>
+        );
+      })}
+      </div>
 
       {/* Version History Dialog */}
       <Dialog open={false}>

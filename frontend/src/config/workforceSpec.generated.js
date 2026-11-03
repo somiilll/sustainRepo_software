@@ -3,6 +3,7 @@ export const WORKFORCE_GRID_CONFIGS = {
  "New Employees/Worker": {
   "key": "new_hires",
   "title": "New Employees/Worker",
+  "unit": null,
   "editableAutoTotals": true,
   "columns": [
    {
@@ -98,27 +99,54 @@ export const WORKFORCE_GRID_CONFIGS = {
     "sumOf": null
    },
    {
-    "key": "age_u30",
+    "key": "employees_age_u30",
     "label": "Under 30",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
     "sumOf": null
    },
    {
-    "key": "age_3050",
+    "key": "employees_age_3050",
     "label": "30-50",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
     "sumOf": null
    },
    {
-    "key": "age_o50",
+    "key": "employees_age_o50",
     "label": "Over 50",
-    "group": "By Age Group",
+    "group": "By Age Group - Employees",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_u30",
+    "label": "Under 30",
+    "group": "By Age Group - Workers",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_3050",
+    "label": "30-50",
+    "group": "By Age Group - Workers",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-a",
+    "sumOf": null
+   },
+   {
+    "key": "workers_age_o50",
+    "label": "Over 50",
+    "group": "By Age Group - Workers",
     "level": 1,
     "brsr": null,
     "gri": "401-1-a",
@@ -166,31 +194,55 @@ export const WORKFORCE_GRID_CONFIGS = {
     "male": "new_hires_workers_other_male",
     "total": "new_hires_workers_other_than_permanent"
    },
-   "age_u30": {
-    "female": "new_hires_age_u30_female",
-    "male": "new_hires_age_u30_male",
-    "total": "no_of_employees_worker_under_30"
+   "employees_age_u30": {
+    "female": "new_hires_employees_age_u30_female",
+    "male": "new_hires_employees_age_u30_male",
+    "total": "new_hires_employees_age_u30_total"
    },
-   "age_3050": {
-    "female": "new_hires_age_3050_female",
-    "male": "new_hires_age_3050_male",
-    "total": "no_of_employees_worker_30_50"
+   "employees_age_3050": {
+    "female": "new_hires_employees_age_3050_female",
+    "male": "new_hires_employees_age_3050_male",
+    "total": "new_hires_employees_age_3050_total"
    },
-   "age_o50": {
-    "female": "new_hires_age_o50_female",
-    "male": "new_hires_age_o50_male",
-    "total": "no_of_employees_worker_over_50"
+   "employees_age_o50": {
+    "female": "new_hires_employees_age_o50_female",
+    "male": "new_hires_employees_age_o50_male",
+    "total": "new_hires_employees_age_o50_total"
+   },
+   "workers_age_u30": {
+    "female": "new_hires_workers_age_u30_female",
+    "male": "new_hires_workers_age_u30_male",
+    "total": "new_hires_workers_age_u30_total"
+   },
+   "workers_age_3050": {
+    "female": "new_hires_workers_age_3050_female",
+    "male": "new_hires_workers_age_3050_male",
+    "total": "new_hires_workers_age_3050_total"
+   },
+   "workers_age_o50": {
+    "female": "new_hires_workers_age_o50_female",
+    "male": "new_hires_workers_age_o50_male",
+    "total": "new_hires_workers_age_o50_total"
    }
   },
   "validations": [
    {
     "type": "sum_equals",
     "rows": [
-     "age_u30",
-     "age_3050",
-     "age_o50"
+     "employees_age_u30",
+     "employees_age_3050",
+     "employees_age_o50"
     ],
-    "target": "total"
+    "target": "employees"
+   },
+   {
+    "type": "sum_equals",
+    "rows": [
+     "workers_age_u30",
+     "workers_age_3050",
+     "workers_age_o50"
+    ],
+    "target": "workers"
    }
   ]
  },
@@ -1189,11 +1241,65 @@ export const WORKFORCE_GRID_CONFIGS = {
     "sumOf": null
    },
    {
+    "key": "start_age_u30",
+    "label": "Under 30 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "start_age_3050",
+    "label": "30-50 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "start_age_o50",
+    "label": "Over 50 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
     "key": "end",
     "label": "Employees at end of year",
     "group": "Headcount",
     "level": 0,
     "brsr": "A-22",
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_u30",
+    "label": "Under 30 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_3050",
+    "label": "30-50 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
+    "gri": "401-1-b",
+    "sumOf": null
+   },
+   {
+    "key": "end_age_o50",
+    "label": "Over 50 age",
+    "group": "Headcount",
+    "level": 1,
+    "brsr": null,
     "gri": "401-1-b",
     "sumOf": null
    },
@@ -1208,7 +1314,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_u30",
-    "label": "Under 30",
+    "label": "Under 30 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1217,7 +1323,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_3050",
-    "label": "30-50",
+    "label": "30-50 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1226,7 +1332,7 @@ export const WORKFORCE_GRID_CONFIGS = {
    },
    {
     "key": "age_o50",
-    "label": "Over 50",
+    "label": "Over 50 age",
     "group": "Employees Leaving",
     "level": 1,
     "brsr": null,
@@ -1241,10 +1347,40 @@ export const WORKFORCE_GRID_CONFIGS = {
     "male": "male_employees_at_the_start_of_the_year",
     "total": "employees_at_the_start_of_the_year"
    },
+   "start_age_u30": {
+    "female": "emp_to_start_age_u30_female",
+    "male": "emp_to_start_age_u30_male",
+    "total": "emp_to_start_age_u30_total"
+   },
+   "start_age_3050": {
+    "female": "emp_to_start_age_3050_female",
+    "male": "emp_to_start_age_3050_male",
+    "total": "emp_to_start_age_3050_total"
+   },
+   "start_age_o50": {
+    "female": "emp_to_start_age_o50_female",
+    "male": "emp_to_start_age_o50_male",
+    "total": "emp_to_start_age_o50_total"
+   },
    "end": {
     "female": "female_employees_at_the_end_of_the_year",
     "male": "male_employees_at_the_end_of_the_year",
     "total": "employees_at_the_end_of_the_year"
+   },
+   "end_age_u30": {
+    "female": "emp_to_end_age_u30_female",
+    "male": "emp_to_end_age_u30_male",
+    "total": "emp_to_end_age_u30_total"
+   },
+   "end_age_3050": {
+    "female": "emp_to_end_age_3050_female",
+    "male": "emp_to_end_age_3050_male",
+    "total": "emp_to_end_age_3050_total"
+   },
+   "end_age_o50": {
+    "female": "emp_to_end_age_o50_female",
+    "male": "emp_to_end_age_o50_male",
+    "total": "emp_to_end_age_o50_total"
    },
    "left": {
     "female": "female_employees_who_left_during_the_reporting_period",
@@ -1252,16 +1388,40 @@ export const WORKFORCE_GRID_CONFIGS = {
     "total": "employees_who_left_during_the_reporting_period"
    },
    "age_u30": {
+    "female": "emp_to_age_u30_female",
+    "male": "emp_to_age_u30_male",
     "total": "emp_to_age_u30_total"
    },
    "age_3050": {
+    "female": "emp_to_age_3050_female",
+    "male": "emp_to_age_3050_male",
     "total": "emp_to_age_3050_total"
    },
    "age_o50": {
+    "female": "emp_to_age_o50_female",
+    "male": "emp_to_age_o50_male",
     "total": "emp_to_age_o50_total"
    }
   },
   "validations": [
+   {
+    "type": "sum_equals",
+    "rows": [
+     "start_age_u30",
+     "start_age_3050",
+     "start_age_o50"
+    ],
+    "target": "start"
+   },
+   {
+    "type": "sum_equals",
+    "rows": [
+     "end_age_u30",
+     "end_age_3050",
+     "end_age_o50"
+    ],
+    "target": "end"
+   },
    {
     "type": "sum_equals",
     "rows": [

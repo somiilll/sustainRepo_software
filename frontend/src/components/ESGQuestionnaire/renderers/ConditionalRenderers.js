@@ -13,7 +13,9 @@ export function ConditionalYesNoTextRenderer({ config, value, onChange, isEditin
   const fields = config.conditional_fields || [{ key: 'details', label: 'Details', type: 'textarea' }];
 
   const handleToggle = (val) => {
-    onChange({ ...data, has_value: val });
+    if (val) return onChange({ ...data, has_value: val });
+    const kept = Object.fromEntries(Object.entries(data.fields || {}).filter(([k]) => fields.find(f => f.key === k)?.show_when !== 'yes'));
+    onChange({ ...data, has_value: val, fields: kept });
   };
 
   const handleFieldChange = (key, val) => {
@@ -95,20 +97,23 @@ export function YesNoWithDescriptionRenderer({ config, value, onChange, isEditin
   const normalizedValue = normalizeFYResponse(value);
   const data = normalizedValue || { answer: null, description: '' };
 
+  const yesOnly = config.conditional_config?.show_when === 'yes';
+  const detailLabel = config.conditional_config?.fields?.[0]?.label;
+
   if (!isEditing) {
     return (
       <div className="mt-2 space-y-2">
         <Badge variant="outline" className={data.answer === 'yes' ? 'bg-green-50 text-green-700' : data.answer === 'no' ? 'bg-red-50 text-red-700' : ''}>
           {data.answer === 'yes' ? 'Yes' : data.answer === 'no' ? 'No' : 'Not answered'}
         </Badge>
-        {data.description && <p className="text-sm text-stone-600">{data.description}</p>}
+        {data.description && (!yesOnly || data.answer === 'yes') && <p className="text-sm text-stone-600">{data.description}</p>}
       </div>
     );
   }
 
   return (
     <div className="mt-3 space-y-3">
-      <RadioGroup value={data.answer || ''} onValueChange={(v) => onChange({ ...data, answer: v })} className="flex gap-4">
+      <RadioGroup value={data.answer || ''} onValueChange={(v) => onChange(yesOnly && v !== 'yes' ? { ...data, answer: v, description: '' } : { ...data, answer: v })} className="flex gap-4">
         <div className="flex items-center gap-2">
           <RadioGroupItem value="yes" id={`${config.question_key}-yes`} />
           <Label htmlFor={`${config.question_key}-yes`} className="text-sm">Yes</Label>
@@ -118,13 +123,18 @@ export function YesNoWithDescriptionRenderer({ config, value, onChange, isEditin
           <Label htmlFor={`${config.question_key}-no`} className="text-sm">No</Label>
         </div>
       </RadioGroup>
-      <Textarea
-        value={data.description || ''}
-        onChange={(e) => onChange({ ...data, description: e.target.value })}
-        placeholder="Additional details..."
-        rows={3}
-        className="text-sm"
-      />
+      {(!yesOnly || data.answer === 'yes') && (
+        <div>
+          {detailLabel && <Label className="text-sm mb-1 block">{detailLabel}</Label>}
+          <Textarea
+            value={data.description || ''}
+            onChange={(e) => onChange({ ...data, description: e.target.value })}
+            placeholder={detailLabel || 'Additional details...'}
+            rows={3}
+            className="text-sm"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -144,7 +154,7 @@ export function LongTextResponseRenderer({ config, value, onChange, isEditing })
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         placeholder={config.placeholder || 'Enter your response...'}
-        rows={6}
+        rows={3}
         className="text-sm"
       />
     </div>

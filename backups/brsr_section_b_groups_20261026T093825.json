@@ -1,0 +1,681 @@
+[
+  {
+    "id": "7ce66932-9828-45b9-a490-8ce483a48dda",
+    "question_key": "policy_translated_to_procedures",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Whether the entity has translated the policy into procedures.",
+    "type": "principle_toggle_with_description",
+    "required": true,
+    "description": "Indicate whether your organization has translated high-level policies into actionable operational procedures for each principle.",
+    "order": 2,
+    "created_at": "2026-06-17T09:35:03.652297+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-2",
+    "answer_paths": [
+      "all_description",
+      "all_enabled",
+      "principles.P1.description",
+      "principles.P1.enabled",
+      "principles.P2.description",
+      "principles.P2.enabled",
+      "principles.P3.description",
+      "principles.P3.enabled",
+      "principles.P4.description",
+      "principles.P4.enabled",
+      "principles.P5.description",
+      "principles.P5.enabled",
+      "principles.P6.description",
+      "principles.P6.enabled",
+      "principles.P7.description",
+      "principles.P7.enabled",
+      "principles.P8.description",
+      "principles.P8.enabled",
+      "principles.P9.description",
+      "principles.P9.enabled"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "25b1ecc0-d115-4790-8b5b-42f55768e8fe",
+    "question_key": "policy_extend_to_value_chain",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Do the enlisted policies extend to your value chain partners?",
+    "type": "principle_toggle_with_description",
+    "required": true,
+    "description": "Indicate whether the policies for each principle extend to and are applicable to your value chain partners (suppliers, distributors, etc.).",
+    "order": 3,
+    "created_at": "2026-06-17T09:47:03.627768+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-3",
+    "answer_paths": [
+      "all_description",
+      "all_enabled",
+      "principles.P1.description",
+      "principles.P1.enabled",
+      "principles.P2.description",
+      "principles.P2.enabled",
+      "principles.P3.description",
+      "principles.P3.enabled",
+      "principles.P4.description",
+      "principles.P4.enabled",
+      "principles.P5.description",
+      "principles.P5.enabled",
+      "principles.P6.description",
+      "principles.P6.enabled",
+      "principles.P7.description",
+      "principles.P7.enabled",
+      "principles.P8.description",
+      "principles.P8.enabled",
+      "principles.P9.description",
+      "principles.P9.enabled"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "d8d818b6-d225-4335-8e32-2227598868b8",
+    "question_key": "codes_certifications_standards",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Name of the national and international codes/certifications/labels/standards (e.g. Forest Stewardship Council, Fairtrade, Rainforest Alliance, Trustea) standards (e.g. SA 8000, OHSAS, ISO, BIS) adopted by your entity and mapped to each principle.",
+    "type": "principle_text",
+    "required": false,
+    "placeholder": "Enter applicable certifications/standards...",
+    "order": 4,
+    "created_at": "2026-06-17T09:47:03.627768+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-4",
+    "answer_paths": [
+      "all_text",
+      "principles.P1",
+      "principles.P2",
+      "principles.P3",
+      "principles.P4",
+      "principles.P5",
+      "principles.P6",
+      "principles.P7",
+      "principles.P8",
+      "principles.P9"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "dd08f1b9-d69b-4c6e-a930-f71d7347810f",
+    "question_key": "commitments_goals_targets",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Specific commitments, goals and targets set by the entity with defined timelines, if any.",
+    "type": "principle_text",
+    "required": false,
+    "placeholder": "Enter specific commitments, goals and targets with timelines...",
+    "order": 5,
+    "created_at": "2026-06-17T09:47:03.627768+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-5",
+    "answer_paths": [
+      "all_text",
+      "principles.P1",
+      "principles.P2",
+      "principles.P3",
+      "principles.P4",
+      "principles.P5",
+      "principles.P6",
+      "principles.P7",
+      "principles.P8",
+      "principles.P9"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "7c3360db-3c79-4972-bc1b-89967475d4fb",
+    "question_key": "performance_against_targets",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Performance of the entity against the specific commitments, goals and targets along-with reasons in case the same are not met.",
+    "type": "principle_text",
+    "required": false,
+    "placeholder": "Enter performance details and reasons if targets not met...",
+    "order": 6,
+    "created_at": "2026-06-17T09:47:03.627768+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-6",
+    "answer_paths": [
+      "all_text",
+      "principles.P1",
+      "principles.P2",
+      "principles.P3",
+      "principles.P4",
+      "principles.P5",
+      "principles.P6",
+      "principles.P7",
+      "principles.P8",
+      "principles.P9"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "4d3bb6ce-1533-49b4-9b04-e6f1268b19f2",
+    "question_key": "director_statement",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Statement by director responsible for the business responsibility report, highlighting ESG related challenges, targets and achievements",
+    "type": "textarea",
+    "required": false,
+    "order": 7,
+    "created_at": "2026-06-17T11:00:42.515510+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-7",
+    "answer_paths": [
+      "value"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "d8d726ca-1cab-44c9-bb5a-6f59c701cbf8",
+    "question_key": "highest_authority_details",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Details of the highest authority responsible for implementation and oversight of the Business Responsibility policy (ies).",
+    "type": "textarea",
+    "required": false,
+    "order": 8,
+    "created_at": "2026-06-17T11:00:42.515510+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-8",
+    "answer_paths": [
+      "value"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "57e9b4c4-2bcf-4ce6-8af0-61e6f6fb1ec4",
+    "question_key": "sustainability_committee_details",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Does the entity have a specified Committee of the Board / Director responsible for decision making on sustainability related issues?",
+    "type": "conditional_yes_no_table",
+    "required": true,
+    "order": 9,
+    "table_config": {
+      "columns": [
+        "name",
+        "din",
+        "designation",
+        "role"
+      ],
+      "column_labels": {
+        "name": "Name",
+        "din": "DIN",
+        "designation": "Designation",
+        "role": "Role"
+      }
+    },
+    "created_at": "2026-06-17T11:03:48.850730+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-9",
+    "answer_paths": [
+      "answer",
+      "rows[].designation",
+      "rows[].din",
+      "rows[].name",
+      "rows[].role"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "91ccaf7f-f238-4e6d-b130-8aba49c0f132",
+    "question_key": "performance_against_policies",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Performance against policies and follow-up action",
+    "type": "principle_mode_table",
+    "required": true,
+    "order": 11,
+    "field_config": {
+      "fields": [
+        {
+          "key": "review_by",
+          "label": "Review Undertaken By",
+          "type": "select",
+          "options": [
+            "Director",
+            "Committee of the Board",
+            "Any Other Committee"
+          ]
+        },
+        {
+          "key": "frequency",
+          "label": "Frequency",
+          "type": "select",
+          "options": [
+            "Annually",
+            "Half Yearly",
+            "Quarterly",
+            "Any Other"
+          ]
+        },
+        {
+          "key": "frequency_other",
+          "label": "Please Specify",
+          "type": "text",
+          "conditional_on": {
+            "field": "frequency",
+            "value": "Any Other"
+          }
+        },
+        {
+          "key": "details",
+          "label": "Compliance with statutory requirements of relevance to the principles, and, rectification of any non-compliances",
+          "type": "textarea"
+        }
+      ]
+    },
+    "created_at": "2026-06-17T11:09:04.616861+00:00",
+    "updated_at": "2026-10-22T10:41:52.568887+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "fy_comparison",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-10",
+    "answer_paths": [
+      "combined.details",
+      "combined.frequency",
+      "combined.frequency_other",
+      "combined.review_by",
+      "principles.P1.details",
+      "principles.P1.frequency",
+      "principles.P1.frequency_other",
+      "principles.P1.review_by",
+      "principles.P2.details",
+      "principles.P2.frequency",
+      "principles.P2.frequency_other",
+      "principles.P2.review_by",
+      "principles.P3.details",
+      "principles.P3.frequency",
+      "principles.P3.frequency_other",
+      "principles.P3.review_by",
+      "principles.P4.details",
+      "principles.P4.frequency",
+      "principles.P4.frequency_other",
+      "principles.P4.review_by",
+      "principles.P5.details",
+      "principles.P5.frequency",
+      "principles.P5.frequency_other",
+      "principles.P5.review_by",
+      "principles.P6.details",
+      "principles.P6.frequency",
+      "principles.P6.frequency_other",
+      "principles.P6.review_by",
+      "principles.P7.details",
+      "principles.P7.frequency",
+      "principles.P7.frequency_other",
+      "principles.P7.review_by",
+      "principles.P8.details",
+      "principles.P8.frequency",
+      "principles.P8.frequency_other",
+      "principles.P8.review_by",
+      "principles.P9.details",
+      "principles.P9.frequency",
+      "principles.P9.frequency_other",
+      "principles.P9.review_by"
+    ],
+    "hidden": true,
+    "legacy_alias_for": "ngrbc_review_details"
+  },
+  {
+    "id": "e14914aa-89a6-419d-b963-97a7781ff7a2",
+    "question_key": "independent_policy_assessment",
+    "section": "section_b",
+    "frameworks": [
+      "BRSR"
+    ],
+    "question": "Has the entity carried out independent assessment/evaluation of the working of its policies by an external agency? (Yes/No). If yes, provide name of the agency.",
+    "type": "principle_mode_table",
+    "required": true,
+    "order": 12,
+    "field_config": {
+      "fields": [
+        {
+          "key": "assessment_done",
+          "label": "Independent Assessment Conducted?",
+          "type": "select",
+          "options": [
+            "Yes",
+            "No"
+          ]
+        },
+        {
+          "key": "agency_name",
+          "label": "Name of External Agency",
+          "type": "text",
+          "conditional_on": {
+            "field": "assessment_done",
+            "value": "Yes"
+          }
+        }
+      ]
+    },
+    "created_at": "2026-06-17T11:10:50.087856+00:00",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "principle": "P_POLICIES",
+    "response_mode": "fy_comparison",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-11",
+    "answer_paths": [
+      "combined.agency_name",
+      "combined.assessment_done",
+      "principles.P1.agency_name",
+      "principles.P1.assessment_done",
+      "principles.P2.agency_name",
+      "principles.P2.assessment_done",
+      "principles.P3.agency_name",
+      "principles.P3.assessment_done",
+      "principles.P4.agency_name",
+      "principles.P4.assessment_done",
+      "principles.P5.agency_name",
+      "principles.P5.assessment_done",
+      "principles.P6.agency_name",
+      "principles.P6.assessment_done",
+      "principles.P7.agency_name",
+      "principles.P7.assessment_done",
+      "principles.P8.agency_name",
+      "principles.P8.assessment_done",
+      "principles.P9.agency_name",
+      "principles.P9.assessment_done"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "id": "f11e028a-a31c-45c6-89f3-24a171fd191b",
+    "question_key": "ngrbc_policy_matrix",
+    "question": "Whether your entity's policies cover each principle and its core elements of the NGRBCs.",
+    "type": "ngrbc_policy_matrix",
+    "section": "section_b",
+    "principle": "P_POLICIES",
+    "frameworks": [
+      "BRSR"
+    ],
+    "required": true,
+    "order": 1,
+    "description": "Select mode and indicate policy coverage for NGRBC principles",
+    "config": {
+      "principles": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9"
+      ],
+      "principle_names": {
+        "P1": "Ethics, Transparency & Accountability",
+        "P2": "Sustainable Products & Services",
+        "P3": "Employee Wellbeing",
+        "P4": "Stakeholder Responsiveness",
+        "P5": "Human Rights",
+        "P6": "Environment Protection",
+        "P7": "Policy Advocacy",
+        "P8": "Inclusive Growth",
+        "P9": "Consumer Value"
+      },
+      "yes_followup": [
+        {
+          "key": "board_approved",
+          "label": "Has the policy been approved by the Board?",
+          "type": "yes_no"
+        },
+        {
+          "key": "web_link",
+          "label": "Web Link of the Policies, if available",
+          "type": "text"
+        }
+      ],
+      "no_reasons": [
+        {
+          "key": "not_material",
+          "label": "The entity does not consider the Principles material to its business"
+        },
+        {
+          "key": "not_ready",
+          "label": "The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles"
+        },
+        {
+          "key": "no_resources",
+          "label": "The entity does not have the financial or/human and technical resources available for the task"
+        },
+        {
+          "key": "planned_next_fy",
+          "label": "It is planned to be done in the next financial year"
+        },
+        {
+          "key": "other",
+          "label": "Any other reason (please specify)",
+          "has_text": true
+        }
+      ]
+    },
+    "created_at": "2026-06-22 12:48:04.921000",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "response_mode": "atomic",
+    "brsr_principle": "SECTION_B",
+    "disclosure_number": "B-1/12",
+    "answer_paths": [
+      "all_together.board_approved",
+      "all_together.covered",
+      "all_together.reasons.no_resources",
+      "all_together.reasons.not_material",
+      "all_together.reasons.not_ready",
+      "all_together.reasons.other",
+      "all_together.reasons.planned_next_fy",
+      "all_together.web_link",
+      "principle_wise.P1.board_approved",
+      "principle_wise.P1.covered",
+      "principle_wise.P1.reasons.no_resources",
+      "principle_wise.P1.reasons.not_material",
+      "principle_wise.P1.reasons.not_ready",
+      "principle_wise.P1.reasons.other",
+      "principle_wise.P1.reasons.planned_next_fy",
+      "principle_wise.P1.web_link",
+      "principle_wise.P2.board_approved",
+      "principle_wise.P2.covered",
+      "principle_wise.P2.reasons.no_resources",
+      "principle_wise.P2.reasons.not_material",
+      "principle_wise.P2.reasons.not_ready",
+      "principle_wise.P2.reasons.other",
+      "principle_wise.P2.reasons.planned_next_fy",
+      "principle_wise.P2.web_link",
+      "principle_wise.P3.board_approved",
+      "principle_wise.P3.covered",
+      "principle_wise.P3.reasons.no_resources",
+      "principle_wise.P3.reasons.not_material",
+      "principle_wise.P3.reasons.not_ready",
+      "principle_wise.P3.reasons.other",
+      "principle_wise.P3.reasons.planned_next_fy",
+      "principle_wise.P3.web_link",
+      "principle_wise.P4.board_approved",
+      "principle_wise.P4.covered",
+      "principle_wise.P4.reasons.no_resources",
+      "principle_wise.P4.reasons.not_material",
+      "principle_wise.P4.reasons.not_ready",
+      "principle_wise.P4.reasons.other",
+      "principle_wise.P4.reasons.planned_next_fy",
+      "principle_wise.P4.web_link",
+      "principle_wise.P5.board_approved",
+      "principle_wise.P5.covered",
+      "principle_wise.P5.reasons.no_resources",
+      "principle_wise.P5.reasons.not_material",
+      "principle_wise.P5.reasons.not_ready",
+      "principle_wise.P5.reasons.other",
+      "principle_wise.P5.reasons.planned_next_fy",
+      "principle_wise.P5.web_link",
+      "principle_wise.P6.board_approved",
+      "principle_wise.P6.covered",
+      "principle_wise.P6.reasons.no_resources",
+      "principle_wise.P6.reasons.not_material",
+      "principle_wise.P6.reasons.not_ready",
+      "principle_wise.P6.reasons.other",
+      "principle_wise.P6.reasons.planned_next_fy",
+      "principle_wise.P6.web_link",
+      "principle_wise.P7.board_approved",
+      "principle_wise.P7.covered",
+      "principle_wise.P7.reasons.no_resources",
+      "principle_wise.P7.reasons.not_material",
+      "principle_wise.P7.reasons.not_ready",
+      "principle_wise.P7.reasons.other",
+      "principle_wise.P7.reasons.planned_next_fy",
+      "principle_wise.P7.web_link",
+      "principle_wise.P8.board_approved",
+      "principle_wise.P8.covered",
+      "principle_wise.P8.reasons.no_resources",
+      "principle_wise.P8.reasons.not_material",
+      "principle_wise.P8.reasons.not_ready",
+      "principle_wise.P8.reasons.other",
+      "principle_wise.P8.reasons.planned_next_fy",
+      "principle_wise.P8.web_link",
+      "principle_wise.P9.board_approved",
+      "principle_wise.P9.covered",
+      "principle_wise.P9.reasons.no_resources",
+      "principle_wise.P9.reasons.not_material",
+      "principle_wise.P9.reasons.not_ready",
+      "principle_wise.P9.reasons.other",
+      "principle_wise.P9.reasons.planned_next_fy",
+      "principle_wise.P9.web_link"
+    ],
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  },
+  {
+    "question_key": "ngrbc_review_details",
+    "question": "Details of Review of NGRBCs by the Company",
+    "section": "section_b",
+    "brsr_principle": "SECTION_B",
+    "type": "ngrbc_review_matrix",
+    "frameworks": [
+      "BRSR"
+    ],
+    "order": 10,
+    "response_mode": "atomic",
+    "id": "0aeb1e2e-0fe5-48be-a261-8e31090a3ba9",
+    "disclosure_number": "B-10",
+    "updated_at": "2026-10-23T05:27:37.832100+00:00",
+    "answer_paths": [
+      "rows.performance_against_policies",
+      "rows.performance_against_policies.frequency.P1",
+      "rows.performance_against_policies.frequency.P2",
+      "rows.performance_against_policies.frequency.P3",
+      "rows.performance_against_policies.frequency.P4",
+      "rows.performance_against_policies.frequency.P5",
+      "rows.performance_against_policies.frequency.P6",
+      "rows.performance_against_policies.frequency.P7",
+      "rows.performance_against_policies.frequency.P8",
+      "rows.performance_against_policies.frequency.P9",
+      "rows.performance_against_policies.review_by.P1",
+      "rows.performance_against_policies.review_by.P2",
+      "rows.performance_against_policies.review_by.P3",
+      "rows.performance_against_policies.review_by.P4",
+      "rows.performance_against_policies.review_by.P5",
+      "rows.performance_against_policies.review_by.P6",
+      "rows.performance_against_policies.review_by.P7",
+      "rows.performance_against_policies.review_by.P8",
+      "rows.performance_against_policies.review_by.P9",
+      "rows.statutory_compliance",
+      "rows.statutory_compliance.frequency.P1",
+      "rows.statutory_compliance.frequency.P2",
+      "rows.statutory_compliance.frequency.P3",
+      "rows.statutory_compliance.frequency.P4",
+      "rows.statutory_compliance.frequency.P5",
+      "rows.statutory_compliance.frequency.P6",
+      "rows.statutory_compliance.frequency.P7",
+      "rows.statutory_compliance.frequency.P8",
+      "rows.statutory_compliance.frequency.P9",
+      "rows.statutory_compliance.review_by.P1",
+      "rows.statutory_compliance.review_by.P2",
+      "rows.statutory_compliance.review_by.P3",
+      "rows.statutory_compliance.review_by.P4",
+      "rows.statutory_compliance.review_by.P5",
+      "rows.statutory_compliance.review_by.P6",
+      "rows.statutory_compliance.review_by.P7",
+      "rows.statutory_compliance.review_by.P8",
+      "rows.statutory_compliance.review_by.P9"
+    ],
+    "table_config": {
+      "principles": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9"
+      ],
+      "fixed_rows": [
+        {
+          "key": "performance_against_policies",
+          "label": "Performance against above policies and follow up action"
+        },
+        {
+          "key": "statutory_compliance",
+          "label": "Compliance with statutory requirements of relevance to the principles, and rectification of any non-compliances"
+        }
+      ],
+      "review_options": [
+        "Director",
+        "Committee of the Board",
+        "Any Other Committee"
+      ],
+      "frequency_options": [
+        "Annually",
+        "Half Yearly",
+        "Quarterly",
+        "Any Other"
+      ]
+    },
+    "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00"
+  }
+]

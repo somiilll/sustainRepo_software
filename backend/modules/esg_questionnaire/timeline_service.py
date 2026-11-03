@@ -1,4 +1,5 @@
 """Read-only, reporting-year-safe timeline resolver for BRSR and GRI responses."""
+from datetime import datetime, timezone
 from typing import Any
 
 from shared.database.mongo import db
@@ -18,7 +19,10 @@ class QuestionResponseTimelineService:
 
     @staticmethod
     def _timestamp(value: Any) -> str | None:
-        return value.isoformat() if hasattr(value, "isoformat") else value
+        if isinstance(value, datetime):
+            value = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return value.isoformat()
+        return value
 
     @classmethod
     def build_timeline(
@@ -72,6 +76,24 @@ class QuestionResponseTimelineService:
                     rejection_reason=detail.get("rejection_reason") or audit.get("rejection_reason"),
                     source="question_audit_log",
                     evidence_state=TimelineEvidenceState.FOUND_PARTIAL if detail.get("submitted_by") is None else TimelineEvidenceState.FOUND,
+                ))
+            elif action == "framework_linked":
+                events.append(QuestionTimelineEvent(
+                    event_type="FRAMEWORK_LINKED",
+                    timestamp=cls._timestamp(audit.get("timestamp")),
+                    requester=cls._actor(approver_data.get("name"), approver_data.get("email")),
+                    submitted_value=detail.get("old_value"),
+                    final_value=detail.get("new_value"),
+                    source="question_audit_log",
+                ))
+            elif action == "kpi_synced":
+                events.append(QuestionTimelineEvent(
+                    event_type="KPI_SYNCED",
+                    timestamp=cls._timestamp(audit.get("timestamp")),
+                    requester=cls._actor(approver_data.get("name"), None),
+                    submitted_value=detail.get("old_value"),
+                    final_value=detail.get("new_value"),
+                    source="question_audit_log",
                 ))
             elif action in {"created", "updated"}:
                 actor = cls._actor(approver_data.get("name"), approver_data.get("email"))

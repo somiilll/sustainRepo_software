@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
+from shared.audit_trail import AuditSource, audit_trail_service, planned_value_changes
 from shared.unit_registry import can_convert, convert
 from modules.kpi_engine.filters import FilterBuilder
 from modules.kpi_engine.utils import get_collection_for_section, parse_numeric_value
@@ -25,7 +26,8 @@ def _has_reportable_value(value: Any) -> bool:
     if value is None or value == "":
         return False
     if isinstance(value, dict):
-        return any(_has_reportable_value(item) for item in value.values())
+        items = {k: v for k, v in value.items() if k != "country"} if "country" in value and len(value) > 1 else value
+        return any(_has_reportable_value(item) for item in items.values())
     if isinstance(value, list):
         return any(_has_reportable_value(item) for item in value)
     return True
@@ -49,10 +51,14 @@ def _period_answer_paths(mapping: Dict[str, Any], base_path: str) -> tuple:
             "pending": ("cur_pending", "prev_pending"),
             "remarks": ("cur_remarks", "prev_remarks"),
             "total": ("cur_total", "prev_total"),
+            "covered": ("cur_covered", "prev_covered"),
+            "pct": ("cur_pct", "prev_pct"),
             "hs_no": ("cur_hs_no", "prev_hs_no"),
             "hs_pct": ("cur_hs_pct", "prev_hs_pct"),
             "skill_no": ("cur_skill_no", "prev_skill_no"),
             "skill_pct": ("cur_skill_pct", "prev_skill_pct"),
+            "affected": ("cur_affected", "prev_affected"),
+            "rehabilitated": ("cur_rehabilitated", "prev_rehabilitated"),
         }
         parts = base_path.split(".")
         terminal = parts[-1]
@@ -166,6 +172,8 @@ async def _table_dimension_values(
         total = 0.0
         for value, unit in group["entries"]:
             total += convert(value, unit, output_unit) if can_convert(unit, output_unit) else value
+        if (kpi.get("aggregation_type") or "").lower() in {"avg", "average"}:
+            total /= len(group["entries"])
         results[key] = {"label": group["label"], "value": round(total, 6), "unit": output_unit,
                         "source_count": group["source_count"]}
     return results
@@ -243,7 +251,7 @@ def _canonical_women_representation(
 
 
 class BRSRLiveKPIAutofillService:
-    async def sync(self, org_id: str, reporting_period: str) -> Dict[str, Any]:
+    async def sync(self, org_id: str, reporting_period: str, triggered_by: Optional[str] = None) -> Dict[str, Any]:
         mappings = await db.kpi_framework_mappings.find({
             "framework": "BRSR",
             "is_active": {"$ne": False},
@@ -283,6 +291,21 @@ class BRSRLiveKPIAutofillService:
             table_kpi = next((definitions_by_id.get(kpi_id) for kpi_id in mapping_kpi_ids
                               if definitions_by_id.get(kpi_id) and
                               (((definitions_by_id[kpi_id].get("source_config") or {}).get("records") or {}).get("table"))), None)
+            row_table = mapping.get("row_table") or {}
+            if mapping.get("dynamic_rows") and table_kpi and row_table.get("dimension_key") and row_table.get("value_key"):
+                current_rows = await _table_dimension_values(table_kpi, org_id, reporting_period, mapping.get("destination_unit"))
+                if current_rows:
+                    question_result["value"] = [
+                        {row_table["dimension_key"]: row["label"], row_table["value_key"]: row["value"]}
+                        for _key, row in sorted(current_rows.items())
+                    ]
+                    question_result["locked_paths"].append("$")
+                question_result["sources"].append({
+                    "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"), "answer_path": base_path,
+                    "current_source_count": sum(row.get("source_count", 0) for row in current_rows.values()),
+                    "previous_source_count": 0,
+                })
+                continue
             if mapping.get("dynamic_rows") and table_kpi:
                 question_result["has_dynamic_mapping"] = True
                 destination_unit = mapping.get("destination_unit")
@@ -333,11 +356,17 @@ class BRSRLiveKPIAutofillService:
                         "label": dynamic_row["label"],
                         "indent": bool(dynamic_row.get("indent")),
                         "parent_key": dynamic_row.get("parent_key"),
+                        "default_unit": dynamic_row.get("default_unit") or mapping.get("destination_unit"),
                     })
                 for column, result in (("current_fy", current), ("previous_fy", previous)):
                     path = f"{row_key}.{column}"
                     question_result["locked_paths"].append(path)
                     _set_nested(question_result["value"], path, result["value"] if result else None)
+                unit = (current or previous or {}).get("unit") or mapping.get("destination_unit")
+                if unit:
+                    unit_path = f"{row_key}.unit"
+                    question_result["locked_paths"].append(unit_path)
+                    _set_nested(question_result["value"], unit_path, unit)
                 question_result["sources"].append({
                     "mapping_id": mapping.get("id"), "source_tag": mapping.get("source_tag"),
                     "answer_path": row_key,
@@ -398,7 +427,7 @@ class BRSRLiveKPIAutofillService:
             ) or {}
             existing_response = await db.organization_esg_responses.find_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
-                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "value": 1},
+                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "kpi_autofill_updated_at": 1, "value": 1},
             ) or {}
             current_dynamic_keys = {row["key"] for row in result.get("dynamic_rows") or []}
             previous_dynamic_keys = set(existing_response.get("kpi_autofill_dynamic_rows") or [])
@@ -448,7 +477,26 @@ class BRSRLiveKPIAutofillService:
                 },
             }
             if unset_fields:
+                if "value.others" in unset_fields:
+                    if any(k.startswith("value.others.") for k in set_fields):
+                        del unset_fields["value.others"]
+                    else:
+                        unset_fields = {k: v for k, v in unset_fields.items() if not k.startswith("value.others.")}
                 update["$unset"] = unset_fields
+            await audit_trail_service.record_system_changes(
+                framework="BRSR",
+                organization_id=org_id,
+                reporting_period=reporting_period,
+                question_key=question_key,
+                changes=planned_value_changes(existing_response.get("value"), set_fields, unset_fields),
+                source=AuditSource(
+                    type="kpi_sync",
+                    mapping_ids=[s["mapping_id"] for s in result["sources"] if s.get("mapping_id")],
+                    source_tags=[s["source_tag"] for s in result["sources"] if s.get("source_tag")],
+                    triggered_by_user_id=triggered_by,
+                ),
+                state_token=existing_response.get("kpi_autofill_updated_at"),
+            )
             await db.organization_esg_responses.update_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
                 update,

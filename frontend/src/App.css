@@ -52,3 +52,20 @@
     flex: 0 0 auto;
   }
 }
+/* BRSR report tables: centred content with vertical column separators */
+.brsr-report table th,
+.brsr-report table td {
+  text-align: center;
+  vertical-align: middle;
+}
+.brsr-report table th:not(:last-child),
+.brsr-report table td:not(:last-child) {
+  border-right: 1px solid #e7e5e4;
+}
+.brsr-report table td:first-child.font-medium {
+  text-align: left;
+}
+.brsr-report table input,
+.brsr-report table textarea {
+  text-align: center;
+}

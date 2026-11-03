@@ -12,9 +12,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shared.database.mongo import db
 from modules.brsr_report.section_a_workforce import SECTION_A_WORKFORCE_CELL_MAPPINGS
+from modules.esg_records.env_schema import TRAINING_TOPIC_TOTALS
 
 
 BACKUP_DIR = Path("/app/backups")
+UNIT_COLUMN_QUESTION_KEYS = {
+    "p6_energy_consumption",
+    "p6_water_disclosures",
+    "p6_water_discharged",
+    "p6_water_stress_areas",
+    "p6_waste_management_details",
+}
 
 
 def metric_code(name: str) -> str:
@@ -62,6 +70,7 @@ async def upsert_mapping(
         "formula_definition": (kpi.get("formula_config") or {}).get("formula_definition"),
         "destination_unit": destination_unit or (kpi.get("unit_config") or {}).get("default_unit"),
         "unit_conversion_rule": "convert_with_shared_unit_registry" if destination_unit else "use_kpi_unit_config", "mapping_status": "exact_destination",
+        "include_unit": question_key in UNIT_COLUMN_QUESTION_KEYS,
         "is_active": True, "period_column_strategy": strategy, "reporting_period_source": "runtime_filter",
         "source_category": kpi.get("category_name"), "source_subcategory": kpi.get("subcategory"),
         "source_sub_subcategory": kpi.get("sub_subcategory"),
@@ -244,6 +253,7 @@ async def sync_water_discharge(now: str) -> List[Dict[str, Any]]:
                         "label": f"To {destination_labels[source_key]} — With treatment: {treatment_label}",
                         "indent": True,
                         "parent_key": f"{row_key}_with_treatment",
+                        "default_unit": "kl",
                     }, "updated_at": now}},
                 )
                 await db.esg_question_configs.update_one(
@@ -350,6 +360,74 @@ async def sync_water_stress_discharge(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_p6_unit_visibility(now: str) -> int:
+    result = await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": {"$in": list(UNIT_COLUMN_QUESTION_KEYS)},
+            "answer_path": {"$ne": None}, "is_active": {"$ne": False},
+        },
+        {"$set": {"include_unit": True, "updated_at": now}},
+    )
+    return result.modified_count
+
+
+async def sync_consumer_complaints(now: str) -> List[Dict[str, Any]]:
+    common = {
+        "section": "social", "category_name": "Complaints", "subcategory": "Consumer Complaints",
+        "sub_subcategory": "", "supported_scopes": ["organization"], "output_type": "number",
+        "unit_config": {"default_unit": "Number", "supported_units": ["Number"], "allow_unit_conversion": False},
+        "brsr_reference": "P9-E3", "gri_disclosure": "206-1",
+        "framework_references": [{"framework": "BRSR", "reference": "P9-E3", "reference_type": "exact"}],
+        "tags": ["brsr-reporting"], "source_type": "records", "aggregation_type": "sum", "formula_config": None,
+    }
+    definitions = []
+    for row_key, label, value_field in (
+        ("restrictive_trade", "Restrictive Trade Practices", "no_of_complaints_on_restrictive_trade_practices"),
+        ("unfair_trade", "Unfair Trade Practices", "no_of_complaints_on_unfair_trade_practices"),
+    ):
+        received = await upsert_definition(f"Consumer Complaints - {label}", {
+            **common, "source_config": {"records": {"value_field": value_field}}, "value_field": value_field,
+        }, now)
+        pending_field = f"pending_resolution_{value_field.removeprefix('no_of_complaints_on_')}"
+        pending = await upsert_definition(f"Consumer Complaints Pending Resolution - {label}", {
+            **common, "source_config": {"records": {"value_field": pending_field}}, "value_field": pending_field,
+        }, now)
+        await upsert_mapping(received, "p9_consumer_complaints", f"rows.{row_key}.received", "P9-E3", now)
+        await upsert_mapping(pending, "p9_consumer_complaints", f"rows.{row_key}.pending", "P9-E3", now)
+        definitions.extend([received, pending])
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p9_consumer_complaints",
+            "source_metric_name": {"$in": [
+                "Consumer Complaints - Restrictive / unfair trade practices",
+                "Consumer Complaints Pending Resolution - Restrictive / unfair trade practices",
+            ]}, "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "superseded_by_separate_trade_practice_fields", "updated_at": now}},
+    )
+    await db.esg_kpi_definitions.update_many(
+        {"metric_name": {"$in": [
+            "Consumer Complaints - Restrictive / unfair trade practices",
+            "Consumer Complaints Pending Resolution - Restrictive / unfair trade practices",
+        ]}, "status": {"$ne": "archived"}},
+        {"$set": {"status": "archived", "updated_at": now}},
+    )
+    return definitions
+
+
+async def sync_data_breach_count(now: str) -> List[Dict[str, Any]]:
+    total = await find_definition("Data-breach Incidents (Total)")
+    await upsert_mapping(total, "p9_data_breaches_count", "value", "P9-E7 (a)", now, "response_period_document")
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p9_data_breaches_count", "kpi_id": {"$ne": total["id"]},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "not_data_breach_instance_total", "updated_at": now}},
+    )
+    return [total]
+
+
 async def sync_internal_complaints(now: str) -> List[Dict[str, Any]]:
     mapped = []
     for role, row in (("Directors", "rows.directors_coi"), ("KMPs", "rows.kmps_coi")):
@@ -434,6 +512,92 @@ async def sync_additional_requested_kpis(now: str) -> List[Dict[str, Any]]:
     return mapped
 
 
+async def sync_p5_workforce_count_mappings(now: str) -> List[Dict[str, Any]]:
+    minimum_wage_sources = {
+        "emp_perm_male": "Employee Diversity - Permanent employees (Male)",
+        "emp_perm_female": "Employee Diversity - Permanent employees (Female)",
+        "emp_other_male": "Employee Diversity - Other-than-permanent employees (Male)",
+        "emp_other_female": "Employee Diversity - Other-than-permanent employees (Female)",
+        "workers_perm_male": "Workers Diversity - Permanent workers (Male)",
+        "workers_perm_female": "Workers Diversity - Permanent workers (Female)",
+        "workers_other_male": "Workers Diversity - Other-than-permanent workers (Male)",
+        "workers_other_female": "Workers Diversity - Other-than-permanent workers (Female)",
+    }
+    remuneration_sources = {
+        "bod.male_number": "Board of Directors Diversity - Board of Directors (Total) (Male)",
+        "bod.female_number": "Board of Directors Diversity - Board of Directors (Total) (Female)",
+        "kmp.male_number": "Key Management Personnel Diversity - Key Management Personnel (Total) (Male)",
+        "kmp.female_number": "Key Management Personnel Diversity - Key Management Personnel (Total) (Female)",
+        "employees_other.male_number": "Employee Diversity - Total Employees (Male)",
+        "employees_other.female_number": "Employee Diversity - Total Employees (Female)",
+        "workers.male_number": "Workers Diversity - Total Workers (Male)",
+        "workers.female_number": "Workers Diversity - Total Workers (Female)",
+    }
+    mapped = []
+    for row_key, metric_name in minimum_wage_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "p5_minimum_wages", f"rows.{row_key}.total", "P5-E2", now)
+        mapped.append(source)
+    for answer_path, metric_name in remuneration_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(
+            source, "p5_remuneration_details", f"rows.{answer_path}", "P5-E3", now,
+            "response_period_document",
+        )
+        mapped.append(source)
+    return mapped
+
+
+async def sync_p3_diversity_totals(now: str) -> List[Dict[str, Any]]:
+    employee_detail = {
+        "perm_male": "Employee Diversity - Permanent employees (Male)",
+        "perm_female": "Employee Diversity - Permanent employees (Female)",
+        "perm_total": "Employee Diversity - Permanent employees",
+        "other_male": "Employee Diversity - Other-than-permanent employees (Male)",
+        "other_female": "Employee Diversity - Other-than-permanent employees (Female)",
+        "other_total": "Employee Diversity - Other-than-permanent employees",
+    }
+    worker_detail = {
+        "perm_male": "Workers Diversity - Permanent workers (Male)",
+        "perm_female": "Workers Diversity - Permanent workers (Female)",
+        "perm_total": "Workers Diversity - Permanent workers",
+        "other_male": "Workers Diversity - Other-than-permanent workers (Male)",
+        "other_female": "Workers Diversity - Other-than-permanent workers (Female)",
+        "other_total": "Workers Diversity - Other-than-permanent workers",
+    }
+    mapped = []
+    for question_key, sources in (("p3_wellbeing_employees", employee_detail), ("p3_wellbeing_workers", worker_detail)):
+        for row_key, metric_name in sources.items():
+            source = await find_definition(metric_name)
+            await upsert_mapping(source, question_key, f"rows.{row_key}.total_a", "P3", now, "response_period_document")
+            mapped.append(source)
+
+    union_sources = {
+        "perm_emp_male": "Employee Diversity - Permanent employees (Male)",
+        "perm_emp_female": "Employee Diversity - Permanent employees (Female)",
+        "perm_workers_male": "Workers Diversity - Permanent workers (Male)",
+        "perm_workers_female": "Workers Diversity - Permanent workers (Female)",
+    }
+    for row_key, metric_name in union_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "p3_union_membership", f"rows.{row_key}.total", "P3-E7", now)
+        mapped.append(source)
+
+    review_sources = {
+        "emp_male": "Employee Diversity - Total Employees (Male)",
+        "emp_female": "Employee Diversity - Total Employees (Female)",
+        "emp_total": "Employee Diversity - Total Employees",
+        "workers_male": "Workers Diversity - Total Workers (Male)",
+        "workers_female": "Workers Diversity - Total Workers (Female)",
+        "workers_total": "Workers Diversity - Total Workers",
+    }
+    for row_key, metric_name in review_sources.items():
+        source = await find_definition(metric_name)
+        await upsert_mapping(source, "performance_career_reviews", f"rows.{row_key}.total", "P3-E9", now)
+        mapped.append(source)
+    return mapped
+
+
 async def sync_parental_leave(now: str) -> List[Dict[str, Any]]:
     definitions = await db.esg_kpi_definitions.find({
         "metric_name": {"$regex": "Parental Leave|Return to Work Rate|Retention Rate", "$options": "i"},
@@ -505,10 +669,32 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         "value_field": "total_attendees", "aggregation_type": "sum", "formula_config": None,
         "metadata": {"calculation_scope": "stored_total", "formula": "female attendees + male attendees"},
     }, now)
+    await db.kpi_framework_mappings.update_many(
+        {
+            "framework": "BRSR", "question_key": "p5_sexual_harassment_complaints",
+            "source_metric_name": {"$in": [
+                "Internal Complaints Pending - POSH",
+                "Internal Complaints Pending - POSH complaints upheld",
+            ]},
+            "is_active": {"$ne": False},
+        },
+        {"$set": {"is_active": False, "mapping_status": "not_reported_by_p5_e7", "updated_at": now}},
+    )
     groups = {
         "Employees": ["Permanent Employee", "Other than Permanent Employee"],
         "Workers": ["Permanent Worker", "Other than Permanent Worker"],
     }
+    topic_total_kpis = []
+    for topic in TRAINING_TOPIC_TOTALS.values():
+        topic_total_kpis.append(await upsert_definition(f"Trainings - {topic['label']} - Total Attendees", {
+            "section": "social", "category_name": "Training", "subcategory": "General Training",
+            "sub_subcategory": "", "supported_scopes": ["organization", "facility"], "output_type": "number",
+            "unit_config": {"default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False},
+            "brsr_reference": None, "gri_disclosure": None, "framework_references": [], "tags": ["calculated"],
+            "source_type": "records", "source_config": {"records": {"value_field": topic["total_key"]}},
+            "value_field": topic["total_key"], "aggregation_type": "sum", "formula_config": None,
+            "metadata": {"calculation_scope": "stored_total", "formula": "female attendees + male attendees", "topic": topic["label"]},
+        }, now))
     headcount_sources = {
         ("Employees", "Female"): ["Employee Diversity - Permanent employees (Female)", "Employee Diversity - Other-than-permanent employees (Female)"],
         ("Employees", "Male"): ["Employee Diversity - Permanent employees (Male)", "Employee Diversity - Other-than-permanent employees (Male)"],
@@ -532,7 +718,7 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         sources = [await find_definition(name) for name in names]
         group, gender = key
         headcounts[key] = await upsert_definition(f"P3-E8 Eligible {group} - {gender}", {
-            **derived_common("Training", "P3-E8 Reporting", "P3-E8", {
+            **derived_common("Training", "General Training", "P3-E8", {
                 "default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False}),
             "source_type": "composite", "source_config": {"composite": {
                 "operation": "sum", "source_kpi_ids": [source["id"] for source in sources]}},
@@ -542,7 +728,63 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
         }, now)
         await upsert_mapping(headcounts[key], "p3_training_details", f"rows.{row_keys[key]}.total", "P3-E8", now)
 
-    mapped = list(headcounts.values())
+    p5_headcount_sources = {
+        "emp_permanent": await find_definition("Employee Diversity - Permanent employees"),
+        "emp_other": await find_definition("Employee Diversity - Other-than-permanent employees"),
+        "emp_total": headcounts[("Employees", "Total")],
+        "workers_permanent": await find_definition("Workers Diversity - Permanent workers"),
+        "workers_other": await find_definition("Workers Diversity - Other-than-permanent workers"),
+        "workers_total": headcounts[("Workers", "Total")],
+    }
+    for row_key, source in p5_headcount_sources.items():
+        await upsert_mapping(source, "p5_hr_training", f"rows.{row_key}.total", "P5-E1", now)
+
+    hr_female = "no_of_female_attendees_for_trainings_on_human_right_issues"
+    hr_male = "no_of_male_attendees_trainings_on_human_right_issues"
+    hr_row_types = {
+        "emp_permanent": ["Permanent Employee"],
+        "emp_other": ["Other than Permanent Employee"],
+        "emp_total": groups["Employees"],
+        "workers_permanent": ["Permanent Worker"],
+        "workers_other": ["Other than Permanent Worker"],
+        "workers_total": groups["Workers"],
+    }
+    hr_mapped = []
+    for row_key, recipient_types in hr_row_types.items():
+        label = row_key.replace("_", " ")
+        covered = await upsert_definition(f"P5-E1 Human Rights Training - {label}", {
+            **derived_common("Training", "General Training", "P5-E1", {
+                "default_unit": "count", "supported_units": ["count"], "allow_unit_conversion": False}),
+            "source_type": "calculated", "source_config": {"calculated": {"input_fields": [hr_female, hr_male]}},
+            "value_field": "", "aggregation_type": "formula",
+            "formula_config": {"formula_type": "expression", "formula_definition": f"{hr_female} + {hr_male}",
+                               "dependencies": [hr_female, hr_male]},
+            "filters": [{"field_key": "training_recipient_type", "operator": "in", "value": recipient_types}],
+            "dimensions": ["organization", "training_recipient_type", "training_topic"],
+            "metadata": {"calculation_scope": "per_record_then_period_aggregate", "period_aggregation": "sum",
+                         "recipient_types": recipient_types, "topic": "Human Rights"},
+        }, now)
+        await upsert_mapping(covered, "p5_hr_training", f"rows.{row_key}.covered", "P5-E1", now)
+        pct = await upsert_definition(f"P5-E1 Human Rights Training Coverage - {label}", {
+            **derived_common("Training", "General Training", "P5-E1", {
+                "default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False}),
+            "source_type": "composite", "source_config": {"composite": {
+                "operation": "ratio_percent", "source_kpi_ids": [covered["id"], p5_headcount_sources[row_key]["id"]]}},
+            "value_field": "", "aggregation_type": "formula",
+            "formula_config": {"formula_type": "ratio", "formula_definition": "trained / eligible * 100",
+                               "dependencies": [covered["id"], p5_headcount_sources[row_key]["id"]]},
+            "dimensions": ["organization", "training_recipient_type", "training_topic"],
+            "metadata": {"topic": "Human Rights", "recipient_types": recipient_types},
+        }, now)
+        await upsert_mapping(pct, "p5_hr_training", f"rows.{row_key}.pct", "P5-E1", now)
+        hr_mapped.extend([covered, pct])
+    for metric_name in ("Trainings - Human Rights - Number of Trainings", "Trainings - Human Rights - Female Attendees",
+                        "Trainings - Human Rights - Male Attendees"):
+        raw_hr = await db.esg_kpi_definitions.find_one({"metric_name": metric_name, "status": {"$ne": "archived"}}, {"_id": 0})
+        if raw_hr:
+            await remove_brsr_reference(raw_hr, "P5-E1", now)
+
+    mapped = [*headcounts.values(), *topic_total_kpis, *hr_mapped]
     for group, recipient_types in groups.items():
         for topic, field_prefix in (("Health & Safety", "hs"), ("Skill Upgradation", "skill")):
             for gender in ("Female", "Male", "Total"):
@@ -550,7 +792,7 @@ async def sync_training(now: str) -> List[Dict[str, Any]]:
                 row = row_keys[(group, gender)]
                 await upsert_mapping(source, "p3_training_details", f"rows.{row}.{field_prefix}_no", "P3-E8", now)
                 coverage = await upsert_definition(f"P3-E8 Training Coverage - {group} - {topic} - {gender}", {
-                    **derived_common("Training", "P3-E8 Reporting", "P3-E8", {
+                    **derived_common("Training", "General Training", "P3-E8", {
                         "default_unit": "%", "supported_units": ["%"], "allow_unit_conversion": False}),
                     "source_type": "composite", "source_config": {"composite": {
                         "operation": "ratio_percent", "source_kpi_ids": [source["id"], headcounts[(group, gender)]["id"]]}},
@@ -584,8 +826,13 @@ async def run() -> Dict[str, Any]:
         "water_withdrawal": len(await sync_water_withdrawal(now)),
         "water_discharge": len(await sync_water_discharge(now)),
         "water_stress_discharge": len(await sync_water_stress_discharge(now)),
+        "p6_unit_visibility": await sync_p6_unit_visibility(now),
+        "consumer_complaints": len(await sync_consumer_complaints(now)),
+        "data_breach_count": len(await sync_data_breach_count(now)),
         "internal_complaints": len(await sync_internal_complaints(now)),
         "additional_requested": len(await sync_additional_requested_kpis(now)),
+        "p5_workforce_counts": len(await sync_p5_workforce_count_mappings(now)),
+        "p3_diversity_totals": len(await sync_p3_diversity_totals(now)),
         "parental_leave": len(await sync_parental_leave(now)),
         "training": len(await sync_training(now)),
         "backup": str(backup),

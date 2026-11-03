@@ -1,0 +1,3849 @@
+{
+  "configs": [
+    {
+      "question_key": "p6_water_disclosures",
+      "question": "Provide details of the following disclosures related to water, in the following format:",
+      "section": "section_c",
+      "brsr_principle": "P6",
+      "type": "fy_comparison_table",
+      "frameworks": [
+        "BRSR"
+      ],
+      "order": 4,
+      "response_mode": "fy_comparison",
+      "id": "af003509-ad34-46f5-a7dc-875185c48207",
+      "table_config": {
+        "fixed_rows": [
+          {
+            "key": "surface_water",
+            "label": "(i) Surface water"
+          },
+          {
+            "key": "groundwater",
+            "label": "(ii) Groundwater"
+          },
+          {
+            "key": "third_party",
+            "label": "(iii) Third party water"
+          },
+          {
+            "key": "seawater",
+            "label": "(iv) Seawater / desalinated water"
+          },
+          {
+            "key": "others",
+            "label": "(v) Others"
+          },
+          {
+            "key": "total_withdrawal",
+            "label": "Total volume of water withdrawal (in kilolitres) (i+ii+iii+iv+v)"
+          },
+          {
+            "key": "total_consumption",
+            "label": "Total volume of water consumption (in kilolitres)"
+          },
+          {
+            "key": "intensity_turnover",
+            "label": "Water intensity per rupee of turnover (Water consumed / Revenue from operations)"
+          },
+          {
+            "key": "intensity_turnover_ppp",
+            "label": "Water intensity per rupee of turnover adjusted for Purchasing Power Parity (PPP)"
+          },
+          {
+            "key": "intensity_physical",
+            "label": "Water intensity in terms of physical output"
+          },
+          {
+            "key": "intensity_optional",
+            "label": "Water intensity (optional) \u2013 the relevant metric may be selected by the entity"
+          }
+        ],
+        "columns": [
+          {
+            "key": "unit",
+            "label": "Units",
+            "type": "text"
+          },
+          {
+            "key": "current_fy",
+            "label": "FY _____ (Current Financial Year)",
+            "type": "text"
+          },
+          {
+            "key": "previous_fy",
+            "label": "FY _____ (Previous Financial Year)",
+            "type": "text"
+          }
+        ]
+      },
+      "answer_paths": [
+        "rows.groundwater",
+        "rows.intensity_optional",
+        "rows.intensity_physical",
+        "rows.intensity_turnover",
+        "rows.intensity_turnover_ppp",
+        "rows.others",
+        "rows.seawater",
+        "rows.surface_water",
+        "rows.third_party",
+        "rows.total_consumption",
+        "rows.total_withdrawal"
+      ],
+      "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00",
+      "updated_at": "2026-10-23T05:27:37.832100+00:00"
+    },
+    {
+      "question_key": "p6_water_discharged",
+      "question": "Provide the following details related to water discharged:",
+      "section": "section_c",
+      "brsr_principle": "P6",
+      "type": "fy_comparison_table",
+      "frameworks": [
+        "BRSR"
+      ],
+      "order": 6,
+      "response_mode": "fy_comparison",
+      "id": "dcbc3856-a348-4c28-b41f-9c5d59272dd7",
+      "table_config": {
+        "fixed_rows": [
+          {
+            "key": "surface_no_treatment",
+            "label": "(i) To Surface water - No treatment"
+          },
+          {
+            "key": "surface_with_treatment",
+            "label": "(i) To Surface water - With treatment (please specify level)"
+          },
+          {
+            "key": "ground_no_treatment",
+            "label": "(ii) To Groundwater - No treatment"
+          },
+          {
+            "key": "ground_with_treatment",
+            "label": "(ii) To Groundwater - With treatment (please specify level)"
+          },
+          {
+            "key": "sea_no_treatment",
+            "label": "(iii) To Seawater - No treatment"
+          },
+          {
+            "key": "sea_with_treatment",
+            "label": "(iii) To Seawater - With treatment (please specify level)"
+          },
+          {
+            "key": "third_party_no_treatment",
+            "label": "(iv) Sent to third-parties - No treatment"
+          },
+          {
+            "key": "third_party_with_treatment",
+            "label": "(iv) Sent to third-parties - With treatment (please specify level)"
+          },
+          {
+            "key": "others_no_treatment",
+            "label": "(v) Others - No treatment"
+          },
+          {
+            "key": "others_with_treatment",
+            "label": "(v) Others - With treatment (please specify level)"
+          },
+          {
+            "key": "total_discharged",
+            "label": "Total water discharged (in kilolitres)"
+          }
+        ],
+        "columns": [
+          {
+            "key": "unit",
+            "label": "Units",
+            "type": "text"
+          },
+          {
+            "key": "current_fy",
+            "label": "FY _____ (Current Financial Year)",
+            "type": "text"
+          },
+          {
+            "key": "previous_fy",
+            "label": "FY _____ (Previous Financial Year)",
+            "type": "text"
+          }
+        ]
+      },
+      "answer_paths": [
+        "rows.ground_no_treatment",
+        "rows.ground_with_treatment",
+        "rows.others_no_treatment",
+        "rows.others_with_treatment",
+        "rows.sea_no_treatment",
+        "rows.sea_with_treatment",
+        "rows.surface_no_treatment",
+        "rows.surface_with_treatment",
+        "rows.third_party_no_treatment",
+        "rows.third_party_with_treatment",
+        "rows.total_discharged",
+        "rows.surface_primary",
+        "rows.surface_secondary",
+        "rows.surface_tertiary",
+        "rows.sea_primary",
+        "rows.sea_secondary",
+        "rows.sea_tertiary",
+        "rows.thirdparty_primary",
+        "rows.thirdparty_secondary",
+        "rows.thirdparty_tertiary",
+        "rows.ground_primary",
+        "rows.ground_secondary",
+        "rows.ground_tertiary",
+        "rows.third_party_primary",
+        "rows.third_party_secondary",
+        "rows.third_party_tertiary"
+      ],
+      "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00"
+    },
+    {
+      "question_key": "p6_waste_management_details",
+      "question": "Provide details related to waste management by the entity, in the following format:",
+      "section": "section_c",
+      "brsr_principle": "P6",
+      "type": "fy_comparison_table",
+      "frameworks": [
+        "BRSR"
+      ],
+      "order": 14,
+      "response_mode": "fy_comparison",
+      "id": "d7c4a1d7-ae60-40e7-802b-331c63ec0b9d",
+      "table_config": {
+        "fixed_rows": [
+          {
+            "key": "plastic_waste",
+            "label": "Plastic waste (A)"
+          },
+          {
+            "key": "e_waste",
+            "label": "E-waste (B)"
+          },
+          {
+            "key": "bio_medical",
+            "label": "Bio-medical waste (C)"
+          },
+          {
+            "key": "construction",
+            "label": "Construction and demolition waste (D)"
+          },
+          {
+            "key": "battery",
+            "label": "Battery waste (E)"
+          },
+          {
+            "key": "radioactive",
+            "label": "Radioactive waste (F)"
+          },
+          {
+            "key": "other_hazardous",
+            "label": "Other Hazardous waste (G)"
+          },
+          {
+            "key": "other_non_hazardous",
+            "label": "Other Non-hazardous waste generated (H)"
+          },
+          {
+            "key": "total_generated",
+            "label": "Total (A+B+C+D+E+F+G+H)"
+          },
+          {
+            "key": "intensity_turnover",
+            "label": "Waste intensity per rupee of turnover"
+          },
+          {
+            "key": "intensity_turnover_ppp",
+            "label": "Waste intensity per rupee of turnover adjusted for PPP"
+          },
+          {
+            "key": "intensity_physical",
+            "label": "Waste intensity in terms of physical output"
+          },
+          {
+            "key": "intensity_optional",
+            "label": "Waste intensity (optional)"
+          },
+          {
+            "key": "recovered_recycled",
+            "label": "Waste recovered - (i) Recycled"
+          },
+          {
+            "key": "recovered_reused",
+            "label": "Waste recovered - (ii) Re-used"
+          },
+          {
+            "key": "recovered_other",
+            "label": "Waste recovered - (iii) Other recovery operations"
+          },
+          {
+            "key": "recovered_total",
+            "label": "Waste recovered - Total"
+          },
+          {
+            "key": "disposed_incineration",
+            "label": "Waste disposed - (i) Incineration"
+          },
+          {
+            "key": "disposed_landfilling",
+            "label": "Waste disposed - (ii) Landfilling"
+          },
+          {
+            "key": "disposed_other",
+            "label": "Waste disposed - (iii) Other disposal operations"
+          },
+          {
+            "key": "disposed_total",
+            "label": "Waste disposed - Total"
+          }
+        ],
+        "columns": [
+          {
+            "key": "unit",
+            "label": "Units",
+            "type": "text"
+          },
+          {
+            "key": "current_fy",
+            "label": "FY _____ (Current Financial Year)",
+            "type": "text"
+          },
+          {
+            "key": "previous_fy",
+            "label": "FY _____ (Previous Financial Year)",
+            "type": "text"
+          }
+        ]
+      },
+      "answer_paths": [
+        "rows.battery",
+        "rows.bio_medical",
+        "rows.construction",
+        "rows.disposed_incineration",
+        "rows.disposed_landfilling",
+        "rows.disposed_other",
+        "rows.disposed_total",
+        "rows.e_waste",
+        "rows.intensity_optional",
+        "rows.intensity_physical",
+        "rows.intensity_turnover",
+        "rows.intensity_turnover_ppp",
+        "rows.other_hazardous",
+        "rows.other_non_hazardous",
+        "rows.plastic_waste",
+        "rows.radioactive",
+        "rows.recovered_other",
+        "rows.recovered_recycled",
+        "rows.recovered_reused",
+        "rows.recovered_total",
+        "rows.total_generated"
+      ],
+      "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00",
+      "updated_at": "2026-10-23T05:27:37.832100+00:00"
+    },
+    {
+      "question_key": "p6_water_stress_areas",
+      "question": "Water withdrawal, consumption and discharge in areas of water stress (in kilolitres): For each facility / plant located in areas of water stress, provide the following information:",
+      "section": "section_c",
+      "brsr_principle": "P6",
+      "type": "fy_comparison_table",
+      "frameworks": [
+        "BRSR"
+      ],
+      "order": 20,
+      "response_mode": "fy_comparison",
+      "id": "2a17c5a8-2831-48aa-b0d9-640f5daea039",
+      "table_config": {
+        "fixed_rows": [
+          {
+            "key": "surface_water",
+            "label": "Water withdrawal - (i) Surface water"
+          },
+          {
+            "key": "groundwater",
+            "label": "Water withdrawal - (ii) Groundwater"
+          },
+          {
+            "key": "third_party",
+            "label": "Water withdrawal - (iii) Third party water"
+          },
+          {
+            "key": "seawater",
+            "label": "Water withdrawal - (iv) Seawater / desalinated water"
+          },
+          {
+            "key": "others_withdrawal",
+            "label": "Water withdrawal - (v) Others"
+          },
+          {
+            "key": "total_withdrawal",
+            "label": "Total volume of water withdrawal (in kilolitres)"
+          },
+          {
+            "key": "total_consumption",
+            "label": "Total volume of water consumption (in kilolitres)"
+          },
+          {
+            "key": "intensity_turnover",
+            "label": "Water intensity per rupee of turnover"
+          },
+          {
+            "key": "intensity_optional",
+            "label": "Water intensity (optional)"
+          },
+          {
+            "key": "discharge_surface_no",
+            "label": "Water discharge - (i) Into Surface water - No treatment"
+          },
+          {
+            "key": "discharge_surface_with",
+            "label": "Water discharge - (i) Into Surface water - With treatment"
+          },
+          {
+            "key": "discharge_ground_no",
+            "label": "Water discharge - (ii) Into Groundwater - No treatment"
+          },
+          {
+            "key": "discharge_ground_with",
+            "label": "Water discharge - (ii) Into Groundwater - With treatment"
+          },
+          {
+            "key": "discharge_sea_no",
+            "label": "Water discharge - (iii) Into Seawater - No treatment"
+          },
+          {
+            "key": "discharge_sea_with",
+            "label": "Water discharge - (iii) Into Seawater - With treatment"
+          },
+          {
+            "key": "discharge_third_no",
+            "label": "Water discharge - (iv) Sent to third-parties - No treatment"
+          },
+          {
+            "key": "discharge_third_with",
+            "label": "Water discharge - (iv) Sent to third-parties - With treatment"
+          },
+          {
+            "key": "discharge_others_no",
+            "label": "Water discharge - (v) Others - No treatment"
+          },
+          {
+            "key": "discharge_others_with",
+            "label": "Water discharge - (v) Others - With treatment"
+          },
+          {
+            "key": "total_discharged",
+            "label": "Total water discharged (in kilolitres)"
+          }
+        ],
+        "columns": [
+          {
+            "key": "unit",
+            "label": "Units",
+            "type": "text"
+          },
+          {
+            "key": "current_fy",
+            "label": "FY _____ (Current Financial Year)",
+            "type": "text"
+          },
+          {
+            "key": "previous_fy",
+            "label": "FY _____ (Previous Financial Year)",
+            "type": "text"
+          }
+        ]
+      },
+      "answer_paths": [
+        "rows.discharge_ground_no",
+        "rows.discharge_ground_with",
+        "rows.discharge_others_no",
+        "rows.discharge_others_with",
+        "rows.discharge_sea_no",
+        "rows.discharge_sea_with",
+        "rows.discharge_surface_no",
+        "rows.discharge_surface_with",
+        "rows.discharge_third_no",
+        "rows.discharge_third_with",
+        "rows.groundwater",
+        "rows.intensity_optional",
+        "rows.intensity_turnover",
+        "rows.others_withdrawal",
+        "rows.seawater",
+        "rows.surface_water",
+        "rows.third_party",
+        "rows.total_consumption",
+        "rows.total_discharged",
+        "rows.total_withdrawal"
+      ],
+      "answer_paths_updated_at": "2026-10-23T05:27:37.832100+00:00",
+      "updated_at": "2026-10-25T12:28:57.000737+00:00"
+    }
+  ],
+  "mappings": [
+    {
+      "kpi_id": "9f77a3af-a961-4289-9e14-3c0b87dd5038",
+      "source_kpi_ids": [
+        "9f77a3af-a961-4289-9e14-3c0b87dd5038"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_BATTERY_WASTE_GENERATED",
+      "source_metric_name": "Battery Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (E)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.battery",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "a5a8d5bc-fce1-49e3-aac6-2e32e25b6a85",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "c6c38961-96b6-475c-842b-080d5dab51cf",
+      "source_kpi_ids": [
+        "c6c38961-96b6-475c-842b-080d5dab51cf"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_BIO_MEDICAL_WASTE_GENERATED",
+      "source_metric_name": "Biomedical Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (C)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.bio_medical",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "a9fcc50c-e5c2-4962-8872-7d9082d8f8c1",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "5a06bd1d-2bdd-458b-b164-68d4c9300b92",
+      "source_kpi_ids": [
+        "5a06bd1d-2bdd-458b-b164-68d4c9300b92"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_CONSTRUCTION_AND_DEMOLITION_WASTE_GENERATED",
+      "source_metric_name": "Construction & demolition Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (D)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.construction",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "3f11ff31-41bb-44be-aca8-bc324cfd5d39",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "7ea84d36-0ffc-48a8-8d3c-2027a9f27881",
+      "source_kpi_ids": [
+        "7ea84d36-0ffc-48a8-8d3c-2027a9f27881"
+      ],
+      "source_metric_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_INCINERATION",
+      "source_metric_name": "Waste Disposed - Incineration",
+      "framework": "BRSR",
+      "reference": "P6-E9 (i)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_incineration",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "f754c0fb-2292-4b65-b607-07cfe0002104",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Disposal",
+      "source_tag": "Waste \u2192 Disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "dd6a0f89-4934-4aa8-94a5-897fd8b953f1",
+      "source_kpi_ids": [
+        "dd6a0f89-4934-4aa8-94a5-897fd8b953f1"
+      ],
+      "source_metric_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_LANDFILLING",
+      "source_metric_name": "Waste Disposed - Landfilling",
+      "framework": "BRSR",
+      "reference": "P6-E9 (ii)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_landfilling",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "26b3c96c-c9bb-44f0-89c9-d0a1387598f5",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Disposal",
+      "source_tag": "Waste \u2192 Disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "9f0fc515-ca49-40c3-bdbc-18af1e9ef3e2",
+      "source_kpi_ids": [
+        "9f0fc515-ca49-40c3-bdbc-18af1e9ef3e2"
+      ],
+      "source_metric_code": "ENV_WASTE_DISPOSAL_WASTE_DISPOSED_THROUGH_OTHER_OPERATIONS",
+      "source_metric_name": "Waste Disposed - Other disposal operations",
+      "framework": "BRSR",
+      "reference": "P6-E9 (iii)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_other",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "53a7176f-e4e5-44dc-ba13-12d5449a50e9",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Disposal",
+      "source_tag": "Waste \u2192 Disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "id": "1500ab2e-a35e-4a33-b204-81c832b2208f",
+      "created_at": "2026-10-23T07:37:52.672639+00:00",
+      "kpi_id": "c1c4d5ca-4a49-4b6b-b6f2-7e0130504dd0",
+      "source_kpi_ids": [
+        "c1c4d5ca-4a49-4b6b-b6f2-7e0130504dd0"
+      ],
+      "source_metric_code": "ENV_WASTE_DISPOSED_IN_METRIC_TONNES",
+      "source_metric_name": "Waste Disposed (Total)",
+      "framework": "BRSR",
+      "reference": "P6-E9",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.disposed_total",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "MT",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Waste",
+      "source_subcategory": "Disposal",
+      "source_sub_subcategory": "",
+      "source_tag": "Waste \u2192 Disposal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T07:37:52.672639+00:00",
+      "updated_at": "2026-10-23T07:37:52.672639+00:00",
+      "mapping_role": "direct_destination"
+    },
+    {
+      "kpi_id": "939f00b3-fe9d-4ab7-9f72-02921252ca38",
+      "source_kpi_ids": [
+        "939f00b3-fe9d-4ab7-9f72-02921252ca38"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_E_WASTE_GENERATED",
+      "source_metric_name": "E-waste Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (B)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.e_waste",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "ce7712aa-33e7-454a-90f7-345363e40fa7",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "ca72cc76-9781-495d-bb20-d53a3868fe25",
+      "source_kpi_ids": [
+        "ca72cc76-9781-495d-bb20-d53a3868fe25"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_OTHER_HAZARDOUS_WASTE_GENERATED",
+      "source_metric_name": "Other hazardous waste Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (G)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.other_hazardous",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "95748503-4e57-432a-9b17-967fd00af5aa",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "87e661f5-28c7-4b96-8283-d5b1534402b5",
+      "source_kpi_ids": [
+        "87e661f5-28c7-4b96-8283-d5b1534402b5"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_OTHER_NON_HAZARDOUS_WASTE_GENERATED",
+      "source_metric_name": "Other non-hazardous waste Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (H)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.other_non_hazardous",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "c8bc1875-8ec4-49c5-8aff-479c68a7b03b",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "207c00f5-4e06-43f5-baab-f9c1c4085482",
+      "source_kpi_ids": [
+        "207c00f5-4e06-43f5-baab-f9c1c4085482"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_PLASTIC_WASTE_GENERATED",
+      "source_metric_name": "Plastic Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (A)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.plastic_waste",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "41f12b7d-c1e1-4f0d-b8b9-7b58d1da9790",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "2351ba60-7afd-4f7f-8ae4-589ecbefc5db",
+      "source_kpi_ids": [
+        "2351ba60-7afd-4f7f-8ae4-589ecbefc5db"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_RADIOACTIVE_WASTE_GENERATED",
+      "source_metric_name": "Radioactive Generated",
+      "framework": "BRSR",
+      "reference": "P6-E9 (F)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.radioactive",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "4b465295-d60c-4668-b52e-9eb6882375e4",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "0e9cc489-4568-483b-b1c4-84086a6ce3f4",
+      "source_kpi_ids": [
+        "0e9cc489-4568-483b-b1c4-84086a6ce3f4"
+      ],
+      "source_metric_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_OTHER_RECOVERY",
+      "source_metric_name": "Waste Recovered - Other recovery operations",
+      "framework": "BRSR",
+      "reference": "P6-E9 (iii)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_other",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "fff388ff-d751-48c0-9e4a-4542f97ac00c",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Recovered / Diverted from disposal",
+      "source_tag": "Waste \u2192 Recovered / Diverted from disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "1e2fcfad-f6ad-40fa-9b22-72cc08d49ba6",
+      "source_kpi_ids": [
+        "1e2fcfad-f6ad-40fa-9b22-72cc08d49ba6"
+      ],
+      "source_metric_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RECYCLED",
+      "source_metric_name": "Waste Recovered - Recycled",
+      "framework": "BRSR",
+      "reference": "P6-E9 (i)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_recycled",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "a0a2db34-04e9-49dc-90c4-da923b1c16c0",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Recovered / Diverted from disposal",
+      "source_tag": "Waste \u2192 Recovered / Diverted from disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "8ddbf5fa-4d6e-49e9-9533-dcf7b8ac1231",
+      "source_kpi_ids": [
+        "8ddbf5fa-4d6e-49e9-9533-dcf7b8ac1231"
+      ],
+      "source_metric_code": "ENV_WASTE_RECOVERED_DIVERTED_FROM_DISPOSAL_WASTE_RE_USED",
+      "source_metric_name": "Waste Recovered - Re-used",
+      "framework": "BRSR",
+      "reference": "P6-E9 (ii)",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_reused",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "abf0406a-0c85-435b-9c8e-46eac0b8ee45",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Recovered / Diverted from disposal",
+      "source_tag": "Waste \u2192 Recovered / Diverted from disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "id": "5ff8c2be-1344-491e-bee5-d684d66a4a3f",
+      "created_at": "2026-10-22T11:13:30.287794+00:00",
+      "kpi_id": "601b0139-1ba4-44a7-b89c-bf67eb9aa472",
+      "source_kpi_ids": [
+        "601b0139-1ba4-44a7-b89c-bf67eb9aa472"
+      ],
+      "source_metric_code": "ENV_WASTE_RECOVERED_IN_METRIC_TONNES",
+      "source_metric_name": "Waste Recovered (Total)",
+      "framework": "BRSR",
+      "reference": null,
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.recovered_total",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "MT",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_subcategory": "Recovered / Diverted from disposal",
+      "source_sub_subcategory": "",
+      "source_tag": "Waste \u2192 Recovered / Diverted from disposal",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "095d11cd-dba9-4d93-9669-ede341b69b0a",
+      "source_kpi_ids": [
+        "095d11cd-dba9-4d93-9669-ede341b69b0a"
+      ],
+      "source_metric_code": "ENV_WASTE_GENERATED_IN_METRIC_TONNES",
+      "source_metric_name": "Waste Generated (Total)",
+      "framework": "BRSR",
+      "reference": "P6-E9",
+      "question_key": "p6_waste_management_details",
+      "answer_path": "rows.total_generated",
+      "destination_label": "Provide details related to waste management by the entity, in the following format:",
+      "destination_unit": "MT",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "2ab0c8fa-0ac8-43fe-aaa1-f24e0b82b88a",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Waste",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Generated",
+      "source_tag": "Waste \u2192 Generated",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "ff7a4651-e0a5-4309-9813-61dfe1bb3cb3",
+      "source_kpi_ids": [
+        "ff7a4651-e0a5-4309-9813-61dfe1bb3cb3"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SURFACE_WA",
+      "source_metric_name": "Water Discharge to Surface Water",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "ca3826a1-65f6-4fd4-9d63-a11907827bc4",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "5444a680-b827-49fc-b319-af45f9741978",
+      "source_kpi_ids": [
+        "5444a680-b827-49fc-b319-af45f9741978"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_GROUND_WAT",
+      "source_metric_name": "Water Discharge to Ground Water",
+      "framework": "BRSR",
+      "reference": "P6-E4 (ii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "dd8a7e7c-0cef-4d25-8073-ae1f839374d5",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "1e365e95-7b53-4840-8358-408d7926da0f",
+      "source_kpi_ids": [
+        "1e365e95-7b53-4840-8358-408d7926da0f"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_THIRD_PART",
+      "source_metric_name": "Water Discharge to Third-party Water",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "5e8c0551-db96-4a0a-8b68-40ba0f660f63",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "6e968807-7df7-4c4f-b9c9-f7fd9323a603",
+      "source_kpi_ids": [
+        "6e968807-7df7-4c4f-b9c9-f7fd9323a603"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_DISCHARGED_TO_SEAWATER",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "4c518a7b-55ef-4723-bddb-197dc2d48f0b",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "7c82e8b2-489f-45b2-b447-4b1cee21e861",
+      "source_kpi_ids": [
+        "7c82e8b2-489f-45b2-b447-4b1cee21e861"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Surface Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "c2c29c09-1d4a-4d21-a2c2-9d87210e0173",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "bb415441-ff63-4ca2-8082-f1fa2dd77aaa"
+    },
+    {
+      "kpi_id": "b339b3f5-eb5a-47d2-9752-b5ee71043e75",
+      "source_kpi_ids": [
+        "b339b3f5-eb5a-47d2-9752-b5ee71043e75"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Surface Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "c6dd46de-9ac4-45ad-a87b-aa10661d9b32",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "b87b0e37-7c35-48d2-8bbd-04087ea5cd42"
+    },
+    {
+      "kpi_id": "3da2311d-443a-40c5-adef-ba5c6356f152",
+      "source_kpi_ids": [
+        "3da2311d-443a-40c5-adef-ba5c6356f152"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_PRIMARY",
+      "source_metric_name": "Water Discharge to Surface Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "5a0b391c-47ea-447a-bb02-77da1ff2106c",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "6fed404a-1d16-4a7c-96d8-c6190a88cfd6",
+      "source_kpi_ids": [
+        "6fed404a-1d16-4a7c-96d8-c6190a88cfd6"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_SECONDARY",
+      "source_metric_name": "Water Discharge to Surface Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "0ffba4b0-34bf-4d36-9fcb-bd314eef0434",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "016e21eb-f435-4564-a04c-c6ce11d797bc",
+      "source_kpi_ids": [
+        "016e21eb-f435-4564-a04c-c6ce11d797bc"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_TERTIARY",
+      "source_metric_name": "Water Discharge to Surface Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (i)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "151849c2-c7f1-43f2-9ec4-854bf49ffe7d",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "13887802-ca36-4616-81a0-a9bac813d515",
+      "source_kpi_ids": [
+        "13887802-ca36-4616-81a0-a9bac813d515"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Ground Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (ii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T08:46:15.600373+00:00",
+      "id": "9e2187d6-0871-46f8-8acb-e023f0106df0",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "77854d58-39e0-455f-b00e-c87e6d5db31b"
+    },
+    {
+      "kpi_id": "3996c852-e375-4661-a94d-8eabc1a38d4c",
+      "source_kpi_ids": [
+        "3996c852-e375-4661-a94d-8eabc1a38d4c"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_PRIMARY",
+      "source_metric_name": "Water Discharge to Ground Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (ii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "e469884e-3ac9-4a04-9b33-79c6d3817008",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "c601d36f-6de1-4412-b05a-ce5ff819d276",
+      "source_kpi_ids": [
+        "c601d36f-6de1-4412-b05a-ce5ff819d276"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_SECONDARY",
+      "source_metric_name": "Water Discharge to Ground Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (ii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "b4c0b34d-db6f-4d72-ad5d-7d7bf128e922",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "0ab66efa-a94a-4829-8377-08d0e6e63591",
+      "source_kpi_ids": [
+        "0ab66efa-a94a-4829-8377-08d0e6e63591"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_TERTIARY",
+      "source_metric_name": "Water Discharge to Ground Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (ii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "24aa69f7-f2a4-4183-8817-0ab25d9cd2ed",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "1ed42cef-a3dc-4123-b125-96600fff8338",
+      "source_kpi_ids": [
+        "1ed42cef-a3dc-4123-b125-96600fff8338"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "fa557c38-d85f-4877-a269-62678738eaa9",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "aff319df-9171-4491-989a-caa56eca7c37"
+    },
+    {
+      "kpi_id": "4edb0b3d-d30f-4911-8115-f539b8852357",
+      "source_kpi_ids": [
+        "4edb0b3d-d30f-4911-8115-f539b8852357"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "27d02e36-ccaf-44fa-b954-62fa7bff5782",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "94aae396-4662-4fcf-be86-3fd4fb01fbfd"
+    },
+    {
+      "kpi_id": "e48a6c98-a784-44e0-9cbd-dbe50e519ab3",
+      "source_kpi_ids": [
+        "e48a6c98-a784-44e0-9cbd-dbe50e519ab3"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_PRIMARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "2696415c-d78c-4a56-8ca1-1fa27322c8fb",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "05b3d59d-f358-4afb-af2d-84c2a1b860d5",
+      "source_kpi_ids": [
+        "05b3d59d-f358-4afb-af2d-84c2a1b860d5"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_SECONDARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "4393275a-249b-4f86-a216-e11644c8c8f3",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "723196c9-4d47-42cb-801a-cf5a398a5728",
+      "source_kpi_ids": [
+        "723196c9-4d47-42cb-801a-cf5a398a5728"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_TERTIARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iii)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "26ee8f92-0c63-4932-9627-0b897ff7bfb6",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "9fde68d4-c4e2-4f30-b840-adb554499047",
+      "source_kpi_ids": [
+        "9fde68d4-c4e2-4f30-b840-adb554499047"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "95644051-efbe-437f-ba46-88b7830816d3",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "bb23ced3-0d32-4577-b876-a3dada03298e"
+    },
+    {
+      "kpi_id": "45542ff8-9899-47d4-bcb9-92b702a81b5f",
+      "source_kpi_ids": [
+        "45542ff8-9899-47d4-bcb9-92b702a81b5f"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "superseded_by_exact_destination",
+      "is_active": false,
+      "updated_at": "2026-10-22T12:54:47.298665+00:00",
+      "id": "b5321a29-6896-4afd-9843-c4df3d16c0f2",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "superseded_by_mapping_id": "032da660-a0a5-431e-b6ca-41ee8f3f298f"
+    },
+    {
+      "kpi_id": "203d2bb9-c0cf-4513-ae6c-8d27df621451",
+      "source_kpi_ids": [
+        "203d2bb9-c0cf-4513-ae6c-8d27df621451"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_PRIMARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "49762e95-9e1f-49b8-86cf-65617ea0006c",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "0d647b46-8da5-4e92-8b63-b0bee40f9c8a",
+      "source_kpi_ids": [
+        "0d647b46-8da5-4e92-8b63-b0bee40f9c8a"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_SECONDARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "2d43a055-36e5-497d-abd9-2584bf6f455b",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "40d0e756-4f56-472b-a7d3-0efa2b4ba147",
+      "source_kpi_ids": [
+        "40d0e756-4f56-472b-a7d3-0efa2b4ba147"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_TERTIARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (iv)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "0dcf98b7-bf80-44ab-83b1-63214a874eda",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "3e85441f-078c-47b4-b6ce-124ddc1cd981",
+      "source_kpi_ids": [
+        "3e85441f-078c-47b4-b6ce-124ddc1cd981"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WATER_DISCHARGED_TO_OTHER_DESTINATIONS",
+      "source_metric_name": "Water Discharge to Others",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "0267545e-4527-424f-9375-d486a9029fdd",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "32a99e89-0e86-4ddd-8367-90fe228ad5c3",
+      "source_kpi_ids": [
+        "32a99e89-0e86-4ddd-8367-90fe228ad5c3"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Others - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "needs_answer_path",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "39a11db1-2f16-48af-8417-555f3aac58b5",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "b5a8bcd7-32f1-4037-8354-f127f62545ff",
+      "source_kpi_ids": [
+        "b5a8bcd7-32f1-4037-8354-f127f62545ff"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Others - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "needs_answer_path",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "d1f2e6c3-5c5a-467e-80e7-0636b49b09c9",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "91362c12-0509-4a04-ba3c-942b02633fa5",
+      "source_kpi_ids": [
+        "91362c12-0509-4a04-ba3c-942b02633fa5"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_PRIMARY",
+      "source_metric_name": "Water Discharge to Others - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "b74cd76f-2a3a-4224-a54f-31ed668c7178",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "a620b47e-ad7a-44f4-bfb8-9642da130df7",
+      "source_kpi_ids": [
+        "a620b47e-ad7a-44f4-bfb8-9642da130df7"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_SECONDARY",
+      "source_metric_name": "Water Discharge to Others - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "87d38e5e-139d-4246-8cc1-3877794b19a7",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "d2081294-2032-488b-8913-9f8a3ddc95a1",
+      "source_kpi_ids": [
+        "d2081294-2032-488b-8913-9f8a3ddc95a1"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_OTHERS_TERTIARY",
+      "source_metric_name": "Water Discharge to Others - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4 (v)",
+      "question_key": "p6_water_discharged",
+      "answer_path": null,
+      "destination_label": null,
+      "destination_unit": null,
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": null,
+      "mapping_status": "supporting_kpi_not_direct_destination",
+      "is_active": false,
+      "updated_at": "2026-10-23T05:27:36.414381+00:00",
+      "id": "96f2b4a9-254d-4dfc-96d5-4d12ece1a7d0",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_period_relative",
+      "period_columns": {
+        "selected_reporting_year": "current_fy",
+        "previous_reporting_year": "previous_fy",
+        "prior_to_previous_reporting_year": "prior_to_previous_fy"
+      },
+      "source_category": "Water",
+      "source_sub_subcategory": null,
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge"
+    },
+    {
+      "kpi_id": "5a66f011-1829-4f32-81b1-53131abf8526",
+      "source_kpi_ids": [
+        "5a66f011-1829-4f32-81b1-53131abf8526"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Ground Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_no_treatment",
+      "destination_label": "Provide the following details related to water discharged:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "06e9277f-61ef-4e0e-bbf1-e7a2be39cb05",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "id": "d92097fc-4e52-4a83-986f-aec0bf9bbfb2",
+      "created_at": "2026-10-23T08:46:15.600373+00:00",
+      "kpi_id": "3996c852-e375-4661-a94d-8eabc1a38d4c",
+      "source_kpi_ids": [
+        "3996c852-e375-4661-a94d-8eabc1a38d4c"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_PRIMARY",
+      "source_metric_name": "Water Discharge to Ground Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_primary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "ground_primary",
+        "label": "To Groundwater \u2014 With treatment: Primary treatment",
+        "indent": true,
+        "parent_key": "ground_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "368086f8-2360-4fd1-931f-cac6539bbb77",
+      "created_at": "2026-10-23T08:46:15.600373+00:00",
+      "kpi_id": "c601d36f-6de1-4412-b05a-ce5ff819d276",
+      "source_kpi_ids": [
+        "c601d36f-6de1-4412-b05a-ce5ff819d276"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_SECONDARY",
+      "source_metric_name": "Water Discharge to Ground Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_secondary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "ground_secondary",
+        "label": "To Groundwater \u2014 With treatment: Secondary treatment",
+        "indent": true,
+        "parent_key": "ground_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "2304abf2-6298-442c-816a-b4e4967ef5dc",
+      "created_at": "2026-10-23T08:46:15.600373+00:00",
+      "kpi_id": "0ab66efa-a94a-4829-8377-08d0e6e63591",
+      "source_kpi_ids": [
+        "0ab66efa-a94a-4829-8377-08d0e6e63591"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_TERTIARY",
+      "source_metric_name": "Water Discharge to Ground Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_tertiary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "ground_tertiary",
+        "label": "To Groundwater \u2014 With treatment: Tertiary treatment",
+        "indent": true,
+        "parent_key": "ground_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "77854d58-39e0-455f-b00e-c87e6d5db31b",
+      "created_at": "2026-10-23T08:46:15.600373+00:00",
+      "kpi_id": "13887802-ca36-4616-81a0-a9bac813d515",
+      "source_kpi_ids": [
+        "13887802-ca36-4616-81a0-a9bac813d515"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_GROUND_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Ground Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.ground_with_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "aff319df-9171-4491-989a-caa56eca7c37",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "1ed42cef-a3dc-4123-b125-96600fff8338",
+      "source_kpi_ids": [
+        "1ed42cef-a3dc-4123-b125-96600fff8338"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.sea_no_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "26552553-9d1e-429e-a594-a1663d7f2f71",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "e48a6c98-a784-44e0-9cbd-dbe50e519ab3",
+      "source_kpi_ids": [
+        "e48a6c98-a784-44e0-9cbd-dbe50e519ab3"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_PRIMARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.sea_primary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "sea_primary",
+        "label": "To Seawater / desalinated water \u2014 With treatment: Primary treatment",
+        "indent": true,
+        "parent_key": "sea_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "38fb6e9e-0037-446c-8e6d-21c165de0064",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "05b3d59d-f358-4afb-af2d-84c2a1b860d5",
+      "source_kpi_ids": [
+        "05b3d59d-f358-4afb-af2d-84c2a1b860d5"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_SECONDARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.sea_secondary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "sea_secondary",
+        "label": "To Seawater / desalinated water \u2014 With treatment: Secondary treatment",
+        "indent": true,
+        "parent_key": "sea_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "1385bd16-2eac-40f5-bd7f-990fac57521b",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "723196c9-4d47-42cb-801a-cf5a398a5728",
+      "source_kpi_ids": [
+        "723196c9-4d47-42cb-801a-cf5a398a5728"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_TERTIARY",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.sea_tertiary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "sea_tertiary",
+        "label": "To Seawater / desalinated water \u2014 With treatment: Tertiary treatment",
+        "indent": true,
+        "parent_key": "sea_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "94aae396-4662-4fcf-be86-3fd4fb01fbfd",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "4edb0b3d-d30f-4911-8115-f539b8852357",
+      "source_kpi_ids": [
+        "4edb0b3d-d30f-4911-8115-f539b8852357"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SEAWATER_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Seawater / Desalinated - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.sea_with_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "bb415441-ff63-4ca2-8082-f1fa2dd77aaa",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "7c82e8b2-489f-45b2-b447-4b1cee21e861",
+      "source_kpi_ids": [
+        "7c82e8b2-489f-45b2-b447-4b1cee21e861"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Surface Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.surface_no_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "c456b1bf-860d-4706-bd45-dd73455fb194",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "3da2311d-443a-40c5-adef-ba5c6356f152",
+      "source_kpi_ids": [
+        "3da2311d-443a-40c5-adef-ba5c6356f152"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_PRIMARY",
+      "source_metric_name": "Water Discharge to Surface Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.surface_primary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "surface_primary",
+        "label": "To Surface water \u2014 With treatment: Primary treatment",
+        "indent": true,
+        "parent_key": "surface_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "8286d459-7164-4844-8b08-21e8f48ea875",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "6fed404a-1d16-4a7c-96d8-c6190a88cfd6",
+      "source_kpi_ids": [
+        "6fed404a-1d16-4a7c-96d8-c6190a88cfd6"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_SECONDARY",
+      "source_metric_name": "Water Discharge to Surface Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.surface_secondary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "surface_secondary",
+        "label": "To Surface water \u2014 With treatment: Secondary treatment",
+        "indent": true,
+        "parent_key": "surface_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "141b7f0e-a32b-49d8-bf45-29464a5da5e9",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "016e21eb-f435-4564-a04c-c6ce11d797bc",
+      "source_kpi_ids": [
+        "016e21eb-f435-4564-a04c-c6ce11d797bc"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_TERTIARY",
+      "source_metric_name": "Water Discharge to Surface Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.surface_tertiary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "surface_tertiary",
+        "label": "To Surface water \u2014 With treatment: Tertiary treatment",
+        "indent": true,
+        "parent_key": "surface_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "b87b0e37-7c35-48d2-8bbd-04087ea5cd42",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "b339b3f5-eb5a-47d2-9752-b5ee71043e75",
+      "source_kpi_ids": [
+        "b339b3f5-eb5a-47d2-9752-b5ee71043e75"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_SURFACE_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Surface Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.surface_with_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "706f527c-5dd8-4983-afcd-9912d7d414b8",
+      "created_at": "2026-10-23T09:05:15.409552+00:00",
+      "kpi_id": "9fde68d4-c4e2-4f30-b840-adb554499047",
+      "source_kpi_ids": [
+        "9fde68d4-c4e2-4f30-b840-adb554499047"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.third_party_no_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "fa6ec2cd-9509-46cf-a5be-622cda28c7b8",
+      "created_at": "2026-10-23T09:05:15.409552+00:00",
+      "kpi_id": "203d2bb9-c0cf-4513-ae6c-8d27df621451",
+      "source_kpi_ids": [
+        "203d2bb9-c0cf-4513-ae6c-8d27df621451"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_PRIMARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.third_party_primary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "third_party_primary",
+        "label": "To third parties \u2014 With treatment: Primary treatment",
+        "indent": true,
+        "parent_key": "third_party_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "1ad2e3e5-992e-4982-948a-2114b8cb4552",
+      "created_at": "2026-10-23T09:05:15.409552+00:00",
+      "kpi_id": "0d647b46-8da5-4e92-8b63-b0bee40f9c8a",
+      "source_kpi_ids": [
+        "0d647b46-8da5-4e92-8b63-b0bee40f9c8a"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_SECONDARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.third_party_secondary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "third_party_secondary",
+        "label": "To third parties \u2014 With treatment: Secondary treatment",
+        "indent": true,
+        "parent_key": "third_party_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "9176e1ba-0707-43d4-9b21-dc8702afe76d",
+      "created_at": "2026-10-23T09:05:15.409552+00:00",
+      "kpi_id": "40d0e756-4f56-472b-a7d3-0efa2b4ba147",
+      "source_kpi_ids": [
+        "40d0e756-4f56-472b-a7d3-0efa2b4ba147"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_TERTIARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.third_party_tertiary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "dynamic_row": {
+        "key": "third_party_tertiary",
+        "label": "To third parties \u2014 With treatment: Tertiary treatment",
+        "indent": true,
+        "parent_key": "third_party_with_treatment"
+      },
+      "include_unit": true
+    },
+    {
+      "id": "623a83e0-2f23-4f7a-b90f-323ade46b21e",
+      "created_at": "2026-10-23T09:05:15.409552+00:00",
+      "kpi_id": "45542ff8-9899-47d4-bcb9-92b702a81b5f",
+      "source_kpi_ids": [
+        "45542ff8-9899-47d4-bcb9-92b702a81b5f"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.third_party_with_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "bb23ced3-0d32-4577-b876-a3dada03298e",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "9fde68d4-c4e2-4f30-b840-adb554499047",
+      "source_kpi_ids": [
+        "9fde68d4-c4e2-4f30-b840-adb554499047"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.thirdparty_no_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_canonical_third_party_key",
+      "is_active": false,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T08:50:33.404155+00:00",
+      "updated_at": "2026-10-23T09:05:15.409552+00:00"
+    },
+    {
+      "id": "f39851dc-114d-4e42-91d4-cbaaf1294659",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "203d2bb9-c0cf-4513-ae6c-8d27df621451",
+      "source_kpi_ids": [
+        "203d2bb9-c0cf-4513-ae6c-8d27df621451"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_PRIMARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Primary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.thirdparty_primary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_canonical_third_party_key",
+      "is_active": false,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T08:50:33.404155+00:00",
+      "updated_at": "2026-10-23T09:05:15.409552+00:00",
+      "dynamic_row": {
+        "key": "thirdparty_primary",
+        "label": "To third parties \u2014 With treatment: Primary treatment",
+        "indent": true,
+        "parent_key": "thirdparty_with_treatment"
+      }
+    },
+    {
+      "id": "662f8d9a-40e8-443d-870e-1a7553bd040d",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "0d647b46-8da5-4e92-8b63-b0bee40f9c8a",
+      "source_kpi_ids": [
+        "0d647b46-8da5-4e92-8b63-b0bee40f9c8a"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_SECONDARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Secondary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.thirdparty_secondary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_canonical_third_party_key",
+      "is_active": false,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T08:50:33.404155+00:00",
+      "updated_at": "2026-10-23T09:05:15.409552+00:00",
+      "dynamic_row": {
+        "key": "thirdparty_secondary",
+        "label": "To third parties \u2014 With treatment: Secondary treatment",
+        "indent": true,
+        "parent_key": "thirdparty_with_treatment"
+      }
+    },
+    {
+      "id": "45b4f6da-5006-4dd3-ad6c-35a1cdaddcaf",
+      "created_at": "2026-10-23T07:48:31.048414+00:00",
+      "kpi_id": "40d0e756-4f56-472b-a7d3-0efa2b4ba147",
+      "source_kpi_ids": [
+        "40d0e756-4f56-472b-a7d3-0efa2b4ba147"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_TERTIARY",
+      "source_metric_name": "Water Discharge to Third-party Water - Tertiary treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.thirdparty_tertiary",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_canonical_third_party_key",
+      "is_active": false,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T08:50:33.404155+00:00",
+      "updated_at": "2026-10-23T09:05:15.409552+00:00",
+      "dynamic_row": {
+        "key": "thirdparty_tertiary",
+        "label": "To third parties \u2014 With treatment: Tertiary treatment",
+        "indent": true,
+        "parent_key": "thirdparty_with_treatment"
+      }
+    },
+    {
+      "id": "032da660-a0a5-431e-b6ca-41ee8f3f298f",
+      "created_at": "2026-10-22T12:27:38.181140+00:00",
+      "kpi_id": "45542ff8-9899-47d4-bcb9-92b702a81b5f",
+      "source_kpi_ids": [
+        "45542ff8-9899-47d4-bcb9-92b702a81b5f"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+      "source_metric_name": "Water Discharge to Third-party Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.thirdparty_with_treatment",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "superseded_by_canonical_third_party_key",
+      "is_active": false,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T08:50:33.404155+00:00",
+      "updated_at": "2026-10-23T09:05:15.409552+00:00"
+    },
+    {
+      "kpi_id": "cd65e45c-63f8-45e0-9d3e-00462a5439d1",
+      "source_kpi_ids": [
+        "cd65e45c-63f8-45e0-9d3e-00462a5439d1"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_DISCHARGED",
+      "source_metric_name": "Water Discharge (Total)",
+      "framework": "BRSR",
+      "reference": "P6-E4",
+      "question_key": "p6_water_discharged",
+      "answer_path": "rows.total_discharged",
+      "destination_label": "Provide the following details related to water discharged:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "b6cd13c9-1705-417a-a15e-793e92dc350e",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Discharge",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "f3fa8ea3-a48a-4777-948a-ac3e8eb5d161",
+      "source_kpi_ids": [
+        "f3fa8ea3-a48a-4777-948a-ac3e8eb5d161"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_FROM_GROUND_WATER_WITHDR",
+      "source_metric_name": "Water Withdrawal - Ground Water",
+      "framework": "BRSR",
+      "reference": "P6-E3 (ii)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.groundwater",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "6159b646-403c-47a8-a908-553e17555bec",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "kpi_id": "79de09e0-5a5b-44ab-ae46-3c36902cd3f9",
+      "source_kpi_ids": [
+        "79de09e0-5a5b-44ab-ae46-3c36902cd3f9"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WATER_WITHDRAWAL_THROUGH_OTHER_SOURCES",
+      "source_metric_name": "Water Withdrawal - Others",
+      "framework": "BRSR",
+      "reference": "P6-E3 (v)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.others",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "bc170838-1b42-4908-a68c-7a3fe55563f0",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "kpi_id": "aacb1021-3367-4024-a6ba-534a400e18d0",
+      "source_kpi_ids": [
+        "aacb1021-3367-4024-a6ba-534a400e18d0"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_FROM_SEAWATER_DESALINATE",
+      "source_metric_name": "Water Withdrawal - Seawater / Desalinated",
+      "framework": "BRSR",
+      "reference": "P6-E3 (iv)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.seawater",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "c1dc48f3-7bcc-425e-9ef8-a8b67efbc05f",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "kpi_id": "d8288eff-bd3f-489d-a33e-fadf5be3ee55",
+      "source_kpi_ids": [
+        "d8288eff-bd3f-489d-a33e-fadf5be3ee55"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_FROM_SURFACE_WATER_WITHD",
+      "source_metric_name": "Water Withdrawal - Surface Water",
+      "framework": "BRSR",
+      "reference": "P6-E3 (i)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.surface_water",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "d78d46a1-8c01-4bb6-bb56-e88342afcd62",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "kpi_id": "1e9124e2-8837-488d-a629-b02a2f7f2f2c",
+      "source_kpi_ids": [
+        "1e9124e2-8837-488d-a629-b02a2f7f2f2c"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_FROM_THIRD_PARTY_WATER_W",
+      "source_metric_name": "Water Withdrawal - Third-party Water",
+      "framework": "BRSR",
+      "reference": "P6-E3 (iii)",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.third_party",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "b4610ee0-f62a-4672-830f-0365eb5b1420",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "kpi_id": "dc794426-138a-4fe5-80e8-111a12fcdc2f",
+      "source_kpi_ids": [
+        "dc794426-138a-4fe5-80e8-111a12fcdc2f"
+      ],
+      "source_metric_code": "ENV_WATER_CONSUPTION",
+      "source_metric_name": "Water Consumption (Total)",
+      "framework": "BRSR",
+      "reference": "P6-E3",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.total_consumption",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-23T07:33:21.610670+00:00",
+      "id": "ec190c67-33b2-40a7-97d1-f1f7b3be2692",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Consumption",
+      "source_tag": "Water \u2192 Consumption",
+      "review_source": "user_workbook",
+      "reviewed_at": "2026-10-22T11:54:48.003331+00:00",
+      "reporting_period_source": "runtime_filter",
+      "period_columns": {}
+    },
+    {
+      "kpi_id": "77095430-218b-4111-8758-d47b913b69bf",
+      "source_kpi_ids": [
+        "77095430-218b-4111-8758-d47b913b69bf"
+      ],
+      "source_metric_code": "ENV_QUANTITY_LITRES_WITHDRAWN",
+      "source_metric_name": "Water Withdrawal (Total)",
+      "framework": "BRSR",
+      "reference": "P6-E3",
+      "question_key": "p6_water_disclosures",
+      "answer_path": "rows.total_withdrawal",
+      "destination_label": "Provide details of the following disclosures related to water, in the following format:",
+      "destination_unit": "kl",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "id": "bf2a5b6e-bb3d-4d97-b965-a248c1af08a6",
+      "created_at": "2026-10-22T07:01:12.668472+00:00",
+      "period_column_strategy": "reporting_year_filter",
+      "source_category": "Water",
+      "source_sub_subcategory": "",
+      "source_subcategory": "Withdrawal",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "reporting_period_source": "runtime_filter",
+      "include_unit": true
+    },
+    {
+      "id": "09326a52-c27a-438a-a654-328a685b2e21",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "942e0247-4c9b-4565-991c-69aedb2d0f04",
+      "source_kpi_ids": [
+        "942e0247-4c9b-4565-991c-69aedb2d0f04"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_GROUND_NO_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Ground Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_ground_no",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "26173896-158d-49c5-b8f9-e84672c66317",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "16ac9b61-b88e-40e4-a04b-ddbe01eacb85",
+      "source_kpi_ids": [
+        "16ac9b61-b88e-40e4-a04b-ddbe01eacb85"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_GROUND_WITH_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Ground Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_ground_with",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "c8802b20-5ba8-4264-a435-0f55cf973e0f",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "4bd45d38-3c66-40c7-9d03-0e8988809477",
+      "source_kpi_ids": [
+        "4bd45d38-3c66-40c7-9d03-0e8988809477"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_OTHERS_NO_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Others - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_others_no",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "8cfc51a9-7951-45a6-a6ce-02bf83094e76",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "53af2ca1-d857-451f-adfb-ca1904819d0a",
+      "source_kpi_ids": [
+        "53af2ca1-d857-451f-adfb-ca1904819d0a"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_OTHERS_WITH_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Others - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_others_with",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "9d7a6ba0-08cf-4531-80cd-42f53f38e5f6",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "3fee9298-343a-4ee5-8169-3cf3e3bdbab8",
+      "source_kpi_ids": [
+        "3fee9298-343a-4ee5-8169-3cf3e3bdbab8"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_SEAWATER_NO_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Seawater / Desalinated - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_sea_no",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "7cbc927d-aa75-4f4e-b756-87449d05f9d3",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "ca75c110-288b-4d7f-8d88-0de83ebc9db4",
+      "source_kpi_ids": [
+        "ca75c110-288b-4d7f-8d88-0de83ebc9db4"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_SEAWATER_WITH_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Seawater / Desalinated - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_sea_with",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "f762e281-8e4e-4ffe-849d-c151531c06b5",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "a74b6502-1718-4479-b8ae-c86c3fb7d39f",
+      "source_kpi_ids": [
+        "a74b6502-1718-4479-b8ae-c86c3fb7d39f"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_SURFACE_NO_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Surface Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_surface_no",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "f51ced93-4cdc-45df-96cd-828d8083d76d",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "0f2b913e-6bdb-4208-8176-a9e6687dfd10",
+      "source_kpi_ids": [
+        "0f2b913e-6bdb-4208-8176-a9e6687dfd10"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_SURFACE_WITH_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Surface Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_surface_with",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "1924748b-643e-400d-86ee-d4f7a1a5d33d",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "30cbdf89-521a-42cf-9cfd-96444a3180e5",
+      "source_kpi_ids": [
+        "30cbdf89-521a-42cf-9cfd-96444a3180e5"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_THIRD_PARTY_NO_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Third-party Water - No treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_third_no",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "5670a846-0486-4632-909d-dd55bbeea1b2",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "f6b5494f-021b-4b59-942b-1bc003472cbc",
+      "source_kpi_ids": [
+        "f6b5494f-021b-4b59-942b-1bc003472cbc"
+      ],
+      "source_metric_code": "ENV_WATER_DISCHARGE_WS_DISCHARGE_THIRD_PARTY_WITH_TREATMENT",
+      "source_metric_name": "Water-stress Discharge to Third-party Water - With treatment",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.discharge_third_with",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "eaacab3d-4025-4f5f-a519-08e1fa3e6774",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "a62bfcfc-f203-4e0f-956f-76e3b37ccc1a",
+      "source_kpi_ids": [
+        "a62bfcfc-f203-4e0f-956f-76e3b37ccc1a"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WS_WITHDRAWAL_GROUND",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas - Ground Water",
+      "framework": "BRSR",
+      "reference": "P6-L1 (ii)",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.groundwater",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "00014405-9eab-4668-9a5a-f9d22d2558b1",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "f70ffc38-de79-487c-b1b7-61046a5cdb85",
+      "source_kpi_ids": [
+        "f70ffc38-de79-487c-b1b7-61046a5cdb85"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WS_WITHDRAWAL_OTHERS",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas - Others",
+      "framework": "BRSR",
+      "reference": "P6-L1 (v)",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.others_withdrawal",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "b4d2ab52-4a39-4cad-a45b-7feeeab2338f",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "01d11be2-503d-4b4f-bc88-08b70047fa9a",
+      "source_kpi_ids": [
+        "01d11be2-503d-4b4f-bc88-08b70047fa9a"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WS_WITHDRAWAL_SEAWATER",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas - Seawater / Desalinated",
+      "framework": "BRSR",
+      "reference": "P6-L1 (iv)",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.seawater",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "7cbe8d70-47e9-455d-bc37-3b12d61f5c8e",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "4717c2b8-7ecb-4b54-a29e-5eeb5f69fe84",
+      "source_kpi_ids": [
+        "4717c2b8-7ecb-4b54-a29e-5eeb5f69fe84"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WS_WITHDRAWAL_SURFACE",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas - Surface Water",
+      "framework": "BRSR",
+      "reference": "P6-L1 (i)",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.surface_water",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "e0d6a869-5fd8-4884-98c1-684aeecb7084",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "bc904d0d-4da0-49fe-b129-d602f0147fa1",
+      "source_kpi_ids": [
+        "bc904d0d-4da0-49fe-b129-d602f0147fa1"
+      ],
+      "source_metric_code": "ENV_WATER_WITHDRAWAL_WS_WITHDRAWAL_THIRD_PARTY",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas - Third-party Water",
+      "framework": "BRSR",
+      "reference": "P6-L1 (iii)",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.third_party",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "fc7eef6b-5327-4361-b78f-ba5969ed57b5",
+      "created_at": "2026-10-23T05:27:36.414381+00:00",
+      "kpi_id": "f2fc1953-5010-48e7-b84b-2e89ecc3ed41",
+      "source_kpi_ids": [
+        "f2fc1953-5010-48e7-b84b-2e89ecc3ed41"
+      ],
+      "source_metric_code": "ENV_WATER_CONSUMPTION_THIRD_PARTY__1",
+      "source_metric_name": "Water Consumption in Water-stress Areas",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.total_consumption",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Consumption",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Consumption",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-23T05:27:36.414381+00:00",
+      "updated_at": "2026-10-23T07:33:21.610670+00:00"
+    },
+    {
+      "id": "4536f423-f7bb-4c83-a97c-a77584a07855",
+      "created_at": "2026-10-22T12:54:47.298665+00:00",
+      "kpi_id": "b5fcc2cf-ee25-48c0-ba44-7afcbcd2c35b",
+      "source_kpi_ids": [
+        "b5fcc2cf-ee25-48c0-ba44-7afcbcd2c35b"
+      ],
+      "source_metric_code": "ENV_QUANTITY_IN_WATER_STRESS_AREA",
+      "source_metric_name": "Water Discharge to Water-stress Areas (Total)",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.total_discharged",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Discharge",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Discharge",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    },
+    {
+      "id": "6ac48613-4a1f-4a9e-8ccb-5181496b06ee",
+      "created_at": "2026-10-23T05:15:13.734631+00:00",
+      "kpi_id": "44034c53-6e3e-4849-a836-4d67882f26a8",
+      "source_kpi_ids": [
+        "44034c53-6e3e-4849-a836-4d67882f26a8"
+      ],
+      "source_metric_code": "ENV_QUANTITY_FROM_WATER_STRESS_AREA",
+      "source_metric_name": "Water Withdrawal in Water-stress Areas (Total)",
+      "framework": "BRSR",
+      "reference": "P6-L1",
+      "question_key": "p6_water_stress_areas",
+      "answer_path": "rows.total_withdrawal",
+      "aggregation_rule": "sum",
+      "formula_definition": null,
+      "destination_unit": "kl",
+      "unit_conversion_rule": "convert_with_shared_unit_registry",
+      "mapping_status": "exact_destination",
+      "is_active": true,
+      "period_column_strategy": "reporting_year_filter",
+      "reporting_period_source": "runtime_filter",
+      "source_category": "Water",
+      "source_subcategory": "Withdrawal",
+      "source_sub_subcategory": "",
+      "source_tag": "Water \u2192 Withdrawal",
+      "review_source": "derived_reporting_kpi_sync",
+      "reviewed_at": "2026-10-25T12:28:32.113814+00:00",
+      "updated_at": "2026-10-25T12:28:32.113814+00:00",
+      "include_unit": true
+    }
+  ],
+  "responses": [
+    {
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_year": "FY 2026-2027",
+      "question_key": "p6_waste_management_details",
+      "created_at": "2026-10-22T11:14:27.912772+00:00",
+      "framework": "BRSR",
+      "id": "f63f0308-271d-4d92-a175-22e15ef88bcd",
+      "kpi_autofill_dynamic_rows": [],
+      "kpi_autofill_updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "section": "section_c",
+      "status": "saved",
+      "updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "value": {
+        "battery": {
+          "current_fy": 9.0
+        },
+        "bio_medical": {
+          "current_fy": 12.0
+        },
+        "construction": {
+          "current_fy": 12.0
+        },
+        "e_waste": {
+          "current_fy": 78.0
+        },
+        "other_hazardous": {
+          "current_fy": 12.0
+        },
+        "other_non_hazardous": {
+          "current_fy": 0.0
+        },
+        "plastic_waste": {
+          "current_fy": 56.0
+        },
+        "radioactive": {
+          "current_fy": 89.0
+        },
+        "total_generated": {
+          "current_fy": 268.0
+        },
+        "recovered_other": {
+          "current_fy": 8.909
+        },
+        "recovered_recycled": {
+          "current_fy": 78.0
+        },
+        "recovered_reused": {
+          "current_fy": 12.0
+        },
+        "recovered_total": {
+          "current_fy": 5.678
+        },
+        "disposed_incineration": {
+          "current_fy": 333.0
+        },
+        "disposed_landfilling": {
+          "current_fy": 13.455
+        },
+        "disposed_other": {
+          "current_fy": 654.0
+        },
+        "disposed_total": {
+          "current_fy": 13.45
+        }
+      }
+    },
+    {
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_year": "FY 2026-2027",
+      "question_key": "p6_water_discharged",
+      "created_at": "2026-10-22T11:14:27.912772+00:00",
+      "framework": "BRSR",
+      "id": "dcf49ab7-b9a2-470a-a216-150582a277d1",
+      "kpi_autofill_dynamic_rows": [
+        "ground_primary",
+        "ground_secondary",
+        "ground_tertiary",
+        "sea_primary",
+        "sea_secondary"
+      ],
+      "kpi_autofill_updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "section": "section_c",
+      "status": "saved",
+      "updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "value": {
+        "ground_no_treatment": {
+          "current_fy": 0.1,
+          "unit": "kl"
+        },
+        "sea_no_treatment": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "sea_with_treatment": {
+          "current_fy": 1.56,
+          "unit": "kl"
+        },
+        "surface_no_treatment": {
+          "current_fy": 0.123,
+          "unit": "kl"
+        },
+        "surface_with_treatment": {
+          "current_fy": 0.666,
+          "unit": "kl"
+        },
+        "thirdparty_no_treatment": {
+          "current_fy": 0.312
+        },
+        "thirdparty_with_treatment": {
+          "current_fy": 0.0
+        },
+        "total_discharged": {
+          "current_fy": 3.715
+        },
+        "ground_primary": {
+          "current_fy": 0.022
+        },
+        "ground_secondary": {
+          "current_fy": 0.9
+        },
+        "ground_tertiary": {
+          "current_fy": 0.032
+        },
+        "ground_with_treatment": {
+          "current_fy": 0.954,
+          "unit": "kl"
+        },
+        "third_party_no_treatment": {
+          "current_fy": 0.312,
+          "unit": "kl"
+        },
+        "third_party_with_treatment": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "sea_primary": {
+          "current_fy": 0.89
+        },
+        "sea_secondary": {
+          "current_fy": 0.67
+        }
+      }
+    },
+    {
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "reporting_year": "FY 2026-2027",
+      "question_key": "p6_water_disclosures",
+      "created_at": "2026-10-22T11:14:27.912772+00:00",
+      "framework": "BRSR",
+      "id": "58237b9f-c969-46ea-835f-9157ecadf38b",
+      "kpi_autofill_dynamic_rows": [],
+      "kpi_autofill_updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "section": "section_c",
+      "status": "saved",
+      "updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "value": {
+        "total_consumption": {
+          "current_fy": 1.41
+        },
+        "groundwater": {
+          "current_fy": 0.0123,
+          "unit": "kl"
+        },
+        "others": {
+          "current_fy": 0.678,
+          "unit": "kl"
+        },
+        "seawater": {
+          "current_fy": 0.013,
+          "unit": "kl"
+        },
+        "surface_water": {
+          "current_fy": 0.067,
+          "unit": "kl"
+        },
+        "third_party": {
+          "current_fy": 0.056,
+          "unit": "kl"
+        },
+        "total_withdrawal": {
+          "current_fy": 0.8263,
+          "unit": "kl"
+        }
+      }
+    },
+    {
+      "org_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "question_key": "p6_water_stress_areas",
+      "reporting_year": "FY 2026-2027",
+      "created_at": "2026-10-22T12:55:15.708003+00:00",
+      "framework": "BRSR",
+      "id": "7c67016e-4da9-4ca9-8c9b-8692f5eaa604",
+      "kpi_autofill_dynamic_rows": [],
+      "kpi_autofill_updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "organization_id": "9067d872-8a3a-4ed9-8494-e3ef04952f7c",
+      "section": "section_c",
+      "status": "saved",
+      "updated_at": "2026-10-25T12:37:49.111630+00:00",
+      "value": {
+        "total_consumption": {
+          "current_fy": 0.089
+        },
+        "groundwater": {
+          "current_fy": 0.003,
+          "unit": "kl"
+        },
+        "others_withdrawal": {
+          "current_fy": 0.055,
+          "unit": "kl"
+        },
+        "seawater": {
+          "current_fy": 0.005,
+          "unit": "kl"
+        },
+        "surface_water": {
+          "current_fy": 0.043,
+          "unit": "kl"
+        },
+        "third_party": {
+          "current_fy": 0.024,
+          "unit": "kl"
+        },
+        "total_withdrawal": {
+          "current_fy": 0.13,
+          "unit": "kl"
+        },
+        "discharge_ground_no": {
+          "current_fy": 0.05,
+          "unit": "kl"
+        },
+        "discharge_ground_with": {
+          "current_fy": 0.038,
+          "unit": "kl"
+        },
+        "discharge_others_no": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "discharge_others_with": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "discharge_sea_no": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "discharge_sea_with": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "discharge_surface_no": {
+          "current_fy": 0.2,
+          "unit": "kl"
+        },
+        "discharge_surface_with": {
+          "current_fy": 0.1,
+          "unit": "kl"
+        },
+        "discharge_third_no": {
+          "current_fy": 0.0,
+          "unit": "kl"
+        },
+        "discharge_third_with": {
+          "current_fy": 0.043,
+          "unit": "kl"
+        },
+        "total_discharged": {
+          "current_fy": 0.431,
+          "unit": "kl"
+        }
+      }
+    }
+  ]
+}

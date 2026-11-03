@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { CheckCircle2, Clock, History, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, History, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import { useDateFormatter } from '../hooks/useDateFormatter';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -33,6 +34,7 @@ const isTabularObject = (v) => {
   const vals = Object.values(v);
   if (vals.length === 0) return false;
   if (!vals.every((x) => x && typeof x === 'object' && !Array.isArray(x))) return false;
+  if (!vals.every((x) => Object.values(x).every((cell) => cell === null || typeof cell !== 'object'))) return false;
   const sets = vals.map((x) => new Set(Object.keys(x)));
   const union = new Set(sets.flatMap((s) => [...s]));
   const avg = sets.reduce((s, ks) => s + [...union].filter((k) => ks.has(k)).length, 0) / sets.length;
@@ -164,7 +166,6 @@ const ValueDisplay = ({ value, label, bgClass, borderClass }) => (
 
 /* ───────────── Event styling ───────────── */
 
-const formatDate = (ts) => (ts ? new Date(ts).toLocaleString() : 'Timestamp unavailable');
 
 const EVENT_STYLES = {
   APPROVED:  { label: 'Update Approved',        icon: CheckCircle2, tone: 'text-green-700 bg-green-50 border-green-200' },
@@ -172,6 +173,8 @@ const EVENT_STYLES = {
   SUBMITTED: { label: 'Submitted for Approval',  icon: Clock,        tone: 'text-blue-700 bg-blue-50 border-blue-200' },
   CREATED:   { label: 'Response Created',        icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   UPDATED:   { label: 'Response Updated',        icon: History,      tone: 'text-indigo-700 bg-indigo-50 border-indigo-200' },
+  KPI_SYNCED: { label: 'Auto-updated from KPI',  icon: RefreshCw,    tone: 'text-sky-700 bg-sky-50 border-sky-200' },
+  FRAMEWORK_LINKED: { label: 'Updated from linked framework', icon: RefreshCw, tone: 'text-violet-700 bg-violet-50 border-violet-200' },
 };
 
 const eventStyle = (type) =>
@@ -179,6 +182,7 @@ const eventStyle = (type) =>
 
 const actorLabel = (type) => {
   if (type === 'CREATED' || type === 'UPDATED') return 'Saved by';
+  if (type === 'KPI_SYNCED' || type === 'FRAMEWORK_LINKED') return 'Source';
   return 'Requested by';
 };
 
@@ -199,6 +203,7 @@ const valueBg = (type, side) => {
 
 export const QuestionVersionHistory = ({ open, onOpenChange, framework, questionKey, reportingYear }) => {
   const { getAuthHeader } = useAuth();
+  const { formatDateTime } = useDateFormatter();
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -254,7 +259,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
 
             {timeline.events.length === 0 ? (
               <div className="py-8 text-center text-text-muted" data-testid="question-version-history-empty">
-                No safely linked history is available for this question and reporting year.
+                No version history is available for this question
               </div>
             ) : (
               timeline.events.map((event, idx) => {
@@ -272,7 +277,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                         <Icon className="w-3 h-3 mr-1" />{style.label}
                       </Badge>
                       <time className="text-xs text-text-muted" data-testid={`question-timeline-event-time-${idx}`}>
-                        {formatDate(event.timestamp)}
+                        {event.timestamp ? formatDateTime(event.timestamp) : 'Timestamp unavailable'}
                       </time>
                     </div>
 

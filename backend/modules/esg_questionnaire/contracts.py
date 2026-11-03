@@ -60,7 +60,7 @@ QUESTION_TYPES = Literal[
     "percentage_with_description"               # Q94 Value Chain Assessment
 ]
 
-ESG_SECTIONS = Literal["environment", "social", "governance"]
+ESG_SECTIONS = Literal["general", "environment", "social", "governance"]
 FRAMEWORKS = Literal["BRSR", "GRI", "SBTi"]
 
 # P1-P9 NGRBC Principles
@@ -126,6 +126,7 @@ class QuestionConfigUpdate(BaseModel):
     order: Optional[int] = None
     group: Optional[str] = None
     conditional: Optional[Dict[str, Any]] = None
+    static_note: Optional[str] = None
 
 
 class QuestionConfigResponse(QuestionConfig):

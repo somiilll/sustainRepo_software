@@ -797,7 +797,9 @@ class ApprovalWorkflowService:
         user_role = current_user.get("role", "user")
         
         # Super admin can always act
-        is_super_admin = user_role == "super_admin"
+        is_super_admin = user_role == "super_admin" or (
+            user_role == "admin" and current_user.get("organization_id") == request.get("organization_id")
+        )
         is_current_approver = user_id in request.get("current_approvers", [])
         
         if not is_super_admin and not is_current_approver:
