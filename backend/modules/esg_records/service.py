@@ -1484,6 +1484,9 @@ class ESGRecordsService:
             }
         
         # For records not requiring approval workflow or admin override: proceed with normal update
+        if current.get("pending_deletion"):
+            await self._auto_reject_pending_deletion(section, current, user_id, now)
+
         # Versions only track saved states: drafts never bump the version, and the first save of a
         # record that only ever existed as a draft is its creation, not an update.
         is_draft_save = update_data.get("status", current.get("status")) == "draft"
@@ -1925,6 +1928,23 @@ class ESGRecordsService:
         # Otherwise, perform immediate deletion
         return await self._perform_hard_delete(collection, record, org_id)
     
+    async def _auto_reject_pending_deletion(self, section: str, record: Dict[str, Any], user_id: str, now: str) -> None:
+        """Changing a record's values rejects its pending delete request, since the request was made on the old data."""
+        request = await db.approval_requests.find_one(
+            {"entity_id": record["id"], "request_type": "delete", "status": "pending"}, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1})
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "full_name": 1, "name": 1, "email": 1}) or {}
+        name = user.get("full_name") or user.get("name") or user.get("email") or "An approver"
+        reason = f"{name} changed the values"
+        if request:
+            await db.approval_requests.update_one({"id": request["id"]}, {"$set": {
+                "status": "rejected", "resolved_at": now, "resolved_by": user_id, "resolved_by_name": name,
+                "resolution_comment": reason, "rejection_reason": reason, "updated_at": now}})
+            await db[f"{section}_record_versions"].insert_one(deletion_version_event(
+                record, section=section, change_type="deletion_rejected", actor_id=user_id, timestamp=now, reason=reason,
+                requested_by=request.get("submitted_by"), requested_at=request.get("submitted_at")))
+        await self._get_records_collection(section).update_one({"id": record["id"]}, {"$set": {
+            "pending_deletion": False, "deletion_rejected_by": user_id, "deletion_rejected_at": now, "deletion_rejection_reason": reason}})
+
     async def _create_delete_approval_request(
         self,
         collection,
