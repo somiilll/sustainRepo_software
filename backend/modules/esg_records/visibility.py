@@ -31,18 +31,48 @@ async def is_category_approver(org_id: str, user_id: str, category: str, subcate
     return count > 0
 
 
-async def user_assigned_categories(org_id: str, user_id: str) -> list:
+async def user_assignments(org_id: str, user_id: str) -> list:
+    """Active category assignments where the user is an assignee or an assigned approver."""
     assignee_rows = await _db.esg_assignment_assignees.find(
         {"user_id": user_id, "organization_id": org_id, "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}]},
         {"_id": 0, "assignment_id": 1},
     ).to_list(500)
     assignment_ids = [row["assignment_id"] for row in assignee_rows]
-    assignments = await _db.esg_assignments.find(
+    return await _db.esg_assignments.find(
         {"organization_id": org_id, "entity_type": "record_category",
          "$or": [{"id": {"$in": assignment_ids}}, *_approver_match(user_id)]},
-        {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1},
+        {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1, "assignment_level": 1, "facility_id": 1},
     ).to_list(500)
-    return [(a.get("category"), a.get("subcategory"), a.get("sub_subcategory")) for a in assignments]
+
+
+async def user_assigned_categories(org_id: str, user_id: str) -> list:
+    return [(a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
+            for a in await user_assignments(org_id, user_id)]
+
+
+def assignment_clause(assignments: list) -> Dict[str, Any]:
+    """Records of the assigned categories; facility-level assignments only expose their own facilities."""
+    scopes: Dict[tuple, Optional[set]] = {}
+    for a in assignments:
+        key = (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
+        facility_id = a.get("facility_id") if a.get("assignment_level") == "facility" else None
+        if key in scopes and scopes[key] is None:
+            continue
+        if facility_id is None:
+            scopes[key] = None
+        else:
+            scopes.setdefault(key, set()).add(facility_id)
+    conditions = []
+    for (category, subcategory, sub_subcategory), facilities in scopes.items():
+        condition: Dict[str, Any] = {"category": category}
+        if subcategory:
+            condition["subcategory"] = subcategory
+        if sub_subcategory:
+            condition["sub_subcategory"] = sub_subcategory
+        if facilities is not None:
+            condition["facility_id"] = {"$in": sorted(facilities)}
+        conditions.append(condition)
+    return {"$or": conditions} if conditions else NO_RECORDS
 
 
 def own_or_facility_clause(user: dict) -> Dict[str, Any]:
@@ -74,7 +104,7 @@ async def resolve_record_visibility(user: dict) -> Optional[Dict[str, Any]]:
     if not org_id:
         return NO_RECORDS
     if await is_workflow_org(org_id):
-        return category_clause(await user_assigned_categories(org_id, user.get("id")))
+        return assignment_clause(await user_assignments(org_id, user.get("id")))
     return own_or_facility_clause(user)
 
 

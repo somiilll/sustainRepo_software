@@ -554,6 +554,7 @@ async def list_records(
     if workflow_org:
         # Categories where the user is an assignee or an assigned approver
         assigned_categories = await user_assigned_categories(org_id, user_id)
+        visibility = await resolve_record_visibility(current_user)
         if not assigned_categories:
             # User has no assignments - return empty
             return {
