@@ -1828,6 +1828,14 @@ class ESGRecordsService:
         skip = (filters.page - 1) * filters.limit
         cursor = collection.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(filters.limit)
         records = await cursor.to_list(None)
+
+        facility_ids = list({r["facility_id"] for r in records if r.get("facility_id")})
+        if facility_ids:
+            names = {f["id"]: f.get("name") for f in await db.facilities.find(
+                {"id": {"$in": facility_ids}}, {"_id": 0, "id": 1, "name": 1}).to_list(len(facility_ids))}
+            for record in records:
+                if record.get("facility_id") and not record.get("facility_name"):
+                    record["facility_name"] = names.get(record["facility_id"])
         
         # Enrich records with user's pending proposals (if user_id provided)
         if user_id and records:
