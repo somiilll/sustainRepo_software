@@ -27,7 +27,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
+import CategoryFieldsForm, { hasCategoryForm } from './CategoryFieldsForm';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -262,7 +262,7 @@ export default function MultiProposalReview({
   // A first submission is itself the pending record, so there is nothing approved to compare against yet
   const hasApprovedValues = !!approvedRecord && !(entityType === 'esg_record'
     && ['pending_approval', 'rejected', 'draft'].includes(approvedRecord.approval_status));
-  const useFormLayout = entityType === 'esg_record' && hasFieldTree(fieldConfig?.fields);
+  const useFormLayout = entityType === 'esg_record' && hasCategoryForm(fieldConfig?.subcategory, fieldConfig?.fields);
 
   if (loading) {
     return (
@@ -363,7 +363,7 @@ export default function MultiProposalReview({
               };
               
               return useFormLayout ? (
-                <HierarchicalFields fields={fieldConfig.fields} values={displayValues} onChange={() => {}} readOnly testIdPrefix="approved-field" />
+                <CategoryFieldsForm subcategory={fieldConfig.subcategory} fields={fieldConfig.fields} values={displayValues} onChange={() => {}} readOnly testIdPrefix="approved-field" />
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {getDisplayFieldEntries(displayValues).map(([key, value]) => (
@@ -477,7 +477,8 @@ export default function MultiProposalReview({
                 {/* Field Values */}
                 {useFormLayout ? (
                   <div className="p-4 bg-stone-50 rounded-lg">
-                    <HierarchicalFields
+                    <CategoryFieldsForm
+                      subcategory={fieldConfig.subcategory}
                       fields={fieldConfig.fields}
                       values={inlineEdit?.id === proposal.id ? inlineEdit.values : fieldValues}
                       onChange={inlineEdit?.id === proposal.id ? setInlineValues : () => {}}
