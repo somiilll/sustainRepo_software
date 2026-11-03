@@ -764,6 +764,12 @@ class ProposalService:
                 )
                 version_event["record_was_changed"] = False
                 await db[collection_name.replace("_records", "_record_versions")].insert_one(version_event)
+                # A rejected first submission is the pending item itself; a rejected edit leaves the approved data as is.
+                if current.get("approval_status") == "pending_approval":
+                    await collection.update_one(
+                        {"id": proposal.get("entity_id")},
+                        {"$set": {"approval_status": "rejected", "rejection_reason": rejection_reason}},
+                    )
         
         # Notify the submitter
         try:
