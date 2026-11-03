@@ -1704,9 +1704,6 @@ export default function ESGRecordsDataEntry({
                       ) : record.approval_status === 'rejected' ? (
                         /* Rejected record - show rejection reason; editing and saving resubmits it for approval */
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                          <div className="text-right">
-                            <div className="text-xs text-red-600 font-medium">Rejected</div>
-                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1729,9 +1726,6 @@ export default function ESGRecordsDataEntry({
                       ) : record.status === 'rejected' ? (
                         /* Legacy rejected status - same treatment */
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                          <div className="text-right">
-                            <div className="text-xs text-red-600 font-medium">Rejected</div>
-                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
