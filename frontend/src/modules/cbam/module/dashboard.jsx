@@ -58,7 +58,7 @@ const TABS = [
 ];
 
 /** Header + pill tabs + filter drawer + active-filter chips, shared by every dashboard tab. */
-export function DashboardFrame({ title, d, onExport, children, hideFilters = false }
+export function DashboardFrame({ title, d, onExport, children, hideFilters = false, tabsRight = null }
 
 ) {
   const [open, setOpen] = useState(false);
@@ -72,7 +72,7 @@ export function DashboardFrame({ title, d, onExport, children, hideFilters = fal
         onExport={onExport} onFilters={hideFilters ? undefined : () => setOpen(true)} activeFilters={d.active}
         right={<select className="input w-28 py-1.5" value={d.year} onChange={(e) => d.setYear(e.target.value)} aria-label="Reporting year">
           {["2026", "2027"].map((y) => <option key={y}>{y}</option>)}</select>} />
-      <div className="flex flex-wrap items-center gap-3 px-6 pt-5">
+      <div className="flex flex-wrap items-center gap-3 px-2 pt-5 lg:px-3">
         <div className="inline-flex rounded-full border border-line bg-white p-1">
           {TABS.map((t) => (
             <NavLink key={t.to} to={`${t.to}${keep}`} end={t.end}
@@ -87,6 +87,7 @@ export function DashboardFrame({ title, d, onExport, children, hideFilters = fal
           </button>
         )))}
         {!hideFilters && d.active > 0 && <button className="text-xs text-ink-soft underline" onClick={d.clear}>Clear all</button>}
+        {tabsRight && <div className="ml-auto flex items-center gap-2">{tabsRight}</div>}
       </div>
       {children}
       {open && s?.filter_options && (

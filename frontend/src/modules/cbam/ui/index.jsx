@@ -1,6 +1,12 @@
 /** SustainRepo UI kit (rebuilt from the platform screenshots so the add-on looks native). */
-import { useEffect, useState } from "react";
-import { Bell, ChevronDown, FileDown, Loader2, SlidersHorizontal, X } from "lucide-react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { ChevronDown, FileDown, Loader2, SlidersHorizontal, X } from "lucide-react";
+import NotificationBell from "../../../components/NotificationBell";
+
+export const ReadOnlyContext = createContext(false);
+const ReadOnlyPill = () => (useContext(ReadOnlyContext)
+  ? <span className="ml-2 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800" data-testid="cbam-readonly-pill">Read-only</span>
+  : null);
 
 export const ACCENTS = {
   green: "#16a34a", teal: "#0d9488", amber: "#f59e0b", lime: "#84cc16", blue: "#2563eb",
@@ -22,34 +28,34 @@ export function IconTile({ icon, accent = "green", size = 36 }) {
   );
 }
 
-/** Dashboard header: "Org1 · <Title>" + reporting window + bell / Export PDF / Show filters. */
-export function DashboardHeader({ title, subtitle, onExport, right, onFilters, activeFilters = 0 }
-
-) {
+/** Dashboard header: sticky, full-width bar ("Org1 · <Title>" + year + bell / Export PDF / Show filters). */
+export function DashboardHeader({ title, subtitle, onExport, right, onFilters, activeFilters = 0 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-7 py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-12 shrink-0 items-center justify-center rounded-md border border-line bg-black text-[9px] font-bold text-white">ORG1</div>
-        <div className="min-w-0">
-          <h1 className="text-[19px] font-semibold text-ink">{title}</h1>
-          {subtitle && <p className="text-xs text-ink-soft">{subtitle}</p>}
+    <div className="sticky top-0 z-40 -mx-4 border-b border-stone-200/70 bg-white px-6 pb-3 pt-3 lg:-mx-5 lg:px-8" data-testid="cbam-sticky-header">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md border border-line bg-black text-[9px] font-bold text-white">ORG1</div>
+          <div className="min-w-0">
+            <h1 className="flex items-center truncate font-heading text-lg font-bold text-stone-900">{title}<ReadOnlyPill /></h1>
+            {subtitle && <p className="truncate text-[11px] text-stone-500">{subtitle}</p>}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-3">
-        {right}
-        <Bell size={18} className="text-ink-soft" />
-        {onExport && (
-          <button className="btn-outline" onClick={onExport}>
-            <FileDown size={15} /> Export PDF
-          </button>
-        )}
-        {onFilters && (
-          <button className="btn-outline" onClick={onFilters}>
-            <SlidersHorizontal size={15} /> Show filters
-            {activeFilters > 0 && <span className="rounded-full bg-brand px-1.5 text-[11px] text-white">{activeFilters}</span>}
-            <ChevronDown size={14} />
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {right}
+          <NotificationBell />
+          {onExport && (
+            <button className="btn-primary" onClick={onExport} data-testid="cbam-export-pdf">
+              <FileDown size={15} /> Export PDF
+            </button>
+          )}
+          {onFilters && (
+            <button className="btn-primary" onClick={onFilters} data-testid="cbam-show-filters">
+              <SlidersHorizontal size={15} /> Show filters
+              {activeFilters > 0 && <span className="rounded-full bg-white px-1.5 text-[11px] font-semibold text-brand">{activeFilters}</span>}
+              <ChevronDown size={14} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -62,7 +68,7 @@ export function PageHeader({ icon, title, actions, subtitle }) {
       <div className="flex items-center gap-4">
         <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-600">{icon}</span>
         <div>
-          <h1 className="text-[28px] font-semibold leading-tight text-[#0f2e22]">{title}</h1>
+          <h1 className="flex items-center text-[28px] font-semibold leading-tight text-[#0f2e22]">{title}<ReadOnlyPill /></h1>
           {subtitle && <p className="text-sm text-ink-soft">{subtitle}</p>}
         </div>
       </div>

@@ -121,7 +121,8 @@ export default function Layout() {
 
   const isDashboardPage =
     location.pathname.includes('/dashboard') ||
-    location.pathname.endsWith('/analysis');
+    location.pathname.endsWith('/analysis') ||
+    ['/cbam', '/cbam/emissions', '/cbam/geography', '/cbam/holdings', '/cbam/simulator'].includes(location.pathname);
 
   return (
     <div className="flex h-screen overflow-hidden">

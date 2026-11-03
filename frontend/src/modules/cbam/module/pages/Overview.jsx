@@ -150,7 +150,7 @@ export default function Overview() {
               );
             })}
           </ol>
-          <Link to="/cbam/certificates" className="mt-auto pt-4 text-sm font-medium text-brand hover:underline"><CalendarClock size={14} className="mr-1 inline" />Open holding tracker</Link>
+          <Link to="/cbam/holdings" className="mt-auto pt-4 text-sm font-medium text-brand hover:underline"><CalendarClock size={14} className="mr-1 inline" />Open holding tracker</Link>
         </ChartCard>
       </div>
 

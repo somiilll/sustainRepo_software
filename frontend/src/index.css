@@ -48,3 +48,17 @@ h1, h2, h3, h4, h5, h6 {
         margin-bottom: 0 !important;
     }
 }
+@layer components {
+    :where(.cbam-root) { @apply text-ink font-sans antialiased; }
+    :where(.cbam-root) .card { @apply bg-white rounded-card shadow-card border border-line/70; }
+    :where(.cbam-root) .btn { @apply inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50; }
+    .cbam-root .btn-primary { @apply inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-brand px-5 py-2 text-sm font-medium text-white shadow-none transition hover:bg-brand-600 disabled:opacity-50; background-image: none; }
+    :where(.cbam-root) .btn-outline { @apply inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-medium text-ink transition hover:bg-gray-50 disabled:opacity-50; }
+    :where(.cbam-root) .btn-ghost { @apply inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium text-ink-soft transition hover:bg-gray-100 disabled:opacity-50; }
+    :where(.cbam-root) .input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-mint; }
+    :where(.cbam-root) .input-muted { @apply w-full rounded-lg border border-line bg-gray-50 px-3 py-2 text-sm text-ink-soft outline-none focus:border-brand focus:ring-2 focus:ring-mint; }
+    :where(.cbam-root) .label { @apply mb-1.5 block text-sm font-medium text-ink; }
+    :where(.cbam-root) .th { @apply px-4 py-3 text-left text-[13px] font-semibold text-ink whitespace-nowrap; }
+    :where(.cbam-root) .td { @apply px-4 py-3.5 text-sm text-ink border-t border-line/70 whitespace-nowrap; }
+    :where(.cbam-root) .kpi-label { @apply text-[12px] font-semibold uppercase tracking-wider text-ink-soft; }
+}

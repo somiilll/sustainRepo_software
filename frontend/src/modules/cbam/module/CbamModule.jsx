@@ -1,13 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, Routes } from "react-router-dom";
 import { useAuth } from "../../../contexts/AuthContext";
-import "../cbam.css";
+import { ReadOnlyContext } from "../ui";
 import Overview from "./pages/Overview";
 import Imports from "./pages/Imports";
 import Installations from "./pages/Installations";
 import InstallationDetail from "./pages/InstallationDetail";
 import Suppliers from "./pages/Suppliers";
-import Certificates from "./pages/Certificates";
 import Declarations from "./pages/Declarations";
 import Reference from "./pages/Reference";
 import EmissionsSplit from "./pages/EmissionsSplit";
@@ -31,12 +30,8 @@ export default function CbamModule() {
   const readOnly = !["admin", "super_admin"].includes(user?.role);
   return (
     <QueryClientProvider client={qc}>
+      <ReadOnlyContext.Provider value={readOnly}>
       <div className="cbam-root" data-testid="cbam-module">
-        {readOnly && (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800" data-testid="cbam-readonly-banner">
-            You have read-only access to CBAM. Ask an organization admin to make changes.
-          </div>
-        )}
         <Routes>
           <Route index element={<Overview />} />
           <Route path="emissions" element={<EmissionsSplit />} />
@@ -48,11 +43,11 @@ export default function CbamModule() {
           <Route path="installations" element={<Installations />} />
           <Route path="installations/:id" element={<InstallationDetail />} />
           <Route path="suppliers" element={<Suppliers />} />
-          <Route path="certificates" element={<Certificates />} />
           <Route path="declarations" element={<Declarations />} />
           <Route path="reference" element={<Reference />} />
         </Routes>
       </div>
+      </ReadOnlyContext.Provider>
     </QueryClientProvider>
   );
 }

@@ -133,7 +133,7 @@ export default function Simulator() {
           <ChartCard title="Scenarios" subtitle="Save, reload and export" accent="slate">
             <div className="flex gap-2">
               <input className="input" placeholder="Scenario name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name && save.mutate()} />
-              <button className="btn-primary px-3" disabled={!name || save.isPending} onClick={() => save.mutate()} title="Save scenario"><Save size={15} /></button>
+              <button className="btn-primary !px-3" disabled={!name || save.isPending} onClick={() => save.mutate()} title="Save scenario"><Save size={15} /></button>
             </div>
             {!!scenarios.data?.length && (
               <div className="mt-3 divide-y divide-line">

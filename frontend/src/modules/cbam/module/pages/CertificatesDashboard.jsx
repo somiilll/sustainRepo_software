@@ -1,10 +1,11 @@
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Award, CalendarClock, Coins, Gauge, ShoppingCart, Undo2 } from "lucide-react";
+import { Award, CalendarClock, Coins, Gauge, Plus, ShoppingCart, Undo2 } from "lucide-react";
 import { api, fmt } from "../api";
 import { DashboardFrame, useDashboard } from "../dashboard";
-import { Badge, ChartCard, ErrorNote, KpiCard, Loading } from "../../ui";
+import { Badge, ChartCard, ErrorNote, KpiCard, Loading, useToast } from "../../ui";
+import RecordTransaction from "../components/RecordTransaction";
 
 
 
@@ -18,10 +19,14 @@ const BUDGET_PRICES = [60, 120];
 
 export default function CertificatesDashboard() {
   const d = useDashboard();
+  const qc = useQueryClient();
+  const { toast, node } = useToast();
+  const [recording, setRecording] = useState(false);
   const year = +d.year;
   const pos = useQuery({ queryKey: ["position", year], queryFn: () => api.get(`/certificates/position?year=${year}`) });
   const led = useQuery({ queryKey: ["ledger"], queryFn: () => api.get("/certificates") });
-  const frame = (body) => <DashboardFrame title="Org1 · CBAM certificates" d={d} hideFilters>{body}</DashboardFrame>;
+  const recordButton = <button className="btn-primary" onClick={() => setRecording(true)} data-testid="cbam-record-transaction"><Plus size={16} /> Record Transaction</button>;
+  const frame = (body) => <DashboardFrame title="Org1 · CBAM certificates" d={d} hideFilters tabsRight={recordButton}>{body}{node}</DashboardFrame>;
   if (pos.isLoading) return frame(<Loading />);
   if (pos.error) return frame(<div className="p-6"><ErrorNote error={pos.error} /></div>);
   const p = pos.data;
@@ -106,7 +111,7 @@ export default function CertificatesDashboard() {
 
       <div className="grid gap-5 xl:grid-cols-3">
         <ChartCard className="xl:col-span-2" title="Recent transactions" subtitle={`Ledger entries for obligation year ${year}`} accent="green"
-          right={<Link to="/cbam/certificates" className="btn-outline py-1.5 text-xs">Open ledger</Link>}>
+>
           {led.isLoading ? <Loading /> : !entries.length ? (
             <p className="text-sm text-ink-soft">No transactions recorded for {year} yet. Certificate sales open on {fmt.date(p.sales_open)}.</p>
           ) : (
@@ -141,9 +146,11 @@ export default function CertificatesDashboard() {
               );
             })}
           </ol>
-          <Link to="/cbam/certificates" className="mt-auto pt-4 text-sm font-medium text-brand hover:underline"><CalendarClock size={14} className="mr-1 inline" />Record a transaction</Link>
+          <button className="mt-auto pt-4 text-left text-sm font-medium text-brand hover:underline" onClick={() => setRecording(true)}><CalendarClock size={14} className="mr-1 inline" />Record a transaction</button>
         </ChartCard>
       </div>
+      {recording && <RecordTransaction year={year} price={p.price_hint} onClose={() => setRecording(false)}
+        onDone={() => { qc.invalidateQueries(); setRecording(false); toast("Transaction recorded"); }} />}
     </div>,
   );
 }
