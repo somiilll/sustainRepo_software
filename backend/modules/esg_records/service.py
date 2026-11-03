@@ -1916,8 +1916,8 @@ class ESGRecordsService:
         if assignment and assignment.get("requires_approval"):
             requires_approval = True
         
-        # If approval required and record is already approved, create DELETE approval request
-        if requires_approval and record.get("approval_status") == "approved":
+        # If approval required and the record holds approved (or pre-workflow) data, create DELETE approval request
+        if requires_approval and record.get("status") != "draft" and record.get("approval_status") in ("approved", "not_required"):
             return await self._create_delete_approval_request(
                 collection, record, assignment, org_id, user_id
             )
