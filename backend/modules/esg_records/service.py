@@ -345,15 +345,16 @@ class ESGRecordsService:
         
         await collection.insert_one(record)
         
-        # Create initial version snapshot
-        await self._create_version_snapshot(
-            section=section,
-            record_id=record["id"],
-            version=1,
-            snapshot=record,
-            changed_fields=[],
-            user_id=user_id
-        )
+        # Create initial version snapshot (drafts are not versioned until saved)
+        if record_status != "draft":
+            await self._create_version_snapshot(
+                section=section,
+                record_id=record["id"],
+                version=1,
+                snapshot=record,
+                changed_fields=[],
+                user_id=user_id
+            )
         
         # LINK TASK TO RECORD: Mark corresponding task as completed (only if not draft)
         if record_status != "draft":
@@ -1421,6 +1422,7 @@ class ESGRecordsService:
         old_approval_status = current.get("approval_status")
         is_editing_record_requiring_approval = (
             old_approval_status in ["approved", "not_required"] and 
+            current.get("status") != "draft" and
             "field_values" in changed_fields and 
             requires_approval and
             not is_admin_override
@@ -1617,18 +1619,19 @@ class ESGRecordsService:
         elif should_create_approval and not assignment:
             print("WARNING: should_create_approval=True but no assignment found!")
         
-        # Create version snapshot with hierarchical field paths (paths only, not values)
+        # Create version snapshot with hierarchical field paths (paths only, not values); drafts are not versioned
         field_changes = compare_versions(current, updated) if current else []
         changed_field_paths = [c["field"] for c in field_changes]
-        await self._create_version_snapshot(
-            section=section,
-            record_id=record_id,
-            version=new_version,
-            snapshot=updated,
-            changed_fields=changed_field_paths,
-            change_reason=data.change_reason,
-            user_id=user_id
-        )
+        if updated.get("status") != "draft":
+            await self._create_version_snapshot(
+                section=section,
+                record_id=record_id,
+                version=new_version,
+                snapshot=updated,
+                changed_fields=changed_field_paths,
+                change_reason=data.change_reason,
+                user_id=user_id
+            )
         
         return updated
     
