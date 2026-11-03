@@ -1993,7 +1993,7 @@ class ESGRecordsService:
             
             "entity_type": "esg_record",
             "entity_id": record_id,
-            "entity_subtype": record.get("category"),
+            "entity_subtype": collection.name.removesuffix("_records"),
             "request_type": "delete",  # Distinguish from create/edit requests
             
             "entity_snapshot": {

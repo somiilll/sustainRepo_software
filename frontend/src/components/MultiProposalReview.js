@@ -557,6 +557,8 @@ export default function MultiProposalReview({
                     <Badge className={historyProposal.status === 'approved' ? 'bg-green-100 text-green-800' : historyProposal.status === 'cancelled' ? 'bg-stone-100 text-stone-700' : 'bg-red-100 text-red-800'}>
                       {historyProposal.status === 'approved' ? 'Approved' : historyProposal.status === 'cancelled' ? 'Cancelled' : 'Rejected'}
                     </Badge>
+                  ) : proposal.request_type === 'delete' ? (
+                    <Badge className="bg-red-100 text-red-800" data-testid="delete-request-badge">Delete request</Badge>
                   ) : (
                     <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
                   )}
@@ -648,7 +650,7 @@ export default function MultiProposalReview({
                 {/* Action Buttons */}
                 {!historyProposal && (
                 <div className="flex items-center gap-3 pt-2 border-t">
-                  {inlineEdit?.id === proposal.id ? (
+                  {proposal.request_type === 'delete' ? null : inlineEdit?.id === proposal.id ? (
                     <>
                       <Button variant="outline" size="sm" onClick={cancelInline} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
                         Cancel
