@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
 import WorkforceDataTable from './WorkforceDataTable';
 import { WORKFORCE_TABLE_MAP, workforceSupplementaryFields } from './CategoryFieldsForm';
+import EvidenceFileLink from './EvidenceFileLink';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -1353,7 +1354,7 @@ export default function ESGRecordsDataEntry({
                         <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                         <span className="flex-1 truncate">{ev.filename}</span>
                         <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                        <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`add-metric-evidence-view-${ev.id}`}>View</a>
+                        <EvidenceFileLink evidence={ev} testId={`add-metric-evidence-view-${ev.id}`} />
                         <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600" data-testid={`add-metric-evidence-remove-${ev.id}`}>
                           <X className="w-3 h-3" />
                         </button>
@@ -2173,7 +2174,7 @@ export default function ESGRecordsDataEntry({
                       <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
                       <span className="flex-1 truncate">{ev.filename}</span>
                       <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                      <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`edit-metric-evidence-view-${ev.id}`}>View</a>
+                      <EvidenceFileLink evidence={ev} testId={`edit-metric-evidence-view-${ev.id}`} />
                       <button type="button" onClick={() => removeEvidence(ev.id, true)} className="text-red-400 hover:text-red-600" data-testid={`edit-metric-evidence-remove-${ev.id}`}>
                         <X className="w-3.5 h-3.5" />
                       </button>

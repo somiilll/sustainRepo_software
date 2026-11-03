@@ -25,14 +25,40 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
+  Paperclip,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import EvidenceFileLink from './EvidenceFileLink';
 import CategoryFieldsForm, { hasCategoryForm } from './CategoryFieldsForm';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 
                 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function ProposalAttachments({ source, notes, evidence }) {
+  if (!source && !notes && !evidence.length) return null;
+  return (
+    <div className="space-y-3 rounded-lg border border-stone-200 p-4 text-sm" data-testid="proposal-attachments">
+      {source && <div><p className="text-xs text-stone-500">Source of information</p><p className="font-medium text-stone-900">{source}</p></div>}
+      {notes && <div><p className="text-xs text-stone-500">Notes</p><p className="whitespace-pre-wrap text-stone-900">{notes}</p></div>}
+      {evidence.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1 text-xs text-stone-500"><Paperclip className="h-3.5 w-3.5" />Evidence files</p>
+          <ul className="space-y-1">
+            {evidence.map((ev, i) => (
+              <li key={ev.id || i} className="flex items-center gap-3 rounded-md bg-stone-50 px-2 py-1.5" data-testid="proposal-evidence-item">
+                <span className="flex-1 truncate text-stone-900">{ev.filename || ev.name || 'File'}</span>
+                {ev.file_size ? <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span> : null}
+                <EvidenceFileLink evidence={ev} testId={`proposal-evidence-view-${ev.id || i}`} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * MultiProposalReview - Card-based component for reviewing multiple proposals
@@ -510,6 +536,12 @@ export default function MultiProposalReview({
                   })}
                 </div>
                 )}
+
+                <ProposalAttachments
+                  source={'source_of_information' in snapshot ? snapshot.source_of_information : approvedRecord?.source_of_information}
+                  notes={'notes' in snapshot ? snapshot.notes : approvedRecord?.notes}
+                  evidence={('evidence_files' in snapshot ? snapshot.evidence_files : approvedRecord?.evidence_files) || []}
+                />
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-2 border-t">

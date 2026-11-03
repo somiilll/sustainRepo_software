@@ -704,9 +704,10 @@ class ESGRecordsService:
                 "field_definitions": field_definitions,
                 "reporting_period": record.get("reporting_period"),
                 "facility_id": record.get("facility_id"),
+                "source_of_information": record.get("source_of_information"),
+                "notes": record.get("notes"),
+                "evidence_files": record.get("evidence_files") or [],
             }
-            
-            # Add edit-specific info if this is a re-approval
             if is_edit:
                 entity_snapshot["is_edit"] = True
                 entity_snapshot["changes_summary"] = changes_summary or []
