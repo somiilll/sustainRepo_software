@@ -749,8 +749,12 @@ async def get_category_progress_endpoint(
             last_updated = progress.last_updated
     
     percentage = round((completed / total) * 100, 1) if total > 0 else 0.0
+    awaiting = await db.esg_reporting_tasks.count_documents(
+        {**{k: v for k, v in query.items() if k in ("organization_id", "category", "subcategory", "sub_subcategory")},
+         "status": "pending_approval"})
     
     return {
+        "awaiting_approval_tasks": awaiting,
         "total": total,
         "total_tasks": total,
         "completed": completed,
@@ -823,7 +827,9 @@ async def get_bulk_progress_endpoint(
             if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
                 last_updated = progress.last_updated
         
+        awaiting = await db.esg_reporting_tasks.count_documents({**query, "status": "pending_approval"})
         result[key] = {
+            "awaiting_approval_tasks": awaiting,
             "total": total,
             "total_tasks": total,
             "completed": completed,

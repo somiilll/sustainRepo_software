@@ -1,108 +1,188 @@
 {
-  "project_title": "SustainRepo Modern Premium GRI Standards Report Redesign",
-  "archetype": "EXECUTIVE ESG REPORTING / SWISS HIGH-CONTRAST DOCUMENT ARCHETYPE",
-  "document_type": "PDF (Chromium HTML Print CSS A4) and Word (.docx via python-docx)",
-  "user_feedback_addressed": [
-    "1. GRI headings (e.g., 'GRI 418: Customer Privacy') changed to Dark Blue (#1E3A8A).",
-    "2. Answer boxes/bordered containers completely removed; replaced with clean left-indented plain text paragraphs and optional subtle left accent rules.",
-    "3. First-page title block headings center-aligned with modern premium typography, dark navy color palette, and subtle decorative accent divider.",
-    "4. Overall report transformed from dull monochrome into a modern, executive premium publication standard for both PDF and Word formats."
-  ],
+  "project_type": "saas_app",
+  "archetype": "ORGANIC & EARTHY / PERFORMANCE PRO (Stone/Emerald ESG Palette)",
   "typography": {
-    "font_family_primary": "Arial, Helvetica, sans-serif",
-    "font_family_docx": "Arial",
-    "font_sizes_pt": {
-      "cover_title": "20pt",
-      "cover_org_name": "14pt",
-      "cover_meta": "11pt",
-      "cover_reference": "10pt",
-      "gri_standard_heading": "13pt",
-      "disclosure_subheading": "11pt",
-      "question_label": "10.5pt",
-      "subquestion_label": "10pt",
-      "answer_body": "10.5pt",
-      "placeholder_text": "10pt"
-    },
-    "font_weights": {
-      "bold": "700",
-      "semibold": "600",
-      "regular": "400",
-      "italic": "italic"
-    }
+    "font_family_heading": "Manrope, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "h1": "text-2xl font-bold tracking-tight text-stone-900",
+    "h2": "text-xl font-semibold tracking-tight text-stone-900",
+    "h3": "text-lg font-medium text-stone-800",
+    "h4": "text-base font-medium text-stone-800",
+    "category_title": "text-sm font-semibold text-stone-900",
+    "subcategory_title": "text-sm font-medium text-stone-800",
+    "body_regular": "text-sm font-normal text-stone-600",
+    "caption_muted": "text-xs font-normal text-stone-500",
+    "badge_text": "text-xs font-medium"
   },
   "colors": {
-    "hex": {
-      "primary_dark_blue": "#1E3A8A",
-      "heading_navy": "#0F172A",
-      "text_dark_slate": "#1E293B",
-      "text_body": "#334155",
-      "text_muted": "#64748B",
-      "border_accent": "#CBD5E1",
-      "border_highlight": "#2563EB",
-      "bg_light_tint": "#F8FAFC"
+    "background": "bg-stone-50/50",
+    "card_bg": "bg-white",
+    "tinted_row_bg": "bg-stone-100/60 hover:bg-stone-100/90",
+    "border_subtle": "border-stone-200",
+    "border_highlight_blue": "border-blue-500 ring-2 ring-blue-100",
+    "text_primary": "text-stone-900",
+    "text_secondary": "text-stone-600",
+    "text_muted": "text-stone-400",
+    "emerald": {
+      "main": "emerald-600",
+      "bg_light": "bg-emerald-50",
+      "text": "text-emerald-700",
+      "border": "border-emerald-200",
+      "dot": "bg-emerald-500"
     },
-    "rgb_tuple_docx": {
-      "primary_dark_blue": "RGBColor(0x1E, 0x3A, 0x8A)",
-      "heading_navy": "RGBColor(0x0F, 0x17, 0x2A)",
-      "text_dark_slate": "RGBColor(0x1E, 0x29, 0x3B)",
-      "text_body": "RGBColor(0x33, 0x41, 0x55)",
-      "text_muted": "RGBColor(0x64, 0x74, 0x8B)"
+    "blue_status": {
+      "bg_light": "bg-blue-50",
+      "text": "text-blue-700",
+      "border": "border-blue-200",
+      "dot": "bg-blue-500"
+    },
+    "grey_status": {
+      "bg_light": "bg-stone-100",
+      "text": "text-stone-600",
+      "border": "border-stone-200",
+      "dot": "bg-stone-400"
+    },
+    "red_status": {
+      "bg_light": "bg-rose-50",
+      "text": "text-rose-700",
+      "border": "border-rose-200",
+      "dot": "bg-rose-500"
     }
   },
-  "layout_and_styles": {
-    "page_setup": "@page { size: A4; margin: 20mm 18mm 20mm 18mm; }",
-    "cover_title_block": {
-      "alignment": "center",
-      "doc_title": "text-align: center; font-size: 20pt; font-weight: bold; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 10px 0;",
-      "org_name": "text-align: center; font-size: 14pt; font-weight: 700; color: #1E3A8A; margin: 4px 0 6px 0;",
-      "reporting_period": "text-align: center; font-size: 11pt; color: #475569; font-weight: 500; margin: 2px 0 4px 0;",
-      "reference_statement": "text-align: center; font-size: 10pt; font-style: italic; color: #64748B; margin: 2px 0 20px 0;",
-      "accent_divider": "width: 80px; height: 3px; background-color: #1E3A8A; margin: 16px auto 24px auto; border-radius: 2px;"
+  "visual_enhancers": {
+    "shadows": "shadow-sm hover:shadow-md transition-shadow duration-200",
+    "rounded_card": "rounded-xl border border-stone-200 bg-white",
+    "rounded_pill": "rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1.5",
+    "progress_bar": "h-1.5 w-full bg-stone-100 rounded-full overflow-hidden",
+    "progress_fill_emerald": "h-full bg-emerald-500 rounded-full transition-all duration-300"
+  },
+  "tracker_row_redesign_specs": {
+    "category_row": {
+      "container_classes": "flex flex-wrap lg:flex-nowrap items-center justify-between gap-4 p-4 rounded-lg bg-white border border-stone-200 hover:border-stone-300 transition-colors",
+      "left_group": {
+        "checkbox_class": "h-4 w-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500",
+        "chevron_class": "h-5 w-5 text-stone-400 hover:text-stone-600 cursor-pointer transition-transform duration-200",
+        "title_class": "text-sm font-semibold text-stone-900 flex items-center gap-2",
+        "meta_subtitle": "text-xs text-stone-500 font-normal"
+      },
+      "assignee_approver": {
+        "container": "flex items-center gap-6 text-xs text-stone-600",
+        "avatar_class": "h-6 w-6 rounded-full bg-stone-200 text-stone-700 font-medium text-[10px] flex items-center justify-center border border-white shadow-xs"
+      },
+      "due_date": {
+        "class": "text-xs text-stone-600 whitespace-nowrap",
+        "days_left_chip": "text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-medium ml-1"
+      },
+      "progress_and_chips": {
+        "progress_container": "w-32 flex flex-col gap-1",
+        "progress_label": "text-[11px] font-medium text-stone-600",
+        "chips_container": "flex items-center gap-1.5",
+        "chip_completed": "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200",
+        "chip_awaiting": "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200",
+        "chip_pending": "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-stone-100 text-stone-600 border border-stone-200"
+      },
+      "action_buttons": {
+        "assign_user_btn": "p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-md transition-colors"
+      }
     },
-    "gri_standard_heading": {
-      "selector": ".section-header",
-      "css": "font-size: 13pt; font-weight: bold; color: #1E3A8A; margin: 28px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #1E3A8A; page-break-after: avoid;",
-      "docx_mapping": "Bold 13pt Arial, RGBColor(0x1E, 0x3A, 0x8A), bottom border / rule, space_before=Pt(20), space_after=Pt(6), keep_with_next=True"
-    },
-    "disclosure_subheading": {
-      "selector": ".subsection-header",
-      "css": "display: flex; align-items: baseline; font-size: 11pt; font-weight: bold; color: #0F172A; margin: 18px 0 8px 0; padding-bottom: 3px; border-bottom: 1px solid #E2E8F0; page-break-after: avoid;",
-      "number_span": "flex: 0 0 65px; font-weight: bold; color: #1E3A8A;",
-      "title_span": "color: #0F172A; font-weight: bold;"
-    },
-    "question_items": {
-      "question_item_css": "margin: 10px 0 4px 0; font-weight: 600; color: #1E293B; page-break-after: avoid;",
-      "q_num_css": "display: inline-block; min-width: 28px; font-weight: bold; color: #1E3A8A;",
-      "sub_label_css": "margin: 8px 0 4px 28px; font-size: 10pt; font-weight: 600; color: #334155; page-break-after: avoid;"
-    },
-    "answer_values": {
-      "box_removed": true,
-      "css": "padding: 4px 0 4px 12px; margin: 2px 0 10px 28px; border-left: 2px solid #E2E8F0; color: #1E293B; font-size: 10.5pt; line-height: 1.5; white-space: normal;",
-      "sub_css": "margin-left: 48px; border-left: 2px solid #CBD5E1;",
-      "empty_placeholder_css": "color: #64748B; font-style: italic; font-size: 10pt;"
+    "subcategory_row": {
+      "container_classes": "flex flex-wrap lg:flex-nowrap items-center justify-between gap-4 p-3.5 pl-8 rounded-lg bg-stone-100/60 border border-stone-200/80 hover:bg-stone-100/90 transition-colors my-1",
+      "sub_title_meta": "text-sm font-medium text-stone-800 flex items-center gap-2",
+      "approver_pill": "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-white border border-stone-200 text-stone-700 shadow-xs",
+      "add_approver_btn": "h-5 w-5 rounded-full border border-dashed border-stone-300 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:border-stone-400 transition-colors",
+      "status_badge_awaiting": "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60",
+      "bell_toggle_group": "flex items-center gap-1.5",
+      "bell_btn": "p-1 text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 rounded-md transition-colors",
+      "chevron_toggle": "p-1 text-stone-500 bg-white border border-stone-200 hover:bg-stone-50 rounded-md shadow-xs transition-colors cursor-pointer"
     }
   },
-  "component_structure": {
-    "GRIReportTemplates": "/app/backend/modules/gri_report/templates.py",
-    "GRIReportRouter": "/app/backend/modules/gri_report/router.py",
-    "DocxBuilder": "/app/backend/modules/brsr_report/docx_builder.py"
+  "expanded_panel_redesign_specs": {
+    "card_container": "p-6 bg-white border border-stone-200 rounded-xl shadow-xs mt-2 transition-all",
+    "header": {
+      "title_parent": "text-xs font-semibold text-stone-400 uppercase tracking-wider",
+      "title_child": "text-lg font-bold text-stone-900 font-[Manrope]",
+      "subtitle": "text-xs text-stone-500 mt-0.5",
+      "fy_pill": "px-3 py-1 bg-stone-100 text-stone-700 text-xs font-semibold rounded-full border border-stone-200/80"
+    },
+    "tabs": {
+      "container": "flex items-center gap-6 border-b border-stone-200 mt-6 mb-6",
+      "tab_active": "pb-2.5 text-sm font-semibold text-stone-900 border-b-2 border-emerald-600 flex items-center gap-2 transition-colors",
+      "tab_inactive": "pb-2.5 text-sm font-medium text-stone-500 hover:text-stone-800 flex items-center gap-2 transition-colors",
+      "count_badge_active": "px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-semibold",
+      "count_badge_inactive": "px-2 py-0.5 rounded-full text-xs bg-stone-100 text-stone-600 font-medium"
+    },
+    "four_tabs_definition": [
+      "Periods",
+      "Assignment and approvers",
+      "Activity",
+      "Linked disclosures"
+    ]
+  },
+  "period_cards_specs": {
+    "grid_container": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6",
+    "card_base": "p-4 rounded-xl border bg-white flex flex-col justify-between transition-all duration-200 min-h-[180px]",
+    "card_selected_awaiting": "border-blue-500 ring-2 ring-blue-100 bg-white shadow-sm",
+    "card_unselected": "border-stone-200 hover:border-stone-300 shadow-xs",
+    "status_pills": {
+      "completed": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200",
+      "awaiting": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200",
+      "pending": "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600 border border-stone-200"
+    },
+    "context_line": {
+      "container": "pt-3 border-t border-stone-100 text-xs text-stone-500 mt-3",
+      "approved_line": "text-xs text-stone-600",
+      "view_data_link": "text-emerald-600 font-medium hover:underline cursor-pointer ml-1 inline-flex items-center gap-0.5",
+      "submitted_line": "text-xs text-stone-600 font-medium",
+      "pending_line": "text-xs text-stone-400 italic"
+    },
+    "legend": {
+      "container": "flex flex-wrap items-center gap-6 pt-4 border-t border-stone-200 text-xs text-stone-600",
+      "item_completed": "flex items-center gap-2",
+      "dot_completed": "h-2.5 w-2.5 rounded-full bg-emerald-500",
+      "item_awaiting": "flex items-center gap-2",
+      "dot_awaiting": "h-2.5 w-2.5 rounded-full bg-blue-500",
+      "item_pending": "flex items-center gap-2",
+      "dot_pending": "h-2.5 w-2.5 rounded-full bg-stone-400",
+      "item_overdue": "flex items-center gap-2",
+      "dot_overdue": "h-2.5 w-2.5 rounded-full bg-rose-500"
+    }
+  },
+  "data_testid_conventions": {
+    "category_row": "esg-tracker-category-row-{categoryId}",
+    "subcategory_row": "esg-tracker-subcategory-row-{subcategoryId}",
+    "expand_button": "esg-tracker-expand-btn-{id}",
+    "status_pill": "esg-tracker-status-pill-{id}",
+    "assignee_avatar": "esg-tracker-assignee-avatar-{id}",
+    "approver_pill": "esg-tracker-approver-pill-{id}",
+    "add_approver_btn": "esg-tracker-add-approver-btn-{id}",
+    "expanded_panel": "esg-tracker-expanded-panel-{subcategoryId}",
+    "tab_periods": "esg-tracker-tab-periods",
+    "tab_assignments": "esg-tracker-tab-assignments",
+    "tab_activity": "esg-tracker-tab-activity",
+    "tab_disclosures": "esg-tracker-tab-disclosures",
+    "period_card": "esg-tracker-period-card-{periodId}",
+    "view_submitted_data_link": "esg-tracker-view-submitted-data-{periodId}"
+  },
+  "responsive_behavior": {
+    "mobile_breakpoint": "390px",
+    "grid_behavior": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+    "flex_row_behavior": "flex-wrap lg:flex-nowrap",
+    "horizontal_scroll": "overflow-x-auto pb-2"
   },
   "instructions_to_main_agent": [
-    "1. Update `/app/backend/modules/gri_report/templates.py`:",
-    "   a) Redesign cover page header block with centered layout, dark navy doc title (#0F172A), dark blue company name (#1E3A8A), muted period info (#475569), italicized GRI reference statement (#64748B), and a clean centered 3px blue accent line (#1E3A8A).",
-    "   b) Update GRI Standard headings (e.g. 'GRI 418: Customer Privacy') to use Dark Blue font color (#1E3A8A) with a matching 2px solid dark blue bottom border.",
-    "   c) Redesign disclosure sub-headings (e.g. '305-1 Direct (Scope 1) GHG emissions') with clean typography, min 65px disclosure number in dark blue (#1E3A8A) and title in dark slate (#0F172A) with a subtle #E2E8F0 bottom divider.",
-    "   d) REMOVE the border box around `.answer-value`. Replace with clean left margin/indentation (28px for main, 48px for sub) and a subtle left accent line (`border-left: 2px solid #E2E8F0`), padding `4px 0 4px 12px`.",
-    "   e) Render empty/unreported responses as `<span class=\"empty\">Not reported</span>` styled in italicized slate gray (#64748B).",
-    "2. Update `/app/backend/modules/brsr_report/docx_builder.py` (or html_to_docx converter):",
-    "   a) Ensure docx paragraph generator maps GRI standard section headers to dark blue (RGBColor(0x1E, 0x3A, 0x8A)) 13pt bold headers with bottom borders.",
-    "   b) Center-align cover title and subtitle paragraphs.",
-    "   c) Remove box/cell borders on answer paragraphs in Word docx, rendering them as indented plain text with optional left indent.",
-    "3. Run Python unit tests or verification scripts for GRI report generation to ensure both PDF and Word generation succeed without errors."
+    "Redesign the ESG Records Tracker row and expanded panel using JavaScript (.js) components matching the mockup requirements.",
+    "Implement the category row with checkbox, expand chevron, assignee avatar+name+email, approver avatar+name, due date with days remaining, progress bar + text, and 3 status count chips (Completed green check, Awaiting approval blue clock, Pending grey circle).",
+    "Implement the subcategory row on stone-100/60 background with assignee, approver pill + dashed add button, due date, progress bar, status badge pill, bell button, and rounded toggle.",
+    "Implement the expanded rounded card panel with hierarchy headers (muted parent / bold child), metadata subtitle, FY pill button, and 4 working tabs: Periods, Assignment and approvers, Activity, Linked disclosures.",
+    "In the Periods tab, render 4 period cards (e.g. Q1, Q2, Q3, Q4) showing period status pills, date ranges, bold due dates, hairline divider, and context lines ('Approved by... View submitted data', 'Submitted by...', 'Collection opens...'). Highlight the awaiting card with blue border outline.",
+    "Render the status legend at the bottom of the panel with Completed, Awaiting approval, Pending, and Overdue dots.",
+    "Omit interactive Approve / Send Back buttons in period cards per user choices (display only).",
+    "Ensure all interactive elements have kebab-case data-testid attributes for testing."
   ],
   "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "data_testid_rule": "MUST maintain data-testid on any UI components in frontend if GRI report download buttons or preview modals are modified.",
-    "file_format": "Use Python templates in backend and JS/JSX files in frontend strictly.",
-    "toast_library": "Use sonner for notifications in frontend."
+    "theme": "Organic Stone / Emerald ESG Design System",
+    "anti_slop": "Avoid generic Vercel dark themes or plain unstyled white boxes. Use rich stone-50 backgrounds with crisp stone-200 borders, emerald accents, and clear typography hierarchy.",
+    "interactive_elements": "Include subtle hover and focus states for all buttons and toggles without using 'transition: all'.",
+    "testing": "All interactive buttons, tabs, chips, and links MUST include exact data-testid attributes as defined."
   }
 }

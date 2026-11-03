@@ -1671,6 +1671,24 @@ async def refresh_overdue_tasks(
     return result
 
 
+@router.get("/tracker-detail")
+async def get_tracker_detail_endpoint(
+    section: str = Query(...),
+    category: str = Query(...),
+    subcategory: str = Query(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Periods, assignment, activity and linked disclosures for the tracker's expanded panel."""
+    from .tracker_detail_service import get_tracker_detail
+
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    if section not in ("environment", "social", "governance"):
+        raise HTTPException(status_code=400, detail="Invalid section")
+    return await get_tracker_detail(org_id, section, category, subcategory)
+
+
 @router.get("/tasks/period-status/{assignment_id}")
 async def get_period_fill_status(
     assignment_id: str,

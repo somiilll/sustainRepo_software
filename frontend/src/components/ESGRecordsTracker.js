@@ -85,7 +85,8 @@ import {
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
-import DetailedProgressView from './DetailedProgressView';
+import TrackerDetailPanel from './tracker/TrackerDetailPanel';
+import TaskCountChips from './tracker/TaskCountChips';
 import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1322,6 +1323,7 @@ export default function ESGRecordsTracker({
                 const completedTasks = catCompletion.completed_tasks || 0;
                 const pendingTasks = catCompletion.pending_tasks || 0;
                 const overdueTasks = catCompletion.overdue_tasks || 0;
+                const catAwaiting = catCompletion.awaiting_approval_tasks || 0;
                 const lastUpdated = catCompletion.last_updated || cat.assignment?.updated_at;
                 
                 return (
@@ -1499,6 +1501,7 @@ export default function ESGRecordsTracker({
                     const subCompletedTasks = subCompletion.completed_tasks || 0;
                     const subPendingTasks = subCompletion.pending_tasks || 0;
                     const subOverdueTasks = subCompletion.overdue_tasks || 0;
+                    const subAwaiting = subCompletion.awaiting_approval_tasks || 0;
                     const subLastUpdated = subCompletion.last_updated;
                     
                     // Use parent category assignment if subcategory doesn't have its own
@@ -1551,8 +1554,9 @@ export default function ESGRecordsTracker({
                                 </span>
                               </div>
                               <div className="text-xs text-text-muted mt-0.5">
-                                {subCompletedTasks} / {subTotalTasks} Tasks
+                                {subCompletedTasks} of {subTotalTasks} periods
                               </div>
+                              <TaskCountChips completed={subCompletedTasks} awaiting={subAwaiting} pending={subPendingTasks} testId={`sub-chips-${subcat.subcategory}`} />
                             </div>
                           ) : (
                             <span className="text-xs text-text-muted">-</span>
@@ -1569,7 +1573,11 @@ export default function ESGRecordsTracker({
                           )}
                         </TableCell>
                         <TableCell>
-                          {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
+                          {subAwaiting > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700" data-testid={`sub-status-${subcat.subcategory}`}>
+                              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />Awaiting approval
+                            </span>
+                          ) : effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -1626,7 +1634,8 @@ export default function ESGRecordsTracker({
                       {expandedDetailedView === `${cat.category}|${subcat.subcategory}` && (
                         <TableRow className="bg-stone-50">
                           <TableCell colSpan={8} className="py-3 px-4">
-                            <DetailedProgressView
+                            <TrackerDetailPanel
+                              section={section}
                               category={cat.category}
                               subcategory={subcat.subcategory}
                               onClose={() => setExpandedDetailedView(null)}

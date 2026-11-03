@@ -932,3 +932,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Task status sync
 - esg_reporting_tasks.status is now a synced cache of completion_service.get_task_status (+ status_synced_at). Writers: task_engine.sync_task_status / sync_tasks_matching / refresh_overdue_tasks; triggers: task creation, record save/revert/delete, approval decisions, monthly cron (1st, 00:05 UTC) POST /api/cron/sync-task-status (needs WEBHOOK_CRON_SECRET in env; .emergent/crons.yml).
 - One-time startup migration task_status_sync_v1 (schema_migrations) deletes legacy tasks without status_synced_at and regenerates from assignments (no backfill script).
+
+## ESG Records Tracker redesign
+- Row: progress chips (Completed/Pending/Overdue). Expanded panel (TrackerDetailPanel.js) with tabs Periods, Assignment and approvers, Activity, Linked disclosures; real due rules/dates via GET /api/esg-records/tracker/detail/{assignment_id} (tracker_detail_service.py). Approve/Send back buttons are display-only.
+- NOT verified: user chose to skip checking; no screenshot or E2E test run. Backend and frontend start without errors in logs.
