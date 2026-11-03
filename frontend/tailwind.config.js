@@ -8,6 +8,7 @@ module.exports = {
   theme: {
     extend: {
       borderRadius: {
+        card: '14px',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)'
@@ -33,6 +34,16 @@ module.exports = {
         border: '#E5E7EB',
         input: '#F5F7F5',
         ring: '#1A4D2E',
+        brand: { DEFAULT: '#14532d', 600: '#166534', 50: '#f0fdf4' },
+        mint: '#dcfce7',
+        canvas: '#f6f8f7',
+        line: '#e5e7eb',
+        ink: { DEFAULT: '#1f2937', soft: '#64748b' },
+        scope1: '#10b981',
+        scope2: '#3b82f6',
+        scope3: '#8b5cf6',
+        total: '#334155',
+        biogenic: '#f59e0b',
         chart: {
           '1': '#1A4D2E',
           '2': '#4F6F52',
@@ -41,6 +52,7 @@ module.exports = {
           '5': '#8D6F64'
         }
       },
+      boxShadow: { card: '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)' },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
         heading: ['Manrope', 'sans-serif'],

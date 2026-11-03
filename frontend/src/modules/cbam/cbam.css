@@ -1,0 +1,12 @@
+.cbam-root { @apply text-ink font-sans antialiased; }
+.cbam-root .card { @apply bg-white rounded-card shadow-card border border-line/70; }
+.cbam-root .btn { @apply inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50; }
+.cbam-root .btn-primary { @apply inline-flex items-center gap-2 py-2 text-sm font-medium transition disabled:opacity-50 rounded-full bg-brand text-white hover:bg-brand-600 px-5; }
+.cbam-root .btn-outline { @apply inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 border border-line bg-white text-ink hover:bg-gray-50; }
+.cbam-root .btn-ghost { @apply inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 text-ink-soft hover:bg-gray-100; }
+.cbam-root .input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-mint; }
+.cbam-root .input-muted { @apply w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-mint bg-gray-50 text-ink-soft; }
+.cbam-root .label { @apply mb-1.5 block text-sm font-medium text-ink; }
+.cbam-root .th { @apply px-4 py-3 text-left text-[13px] font-semibold text-ink whitespace-nowrap; }
+.cbam-root .td { @apply px-4 py-3.5 text-sm text-ink border-t border-line/70 whitespace-nowrap; }
+.cbam-root .kpi-label { @apply text-[12px] font-semibold uppercase tracking-wider text-ink-soft; }

@@ -1,0 +1,40 @@
+{
+  "_comment": "Field -> element path map for the declaration XML. Element names follow the EC CBAM XSD naming style (transitional QReport v23) and MUST be re-mapped to the definitive-period declaration XSD when the Commission publishes it. Drop that XSD at reference/data/declaration.xsd to validate.",
+  "root": "CBAMDeclaration",
+  "namespace": "",
+  "header": {
+    "ReportId": "report_id",
+    "DraftStatus": "draft_status",
+    "ReportingPeriod/Year": "year",
+    "SubmissionDate": "generated_at",
+    "Declarant/Name": "declarant_name",
+    "Declarant/IdentificationNumber": "declarant_id"
+  },
+  "totals": {
+    "TotalNetMass": "net_mass",
+    "TotalEmbeddedEmissions": "embedded",
+    "TotalFreeAllocationAdjustment": "faa",
+    "TotalCarbonPriceDeduction": "cp_deduction",
+    "CertificatesToSurrender": "certificates_whole"
+  },
+  "goods_element": "ImportedGood",
+  "goods": {
+    "ItemNumber": "item",
+    "CommodityCode/CnCode": "cn",
+    "CommodityCode/Description": "description",
+    "OriginCountry": "origin_iso3",
+    "ImportedQuantity/NetMass": "net_mass",
+    "ImportedQuantity/MeasurementUnit": "unit",
+    "ImportedQuantity/ImportDate": "import_date",
+    "Installation/InstallationName": "installation",
+    "GoodsEmissions/DeterminationType": "determination",
+    "GoodsEmissions/ReportingPeriodYear": "reporting_year",
+    "GoodsEmissions/DirectEmissions/SpecificEmbeddedEmissions": "see_direct",
+    "GoodsEmissions/IndirectEmissions/SpecificEmbeddedEmissions": "see_indirect",
+    "GoodsEmissions/SpecificEmbeddedEmissions": "see",
+    "GoodsEmissions/SpecificEmbeddedFreeAllocation": "sefa",
+    "GoodsEmissions/CarbonPricePaidPerTonne": "secpp",
+    "GoodsEmissions/Certificates": "certificates",
+    "SupportingDocuments/Filename": "evidence"
+  }
+}

@@ -3963,6 +3963,13 @@ api_router.include_router(scope3_bulk_router)
 
 app.include_router(api_router)
 
+from modules.cbam.api import operator as cbam_operator, workflow as cbam_workflow
+from modules.cbam.api.routes import public as cbam_public, router as cbam_router
+for _cbam_router in (cbam_router, cbam_workflow.router, cbam_operator.router):
+    app.include_router(_cbam_router, tags=["CBAM"], dependencies=[Depends(require_entitlement("cbam"))])
+for _cbam_public in (cbam_public, cbam_workflow.public, cbam_operator.public):
+    app.include_router(_cbam_public, tags=["CBAM public portals"])
+
 from shared.security import limiter, rate_limit_exceeded_handler, SecurityHeadersMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded

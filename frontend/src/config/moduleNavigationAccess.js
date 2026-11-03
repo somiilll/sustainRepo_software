@@ -14,7 +14,7 @@ export const isCoreNavigationKey = (key) => navigationEntries.some((entry) => en
 
 export const getNavigationModuleForPath = (pathname) => navigationEntries.find((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`)) || null;
 
-const USER_ENABLED_MODULES = ['dashboard', 'environment', 'social', 'governance', 'workflow', 'reporting', 'profile'];
+const USER_ENABLED_MODULES = ['dashboard', 'environment', 'social', 'governance', 'workflow', 'reporting', 'cbam', 'profile'];
 
 export const isUserRestrictedKey = (role, key) => role === 'user' && (key === 'environment.ghg.base_year' || !USER_ENABLED_MODULES.includes(String(key).split('.')[0]));
 

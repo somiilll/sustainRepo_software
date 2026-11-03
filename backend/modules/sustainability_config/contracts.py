@@ -342,6 +342,7 @@ class EntitlementsConfig(BaseModel):
     mis_reports: MisReportsEntitlement = Field(default_factory=MisReportsEntitlement)
     peer_benchmarking: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
     pcf_studio: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
+    cbam: EnabledEntitlement = Field(default_factory=lambda: EnabledEntitlement(enabled=False))
     supplier_assessment: SupplierAssessmentEntitlement = Field(default_factory=SupplierAssessmentEntitlement)
     audit_trails: EnabledEntitlement = Field(default_factory=EnabledEntitlement)
     evidence_storage: EvidenceStorageEntitlement = Field(default_factory=EvidenceStorageEntitlement)

@@ -75,6 +75,9 @@ import WorkflowTracker from './pages/WorkflowTracker';
 import WorkflowMyTask from './pages/WorkflowMyTask';
 import PeerBenchmarking from './pages/PeerBenchmarking';
 import PCFStudio from './pages/PCFStudio';
+import CbamModule, { CbamPublicPage } from './modules/cbam/module/CbamModule';
+import SupplierPortal from './modules/cbam/module/pages/SupplierPortal';
+import VerifierPortal from './modules/cbam/module/pages/VerifierPortal';
 import SupplierAssessmentSuppliers from './pages/SupplierAssessmentSuppliers';
 import SupplierResponseReviewPage from './modules/supplier-assessment/SupplierResponseReviewPage';
 import SupplierAssessmentESG from './pages/SupplierAssessmentESG';
@@ -184,6 +187,8 @@ const AppRoutes = () => {
     <>
       <Routes>
         <Route path="/login" element={user ? <Navigate to={defaultRoute} replace /> : <Login />} />
+        <Route path="/cbam/supplier/:token" element={<CbamPublicPage><SupplierPortal /></CbamPublicPage>} />
+        <Route path="/cbam/verifier/:token" element={<CbamPublicPage><VerifierPortal /></CbamPublicPage>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={user ? <Navigate to={defaultRoute} replace /> : <Navigate to="/login" replace />} />
@@ -378,6 +383,7 @@ const AppRoutes = () => {
           <Route path="reports" element={<Reports />} />
           <Route path="mis-reports" element={<MISReports />} />
           <Route path="peer-benchmarking" element={<PeerBenchmarking />} />
+          <Route path="cbam/*" element={<EntitlementRoute entitlement="cbam" moduleName="CBAM"><CbamModule /></EntitlementRoute>} />
           <Route path="pcf-studio" element={<EntitlementRoute entitlement="pcf_studio" moduleName="PCF Studio"><PCFStudio /></EntitlementRoute>} />
           
           {/* Supplier Assessment Routes (Customer Admin) */}
