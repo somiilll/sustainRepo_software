@@ -74,6 +74,12 @@ const questionDisplayName = (configMap, questionKey) => {
  * - Click to open review panel for each question
  * - Real-time refresh
  */
+const HISTORY_STATUS_UI = {
+  approved: { label: 'Approved', badge: 'bg-green-100 text-green-800', iconBg: 'bg-green-100', iconColor: 'text-green-600', Icon: CheckCircle2 },
+  rejected: { label: 'Rejected', badge: 'bg-red-100 text-red-800', iconBg: 'bg-red-100', iconColor: 'text-red-600', Icon: XCircle },
+  cancelled: { label: 'Cancelled', badge: 'bg-stone-100 text-stone-700', iconBg: 'bg-stone-100', iconColor: 'text-stone-500', Icon: XCircle },
+};
+
 export default function ApproverQueue() {
   const { getAuthHeader, token } = useAuth();
   const { formatDateTime } = useDateFormatter();
@@ -369,7 +375,9 @@ export default function ApproverQueue() {
         }
       }
       
-      setHistoryItems(allHistory);
+      setHistoryItems(allHistory.filter((item, i) => allHistory.findIndex(
+        (o) => o.entity_id === item.entity_id && o.status === item.status && o.updated_at === item.updated_at,
+      ) === i));
     } catch (error) {
       console.error('Failed to fetch approval history:', error);
       toast.error('Failed to load approval history');
@@ -721,6 +729,8 @@ export default function ApproverQueue() {
             <div className="space-y-3">
               {historyItems.map((item) => {
                 const isApproved = item._historyStatus === 'approved';
+                const statusUi = HISTORY_STATUS_UI[item._historyStatus] || HISTORY_STATUS_UI.rejected;
+                const StatusIcon = statusUi.Icon;
                 const isEmissionRecord = item.entity_type === 'emission_record';
                 const displayName = item._disclosure_name || 
                   (isEmissionRecord 
@@ -738,21 +748,13 @@ export default function ApproverQueue() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-start gap-4">
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
-                          isApproved ? 'bg-green-100' : 'bg-red-100'
-                        }`}>
-                          {isApproved ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-600" />
-                          )}
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${statusUi.iconBg}`}>
+                          <StatusIcon className={`w-5 h-5 ${statusUi.iconColor}`} />
                         </div>
                         
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge className={isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                              {isApproved ? 'Approved' : 'Rejected'}
-                            </Badge>
+                            <Badge className={statusUi.badge}>{statusUi.label}</Badge>
                             {item.framework && (
                               <Badge className="bg-stone-100 text-stone-800">{item.framework}</Badge>
                             )}
@@ -773,7 +775,7 @@ export default function ApproverQueue() {
                               {formatDateTime(item.updated_at || item.created_at)}
                             </span>
                           </div>
-                          {!isApproved && item.rejection_reason && (
+                          {item._historyStatus === 'rejected' && item.rejection_reason && (
                             <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
                               <strong>Rejection Reason:</strong> {item.rejection_reason}
                             </div>
@@ -901,7 +903,7 @@ export default function ApproverQueue() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <History className="w-5 h-5 text-stone-600" />
-                {selectedHistoryItem._historyStatus === 'approved' ? 'Approved' : 'Rejected'} Submission:{' '}
+                {(HISTORY_STATUS_UI[selectedHistoryItem._historyStatus] || HISTORY_STATUS_UI.rejected).label} Submission:{' '}
                 {selectedHistoryItem.entity_snapshot?.category}{selectedHistoryItem.entity_snapshot?.subcategory ? ` → ${selectedHistoryItem.entity_snapshot.subcategory}` : ''}
               </DialogTitle>
             </DialogHeader>
@@ -921,7 +923,7 @@ export default function ApproverQueue() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <History className="w-5 h-5 text-stone-600" />
-                {selectedHistoryItem._historyStatus === 'approved' ? 'Approved Submission' : 'Rejected Submission'}
+                {(HISTORY_STATUS_UI[selectedHistoryItem._historyStatus] || HISTORY_STATUS_UI.rejected).label} Submission
               </DialogTitle>
             </DialogHeader>
             
@@ -967,6 +969,7 @@ export default function ApproverQueue() {
  */
 function HistoryViewPanel({ item, onClose, formatDateTime }) {
   const isApproved = item._historyStatus === 'approved';
+  const isCancelled = item._historyStatus === 'cancelled';
   const snapshot = item.entity_snapshot || {};
   const isEmissionRecord = item.entity_type === 'emission_record';
   const isBRSR = item.framework?.toUpperCase() === 'BRSR';
@@ -982,16 +985,16 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
   return (
     <div className="space-y-6">
       {/* Status Banner */}
-      <div className={`p-4 rounded-lg ${isApproved ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+      <div className={`p-4 rounded-lg ${isApproved ? 'bg-green-50 border border-green-200' : isCancelled ? 'bg-stone-50 border border-stone-200' : 'bg-red-50 border border-red-200'}`}>
         <div className="flex items-center gap-3">
           {isApproved ? (
             <CheckCircle2 className="w-6 h-6 text-green-600" />
           ) : (
-            <XCircle className="w-6 h-6 text-red-600" />
+            <XCircle className={`w-6 h-6 ${isCancelled ? 'text-stone-500' : 'text-red-600'}`} />
           )}
           <div>
-            <p className={`font-semibold ${isApproved ? 'text-green-800' : 'text-red-800'}`}>
-              {isApproved ? 'Approved' : 'Rejected'}
+            <p className={`font-semibold ${isApproved ? 'text-green-800' : isCancelled ? 'text-stone-700' : 'text-red-800'}`}>
+              {isApproved ? 'Approved' : isCancelled ? 'Cancelled' : 'Rejected'}
             </p>
             <p className="text-sm text-stone-600">
               {formatDateTime(item.updated_at || item.created_at)}

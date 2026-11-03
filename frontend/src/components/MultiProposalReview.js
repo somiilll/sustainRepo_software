@@ -382,13 +382,13 @@ export default function MultiProposalReview({
     <div className="space-y-6">
       {/* Header */}
       {historyProposal ? (
-        <div className={`rounded-lg border p-4 ${historyProposal.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`} data-testid="history-status-banner">
-          <p className={`font-semibold ${historyProposal.status === 'approved' ? 'text-green-800' : 'text-red-800'}`}>
-            {historyProposal.status === 'approved' ? 'Approved' : 'Rejected'}
+        <div className={`rounded-lg border p-4 ${historyProposal.status === 'approved' ? 'border-green-200 bg-green-50' : historyProposal.status === 'cancelled' ? 'border-stone-200 bg-stone-50' : 'border-red-200 bg-red-50'}`} data-testid="history-status-banner">
+          <p className={`font-semibold ${historyProposal.status === 'approved' ? 'text-green-800' : historyProposal.status === 'cancelled' ? 'text-stone-700' : 'text-red-800'}`}>
+            {historyProposal.status === 'approved' ? 'Approved' : historyProposal.status === 'cancelled' ? 'Cancelled' : 'Rejected'}
             {historyProposal.resolved_by_name ? ` by ${historyProposal.resolved_by_name}` : ''}
           </p>
           <p className="text-sm text-stone-600">{formatDateTime(historyProposal.resolved_at || historyProposal.updated_at)}</p>
-          {historyProposal.status !== 'approved' && (historyProposal.rejection_reason || historyProposal.resolution_comment) && (
+          {historyProposal.status === 'rejected' && (historyProposal.rejection_reason || historyProposal.resolution_comment) && (
             <p className="mt-2 text-sm text-red-700"><strong>Rejection reason:</strong> {historyProposal.rejection_reason || historyProposal.resolution_comment}</p>
           )}
         </div>
@@ -554,8 +554,8 @@ export default function MultiProposalReview({
                     Proposal by {proposal.submitted_by_name || `User ${idx + 1}`}
                   </CardTitle>
                   {historyProposal ? (
-                    <Badge className={historyProposal.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                      {historyProposal.status === 'approved' ? 'Approved' : 'Rejected'}
+                    <Badge className={historyProposal.status === 'approved' ? 'bg-green-100 text-green-800' : historyProposal.status === 'cancelled' ? 'bg-stone-100 text-stone-700' : 'bg-red-100 text-red-800'}>
+                      {historyProposal.status === 'approved' ? 'Approved' : historyProposal.status === 'cancelled' ? 'Cancelled' : 'Rejected'}
                     </Badge>
                   ) : (
                     <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
