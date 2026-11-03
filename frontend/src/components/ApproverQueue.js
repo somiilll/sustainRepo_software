@@ -74,6 +74,19 @@ const questionDisplayName = (configMap, questionKey) => {
  * - Click to open review panel for each question
  * - Real-time refresh
  */
+const ACTION_UI = {
+  create: { label: 'Create', cls: 'bg-green-100 text-green-800' },
+  update: { label: 'Update', cls: 'bg-blue-100 text-blue-800' },
+  delete: { label: 'Delete', cls: 'bg-red-100 text-red-800' },
+};
+
+// ESG records only: delete requests are typed, edit proposals use the "Proposal" workflow, the rest are first submissions
+const esgAction = (item) => {
+  if (item.entity_type !== 'esg_record') return null;
+  if (item.request_type === 'delete') return ACTION_UI.delete;
+  return item._proposal_count || /proposal/i.test(item.workflow_name || '') ? ACTION_UI.update : ACTION_UI.create;
+};
+
 const HISTORY_STATUS_UI = {
   approved: { label: 'Approved', badge: 'bg-green-100 text-green-800', iconBg: 'bg-green-100', iconColor: 'text-green-600', Icon: CheckCircle2 },
   rejected: { label: 'Rejected', badge: 'bg-red-100 text-red-800', iconBg: 'bg-red-100', iconColor: 'text-red-600', Icon: XCircle },
@@ -642,7 +655,9 @@ export default function ApproverQueue() {
                                 {item._proposal_count} proposals
                               </Badge>
                             )}
-                            {item.request_type && item.request_type !== 'create' && (
+                            {esgAction(item) ? (
+                              <Badge className={esgAction(item).cls} data-testid="queue-action-badge">{esgAction(item).label}</Badge>
+                            ) : item.request_type && item.request_type !== 'create' && (
                               <Badge variant="outline" className="text-xs">
                                 {item.request_type.toUpperCase()}
                               </Badge>
@@ -758,8 +773,8 @@ export default function ApproverQueue() {
                             {item.framework && (
                               <Badge className="bg-stone-100 text-stone-800">{item.framework}</Badge>
                             )}
-                            {item.request_type === 'delete' && (
-                              <Badge className="bg-red-100 text-red-800">Delete</Badge>
+                            {esgAction(item) && (
+                              <Badge className={esgAction(item).cls} data-testid="history-action-badge">{esgAction(item).label}</Badge>
                             )}
                           </div>
                           <h4 className="font-medium text-text-primary">
