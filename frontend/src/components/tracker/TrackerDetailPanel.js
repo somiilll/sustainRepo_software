@@ -72,6 +72,19 @@ function PeriodCard({ period, section }) {
       <p className="mt-2 text-sm font-semibold text-stone-900">Due {fmt(period.due_at)}</p>
       <div className="my-3 border-t border-stone-100" />
       {context}
+      {period.facilities?.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-stone-100 pt-2" data-testid={`period-facilities-${period.period_key}`}>
+          {period.facilities.map((f) => {
+            const fc = STATUS[f.status] || STATUS.pending;
+            return (
+              <li key={f.name} className="flex items-center justify-between gap-2 text-xs" data-testid="period-facility-row">
+                <span className="truncate text-stone-700">{f.name}</span>
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-stone-600"><span className={`h-1.5 w-1.5 rounded-full ${fc.dot}`} />{fc.label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
