@@ -24,7 +24,10 @@ const fmt = (iso, withTime = false) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  return withTime ? `${date}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}` : date;
+  if (!withTime) return date;
+  const ist = { timeZone: 'Asia/Kolkata' };
+  const istDate = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', ...ist });
+  return `${istDate}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, ...ist })} IST`;
 };
 
 const range = (a, b) => {
@@ -165,10 +168,10 @@ function AssignmentTab({ a, ctx, canEdit, onEditAssignment }) {
 const ACTOR_STYLE = { submit: 'bg-blue-100 text-blue-700', approve: 'bg-emerald-100 text-emerald-700', reject: 'bg-red-100 text-red-700', assign: 'bg-emerald-100 text-emerald-700', update: 'bg-stone-100 text-stone-600' };
 
 const ActivityTab = ({ items }) => (
-  <ol className="max-h-[22rem] overflow-y-auto pr-2 pt-4" data-testid="tracker-tab-activity">
+  <ol className="max-h-[26rem] overflow-y-auto pr-2 pt-4" data-testid="tracker-tab-activity">
     {items.length === 0 && <Empty>No activity yet</Empty>}
     {items.map((e, i) => (
-      <li key={`${e.at}-${i}`} className="relative flex gap-4 pb-5" data-testid="activity-item">
+      <li key={`${e.at}-${i}`} className="relative flex gap-4 pb-5 last:pb-0" data-testid="activity-item">
         {i < items.length - 1 && <span className="absolute left-[19px] top-10 h-[calc(100%-2.5rem)] w-px bg-stone-200" />}
         <span className={`z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${ACTOR_STYLE[e.kind] || ACTOR_STYLE.update}`}>{(e.actor || '?').slice(0, 1).toUpperCase()}</span>
         <div className="min-w-0"><p className="text-base text-stone-900">{e.title}</p><p className="text-sm text-stone-500">{fmt(e.at, true)}</p></div>
@@ -180,7 +183,7 @@ const ActivityTab = ({ items }) => (
 const ENTRY_STATUS = { completed: 'Completed', approved: 'Approved', pending: 'Awaiting approval', pending_approval: 'Awaiting approval', rejected: 'Sent back' };
 
 const LinkedTab = ({ items, section }) => (
-  <ul className="max-h-[22rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="tracker-tab-linked">
+  <ul className="max-h-[26rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="tracker-tab-linked">
     {items.length === 0 && <Empty>No records have been submitted for this assignment yet</Empty>}
     {items.map((r) => (
       <li key={r.record_id} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid="linked-entry">
@@ -229,7 +232,7 @@ export default function TrackerDetailPanel({ section, category, subcategory, ver
                     {onClose && <button onClick={onClose} className="rounded-md p-1 text-stone-400 hover:bg-stone-100" aria-label="Close details" data-testid="tracker-detail-close"><X className="h-4 w-4" /></button>}
         </div>
       </div>
-      <div className="mt-4 flex gap-5 overflow-x-auto border-b border-stone-200" role="tablist">
+      <div className="mt-4 flex flex-wrap gap-x-5 border-b border-stone-200" role="tablist">
         {tabs.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} data-testid={`tracker-tab-${t.id}`}
             className={`-mb-px whitespace-nowrap border-b-2 pb-2 text-sm font-medium ${tab === t.id ? 'border-emerald-600 text-stone-900' : 'border-transparent text-stone-500 hover:text-stone-800'}`}>

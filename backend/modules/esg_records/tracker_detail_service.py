@@ -1,5 +1,5 @@
 """Data for the tracker's expanded panel: periods, assignment, activity, linked entries."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from shared.database.mongo import db
@@ -12,6 +12,45 @@ def _iso(value: Any) -> Optional[str]:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value) if value else None
+
+
+def _plus_seconds(iso: str, seconds: int) -> str:
+    try:
+        return (datetime.fromisoformat(iso) + timedelta(seconds=seconds)).isoformat()
+    except ValueError:
+        return iso
+
+
+def _iso_utc(value: Any) -> Optional[str]:
+    """ISO string for a stored timestamp; naive values are UTC."""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return value or None
+    if isinstance(value, datetime):
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+    return None
+
+
+FIELD_LABELS = {"filling_frequency": "frequency", "start_date": "start date", "end_date": "end date",
+                "requires_approval": "approval requirement", "approver_id": "approver"}
+
+
+def _assignment_changes(previous: Dict[str, Any], new: Dict[str, Any], names: Dict[str, Dict[str, str]]) -> List[str]:
+    def show(key: str, value: Any) -> str:
+        if key == "approver_id":
+            return names.get(value, {}).get("name", "none") if value else "none"
+        if key == "requires_approval":
+            return "required" if value else "not required"
+        return str(value).replace("_", "-") if value else "none"
+    out = []
+    for key, label in FIELD_LABELS.items():
+        if key in new and key in previous and new[key] != previous[key]:
+            out.append(f"{label} from {show(key, previous[key])} to {show(key, new[key])}")
+    if new.get("due_config") != previous.get("due_config") and "due_config" in previous and "due_config" in new:
+        out.append("due date rule")
+    return out
 
 
 def due_rule_text(frequency: str, due_config: Optional[Dict[str, Any]]) -> str:
@@ -65,14 +104,14 @@ async def _period_context(org_id: str, section: str, category: str, subcategory:
     if not record:
         return {}
     context = {"record_id": record["id"], "submitted_by": record.get("updated_by") or record.get("created_by"),
-               "submitted_at": _iso(record.get("updated_at") or record.get("created_at")),
+               "submitted_at": _iso_utc(record.get("updated_at") or record.get("created_at")),
                "approval_status": record.get("approval_status")}
     request = await db.approval_requests.find_one(
         {"entity_id": record["id"], "status": "approved"}, {"_id": 0, "resolved_by_name": 1, "resolved_at": 1},
         sort=[("resolved_at", -1)])
     if request:
         context["approved_by_name"] = request.get("resolved_by_name")
-        context["approved_at"] = _iso(request.get("resolved_at"))
+        context["approved_at"] = _iso_utc(request.get("resolved_at"))
     return context
 
 
@@ -103,7 +142,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
 
     assignee_rows = await db.esg_assignment_assignees.find(
         {"assignment_id": {"$in": [a["id"] for a in assignments]}, "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}]},
-        {"_id": 0, "user_id": 1, "assignment_id": 1}).to_list(200)
+        {"_id": 0, "user_id": 1, "assignment_id": 1, "assigned_at": 1}).to_list(200)
     approver_ids = [i for a in assignments for i in ([a.get("approver_id")] + [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (a.get("approval_chain") or [])]) if i]
     history = await db.esg_assignment_history.find(
         {"assignment_id": {"$in": [a["id"] for a in assignments]}}, {"_id": 0}).sort("created_at", -1).to_list(30)
@@ -111,7 +150,9 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         {"organization_id": org_id, "entity_type": "esg_record", "entity_snapshot.category": category,
          "entity_snapshot.subcategory": subcategory}, {"_id": 0}).sort("submitted_at", -1).to_list(100)
     names = await _user_names([r["user_id"] for r in assignee_rows] + approver_ids + [p.get("submitted_by") for p in periods]
-                              + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments])
+                              + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments]
+                              + [i for h in history for i in (h.get("new_value") or {}).get("user_ids", [])]
+                              + [(v or {}).get("approver_id") for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict)])
 
     for p in periods:
         p["submitted_by_name"] = names.get(p.get("submitted_by"), {}).get("name")
@@ -137,36 +178,52 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     for r in requests:
         label = record_label.get(r.get("entity_id"), "")
         suffix = f" {label}" if label else " record"
-        activity.append({"at": _iso(r.get("submitted_at")), "kind": "submit", "actor": actor_of(r, "submitted_by_name"),
+        activity.append({"at": _iso_utc(r.get("submitted_at")), "kind": "submit", "actor": actor_of(r, "submitted_by_name"),
                          "title": f"{actor_of(r, 'submitted_by_name')} submitted{suffix} for approval"})
         if r.get("status") in ("approved", "rejected") and r.get("resolved_at"):
             verb = "approved" if r["status"] == "approved" else "sent back"
-            activity.append({"at": _iso(r.get("resolved_at")), "kind": "approve" if r["status"] == "approved" else "reject",
+            activity.append({"at": _iso_utc(r.get("resolved_at")), "kind": "approve" if r["status"] == "approved" else "reject",
                              "actor": actor_of(r, "resolved_by_name"), "title": f"{actor_of(r, 'resolved_by_name')} {verb}{suffix}"})
     for a in assignments:
         creator = names.get(a.get("created_by_user_id"), {}).get("name", "Someone")
-        people = [names.get(r["user_id"], {}).get("name") for r in assignee_rows if r["assignment_id"] == a["id"]]
+        created = _iso_utc(a.get("created_at")) or ""
+        first_update = next((h for h in sorted(history, key=lambda x: str(x.get("created_at"))) if h.get("action") == "version_updated"), None)
+        original = (first_update or {}).get("previous_value") or {}
+        approver_id = original.get("approver_id", a.get("approver_id"))
+        frequency_at_creation = original.get("filling_frequency", a.get("filling_frequency", "monthly"))
+        people = [names.get(r["user_id"], {}).get("name") for r in assignee_rows
+                  if r["assignment_id"] == a["id"] and (_iso_utc(r.get("assigned_at")) or "") <= _plus_seconds(created, 10)]
         text = f"{creator} assigned {subcategory}"
         if people:
             text += f" to {', '.join(p for p in people if p)}"
-        text += f", {a.get('filling_frequency', 'monthly').replace('_', '-')}"
-        approver = names.get(a.get("approver_id"), {}).get("name")
+        text += f", {frequency_at_creation.replace('_', '-')}"
+        approver = names.get(approver_id, {}).get("name")
         if a.get("requires_approval") and approver:
             text += f", with {approver} as approver"
-        activity.append({"at": _iso(a.get("created_at")), "kind": "assign", "actor": creator, "title": text})
+        activity.append({"at": created, "kind": "assign", "actor": creator, "title": text})
     for h in history:
-        if h.get("action") == "created":
-            continue
         who = names.get(h.get("changed_by_user_id"), {}).get("name", "Someone")
-        activity.append({"at": _iso(h.get("created_at")), "kind": "update", "actor": who,
-                         "title": f"{who} updated the assignment ({h.get('action', 'updated').replace('_', ' ')})"})
+        action, new_value = h.get("action"), h.get("new_value") or {}
+        if action == "assignees_added" and new_value.get("user_ids") and (_iso_utc(h.get("created_at")) or "") > _plus_seconds(next((_iso_utc(a.get("created_at")) for a in assignments), ""), 10):
+            added = ", ".join(names.get(i, {}).get("name", "User") for i in new_value["user_ids"])
+            text = f"{who} added {added} for data entry"
+        elif action == "assignees_removed" and new_value.get("user_ids"):
+            text = f"{who} removed {', '.join(names.get(i, {}).get('name', 'User') for i in new_value['user_ids'])} from data entry"
+        elif action == "version_updated":
+            changes = _assignment_changes(h.get("previous_value") or {}, new_value, names)
+            if not changes:
+                continue
+            text = f"{who} changed " + "; ".join(changes)
+        else:
+            continue
+        activity.append({"at": _iso_utc(h.get("created_at")), "kind": "update", "actor": who, "title": text})
     activity.sort(key=lambda e: e["at"] or "", reverse=True)
 
     entries = [{
         "record_id": rec["id"], "period_label": record_label.get(rec["id"], ""), "is_current": bool(rec.get("is_current")),
         "status": rec.get("approval_status") if rec.get("approval_status") not in (None, "not_required") else rec.get("status"),
         "submitted_by_name": rec_names.get(rec.get("updated_by") or rec.get("created_by"), {}).get("name"),
-        "submitted_at": _iso(rec.get("updated_at") or rec.get("created_at")),
+        "submitted_at": _iso_utc(rec.get("updated_at") or rec.get("created_at")),
     } for rec in section_records if rec.get("is_current")]
 
     return {
