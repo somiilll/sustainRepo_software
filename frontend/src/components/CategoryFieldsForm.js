@@ -5,6 +5,7 @@
 import React from 'react';
 import WorkforceDataTable from './WorkforceDataTable';
 import { HierarchicalFields, hasFieldTree } from './HierarchicalFields';
+import { DynamicFieldRenderer } from './ESGRecords';
 import {
   EMPLOYEE_DIVERSITY_CONFIG,
   WORKER_DIVERSITY_CONFIG,
@@ -40,7 +41,7 @@ export const workforceSupplementaryFields = (fields = []) => {
   return fields.filter((field) => !field.grid_row && (hasGridFields || field.show_with_legacy_ui));
 };
 
-export const hasCategoryForm = (subcategory, fields) => !!WORKFORCE_TABLE_MAP[subcategory] || hasFieldTree(fields);
+export const hasCategoryForm = (subcategory, fields) => !!WORKFORCE_TABLE_MAP[subcategory] || (fields || []).length > 0;
 
 const READ_ONLY_CLASS = '[&_input]:pointer-events-none [&_[role=combobox]]:pointer-events-none';
 
@@ -57,5 +58,22 @@ export default function CategoryFieldsForm({ subcategory, fields, values, onChan
       </div>
     );
   }
-  return <HierarchicalFields fields={fields} values={values || {}} onChange={onChange} readOnly={readOnly} testIdPrefix={testIdPrefix} />;
+  if (hasFieldTree(fields)) {
+    return <HierarchicalFields fields={fields} values={values || {}} onChange={onChange} readOnly={readOnly} testIdPrefix={testIdPrefix} />;
+  }
+  return (
+    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 ${readOnly ? READ_ONLY_CLASS : ''}`}>
+      {(fields || []).map((field) => (
+        <DynamicFieldRenderer
+          key={field.field_key}
+          field={field}
+          value={values?.[field.field_key]}
+          onChange={(val) => onChange((prev) => ({ ...prev, [field.field_key]: val }))}
+          unitValue={values?.[`${field.field_key}_unit`]}
+          onUnitChange={(unit) => onChange((prev) => ({ ...prev, [`${field.field_key}_unit`]: unit }))}
+          testIdPrefix={testIdPrefix}
+        />
+      ))}
+    </div>
+  );
 }
