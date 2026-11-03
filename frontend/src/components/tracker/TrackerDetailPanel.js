@@ -57,6 +57,8 @@ function PeriodCard({ period, section }) {
     context = <p className="text-xs text-stone-600" data-testid={`period-context-${period.period_key}`}>Submitted by {period.submitted_by_name || 'user'} on {fmt(period.submitted_at, true)}</p>;
   } else if (period.status === 'rejected') {
     context = <p className="text-xs text-red-700">Sent back to {period.submitted_by_name || 'the submitter'} for changes</p>;
+  } else if (period.status === 'overdue') {
+    context = <p className="text-xs text-red-700" data-testid={`period-context-${period.period_key}`}>Due date passed on {fmt(period.due_at)} with no data submitted</p>;
   } else {
     context = <p className="text-xs text-stone-500">Collection opens {fmt(period.opens_at)}</p>;
   }

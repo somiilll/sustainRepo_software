@@ -84,10 +84,10 @@ def _period_status(tasks: List[Dict[str, Any]]) -> str:
     statuses = [t.get("status") or "pending" for t in tasks]
     if all(s == "completed" for s in statuses):
         return "completed"
-    if "pending_approval" in statuses:
-        return "pending_approval"
     if "overdue" in statuses:
         return "overdue"
+    if "pending_approval" in statuses:
+        return "pending_approval"
     if "rejected" in statuses:
         return "rejected"
     return "pending"
@@ -134,6 +134,9 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     by_period: Dict[str, List[Dict[str, Any]]] = {}
     for task in tasks:
         task["status"] = (await completion_service.get_task_status(task)).value
+        due = _iso_utc(task.get("due_at"))
+        if task["status"] in ("pending", "backfill_pending") and due and due < datetime.now(timezone.utc).isoformat():
+            task["status"] = "overdue"
         by_period.setdefault(task["period_key"], []).append(task)
 
     periods: List[Dict[str, Any]] = []
