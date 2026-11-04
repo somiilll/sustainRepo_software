@@ -257,7 +257,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         "assignment": {
             "start_date": ref.get("start_date"), "end_date": ref.get("end_date"),
             "requires_approval": bool(ref.get("requires_approval")),
-            "assignees": [{**names.get(r["user_id"], {"name": "User", "email": ""}), "id": r["user_id"]} for r in assignee_rows],
+            "assignees": [{**names.get(r["user_id"], {"name": "User", "email": ""}), "id": r["user_id"]} for r in {r["user_id"]: r for r in assignee_rows}.values()],
             "approvers": [{**names.get(i, {"name": "User", "email": ""}), "id": i} for i in dict.fromkeys(approver_ids)],
             "facilities": facilities,
             "reminder_rules": ref.get("reminder_rules") or [], "escalation": ref.get("escalation") or "none",
