@@ -2244,7 +2244,7 @@ class ESGRecordsService:
         if proposal_ids:
             proposals = await db.approval_requests.find(
                 {"id": {"$in": proposal_ids}},
-                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1, "steps_completed": 1, "total_levels": 1},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1, "steps_completed": 1, "total_levels": 1, "submitted_at": 1},
             ).to_list(None)
             proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
@@ -2346,7 +2346,41 @@ class ESGRecordsService:
                 if v.get(diff_key):
                     v[diff_key] = presenter.present(v[diff_key], previous_values, current_values)
         
-        return versions
+        return self._split_multi_level_versions(versions, proposals_by_id)
+
+    @staticmethod
+    def _split_multi_level_versions(versions: List[Dict[str, Any]], proposals_by_id: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Show submission, each intermediate approval and the final approval as separate history entries."""
+        ascending = len(versions) < 2 or (versions[0].get("version") or 0) <= (versions[-1].get("version") or 0)
+        result: List[Dict[str, Any]] = []
+        for v in versions:
+            approvals = v.get("level_approvals") or []
+            proposal = proposals_by_id.get(v.get("proposal_id")) or {}
+            if not approvals or v.get("change_type") != "approved":
+                result.append(v)
+                continue
+            total = approvals[0]["total_levels"]
+            stages = {st["level"]: st for st in v.get("approver_stages") or []}
+            legacy_edits = {e.get("level"): ", ".join(e.get("fields") or []) for e in v.get("approver_edits") or []}
+            blank = {"submitted_field_diffs": [], "approver_field_diffs": [], "approver_edited": False, "approver_edits": [],
+                     "level_approvals": [], "approver_stages": []}
+            rows = [{**v, **blank, "id": f"{v['id']}-submitted", "change_type": "submitted", "event_title": "Update Submitted",
+                     "created_at": proposal.get("submitted_at") or v.get("created_at"), "changed_by_name": v.get("requested_by_name"),
+                     "field_diffs": v.get("submitted_field_diffs") or []}]
+            for la in approvals:
+                stage = stages.get(la["level"])
+                rows.append({**v, **blank, "id": f"{v['id']}-level-{la['level']}", "change_type": "level_approved",
+                             "event_title": f"Level {la['level']} of {total} Approved", "created_at": la.get("at") or v.get("created_at"),
+                             "changed_by_name": la["by"], "approver_modification_title": "Modified by approver" if stage else None,
+                             "field_diffs": (stage or {}).get("diffs") or [],
+                             "no_changes_note": None if stage else (f"Edited: {legacy_edits[la['level']]}" if la["level"] in legacy_edits else "Approved without changes")})
+            final_stage = stages.get(total)
+            rows.append({**v, **blank, "event_title": f"Level {total} of {total} Approved (Final)",
+                         "approver_modification_title": "Modified by approver" if final_stage else None,
+                         "field_diffs": (final_stage or {}).get("diffs") or [],
+                         "no_changes_note": None if final_stage else (f"Edited: {legacy_edits[total]}" if total in legacy_edits else "Approved without changes")})
+            result.extend(rows if ascending else reversed(rows))
+        return result
     
     async def get_version(
         self,

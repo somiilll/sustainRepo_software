@@ -1831,7 +1831,7 @@ export default function ESGRecordsDataEntry({
                 const approvalDiff = version.field_diffs?.find(diff => diff.field === 'approval_status');
                 const isApproved = version.change_type === 'approved' || approvalDiff?.new_value === 'approved';
                 const isRejected = version.change_type === 'rejected' || version.change_type === 'deletion_rejected' || approvalDiff?.new_value === 'rejected';
-                const eventTitle = version.change_type === 'deletion_rejected' ? 'Deletion Rejected' : version.change_type === 'deletion_requested' ? 'Deletion Requested' : isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
+                const eventTitle = version.event_title || (version.change_type === 'deletion_rejected' ? 'Deletion Rejected' : version.change_type === 'deletion_requested' ? 'Deletion Requested' : isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated');
                 const hasApproverOverride = isApproved && version.approver_edited && (version.submitted_field_diffs || []).length > 0;
                 const visibleDiffs = hasApproverOverride ? [] : (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
                 return (
@@ -1862,7 +1862,8 @@ export default function ESGRecordsDataEntry({
                           ))}
                           <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
                         </div>
-                      ) : <p className="text-sm text-text-secondary">By: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
+                      ) : <p className="text-sm text-text-secondary">{version.change_type === 'level_approved' ? 'Approved by' : version.change_type === 'submitted' ? 'Requested by' : 'By'}: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
+                      {version.no_changes_note && <p className="text-xs text-text-muted mt-1" data-testid="version-no-changes-note">{version.no_changes_note}</p>}
                       {version.change_reason && (
                         <p className="text-sm text-text-muted mt-1">Reason: {version.change_reason}</p>
                       )}
@@ -1875,7 +1876,7 @@ export default function ESGRecordsDataEntry({
                       {/* Field Diffs - computed on API, not stored */}
                       {visibleDiffs.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-stone-200">
-                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">{isRejected ? 'Rejected Changes' : isApproved ? 'Approved Changes' : 'Changes Made'}</p>
+                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">{version.approver_modification_title || (isRejected ? 'Rejected Changes' : isApproved ? 'Approved Changes' : 'Changes Made')}</p>
                           <div className="space-y-2">
                             {visibleDiffs.map((change, cIdx) => (
                               <div key={cIdx} className="bg-stone-50 rounded-lg p-2 text-sm">
