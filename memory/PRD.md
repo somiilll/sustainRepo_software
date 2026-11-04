@@ -943,3 +943,14 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - "Edit assignment" button inside the tab; row UserPlus icon only shown when the subcategory has no assignment. Calendar icon replaced by chevron in the actions column.
 - User said "dont test": only backend curl-checked; frontend not visually verified.
 - Activity fixes: creation sentence lists only assignees/approver/frequency as at creation; later changes read "X added Y for data entry" / "X changed frequency from a to b"; no-op version bumps hidden. Naive stored timestamps treated as UTC and shown in IST with an "IST" suffix. Tab row no longer scrolls (removed overflow-x-auto). Verified with curl only; UI not tested.
+
+## Update (latest session)
+- C2 approver-edit recalculation fixed (spend-basis exchange rate hydrated; failures block save with 422).
+- C7 approver queue: employee list stored in proposal snapshot; per-employee input changes in version history.
+- Approver edits of optional fields (supplier name/code, asset name, from/to location, notes, processes, evidence) saved and shown in version history.
+- Non-admin BRSR/GRI: no Generate Report; progress counts only assigned questions; Section A II/III hidden if unassigned; Workflow Tracker greyed out.
+- BRSR/GRI save approval now decided by question assignment (same as KPIs), not org workflow.
+- KPI tracker: Linked entries tab removed; GHG add/edit/approve/delete events now in Activity.
+- BRSR/GRI section rows: expandable panel (Questions / Assignment and approvers / Activity) via GET /api/tracking/{domain}/frameworks/{fw}/sections/{id}/detail.
+- BRSR/GRI multi-level approval: request total_levels from assignment chain; next level resolved from chain; section re-assign now updates approver chain of already-assigned questions.
+- NOT TESTED by testing agent (user asked not to test): section panel UI, multi-level BRSR approval flow, GHG activity in tracker UI.
