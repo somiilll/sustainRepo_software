@@ -50,3 +50,43 @@ def test_approver_edit_recalculates(client):
     assert snap["approver_edited"] is True
     # dynamic_field_values must only contain dict entries (EmissionRecordResponse requires dicts)
     assert all(isinstance(v, dict) for v in snap["dynamic_field_values"].values())
+
+
+# Iteration 8: FIX 2 - override_* flags map to <var>.is_override, numeric coercion, stray keys dropped; recalc must still run
+def _snap(client, pid):
+    j = client.get(f"{BASE_URL}/api/proposals/{pid}").json()
+    return j.get("proposal", j)
+
+
+@pytest.fixture
+def pending_density(client):
+    if _snap(client, DENSITY_PROPOSAL).get("status") not in ("pending", "in_review"):
+        pytest.skip("proposal not pending anymore")
+    yield DENSITY_PROPOSAL
+    # restore original inputs (qty 1234 L, density 0.9 override)
+    client.put(f"{BASE_URL}/api/proposals/{DENSITY_PROPOSAL}", json={"field_values": {
+        "override_qty": False, "qty": 1234, "qty_unit": "L", "override_cv": False, "cv_justification": "", "density": 0.9}})
+
+
+def test_override_flags_not_stored_as_bool(client, pending_density):
+    r = client.put(f"{BASE_URL}/api/proposals/{pending_density}", json={"field_values": {
+        "override_qty": True, "qty": "1234", "qty_unit": "L", "override_cv": True, "cv_justification": "TEST_just",
+        "override_bogus": True, "bogus_unit": "x"}})
+    assert r.status_code == 200, r.text[:300]
+    snap = _snap(client, pending_density)["entity_snapshot"]
+    for container in (snap.get("dynamic_field_values") or {}, snap.get("inputs") or {}):
+        assert all(isinstance(v, dict) for v in container.values()), container
+        assert not {"override_qty", "override_bogus", "bogus_unit"} & set(container)
+    dfv = snap["dynamic_field_values"]
+    assert dfv["qty"]["value"] == 1234.0 and isinstance(dfv["qty"]["value"], float)
+    assert dfv["qty"]["is_override"] is True
+    assert dfv["cv"]["is_override"] is True and dfv["cv"]["justification"] == "TEST_just"
+
+
+# BUG (iter8): qty.is_override=True routes qty to user_overrides in _recalculate_emissions -> "Missing required 'Quantity Used'"
+# -> PUT still returns 200 but totals are stale
+def test_recalc_runs_when_qty_flagged_override(client, pending_density):
+    r = client.put(f"{BASE_URL}/api/proposals/{pending_density}", json={"field_values": {"override_qty": True, "qty": "2468"}})
+    assert r.status_code == 200
+    snap = _snap(client, pending_density)["entity_snapshot"]
+    assert abs(snap["co2e_emissions"] - 3.5508 * 2) < 0.02, f"stale co2e {snap['co2e_emissions']}"
