@@ -607,7 +607,7 @@ async def _find_emission_assignment(
 def _extra_snapshot_fields(record: dict) -> dict:
     """Evidence files and journey locations, so the approval queue shows what the assignee entered."""
     fields = {}
-    for key in ("evidence_files", "from_location", "to_location"):
+    for key in ("evidence_files", "from_location", "to_location", "supplier_name", "supplier_code"):
         if record.get(key):
             fields[key] = record[key]
     return fields
@@ -980,6 +980,7 @@ async def _update_existing_approval_request(
         # Source info
         "source_of_information": updated_data.get("source_of_information") or existing_record.get("source_of_information", ""),
         "notes": updated_data.get("notes") or existing_record.get("notes"),
+        **_extra_snapshot_fields({**existing_record, **{k: v for k, v in updated_data.items() if v}}),
         # Store original values for comparison
         "original_values": {
             "inputs": original_inputs,
@@ -1034,6 +1035,7 @@ async def _update_existing_approval_request(
             "responsible_person_contact": updated_data.get("responsible_person_contact") or existing_record.get("responsible_person_contact", ""),
             "source_of_information": updated_data.get("source_of_information") or existing_record.get("source_of_information", ""),
             "notes": updated_data.get("notes") or existing_record.get("notes"),
+            **_extra_snapshot_fields({**existing_record, **{k: v for k, v in updated_data.items() if v}}),
         }
         
         # Also update emission factor if changed

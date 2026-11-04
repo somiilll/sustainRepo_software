@@ -26,7 +26,7 @@ export const buildReadOnlyDraft = (emission) => {
       calorific_value: fieldValue(data.cv), calorific_value_unit: fieldUnit(data.cv) || 'MJ/kg', calorific_value_justification: data.cv?.justification || '',
       density: fieldValue(data.density), density_unit: fieldUnit(data.density) || 'kg/L', density_justification: data.density?.justification || '',
       process_names: emission.process_descriptions?.length ? emission.process_descriptions : (emission.process_names?.length ? emission.process_names.map((name) => ({ name, description: '' })) : [{ name: '', description: '' }]),
-      supplier_name: fieldValue(data.supplier_name), supplier_code: fieldValue(data.supplier_code), asset_name: emission.asset_name || fieldValue(data.asset_name),
+      supplier_name: emission.supplier_name || fieldValue(data.supplier_name), supplier_code: emission.supplier_code || fieldValue(data.supplier_code), asset_name: emission.asset_name || fieldValue(data.asset_name),
       from_location: emission.from_location || fieldValue(data.from_location), to_location: emission.to_location || fieldValue(data.to_location),
     },
     frequencyType: emission.frequency_type || 'monthly', biogenicScopeSelection: emission.biogenic_scope_selection || fieldValue(data.biogenic_scope_selection) || 'scope1',
