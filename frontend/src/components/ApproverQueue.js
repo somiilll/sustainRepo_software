@@ -955,7 +955,7 @@ export default function ApproverQueue() {
       {/* Multi-Proposal Review Dialog for ESG Records and Emission Records */}
       {multiProposalRecord && (
         <Dialog open={true} onOpenChange={() => setMultiProposalRecord(null)}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={`max-h-[90vh] overflow-y-auto overflow-x-hidden ${multiProposalRecord.entityType === 'emission_record' ? 'w-[96vw] max-w-6xl' : 'max-w-5xl'}`}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600" />

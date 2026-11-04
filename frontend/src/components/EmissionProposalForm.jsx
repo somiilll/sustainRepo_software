@@ -93,11 +93,7 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
 
   if (!draft) return null;
   return (
-    <div className="space-y-3" data-testid={`emission-proposal-form-${proposal.id}`}>
-      <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3" data-testid={`emission-proposal-total-${proposal.id}`}>
-        <span className="text-sm font-medium text-emerald-900">Total emissions</span>
-        <span className="text-lg font-semibold text-emerald-900">{Number(calculated.co2eEmissions || 0).toLocaleString(undefined, { maximumFractionDigits: 4 })} tCO₂e</span>
-      </div>
+    <div className="min-w-0 space-y-3" data-testid={`emission-proposal-form-${proposal.id}`}>
       <EmissionEditForm
         draft={draft} onDraftChange={setDraft} editingEmission={emission} activitySearchTerm="" loadingScope3EF={false} loadingBiogenicCategories={false}
         isCalculatingEditEmployee={false} isEditLoading={false} editFormConfigLoading={false} dynamicInputFields={dynamicInputFields}

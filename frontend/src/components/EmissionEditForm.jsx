@@ -562,9 +562,9 @@ export default function EmissionEditForm(props) {
                         {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
                             {/* Scope 3: Calculation Method */}
-                            <div className={`space-y-1.5${lockCls('methodology')}`} {...lockAttr('methodology')}>
+                            <div className="space-y-1.5">
                               <Label htmlFor="scope3_method_select">Calculation Method *</Label>
-                              <div className="relative">
+                              {lockedFields.includes('methodology') ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="scope3-method-select">{scope3Method ? getMethodLabel(scope3Method) : '—'}</div> : <div className="relative">
                                 <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
                                 <select
                                   id="scope3_method_select"
@@ -584,7 +584,7 @@ export default function EmissionEditForm(props) {
                                     </option>
                                   ))}
                                 </select>
-                              </div>
+                              </div>}
                               {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
@@ -729,9 +729,9 @@ export default function EmissionEditForm(props) {
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
                       {ghgUiState.showCalculationMethodology && (
-                        <div className={`min-w-0${lockCls('methodology')}`} {...lockAttr('methodology')} data-testid="edit-calculation-methodology-section">
+                        <div className="min-w-0" data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
-                          <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
+                          {lockedFields.includes('methodology') ? <div role="textbox" aria-readonly="true" className="mt-1.5 flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="edit-calculation-methodology-select">{{ using_heat_basis_ncv: 'Using Heat Basis (NCV)', using_qty_basis_ef: 'Using Qty Basis EF', using_carbon_composition: 'Using Composition of Carbon' }[editCalcMethodology || 'using_heat_basis_ncv']}</div> : <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
                             onChange={(event) => {
                               setEditCalcMethodology(event.target.value);
@@ -739,7 +739,7 @@ export default function EmissionEditForm(props) {
                             }}
                             className={editSelectWithIconClass}
                             data-testid="edit-calculation-methodology-select"
-                          ><option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option><option value="using_qty_basis_ef">Using Qty Basis EF</option><option value="using_carbon_composition">Using Composition of Carbon</option></select></div>
+                          ><option value="using_heat_basis_ncv">Using Heat Basis (NCV)</option><option value="using_qty_basis_ef">Using Qty Basis EF</option><option value="using_carbon_composition">Using Composition of Carbon</option></select></div>}
                         </div>
                       )}
                       </div>
