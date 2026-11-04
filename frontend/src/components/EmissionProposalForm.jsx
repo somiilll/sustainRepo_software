@@ -7,10 +7,11 @@ import { Button } from './ui/button';
 import EmissionEditForm from './EmissionEditForm';
 import { downloadSecureFile, openSecureFile } from '../lib/secureFileAccess';
 import { createDraftEvidence, persistedEvidence, revokeDraftEvidences, toEvidencePayload, uploadDraftEvidences } from '../lib/draftEvidence';
+import hydrateEmissionForm from '../pages/emissions/utils/hydrateEmissionForm';
 import { buildReadOnlyDraft, buildDynamicInputFields } from '../modules/supplier-assessment/components/SupplierEmissionReadOnlyDialog';
 
 const API = process.env.REACT_APP_BACKEND_URL;
-const LOCKED = ['scope', 'category', 'subcategory', 'methodology', 'fuel'];
+const LOCKED = ['scope', 'category', 'subcategory', 'methodology', 'fuel', 'employees'];
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 const DETAIL_KEYS = ['notes', 'record_source', 'responsible_person', 'responsible_person_designation', 'responsible_person_contact'];
 const allocationValue = (emission) => {
@@ -63,9 +64,22 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
   }, [snapshot.category_id, snapshot.category, snapshot.scope, getAuthHeader]);
 
   const emission = useMemo(() => proposalToEmission(proposal, formConfig), [proposal, formConfig]);
-  const baseDraft = useMemo(() => ({ ...buildReadOnlyDraft(emission), existingEvidences: (emission.evidence_files || []).map(evidenceItem), allocationMethod: allocationValue(emission) }), [emission]);
+  const isC7 = emission.scope === 'scope3' && /^C7\b/.test(emission.category || '') && Array.isArray(emission.employees);
+  const c7 = useMemo(() => (isC7 ? hydrateEmissionForm(emission) : null), [isC7, emission]);
+  const baseDraft = useMemo(() => ({ ...buildReadOnlyDraft(emission),
+    ...(c7 ? { employees: c7.employees, employeeMonthlyTotals: c7.employeeMonthlyTotals, employeeYearlyTotal: c7.employeeYearlyTotal, frequencyType: c7.frequencyType,
+      scope3Method: c7.scope3Method, scope3ActivityType: c7.scope3ActivityType, scope3Subcategory: c7.scope3Subcategory, scope3CustomActivity: c7.scope3CustomActivity } : {}), existingEvidences: (emission.evidence_files || []).map(evidenceItem), allocationMethod: allocationValue(emission) }), [emission, c7]);
   useEffect(() => { setDraft(baseDraft); }, [baseDraft, editing]);
-  const dynamicInputFields = useMemo(() => buildDynamicInputFields(emission), [emission]);
+  const dynamicInputFields = useMemo(() => {
+    if (!isC7) return buildDynamicInputFields(emission);
+    const keys = [...new Set(emission.employees.flatMap((e) => Object.keys(e.inputs || {})))];
+    return keys.map((variable, index) => ({ variable, label: titleCase(variable), fieldType: 'number', expectedUnit: '', required: false, displayOrder: index }));
+  }, [isC7, emission]);
+  const c7Months = useMemo(() => {
+    if (!isC7) return [];
+    if (c7.frequencyType === 'yearly') return ['yearly'];
+    return c7.editC7Month ? [c7.editC7Month] : [];
+  }, [isC7, c7]);
 
   const fuel = { id: baseDraft.values.fuel_id, fuel_name: emission.fuel_type || emission.custom_fuel_name || 'Recorded fuel', allowed_units: [baseDraft.values.quantity_unit].filter(Boolean) };
   const outputs = emission.outputs || {};
@@ -157,7 +171,7 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
         effectiveCalculatedEmissions={calculated} isCalculating={false} isSaving={saving} setActivitySearchTerm={noop}
         facilities={[{ id: draft.values.facility_id, name: emission.facility_name || 'Facility', is_active: true }]}
         dynamicScopes={[{ code: emission.scope, name: titleCase(emission.scope) }]} hasScope3Access centralizedUnits={[]}
-        fuelDatabase={[fuel]} selectedFuel={fuel} isEditC7EmployeeCommuting={false} editActiveMonths={[]} ModuleDynamicFieldsRenderer={null}
+        fuelDatabase={[fuel]} selectedFuel={fuel} isEditC7EmployeeCommuting={isC7} editActiveMonths={c7Months} ModuleDynamicFieldsRenderer={null}
         getCategoriesForScope={[emission.category].filter(Boolean)} getFuelsForCategory={[fuel]} availableScope3Methods={[]} availableScope3ActivityTypes={[]}
         capabilities={{ requiresFuel: true, calculationMethodology: true, journeyLocations: true, customerCounterparty: false }} fieldOptions={{}}
         requiresSubcategory={false} availableSubcategories={[]} filteredScope3Activities={[]}

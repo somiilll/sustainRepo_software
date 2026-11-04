@@ -778,6 +778,7 @@ const MultiEmployeeInput = ({
             )}
           </h3>
         </div>
+        {!disabled && (
         <div className="flex flex-col items-end gap-1">
           <Button
             type="button"
@@ -798,6 +799,7 @@ const MultiEmployeeInput = ({
             <span className="text-xs text-amber-600">Select activity type first</span>
           )}
         </div>
+        )}
       </div>
 
       {/* EF + Formula Info (#7) - Only show if showEmissionFactorCard is true */}
@@ -885,7 +887,7 @@ const MultiEmployeeInput = ({
       ) : (
         <Accordion
           type="multiple"
-          value={expandedAccordions}
+          value={disabled ? employees.map((employee) => employee.id) : expandedAccordions}
           onValueChange={setExpandedAccordions}
           className="space-y-3"
         >
@@ -934,6 +936,7 @@ const MultiEmployeeInput = ({
                         </p>
                       </div>
                     </div>
+                    {!disabled && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -947,6 +950,7 @@ const MultiEmployeeInput = ({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    )}
                   </div>
                 </AccordionTrigger>
                 
