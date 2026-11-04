@@ -45,7 +45,7 @@ const Row = ({ id, name, now, was }) => (
     <td className="py-1.5 pr-3 whitespace-nowrap">
       {was && <span className="text-stone-400 line-through mr-1">{was.covered}</span>}{now.covered}
     </td>
-    <td className="py-1.5 text-xs text-stone-700">
+    <td className="py-1.5 text-xs text-stone-700 [overflow-wrap:anywhere]">
       {now.details.length ? <ul className="list-disc pl-4">{now.details.map((t) => <li key={t} className="break-words">{t}</li>)}</ul> : '–'}
       {was && <p className="mt-1 text-stone-500">Was: {was.covered}{was.details.length ? ` – ${was.details.join('; ')}` : ''}</p>}
     </td>
@@ -65,7 +65,8 @@ export default function PolicyMatrixValue({ value, compareTo }) {
   return (
     <div className="text-sm" data-testid="policy-matrix-value">
       <p className="mb-2 text-xs text-stone-500">Mode: <strong className="text-stone-700">{modeLabel(value)}</strong>{modeChanged && <span> (was {modeLabel(compareTo)})</span>}</p>
-      <table className="w-full">
+      <table className="w-full table-fixed">
+        <colgroup><col className="w-[28%]" /><col className="w-[12%]" /><col /></colgroup>
         <thead><tr className="text-left text-[11px] uppercase tracking-wide text-stone-400"><th className="pb-1 pr-3">Principle</th><th className="pb-1 pr-3">Covered</th><th className="pb-1">Details</th></tr></thead>
         <tbody>
           {shown.map(([id, name, now]) => (

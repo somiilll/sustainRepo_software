@@ -159,7 +159,7 @@ const SmartValue = ({ value }) => {
 /* ───────────── Value display wrapper (adds label + bg) ───────────── */
 
 const ValueDisplay = ({ value, label, bgClass, borderClass, compareTo }) => (
-  <div className={`border ${borderClass} ${bgClass} rounded-lg p-3`}>
+  <div className={`border ${borderClass} ${bgClass} rounded-lg p-3 min-w-0 overflow-hidden`}>
     <span className="block text-xs font-medium text-stone-500 mb-2">{label}</span>
     {isPolicyMatrix(value) ? <PolicyMatrixValue value={value} compareTo={compareTo} /> : <SmartValue value={value} />}
   </div>
@@ -292,7 +292,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                     </div>
 
                     {hasValues && (
-                      <div className={`mt-3 grid gap-3 ${rightLabel ? 'sm:grid-cols-2' : ''}`}>
+                      <div className={`mt-3 grid gap-3 ${rightLabel && !isPolicyMatrix(event.final_value) && !isPolicyMatrix(event.submitted_value) ? 'sm:grid-cols-2' : ''}`}>
                         <ValueDisplay value={event.submitted_value} label={leftLabel} bgClass={leftBg.bg} borderClass={leftBg.border} />
                         {rightLabel && <ValueDisplay value={event.final_value} compareTo={event.submitted_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
                       </div>
