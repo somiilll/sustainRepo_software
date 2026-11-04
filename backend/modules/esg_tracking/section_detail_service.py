@@ -59,7 +59,7 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
          "entity_snapshot.reporting_year": reporting_period}, {"_id": 0}).sort("submitted_at", -1).to_list(300)
     responses = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "question_key": {"$in": keys}},
-        {"_id": 0, "question_key": 1, "updated_by": 1, "updated_by_name": 1, "updated_at": 1, "approval_status": 1, "status": 1}).to_list(1000)
+        {"_id": 0, "question_key": 1, "updated_by": 1, "updated_by_name": 1, "updated_at": 1, "approval_status": 1, "status": 1, "kpi_autofill_updated_at": 1}).to_list(1000)
 
     chains = [_chain(i) for i in items if i.requires_approval]
     levels = max((len(c) for c in chains), default=0)
@@ -108,6 +108,8 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
     requested = {r.get("entity_id") for r in requests}
     for r in responses:
         if r["question_key"] in requested or r.get("approval_status") in ("approved", "rejected", "pending_approval"):
+            continue
+        if not r.get("updated_by") or r.get("kpi_autofill_updated_at") == r.get("updated_at"):
             continue
         actor = r.get("updated_by_name") or who(r.get("updated_by"))
         activity.append({"at": _iso(r.get("updated_at")), "kind": "update", "actor": actor, "title": f"{actor} saved \"{label.get(r['question_key'], r['question_key'])}\""})
