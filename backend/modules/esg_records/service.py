@@ -1371,6 +1371,10 @@ class ESGRecordsService:
         if assignment:
             requires_approval = assignment_requires_approval(assignment)
             print(f"Found assignment {assignment.get('id')} for {current.get('category')}/{current.get('subcategory')}, requires_approval={requires_approval}")
+        elif start_level > 1 and not is_admin_override:
+            from modules.esg_records.visibility import non_final_approver_assignment
+            assignment = await non_final_approver_assignment(org_id, user_id, current.get("category"), current.get("subcategory"))
+            requires_approval = bool(assignment) and assignment_requires_approval(assignment)
         else:
             print(f"No assignment found for {current.get('category')}/{current.get('subcategory')}, facility={current.get('facility_id')}")
         

@@ -47,6 +47,19 @@ async def approver_edit_mode(org_id: str, user_id: str, category: str, subcatego
     return "direct" if None in levels else min(levels)
 
 
+async def non_final_approver_assignment(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
+    """The assignment where this user is an approver but not the last one in the chain (edits then go on to the next level)."""
+    docs = await _db.esg_assignments.find({
+        "organization_id": org_id, "entity_type": "record_category", "category": category,
+        "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
+    }, {"_id": 0}).to_list(20)
+    for doc in docs:
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in doc.get("approval_chain") or []] or [doc.get("approver_id")]
+        if user_id in chain and chain.index(user_id) + 1 < len(chain):
+            return doc
+    return None
+
+
 async def user_assignments(org_id: str, user_id: str) -> list:
     """Active category assignments where the user is an assignee or an assigned approver."""
     assignee_rows = await _db.esg_assignment_assignees.find(
