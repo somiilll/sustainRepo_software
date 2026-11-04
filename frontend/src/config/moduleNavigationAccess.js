@@ -16,6 +16,6 @@ export const getNavigationModuleForPath = (pathname) => navigationEntries.find((
 
 const USER_ENABLED_MODULES = ['dashboard', 'environment', 'social', 'governance', 'workflow', 'reporting', 'cbam', 'profile'];
 
-export const isUserRestrictedKey = (role, key) => role === 'user' && (key === 'environment.ghg.base_year' || !USER_ENABLED_MODULES.includes(String(key).split('.')[0]));
+export const isUserRestrictedKey = (role, key) => role === 'user' && (key === 'environment.ghg.base_year' || key === 'workflow.tracker' || !USER_ENABLED_MODULES.includes(String(key).split('.')[0]));
 
 export const isGhgOnlyCustomer = (hasAccess) => hasAccess('environment.ghg') && !hasAccess('social') && !hasAccess('governance') && !hasAccess('reporting');
