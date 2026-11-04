@@ -136,6 +136,11 @@ class AccessControlService:
             if self._has_role_permission(effective.get("role"), required_role):
                 return True, effective
         
+        # Approvers of the assignment may also view and edit (their edits follow the approval-level rule)
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in effective.get("approval_chain") or []]
+        if user_id == effective.get("approver_id") or user_id in chain:
+            return True, effective
+
         # Check if user is in additional reminder recipients (viewers)
         recipients = effective.get("reminder_recipients") or []
         if user_id in recipients and required_role == AssignmentRole.VIEWER:
@@ -232,7 +237,7 @@ class AccessControlService:
             "organization_id": organization_id,
             "entity_type": EntityType.QUESTION.value,
             "reporting_period": reporting_period,
-            "id": {"$in": v2_assignment_ids} if v2_assignment_ids else {"$in": []},
+            "$or": [{"id": {"$in": v2_assignment_ids}}, {"approver_id": user_id}, {"approval_chain": user_id}],
         }
         
         cursor = self._assignments.find(query, {"_id": 0})
