@@ -231,9 +231,13 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
     return () => { active = false; };
   }, [open, framework, questionKey, reportingYear, getAuthHeader]);
 
+  const needsWide = Boolean(timeline?.events?.some((e) => [e.submitted_value, e.final_value].some(
+    (v) => isPolicyMatrix(v) || isArrayOfObjects(v) || isTabularObject(v) || (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 6),
+  )));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="question-version-history-dialog">
+      <DialogContent className={`w-[95vw] ${needsWide ? 'max-w-6xl' : 'max-w-3xl'} max-h-[85vh] overflow-y-auto transition-[max-width] duration-200`} data-testid="question-version-history-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" data-testid="question-version-history-title">
             <History className="w-5 h-5 text-primary" /> Question Version History
