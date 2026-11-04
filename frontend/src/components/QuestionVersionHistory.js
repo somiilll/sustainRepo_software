@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useDateFormatter } from '../hooks/useDateFormatter';
+import PolicyMatrixValue, { isPolicyMatrix } from './PolicyMatrixValue';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -157,10 +158,10 @@ const SmartValue = ({ value }) => {
 
 /* ───────────── Value display wrapper (adds label + bg) ───────────── */
 
-const ValueDisplay = ({ value, label, bgClass, borderClass }) => (
+const ValueDisplay = ({ value, label, bgClass, borderClass, compareTo }) => (
   <div className={`border ${borderClass} ${bgClass} rounded-lg p-3`}>
     <span className="block text-xs font-medium text-stone-500 mb-2">{label}</span>
-    <SmartValue value={value} />
+    {isPolicyMatrix(value) ? <PolicyMatrixValue value={value} compareTo={compareTo} /> : <SmartValue value={value} />}
   </div>
 );
 
@@ -289,7 +290,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                     {hasValues && (
                       <div className={`mt-3 grid gap-3 ${rightLabel ? 'sm:grid-cols-2' : ''}`}>
                         <ValueDisplay value={event.submitted_value} label={leftLabel} bgClass={leftBg.bg} borderClass={leftBg.border} />
-                        {rightLabel && <ValueDisplay value={event.final_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
+                        {rightLabel && <ValueDisplay value={event.final_value} compareTo={event.submitted_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
                       </div>
                     )}
 

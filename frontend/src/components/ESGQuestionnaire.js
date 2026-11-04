@@ -68,6 +68,7 @@ import {
   getEffectiveYearType
 } from '../utils/reportingYearUtils';
 import { NoAssignmentMessage } from './LockedModuleOverlay';
+import { applyCoverageField } from './PolicyMatrixValue';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -114,7 +115,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
   const handleAllTogetherChange = (field, val) => {
     onChange({ 
       ...data, 
-      all_together: { ...allTogether, [field]: val } 
+      all_together: applyCoverageField(allTogether, field, val) 
     });
   };
 
@@ -136,7 +137,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
       ...data,
       principle_wise: {
         ...principleWise,
-        [principle]: { ...principleWise[principle], [field]: val }
+        [principle]: applyCoverageField(principleWise[principle], field, val)
       }
     });
   };

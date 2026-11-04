@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
 import EmissionApprovalWrapper from './EmissionApprovalWrapper';
 import MultiProposalReview from './MultiProposalReview';
+import { applyCoverageField } from './PolicyMatrixValue';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -2690,7 +2691,7 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
   const handleAllTogetherChange = (field, val) => {
     onChange?.({ 
       ...data, 
-      all_together: { ...allTogether, [field]: val } 
+      all_together: applyCoverageField(allTogether, field, val) 
     });
   };
 
@@ -2712,7 +2713,7 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
       ...data,
       principle_wise: {
         ...principleWise,
-        [principle]: { ...principleWise[principle], [field]: val }
+        [principle]: applyCoverageField(principleWise[principle], field, val)
       }
     });
   };
