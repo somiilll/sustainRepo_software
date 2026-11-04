@@ -1311,6 +1311,8 @@ async def create_record_assignment(
                 "assignment": assignment,
             }
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

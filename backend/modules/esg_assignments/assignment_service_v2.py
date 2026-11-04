@@ -172,22 +172,6 @@ class AssignmentServiceV2:
                         "suggestion": "Delete the org-level assignment first, then create facility-level assignments.",
                     }
                 )
-            
-            # Also check for duplicate facility assignment
-            duplicate = await self._assignments.find_one(
-                {**base_query, "facility_id": facility_id},
-                {"_id": 0, "id": 1}
-            )
-            
-            if duplicate:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "error": "DUPLICATE_ASSIGNMENT",
-                        "message": "An assignment already exists for this facility/category/period.",
-                        "existing_assignment_id": duplicate.get("id"),
-                    }
-                )
 
     
     async def create_or_update_assignment(

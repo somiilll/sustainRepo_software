@@ -84,7 +84,8 @@ const ACTION_UI = {
 const esgAction = (item) => {
   if (item.entity_type !== 'esg_record') return null;
   if (item.request_type === 'delete') return ACTION_UI.delete;
-  return item._proposal_count || /proposal/i.test(item.workflow_name || '') ? ACTION_UI.update : ACTION_UI.create;
+  const isEdit = (item._proposals || [item]).some((r) => /proposal/i.test(r.workflow_name || ''));
+  return isEdit ? ACTION_UI.update : ACTION_UI.create;
 };
 
 const HISTORY_STATUS_UI = {
