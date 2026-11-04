@@ -35,6 +35,8 @@ const INITIAL_FORM_STATE = {
   approval_chain: [],
 };
 
+export const FACILITY_ONLY_CATEGORIES = ['GHG Emissions'];
+
 export const STEPS = [
   { id: 'level', title: 'Select Level', description: 'Choose assignment scope' },
   { id: 'users', title: 'Assign Users', description: 'Select assignees' },
@@ -169,6 +171,13 @@ export function useAssignmentWizard({
     }
     setCurrentStep(0);
   }, [initialData]);
+
+  const facilityOnly = FACILITY_ONLY_CATEGORIES.includes(category);
+  useEffect(() => {
+    if (facilityOnly && form.assignment_level !== 'facility') {
+      setForm(prev => ({ ...prev, assignment_level: 'facility' }));
+    }
+  }, [facilityOnly, form.assignment_level]);
 
   // Reset form
   const resetForm = useCallback(() => {
@@ -487,6 +496,7 @@ export function useAssignmentWizard({
     resetForm,
     
     // Config
+    facilityOnly,
     approvalWorkflowEnabled,
     multiLevelApprovalEnabled,
     

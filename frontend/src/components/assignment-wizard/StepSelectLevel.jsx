@@ -7,8 +7,8 @@ import React from 'react';
 import { Building2, Factory, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function StepSelectLevel({ form, updateForm, facilities }) {
-  const options = [
+export function StepSelectLevel({ form, updateForm, facilities, facilityOnly = false }) {
+  const allOptions = [
     {
       value: 'organization',
       title: 'Organization Level',
@@ -24,13 +24,14 @@ export function StepSelectLevel({ form, updateForm, facilities }) {
       stats: `${facilities.length} facilities`,
     },
   ];
+  const options = facilityOnly ? allOptions.filter(o => o.value === 'facility') : allOptions;
 
   return (
     <div className="space-y-4">
       <div className="space-y-1">
         <h3 className="text-sm font-medium text-text-primary">Assignment Scope</h3>
         <p className="text-xs text-text-muted">
-          Choose how this category should be assigned and reported
+          {facilityOnly ? 'This category is always assigned and reported per facility' : 'Choose how this category should be assigned and reported'}
         </p>
       </div>
 

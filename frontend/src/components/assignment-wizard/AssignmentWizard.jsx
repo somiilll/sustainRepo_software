@@ -92,6 +92,7 @@ export function AssignmentWizard({
               form={wizard.form}
               updateForm={wizard.updateForm}
               facilities={facilities}
+              facilityOnly={wizard.facilityOnly}
             />
           )}
           {wizard.currentStep === 1 && (

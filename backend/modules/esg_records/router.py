@@ -1229,6 +1229,8 @@ async def create_record_assignment(
             }
         
         else:
+            if data.get("category") == "GHG Emissions":
+                raise HTTPException(status_code=400, detail="GHG Emissions must be assigned at facility level")
             # Organization-level assignment
             user_ids = data.get("user_ids", data.get("assigned_user_ids", []))
             if data.get("assigned_to_user_id"):
