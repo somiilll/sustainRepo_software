@@ -10,7 +10,7 @@ const readOnlyFieldLabel = (variable, mapping) => mapping?.field_label || mappin
 const fieldValue = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value.value ?? '' : value ?? '';
 const fieldUnit = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value.unit || '' : '';
 
-const buildReadOnlyDraft = (emission) => {
+export const buildReadOnlyDraft = (emission) => {
   const defaults = emission.resolved_default_inputs || {};
   const data = Object.fromEntries(Object.entries(emission.dynamic_field_values || {}).map(([key, value]) => [key, value && typeof value === 'object' && value.value === null && defaults[key] ? { ...value, value: defaults[key].value, unit: value.unit || defaults[key].unit, default_source: defaults[key].source } : value]));
   const dynamicValues = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, fieldValue(value)]));
@@ -42,10 +42,9 @@ const buildReadOnlyDraft = (emission) => {
   };
 };
 
-export default function SupplierEmissionReadOnlyDialog({ open, onOpenChange, emission, loading, onOpenEvidence, openingEvidenceKey }) {
-  const draft = useMemo(() => emission ? buildReadOnlyDraft(emission) : null, [emission]);
-  const inputMappingsByVariable = useMemo(() => Object.fromEntries((emission?.input_field_mappings || []).map((mapping) => [mapping.maps_to_variable || mapping.field_key, mapping])), [emission]);
-  const dynamicInputFields = useMemo(() => Object.entries(emission?.dynamic_field_values || {})
+export const buildDynamicInputFields = (emission) => {
+  const inputMappingsByVariable = Object.fromEntries((emission?.input_field_mappings || []).map((mapping) => [mapping.maps_to_variable || mapping.field_key, mapping]));
+  return Object.entries(emission?.dynamic_field_values || {})
     .filter(([key]) => !key.endsWith('_unit') && !['biogenic_scope_selection', 'calculation_methodology'].includes(key))
     .map(([variable, value]) => {
       const mapping = inputMappingsByVariable[variable];
@@ -53,7 +52,12 @@ export default function SupplierEmissionReadOnlyDialog({ open, onOpenChange, emi
       const baseLabel = readOnlyFieldLabel(variable, mapping);
       const source = value?.is_override ? 'User Specified' : resolvedDefault?.source || value?.source_name || value?.source;
       return { id: mapping?.id || `read-only-${variable}`, variable, fieldKey: mapping?.field_key || variable, label: source ? `${baseLabel} · Source: ${source}` : baseLabel, fieldType: mapping?.field_type || (typeof fieldValue(value) === 'number' ? 'number' : 'text'), expectedUnit: fieldUnit(value) || resolvedDefault?.unit || mapping?.default_unit || '', allowedUnits: mapping?.allowed_units || [fieldUnit(value)].filter(Boolean), unitSource: mapping?.unit_source || 'static', required: Boolean(mapping?.required), isOverride: Boolean(value?.is_override), displayOrder: mapping?.display_order ?? Number.MAX_SAFE_INTEGER };
-    }).sort((left, right) => left.displayOrder - right.displayOrder), [emission, inputMappingsByVariable]);
+    }).sort((left, right) => left.displayOrder - right.displayOrder);
+};
+
+export default function SupplierEmissionReadOnlyDialog({ open, onOpenChange, emission, loading, onOpenEvidence, openingEvidenceKey }) {
+  const draft = useMemo(() => emission ? buildReadOnlyDraft(emission) : null, [emission]);
+  const dynamicInputFields = useMemo(() => buildDynamicInputFields(emission), [emission]);
   const evidenceContent = emission ? <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="supplier-emission-read-only-evidence"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-sky-700" /><span className="text-sm font-medium text-stone-900">Evidence Documents</span></div>{(emission.evidence_files || []).length === 0 ? <p className="text-sm text-stone-500" data-testid="supplier-emission-view-no-evidence">No evidence attached.</p> : <div className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3">{emission.evidence_files.map((file) => <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-stone-200 bg-white p-2" data-testid={`supplier-emission-view-evidence-${file.id}`}><span className="min-w-0 truncate text-sm text-stone-700">{file.original_filename}</span><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" aria-label={`View ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-view`} onClick={() => onOpenEvidence(emission, file)} data-testid={`view-read-only-emission-evidence-${file.id}`}><Eye className="h-4 w-4" />View</Button><Button type="button" variant="ghost" size="sm" aria-label={`Download ${file.original_filename}`} disabled={openingEvidenceKey === `${emission.id}-${file.id}-download`} onClick={() => onOpenEvidence(emission, file, true)} data-testid={`download-read-only-emission-evidence-${file.id}`}><Download className="h-4 w-4" />Download</Button></div></div>)}</div>}</div> : null;
   const dynamicScopes = emission ? [{ code: emission.scope, name: titleCase(emission.scope) }] : [];
   const outputs = emission?.outputs || {};

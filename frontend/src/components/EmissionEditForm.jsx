@@ -229,7 +229,10 @@ export default function EmissionEditForm(props) {
     showAssignedReportingPeriodMessage = true,
     readOnly = false,
     readOnlyEvidenceContent = null,
+    lockedFields = [],
   } = props;
+  const lockCls = (key) => (lockedFields.includes(key) ? ' pointer-events-none opacity-70' : '');
+  const lockAttr = (key) => (lockedFields.includes(key) ? { inert: true, 'aria-disabled': true } : {});
 
   const setDraftField = useCallback((field, valueOrUpdater) => {
     onDraftChange((currentDraft) => ({
@@ -484,7 +487,7 @@ export default function EmissionEditForm(props) {
                   onScopeChange={handleScopeChange}
                   setBiogenicScopeSelection={setBiogenicScopeSelection}
                   markFormDirty={markFormDirty}
-                  readOnly={readOnly}
+                  readOnly={readOnly || lockedFields.includes('scope')}
                   reportingPeriod={(
                     <div className="w-full min-w-[15rem] space-y-1.5" data-testid="edit-reporting-period-field">
                       {editFrequencyType === 'yearly' || assignedReportingPeriod ? (
@@ -550,7 +553,7 @@ export default function EmissionEditForm(props) {
                         <div className="min-w-0">
                           <Label htmlFor="category_select">Select Category *</Label>
                           <div className="mt-1.5 min-w-0">
-                            {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <div className="relative"><CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="category_select" value={selectedCategory} onChange={(event) => handleCategorySelect(event.target.value)} className={editSelectWithIconClass} data-testid="category-select"><option value="">Select category...</option>{getCategoriesForScope.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>}
+                            {(readOnly || lockedFields.includes('category')) ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 pl-10 text-sm text-stone-800" data-testid="category-select">{selectedCategory || '—'}</div> : <div className="relative"><CategoryIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-600" aria-hidden="true" /><select id="category_select" value={selectedCategory} onChange={(event) => handleCategorySelect(event.target.value)} className={editSelectWithIconClass} data-testid="category-select"><option value="">Select category...</option>{getCategoriesForScope.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>}
                           </div>
                         </div>
                         
@@ -559,7 +562,7 @@ export default function EmissionEditForm(props) {
                         {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
                             {/* Scope 3: Calculation Method */}
-                            <div className="space-y-1.5">
+                            <div className={`space-y-1.5${lockCls('methodology')}`} {...lockAttr('methodology')}>
                               <Label htmlFor="scope3_method_select">Calculation Method *</Label>
                               <div className="relative">
                                 <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
@@ -678,7 +681,7 @@ export default function EmissionEditForm(props) {
 
                             {!editUseCustomFuel ? (
                               <div className="mt-1.5 min-w-0">
-                                {readOnly ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select value={formData.fuel_id} onChange={(event) => handleFuelSelect(event.target.value)} disabled={!selectedCategory} className={`${editSelectClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`} data-testid="fuel-select"><option value="">{selectedCategory ? 'Select fuel type' : 'Select category first'}</option>{getFuelsForCategory.map((fuel) => <option key={fuel.id} value={fuel.id}>{fuel.fuel_name}</option>)}</select>}
+                                {(readOnly || lockedFields.includes('fuel')) ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="fuel-select">{selectedFuel?.fuel_name || formData.fuel_type || '—'}</div> : <select value={formData.fuel_id} onChange={(event) => handleFuelSelect(event.target.value)} disabled={!selectedCategory} className={`${editSelectClass} ${!selectedCategory ? 'cursor-not-allowed opacity-50' : ''}`} data-testid="fuel-select"><option value="">{selectedCategory ? 'Select fuel type' : 'Select category first'}</option>{getFuelsForCategory.map((fuel) => <option key={fuel.id} value={fuel.id}>{fuel.fuel_name}</option>)}</select>}
                               </div>
                             ) : (
                               <div className="mt-1.5 space-y-2 border-l-2 border-amber-300 pl-3" data-testid="edit-custom-fuel-section">
@@ -726,7 +729,7 @@ export default function EmissionEditForm(props) {
 
                       {/* Calculation Methodology - For Stationary/Mobile/Flaring OR Process Emissions with venting */}
                       {ghgUiState.showCalculationMethodology && (
-                        <div className="min-w-0" data-testid="edit-calculation-methodology-section">
+                        <div className={`min-w-0${lockCls('methodology')}`} {...lockAttr('methodology')} data-testid="edit-calculation-methodology-section">
                           <Label>Calculation Methodology</Label>
                           <div className="relative mt-1.5 min-w-0"><Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" /><select
                             value={editCalcMethodology || 'using_heat_basis_ncv'}
@@ -746,7 +749,7 @@ export default function EmissionEditForm(props) {
                         <div className={showsAssetName ? 'grid grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (
-                            <div className="space-y-1.5">
+                            <div className={`space-y-1.5${lockCls('subcategory')}`} {...lockAttr('subcategory')}>
                               <Label htmlFor="scope3_subcategory_filter">Subcategory *</Label>
                               <select
                                 id="scope3_subcategory_filter"
@@ -800,7 +803,7 @@ export default function EmissionEditForm(props) {
                           
                           {/* Activity Selection */}
                           <div className={usesWasteDisposalTaxonomy ? 'col-span-full grid grid-cols-1 gap-4 md:grid-cols-2' : 'contents'} data-testid={usesWasteDisposalTaxonomy ? `edit-${wasteCategoryKey}-activity-row` : undefined}>
-                          <div className="relative min-w-0 space-y-1.5" data-testid="scope3-activity-section">
+                          <div className={`relative min-w-0 space-y-1.5${lockCls('fuel')}`} {...lockAttr('fuel')} data-testid="scope3-activity-section">
                             <Label htmlFor="scope3_activity_select">Activity *</Label>
                             {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                             {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
@@ -882,7 +885,7 @@ export default function EmissionEditForm(props) {
                             )}
                           </div>
                           {usesWasteDisposalTaxonomy && wasteBaseActivity && wasteActivityTypes.length > 0 && (
-                            <div className="space-y-1.5" data-testid={`edit-${wasteCategoryKey}-activity-type-section`}>
+                            <div className={`space-y-1.5${lockCls('fuel')}`} {...lockAttr('fuel')} data-testid={`edit-${wasteCategoryKey}-activity-type-section`}>
                               <Label htmlFor={`edit-${wasteCategoryKey}-activity-type-select`}>Activity Type *</Label>
                               <select
                                 id={`edit-${wasteCategoryKey}-activity-type-select`}
@@ -1670,11 +1673,11 @@ export default function EmissionEditForm(props) {
                   capabilities={capabilities}
                   selectedCategory={selectedCategory}
                   isEditC7EmployeeCommuting={isEditC7EmployeeCommuting}
-                  readOnly={readOnly}
+                  readOnly={readOnly || lockedFields.includes('meta')}
                 />
 
                 {/* Evidence Management Section */}
-                {readOnly ? readOnlyEvidenceContent : (!isEditC7EmployeeCommuting || existingEvidences.length > 0) && <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
+                {(readOnly || lockedFields.includes('meta')) ? readOnlyEvidenceContent : (!isEditC7EmployeeCommuting || existingEvidences.length > 0) && <div className="space-y-4 overflow-hidden rounded-lg border border-stone-200 bg-white p-4" data-testid="emission-edit-evidence-section">
                   <div className="flex items-center justify-between">
                     <Label>{isEditC7EmployeeCommuting ? 'Legacy Record Evidence' : 'Evidence Documents'}</Label>
                     {existingEvidences.length > 0 && (

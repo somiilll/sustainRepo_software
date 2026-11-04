@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import EvidenceFileLink from './EvidenceFileLink';
 import { createDraftEvidence, draftEvidence, persistedEvidence, revokeDraftEvidences, toEvidencePayload, uploadDraftEvidences } from '../lib/draftEvidence';
 import CategoryFieldsForm, { hasCategoryForm } from './CategoryFieldsForm';
+import EmissionProposalForm from './EmissionProposalForm';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -609,7 +610,14 @@ export default function MultiProposalReview({
                   </div>
                 )}
                 {/* Field Values */}
-                {useFormLayout ? (
+                {entityType === 'emission_record' ? (
+                  <EmissionProposalForm
+                    proposal={proposal}
+                    editing={inlineEdit?.id === proposal.id}
+                    onCancel={() => setInlineEdit(null)}
+                    onSaved={() => { setInlineEdit(null); fetchProposals(); }}
+                  />
+                ) : useFormLayout ? (
                   <div className="p-4 bg-stone-50 rounded-lg">
                     <CategoryFieldsForm
                       subcategory={fieldConfig.subcategory}
@@ -645,19 +653,19 @@ export default function MultiProposalReview({
                 </div>
                 )}
 
-                <ProposalAttachments
+                {entityType !== 'emission_record' && <ProposalAttachments
                   editing={inlineEdit?.id === proposal.id}
                   source={inlineEdit?.id === proposal.id ? inlineEdit.source : attachmentValues.source}
                   notes={inlineEdit?.id === proposal.id ? inlineEdit.notes : attachmentValues.notes}
                   evidence={inlineEdit?.id === proposal.id ? inlineEdit.evidence : attachmentValues.evidence}
                   onChange={patchInline}
                   onFiles={addInlineFiles}
-                />
+                />}
 
                 {/* Action Buttons */}
                 {!historyProposal && (
                 <div className="flex items-center gap-3 pt-2 border-t">
-                  {proposal.request_type === 'delete' ? null : inlineEdit?.id === proposal.id ? (
+                  {proposal.request_type === 'delete' || (entityType === 'emission_record' && inlineEdit?.id === proposal.id) ? null : inlineEdit?.id === proposal.id ? (
                     <>
                       <Button variant="outline" size="sm" onClick={cancelInline} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
                         Cancel
@@ -671,7 +679,7 @@ export default function MultiProposalReview({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => (useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues }, ...attachmentValues }) : openEditDialog(proposal))}
+                      onClick={() => (entityType === 'emission_record' ? setInlineEdit({ id: proposal.id }) : useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues }, ...attachmentValues }) : openEditDialog(proposal))}
                       disabled={processing || !!inlineEdit}
                       data-testid={`edit-proposal-${proposal.id}`}
                     >

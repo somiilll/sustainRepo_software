@@ -450,39 +450,36 @@ class ProposalService:
             field_values = modified_data.get("field_values", {})
             
             if field_values:
-                # Update dynamic_field_values if it exists
+                def merge_inputs(target: Dict[str, Any]) -> Dict[str, Any]:
+                    merged = {**target}
+                    for key, value in field_values.items():
+                        base = key[:-5] if key.endswith("_unit") else None
+                        if base and isinstance(merged.get(base), dict):
+                            merged[base] = {**merged[base], "unit": value}
+                        elif isinstance(merged.get(key), dict) and "value" in merged[key]:
+                            merged[key] = {**merged[key], "value": value}
+                        else:
+                            merged[key] = value
+                    return merged
+
+                final_inputs = None
                 if "dynamic_field_values" in new_snapshot:
-                    updated_dfv = {**new_snapshot.get("dynamic_field_values", {})}
-                    for key, value in field_values.items():
-                        # Preserve the {value, unit} structure if the field originally had it
-                        if key in updated_dfv and isinstance(updated_dfv[key], dict) and "value" in updated_dfv[key]:
-                            updated_dfv[key] = {**updated_dfv[key], "value": value}
-                        else:
-                            updated_dfv[key] = value
-                    new_snapshot["dynamic_field_values"] = updated_dfv
-                
-                # Also update proposed_changes.inputs if it exists
+                    new_snapshot["dynamic_field_values"] = final_inputs = merge_inputs(new_snapshot.get("dynamic_field_values", {}))
                 if "proposed_changes" in new_snapshot and "inputs" in new_snapshot.get("proposed_changes", {}):
-                    updated_inputs = {**new_snapshot["proposed_changes"].get("inputs", {})}
-                    for key, value in field_values.items():
-                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
-                            updated_inputs[key] = {**updated_inputs[key], "value": value}
-                        else:
-                            updated_inputs[key] = value
-                    new_snapshot["proposed_changes"] = {
-                        **new_snapshot.get("proposed_changes", {}),
-                        "inputs": updated_inputs
-                    }
-                
-                # Also update inputs if it exists (legacy format)
+                    final_inputs = merge_inputs(new_snapshot["proposed_changes"].get("inputs", {}))
+                    new_snapshot["proposed_changes"] = {**new_snapshot["proposed_changes"], "inputs": final_inputs}
                 if "inputs" in new_snapshot and "proposed_changes" not in new_snapshot:
-                    updated_inputs = {**new_snapshot.get("inputs", {})}
-                    for key, value in field_values.items():
-                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
-                            updated_inputs[key] = {**updated_inputs[key], "value": value}
-                        else:
-                            updated_inputs[key] = value
-                    new_snapshot["inputs"] = updated_inputs
+                    new_snapshot["inputs"] = final_inputs = merge_inputs(new_snapshot.get("inputs", {}))
+
+                if final_inputs:
+                    record = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0}) or {}
+                    recalculated = await self._recalculate_emissions({**record, **{k: v for k, v in new_snapshot.items() if k in ("formula_id", "category_id", "scope")}}, final_inputs)
+                    if recalculated:
+                        totals = {k: recalculated.get(k, 0) for k in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions")}
+                        new_snapshot.update(totals)
+                        new_snapshot["outputs"] = recalculated.get("outputs", {})
+                        if "proposed_changes" in new_snapshot:
+                            new_snapshot["proposed_changes"] = {**new_snapshot["proposed_changes"], **totals, "outputs": recalculated.get("outputs", {})}
         else:
             # For ESG records, update field_values directly
             if "field_values" in modified_data:
