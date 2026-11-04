@@ -2660,12 +2660,28 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
   const principleWise = data.principle_wise || {};
   
   const noReasons = [
-    { key: 'not_material', label: 'Not material to business' },
-    { key: 'not_ready', label: 'Not ready to implement' },
-    { key: 'no_resources', label: 'No resources available' },
-    { key: 'planned_next_fy', label: 'Planned for next FY' },
-    { key: 'other', label: 'Other reason', hasText: true }
+    { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
+    { key: 'not_ready', label: 'The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles' },
+    { key: 'no_resources', label: 'The entity does not have the financial or/human and technical resources available for the task' },
+    { key: 'planned_next_fy', label: 'It is planned to be done in the next financial year' },
+    { key: 'other', label: 'Any other reason (please specify)', hasText: true }
   ];
+
+  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
+    onChange?.({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: {
+          ...principleWise[principle],
+          reasons: {
+            ...principleWise[principle]?.reasons,
+            [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+          }
+        }
+      }
+    });
+  };
 
   const handleModeChange = (newMode) => {
     onChange?.({ ...data, mode: newMode });
@@ -2741,6 +2757,18 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
                       | Board: {pData.board_approved === true ? 'Yes' : pData.board_approved === false ? 'No' : '-'}
                       {pData.web_link && <> | Link: {pData.web_link}</>}
                     </span>
+                  )}
+                  {pData.covered === false && (
+                    <div className="mt-1 text-xs" data-testid={`policy-matrix-reasons-${p.key}`}>
+                      <strong>Reasons:</strong>
+                      {noReasons.filter(r => pData.reasons?.[r.key]).length === 0 ? <span className="ml-1 text-stone-500">None given</span> : (
+                        <ul className="list-disc pl-5 mt-0.5">
+                          {noReasons.filter(r => pData.reasons?.[r.key]).map(r => (
+                            <li key={r.key}>{r.label}{r.key === 'other' && typeof pData.reasons?.other === 'string' ? `: ${pData.reasons.other}` : ''}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -2882,6 +2910,31 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
                         placeholder="https://..."
                       />
                     </div>
+                  </div>
+                )}
+                {pData.covered === false && (
+                  <div className="mt-2 pl-3 border-l-2 border-red-300 space-y-1.5" data-testid={`policy-matrix-reasons-edit-${p.key}`}>
+                    <label className="text-xs font-medium">Reasons:</label>
+                    {noReasons.map(reason => (
+                      <div key={reason.key} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!pData.reasons?.[reason.key]}
+                          onChange={(e) => handlePrincipleReasonChange(p.key, reason.key, e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span className="text-xs">{reason.label}</span>
+                        {reason.hasText && pData.reasons?.[reason.key] && (
+                          <input
+                            type="text"
+                            value={typeof pData.reasons?.other === 'string' ? pData.reasons.other : ''}
+                            onChange={(e) => handlePrincipleReasonChange(p.key, 'other', true, e.target.value)}
+                            className="flex-1 px-2 py-1 border rounded text-xs"
+                            placeholder="Specify..."
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
