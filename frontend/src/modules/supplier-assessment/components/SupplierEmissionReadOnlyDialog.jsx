@@ -42,7 +42,7 @@ export const buildReadOnlyDraft = (emission) => {
   };
 };
 
-const INTERNAL_INPUT_KEYS = ['biogenic_scope_selection', 'calculation_methodology', 'scope3_ef_id', 'scope3_activity_type', 'scope3_subcategory', 'calculation_method_scope3', 'scope3_activity', 'use_custom_activity', 'type_of_product', 'spend_currency_conversion_method'];
+const INTERNAL_INPUT_KEYS = ['biogenic_scope_selection', 'calculation_methodology', 'scope3_ef_id', 'scope3_activity_type', 'scope3_subcategory', 'calculation_method_scope3', 'scope3_activity', 'use_custom_activity', 'type_of_product', 'spend_currency_conversion_method', 'allocation_method'];
 
 export const buildDynamicInputFields = (emission) => {
   const inputMappingsByVariable = Object.fromEntries((emission?.input_field_mappings || []).map((mapping) => [mapping.maps_to_variable || mapping.field_key, mapping]));

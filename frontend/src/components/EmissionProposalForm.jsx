@@ -13,6 +13,10 @@ const API = process.env.REACT_APP_BACKEND_URL;
 const LOCKED = ['scope', 'category', 'subcategory', 'methodology', 'fuel'];
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
 const DETAIL_KEYS = ['notes', 'record_source', 'responsible_person', 'responsible_person_designation', 'responsible_person_contact'];
+const allocationValue = (emission) => {
+  const raw = emission.allocation_method ?? emission.dynamic_field_values?.allocation_method;
+  return (raw && typeof raw === 'object' ? raw.value : raw) || '';
+};
 const processList = (items = []) => items.map((p) => (typeof p === 'string' ? { name: p, description: '' } : { name: p?.name || '', description: p?.description || '' }));
 const evidenceItem = (file) => ({ ...file, filename: file.filename || file.original_filename, url: file.url || (file.file_id || file.id ? `/api/files/${file.file_id || file.id}` : undefined) });
 const titleCase = (value = '') => String(value).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -59,7 +63,7 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
   }, [snapshot.category_id, snapshot.category, snapshot.scope, getAuthHeader]);
 
   const emission = useMemo(() => proposalToEmission(proposal, formConfig), [proposal, formConfig]);
-  const baseDraft = useMemo(() => ({ ...buildReadOnlyDraft(emission), existingEvidences: (emission.evidence_files || []).map(evidenceItem) }), [emission]);
+  const baseDraft = useMemo(() => ({ ...buildReadOnlyDraft(emission), existingEvidences: (emission.evidence_files || []).map(evidenceItem), allocationMethod: allocationValue(emission) }), [emission]);
   useEffect(() => { setDraft(baseDraft); }, [baseDraft, editing]);
   const dynamicInputFields = useMemo(() => buildDynamicInputFields(emission), [emission]);
 

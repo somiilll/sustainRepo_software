@@ -564,7 +564,7 @@ export default function EmissionEditForm(props) {
                             {/* Scope 3: Calculation Method */}
                             <div className="space-y-1.5">
                               <Label htmlFor="scope3_method_select">Calculation Method *</Label>
-                              {lockedFields.includes('methodology') ? <div role="textbox" aria-readonly="true" className="flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="scope3-method-select">{scope3Method ? getMethodLabel(scope3Method) : '—'}</div> : <div className="relative">
+                              {lockedFields.includes('methodology') ? <div role="textbox" aria-readonly="true" className="mt-1.5 flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="scope3-method-select">{scope3Method ? getMethodLabel(scope3Method) : '—'}</div> : <div className="relative">
                                 <Calculator className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-600" aria-hidden="true" />
                                 <select
                                   id="scope3_method_select"
@@ -611,6 +611,11 @@ export default function EmissionEditForm(props) {
                             {isC8AllocationApplicable && (
                               <div className="space-y-1.5" data-testid="edit-c8-allocation-method-section">
                                 <Label htmlFor="edit-c8-allocation-method-select">Allocation Method *</Label>
+                                {lockedFields.includes('methodology') ? (
+                                  <div role="textbox" aria-readonly="true" className="mt-1.5 flex h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-800" data-testid="edit-c8-allocation-method-select">
+                                    {{ entire_quantity: 'Entire Quantity', floor_area_share: 'Floor Area Share' }[allocationMethod] || '—'}
+                                  </div>
+                                ) : (
                                 <select
                                   id="edit-c8-allocation-method-select"
                                   value={allocationMethod}
@@ -622,6 +627,7 @@ export default function EmissionEditForm(props) {
                                   <option value="entire_quantity" data-testid="edit-c8-allocation-method-option-entire-quantity">Entire Quantity</option>
                                   <option value="floor_area_share" data-testid="edit-c8-allocation-method-option-floor-area-share">Floor Area Share</option>
                                 </select>
+                                )}
                               </div>
                             )}
                             {!usesWasteDisposalTaxonomy && availableScope3ActivityTypes.length > 0 && (
