@@ -37,6 +37,16 @@ def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Opti
     return None
 
 
+def attach_approver_stages(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
+    """One block per approver edit (who, level, before/after), kept apart from the final approval."""
+    names = {item["field"]: item["display_name"] for item in version.get("submitted_field_diffs") or []}
+    version["approver_stages"] = [
+        {"level": edit.get("level"), "by": edit.get("by_name"), "at": edit.get("at"),
+         "diffs": [{**d, "display_name": names.get(d["field"]) or d["field"].replace("_", " ").title()} for d in edit.get("field_diffs") or []]}
+        for edit in proposal.get("approver_edits") or [] if edit.get("field_diffs")
+    ]
+
+
 def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
     """Attach stored submitter/approver change stages for a proposal-backed ESG version event."""
     snapshot = proposal.get("entity_snapshot") or {}
@@ -64,12 +74,6 @@ def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, An
         for item in submitted
         if final_values.get(item["field"]) != item["new_value"]
     ] if version["approver_edited"] else []
-    names = {item["field"]: item["display_name"] for item in submitted}
-    version["approver_stages"] = [
-        {"level": edit.get("level"), "by": edit.get("by_name"), "at": edit.get("at"),
-         "diffs": [{**d, "display_name": names.get(d["field"]) or d["field"].replace("_", " ").title()} for d in edit.get("field_diffs") or []]}
-        for edit in proposal.get("approver_edits") or [] if edit.get("field_diffs")
-    ]
     version["requested_by"] = version.get("requested_by") or proposal.get("submitted_by")
     version["requested_by_name"] = version.get("requested_by_name") or proposal.get("submitted_by_name")
     version["requested_by_email"] = version.get("requested_by_email") or proposal.get("submitted_by_email")
@@ -2319,6 +2323,8 @@ class ESGRecordsService:
                 ]
             if proposal and v.get("submitted_field_diffs") is None:
                 enrich_proposal_diff_details(v, proposal)
+            if proposal:
+                attach_approver_stages(v, proposal)
             
             # Keep stored change_type (approved/rejected/etc), only default if not present
             if not v.get("change_type"):
