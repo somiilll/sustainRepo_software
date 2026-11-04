@@ -20,6 +20,42 @@ from shared.database.mongo import db
 logger = logging.getLogger(__name__)
 
 
+OPTIONAL_FIELD_LABELS = {
+    "notes": "Notes", "source_of_information": "Source of Information", "record_source": "Source of Information",
+    "responsible_person": "Person Responsible", "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
+    "process_names": "Processes", "process_descriptions": "Process Descriptions", "evidence_files": "Evidence",
+    "supplier_name": "Supplier Name", "supplier_code": "Supplier Code", "asset_name": "Asset Name",
+    "from_location": "From Location", "to_location": "To Location",
+}
+
+
+def _optional_display(field: str, value: Any) -> str:
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, dict):
+                name = item.get("filename") or item.get("name") or ""
+                desc = item.get("description")
+                parts.append(f"{name}: {desc}" if desc else name)
+            elif item:
+                parts.append(str(item))
+        return ", ".join(p for p in parts if p)
+    return "" if value is None else str(value)
+
+
+def optional_field_changes(old: Dict[str, Any], new: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Old → new entries for the optional detail fields (notes, evidence, supplier, locations, ...)."""
+    changes = []
+    seen_labels = set()
+    for field, label in OPTIONAL_FIELD_LABELS.items():
+        before, after = _optional_display(field, old.get(field)), _optional_display(field, new.get(field))
+        if before == after or label in seen_labels:
+            continue
+        seen_labels.add(label)
+        changes.append({"field": field, "display_name": label, "old_value": before, "new_value": after, "field_type": "simple"})
+    return changes
+
+
 def employee_input_changes(old_employees, new_employees, input_label_map=None) -> List[Dict[str, Any]]:
     """Per-employee input diffs (days travelled etc.) for C7 records."""
     from shared.helpers.audit_helpers import compute_user_input_changes
@@ -71,10 +107,7 @@ def build_emission_proposal_history_event(
                 "field_type": "input_values",
             })
     field_changes.extend(employee_input_changes(current.get("employees"), updated.get("employees"), input_label_map))
-    for field, label in (("supplier_name", "Supplier Name"), ("supplier_code", "Supplier Code"), ("asset_name", "Asset Name"),
-                         ("from_location", "From Location"), ("to_location", "To Location")):
-        if (current.get(field) or "") != (updated.get(field) or ""):
-            field_changes.append({"field": field, "display_name": label, "old_value": current.get(field) or "", "new_value": updated.get(field) or "", "field_type": "simple"})
+    field_changes.extend(optional_field_changes(current, updated))
     for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
         if current.get(field) != updated.get(field):
             field_changes.append({
@@ -158,7 +191,8 @@ def build_emission_lifecycle_events(
         })
     modification = proposal.get("approver_modifications") or {}
     if proposal.get("original_proposal_data") and modification:
-        before = {**current, "dynamic_field_values": original_inputs, "employees": original.get("employees") or current.get("employees")}
+        before = {**current, "dynamic_field_values": original_inputs, "employees": original.get("employees") or current.get("employees"),
+                  **{k: original[k] for k in OPTIONAL_FIELD_LABELS if k in original}}
         for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
             before[field] = total_of(original, field)
         edit = build_emission_proposal_history_event(
