@@ -13,6 +13,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
+from fastapi import HTTPException
 
 from shared.database.mongo import db
 
@@ -532,7 +533,7 @@ class ProposalService:
 
                 if final_inputs:
                     record = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0}) or {}
-                    recalculated = await self._recalculate_emissions({**record, **{k: v for k, v in new_snapshot.items() if k in ("formula_id", "category_id", "scope")}}, final_inputs)
+                    recalculated = await self._recalculate_emissions({**record, **{k: v for k, v in new_snapshot.items() if k in ("formula_id", "category_id", "scope")}}, final_inputs, strict=True)
                     if recalculated:
                         totals = {k: recalculated.get(k, 0) for k in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions")}
                         new_snapshot.update(totals)
@@ -616,7 +617,7 @@ class ProposalService:
                     engine_inputs[key] = {"value": float(value), "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
                 except (TypeError, ValueError):
                     engine_inputs[key] = {"value": value, "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
-            result = await self._recalculate_emissions(context, engine_inputs)
+            result = await self._recalculate_emissions(context, engine_inputs, strict=True)
             if not result:
                 raise HTTPException(status_code=422, detail=f"Could not recalculate emissions for {employee.get('name') or 'employee'}")
             slot["inputs"] = new_inputs
@@ -1220,6 +1221,7 @@ class ProposalService:
         self,
         current_record: Dict[str, Any],
         new_dynamic_field_values: Dict[str, Any],
+        strict: bool = False,
     ) -> Dict[str, Any]:
         """
         Recalculate emissions using CalcEngine when approver modifies input values.
@@ -1275,6 +1277,8 @@ class ProposalService:
                     continue
                     
                 if isinstance(val, dict) and "value" in val:
+                    if val.get("value") is None and not val.get("is_override"):
+                        continue
                     # Already in correct format
                     if val.get("is_override"):
                         user_overrides[key] = val
@@ -1293,6 +1297,7 @@ class ProposalService:
                 "category_id": category_id,
                 "reporting_period": current_record.get("reporting_period"),
             }
+            await self._resolve_spend_overrides(current_record, new_dynamic_field_values, inputs, user_overrides, context)
             ef_ref = new_dynamic_field_values.get("scope3_ef_id") or current_record.get("scope3_ef_id")
             ef_id = ef_ref.get("value") if isinstance(ef_ref, dict) else ef_ref
             if ef_id:
@@ -1330,15 +1335,76 @@ class ProposalService:
             logger.info(f"[RECALC] Successfully recalculated emissions: co2e={recalculated['co2e_emissions']}")
             return recalculated
             
+        except HTTPException:
+            raise
         except ImportError as e:
             logger.error(f"[RECALC] CalcEngine import error: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
         except CalculationError as e:
             logger.error(f"[RECALC] Calculation error: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
         except Exception as e:
             logger.error(f"[RECALC] Unexpected error during recalculation: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
+
+    async def _resolve_spend_overrides(
+        self,
+        record: Dict[str, Any],
+        values: Dict[str, Any],
+        inputs: Dict[str, Any],
+        user_overrides: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> None:
+        """Hydrate exchange_rate / ppp / inflation for spend-basis records, like the calc router does."""
+        from calc_engine.currency_conversion import (
+            PPP_INFLATION_METHOD, STANDARD_METHOD, normalize_currency_method,
+            resolve_currency_conversion, resolve_organization_reporting_settings, currency_conversion_source_name,
+        )
+
+        def raw(key):
+            v = values.get(key)
+            if v is None:
+                v = record.get(key)
+            return v.get("value") if isinstance(v, dict) else v
+
+        if raw("calculation_method_scope3") != "spend_basis":
+            return
+        method = normalize_currency_method(raw("spend_currency_conversion_method"))
+        currency = None
+        for v in values.values():
+            if isinstance(v, dict) and str(v.get("unit") or "").upper() in {"INR", "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD"}:
+                currency = str(v["unit"]).upper()
+                break
+        keys = ("exchange_rate",) if method == STANDARD_METHOD else ("inflation_rate", "ppp")
+        conversion = None
+        if currency and currency != "USD":
+            org_id = record.get("organization_id")
+            settings = await resolve_organization_reporting_settings(db, organization_id=org_id)
+            period = record.get("reporting_period")
+            conversion = await resolve_currency_conversion(
+                db, source_currency=currency, reporting_period=period,
+                reporting_year_type=settings["reporting_year_type"],
+                financial_year_start_month=settings["financial_year_start_month"], method=method,
+            )
+            source = {"exchange_rate": "exchange_rate", "inflation_rate": "inflation_factor", "ppp": "purchase_parity"}
+            for key in keys:
+                if key in user_overrides:
+                    continue
+                if not conversion or not conversion.get(source[key]):
+                    raise HTTPException(status_code=422, detail=f"No active {key.replace('_', ' ')} configured for {currency} and {period or 'the requested period'}")
+                user_overrides[key] = {"value": float(conversion[source[key]]), "unit": "", "source_name": currency_conversion_source_name(conversion, method)}
+        else:
+            for key in keys:
+                if key not in user_overrides:
+                    user_overrides[key] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
+        for key in keys:
+            inputs.pop(key, None)
 
 
 # Singleton instance
