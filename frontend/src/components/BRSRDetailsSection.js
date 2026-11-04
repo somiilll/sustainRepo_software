@@ -742,7 +742,7 @@ export default function BRSRDetailsSection({
 
   const saveSection = async (id, status) => {
     const changed = mapChangedFieldsToResponses();
-    const keys = SECTION_A_KEYS[id].filter((k) => k in changed);
+    const keys = SECTION_A_KEYS[id].filter((k) => k in changed && canEditQuestion(k));
     if (keys.length === 0) {
       toast.info('No changes to save');
       setEditingSection(null);

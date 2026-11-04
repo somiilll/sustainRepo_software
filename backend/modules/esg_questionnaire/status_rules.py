@@ -157,3 +157,6 @@ def merge_tracker_children(response_map: Dict[str, Any]) -> None:
         if merged is None and states == {"approved"}:
             merged = "approved"
         response_map[parent] = {**own, "approval_status": merged or own.get("approval_status")}
+
+
+TRACKER_EXCLUDED = set(TRACKER_PARENT) | {"brsr_a_financial_year"}
