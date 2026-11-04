@@ -20,6 +20,30 @@ from shared.database.mongo import db
 logger = logging.getLogger(__name__)
 
 
+def employee_input_changes(old_employees, new_employees, input_label_map=None) -> List[Dict[str, Any]]:
+    """Per-employee input diffs (days travelled etc.) for C7 records."""
+    from shared.helpers.audit_helpers import compute_user_input_changes
+
+    def slots(employee: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        if employee.get("monthly_data"):
+            return {k: (v or {}).get("inputs") or {} for k, v in employee["monthly_data"].items()}
+        if employee.get("yearly_data"):
+            return {"yearly": employee["yearly_data"].get("inputs") or {}}
+        return {"": employee.get("inputs") or {}}
+
+    old_by_id = {(e.get("employee_id") or e.get("id")): e for e in old_employees or []}
+    changes: List[Dict[str, Any]] = []
+    for emp in new_employees or []:
+        old_slots = slots(old_by_id.get(emp.get("employee_id") or emp.get("id")) or {})
+        new_slots = slots(emp)
+        for period, new_inputs in new_slots.items():
+            name = emp.get("name") or "Employee"
+            if len(new_slots) > 1 and period:
+                name = f"{name}, {period}"
+            changes.extend(compute_user_input_changes(old_slots.get(period, {}), new_inputs, input_label_map, employee_name=name))
+    return changes
+
+
 def build_emission_proposal_history_event(
     current: Dict[str, Any],
     updated: Dict[str, Any],
@@ -31,6 +55,7 @@ def build_emission_proposal_history_event(
     actor_name: str,
     timestamp: str,
     rejection_reason: Optional[str] = None,
+    input_label_map: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Build the linked post-resolution format expected by GHG version history."""
     old_inputs = current.get("dynamic_field_values") or {}
@@ -45,6 +70,7 @@ def build_emission_proposal_history_event(
                 "new_value": new_inputs.get(key),
                 "field_type": "input_values",
             })
+    field_changes.extend(employee_input_changes(current.get("employees"), updated.get("employees"), input_label_map))
     for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
         if current.get(field) != updated.get(field):
             field_changes.append({
@@ -103,6 +129,7 @@ def build_emission_lifecycle_events(
     updated: Dict[str, Any],
     proposal: Dict[str, Any],
     approved_event: Dict[str, Any],
+    input_label_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, Any]]:
     """Created-by (submitter) and updated-by (approver edit) entries that precede the approval entry."""
     snapshot = proposal.get("entity_snapshot") or {}
@@ -127,13 +154,13 @@ def build_emission_lifecycle_events(
         })
     modification = proposal.get("approver_modifications") or {}
     if proposal.get("original_proposal_data") and modification:
-        before = {**current, "dynamic_field_values": original_inputs}
+        before = {**current, "dynamic_field_values": original_inputs, "employees": original.get("employees") or current.get("employees")}
         for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
             before[field] = total_of(original, field)
         edit = build_emission_proposal_history_event(
             before, updated, proposal, action="updated", actor_id=modification.get("modified_by"),
             actor_email=modification.get("modified_by_email", ""), actor_name=modification.get("modified_by_name", ""),
-            timestamp=modification.get("modified_at") or approved_event["changed_at"],
+            timestamp=modification.get("modified_at") or approved_event["changed_at"], input_label_map=input_label_map,
         )
         edit["changes_summary"] = "Updated by approver"
         edit["changes"]["approver_edit_fields"] = [f for e in proposal.get("approver_edits") or [] for f in e.get("fields", [])]
@@ -1177,6 +1204,8 @@ class ProposalService:
             {"$set": update_fields}
         )
         if entity_type == "emission_record":
+            from shared.helpers.audit_helpers import get_input_label_map_from_db
+            label_map = await get_input_label_map_from_db(db)
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
             history_event = build_emission_proposal_history_event(
                 current,
@@ -1187,8 +1216,9 @@ class ProposalService:
                 actor_email=approver_email,
                 actor_name=approver_name,
                 timestamp=now,
+                input_label_map=label_map,
             )
-            lifecycle = build_emission_lifecycle_events(current, updated or {**current, **update_fields}, proposal, history_event)
+            lifecycle = build_emission_lifecycle_events(current, updated or {**current, **update_fields}, proposal, history_event, label_map)
             await db.emission_history.insert_many([*lifecycle, history_event])
         elif entity_type == "esg_record":
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
