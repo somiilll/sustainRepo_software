@@ -355,8 +355,8 @@ export default function MultiProposalReview({
   };
 
   // A first submission is itself the pending record, so there is nothing approved to compare against yet
-  const hasApprovedValues = !historyProposal && !!approvedRecord && !(entityType === 'esg_record'
-    && ['pending_approval', 'rejected', 'draft'].includes(approvedRecord.approval_status));
+  const hasApprovedValues = !historyProposal && !!approvedRecord && !(['esg_record', 'emission_record'].includes(entityType)
+    && ['pending_approval', 'pending', 'rejected', 'draft'].includes(approvedRecord.approval_status));
   const useFormLayout = entityType === 'esg_record' && hasCategoryForm(fieldConfig?.subcategory, fieldConfig?.fields);
 
   if (loading) {

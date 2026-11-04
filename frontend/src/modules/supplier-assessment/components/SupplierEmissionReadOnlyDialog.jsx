@@ -51,7 +51,7 @@ export const buildDynamicInputFields = (emission) => {
       const resolvedDefault = emission?.resolved_default_inputs?.[variable];
       const baseLabel = readOnlyFieldLabel(variable, mapping);
       const source = value?.is_override ? 'User Specified' : resolvedDefault?.source || value?.source_name || value?.source;
-      return { id: mapping?.id || `read-only-${variable}`, variable, fieldKey: mapping?.field_key || variable, label: source ? `${baseLabel} · Source: ${source}` : baseLabel, fieldType: mapping?.field_type || (typeof fieldValue(value) === 'number' ? 'number' : 'text'), expectedUnit: fieldUnit(value) || resolvedDefault?.unit || mapping?.default_unit || '', allowedUnits: mapping?.allowed_units || [fieldUnit(value)].filter(Boolean), unitSource: mapping?.unit_source || 'static', required: Boolean(mapping?.required), isOverride: Boolean(value?.is_override), displayOrder: mapping?.display_order ?? Number.MAX_SAFE_INTEGER };
+      return { id: mapping?.id || `read-only-${variable}`, variable, fieldKey: mapping?.field_key || variable, label: source ? `${baseLabel} · Source: ${source}` : baseLabel, fieldType: mapping?.field_type || (typeof fieldValue(value) === 'number' ? 'number' : 'text'), expectedUnit: fieldUnit(value) || resolvedDefault?.unit || mapping?.default_unit || '', allowedUnits: mapping?.allowed_units || [fieldUnit(value)].filter(Boolean), unitSource: mapping?.unit_source || 'static', required: mapping?.required ?? !emission?.resolved_default_inputs?.[variable], isOverride: Boolean(value?.is_override), displayOrder: mapping?.display_order ?? Number.MAX_SAFE_INTEGER };
     }).sort((left, right) => left.displayOrder - right.displayOrder);
 };
 

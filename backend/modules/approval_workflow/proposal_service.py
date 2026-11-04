@@ -453,10 +453,19 @@ class ProposalService:
                 def merge_inputs(target: Dict[str, Any]) -> Dict[str, Any]:
                     merged = {**target}
                     for key, value in field_values.items():
-                        base = key[:-5] if key.endswith("_unit") else None
-                        if base and isinstance(merged.get(base), dict):
-                            merged[base] = {**merged[base], "unit": value}
+                        if key.startswith("override_") and isinstance(merged.get(key[9:]), dict):
+                            merged[key[9:]] = {**merged[key[9:]], "is_override": bool(value)}
+                        elif key.endswith("_justification") and isinstance(merged.get(key[:-14]), dict):
+                            merged[key[:-14]] = {**merged[key[:-14]], "justification": value}
+                        elif key.endswith("_unit") and isinstance(merged.get(key[:-5]), dict):
+                            merged[key[:-5]] = {**merged[key[:-5]], "unit": value}
+                        elif key.startswith("override_") or key.endswith(("_justification", "_unit")):
+                            continue
                         elif isinstance(merged.get(key), dict) and "value" in merged[key]:
+                            try:
+                                value = float(value) if value not in (None, "") else value
+                            except (TypeError, ValueError):
+                                pass
                             merged[key] = {**merged[key], "value": value}
                         else:
                             merged[key] = value
