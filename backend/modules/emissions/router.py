@@ -604,6 +604,15 @@ async def _find_emission_assignment(
     return best_match
 
 
+def _extra_snapshot_fields(record: dict) -> dict:
+    """Evidence files and journey locations, so the approval queue shows what the assignee entered."""
+    fields = {}
+    for key in ("evidence_files", "from_location", "to_location"):
+        if record.get(key):
+            fields[key] = record[key]
+    return fields
+
+
 def _c7_snapshot_fields(record: dict) -> dict:
     """Employee-level C7 data so the approval queue can render and edit each employee."""
     employees = record.get("employees")
@@ -703,6 +712,7 @@ async def _create_emission_approval_request(
         # Source info
         "source_of_information": emission_record.get("source_of_information", ""),
         **_c7_snapshot_fields(emission_record),
+        **_extra_snapshot_fields(emission_record),
         "edit_type": "create",
     }
     
@@ -843,6 +853,7 @@ async def _create_emission_update_approval_request(
         "source_of_information": existing_record.get("source_of_information", ""),
         "notes": existing_record.get("notes"),
         **_c7_snapshot_fields(updated_data),
+        **_extra_snapshot_fields(updated_data),
         # Store original values for comparison
         "original_values": {
             "inputs": original_inputs,

@@ -1155,7 +1155,7 @@ class ProposalService:
                 "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection",
                 "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
                 "responsible_person_contact", "process_names", "process_descriptions",
-                "employees", "monthly_totals", "yearly_total",
+                "employees", "monthly_totals", "yearly_total", "from_location", "to_location",
             ]
             for field in other_emission_fields:
                 if field in apply_data:
