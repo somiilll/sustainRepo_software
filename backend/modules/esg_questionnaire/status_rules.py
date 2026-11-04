@@ -94,3 +94,47 @@ def resolved_status(doc: Optional[Dict[str, Any]], table_config: Optional[Dict[s
         return adjusted
     saved = doc.get("status") == "saved" or approval == "pending_approval"
     return "saved" if saved and _has_reportable_value(doc.get("value")) else "pending"
+
+
+def _dependency(config: Dict[str, Any]):
+    visible_if = config.get("visible_if") or {}
+    if visible_if.get("question_key"):
+        return visible_if["question_key"], visible_if
+    conditional = config.get("conditional") or {}
+    if conditional.get("depends_on") and conditional.get("show_when") == "has_no_answer":
+        return conditional["depends_on"], conditional
+    return None
+
+
+def _dependent_visible(rule: Dict[str, Any], parent_value: Any) -> bool:
+    condition = rule.get("condition") or rule.get("show_when")
+    if condition == "has_rows":
+        return isinstance(parent_value, list) and any(
+            isinstance(row, dict) and any(v not in ("", None) for v in row.values()) for row in parent_value)
+    if condition == "equals":
+        return parent_value == rule.get("value")
+    if condition == "not_equals":
+        return parent_value != rule.get("value")
+    if condition == "has_no_answer":
+        if not isinstance(parent_value, dict):
+            return False
+        if parent_value.get("mode") == "all_together":
+            return parent_value.get("all_enabled") is False
+        return any((p or {}).get("enabled") is False for p in (parent_value.get("principles") or {}).values())
+    return True
+
+
+def mirror_hidden_dependents(response_map: Dict[str, Any], configs: list) -> None:
+    """A dependent question that is hidden by its parent's answer takes the parent's response and status."""
+    for config in configs:
+        dependency = _dependency(config)
+        if not dependency:
+            continue
+        parent_key, rule = dependency
+        parent = response_map.get(parent_key)
+        if parent is not None and _dependent_visible(rule, parent.get("value")):
+            continue
+        if parent is None:
+            response_map.pop(config["question_key"], None)
+        else:
+            response_map[config["question_key"]] = {**parent, "question_key": config["question_key"]}

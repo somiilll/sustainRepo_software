@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 from shared.database.mongo import db
 from modules.esg_questionnaire.service import esg_questionnaire_service
-from modules.esg_questionnaire.status_rules import resolved_status
+from modules.esg_questionnaire.status_rules import resolved_status, mirror_hidden_dependents
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
@@ -49,7 +49,7 @@ def _group_definitions(section: str, configs: list) -> list:
 async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Optional[set] = None) -> Dict[str, Any]:
     configs = await db.esg_question_configs.find(
         {"frameworks": {"$in": ["BRSR", "brsr"]}, "section": {"$in": list(SECTIONS)}, "hidden": {"$ne": True}},
-        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1},
+        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1, "visible_if": 1, "conditional": 1},
     ).sort("order", 1).to_list(1000)
     if allowed_keys is not None:
         configs = [c for c in configs if c["question_key"] in allowed_keys]
@@ -58,6 +58,7 @@ async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Option
         {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1, "updated_at": 1, "auto_fill": 1},
     ).to_list(2000)
     by_key = {doc["question_key"]: doc for doc in docs if doc.get("question_key")}
+    mirror_hidden_dependents(by_key, configs)
 
     sections: Dict[str, Any] = {s: {"questions": {}, "counts": {k: 0 for k in STATUSES}} for s in SECTIONS}
     for config in configs:

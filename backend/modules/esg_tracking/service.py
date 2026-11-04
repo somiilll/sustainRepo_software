@@ -9,6 +9,7 @@ import logging
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from shared.database.mongo import db
+from modules.esg_questionnaire.status_rules import mirror_hidden_dependents
 from shared.helpers.email import send_email
 
 from .models import (
@@ -188,6 +189,7 @@ class TrackingService:
         ).to_list(5000)
         
         response_map = {r["question_key"]: r for r in responses if r.get("question_key")}
+        mirror_hidden_dependents(response_map, configs)
         
         # Get all assignments for this org and period
         assignments = await self._assignments.find(
@@ -409,6 +411,8 @@ class TrackingService:
                             "updated_at": sub_data.get("updated_at") or r.get("updated_at"),
                         }
         
+        mirror_hidden_dependents(response_map, configs)
+
         # Get assignments
         assignments = await self._assignments.find(
             {
@@ -712,6 +716,8 @@ class TrackingService:
                                 "updated_at": r.get("updated_at"),
                             }
         
+        mirror_hidden_dependents(response_map, configs)
+
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(
             {
