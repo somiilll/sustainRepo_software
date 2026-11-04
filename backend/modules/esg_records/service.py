@@ -52,6 +52,7 @@ def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, An
     ]
     version["submitted_field_diffs"] = submitted
     version["approver_edited"] = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    version["approver_edits"] = proposal.get("approver_edits") or []
     final_values = (version.get("snapshot") or {}).get("field_values") or {}
     version["approver_field_diffs"] = [
         {
@@ -2231,7 +2232,7 @@ class ESGRecordsService:
         if proposal_ids:
             proposals = await db.approval_requests.find(
                 {"id": {"$in": proposal_ids}},
-                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "entity_snapshot": 1},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1},
             ).to_list(None)
             proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         

@@ -496,6 +496,7 @@ class ProposalService:
                     new_snapshot[key] = value
         
         new_snapshot["approver_edited"] = True
+        changed_fields = self._changed_edit_fields(current_snapshot, new_snapshot) if entity_type == "esg_record" else []
         
         # Update with approver's modifications
         update_data = {
@@ -512,12 +513,80 @@ class ProposalService:
             "updated_at": now,
         }
         
-        await db.approval_requests.update_one(
-            {"id": proposal_id},
-            {"$set": update_data}
-        )
+        update_op: Dict[str, Any] = {"$set": update_data}
+        if changed_fields:
+            update_op["$push"] = {"approver_edits": {
+                "level": proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
+                "at": now, "fields": changed_fields,
+            }}
+        await db.approval_requests.update_one({"id": proposal_id}, update_op)
         
         return await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
+
+    @staticmethod
+    def _changed_edit_fields(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+        """Names of the data fields an approver changed between two snapshots."""
+        old_fv, new_fv = before.get("field_values") or {}, after.get("field_values") or {}
+        changed = [k.replace("_", " ").title() for k in sorted(set(old_fv) | set(new_fv)) if old_fv.get(k) != new_fv.get(k)]
+        labels = {"notes": "Notes", "source_of_information": "Source of information", "evidence_files": "Evidence"}
+        changed += [label for key, label in labels.items() if before.get(key) != after.get(key)]
+        return changed
+
+    async def _approver_chain(self, proposal: Dict[str, Any]) -> List[str]:
+        """Ordered approver ids for the assignment behind a request."""
+        workflow_id = proposal.get("workflow_id") or ""
+        assignment = None
+        if workflow_id.startswith("assignment_"):
+            assignment = await db.esg_assignments.find_one({"id": workflow_id[len("assignment_"):]}, {"_id": 0})
+        if not assignment:
+            snap = proposal.get("entity_snapshot") or {}
+            query = {"organization_id": proposal.get("organization_id"), "category": snap.get("category"),
+                     "subcategory": snap.get("subcategory")}
+            assignment = (await db.esg_assignments.find_one({**query, "facility_id": snap.get("facility_id")}, {"_id": 0})
+                          if snap.get("facility_id") else None) or await db.esg_assignments.find_one(query, {"_id": 0})
+        if not assignment:
+            return []
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
+        chain = [c for c in chain if c]
+        return chain or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+
+    async def _advance_level(self, proposal: Dict[str, Any], approver_id: str, approver_name: str, approver_email: str,
+                             comment: Optional[str], now: str) -> Optional[Dict[str, Any]]:
+        """Approve the current level of a multi-level ESG request and hand it to the next approver."""
+        level = proposal.get("current_level") or 1
+        chain = await self._approver_chain(proposal)
+        if level >= len(chain):
+            return None
+        next_approver = chain[level]
+        snapshot = proposal.get("entity_snapshot") or {}
+        section_to_collection = {"environment": "environment_records", "social": "social_records", "governance": "governance_records"}
+        collection = db[section_to_collection.get(proposal.get("entity_subtype"), "environment_records")]
+        record = await collection.find_one({"id": proposal.get("entity_id")}, {"_id": 0, "approval_status": 1})
+        if record and record.get("approval_status") in ("pending_approval", "pending"):
+            saved = {k: snapshot[k] for k in ("field_values", "notes", "source_of_information", "evidence_files") if k in snapshot}
+            if saved:
+                await collection.update_one({"id": proposal.get("entity_id")}, {"$set": {**saved, "updated_at": now}})
+        edits = [e for e in proposal.get("approver_edits") or [] if e.get("level") == level]
+        await db.approval_requests.update_one(
+            {"id": proposal["id"]},
+            {"$set": {"current_level": level + 1, "current_approvers": [next_approver], "status": "pending", "updated_at": now},
+             "$push": {"steps_completed": {
+                 "id": str(uuid.uuid4()), "level": level, "level_name": f"Level {level}", "action": "approve",
+                 "actor_id": approver_id, "actor_email": approver_email, "actor_name": approver_name,
+                 "comment": comment, "timestamp": now, "edited_fields": [f for e in edits for f in e.get("fields", [])],
+             }}},
+        )
+        try:
+            from shared.notifications import create_notification
+            await create_notification(
+                user_id=next_approver, org_id=proposal.get("organization_id"), title="Approval Required",
+                message=f"{approver_name or 'An approver'} approved level {level}; it now needs your approval",
+                notification_type="approval", link="/workflow/approver-queue",
+                metadata={"entity_id": proposal.get("entity_id"), "proposal_id": proposal["id"]},
+            )
+        except Exception as error:
+            logger.warning(f"Failed to notify next approver: {error}")
+        return {"success": True, "proposal_id": proposal["id"], "advanced_to_level": level + 1, "auto_rejected_count": 0}
     
     async def approve_proposal(
         self,
@@ -554,6 +623,11 @@ class ProposalService:
         approver_email = approver.get("email", "") if approver else ""
         approver_name = approver.get("full_name", "") if approver else ""
         
+        if entity_type == "esg_record" and (proposal.get("current_level") or 1) < (proposal.get("total_levels") or 1):
+            advanced = await self._advance_level(proposal, approver_id, approver_name, approver_email, approval_comment, now)
+            if advanced:
+                return advanced
+        
         # Get the final data to apply (may include approver modifications)
         entity_snapshot = proposal.get("entity_snapshot", {})
         
@@ -585,8 +659,8 @@ class ProposalService:
                     *proposal.get("steps_completed", []),
                     {
                         "id": str(uuid.uuid4()),
-                        "level": 1,
-                        "level_name": "Approval",
+                        "level": proposal.get("current_level") or 1,
+                        "level_name": f"Level {proposal.get('current_level') or 1}",
                         "action": "approve",
                         "actor_id": approver_id,
                         "actor_email": approver_email,
@@ -708,8 +782,8 @@ class ProposalService:
                     *proposal.get("steps_completed", []),
                     {
                         "id": str(uuid.uuid4()),
-                        "level": 1,
-                        "level_name": "Rejection",
+                        "level": proposal.get("current_level") or 1,
+                        "level_name": f"Level {proposal.get('current_level') or 1}",
                         "action": "reject",
                         "actor_id": approver_id,
                         "actor_email": approver_email,

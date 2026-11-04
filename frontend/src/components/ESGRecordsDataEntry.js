@@ -1863,6 +1863,11 @@ export default function ESGRecordsDataEntry({
                       {version.change_reason && (
                         <p className="text-sm text-text-muted mt-1">Reason: {version.change_reason}</p>
                       )}
+                      {(version.approver_edits || []).map((edit, eIdx) => (
+                        <p key={`edit-${eIdx}`} className="text-sm text-text-muted mt-1" data-testid="version-approver-edit">
+                          Edited by <span className="font-medium">{edit.by_name || 'Approver'}</span> (Level {edit.level}): {(edit.fields || []).join(', ')}
+                        </p>
+                      ))}
                       
                       {/* Field Diffs - computed on API, not stored */}
                       {visibleDiffs.length > 0 && (

@@ -601,6 +601,13 @@ export default function MultiProposalReview({
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
+                {(proposal.approver_edits || []).length > 0 && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900" data-testid={`proposal-approver-edits-${proposal.id}`}>
+                    {proposal.approver_edits.map((edit, i) => (
+                      <p key={i}><span className="font-semibold">Level {edit.level} · {edit.by_name || 'Approver'}</span> edited: {(edit.fields || []).join(', ')}</p>
+                    ))}
+                  </div>
+                )}
                 {/* Field Values */}
                 {useFormLayout ? (
                   <div className="p-4 bg-stone-50 rounded-lg">
