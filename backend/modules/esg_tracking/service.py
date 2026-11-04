@@ -1296,6 +1296,17 @@ class TrackingService:
             
             # Skip if already assigned and skip_already_assigned is True
             if request.skip_already_assigned and q_key in existing_keys:
+                chain = list(request.approval_chain or ([request.approver_id] if request.approver_id else []))
+                if request.requires_approval and chain:
+                    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+                    await self._assignments.update_one(
+                        {"id": existing_assignments[q_key]},
+                        {"$set": {"requires_approval": True, "approver_id": chain[0], "approval_chain": chain}},
+                    )
+                    await assignment_service_v2._reresolve_pending_approvers(
+                        existing_assignments[q_key], organization_id, chain[0], chain, question_key=q_key)
+                    updated_count += 1
+                    continue
                 skipped_count += 1
                 continue
             

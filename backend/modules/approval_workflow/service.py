@@ -952,7 +952,15 @@ class ApprovalWorkflowService:
             
             # Resolve next approvers
             next_approvers = []
-            if next_level_config:
+            if request.get("entity_type") == "esg_response":
+                from modules.esg_questionnaire.service import esg_questionnaire_service
+                assignment = await esg_questionnaire_service._find_question_assignment(
+                    request.get("organization_id"), request.get("entity_id"),
+                    (request.get("entity_snapshot") or {}).get("reporting_year"))
+                chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (assignment or {}).get("approval_chain") or []]
+                chain = [c for c in chain if c]
+                next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
+            elif next_level_config:
                 next_approvers = await ApprovalWorkflowService._resolve_approvers(
                     request.get("organization_id"),
                     next_level_config,

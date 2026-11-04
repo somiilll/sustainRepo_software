@@ -629,27 +629,13 @@ class ESGQuestionnaireService:
         """
         Determine if direct save (last save wins) should be used.
         
-        Direct save (last save wins) applies when:
-        - Approval workflow is OFF for org, OR
-        - Approval workflow is ON but NO approver is assigned to question/section
+        Direct save (last save wins) applies when the question's assignment does not
+        require approval (approval switched off or no approver set), same rule as KPIs.
         
         Returns True if direct save should be used (last save wins).
         Returns False if submissions should go to approver queue.
         """
-        has_approval = await self._has_approval_workflow_enabled(org_id)
-        
-        if not has_approval:
-            # No approval workflow → direct save (last save wins)
-            return True
-        
-        has_approver = await self._has_approver_assigned(org_id, question_key, reporting_period)
-        
-        if not has_approver:
-            # Approval ON but no approver assigned → direct save (last save wins)
-            return True
-        
-        # Approval ON and approver assigned → submissions go to approver queue
-        return False
+        return not await self._has_approver_assigned(org_id, question_key, reporting_period)
 
     async def _clear_other_users_drafts(
         self,
@@ -847,13 +833,12 @@ class ESGQuestionnaireService:
         
         # Approvers come from the question's assignment (chain level 1, else approver_id)
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
-        first_approver = None
+        chain_ids = []
         if assignment:
-            chain = assignment.get("approval_chain") or []
-            first = chain[0] if chain else assignment.get("approver_id")
-            first_approver = first if isinstance(first, str) or first is None else first.get("approver_id")
-            first_approver = first_approver or assignment.get("approver_id")
-        current_approvers = [first_approver] if first_approver else []
+            chain_ids = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
+            chain_ids = [c for c in chain_ids if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+        total_levels = max(len(chain_ids), 1)
+        current_approvers = chain_ids[:1]
         
         current_approvers = list(set(current_approvers))
         
@@ -882,7 +867,7 @@ class ESGQuestionnaireService:
             "section": question_config.get("section") if question_config else None,
             "current_approvers": current_approvers,
             "current_level": 1,
-            "total_levels": 1,
+            "total_levels": total_levels,
             "_submission_id": submission_id,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
@@ -905,6 +890,8 @@ class ESGQuestionnaireService:
                     "submitted_at": now.isoformat(),
                     "framework": framework,
                     "current_approvers": current_approvers,
+                    "current_level": 1,
+                    "total_levels": total_levels,
                     "updated_at": now.isoformat(),
                     "_submission_id": submission_id,
                 },
@@ -919,8 +906,6 @@ class ESGQuestionnaireService:
                     "request_type": approval_request["request_type"],
                     "status": "pending",
                     "section": approval_request["section"],
-                    "current_level": 1,
-                    "total_levels": 1,
                     "created_at": now.isoformat(),
                 },
             },

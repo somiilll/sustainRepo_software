@@ -105,6 +105,19 @@ async def get_framework_sections(
 # SECTION-LEVEL ENDPOINTS
 # =============================================================================
 
+@router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}/detail")
+async def get_section_detail_panel(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Questions, assignment/approvers and activity for the section's expandable panel. Admin only."""
+    from .section_detail_service import get_section_detail
+    return await get_section_detail(current_user["organization_id"], domain, framework_id, section_id, reporting_period)
+
+
 @router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}")
 async def get_section_disclosures(
     domain: TrackingDomain,

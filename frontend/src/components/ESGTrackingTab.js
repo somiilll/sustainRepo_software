@@ -80,6 +80,8 @@ import {
 } from '../utils/reportingYearUtils';
 import MyTasks from './MyTasks';
 
+import FrameworkSectionPanel from './tracker/FrameworkSectionPanel';
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Operational status colors
@@ -295,6 +297,7 @@ export default function ESGTrackingTab({
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
   const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics for GRI
@@ -847,6 +850,16 @@ export default function ESGTrackingTab({
                   
                   {/* Action buttons */}
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedSections((cur) => ({ ...cur, [section.section_id]: !cur[section.section_id] }))}
+                      aria-expanded={Boolean(expandedSections[section.section_id])}
+                      data-testid={`section-expand-${section.section_id}`}
+                    >
+                      {expandedSections[section.section_id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <span className="ml-1">Details</span>
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -866,6 +879,10 @@ export default function ESGTrackingTab({
                     </Button>
                   </div>
                 </div>
+                {expandedSections[section.section_id] && (
+                  <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
+                                         reportingPeriod={reportingPeriod} version={sections} />
+                )}
               </Card>
             ))}
           </div>

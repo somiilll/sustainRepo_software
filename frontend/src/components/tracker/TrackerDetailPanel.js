@@ -1,5 +1,5 @@
 /**
- * Tracker expanded panel: Periods / Assignment and approvers / Activity / Linked entries.
+ * Tracker expanded panel: Periods / Assignment and approvers / Activity.
  * Data: GET /api/esg-records/tracker-detail (period status is the synced task status).
  */
 import React, { useEffect, useState } from 'react';
@@ -19,7 +19,7 @@ const STATUS = {
   rejected: { label: 'Sent back', dot: 'bg-red-500', pill: 'bg-red-50 text-red-700 border-red-200', card: 'border-red-300' },
 };
 
-const fmt = (iso, withTime = false) => {
+export const fmt = (iso, withTime = false) => {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -94,7 +94,7 @@ function PeriodCard({ period, section }) {
   );
 }
 
-const Empty = ({ children }) => <p className="py-6 text-sm text-stone-500">{children}</p>;
+export const Empty = ({ children }) => <p className="py-6 text-sm text-stone-500">{children}</p>;
 
 const REMINDERS = [
   { id: 'before_7d', label: '7 days before the deadline' },
@@ -183,7 +183,7 @@ function AssignmentTab({ a, ctx, canEdit, onEditAssignment }) {
 
 const ACTOR_STYLE = { submit: 'bg-blue-100 text-blue-700', approve: 'bg-emerald-100 text-emerald-700', reject: 'bg-red-100 text-red-700', assign: 'bg-emerald-100 text-emerald-700', update: 'bg-stone-100 text-stone-600' };
 
-const ActivityTab = ({ items }) => (
+export const ActivityTab = ({ items }) => (
   <ol className="max-h-[26rem] overflow-y-auto pr-2 pt-4" data-testid="tracker-tab-activity">
     {items.length === 0 && <Empty>No activity yet</Empty>}
     {items.map((e, i) => (
@@ -194,22 +194,6 @@ const ActivityTab = ({ items }) => (
       </li>
     ))}
   </ol>
-);
-
-const ENTRY_STATUS = { completed: 'Completed', approved: 'Approved', pending: 'Awaiting approval', pending_approval: 'Awaiting approval', rejected: 'Sent back' };
-
-const LinkedTab = ({ items, section }) => (
-  <ul className="max-h-[26rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="tracker-tab-linked">
-    {items.length === 0 && <Empty>No records have been submitted for this assignment yet</Empty>}
-    {items.map((r) => (
-      <li key={r.record_id} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid="linked-entry">
-        <span className="font-medium text-stone-900">{r.period_label || 'Record'}</span>
-        <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-700">{ENTRY_STATUS[r.status] || r.status}</span>
-        <span className="text-xs text-stone-500">{r.submitted_by_name ? `by ${r.submitted_by_name} · ` : ''}{fmt(r.submitted_at, true)}</span>
-        <Link to={`/${section}`} className="ml-auto text-xs font-medium text-emerald-700 hover:underline" data-testid="linked-entry-open">View entry</Link>
-      </li>
-    ))}
-  </ul>
 );
 
 export default function TrackerDetailPanel({ section, category, subcategory, version, onEditAssignment, onClose }) {
@@ -235,7 +219,6 @@ export default function TrackerDetailPanel({ section, category, subcategory, ver
     { id: 'periods', label: 'Periods', count: data.periods.length },
     { id: 'assignment', label: 'Assignment and approvers' },
     { id: 'activity', label: 'Activity', count: data.activity.length },
-    { id: 'linked', label: 'Linked entries', count: data.linked_entries.length },
   ];
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm" data-testid="tracker-detail-panel">
@@ -269,7 +252,6 @@ export default function TrackerDetailPanel({ section, category, subcategory, ver
       )}
       {tab === 'assignment' && <AssignmentTab a={data.assignment} ctx={{ section, category, subcategory }} canEdit={canEdit} onEditAssignment={onEditAssignment} />}
       {tab === 'activity' && <ActivityTab items={data.activity} />}
-      {tab === 'linked' && <LinkedTab items={data.linked_entries} section={section} />}
     </div>
   );
 }
