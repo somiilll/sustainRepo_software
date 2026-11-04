@@ -116,6 +116,14 @@ async def get_brsr_progress(
         )
         if accessible:
             allowed_keys = set() if accessible == ["__no_access__"] else set(accessible)
+        approver_keys = {a["entity_id"] async for a in db.esg_assignments.find(
+            {"organization_id": org_id, "entity_type": "question", "reporting_period": reporting_period,
+             "$or": [{"approver_id": current_user["id"]}, {"approval_chain": current_user["id"]}]},
+            {"_id": 0, "entity_id": 1})}
+        if approver_keys and allowed_keys is not None:
+            allowed_keys |= approver_keys
+        elif approver_keys:
+            allowed_keys = approver_keys
     return await brsr_progress(org_id, reporting_period, allowed_keys)
 
 

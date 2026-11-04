@@ -2077,6 +2077,26 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       );
     }
     
+    // Handle numeric / boolean answers (number, currency, ...)
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      const unit = config.config?.currency || config.currency || config.unit || '';
+      if (typeof value === 'boolean') return <p className="text-stone-700" data-testid="queue-response-value">{value ? 'Yes' : 'No'}</p>;
+      return isEditing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={editedValue ?? value}
+            onChange={(e) => setEditedValue(e.target.value === '' ? '' : Number(e.target.value))}
+            className="w-56 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            data-testid="queue-response-number-input"
+          />
+          {unit && <span className="text-sm text-stone-500">{unit}</span>}
+        </div>
+      ) : (
+        <p className="text-stone-700 tabular-nums" data-testid="queue-response-value">{value.toLocaleString()} {unit}</p>
+      );
+    }
+    
     // Handle other object types with friendly display
     if (typeof value === 'object' && value !== null) {
       return <ObjectFieldsDisplay 

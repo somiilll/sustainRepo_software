@@ -95,7 +95,12 @@ class ESGQuestionnaireService:
             ).to_list(500)
             
             assignment_ids = [a["assignment_id"] for a in assignee_records]
-            
+            approver_assignments = await db.esg_assignments.find(
+                {"organization_id": org_id, "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            assignment_ids = list(dict.fromkeys(assignment_ids + [a["id"] for a in approver_assignments]))
+
             if not assignment_ids:
                 # User has no assignments - return empty list
                 return []
