@@ -34,6 +34,7 @@ class ProposalEditRequest(BaseModel):
     responsible_person_contact: Optional[str] = None
     process_names: Optional[List[str]] = None
     process_descriptions: Optional[List[dict]] = None
+    employee_inputs: Optional[List[dict]] = None
 
 
 class ProposalApproveRequest(BaseModel):
@@ -231,7 +232,7 @@ async def edit_proposal(
     if data.evidence_files is not None:
         modified_data["evidence_files"] = data.evidence_files
     for key in ("record_source", "responsible_person", "responsible_person_designation", "responsible_person_contact",
-                "process_names", "process_descriptions"):
+                "process_names", "process_descriptions", "employee_inputs"):
         if getattr(data, key) is not None:
             modified_data[key] = getattr(data, key)
     

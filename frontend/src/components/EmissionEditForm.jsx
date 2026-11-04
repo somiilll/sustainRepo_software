@@ -993,7 +993,8 @@ export default function EmissionEditForm(props) {
                       monthlyTotals={editEmployeeMonthlyTotals}
                       yearlyTotal={editEmployeeYearlyTotal}
                       isCalculating={isCalculatingEditEmployee}
-                      disabled={readOnly || lockedFields.includes('employees')}
+                      disabled={readOnly}
+                      structureLocked={lockedFields.includes('employees')}
                       isEditMode={true}
                       frequencyType={editFrequencyType}
                       onEvidenceUpload={handleEditC7EvidenceUpload}

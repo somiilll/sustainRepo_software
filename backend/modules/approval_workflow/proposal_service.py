@@ -8,6 +8,7 @@ Handles the new workflow where:
 - Approved record stays immutable until approval
 """
 
+import copy
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -541,6 +542,9 @@ class ProposalService:
             for key in self.EMISSION_DETAIL_FIELDS:
                 if key in modified_data:
                     new_snapshot[key] = modified_data[key]
+            if modified_data.get("employee_inputs"):
+                record = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0}) or {}
+                await self._apply_employee_edits(new_snapshot, {**record, **new_snapshot}, modified_data["employee_inputs"])
         else:
             # For ESG records, update field_values directly
             if "field_values" in modified_data:
@@ -587,18 +591,59 @@ class ProposalService:
         "responsible_person_contact", "process_names", "process_descriptions", "evidence_files",
     )
 
+    async def _apply_employee_edits(self, snapshot: Dict[str, Any], context: Dict[str, Any], edits: List[Dict[str, Any]]) -> None:
+        """Apply approver edits to C7 employee inputs, recalculating each edited employee and the record total."""
+        from fastapi import HTTPException
+        employees = copy.deepcopy(snapshot.get("employees") or [])
+        by_id = {e.get("id"): e for e in employees}
+        shared = {k: {"value": context.get(k), "unit": ""} for k in
+                  ("scope3_ef_id", "scope3_activity", "scope3_activity_type", "scope3_subcategory", "calculation_method_scope3") if context.get(k)}
+        formula_doc = await db.ce_formulas.find_one({"id": context.get("formula_id")}, {"_id": 0}) or {}
+        expected_units = {i.get("variable"): i.get("expected_unit") or "" for i in (formula_doc.get("definition", formula_doc).get("inputs") or [])}
+        for edit in edits:
+            employee = by_id.get(edit.get("id"))
+            if not employee:
+                continue
+            period = edit.get("period_key")
+            slot = employee.setdefault("yearly_data", {}) if period == "yearly" else (
+                employee.setdefault("monthly_data", {}).setdefault(period, {}) if employee.get("monthly_data") and period in employee["monthly_data"] else employee)
+            new_inputs = {k: v for k, v in (edit.get("inputs") or {}).items() if v not in (None, "")}
+            engine_inputs = dict(shared)
+            for key, value in new_inputs.items():
+                if key.endswith("_unit"):
+                    continue
+                try:
+                    engine_inputs[key] = {"value": float(value), "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
+                except (TypeError, ValueError):
+                    engine_inputs[key] = {"value": value, "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
+            result = await self._recalculate_emissions(context, engine_inputs)
+            if not result:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions for {employee.get('name') or 'employee'}")
+            slot["inputs"] = new_inputs
+            slot["emissions"] = {**(slot.get("emissions") or {}), "co2e": result["co2e_emissions"], "co2": result["co2_emissions"],
+                                 "ch4": result["ch4_emissions"], "n2o": result["n2o_emissions"]}
+        def employee_co2e(emp: Dict[str, Any]) -> float:
+            periods = list((emp.get("monthly_data") or {}).values()) or ([emp["yearly_data"]] if emp.get("yearly_data") else [emp])
+            return sum(float((p.get("emissions") or {}).get("co2e") or 0) for p in periods)
+        total = sum(employee_co2e(e) for e in employees)
+        snapshot["employees"] = employees
+        snapshot["co2e_emissions"] = snapshot["total_emissions"] = total
+        if isinstance(snapshot.get("yearly_total"), dict):
+            snapshot["yearly_total"] = {**snapshot["yearly_total"], "co2e": total}
+
     @classmethod
     def _changed_emission_fields(cls, before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
         """Names of the inputs and detail fields an approver changed on an emission request."""
         def inputs(snapshot: Dict[str, Any]) -> Dict[str, Any]:
             return (snapshot.get("proposed_changes") or {}).get("inputs") or snapshot.get("dynamic_field_values") or snapshot.get("inputs") or {}
         old_in, new_in = inputs(before), inputs(after)
+        employees_changed = before.get("employees") != after.get("employees")
         changed = [k.replace("_", " ").title() for k in sorted(set(old_in) | set(new_in)) if old_in.get(k) != new_in.get(k)]
         labels = {"notes": "Notes", "source_of_information": "Source of information", "responsible_person": "Person responsible",
                   "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
                   "process_names": "Process names", "process_descriptions": "Process descriptions", "evidence_files": "Evidence"}
         changed += [label for key, label in labels.items() if (before.get(key) or None) != (after.get(key) or None)]
-        return changed
+        return changed + (["Employee inputs"] if employees_changed else [])
 
     @staticmethod
     def _changed_edit_fields(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
@@ -1109,6 +1154,7 @@ class ProposalService:
                 "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection",
                 "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
                 "responsible_person_contact", "process_names", "process_descriptions",
+                "employees", "monthly_totals", "yearly_total",
             ]
             for field in other_emission_fields:
                 if field in apply_data:

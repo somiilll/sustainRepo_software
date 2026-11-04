@@ -124,6 +124,16 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
       if (value !== baseDraft.dynamicFieldValues[key]) changed[key] = value;
     });
     if (Object.keys(changed).length) payload.field_values = changed;
+    if (isC7) {
+      const periodKey = c7.frequencyType === 'yearly' ? 'yearly' : c7.editC7Month;
+      const inputsOf = (employee) => (periodKey === 'yearly' ? employee.yearly_data?.inputs : employee.monthly_data?.[periodKey]?.inputs) || {};
+      const employeeInputs = (draft.employees || []).flatMap((employee) => {
+        const before = (baseDraft.employees || []).find((e) => e.id === employee.id);
+        return periodKey && before && JSON.stringify(inputsOf(employee)) !== JSON.stringify(inputsOf(before))
+          ? [{ id: employee.id, period_key: periodKey, inputs: inputsOf(employee) }] : [];
+      });
+      if (employeeInputs.length) payload.employee_inputs = employeeInputs;
+    }
     DETAIL_KEYS.forEach((key) => {
       if ((draft.values[key] || '') !== (baseDraft.values[key] || '')) payload[key] = draft.values[key] || '';
     });
