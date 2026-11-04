@@ -2107,6 +2107,7 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
     if target_collection == APPROVED_COLLECTION:
+        await db.pending_records.delete_many({"original_record_id": record_id})
         await _sync_derived_energy(existing, "ghg.emission.delete")
 
     if target_collection == APPROVED_COLLECTION:

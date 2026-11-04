@@ -759,7 +759,8 @@ async def approve_request(
         
         existing = await db[APPROVED_COLLECTION].find_one({"id": original_id}, {"_id": 0})
         if not existing:
-            return (False, "Original record not found")
+            await db[PENDING_COLLECTION].delete_one({"id": pending_id})
+            return (True, "Record was already deleted")
         try:
             await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), original_id)
         except Exception:
