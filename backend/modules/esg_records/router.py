@@ -24,7 +24,7 @@ from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
 from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
-from .visibility import is_category_approver, is_workflow_org, own_or_facility_clause, user_assigned_categories, resolve_record_visibility, scoped_dashboard_db
+from .visibility import approver_edit_mode, is_category_approver, is_workflow_org, own_or_facility_clause, user_assigned_categories, resolve_record_visibility, scoped_dashboard_db
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
@@ -847,8 +847,11 @@ async def update_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Record not found")
     # Assigned approvers edit their category's records directly, like admins
+    start_level = 1
     if not is_admin_override:
-        is_admin_override = await is_category_approver(org_id, user_id, existing.get("category", ""), existing.get("subcategory"))
+        mode = await approver_edit_mode(org_id, user_id, existing.get("category", ""), existing.get("subcategory"))
+        is_admin_override = mode == "direct"
+        start_level = mode if isinstance(mode, int) else 1
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
     
     updated = await esg_records_service.update_record(
@@ -857,6 +860,7 @@ async def update_record(
         user_id=user_id,
         data=data,
         is_admin_override=is_admin_override,
+        start_level=start_level,
     )
     
     return {"message": "Record updated", "record": updated}

@@ -352,6 +352,10 @@ async def save_gri_response(
                     has_access = True
                     break
         
+        if not has_access and await esg_questionnaire_service._approver_position(
+                org_id, question_key, reporting_period, user_id) is not None:
+            has_access = True
+        
         if not has_access:
             raise HTTPException(
                 status_code=403,
@@ -994,7 +998,8 @@ async def get_responses(
         org_id=org_id,
         framework=framework,
         reporting_year=reporting_year,
-        section=section
+        section=section,
+        viewer_id=current_user.get("id"),
     )
     visible_responses = responses.get("responses", {}) if responses else {}
     if current_user.get("role", "user") not in ["admin", "super_admin"]:

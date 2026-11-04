@@ -1170,6 +1170,7 @@ class ESGRecordsService:
         user_id: str,
         data: UpdateRecordRequest,
         is_admin_override: bool = False,  # Set to True for admin bypassing approval workflow
+        start_level: int = 1,
     ) -> Optional[Dict[str, Any]]:
         """
         Update a record (creates new version).
@@ -1469,6 +1470,7 @@ class ESGRecordsService:
                     current_record=current,
                     assignment=assignment,
                     changes_summary=changes_summary,
+                    start_level=start_level,
                 )
             except NoApproverConfiguredError as e:
                 raise ValueError(f"No approver configured for this assignment: {e.assignment_id}")

@@ -393,6 +393,7 @@ class ProposalService:
         current_record: Dict[str, Any],
         assignment: Dict[str, Any],
         changes_summary: Optional[List[Dict[str, Any]]] = None,
+        start_level: int = 1,
     ) -> Dict[str, Any]:
         """
         Create a new proposal or update existing one.
@@ -426,6 +427,11 @@ class ProposalService:
             total_levels = 1
         else:
             raise NoApproverConfiguredError(assignment.get("id", "unknown"))
+        if start_level > 1 and start_level <= total_levels:
+            item = approval_chain[start_level - 1]
+            current_approvers = [item if isinstance(item, str) else item.get("approver_id")]
+        else:
+            start_level = 1
         
         now = datetime.now(timezone.utc).isoformat()
         
@@ -487,7 +493,7 @@ class ProposalService:
                 
                 # Current state
                 "status": "pending",
-                "current_level": 1,
+                "current_level": start_level,
                 "current_approvers": current_approvers,
                 "total_levels": total_levels,
                 

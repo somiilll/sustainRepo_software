@@ -626,6 +626,18 @@ class ESGQuestionnaireService:
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
         return assignment_requires_approval(assignment)
 
+    async def _approver_position(self, org_id: str, question_key: str, reporting_period: str, user_id: str):
+        """None if user is not an approver of the question; "direct" if the final approver; else the level an edit enters approval at."""
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        if not assignment:
+            return None
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
+        chain = [c for c in chain if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+        if user_id not in chain:
+            return None
+        index = chain.index(user_id)
+        return "direct" if index + 1 >= len(chain) else index + 2
+
     async def _should_use_direct_save(
         self,
         org_id: str,
@@ -844,7 +856,10 @@ class ESGQuestionnaireService:
             chain_ids = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
             chain_ids = [c for c in chain_ids if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
         total_levels = max(len(chain_ids), 1)
-        current_approvers = chain_ids[:1]
+        start_level = 1
+        if user_id in chain_ids and chain_ids.index(user_id) + 1 < len(chain_ids):
+            start_level = chain_ids.index(user_id) + 2
+        current_approvers = chain_ids[start_level - 1:start_level]
         
         current_approvers = list(set(current_approvers))
         
@@ -872,7 +887,7 @@ class ESGQuestionnaireService:
             "framework": framework,
             "section": question_config.get("section") if question_config else None,
             "current_approvers": current_approvers,
-            "current_level": 1,
+            "current_level": start_level,
             "total_levels": total_levels,
             "_submission_id": submission_id,
             "created_at": now.isoformat(),
@@ -896,7 +911,7 @@ class ESGQuestionnaireService:
                     "submitted_at": now.isoformat(),
                     "framework": framework,
                     "current_approvers": current_approvers,
-                    "current_level": 1,
+                    "current_level": start_level,
                     "total_levels": total_levels,
                     "updated_at": now.isoformat(),
                     "_submission_id": submission_id,
@@ -1582,8 +1597,9 @@ class ESGQuestionnaireService:
                 org_id, question_key, reporting_period
             )
             
-            # Admin always bypasses approval (direct save)
-            if is_admin:
+            # Admin and the final approver bypass approval (direct save)
+            if is_admin or (not use_direct_save and await self._approver_position(
+                    org_id, question_key, reporting_period, user_id) == "direct"):
                 use_direct_save = True
             
             if not use_direct_save:
@@ -2278,6 +2294,7 @@ class ESGQuestionnaireService:
         framework: str,
         reporting_year: str,
         section: str,
+        viewer_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Get responses for a specific org+framework+year+section.
@@ -2359,9 +2376,13 @@ class ESGQuestionnaireService:
                 
                 # Handle question-level documents (with question_key)
                 if q_key:
-                    # Handle direct value
-                    if doc.get("value") is not None:
-                        responses[q_key] = doc.get("value")
+                    # Handle direct value (others keep seeing the approved value while an edit is pending)
+                    shown = doc.get("value")
+                    if (viewer_id and doc.get("approval_status") == "pending_approval"
+                            and doc.get("last_approved_value") is not None and doc.get("submitted_by") != viewer_id):
+                        shown = doc["last_approved_value"]
+                    if shown is not None:
+                        responses[q_key] = shown
                     
                     # Handle nested sub_responses (Option B structure)
                     if "sub_responses" in doc and doc["sub_responses"]:

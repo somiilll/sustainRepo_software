@@ -414,6 +414,23 @@ def _build_emission_inputs(emission_record: dict) -> dict:
 # Mirrors the pattern in esg_records/service.py for consistency
 # =============================================================================
 
+async def _ghg_approver_mode(org_id: str, user_id: str, facility_id: Optional[str]):
+    """(mode, assignment) for a user who approves GHG assignments: "direct" if final approver, else the level an edit enters at."""
+    query = {"organization_id": org_id, "entity_type": "record_category", "category": "GHG Emissions",
+             "status": {"$nin": ["completed", "cancelled"]},
+             "$and": [{"$or": [{"approver_id": user_id}, {"approval_chain": user_id}]}]}
+    if facility_id:
+        query["$and"].append({"$or": [{"facility_id": facility_id}, {"facility_id": None}]})
+    found = None
+    for doc in await db.esg_assignments.find(query, {"_id": 0}).to_list(20):
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in doc.get("approval_chain") or []] or [doc.get("approver_id")]
+        index = chain.index(user_id) if user_id in chain else len(chain) - 1
+        if index + 1 >= len(chain):
+            return "direct", doc
+        found = found or (index + 2, doc)
+    return found or (None, None)
+
+
 async def _find_emission_assignment(
     org_id: str,
     user_id: str,
@@ -778,6 +795,7 @@ async def _create_emission_update_approval_request(
     assignment: dict,
     user_id: str,
     current_user: dict,
+    start_level: int = 1,
 ):
     """
     Create an approval request for an emission record UPDATE.
@@ -802,6 +820,11 @@ async def _create_emission_update_approval_request(
     else:
         log_event(logger, logging.WARNING, "ghg.emission.approval_configuration.incomplete", action="ghg.emission.approval", outcome="degraded", error_code="APPROVER_NOT_CONFIGURED")
         return
+    if 1 < start_level <= total_levels:
+        item = approval_chain[start_level - 1]
+        current_approvers = [item if isinstance(item, str) else item.get("approver_id")]
+    else:
+        start_level = 1
     
     now = datetime.now(timezone.utc).isoformat()
     
@@ -895,7 +918,7 @@ async def _create_emission_update_approval_request(
         
         # Current state
         "status": "pending",
-        "current_level": 1,
+        "current_level": start_level,
         "current_approvers": current_approvers,
         "total_levels": total_levels,
         
@@ -1551,8 +1574,12 @@ async def update_emission_record(
             log_event(logger, logging.INFO, "ghg.emission.pending_approvals.cleared", action="ghg.emission.update", outcome="succeeded",
                       context={"record_id": record_id, "approval_count": deleted_result.deleted_count})
     
-    # Non-admin users go through approval workflow if enabled and assignment requires it
+    approver_mode, approver_assignment = (None, None)
     if approval_enabled and not is_admin:
+        approver_mode, approver_assignment = await _ghg_approver_mode(org_id, user_id, existing.get("facility_id"))
+
+    # Non-admin users go through approval workflow if enabled and assignment requires it
+    if approval_enabled and not is_admin and approver_mode != "direct":
         # Check if THIS USER already has a pending approval request for this record
         # (Multi-proposal: each user can have their own pending edit)
         existing_request = await db.approval_requests.find_one({
@@ -1569,6 +1596,8 @@ async def update_emission_record(
             scope=record_data.scope,
             facility_id=record_data.facility_id,
         )
+        if isinstance(approver_mode, int):
+            assignment = approver_assignment
         
         if assignment_requires_approval(assignment):
             if existing_request:
@@ -1591,6 +1620,7 @@ async def update_emission_record(
                     assignment=assignment,
                     user_id=user_id,
                     current_user=current_user,
+                    start_level=approver_mode if isinstance(approver_mode, int) else 1,
                 )
             
             # NOTE: We intentionally do NOT update emission_records.approval_status here.
