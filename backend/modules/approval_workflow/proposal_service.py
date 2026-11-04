@@ -1293,6 +1293,15 @@ class ProposalService:
                 "category_id": category_id,
                 "reporting_period": current_record.get("reporting_period"),
             }
+            ef_ref = new_dynamic_field_values.get("scope3_ef_id") or current_record.get("scope3_ef_id")
+            ef_id = ef_ref.get("value") if isinstance(ef_ref, dict) else ef_ref
+            if ef_id:
+                ef_row = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+                if ef_row:
+                    context.update({
+                        "scope3_ef_id": ef_id, "fuel_name": ef_row.get("activity"), "activity": ef_row.get("activity"),
+                        "activity_type": ef_row.get("activity_type"), "scope3_ef_default_unit": ef_row.get("default_unit") or "",
+                    })
             
             # Execute CalcEngine
             calc_engine = CalcEngine(db)
