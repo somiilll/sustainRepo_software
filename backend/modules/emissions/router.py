@@ -923,7 +923,11 @@ async def _create_emission_update_approval_request(
         "total_levels": total_levels,
         
         # Progress tracking
-        "steps_completed": [],
+        "steps_completed": [] if start_level == 1 else [{
+            "id": str(uuid.uuid4()), "level": start_level - 1, "level_name": f"Level {start_level - 1}", "action": "approve",
+            "actor_id": user_id, "actor_email": current_user.get("email", ""), "actor_name": current_user.get("full_name") or current_user.get("name", ""),
+            "comment": f"Edited by the Level {start_level - 1} approver (approved at that level)", "timestamp": now,
+        }],
         
         # Metadata
         "created_at": now,

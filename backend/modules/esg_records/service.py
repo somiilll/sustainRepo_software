@@ -2234,7 +2234,7 @@ class ESGRecordsService:
         if proposal_ids:
             proposals = await db.approval_requests.find(
                 {"id": {"$in": proposal_ids}},
-                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1, "steps_completed": 1, "total_levels": 1},
             ).to_list(None)
             proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
@@ -2304,6 +2304,13 @@ class ESGRecordsService:
             if v.get("rejected_by_name") or v.get("rejected_by"):
                 v["rejected_by_name"] = resolve_actor_name(v.get("rejected_by_name"), v.get("rejected_by"), v.get("created_by"))
             proposal = proposals_by_id.get(v.get("proposal_id"))
+            if proposal:
+                total = proposal.get("total_levels") or 1
+                v["level_approvals"] = [
+                    {"level": st.get("level"), "total_levels": total, "by": st.get("actor_name") or st.get("actor_email") or "Approver",
+                     "at": st.get("timestamp"), "comment": st.get("comment")}
+                    for st in proposal.get("steps_completed") or [] if st.get("action") == "approve" and (st.get("level") or 1) < total
+                ]
             if proposal and v.get("submitted_field_diffs") is None:
                 enrich_proposal_diff_details(v, proposal)
             

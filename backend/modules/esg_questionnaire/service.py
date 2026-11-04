@@ -860,6 +860,12 @@ class ESGQuestionnaireService:
         if user_id in chain_ids and chain_ids.index(user_id) + 1 < len(chain_ids):
             start_level = chain_ids.index(user_id) + 2
         current_approvers = chain_ids[start_level - 1:start_level]
+        steps_completed = [] if start_level == 1 else [{
+            "id": str(uuid.uuid4()), "level": start_level - 1, "level_name": f"Level {start_level - 1}", "action": "approve",
+            "actor_id": user_id, "actor_email": user_email, "actor_name": user_name,
+            "comment": "Edited by the Level %d approver (approved at that level)" % (start_level - 1),
+            "timestamp": now.isoformat(),
+        }]
         
         current_approvers = list(set(current_approvers))
         
@@ -913,6 +919,7 @@ class ESGQuestionnaireService:
                     "current_approvers": current_approvers,
                     "current_level": start_level,
                     "total_levels": total_levels,
+                    "steps_completed": steps_completed,
                     "updated_at": now.isoformat(),
                     "_submission_id": submission_id,
                 },

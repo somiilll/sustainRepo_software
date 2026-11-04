@@ -205,6 +205,18 @@ def build_emission_lifecycle_events(
         edit["changes"]["request_type"] = "update"
         edit["version"] = 1 if is_create else edit.get("version")
         events.append(edit)
+    total_levels = proposal.get("total_levels") or 1
+    for step in proposal.get("steps_completed") or []:
+        if step.get("action") == "approve" and (step.get("level") or 1) < total_levels:
+            level_event = build_emission_proposal_history_event(
+                current, current, proposal, action="approved", actor_id=step.get("actor_id"),
+                actor_email=step.get("actor_email", ""), actor_name=step.get("actor_name", ""),
+                timestamp=str(step.get("timestamp") or approved_event["changed_at"]), input_label_map=input_label_map,
+            )
+            level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
+            level_event["field_changes"] = []
+            level_event["version"] = events[-1].get("version") if events else level_event.get("version")
+            events.append(level_event)
     if is_create and events:
         approved_event["field_changes"] = []
         approved_event["changes"]["old_values"] = approved_event["changes"]["new_values"]
@@ -498,7 +510,11 @@ class ProposalService:
                 "total_levels": total_levels,
                 
                 # Progress tracking
-                "steps_completed": [],
+                "steps_completed": [] if start_level == 1 else [{
+                    "id": str(uuid.uuid4()), "level": start_level - 1, "level_name": f"Level {start_level - 1}", "action": "approve",
+                    "actor_id": user_id, "actor_email": user_email, "actor_name": user_name,
+                    "comment": f"Edited by the Level {start_level - 1} approver (approved at that level)", "timestamp": now,
+                }],
                 "edit_history": [],  # Track user edits to their proposal
                 
                 # Approver modifications (filled when approver edits before approval)

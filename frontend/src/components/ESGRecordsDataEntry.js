@@ -1856,8 +1856,11 @@ export default function ESGRecordsDataEntry({
                         </div>
                       ) : isApproved ? (
                         <div className="text-sm text-text-secondary space-y-1">
-                          <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
                           {version.requested_by_name && <p>Requested by: <span className="font-medium">{version.requested_by_name}</span></p>}
+                          {(version.level_approvals || []).map((la) => (
+                            <p key={la.level} data-testid={`version-level-approval-${la.level}`}>Level {la.level} of {la.total_levels} approved by: <span className="font-medium">{la.by}</span></p>
+                          ))}
+                          <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
                         </div>
                       ) : <p className="text-sm text-text-secondary">By: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
                       {version.change_reason && (
