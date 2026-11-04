@@ -650,7 +650,14 @@ class AssignmentServiceV2:
         approver_ids = [a for a in chain_ids if a] or ([approver_id] if approver_id else [])
         if not approver_ids:
             return
-        match = {"workflow_id": f"assignment_{assignment_id}"}
+        assignment = await self._assignments.find_one(
+            {"id": assignment_id}, {"_id": 0, "category": 1, "subcategory": 1, "facility_id": 1})
+        by_record = {"organization_id": org_id, "entity_type": "esg_record",
+                     "entity_snapshot.category": (assignment or {}).get("category"),
+                     "entity_snapshot.subcategory": (assignment or {}).get("subcategory")}
+        if (assignment or {}).get("facility_id"):
+            by_record["entity_snapshot.facility_id"] = assignment["facility_id"]
+        match = {"$or": [{"workflow_id": f"assignment_{assignment_id}"}, by_record]} if assignment else {"workflow_id": f"assignment_{assignment_id}"}
         if question_key:
             match = {"organization_id": org_id, "entity_type": "esg_response", "$or": [
                 {"entity_id": question_key}, {"entity_id": {"$regex": f"^{re.escape(question_key)}_"}}]}
@@ -864,6 +871,7 @@ class AssignmentServiceV2:
         facility_id: Optional[str] = None,
         reporting_period: Optional[str] = None,
         deleted_by_user_id: str = None,
+        only_org_level: bool = False,
     ) -> int:
         """
         Delete all assignments matching the criteria.
@@ -878,7 +886,7 @@ class AssignmentServiceV2:
             query["subcategory"] = subcategory
         if sub_subcategory is not None:
             query["sub_subcategory"] = sub_subcategory
-        if facility_id is not None:
+        if facility_id is not None or only_org_level:
             query["facility_id"] = facility_id
         if reporting_period is not None:
             query["reporting_period"] = reporting_period
@@ -941,16 +949,29 @@ class AssignmentServiceV2:
         Returns:
             Summary of changes
         """
-        # Delete existing org-level assignment
+        # Delete the org-level assignment, and facility assignments no longer selected; kept facilities are updated in place
         deleted = await self.delete_assignments_for_category(
             organization_id=organization_id,
             category=category,
             subcategory=subcategory,
             sub_subcategory=sub_subcategory,
-            facility_id=None,  # Specifically target org-level
+            facility_id=None,
             reporting_period=reporting_period,
             deleted_by_user_id=created_by_user_id,
+            only_org_level=True,
         )
+        kept = [fid for fid, cfg in facility_assignments.items()
+                if (cfg if isinstance(cfg, list) else (cfg or {}).get("user_ids"))]
+        stale = await self._assignments.find(
+            {"organization_id": organization_id, "category": category, "subcategory": subcategory,
+             "sub_subcategory": sub_subcategory, "reporting_period": reporting_period,
+             "facility_id": {"$nin": [None] + kept}}, {"_id": 0, "facility_id": 1}).to_list(500)
+        for a in stale:
+            deleted += await self.delete_assignments_for_category(
+                organization_id=organization_id, category=category, subcategory=subcategory,
+                sub_subcategory=sub_subcategory, facility_id=a["facility_id"],
+                reporting_period=reporting_period, deleted_by_user_id=created_by_user_id,
+            )
         
         # Create facility-level assignments
         created_assignments = []
