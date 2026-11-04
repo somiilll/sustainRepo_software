@@ -42,10 +42,12 @@ export const buildReadOnlyDraft = (emission) => {
   };
 };
 
+const INTERNAL_INPUT_KEYS = ['biogenic_scope_selection', 'calculation_methodology', 'scope3_ef_id', 'scope3_activity_type', 'scope3_subcategory', 'calculation_method_scope3', 'scope3_activity', 'use_custom_activity', 'type_of_product', 'spend_currency_conversion_method'];
+
 export const buildDynamicInputFields = (emission) => {
   const inputMappingsByVariable = Object.fromEntries((emission?.input_field_mappings || []).map((mapping) => [mapping.maps_to_variable || mapping.field_key, mapping]));
   return Object.entries(emission?.dynamic_field_values || {})
-    .filter(([key]) => !key.endsWith('_unit') && !['biogenic_scope_selection', 'calculation_methodology'].includes(key))
+    .filter(([key]) => !key.endsWith('_unit') && !INTERNAL_INPUT_KEYS.includes(key))
     .map(([variable, value]) => {
       const mapping = inputMappingsByVariable[variable];
       const resolvedDefault = emission?.resolved_default_inputs?.[variable];

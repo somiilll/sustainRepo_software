@@ -152,7 +152,7 @@ export default function EmissionProposalForm({ proposal, editing, onCancel, onSa
         isCalculatingEditEmployee={false} isEditLoading={false} editFormConfigLoading={false} dynamicInputFields={dynamicInputFields}
         effectiveCalculatedEmissions={calculated} isCalculating={false} isSaving={saving} setActivitySearchTerm={noop}
         facilities={[{ id: draft.values.facility_id, name: emission.facility_name || 'Facility', is_active: true }]}
-        dynamicScopes={[{ code: emission.scope, name: titleCase(emission.scope) }]} hasScope3Access={false} centralizedUnits={[]}
+        dynamicScopes={[{ code: emission.scope, name: titleCase(emission.scope) }]} hasScope3Access centralizedUnits={[]}
         fuelDatabase={[fuel]} selectedFuel={fuel} isEditC7EmployeeCommuting={false} editActiveMonths={[]} ModuleDynamicFieldsRenderer={null}
         getCategoriesForScope={[emission.category].filter(Boolean)} getFuelsForCategory={[fuel]} availableScope3Methods={[]} availableScope3ActivityTypes={[]}
         capabilities={{ requiresFuel: true, calculationMethodology: true, journeyLocations: true, customerCounterparty: false }} fieldOptions={{}}

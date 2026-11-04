@@ -585,7 +585,7 @@ export default function EmissionEditForm(props) {
                                   ))}
                                 </select>
                               </div>}
-                              {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
+                              {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && !lockedFields.includes('methodology') && (
                                 <p className="text-xs text-amber-600">No methods available for this category</p>
                               )}
                             </div>
@@ -744,8 +744,24 @@ export default function EmissionEditForm(props) {
                       )}
                       </div>
 
+                      {lockedFields.includes('fuel') && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="scope3-locked-summary">
+                          {[
+                            ['Subcategory', scope3Subcategory],
+                            ['Type of Product', typeOfProduct],
+                            ['Activity Type', scope3ActivityType],
+                            ['Activity', editingEmission?.scope3_activity || scope3CustomActivity],
+                          ].filter(([, value]) => value).map(([label, value]) => (
+                            <div key={label} className="space-y-1.5">
+                              <Label>{label}</Label>
+                              <div role="textbox" aria-readonly="true" className="flex min-h-10 w-full items-center rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-800" data-testid={`scope3-locked-${label.toLowerCase().replace(/ /g, '-')}`}>{getMethodLabel(value)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
-                      {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
+                      {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && !lockedFields.includes('fuel') && (
                         <div className={showsAssetName ? 'grid grid-cols-1 items-start gap-4 lg:grid-cols-3' : 'space-y-3'}>
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (!isC8AllocationApplicable || allocationMethod) && (

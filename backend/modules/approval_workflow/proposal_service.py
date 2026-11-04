@@ -96,6 +96,55 @@ def build_emission_proposal_history_event(
     }
 
 
+def build_emission_lifecycle_events(
+    current: Dict[str, Any],
+    updated: Dict[str, Any],
+    proposal: Dict[str, Any],
+    approved_event: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Created-by (submitter) and updated-by (approver edit) entries that precede the approval entry."""
+    snapshot = proposal.get("entity_snapshot") or {}
+    original = proposal.get("original_proposal_data") or snapshot
+    def inputs_of(source: Dict[str, Any]) -> Dict[str, Any]:
+        return (source.get("proposed_changes") or {}).get("inputs") or source.get("dynamic_field_values") or source.get("inputs") or {}
+    def total_of(source: Dict[str, Any], field: str):
+        return (source.get("proposed_changes") or {}).get(field, source.get(field))
+    is_create = proposal.get("request_type") == "create"
+    events: List[Dict[str, Any]] = []
+    base = {k: approved_event.get(k) for k in ("emission_id", "facility_id", "organization_id", "scope", "category")}
+    original_inputs = inputs_of(original)
+    if is_create:
+        events.append({
+            **base, "id": str(uuid.uuid4()), "changed_by": proposal.get("submitted_by"),
+            "changed_by_email": proposal.get("submitted_by_email"), "changed_by_name": proposal.get("submitted_by_name"),
+            "changed_at": proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"],
+            "version": 1, "field_changes": [], "changes_summary": "Created",
+            "changes": {"action": "created", "request_type": "create", "proposal_id": proposal.get("id"), "old_values": None,
+                        "new_values": {"dynamic_field_values": original_inputs, "total_emissions": total_of(original, "total_emissions"),
+                                       "co2e_emissions": total_of(original, "co2e_emissions")}},
+        })
+    modification = proposal.get("approver_modifications") or {}
+    if proposal.get("original_proposal_data") and modification:
+        before = {**current, "dynamic_field_values": original_inputs}
+        for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
+            before[field] = total_of(original, field)
+        edit = build_emission_proposal_history_event(
+            before, updated, proposal, action="updated", actor_id=modification.get("modified_by"),
+            actor_email=modification.get("modified_by_email", ""), actor_name=modification.get("modified_by_name", ""),
+            timestamp=modification.get("modified_at") or approved_event["changed_at"],
+        )
+        edit["changes_summary"] = "Updated by approver"
+        edit["changes"]["approver_edit_fields"] = [f for e in proposal.get("approver_edits") or [] for f in e.get("fields", [])]
+        edit["changes"]["request_type"] = "update"
+        edit["version"] = 1 if is_create else edit.get("version")
+        events.append(edit)
+    if is_create and events:
+        approved_event["field_changes"] = []
+        approved_event["changes"]["old_values"] = approved_event["changes"]["new_values"]
+        approved_event["changes_summary"] = "Approved"
+    return events
+
+
 def build_rejected_emission_preview(current: Dict[str, Any], proposal: Dict[str, Any]) -> Dict[str, Any]:
     """Build a display-only rejected proposal state without changing the approved record."""
     preview = {**current, "dynamic_field_values": {**(current.get("dynamic_field_values") or {})}}
@@ -1092,7 +1141,8 @@ class ProposalService:
                 actor_name=approver_name,
                 timestamp=now,
             )
-            await db.emission_history.insert_one(history_event)
+            lifecycle = build_emission_lifecycle_events(current, updated or {**current, **update_fields}, proposal, history_event)
+            await db.emission_history.insert_many([*lifecycle, history_event])
         elif entity_type == "esg_record":
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
             version_event = build_esg_proposal_version_event(

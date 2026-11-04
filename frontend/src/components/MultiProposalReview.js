@@ -96,6 +96,8 @@ function ProposalAttachments({ source, notes, evidence, editing, onChange, onFil
  * - Shows reporting period info
  * - Approve/Reject/Edit buttons below each card
  */
+const INTERNAL_EMISSION_KEYS = ['biogenic_scope_selection', 'calculation_methodology', 'scope3_ef_id', 'scope3_activity_type', 'scope3_subcategory', 'calculation_method_scope3', 'scope3_activity', 'use_custom_activity', 'type_of_product', 'spend_currency_conversion_method'];
+
 export default function MultiProposalReview({ 
   recordId, 
   entityType = 'esg_record',
@@ -135,6 +137,9 @@ export default function MultiProposalReview({
   }, [fieldConfig]);
 
   const getDisplayFieldEntries = useCallback((fieldValues = {}) => {
+    if (entityType === 'emission_record') {
+      return Object.entries(fieldValues).filter(([key]) => !INTERNAL_EMISSION_KEYS.includes(key) && !key.endsWith('_unit'));
+    }
     if (entityType !== 'esg_record' || !fieldConfig?.fields?.length) {
       return Object.entries(fieldValues);
     }
@@ -182,7 +187,7 @@ export default function MultiProposalReview({
       setDataLevel(proposalsRes.data.data_level || '');
       
       // Fetch KPI field config for human-readable labels
-      if (proposalsRes.data.current_record?.category_id) {
+      if (entityType !== 'emission_record' && proposalsRes.data.current_record?.category_id) {
         try {
           const configRes = await axios.get(
             `${API}/api/esg-records/categories/${section}/${proposalsRes.data.current_record.category_id}`,
