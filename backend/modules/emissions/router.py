@@ -604,6 +604,19 @@ async def _find_emission_assignment(
     return best_match
 
 
+def _c7_snapshot_fields(record: dict) -> dict:
+    """Employee-level C7 data so the approval queue can render and edit each employee."""
+    employees = record.get("employees")
+    if not employees:
+        return {}
+    plain = [e.model_dump() if hasattr(e, "model_dump") else (e.dict() if hasattr(e, "dict") else e) for e in employees]
+    fields = {"employees": plain}
+    for key in ("monthly_total", "monthly_totals", "yearly_total", "formula_id", "activity_type", "scope3_activity_type", "scope3_ef_id", "reporting_month", "c7_data_model_version"):
+        if record.get(key) is not None:
+            fields[key] = record[key]
+    return fields
+
+
 async def _create_emission_approval_request(
     org_id: str,
     emission_record: dict,
@@ -689,6 +702,7 @@ async def _create_emission_approval_request(
         "responsible_person_contact": emission_record.get("responsible_person_contact", ""),
         # Source info
         "source_of_information": emission_record.get("source_of_information", ""),
+        **_c7_snapshot_fields(emission_record),
         "edit_type": "create",
     }
     
@@ -828,6 +842,7 @@ async def _create_emission_update_approval_request(
         # Source info
         "source_of_information": existing_record.get("source_of_information", ""),
         "notes": existing_record.get("notes"),
+        **_c7_snapshot_fields(updated_data),
         # Store original values for comparison
         "original_values": {
             "inputs": original_inputs,
