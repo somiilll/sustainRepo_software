@@ -36,6 +36,8 @@ def _require_admin(current_user: dict) -> str:
 
 @router.post("/generate/{reporting_period}")
 async def generate_gri_report(reporting_period: str, format: str = FORMAT, current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can generate GRI reports")
     org_id = _org_id(current_user)
     try:
         await sync_gri_live_values(org_id, reporting_period, triggered_by=current_user.get("id"))

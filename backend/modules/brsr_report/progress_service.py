@@ -1,6 +1,5 @@
 """Per-section BRSR question status and progress counts."""
-from typing import Any, Dict
-
+from typing import Any, Dict, Optional
 from shared.database.mongo import db
 from modules.esg_questionnaire.service import esg_questionnaire_service
 from modules.esg_questionnaire.status_rules import resolved_status
@@ -47,11 +46,13 @@ def _group_definitions(section: str, configs: list) -> list:
     return sorted(values, key=lambda g: int(g["id"][1:]) if g["id"][1:].isdigit() else 99) if section == "section_c" else values
 
 
-async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
+async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Optional[set] = None) -> Dict[str, Any]:
     configs = await db.esg_question_configs.find(
         {"frameworks": {"$in": ["BRSR", "brsr"]}, "section": {"$in": list(SECTIONS)}, "hidden": {"$ne": True}},
         {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1},
     ).sort("order", 1).to_list(1000)
+    if allowed_keys is not None:
+        configs = [c for c in configs if c["question_key"] in allowed_keys]
     docs = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": {"$in": ["BRSR", "brsr"]}},
         {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1, "updated_at": 1, "auto_fill": 1},

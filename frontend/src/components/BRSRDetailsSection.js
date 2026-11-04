@@ -211,6 +211,8 @@ export default function BRSRDetailsSection({
     return assignedQuestionKeys.includes(questionKey);
   };
 
+  const canSeeGroup = (id) => isAdmin || SECTION_A_KEYS[id].some(canSeeQuestion);
+
   // Update reporting_period in formData when prop changes
   useEffect(() => {
     if (reportingPeriod) {
@@ -1278,6 +1280,7 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
+            {canSeeGroup('II') && (
             <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
@@ -1461,6 +1464,8 @@ export default function BRSRDetailsSection({
             )}
 
             </div>
+            )}
+            {canSeeGroup('III') && (
             <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
@@ -1612,6 +1617,7 @@ export default function BRSRDetailsSection({
               </div>
               )}
             </div>
+            )}
           </div>
 
           {/* IV-VII. Year-Specific BRSR Sections (Employees, CSR, Holdings, Complaints) */}

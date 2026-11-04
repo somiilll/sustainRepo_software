@@ -586,7 +586,10 @@ class ESGQuestionnaireService:
             workflow = await ApprovalWorkflowService.get_workflow_for_entity(
                 org_id, "esg_response", None
             )
-            return workflow is not None
+            if workflow is not None:
+                return True
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "approval_workflow_enabled": 1})
+            return bool(org and org.get("approval_workflow_enabled"))
         except Exception:
             return False
     

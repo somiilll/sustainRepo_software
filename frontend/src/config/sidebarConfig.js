@@ -102,7 +102,7 @@ const sidebarConfig = [
     label: 'Workflow',
     icon: 'ClipboardCheck',
     children: [
-      { key: 'workflow.tracker', label: 'Tracker', icon: 'ClipboardCheck', path: '/workflow/tracker' },
+      { key: 'workflow.tracker', label: 'Tracker', icon: 'ClipboardCheck', path: '/workflow/tracker', adminOnly: true },
       { key: 'workflow.my_task', label: 'My Task', icon: 'Inbox', path: '/workflow/my-task' },
       { key: 'workflow.approver_queue', label: 'Approver Queue', icon: 'CheckSquare', path: '/workflow/approver-queue' },
     ],

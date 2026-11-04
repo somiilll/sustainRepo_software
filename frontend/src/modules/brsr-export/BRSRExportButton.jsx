@@ -30,6 +30,8 @@ export function BRSRExportButton({ reportingPeriod, framework = 'brsr' }) {
       .catch(() => setVersionCount(0));
   }, [isAdmin, reportingPeriod, isExporting, getAuthHeader, framework]);
 
+  if (!isAdmin) return null;
+
   return (
     <div className="flex items-center gap-2">
       <DropdownMenu>

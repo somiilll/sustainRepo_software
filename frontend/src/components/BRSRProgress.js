@@ -24,6 +24,7 @@ export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SEC
       {sections.map(({ key, label, subtitle, icon: Icon, testId }) => {
         const active = activeTab === key;
         const percent = progress?.sections?.[key]?.percent ?? 0;
+        const hasQuestions = (progress?.sections?.[key]?.total ?? 1) > 0;
         return (
           <button key={key} type="button" onClick={() => onSelect(key)} data-testid={testId}
                   className={`text-left rounded-xl border bg-white px-5 py-4 transition-colors duration-200 ${
@@ -36,8 +37,8 @@ export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SEC
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-stone-900">{label}</span>
-                  <span className={`text-sm font-semibold tabular-nums ${active ? 'text-[#1f7a4d]' : 'text-stone-500'}`}
-                        data-testid={`${testId}-percent`}>{percent}%</span>
+                  {hasQuestions && <span className={`text-sm font-semibold tabular-nums ${active ? 'text-[#1f7a4d]' : 'text-stone-500'}`}
+                        data-testid={`${testId}-percent`}>{percent}%</span>}
                 </div>
                 <p className="text-sm text-stone-500 truncate">{subtitle}</p>
               </div>
@@ -70,7 +71,7 @@ function ProgressRing({ percent }) {
 export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter, sections = SECTION_META, prefix = 'brsr', trailing = null }) {
   const meta = sections.find((s) => s.key === activeTab);
   const section = progress?.sections?.[activeTab];
-  if (!section) return null;
+  if (!section || !section.total) return null;
   const { counts, total } = section;
   const approvalEnabled = progress.approval_enabled;
   const visibleStatuses = STATUS_META.filter((s) => approvalEnabled || !['approved', 'rejected'].includes(s.key));
