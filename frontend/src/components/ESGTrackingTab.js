@@ -54,6 +54,7 @@ import {
 import { toast } from 'sonner';
 import {
   Loader2,
+  Pencil,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
@@ -539,6 +540,7 @@ export default function ESGTrackingTab({
       // If assigning a whole section
       else if (assigningItem?.section_id) {
         payload.section_id = assigningItem.section_id;
+        if (assigningItem.isEdit) payload.skip_already_assigned = false;
       }
       // If bulk assigning remaining
       else if (assigningItem?.bulk) {
@@ -617,6 +619,22 @@ export default function ESGTrackingTab({
     }
   };
   
+  // Open assign modal for section
+  const openEditSectionAssignment = async (section) => {
+    try {
+      const res = await axios.get(
+        `${API}/tracking/${domain}/frameworks/${selectedFramework.framework_id}/sections/${encodeURIComponent(section.section_id)}/detail`,
+        { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } }
+      );
+      const form = res.data.assignment.form;
+      setAssigningItem({ ...section, isSection: true, isEdit: true });
+      setAssignForm({ ...form, approver_id: form.approval_chain[0] || '' });
+      setAssignModalOpen(true);
+    } catch (e) {
+      toast.error('Could not load the current assignment');
+    }
+  };
+
   // Open assign modal for section
   const openAssignSectionModal = (section) => {
     setAssigningItem({ ...section, isSection: true });
@@ -865,10 +883,17 @@ export default function ESGTrackingTab({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        openAssignSectionModal(section);
+                        if (section.total_disclosures > 0 && section.unassigned_count === 0) {
+                          openEditSectionAssignment(section);
+                        } else {
+                          openAssignSectionModal(section);
+                        }
                       }}
+                      data-testid={`section-assign-${section.section_id}`}
                     >
-                      <UserPlus className="w-4 h-4 mr-1" /> Assign Section
+                      {section.total_disclosures > 0 && section.unassigned_count === 0
+                        ? <><Pencil className="w-4 h-4 mr-1" /> Edit Assignment</>
+                        : <><UserPlus className="w-4 h-4 mr-1" /> Assign Section</>}
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -1125,7 +1150,7 @@ export default function ESGTrackingTab({
               {assigningItem?.bulk 
                 ? 'Assign Remaining Questions' 
                 : assigningItem?.isSection
-                  ? `Assign Section: ${assigningItem.section_name}`
+                  ? `${assigningItem.isEdit ? 'Edit Assignment' : 'Assign Section'}: ${assigningItem.section_name}`
                   : assigningItem?.is_assigned 
                     ? 'Reassign Question' 
                     : 'Assign Question'
@@ -1356,7 +1381,9 @@ export default function ESGTrackingTab({
               }
             >
               {assigning ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {assigningItem?.isEdit ? 'Saving...' : 'Assigning...'}</>
+              ) : assigningItem?.isEdit ? (
+                <><Pencil className="w-4 h-4 mr-2" /> Save changes</>
               ) : (
                 <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
               )}

@@ -84,6 +84,15 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
         "approver_levels": [{"level": n + 1, "users": [person(uid) for uid in dict.fromkeys(ids)]} for n, ids in enumerate(level_ids)],
         "frequency": ref.get("filling_frequency"), "due_date": _iso(ref.get("due_date")),
         "assigned_questions": sum(1 for i in items if i.is_assigned), "total_questions": len(items),
+        "form": {
+            "assigned_user_ids": list(dict.fromkeys(r["user_id"] for r in assignee_rows)),
+            "due_date": (_iso(ref.get("due_date")) or "")[:10],
+            "filling_frequency": ref.get("filling_frequency") or "",
+            "reminder_enabled": bool(ref.get("reminder_enabled")),
+            "reminder_frequency": ref.get("reminder_frequency") or "",
+            "requires_approval": any(i.requires_approval for i in items),
+            "approval_chain": [uid for ids in [max(chains, key=len, default=[])] for uid in ids],
+        },
     }
 
     activity: List[Dict[str, Any]] = []
