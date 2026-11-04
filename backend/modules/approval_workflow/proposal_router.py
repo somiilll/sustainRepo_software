@@ -28,6 +28,12 @@ class ProposalEditRequest(BaseModel):
     notes: Optional[str] = None
     source_of_information: Optional[str] = None
     evidence_files: Optional[List[dict]] = None
+    record_source: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = None
+    process_descriptions: Optional[List[dict]] = None
 
 
 class ProposalApproveRequest(BaseModel):
@@ -224,6 +230,10 @@ async def edit_proposal(
         modified_data["source_of_information"] = data.source_of_information
     if data.evidence_files is not None:
         modified_data["evidence_files"] = data.evidence_files
+    for key in ("record_source", "responsible_person", "responsible_person_designation", "responsible_person_contact",
+                "process_names", "process_descriptions"):
+        if getattr(data, key) is not None:
+            modified_data[key] = getattr(data, key)
     
     if not modified_data:
         raise HTTPException(status_code=400, detail="No modifications provided")

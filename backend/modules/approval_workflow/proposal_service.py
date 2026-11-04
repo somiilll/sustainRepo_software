@@ -489,6 +489,9 @@ class ProposalService:
                         new_snapshot["outputs"] = recalculated.get("outputs", {})
                         if "proposed_changes" in new_snapshot:
                             new_snapshot["proposed_changes"] = {**new_snapshot["proposed_changes"], **totals, "outputs": recalculated.get("outputs", {})}
+            for key in self.EMISSION_DETAIL_FIELDS:
+                if key in modified_data:
+                    new_snapshot[key] = modified_data[key]
         else:
             # For ESG records, update field_values directly
             if "field_values" in modified_data:
@@ -502,7 +505,8 @@ class ProposalService:
                     new_snapshot[key] = value
         
         new_snapshot["approver_edited"] = True
-        changed_fields = self._changed_edit_fields(current_snapshot, new_snapshot) if entity_type == "esg_record" else []
+        changed_fields = (self._changed_edit_fields(current_snapshot, new_snapshot) if entity_type == "esg_record"
+                          else self._changed_emission_fields(current_snapshot, new_snapshot))
         
         # Update with approver's modifications
         update_data = {
@@ -528,6 +532,24 @@ class ProposalService:
         await db.approval_requests.update_one({"id": proposal_id}, update_op)
         
         return await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
+
+    EMISSION_DETAIL_FIELDS = (
+        "notes", "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
+        "responsible_person_contact", "process_names", "process_descriptions", "evidence_files",
+    )
+
+    @classmethod
+    def _changed_emission_fields(cls, before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+        """Names of the inputs and detail fields an approver changed on an emission request."""
+        def inputs(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+            return (snapshot.get("proposed_changes") or {}).get("inputs") or snapshot.get("dynamic_field_values") or snapshot.get("inputs") or {}
+        old_in, new_in = inputs(before), inputs(after)
+        changed = [k.replace("_", " ").title() for k in sorted(set(old_in) | set(new_in)) if old_in.get(k) != new_in.get(k)]
+        labels = {"notes": "Notes", "source_of_information": "Source of information", "responsible_person": "Person responsible",
+                  "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
+                  "process_names": "Process names", "process_descriptions": "Process descriptions", "evidence_files": "Evidence"}
+        changed += [label for key, label in labels.items() if (before.get(key) or None) != (after.get(key) or None)]
+        return changed
 
     @staticmethod
     def _changed_edit_fields(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
@@ -1035,7 +1057,9 @@ class ProposalService:
                 "category", "sub_category", "fuel_type", "scope", 
                 "reporting_period", "frequency_type", "notes",
                 "evidence_files", "has_custom_ef", "emission_factor_used",
-                "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection"
+                "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection",
+                "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
+                "responsible_person_contact", "process_names", "process_descriptions",
             ]
             for field in other_emission_fields:
                 if field in apply_data:
