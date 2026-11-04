@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 from shared.database.mongo import db
 from modules.esg_questionnaire.service import esg_questionnaire_service
-from modules.esg_questionnaire.status_rules import resolved_status, mirror_hidden_dependents
+from modules.esg_questionnaire.status_rules import resolved_status, mirror_hidden_dependents, merge_tracker_children, TRACKER_PARENT
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
@@ -53,12 +53,14 @@ async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Option
     ).sort("order", 1).to_list(1000)
     if allowed_keys is not None:
         configs = [c for c in configs if c["question_key"] in allowed_keys]
+    configs = [c for c in configs if c["question_key"] not in TRACKER_PARENT]
     docs = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": {"$in": ["BRSR", "brsr"]}},
         {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1, "updated_at": 1, "auto_fill": 1},
     ).to_list(2000)
     by_key = {doc["question_key"]: doc for doc in docs if doc.get("question_key")}
     mirror_hidden_dependents(by_key, configs)
+    merge_tracker_children(by_key)
 
     sections: Dict[str, Any] = {s: {"questions": {}, "counts": {k: 0 for k in STATUSES}} for s in SECTIONS}
     for config in configs:

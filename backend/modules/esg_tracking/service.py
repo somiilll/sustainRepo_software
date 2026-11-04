@@ -9,7 +9,7 @@ import logging
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from shared.database.mongo import db
-from modules.esg_questionnaire.status_rules import mirror_hidden_dependents
+from modules.esg_questionnaire.status_rules import mirror_hidden_dependents, merge_tracker_children, TRACKER_PARENT
 from shared.helpers.email import send_email
 
 from .models import (
@@ -167,6 +167,8 @@ class TrackingService:
         # Note: Configs use either "framework" (string) or "frameworks" (array)
         framework_configs: Dict[str, List[dict]] = {}
         for config in configs:
+            if config.get("question_key") in TRACKER_PARENT:
+                continue
             fw = (config.get("framework") or "").lower()
             if not fw:
                 # Check frameworks array
@@ -190,6 +192,7 @@ class TrackingService:
         
         response_map = {r["question_key"]: r for r in responses if r.get("question_key")}
         mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
         
         # Get all assignments for this org and period
         assignments = await self._assignments.find(
@@ -412,6 +415,8 @@ class TrackingService:
                         }
         
         mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
+        configs = [c for c in configs if c["question_key"] not in TRACKER_PARENT]
 
         # Get assignments
         assignments = await self._assignments.find(
@@ -717,6 +722,8 @@ class TrackingService:
                             }
         
         mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
+        configs = [c for c in configs if c["question_key"] not in TRACKER_PARENT]
 
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(

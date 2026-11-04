@@ -18,6 +18,7 @@ from .inheritance import (
     get_record_hierarchy,
 )
 from .assignment_resolver import assignment_resolver
+from modules.esg_questionnaire.status_rules import TRACKER_PARENT
 
 
 class AccessControlService:
@@ -89,8 +90,8 @@ class AccessControlService:
         # Admins always have access
         if await self.is_admin(user_id, organization_id):
             return True, None
+        question_key = TRACKER_PARENT.get(question_key, question_key)
         
-        # Get question config for hierarchy info
         question_config = await self._question_configs.find_one(
             {"question_key": question_key},
             {"_id": 0}
@@ -275,7 +276,7 @@ class AccessControlService:
                 questions = await self._get_questions_by_principle(entity_id)
                 accessible.update(questions)
         
-        return list(accessible)
+        return list(accessible | {c for c, p in TRACKER_PARENT.items() if p in accessible})
     
     async def get_accessible_record_categories(
         self,

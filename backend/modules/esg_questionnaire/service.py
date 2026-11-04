@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
 from modules.esg_assignments.assignment_resolver import assignment_requires_approval
+from modules.esg_questionnaire.status_rules import TRACKER_PARENT
 from modules.esg_questionnaire.status_rules import adjusted_status
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
@@ -597,7 +598,7 @@ class ESGQuestionnaireService:
         self, org_id: str, question_key: str, reporting_period: str
     ) -> Optional[Dict[str, Any]]:
         """Question assignment for this key, falling back to parent keys for sub-parts."""
-        key = question_key
+        key = TRACKER_PARENT.get(question_key, question_key)
         while key:
             assignment = await db.esg_assignments.find_one({
                 "organization_id": org_id,

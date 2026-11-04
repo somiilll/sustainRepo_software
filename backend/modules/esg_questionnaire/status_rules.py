@@ -138,3 +138,22 @@ def mirror_hidden_dependents(response_map: Dict[str, Any], configs: list) -> Non
             response_map.pop(config["question_key"], None)
         else:
             response_map[config["question_key"]] = {**parent, "question_key": config["question_key"]}
+
+
+TRACKER_PARENT = {"performance_against_policies": "ngrbc_review_details"}
+
+
+def merge_tracker_children(response_map: Dict[str, Any]) -> None:
+    """Tracker lists a child question inside its parent: the parent is complete only when both are, and shows the weaker approval state."""
+    for child, parent in TRACKER_PARENT.items():
+        own, extra = response_map.get(parent), response_map.get(child)
+        if own is None:
+            continue
+        if extra is None:
+            response_map[parent] = {**own, "value": None, "approval_status": None, "status": "draft"}
+            continue
+        states = {own.get("approval_status"), extra.get("approval_status")}
+        merged = next((s for s in ("rejected", "pending_approval") if s in states), None)
+        if merged is None and states == {"approved"}:
+            merged = "approved"
+        response_map[parent] = {**own, "approval_status": merged or own.get("approval_status")}
