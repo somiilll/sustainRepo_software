@@ -1081,6 +1081,16 @@ async def save_responses(
                 if key:
                     assigned_question_keys.add(key)
         
+        approver_assignments = await db.esg_assignments.find(
+            {"organization_id": org_id, "entity_type": {"$in": ["question", "disclosure"]},
+             "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+            {"_id": 0, "entity_id": 1, "question_key": 1},
+        ).to_list(500)
+        for a in approver_assignments:
+            key = a.get("question_key") or a.get("entity_id")
+            if key:
+                assigned_question_keys.add(key)
+        
         # Check if user is trying to save questions they're not assigned to
         for question_key in data.responses.keys():
             if question_key not in assigned_question_keys:

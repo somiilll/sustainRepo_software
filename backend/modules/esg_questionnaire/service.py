@@ -1599,7 +1599,7 @@ class ESGQuestionnaireService:
             
             # Admin and the final approver bypass approval (direct save)
             if is_admin or (not use_direct_save and await self._approver_position(
-                    org_id, question_key, reporting_period, user_id) == "direct"):
+                    org_id, question_key, reporting_period, changed_by_user_id) == "direct"):
                 use_direct_save = True
             
             if not use_direct_save:
@@ -2720,8 +2720,9 @@ class ESGQuestionnaireService:
             # Use _should_use_direct_save to check if approval workflow applies
             use_direct_save = await self._should_use_direct_save(org_id, question_key, reporting_year)
             
-            # Admin always bypasses approval (direct save)
-            if is_admin:
+            # Admin and the final approver bypass approval (direct save)
+            if is_admin or (not use_direct_save and await self._approver_position(
+                    org_id, question_key, reporting_year, changed_by_user_id) == "direct"):
                 use_direct_save = True
             
             # Determine final approval_status
