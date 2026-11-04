@@ -71,6 +71,10 @@ def build_emission_proposal_history_event(
                 "field_type": "input_values",
             })
     field_changes.extend(employee_input_changes(current.get("employees"), updated.get("employees"), input_label_map))
+    for field, label in (("supplier_name", "Supplier Name"), ("supplier_code", "Supplier Code"), ("asset_name", "Asset Name"),
+                         ("from_location", "From Location"), ("to_location", "To Location")):
+        if (current.get(field) or "") != (updated.get(field) or ""):
+            field_changes.append({"field": field, "display_name": label, "old_value": current.get(field) or "", "new_value": updated.get(field) or "", "field_type": "simple"})
     for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
         if current.get(field) != updated.get(field):
             field_changes.append({
@@ -617,6 +621,7 @@ class ProposalService:
     EMISSION_DETAIL_FIELDS = (
         "notes", "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
         "responsible_person_contact", "process_names", "process_descriptions", "evidence_files",
+        "supplier_name", "supplier_code", "asset_name", "from_location", "to_location",
     )
 
     async def _apply_employee_edits(self, snapshot: Dict[str, Any], context: Dict[str, Any], edits: List[Dict[str, Any]]) -> None:
@@ -669,7 +674,9 @@ class ProposalService:
         changed = [k.replace("_", " ").title() for k in sorted(set(old_in) | set(new_in)) if old_in.get(k) != new_in.get(k)]
         labels = {"notes": "Notes", "source_of_information": "Source of information", "responsible_person": "Person responsible",
                   "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
-                  "process_names": "Process names", "process_descriptions": "Process descriptions", "evidence_files": "Evidence"}
+                  "process_names": "Process names", "process_descriptions": "Process descriptions", "evidence_files": "Evidence",
+                  "supplier_name": "Supplier name", "supplier_code": "Supplier code", "asset_name": "Asset name",
+                  "from_location": "From location", "to_location": "To location"}
         changed += [label for key, label in labels.items() if (before.get(key) or None) != (after.get(key) or None)]
         return changed + (["Employee inputs"] if employees_changed else [])
 
@@ -1182,7 +1189,7 @@ class ProposalService:
                 "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection",
                 "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
                 "responsible_person_contact", "process_names", "process_descriptions",
-                "employees", "monthly_totals", "yearly_total", "from_location", "to_location", "supplier_name", "supplier_code",
+                "employees", "monthly_totals", "yearly_total", "from_location", "to_location", "supplier_name", "supplier_code", "asset_name",
             ]
             for field in other_emission_fields:
                 if field in apply_data:

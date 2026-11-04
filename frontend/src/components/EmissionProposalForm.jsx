@@ -13,7 +13,7 @@ import { buildReadOnlyDraft, buildDynamicInputFields } from '../modules/supplier
 const API = process.env.REACT_APP_BACKEND_URL;
 const LOCKED = ['scope', 'category', 'subcategory', 'methodology', 'fuel', 'employees'];
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024;
-const DETAIL_KEYS = ['notes', 'record_source', 'responsible_person', 'responsible_person_designation', 'responsible_person_contact'];
+const DETAIL_KEYS = ['notes', 'record_source', 'responsible_person', 'responsible_person_designation', 'responsible_person_contact', 'supplier_name', 'supplier_code', 'asset_name', 'from_location', 'to_location'];
 const allocationValue = (emission) => {
   const raw = emission.allocation_method ?? emission.dynamic_field_values?.allocation_method;
   return (raw && typeof raw === 'object' ? raw.value : raw) || '';
