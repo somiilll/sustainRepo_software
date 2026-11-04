@@ -976,12 +976,34 @@ class ApprovalWorkflowService:
             }
             message = f"Approved at level {current_level}, moved to level {next_level}"
         
+        push_data = {"steps_completed": step.dict()}
+        if (new_status == ApprovalStatus.PENDING.value and request.get("entity_type") == "esg_response"
+                and updated_data and "value" in updated_data):
+            snapshot = request.get("entity_snapshot") or {}
+            old_value, new_value = snapshot.get("value"), updated_data["value"]
+            if new_value != old_value:
+                now_iso = _now_iso()
+                org_id, year = request.get("organization_id"), snapshot.get("reporting_year")
+                update_data["entity_snapshot.value"] = new_value
+                push_data["approver_edits"] = {
+                    "level": current_level, "by_id": approver.get("id"),
+                    "by_name": approver.get("full_name") or approver.get("email", ""),
+                    "old_value": old_value, "new_value": new_value, "at": now_iso,
+                }
+                if request.get("_submission_id"):
+                    await db.esg_response_submissions.update_one(
+                        {"id": request["_submission_id"]}, {"$set": {"value": new_value, "updated_at": now_iso}})
+                await db.organization_esg_responses.update_one(
+                    {"$or": [{"org_id": org_id}, {"organization_id": org_id}], "question_key": request.get("entity_id"),
+                     "reporting_year": year, "approval_status": "pending_approval"},
+                    {"$set": {"value": new_value, "updated_at": now_iso}})
+        
         # Update request
         await db[REQUESTS_COLLECTION].update_one(
             {"id": request_id},
             {
                 "$set": update_data,
-                "$push": {"steps_completed": step.dict()},
+                "$push": push_data,
             }
         )
         

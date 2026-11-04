@@ -1039,34 +1039,16 @@ class ESGQuestionnaireService:
                    any(s["question_key"].startswith(qk + "_") for qk in section_question_keys)
             ]
         
-        # If approver_user_id filter, check assignments
+        # Non-admin approvers only see submissions waiting on them at their current level
         if approver_user_id:
-            # Get all assignments where this user is an approver
-            assignments = await db["esg_assignments"].find(
-                {
-                    "organization_id": org_id,
-                    "entity_type": "question",
-                    "$or": [{"approver_id": approver_user_id}, {"approval_chain": approver_user_id}],
-                },
-                {"_id": 0, "entity_id": 1, "section": 1}
-            ).to_list(500)
-            
-            # Create set of question keys this user can approve
-            approver_question_keys = {a["entity_id"] for a in assignments}
-            approver_sections = {a["section"] for a in assignments if a.get("section")}
-            
-            # Filter submissions to only those the user can approve
-            filtered_submissions = []
-            for sub in submissions:
-                qk = sub["question_key"]
-                # Check if user is approver for this specific question
-                if qk in approver_question_keys:
-                    filtered_submissions.append(sub)
-                # Or check if user is approver for any question in this section
-                elif any(qk.startswith(aqk) for aqk in approver_question_keys):
-                    filtered_submissions.append(sub)
-            
-            submissions = filtered_submissions
+            mine = await db.approval_requests.find(
+                {"organization_id": org_id, "entity_type": "esg_response", "status": {"$in": ["pending", "in_review"]},
+                 "current_approvers": approver_user_id},
+                {"_id": 0, "id": 1, "entity_id": 1},
+            ).to_list(1000)
+            my_request_ids = {r["id"] for r in mine}
+            my_keys = {r["entity_id"] for r in mine}
+            submissions = [s for s in submissions if s.get("approval_request_id") in my_request_ids or s["question_key"] in my_keys]
         
         # Group by question_key for easier display
         grouped = {}

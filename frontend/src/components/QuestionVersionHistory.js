@@ -187,6 +187,7 @@ const actorLabel = (type) => {
 };
 
 const valueLabels = (type) => {
+  if (type === 'LEVEL_APPROVED') return ['Value before edit', 'Edited by approver'];
   if (type === 'APPROVED')  return ['Proposed value', 'Final approved value'];
   if (type === 'REJECTED')  return ['Proposed value', 'Rejected proposed value'];
   if (type === 'SUBMITTED') return ['Old value', 'Proposed value'];

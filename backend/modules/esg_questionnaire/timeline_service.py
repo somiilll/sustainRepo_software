@@ -117,12 +117,17 @@ class QuestionResponseTimelineService:
             if total < 2:
                 continue
             submitter = cls._actor(request.get("submitted_by_name"), request.get("submitted_by_email"))
+            edits = {e.get("level"): e for e in request.get("approver_edits") or []}
             for step in request.get("steps_completed") or []:
                 if step.get("action") == "approve" and (step.get("level") or 1) < total:
+                    edit = edits.get(step.get("level"))
                     events.append(QuestionTimelineEvent(
                         event_type="LEVEL_APPROVED", timestamp=cls._timestamp(step.get("timestamp")),
                         requester=submitter, approver=cls._actor(step.get("actor_name"), step.get("actor_email")),
                         level=step.get("level"), total_levels=total, source="approval_requests",
+                        submitted_value=edit.get("old_value") if edit else None,
+                        final_value=edit.get("new_value") if edit else None,
+                        approver_edited=bool(edit),
                     ))
             resolved = _parse(request.get("resolved_at"))
             for event in events:
