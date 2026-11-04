@@ -64,6 +64,12 @@ def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, An
         for item in submitted
         if final_values.get(item["field"]) != item["new_value"]
     ] if version["approver_edited"] else []
+    names = {item["field"]: item["display_name"] for item in submitted}
+    version["approver_stages"] = [
+        {"level": edit.get("level"), "by": edit.get("by_name"), "at": edit.get("at"),
+         "diffs": [{**d, "display_name": names.get(d["field"]) or d["field"].replace("_", " ").title()} for d in edit.get("field_diffs") or []]}
+        for edit in proposal.get("approver_edits") or [] if edit.get("field_diffs")
+    ]
     version["requested_by"] = version.get("requested_by") or proposal.get("submitted_by")
     version["requested_by_name"] = version.get("requested_by_name") or proposal.get("submitted_by_name")
     version["requested_by_email"] = version.get("requested_by_email") or proposal.get("submitted_by_email")

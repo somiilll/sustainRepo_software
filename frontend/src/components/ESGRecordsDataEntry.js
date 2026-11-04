@@ -1914,7 +1914,26 @@ export default function ESGRecordsDataEntry({
                               </div>
                             ))}
                           </div>
-                          {(version.approver_field_diffs || []).length > 0 && (
+                          {(version.approver_stages || []).length > 0 ? (
+                            <div className="space-y-3" data-testid="version-approver-stages">
+                              {version.approver_stages.map((stage, sIdx) => (
+                                <div key={`stage-${sIdx}`}>
+                                  <p className="text-xs font-semibold text-text-muted uppercase mb-2">Modified by {stage.by || 'approver'} (Level {stage.level})</p>
+                                  {stage.diffs.map((change, cIdx) => (
+                                    <div key={`stage-${sIdx}-${cIdx}`} className="text-sm bg-green-50 rounded p-2 mb-2">
+                                      <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
+                                      <span className="text-blue-700">Before: {String(change.old_value ?? '(empty)')}</span>
+                                      <span className="mx-2 text-text-muted">→</span>
+                                      <span className="text-green-700">After: {String(change.new_value ?? '(empty)')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                              {!version.approver_stages.some((st) => st.level === (version.level_approvals?.[0]?.total_levels || version.level_approvals?.length + 1 || 1)) && (version.level_approvals || []).length > 0 && (
+                                <p className="text-xs text-text-muted" data-testid="version-final-approval-note">Final approval by {version.approved_by_name || 'approver'}: no changes made</p>
+                              )}
+                            </div>
+                          ) : (version.approver_field_diffs || []).length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-text-muted uppercase mb-2">Approver Modifications</p>
                               {version.approver_field_diffs.map((change, cIdx) => (

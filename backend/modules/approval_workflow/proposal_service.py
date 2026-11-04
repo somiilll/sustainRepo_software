@@ -664,11 +664,16 @@ class ProposalService:
             "updated_at": now,
         }
         
+        field_diffs = []
+        if entity_type == "esg_record":
+            before_values, after_values = current_snapshot.get("field_values") or {}, new_snapshot.get("field_values") or {}
+            field_diffs = [{"field": k, "old_value": before_values.get(k), "new_value": after_values.get(k)}
+                           for k in after_values if after_values.get(k) != before_values.get(k)]
         update_op: Dict[str, Any] = {"$set": update_data}
         if changed_fields:
             update_op["$push"] = {"approver_edits": {
                 "level": proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
-                "at": now, "fields": changed_fields,
+                "at": now, "fields": changed_fields, "field_diffs": field_diffs,
             }}
         await db.approval_requests.update_one({"id": proposal_id}, update_op)
         
