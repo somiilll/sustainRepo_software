@@ -2165,6 +2165,15 @@ class ApprovalWorkflowService:
             {"_id": 0}
         ).to_list(500)
         
+        if responses and not is_admin:
+            mine = await db.approval_requests.find(
+                {"organization_id": organization_id, "entity_type": "esg_response", "status": {"$in": ["pending", "in_review"]},
+                 "current_approvers": approver_id},
+                {"_id": 0, "entity_id": 1, "entity_snapshot.reporting_year": 1},
+            ).to_list(1000)
+            mine_keys = {(r["entity_id"], (r.get("entity_snapshot") or {}).get("reporting_year")) for r in mine}
+            responses = [r for r in responses if (r.get("question_key"), r.get("reporting_year")) in mine_keys]
+
         if responses:
             # Get question configs for labels
             response_keys = [r.get("question_key") for r in responses if r.get("question_key")]

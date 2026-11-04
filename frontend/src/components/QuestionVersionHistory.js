@@ -178,7 +178,7 @@ const EVENT_STYLES = {
 };
 
 const eventStyle = (type) =>
-  EVENT_STYLES[type] || { label: type.replace(/_/g, ' '), icon: History, tone: 'text-stone-700 bg-stone-50 border-stone-200' };
+  EVENT_STYLES[type] || (type === 'LEVEL_APPROVED' ? { label: 'Level approved', icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' } : null) || { label: type.replace(/_/g, ' '), icon: History, tone: 'text-stone-700 bg-stone-50 border-stone-200' };
 
 const actorLabel = (type) => {
   if (type === 'CREATED' || type === 'UPDATED') return 'Saved by';
@@ -251,12 +251,6 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
 
         {!loading && !error && timeline && (
           <div className="space-y-4" data-testid="question-version-history-content">
-            {timeline.evidence_state === 'FOUND_PARTIAL' && (
-              <div className="border border-amber-200 bg-amber-50 text-amber-800 text-sm p-3 rounded-lg" data-testid="question-version-history-partial-warning">
-                Some older, unscoped events were excluded to avoid mixing reporting years.
-              </div>
-            )}
-
             {timeline.events.length === 0 ? (
               <div className="py-8 text-center text-text-muted" data-testid="question-version-history-empty">
                 No version history is available for this question
@@ -274,7 +268,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                   <article key={`${event.source}-${event.timestamp}-${idx}`} className="border border-stone-200 rounded-lg p-4" data-testid={`question-timeline-event-${idx}`}>
                     <div className="flex items-start justify-between gap-3">
                       <Badge className={`border ${style.tone}`} data-testid={`question-timeline-event-type-${idx}`}>
-                        <Icon className="w-3 h-3 mr-1" />{style.label}
+                        <Icon className="w-3 h-3 mr-1" />{event.event_type === 'LEVEL_APPROVED' ? `Level ${event.level} of ${event.total_levels} Approved` : event.level ? `${style.label} (Level ${event.level} of ${event.total_levels})` : style.label}
                       </Badge>
                       <time className="text-xs text-text-muted" data-testid={`question-timeline-event-time-${idx}`}>
                         {event.timestamp ? formatDateTime(event.timestamp) : 'Timestamp unavailable'}
