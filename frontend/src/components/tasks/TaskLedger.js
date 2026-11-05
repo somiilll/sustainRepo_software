@@ -120,6 +120,22 @@ export default function TaskLedger({
       }
     }
     
+    // Category / subcategory / facility filters (metric tasks only)
+    const isQuestion = task.entity_type === 'question';
+    if (filters.category !== 'all' && (isQuestion || task.category !== filters.category)) return false;
+    if (filters.subcategory !== 'all' && (isQuestion || task.subcategory !== filters.subcategory)) return false;
+    if (filters.facility !== 'all' && (isQuestion || (task.facility_name || task.facility_id) !== filters.facility)) return false;
+
+    // Reporting period range: keep tasks whose period overlaps the selected dates
+    if (filters.startDate || filters.endDate) {
+      const fallback = task.due_at || task.due_date;
+      const from = new Date(task.period_start || fallback || NaN);
+      const to = new Date(task.period_end || task.period_start || fallback || NaN);
+      if (Number.isNaN(from.getTime())) return false;
+      if (filters.startDate && to < new Date(`${filters.startDate}T00:00:00`)) return false;
+      if (filters.endDate && from > new Date(`${filters.endDate}T23:59:59`)) return false;
+    }
+
     // Task type filter
     if (filters.taskType !== 'all') {
       const taskType = categorizeTask(task);
