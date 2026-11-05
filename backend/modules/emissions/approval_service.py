@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from app.logging import log_event
+from modules.approval_workflow.log_visibility import stamp_on_create
 from modules.approval_workflow.proposal_service import sync_emission_request_history
 from modules.emissions.record_store import APPROVED_COLLECTION, STATUS_PENDING_DELETE
 from shared.database.mongo import db
@@ -11,7 +12,6 @@ from modules.esg_assignments.assignment_resolver import assignment_requires_appr
 from shared.utils.density_units import normalize_density_dynamic_values
 
 from app.logging import get_logger
-from modules.approval_workflow.proposal_service import sync_emission_request_history
 from modules.approval_workflow.approver_chain import approvers_at_level, best_entry, clamp_level, normalize_chain
 
 logger = get_logger(__name__)
@@ -446,6 +446,7 @@ async def create_emission_approval_request(
     
     await db.approval_requests.insert_one(approval_request)
     await sync_emission_request_history(approval_request["id"])
+    await stamp_on_create("emission_records", emission_record["id"], start_level - 1, approval_request["id"], total_levels)
     log_event(logger, logging.INFO, "ghg.emission.approval_requested", action="ghg.emission.approval", outcome="succeeded",
               context={"record_id": emission_record.get("id"), "approval_request_id": approval_request.get("id")})
     

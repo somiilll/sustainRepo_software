@@ -1,6 +1,7 @@
 """GHG record lookup and the per-user ledger view. Approval state lives on the record and its approval request."""
 from typing import Any, Dict, List, Optional, Tuple
 
+from modules.approval_workflow.log_visibility import log_visibility_clause
 from modules.emissions.access_policy import resolve_ghg_access_scope
 from shared.database.mongo import db
 
@@ -42,6 +43,9 @@ async def fetch_emissions_for_user(current_user: dict, query: Optional[dict] = N
     query = query or {}
     period = query.get("reporting_period") if isinstance(query.get("reporting_period"), str) else None
     base_query = (await resolve_ghg_access_scope(current_user, period)).emission_query(query)
+    visible = await log_visibility_clause(current_user)
+    if visible:
+        base_query = {"$and": [base_query, visible]}
     records = await db[APPROVED_COLLECTION].find(base_query, {"_id": 0}).to_list(10000)
 
     is_admin = current_user.get("role", "user") in ("admin", "super_admin")

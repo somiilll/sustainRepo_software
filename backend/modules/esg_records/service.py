@@ -761,6 +761,9 @@ class ESGRecordsService:
             
             await db.approval_requests.insert_one(approval_request)
             print(f"Created approval request {approval_request['id']} for record {record.get('id')} (is_edit={is_edit})")
+            if not is_edit:
+                from modules.approval_workflow.log_visibility import stamp_on_create
+                await stamp_on_create(f"{section}_records", record.get("id"), start_level - 1, approval_request["id"], total_levels)
             
             # Notify approvers via bell
             try:

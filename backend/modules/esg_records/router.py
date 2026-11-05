@@ -25,6 +25,7 @@ from .ghg_integration import get_ghg_integration_service
 from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
 from .visibility import approver_edit_mode, is_category_approver, is_workflow_org, own_or_facility_clause, user_assigned_categories, resolve_record_visibility, scoped_dashboard_db
+from modules.approval_workflow.log_visibility import log_visibility_clause
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
@@ -555,6 +556,9 @@ async def list_records(
         # Categories where the user is an assignee or an assigned approver
         assigned_categories = await user_assigned_categories(org_id, user_id)
         visibility = await resolve_record_visibility(current_user)
+        hidden_until_acted = await log_visibility_clause(current_user)
+        if hidden_until_acted:
+            visibility = {"$and": [visibility, hidden_until_acted]}
         if not assigned_categories:
             # User has no assignments - return empty
             return {

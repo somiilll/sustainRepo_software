@@ -13,6 +13,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from shared.database.mongo import db
 
 from .approver_chain import normalize_chain
+from .log_visibility import refresh_for_request
 from .models import (
     ApprovalWorkflow,
     ApprovalRequest,
@@ -872,8 +873,11 @@ class ApprovalWorkflowService:
         else:
             return (False, f"Unknown action: {action}", None)
         
-        # Send bell notification to submitter on approve/reject
         success = result[0]
+        if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
+            await refresh_for_request(request_id)
+
+        # Send bell notification to submitter on approve/reject
         if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
             try:
                 from shared.notifications import create_notification
