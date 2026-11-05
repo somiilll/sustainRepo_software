@@ -983,40 +983,6 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                   <div className="flex flex-col gap-8">
                     {visibleQuestions.map((question, qIndex) => renderQuestion(question, qIndex))}
                   </div>
-
-                  {/* Save Buttons */}
-                  {isEditing && (
-                    <div className="pt-4 border-t border-stone-200 flex justify-end gap-3">
-                      {/* Save as Draft - Uses new per-user draft system */}
-                      <Button
-                        variant="outline"
-                        onClick={() => saveDraft(disclosure, 'draft')}
-                        disabled={saving[disclosure.disclosure_id]}
-                        className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-                        data-testid={`save-draft-${disclosure.disclosure_id}`}
-                      >
-                        {saving[disclosure.disclosure_id] ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
-                        ) : (
-                          <><FileEdit className="w-4 h-4 mr-2" /> Save as Draft</>
-                        )}
-                      </Button>
-                      
-                      {/* Direct Save - For admins or final save */}
-                      <Button
-                        onClick={() => saveDisclosure(disclosure, 'saved')}
-                        disabled={saving[disclosure.disclosure_id]}
-                        className="bg-green-600 hover:bg-green-700"
-                        data-testid={`save-${disclosure.disclosure_id}`}
-                      >
-                        {saving[disclosure.disclosure_id] ? (
-                          <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
-                        ) : (
-                          <><Save className="w-4 h-4 mr-2" /> Save Final</>
-                        )}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </CollapsibleContent>
             </Card>
