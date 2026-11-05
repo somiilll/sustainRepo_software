@@ -103,9 +103,11 @@ class KPIAccessHelper:
         organization_id: str,
         category: str,
         reporting_period: Optional[str] = None,
+        include_approver: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Get all assignments for a user in a specific category.
+        With include_approver, assignments the user approves (any level) count too.
         
         Supports both old model (assigned_to_user_id on assignment) and 
         new model (separate esg_assignment_assignees table).
@@ -134,7 +136,9 @@ class KPIAccessHelper:
             query["reporting_period"] = reporting_period
         
         # Find assignments where user is in assignees table (V2 only)
-        if assignment_ids_from_new:
+        if include_approver:
+            query["$or"] = [{"id": {"$in": assignment_ids_from_new}}, {"approver_id": user_id}, {"approval_chain": user_id}]
+        elif assignment_ids_from_new:
             query["id"] = {"$in": assignment_ids_from_new}
         else:
             # No V2 assignments found for this user
@@ -190,6 +194,7 @@ class KPIAccessHelper:
             organization_id=organization_id,
             category=GHG_CATEGORY,
             reporting_period=reporting_period,
+            include_approver=True,
         )
         
         # No GHG assignment for this user means no GHG access (including sinks)
