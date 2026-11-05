@@ -183,6 +183,13 @@ def emission_state(source: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
+def _iso(value: Any) -> str:
+    """ISO-8601 UTC string for datetimes (history rows sort lexicographically) or the value as text."""
+    if isinstance(value, datetime):
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+    return str(value)
+
+
 async def upsert_emission_history(events: List[Dict[str, Any]]) -> None:
     """Write step events once per (request, step) so every write path can safely re-emit the chain."""
     for event in events:
@@ -201,10 +208,21 @@ async def upsert_emission_history(events: List[Dict[str, Any]]) -> None:
 async def sync_emission_request_history(proposal_id: str) -> None:
     """Record the submission, approver edits and level approvals of a pending GHG update as they happen."""
     proposal = await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
-    if not proposal or proposal.get("entity_type") != "emission_record" or proposal.get("request_type") != "update":
+    if not proposal or proposal.get("entity_type") != "emission_record" or proposal.get("request_type") not in ("create", "update", "delete"):
         return
     current = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0})
     if not current:
+        return
+    if proposal["request_type"] == "delete":
+        total = proposal.get("total_levels") or 1
+        await upsert_emission_history([{
+            "id": str(uuid.uuid4()), "emission_id": current["id"], "facility_id": current.get("facility_id"),
+            "organization_id": current.get("organization_id"), "scope": current.get("scope"), "category": current.get("category"),
+            "changed_by": step.get("actor_id"), "changed_by_email": step.get("actor_email", ""), "changed_by_name": step.get("actor_name", ""),
+            "changed_at": _iso(step.get("timestamp")), "version": current.get("version") or 1, "field_changes": [],
+            "changes_summary": f"Deletion approved at Level {step.get('level')} of {total}",
+            "changes": {"action": "approved", "request_type": "delete", "proposal_id": proposal_id, "event_key": f"level:{step.get('level')}"},
+        } for step in proposal.get("steps_completed") or [] if step.get("action") == "approve" and (step.get("level") or 1) < total])
         return
     from shared.helpers.audit_helpers import get_input_label_map_from_db
     label_map = await get_input_label_map_from_db(db)
@@ -238,7 +256,7 @@ def build_emission_lifecycle_events(
             "changed_by_email": proposal.get("submitted_by_email"), "changed_by_name": proposal.get("submitted_by_name"),
             "changed_at": proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"],
             "version": 1, "field_changes": [], "changes_summary": "Created",
-            "changes": {"action": "created", "request_type": "create", "proposal_id": proposal.get("id"), "old_values": None,
+            "changes": {"action": "created", "request_type": "create", "proposal_id": proposal.get("id"), "event_key": "submitted", "old_values": None,
                         "new_values": {"dynamic_field_values": original_inputs, "total_emissions": total_of(original, "total_emissions"),
                                        "co2e_emissions": total_of(original, "co2e_emissions")}},
         })
@@ -246,22 +264,25 @@ def build_emission_lifecycle_events(
                    key=lambda e: str(e.get("at")))
     modification = proposal.get("approver_modifications") or {}
     total_levels = proposal.get("total_levels") or 1
-    if not is_create and (edits or not modification):
+    if (not is_create and (edits or not modification)) or (is_create and edits):
         def event(before: Dict[str, Any], after: Dict[str, Any], **kwargs) -> Dict[str, Any]:
             return build_emission_proposal_history_event(
                 {**current, **before}, {**current, **after}, proposal, input_label_map=input_label_map, **kwargs)
-        submitted = event({}, emission_state(original), action="updated", actor_id=proposal.get("submitted_by"),
-                          actor_email=proposal.get("submitted_by_email", ""), actor_name=proposal.get("submitted_by_name", ""),
-                          timestamp=proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"])
-        submitted["changes_summary"] = "Update Submitted"
-        submitted["changes"]["action"] = "submitted"
-        submitted["changes"]["event_key"] = "submitted"
-        events.append(submitted)
+        if is_create:
+            events[0]["changes"]["event_key"] = "submitted"
+        else:
+            submitted = event({}, emission_state(original), action="updated", actor_id=proposal.get("submitted_by"),
+                              actor_email=proposal.get("submitted_by_email", ""), actor_name=proposal.get("submitted_by_name", ""),
+                              timestamp=proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"])
+            submitted["changes_summary"] = "Update Submitted"
+            submitted["changes"]["action"] = "submitted"
+            submitted["changes"]["event_key"] = "submitted"
+            events.append(submitted)
         for edit in edits:
             edit_event = event(edit["before"], edit["after"], action="updated", actor_id=edit.get("by_id"), actor_email="",
                                actor_name=edit.get("by_name", ""), timestamp=str(edit.get("at")))
             edit_event["changes_summary"] = "Updated by approver"
-            edit_event["changes"]["request_type"] = "update"
+            edit_event["changes"]["request_type"] = proposal.get("request_type") or "update"
             edit_event["changes"]["approver_edit_fields"] = edit.get("fields", [])
             edit_event["changes"]["event_key"] = f"edit:{edit.get('at')}"
             events.append(edit_event)
@@ -303,6 +324,7 @@ def build_emission_lifecycle_events(
             level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
             level_event["field_changes"] = []
             level_event["version"] = events[-1].get("version") if events else level_event.get("version")
+            level_event["changes"]["event_key"] = f"level:{step.get('level')}"
             events.append(level_event)
     if is_create and events:
         approved_event["field_changes"] = []
@@ -691,7 +713,12 @@ class ProposalService:
                                 value = float(value) if value not in (None, "") else value
                             except (TypeError, ValueError):
                                 pass
-                            merged[key] = {**merged[key], "value": value}
+                            entry = {**merged[key], "value": value}
+                            if "is_override" in entry and value not in (None, "") and value != merged[key].get("value") \
+                                    and f"override_{key}" not in field_values:
+                                entry["is_override"] = True
+                                entry["justification"] = entry.get("justification") or "Overridden by approver"
+                            merged[key] = entry
                         else:
                             merged[key] = value
                     return merged
@@ -897,6 +924,14 @@ class ProposalService:
         await sync_emission_request_history(proposal["id"])
         return {"success": True, "proposal_id": proposal["id"], "advanced_to_level": level + 1, "auto_rejected_count": 0}
     
+    async def _apply_rejected_create(self, record, proposal, approver_id, approver_name, reason, now) -> None:
+        """A rejected new entry keeps the values last saved by a lower-level approver and is marked rejected."""
+        edits = sorted([e for e in proposal.get("approver_edits") or [] if e.get("after")], key=lambda e: str(e.get("at")))
+        update = dict(edits[-1]["after"]) if edits else {}
+        update.update({"approval_status": "rejected_create", "updated_at": now})
+        await db.emission_records.update_one({"id": record["id"]}, {"$set": update, "$push": {"version_history": {
+            "action": "rejected", "rejection_reason": reason, "rejected_by": approver_id, "rejected_by_name": approver_name, "timestamp": now}}})
+
     async def approve_proposal(
         self,
         proposal_id: str,
@@ -1122,6 +1157,9 @@ class ProposalService:
                 )
                 history_event["record_was_changed"] = False
                 await sync_emission_request_history(proposal_id)
+                if proposal.get("request_type") == "create":
+                    history_event["changes_summary"] = "Creation Rejected"
+                    await self._apply_rejected_create(current, proposal, approver_id, approver_name, rejection_reason, now)
                 await db.emission_history.insert_one(history_event)
         elif proposal.get("entity_type") == "esg_record":
             section_to_collection = {

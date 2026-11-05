@@ -41,7 +41,7 @@ export default function EmissionHistoryDialog({
               const isDeletion = action === 'deleted';
               const isApproval = action === 'approved';
               const isRejection = action === 'rejected';
-              const eventTitle = history.changes?.request_type === 'delete' ? (isRejection ? 'Deletion Rejected' : isApproval ? 'Deletion Approved' : 'Deletion Requested') : isRejection ? 'Update Rejected' : isApproval ? 'Update Approved' : isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated';
+              const eventTitle = history.changes?.request_type === 'delete' ? (history.changes_summary || 'Deletion Requested') : isRejection ? 'Update Rejected' : isApproval ? 'Update Approved' : isDeletion ? 'Deleted' : isCreation ? 'Created' : 'Updated';
               const oldValues = history.changes?.old_values || {};
               const newValues = history.changes?.new_values || {};
 

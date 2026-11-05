@@ -11,6 +11,7 @@ from modules.esg_assignments.assignment_resolver import assignment_requires_appr
 from shared.utils.density_units import normalize_density_dynamic_values
 
 from app.logging import get_logger
+from modules.approval_workflow.proposal_service import sync_emission_request_history
 from modules.approval_workflow.approver_chain import approvers_at_level, best_entry, clamp_level, normalize_chain
 
 logger = get_logger(__name__)
@@ -444,6 +445,7 @@ async def create_emission_approval_request(
     }
     
     await db.approval_requests.insert_one(approval_request)
+    await sync_emission_request_history(approval_request["id"])
     log_event(logger, logging.INFO, "ghg.emission.approval_requested", action="ghg.emission.approval", outcome="succeeded",
               context={"record_id": emission_record.get("id"), "approval_request_id": approval_request.get("id")})
     

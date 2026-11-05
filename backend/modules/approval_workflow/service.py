@@ -1012,6 +1012,10 @@ class ApprovalWorkflowService:
             }
         )
         
+        if request.get("entity_type") == "emission_record" and request.get("request_type") == "delete":
+            from .proposal_service import sync_emission_request_history
+            await sync_emission_request_history(request_id)
+
         # If approved and this is an ESG record, update both the record AND the task
         if new_status == ApprovalStatus.APPROVED.value:
             entity_type = request.get("entity_type")
