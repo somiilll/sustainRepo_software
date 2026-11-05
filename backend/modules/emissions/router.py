@@ -1180,9 +1180,9 @@ async def get_emission_records(
     if scope and scope != "biogenic":
         records = [r for r in records if r.get("scope") != "biogenic"]
     
-    # Filter out rejected records for regular users (admins can see them)
+    # Rejected records stay hidden from regular users unless the log visibility rules (stamped records) already allowed them
     if user_role == "user":
-        records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES]
+        records = [r for r in records if r.get("approval_status") not in REJECTED_STATUSES or r.get("log_creator_level") is not None]
     
     # Platform Access is the outer boundary for Scope 3 and indirect biogenic data.
     if user_role != "super_admin" and org_id:
