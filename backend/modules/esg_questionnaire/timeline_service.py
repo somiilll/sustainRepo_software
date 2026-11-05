@@ -120,6 +120,8 @@ class QuestionResponseTimelineService:
             edits = {e.get("level"): e for e in request.get("approver_edits") or []}
             for step in request.get("steps_completed") or []:
                 if step.get("action") == "approve" and (step.get("level") or 1) < total:
+                    if "approved at that level" in (step.get("comment") or ""):
+                        continue
                     edit = edits.get(step.get("level"))
                     events.append(QuestionTimelineEvent(
                         event_type="LEVEL_APPROVED", timestamp=cls._timestamp(step.get("timestamp")),
