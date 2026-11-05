@@ -830,7 +830,11 @@ async def update_emission_record(
     
     # ADMIN BYPASS: Admins don't require approval
     # If admin edits a record with pending approval, delete the pending request
+    cleared_requests = []
     if is_admin:
+        cleared_requests = await db.approval_requests.find(
+            {"entity_id": record_id, "entity_type": "emission_record", "status": {"$in": ["pending", "in_review"]}},
+            {"_id": 0, "total_levels": 1}).to_list(50)
         # Delete any pending approval requests for this record
         deleted_result = await db.approval_requests.delete_many({
             "entity_id": record_id,
@@ -1064,6 +1068,20 @@ async def update_emission_record(
             if field in existing and field not in update_dict
         })
     await db[APPROVED_COLLECTION].update_one({"id": record_id}, update_operation)
+    if is_admin and existing.get("approval_status") == "pending_approval":
+        total_levels = max([c.get("total_levels") or 1 for c in cleared_requests] or [1])
+        settled = {"approval_status": "approved"}
+        if "log_creator_level" in existing:
+            settled["log_acted_max"] = total_levels
+        await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": settled})
+        await db.emission_history.insert_one({
+            **{k: history_dict[k] for k in ("emission_id", "facility_id", "organization_id", "scope", "category", "changed_by", "changed_by_email", "changed_by_name")},
+            "id": str(uuid.uuid4()), "changed_at": datetime.now(timezone.utc).isoformat(), "version": history_dict["version"],
+            "field_changes": [], "changes_summary": f"Approved at Level {total_levels} of {total_levels} (admin edit)",
+            "changes": {"action": "approved", "request_type": "create"},
+            "approved_by": current_user["id"], "approved_by_email": current_user.get("email", ""),
+            "approved_by_name": current_user.get("full_name", ""), "approved_at": datetime.now(timezone.utc).isoformat(),
+        })
     updated = await db[APPROVED_COLLECTION].find_one({"id": record_id}, {"_id": 0})
     await _sync_derived_energy(updated, "ghg.emission.update")
 
