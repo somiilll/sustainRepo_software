@@ -181,6 +181,37 @@ def emission_state(source: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
+async def upsert_emission_history(events: List[Dict[str, Any]]) -> None:
+    """Write step events once per (request, step) so every write path can safely re-emit the chain."""
+    for event in events:
+        changes = event.get("changes") or {}
+        key = changes.get("event_key")
+        if not key or not changes.get("proposal_id"):
+            await db.emission_history.insert_one(event)
+            continue
+        match = {"emission_id": event["emission_id"], "changes.proposal_id": changes["proposal_id"], "changes.event_key": key}
+        if key == "submitted":
+            await db.emission_history.update_one(match, {"$set": event}, upsert=True)
+        else:
+            await db.emission_history.update_one(match, {"$setOnInsert": event}, upsert=True)
+
+
+async def sync_emission_request_history(proposal_id: str) -> None:
+    """Record the submission, approver edits and level approvals of a pending GHG update as they happen."""
+    proposal = await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
+    if not proposal or proposal.get("entity_type") != "emission_record" or proposal.get("request_type") != "update":
+        return
+    current = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0})
+    if not current:
+        return
+    from shared.helpers.audit_helpers import get_input_label_map_from_db
+    label_map = await get_input_label_map_from_db(db)
+    placeholder = build_emission_proposal_history_event(
+        current, current, proposal, action="approved", actor_id=None, actor_email="", actor_name="",
+        timestamp=datetime.now(timezone.utc).isoformat(), input_label_map=label_map)
+    await upsert_emission_history(build_emission_lifecycle_events(current, current, proposal, placeholder, label_map))
+
+
 def build_emission_lifecycle_events(
     current: Dict[str, Any],
     updated: Dict[str, Any],
@@ -222,6 +253,7 @@ def build_emission_lifecycle_events(
                           timestamp=proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"])
         submitted["changes_summary"] = "Update Submitted"
         submitted["changes"]["action"] = "submitted"
+        submitted["changes"]["event_key"] = "submitted"
         events.append(submitted)
         for edit in edits:
             edit_event = event(edit["before"], edit["after"], action="updated", actor_id=edit.get("by_id"), actor_email="",
@@ -229,6 +261,7 @@ def build_emission_lifecycle_events(
             edit_event["changes_summary"] = "Updated by approver"
             edit_event["changes"]["request_type"] = "update"
             edit_event["changes"]["approver_edit_fields"] = edit.get("fields", [])
+            edit_event["changes"]["event_key"] = f"edit:{edit.get('at')}"
             events.append(edit_event)
         for step in proposal.get("steps_completed") or []:
             if step.get("action") == "approve" and (step.get("level") or 1) < total_levels:
@@ -236,6 +269,7 @@ def build_emission_lifecycle_events(
                                     actor_name=step.get("actor_name", ""), timestamp=str(step.get("timestamp") or approved_event["changed_at"]))
                 level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
                 level_event["field_changes"] = []
+                level_event["changes"]["event_key"] = f"level:{step.get('level')}"
                 events.append(level_event)
         events.sort(key=lambda e: str(e.get("changed_at")))
         approved_event["field_changes"] = []
@@ -730,6 +764,8 @@ class ProposalService:
                 edit_entry["before"], edit_entry["after"] = emission_state(current_snapshot), emission_state(new_snapshot)
             update_op["$push"] = {"approver_edits": edit_entry}
         await db.approval_requests.update_one({"id": proposal_id}, update_op)
+        if entity_type == "emission_record":
+            await sync_emission_request_history(proposal_id)
         
         return await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
 
@@ -858,6 +894,7 @@ class ProposalService:
             )
         except Exception as error:
             logger.warning(f"Failed to notify next approver: {error}")
+        await sync_emission_request_history(proposal["id"])
         return {"success": True, "proposal_id": proposal["id"], "advanced_to_level": level + 1, "auto_rejected_count": 0}
     
     async def approve_proposal(
@@ -1084,6 +1121,7 @@ class ProposalService:
                     rejection_reason=rejection_reason,
                 )
                 history_event["record_was_changed"] = False
+                await sync_emission_request_history(proposal_id)
                 await db.emission_history.insert_one(history_event)
         elif proposal.get("entity_type") == "esg_record":
             section_to_collection = {
@@ -1341,7 +1379,8 @@ class ProposalService:
                 input_label_map=label_map,
             )
             lifecycle = build_emission_lifecycle_events(current, updated or {**current, **update_fields}, proposal, history_event, label_map)
-            await db.emission_history.insert_many([*lifecycle, history_event])
+            await upsert_emission_history(lifecycle)
+            await db.emission_history.insert_one(history_event)
         elif entity_type == "esg_record":
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
             version_event = build_esg_proposal_version_event(

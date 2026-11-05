@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.logging import get_logger, log_event
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
+from modules.approval_workflow.proposal_service import sync_emission_request_history
 from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
@@ -935,6 +936,7 @@ async def _create_emission_update_approval_request(
     }
     
     await db.approval_requests.insert_one(approval_request)
+    await sync_emission_request_history(approval_request["id"])
     log_event(logger, logging.INFO, "ghg.emission.update_approval_requested", action="ghg.emission.update", outcome="pending_approval",
               context={"record_id": existing_record.get("id"), "approval_request_id": approval_request.get("id")})
 
@@ -1038,6 +1040,7 @@ async def _update_existing_approval_request(
             "updated_at": now,
         }}
     )
+    await sync_emission_request_history(request_id)
     log_event(logger, logging.INFO, "ghg.emission.update_approval_updated", action="ghg.emission.update", outcome="pending_approval",
               context={"approval_request_id": request_id, "record_id": existing_record.get("id")})
     
