@@ -79,6 +79,7 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
         "approver_levels": [{"level": n + 1, "users": [person(uid) for uid in dict.fromkeys(ids)]} for n, ids in enumerate(level_ids)],
         "frequency": ref.get("filling_frequency"), "due_date": _iso(ref.get("due_date")),
         "assigned_questions": sum(1 for i in items if i.is_assigned), "total_questions": len(items),
+        "reminder_rules": ref.get("reminder_rules") or [], "escalation": ref.get("escalation") or "none",
         "form": {
             "assigned_user_ids": list(dict.fromkeys(r["user_id"] for r in assignee_rows)),
             "due_date": (_iso(ref.get("due_date")) or "")[:10],
@@ -125,3 +126,24 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
     unique = {(e["title"], (e["at"] or "")[:19]): e for e in activity}
     activity = sorted(unique.values(), key=lambda e: e["at"] or "", reverse=True)
     return {"questions": questions, "assignment": assignment, "activity": activity[:100]}
+
+
+async def save_section_notification_settings(
+    org_id: str, domain: str, framework_id: str, section_id: str, reporting_period: str,
+    reminder_rules: List[str], escalation: str,
+) -> int:
+    """Store reminder / escalation choices on every assignment covering the section's questions."""
+    from modules.esg_records.tracker_detail_service import ESCALATIONS, REMINDER_RULES
+    if escalation not in ESCALATIONS or any(r not in REMINDER_RULES for r in reminder_rules):
+        raise ValueError("Invalid reminder or escalation option")
+    _, items = await tracking_service.get_section_disclosures(
+        organization_id=org_id, domain=domain, framework_id=framework_id, section_id=section_id,
+        reporting_period=reporting_period, filters=TrackingFilter())
+    assignment_ids = list({i.assignment_id for i in items if i.assignment_id})
+    if not assignment_ids:
+        return 0
+    result = await db.esg_assignments.update_many(
+        {"organization_id": org_id, "id": {"$in": assignment_ids}},
+        {"$set": {"reminder_rules": [r for r in REMINDER_RULES if r in reminder_rules], "escalation": escalation,
+                  "updated_at": datetime.now(timezone.utc)}})
+    return result.matched_count

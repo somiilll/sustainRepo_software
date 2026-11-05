@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ActivityTab, Empty, fmt } from './TrackerDetailPanel';
+import { ActivityTab, Empty, fmt, NotificationSettings } from './TrackerDetailPanel';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -42,8 +42,9 @@ const QuestionsTab = ({ items }) => (
   </ul>
 );
 
-const AssignmentTab = ({ a }) => (
-  <div className="grid gap-6 pt-4 md:grid-cols-3" data-testid="section-panel-assignment">
+const AssignmentTab = ({ a, saveUrl, saveParams }) => (
+  <div data-testid="section-panel-assignment">
+  <div className="grid gap-6 pt-4 md:grid-cols-3">
     <div>
       <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Data entry</h5>
       <ul className="space-y-2">{a.assignees.length ? a.assignees.map(person) : <Empty>No assignees</Empty>}</ul>
@@ -66,6 +67,8 @@ const AssignmentTab = ({ a }) => (
       <p>{a.assigned_questions} of {a.total_questions} questions assigned</p>
       {a.due_date && <p>Due {fmt(a.due_date)}</p>}
     </div>
+  </div>
+  {a.assigned_questions > 0 && <NotificationSettings a={a} canEdit saveUrl={saveUrl} saveParams={saveParams} />}
   </div>
 );
 
@@ -100,7 +103,8 @@ export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, 
         ))}
       </div>
       {tab === 'questions' && <QuestionsTab items={data.questions} />}
-      {tab === 'assignment' && <AssignmentTab a={data.assignment} />}
+      {tab === 'assignment' && <AssignmentTab a={data.assignment} saveParams={{ reporting_period: reportingPeriod }}
+        saveUrl={`${API}/api/tracking/${domain}/frameworks/${frameworkId}/sections/${encodeURIComponent(sectionId)}/notifications`} />}
       {tab === 'activity' && <ActivityTab items={data.activity} />}
     </div>
   );

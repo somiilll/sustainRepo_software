@@ -107,7 +107,7 @@ const ESCALATIONS = [
   { id: 'none', label: "Don't notify" },
 ];
 
-function NotificationSettings({ a, ctx, canEdit }) {
+export function NotificationSettings({ a, ctx, canEdit, saveUrl, saveParams }) {
   const { token } = useAuth();
   const [rules, setRules] = useState(a.reminder_rules);
   const [esc, setEsc] = useState(a.escalation);
@@ -117,7 +117,7 @@ function NotificationSettings({ a, ctx, canEdit }) {
   const save = async () => {
     setSaving(true);
     try {
-      await axios.put(`${API}/api/esg-records/tracker-detail/notifications`, { ...ctx, reminder_rules: rules, escalation: esc }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(saveUrl || `${API}/api/esg-records/tracker-detail/notifications`, saveUrl ? { reminder_rules: rules, escalation: esc } : { ...ctx, reminder_rules: rules, escalation: esc }, { headers: { Authorization: `Bearer ${token}` }, params: saveParams });
       a.reminder_rules = rules; a.escalation = esc;
       toast.success('Reminder settings saved');
     } catch (e) { toast.error(e.response?.data?.detail || 'Could not save settings'); }
@@ -138,7 +138,7 @@ function NotificationSettings({ a, ctx, canEdit }) {
         <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Escalation</h5>
         <div className="space-y-2">{ESCALATIONS.map((r) => (
           <label key={r.id} className="flex items-center gap-2 text-sm text-stone-800">
-            <input type="radio" name="tracker-escalation" className={box} disabled={!canEdit} checked={esc === r.id} onChange={() => setEsc(r.id)} data-testid={`escalation-${r.id}`} />{r.label}
+            <input type="radio" name={`tracker-escalation-${saveUrl || "kpi"}`} className={box} disabled={!canEdit} checked={esc === r.id} onChange={() => setEsc(r.id)} data-testid={`escalation-${r.id}`} />{r.label}
           </label>))}
         </div>
       </div>

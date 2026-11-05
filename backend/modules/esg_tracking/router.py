@@ -6,7 +6,8 @@ completion monitoring, and disclosure ownership management.
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
 
@@ -116,6 +117,33 @@ async def get_section_detail_panel(
     """Questions, assignment/approvers and activity for the section's expandable panel. Admin only."""
     from .section_detail_service import get_section_detail
     return await get_section_detail(current_user["organization_id"], domain, framework_id, section_id, reporting_period)
+
+
+class SectionNotificationSettings(BaseModel):
+    reminder_rules: List[str] = []
+    escalation: str = "none"
+
+
+@router.put("/{domain}/frameworks/{framework_id}/sections/{section_id}/notifications")
+async def save_section_notifications(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    body: SectionNotificationSettings,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Save reminder and escalation settings for every assigned question in a section. Admin only."""
+    from .section_detail_service import save_section_notification_settings
+    try:
+        matched = await save_section_notification_settings(
+            current_user["organization_id"], domain, framework_id, section_id, reporting_period,
+            body.reminder_rules, body.escalation)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not matched:
+        raise HTTPException(status_code=404, detail="No assigned questions in this section")
+    return {"success": True}
 
 
 @router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}")
