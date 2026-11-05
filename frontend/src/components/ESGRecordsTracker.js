@@ -162,6 +162,7 @@ export default function ESGRecordsTracker({
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [categories, setCategories] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [users, setUsers] = useState([]);
@@ -432,11 +433,18 @@ export default function ESGRecordsTracker({
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setRefreshTick((tick) => tick + 1);
     }
   }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories]);
 
   useEffect(() => {
     fetchTrackerData();
+  }, [fetchTrackerData]);
+
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchTrackerData(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [fetchTrackerData]);
 
   // Toggle category expansion
@@ -1646,7 +1654,7 @@ export default function ESGRecordsTracker({
                               section={section}
                               category={cat.category}
                               subcategory={subcat.subcategory}
-                              version={effectiveAssignment?.updated_at}
+                              version={`${effectiveAssignment?.updated_at}:${refreshTick}`}
                               onEditAssignment={isUserAdmin ? () => openAssignModal({
                                 category: cat.category,
                                 subcategory: subcat.subcategory,

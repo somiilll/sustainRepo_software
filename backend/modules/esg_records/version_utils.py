@@ -23,7 +23,8 @@ def compare_versions(previous: Dict[str, Any], current: Dict[str, Any], prefix: 
     # Skip internal/metadata fields
     skip_keys = {"_id", "id", "created_at", "updated_at", "created_by", "updated_by", "version", "is_current",
                  "pending_deletion", "deletion_requested_by", "deletion_requested_at",
-                 "deletion_rejected_by", "deletion_rejected_at", "deletion_rejection_reason"}
+                 "deletion_rejected_by", "deletion_rejected_at", "deletion_rejection_reason",
+                 "log_creator_level", "log_acted_max", "log_request_id"}
     
     for key in all_keys:
         if key in skip_keys:

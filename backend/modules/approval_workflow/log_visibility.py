@@ -80,6 +80,14 @@ async def viewer_scopes(org_id: str, user_id: str) -> List[Tuple[int, Dict[str, 
     return [(normalize_chain(d).index(user_id) + 1, _scope_clause(d)) for d in docs if user_id in normalize_chain(d)]
 
 
+async def stamp_direct_create(collection: str, record: Dict[str, Any], user_id: str) -> None:
+    """A record saved straight by an approver (no request): visible only to that approver level and above."""
+    levels = [level for level, scope in await viewer_scopes(record.get("organization_id"), user_id)
+              if all(record.get(key) == value for key, value in scope.items())]
+    if levels:
+        await stamp_on_create(collection, record["id"], max(levels), None, max(levels))
+
+
 async def log_visibility_clause(current_user: Dict[str, Any]) -> Dict[str, Any]:
     """Mongo clause limiting a log/list query to the records this user may see ({} for admins).
 

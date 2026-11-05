@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.logging import get_logger, log_event
 from audit_logger import AuditAction, AuditModule, get_audit_logger
 from calc_engine.versioning import CalculationVersionError, apply_record_version_binding
+from modules.approval_workflow.log_visibility import stamp_direct_create
 from modules.approval_workflow.proposal_service import sync_emission_request_history
 from modules.emissions.approval_service import (
     build_emission_inputs,
@@ -623,6 +624,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     # The record is final and reportable, but no approval event occurred.
     record_dict["approval_status"] = "not_required"
     await db.emission_records.insert_one(record_dict)
+    await stamp_direct_create("emission_records", record_dict, current_user["id"])
     log_event(logger, logging.INFO, "ghg.emission.create.persisted", action="ghg.emission.create", outcome="succeeded",
               context={"record_id": record_dict.get("id"), "scope": record_data.scope, "facility_id": record_data.facility_id})
     await _sync_derived_energy(record_dict, "ghg.emission.create")

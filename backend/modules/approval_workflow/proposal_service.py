@@ -785,6 +785,15 @@ class ProposalService:
             before_values, after_values = current_snapshot.get("field_values") or {}, new_snapshot.get("field_values") or {}
             field_diffs = [{"field": k, "old_value": before_values.get(k), "new_value": after_values.get(k)}
                            for k in after_values if after_values.get(k) != before_values.get(k)]
+        if entity_type == "esg_record":
+            def _file_names(files):
+                return ", ".join(f.get("filename") or f.get("name") or "File" for f in files or []) or None
+            for key, label in (("notes", "Notes"), ("source_of_information", "Source of Information"), ("evidence_files", "Evidence")):
+                before_value, after_value = current_snapshot.get(key), new_snapshot.get(key)
+                if (before_value or None) != (after_value or None):
+                    if key == "evidence_files":
+                        before_value, after_value = _file_names(before_value), _file_names(after_value)
+                    field_diffs.append({"field": key, "display_name": label, "old_value": before_value, "new_value": after_value})
         update_op: Dict[str, Any] = {"$set": update_data}
         if changed_fields:
             edit_entry = {
