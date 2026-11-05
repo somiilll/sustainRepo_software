@@ -960,6 +960,9 @@ class ApprovalWorkflowService:
                 chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (assignment or {}).get("approval_chain") or []]
                 chain = [c for c in chain if c]
                 next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
+            elif request.get("request_type") == "delete" and request.get("approval_chain"):
+                chain = [c for c in request["approval_chain"] if c]
+                next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
             elif next_level_config:
                 next_approvers = await ApprovalWorkflowService._resolve_approvers(
                     request.get("organization_id"),
@@ -1220,6 +1223,26 @@ class ApprovalWorkflowService:
                     import traceback
                     traceback.print_exc()
             
+            elif entity_type == "emission_record" and request_type == "delete":
+                try:
+                    from modules.approvals.emission_flow_v2 import approve_request as approve_pending_emission, find_pending_by_original_id
+                    pending = await find_pending_by_original_id(entity_id)
+                    existing = await db.emission_records.find_one({"id": entity_id}, {"_id": 0})
+                    if pending:
+                        ok, message = await approve_pending_emission(pending["id"], approver)
+                        if not ok:
+                            logger.error(f"GHG delete approval failed for {entity_id}: {message}")
+                    elif existing:
+                        await db.emission_records.delete_one({"id": entity_id})
+                    if existing:
+                        from modules.esg_records.ghg_energy_sync import get_ghg_energy_sync_service
+                        from modules.base_year.sync_service import sync_deleted_emission_base_years
+                        if (existing.get("scope") or "").lower() in {"scope1", "scope2"}:
+                            await get_ghg_energy_sync_service(db).sync_organization(existing.get("organization_id"))
+                        await sync_deleted_emission_base_years(existing, approver)
+                except Exception as e:
+                    logger.error(f"Failed to apply GHG delete approval: {e}")
+
             # Handle emission_record approval
             elif entity_type == "emission_record":
                 try:
@@ -1688,6 +1711,14 @@ class ApprovalWorkflowService:
                 else:
                     logger.warning(f"Unknown entity_subtype for esg_record: {entity_subtype}")
             
+            elif entity_type == "emission_record" and request_type == "delete":
+                from modules.approvals.emission_flow_v2 import reject_request as reject_pending_emission, find_pending_by_original_id
+                pending = await find_pending_by_original_id(entity_id)
+                if pending:
+                    await reject_pending_emission(pending["id"], rejector, comment)
+                else:
+                    await db.emission_records.update_one({"id": entity_id}, {"$set": {"approval_status": "approved", "updated_at": _now_iso()}})
+
             elif entity_type == "emission_record":
                 # GHG emission records
                 request_type = request.get("request_type", "create")

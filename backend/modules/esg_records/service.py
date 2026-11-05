@@ -2056,6 +2056,7 @@ class ESGRecordsService:
             "current_level": 1,
             "current_approvers": current_approvers,
             "total_levels": total_levels,
+            "approval_chain": [c if isinstance(c, str) else (c or {}).get("approver_id") for c in approval_chain] or [approver_id],
             
             "steps_completed": [],
             "created_at": now,

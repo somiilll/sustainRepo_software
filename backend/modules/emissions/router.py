@@ -2122,6 +2122,44 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
     return [EmissionHistoryResponse(**h) for h in history]
 
 
+async def _create_emission_delete_approval_request(existing: dict, current_user: dict) -> None:
+    """Route a queued GHG delete to the assignment's approvers (L1 first) so it appears in their queue."""
+    try:
+        assignment = await _find_emission_assignment(
+            org_id=existing.get("organization_id"), user_id=current_user["id"],
+            scope=existing.get("scope"), facility_id=existing.get("facility_id"))
+    except Exception:
+        return
+    if not assignment_requires_approval(assignment):
+        return
+    chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
+    chain = [c for c in chain if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+    if not chain:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    await db.approval_requests.insert_one({
+        "id": str(uuid.uuid4()),
+        "organization_id": existing.get("organization_id"),
+        "workflow_id": f"assignment_{assignment.get('id')}",
+        "workflow_name": f"Emission Delete Approval - {existing.get('scope')} - {existing.get('category')}",
+        "entity_type": "emission_record",
+        "entity_id": existing.get("id"),
+        "entity_subtype": existing.get("scope"),
+        "entity_snapshot": {
+            "scope": existing.get("scope"), "category": existing.get("category"), "facility_id": existing.get("facility_id"),
+            "reporting_period": existing.get("reporting_period"), "total_emissions": existing.get("total_emissions"),
+        },
+        "request_type": "delete",
+        "submitted_by": current_user["id"],
+        "submitted_by_email": current_user.get("email", ""),
+        "submitted_by_name": current_user.get("full_name", ""),
+        "submitted_at": now,
+        "submission_comment": "Deletion requested",
+        "status": "pending", "current_level": 1, "current_approvers": [chain[0]], "total_levels": len(chain), "approval_chain": chain,
+        "steps_completed": [], "created_at": now, "updated_at": now,
+    })
+
+
 @router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
     log_event(logger, logging.INFO, "ghg.emission.delete.started", action="ghg.emission.delete", outcome="started", context={"record_id": record_id})
@@ -2157,6 +2195,7 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     if delete_action == "block":
         raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
     if delete_action == "queue":
+        await _create_emission_delete_approval_request(existing, current_user)
         log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
         return {"message": "Delete request submitted for approval"}
 
