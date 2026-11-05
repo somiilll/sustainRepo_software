@@ -4093,14 +4093,13 @@ export default function Emissions({ organizationGhgOverrides = null }) {
       </Tabs>
 
       {/* Version History Dialog - With field-level changes */}
-      {!isRegularUser && (
-        <EmissionHistoryDialog
-          open={historyDialogOpen}
-          onOpenChange={setHistoryDialogOpen}
-          history={selectedEmissionHistory}
-          facilities={facilities}
-        />
-      )}
+      <EmissionHistoryDialog
+        open={historyDialogOpen}
+        onOpenChange={setHistoryDialogOpen}
+        history={selectedEmissionHistory}
+        facilities={facilities}
+      />
+
       
       {/* Unsaved Changes Confirmation Dialog (#19) */}
       <AlertDialog open={showUnsavedChangesDialog} onOpenChange={setShowUnsavedChangesDialog}>

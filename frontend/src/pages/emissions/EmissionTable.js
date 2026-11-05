@@ -278,11 +278,11 @@ const EmissionTable = ({
           >
             <Edit className="w-3.5 h-3.5 text-stone-600" />
           </Button>
-          {!isRegularUser && !hideHistoryActions && (
+          {!hideHistoryActions && (
             <Button
               size="sm"
               variant="ghost"
-              onClick={(e) => { e.stopPropagation(); fetchHistory(emission.id); }}
+              onClick={(e) => { e.stopPropagation(); fetchHistory(emission); }}
               title="History"
               className="h-7 w-7 p-0"
               data-testid={`history-emission-${emission.id}`}

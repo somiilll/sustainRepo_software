@@ -208,7 +208,7 @@ const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, locke
     <DropdownMenuContent align="end" className="bg-white opacity-100" data-testid={`emission-actions-menu-content-${emission.id}`}>
       {locked && <DropdownMenuItem disabled data-testid={`emission-period-locked-${emission.id}`}><Lock className="mr-2 h-4 w-4" />Submitted period locked</DropdownMenuItem>}
       <DropdownMenuItem disabled={locked} onSelect={(event) => { if (locked) return; event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-      {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
+      {!hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
       <DropdownMenuItem disabled={locked} className="text-red-700 focus:text-red-700" onSelect={(event) => { if (locked) return; event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
