@@ -24,6 +24,7 @@ from modules.emissions.approval_service import (
     build_emission_inputs,
     create_emission_approval_request,
     create_emission_update_approval_request,
+    edit_pending_create_as_approver,
     find_emission_assignment,
     ghg_approver_mode,
     request_emission_delete,
@@ -845,6 +846,12 @@ async def update_emission_record(
         approver_mode, approver_assignment = await ghg_approver_mode(org_id, user_id, existing.get("facility_id"))
 
     # Non-admin users go through approval workflow if enabled and assignment requires it
+    if approval_enabled and not is_admin and isinstance(approver_mode, int) \
+            and await edit_pending_create_as_approver(existing, versioned_record_data, user_id, approver_mode - 1):
+        existing["is_my_pending_proposal"] = True
+        existing["approval_status"] = "pending_approval"
+        return EmissionRecordResponse(**existing)
+
     if approval_enabled and not is_admin and approver_mode != DIRECT:
         # Check if THIS USER already has a pending approval request for this record
         # (Multi-proposal: each user can have their own pending edit)

@@ -661,6 +661,7 @@ class ProposalService:
         proposal_id: str,
         approver_id: str,
         modified_data: Dict[str, Any],
+        level: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Approver edits a proposal before approving.
@@ -787,7 +788,7 @@ class ProposalService:
         update_op: Dict[str, Any] = {"$set": update_data}
         if changed_fields:
             edit_entry = {
-                "level": proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
+                "level": level or proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
                 "at": now, "fields": changed_fields, "field_diffs": field_diffs,
             }
             if entity_type == "emission_record":
@@ -925,6 +926,22 @@ class ProposalService:
         await sync_emission_request_history(proposal["id"])
         return {"success": True, "proposal_id": proposal["id"], "advanced_to_level": level + 1, "auto_rejected_count": 0}
     
+    async def _record_auto_rejection(self, rejected_id: str, record_id: str, approved_id: str, now: str) -> None:
+        """Log in the version history that a pending edit was discarded because another request was approved first."""
+        rejected = await db.approval_requests.find_one({"id": rejected_id}, {"_id": 0, "entity_type": 1, "request_type": 1})
+        record = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+        if not record or not rejected or rejected.get("entity_type") != "emission_record" or rejected.get("request_type") == "delete":
+            return
+        reason = "This record was approved before this edit was reviewed"
+        await upsert_emission_history([{
+            "id": str(uuid.uuid4()), "emission_id": record_id, "facility_id": record.get("facility_id"),
+            "organization_id": record.get("organization_id"), "scope": record.get("scope"), "category": record.get("category"),
+            "changed_by": "system", "changed_by_email": "", "changed_by_name": "System", "changed_at": now,
+            "version": record.get("version") or 1, "field_changes": [], "changes_summary": "Update rejected automatically",
+            "changes": {"action": "rejected", "request_type": rejected.get("request_type"), "proposal_id": rejected_id,
+                        "event_key": "auto_rejected", "rejection_reason": reason, "superseded_by": approved_id},
+        }])
+
     async def _apply_rejected_create(self, record, proposal, approver_id, approver_name, reason, now) -> None:
         """A rejected new entry keeps the values last saved by a lower-level approver and is marked rejected."""
         edits = sorted([e for e in proposal.get("approver_edits") or [] if e.get("after")], key=lambda e: str(e.get("at")))
@@ -1055,6 +1072,8 @@ class ProposalService:
                 }}
             )
             
+            await self._record_auto_rejection(other["id"], record_id, proposal_id, now)
+
             # Notify user their proposal was auto-rejected
             try:
                 from shared.notifications import create_notification

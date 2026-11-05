@@ -804,3 +804,26 @@ async def request_emission_delete(
         "changes": {"action": "requested", "request_type": "delete"},
     })
     return True
+
+
+async def edit_pending_create_as_approver(existing: dict, updated_data: dict, user_id: str, approver_level: int) -> bool:
+    """An approver editing an entry still awaiting approval revises that request instead of opening a competing update."""
+    from modules.approval_workflow.proposal_service import ProposalService, proposal_service
+    request = await db.approval_requests.find_one(
+        {"entity_id": existing.get("id"), "entity_type": "emission_record", "request_type": "create",
+         "status": {"$in": ["pending", "in_review"]}}, {"_id": 0, "id": 1})
+    if not request:
+        return False
+    field_values = {}
+    for key, value in (updated_data.get("dynamic_field_values") or {}).items():
+        if not isinstance(value, dict):
+            continue
+        field_values[key] = value.get("value")
+        if value.get("unit") is not None:
+            field_values[f"{key}_unit"] = value["unit"]
+        if "is_override" in value:
+            field_values[f"override_{key}"] = bool(value["is_override"])
+            field_values[f"{key}_justification"] = value.get("justification") or ""
+    modified = {key: updated_data[key] for key in ProposalService.EMISSION_DETAIL_FIELDS if key in updated_data}
+    modified["field_values"] = field_values
+    return bool(await proposal_service.approver_edit_proposal(request["id"], user_id, modified, level=approver_level))
