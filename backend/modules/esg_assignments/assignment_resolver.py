@@ -107,10 +107,7 @@ class AssignmentResolver:
         
         # Handle facility level matching
         if record_level == "facility" and facility_id:
-            base_query["$or"] = [
-                {"facility_id": facility_id},  # Exact facility match
-                {"assignment_level": "organization"},  # Org-level can cover any facility
-            ]
+            base_query["facility_id"] = facility_id  # Organization-level assignments never cover facility data
         elif record_level == "organization":
             base_query["assignment_level"] = "organization"
         

@@ -857,6 +857,14 @@ async def update_record(
         is_admin_override = mode == "direct"
         start_level = mode if isinstance(mode, int) else 1
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
+    if not is_admin_override and start_level == 1 and existing.get("facility_id"):
+        from modules.esg_assignments.assignment_resolver import assignment_resolver
+        facility_assignment = await assignment_resolver.resolve(
+            organization_id=org_id, user_id=user_id, category=existing.get("category"),
+            subcategory=existing.get("subcategory"), sub_subcategory=existing.get("sub_subcategory"),
+            facility_id=existing.get("facility_id"), record_level="facility", include_approval_info=False)
+        if not facility_assignment:
+            raise HTTPException(status_code=403, detail="You are not assigned to this facility for this category, so you cannot edit its data")
     
     updated = await esg_records_service.update_record(
         section=section,
