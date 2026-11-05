@@ -8,7 +8,7 @@ An approver at level v sees an assignee's record once level v has acted; an appr
 visible only to that approver and the levels above, once they have acted. Admins and the creator see everything.
 Records without these fields (older data, direct saves by assignees) stay visible to everyone with access.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from shared.database.mongo import db
 
@@ -53,27 +53,51 @@ async def refresh_for_request(request_id: str) -> None:
             return
 
 
-async def viewer_levels(org_id: str, user_id: str) -> List[int]:
-    """Distinct chain positions (1-based) the user holds across the organization's assignments."""
+def _scope_clause(assignment: Dict[str, Any]) -> Dict[str, Any]:
+    """Records an assignment covers: its category tree (or GHG scope) and, for facility assignments, its facility."""
+    clause: Dict[str, Any] = {}
+    if assignment.get("category") == "GHG Emissions":
+        sub = (assignment.get("subcategory") or "").lower()
+        scope = next((name for name in ("scope1", "scope2", "scope3", "biogenic")
+                      if name in sub.replace(" ", "") or (name == "biogenic" and "biogenic" in sub)), None)
+        if scope:
+            clause["scope"] = scope
+    else:
+        for field in ("category", "subcategory", "sub_subcategory"):
+            if assignment.get(field):
+                clause[field] = assignment[field]
+    if assignment.get("facility_id") and assignment.get("assignment_level") != "organization":
+        clause["facility_id"] = assignment["facility_id"]
+    return clause
+
+
+async def viewer_scopes(org_id: str, user_id: str) -> List[Tuple[int, Dict[str, Any]]]:
+    """(chain level 1-based, records covered) for each assignment where the user is an approver."""
     docs = await db.esg_assignments.find(
         {"organization_id": org_id, "entity_type": "record_category", "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
-        {"_id": 0, "approval_chain": 1, "approver_id": 1}).to_list(500)
-    return sorted({normalize_chain(d).index(user_id) + 1 for d in docs if user_id in normalize_chain(d)})
+        {"_id": 0, "approval_chain": 1, "approver_id": 1, "category": 1, "subcategory": 1, "sub_subcategory": 1,
+         "facility_id": 1, "assignment_level": 1}).to_list(500)
+    return [(normalize_chain(d).index(user_id) + 1, _scope_clause(d)) for d in docs if user_id in normalize_chain(d)]
 
 
 async def log_visibility_clause(current_user: Dict[str, Any]) -> Dict[str, Any]:
-    """Mongo clause limiting a log/list query to the records this user may see ({} for admins)."""
+    """Mongo clause limiting a log/list query to the records this user may see ({} for admins).
+
+    A user's level only applies to records of the assignments where they approve; elsewhere they are an assignee.
+    """
     if current_user.get("role") in ("admin", "super_admin", "org_admin"):
         return {}
     me = current_user["id"]
-    levels = await viewer_levels(current_user.get("organization_id"), me)
+    scopes = await viewer_scopes(current_user.get("organization_id"), me)
     options: List[Dict[str, Any]] = [{"log_creator_level": {"$exists": False}}, {"created_by": me}]
-    if not levels:
-        options.append({"log_creator_level": 0})
-    for level in levels:
+    outside_approver_scopes: Dict[str, Any] = {"log_creator_level": 0}
+    if scopes:
+        outside_approver_scopes["$nor"] = [scope for _, scope in scopes]
+    options.append(outside_approver_scopes)
+    for level, scope in scopes:
         options += [
-            {"log_creator_level": 0, "log_acted_max": {"$gte": level}},
-            {"log_creator_level": level},
-            {"log_creator_level": {"$gte": 1, "$lt": level}, "log_acted_max": {"$gte": level}},
+            {**scope, "log_creator_level": 0, "log_acted_max": {"$gte": level}},
+            {**scope, "log_creator_level": level},
+            {**scope, "log_creator_level": {"$gte": 1, "$lt": level}, "log_acted_max": {"$gte": level}},
         ]
     return {"$or": options}
