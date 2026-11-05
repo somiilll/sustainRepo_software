@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from .approver_chain import normalize_chain
+from .log_visibility import refresh_for_request
 from fastapi import HTTPException
 
 from shared.database.mongo import db
@@ -932,7 +933,17 @@ class ProposalService:
         await db.emission_records.update_one({"id": record["id"]}, {"$set": update, "$push": {"version_history": {
             "action": "rejected", "rejection_reason": reason, "rejected_by": approver_id, "rejected_by_name": approver_name, "timestamp": now}}})
 
-    async def approve_proposal(
+    async def approve_proposal(self, proposal_id: str, approver_id: str, approval_comment: Optional[str] = None) -> Dict[str, Any]:
+        result = await self._approve_proposal(proposal_id, approver_id, approval_comment)
+        await refresh_for_request(proposal_id)
+        return result
+
+    async def reject_proposal(self, proposal_id: str, approver_id: str, rejection_reason: str) -> Dict[str, Any]:
+        result = await self._reject_proposal(proposal_id, approver_id, rejection_reason)
+        await refresh_for_request(proposal_id)
+        return result
+
+    async def _approve_proposal(
         self,
         proposal_id: str,
         approver_id: str,
@@ -1089,7 +1100,7 @@ class ProposalService:
             "auto_rejected_count": len(other_proposals),
         }
     
-    async def reject_proposal(
+    async def _reject_proposal(
         self,
         proposal_id: str,
         approver_id: str,
