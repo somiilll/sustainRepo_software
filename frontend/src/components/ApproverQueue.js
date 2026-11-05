@@ -849,6 +849,8 @@ export default function ApproverQueue() {
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
+                showQuestion={!selectedQuestion?.disclosure_name}
+
               />
             ) : (selectedQuestion.entity_type === 'esg_response' || selectedQuestion.entity_type === 'esg_response_submission') ? (
               <GRIApprovalPanel
@@ -1924,7 +1926,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
  * BRSRApprovalPanel - Review panel for BRSR response approvals (esg_response entity type)
  * Uses the existing QuestionRenderer from ESGQuestionnaire for consistent rendering
  */
-function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader, showQuestion = true }) {
   const { timezone } = useOrganization();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
@@ -2043,6 +2045,10 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       />;
     }
     
+    if (questionType === 'principle_text' || (value && typeof value === 'object' && 'all_text' in value)) {
+      return <PrincipleTextDisplay value={value} onChange={isEditing ? setEditedValue : undefined} isEditing={isEditing} />;
+    }
+
     // Handle principle_toggle type (NGRBC principles)
     if (questionType === 'principle_toggle' || questionType === 'principle_toggle_with_description' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
       return <PrincipleToggleDisplay 
@@ -2111,7 +2117,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
 
   return (
     <div className="space-y-5">
-      {/* Question Text */}
+      {showQuestion && (
       <Card className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100">
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-800">BRSR</Badge>
@@ -2127,6 +2133,8 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </p>
         )}
       </Card>
+      )}
+
 
       {/* Submitter Info */}
       <div className="flex items-center gap-6 text-sm px-1">
@@ -2541,6 +2549,72 @@ const NGRBC_PRINCIPLES = [
   { key: "P8", name: "Inclusive Growth" },
   { key: "P9", name: "Customer Value" },
 ];
+
+// Principle Text Display/Edit component (NGRBC text answers: all_together vs principle_wise)
+function PrincipleTextDisplay({ value, onChange, isEditing }) {
+  const data = value || { mode: 'all_together', all_text: '', principles: {} };
+  const setPrinciple = (key, text) => onChange?.({ ...data, principles: { ...data.principles, [key]: text } });
+
+  if (!isEditing) {
+    return (
+      <div className="space-y-3">
+        <Badge variant="outline" className="mb-2">
+          Mode: {data.mode === 'all_together' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {data.mode === 'all_together' ? (
+          <div className="bg-stone-50 p-3 rounded">
+            <p className="text-sm whitespace-pre-wrap" data-testid="queue-principle-text-all">{data.all_text || '-'}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map((p) => (
+              <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                <strong>{p.key} - {p.name}:</strong> {data.principles?.[p.key] || '-'}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <label className="text-sm font-medium">Mode:</label>
+        <select
+          value={data.mode || 'all_together'}
+          onChange={(e) => onChange?.({ ...data, mode: e.target.value })}
+          className="px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all_together">Fill All Principles Together</option>
+          <option value="principle_wise">Fill Principle-wise Separately</option>
+        </select>
+      </div>
+      {data.mode === 'all_together' ? (
+        <textarea
+          value={data.all_text || ''}
+          onChange={(e) => onChange?.({ ...data, all_text: e.target.value })}
+          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          data-testid="queue-principle-text-all-input"
+        />
+      ) : (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map((p) => (
+            <div key={p.key} className="bg-stone-50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-medium">{p.key} - {p.name}</p>
+              <textarea
+                value={data.principles?.[p.key] || ''}
+                onChange={(e) => setPrinciple(p.key, e.target.value)}
+                className="w-full min-h-[60px] px-3 py-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Principle Toggle Display/Edit component (handles NGRBC all_together vs principle_wise)
 function PrincipleToggleDisplay({ value, onChange, isEditing, config = {} }) {
