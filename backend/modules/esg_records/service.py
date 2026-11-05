@@ -222,6 +222,7 @@ class ESGRecordsService:
         # ACCESS CONTROL: Check if user has valid assignment
         assignment = None
         requires_approval = False
+        approver_start_level = 1
         
         if not skip_assignment_check:
             assignment = await self._validate_user_assignment(
@@ -233,6 +234,15 @@ class ESGRecordsService:
                 facility_id=data.facility_id,
                 record_level=data.record_level,
             )
+            by_approver = False
+            if not assignment and not allow_without_assignment and not is_admin:
+                from modules.esg_records.visibility import approver_edit_mode, non_final_approver_assignment
+                mode = await approver_edit_mode(org_id, user_id, data.category, data.subcategory)
+                if mode == "direct":
+                    allow_without_assignment, by_approver = True, True
+                elif isinstance(mode, int):
+                    assignment = await non_final_approver_assignment(org_id, user_id, data.category, data.subcategory)
+                    approver_start_level, by_approver = mode, bool(assignment)
             if not assignment and not allow_without_assignment:
                 # Get facility name if facility_id is provided
                 facility_name = None
@@ -253,7 +263,7 @@ class ESGRecordsService:
                 requires_approval = assignment_requires_approval(assignment)
             
             # PERIOD VALIDATION: Check if user has a task for this reporting period
-            if not allow_without_assignment and data.reporting_period:
+            if not allow_without_assignment and not by_approver and data.reporting_period:
                 period_valid = await self._validate_task_period(
                     org_id=org_id,
                     user_id=user_id,
@@ -388,6 +398,7 @@ class ESGRecordsService:
                 assignment=assignment,
                 user_id=user_id,
                 section=section,
+                start_level=approver_start_level,
             )
         
         # Remove MongoDB _id before returning
@@ -665,6 +676,7 @@ class ESGRecordsService:
         is_edit: bool = False,
         changes_summary: Optional[List[Dict[str, Any]]] = None,
         previous_snapshot: Optional[Dict[str, Any]] = None,
+        start_level: int = 1,
     ):
         """
         Create an approval request when a record is saved with requires_approval=True.
@@ -677,12 +689,12 @@ class ESGRecordsService:
             # Determine approvers - use approval_chain if available, otherwise single approver
             # Handle both formats: list of strings (user IDs) or list of objects with approver_id
             if approval_chain and len(approval_chain) > 0:
-                first_item = approval_chain[0]
+                start_item = approval_chain[min(start_level, len(approval_chain)) - 1]
                 # Check if it's a string (user ID directly) or object
-                if isinstance(first_item, str):
-                    current_approvers = [first_item]
+                if isinstance(start_item, str):
+                    current_approvers = [start_item]
                 else:
-                    current_approvers = [first_item.get("approver_id")] if first_item else []
+                    current_approvers = [start_item.get("approver_id")] if start_item else []
                 total_levels = len(approval_chain)
             elif approver_id:
                 current_approvers = [approver_id]
@@ -747,7 +759,7 @@ class ESGRecordsService:
                 
                 # Current state
                 "status": "pending",
-                "current_level": 1,
+                "current_level": min(start_level, total_levels),
                 "current_approvers": current_approvers,
                 "total_levels": total_levels,
                 

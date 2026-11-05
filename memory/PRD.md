@@ -954,3 +954,10 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - BRSR/GRI section rows: expandable panel (Questions / Assignment and approvers / Activity) via GET /api/tracking/{domain}/frameworks/{fw}/sections/{id}/detail.
 - BRSR/GRI multi-level approval: request total_levels from assignment chain; next level resolved from chain; section re-assign now updates approver chain of already-assigned questions.
 - NOT TESTED by testing agent (user asked not to test): section panel UI, multi-level BRSR approval flow, GHG activity in tracker UI.
+
+## Approval workflow session (Nov 2026) — NOT covered by testing agent
+- GHG: delete is now a single approval request (no pending_records copy); approver edit/delete/create (L1 -> next level, final approver direct); multi-level advance for emission_record; per-step history written idempotently (proposal_service.sync_emission_request_history).
+- KPI: approver can create data (L1 -> L2, final direct); delete requests carry approval_chain.
+- BRSR/GRI: approver first-answer already works (submits at next level).
+- Tracker activity shows assignment events only; reminders/escalation settings stored per section (sending not built); My Tasks filters; facility-level multi-approver chain.
+- Debt: chain/approver-position logic duplicated across KPI/GHG/BRSR; GHG routes hold business logic; legacy pending_records + approvals/router_v2 unused; no automated regression tests.

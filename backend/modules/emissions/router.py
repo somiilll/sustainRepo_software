@@ -649,6 +649,7 @@ async def _create_emission_approval_request(
     emission_record: dict,
     assignment: dict,
     user_id: str,
+    start_level: int = 1,
 ):
     """
     Create an approval request for an emission record.
@@ -662,12 +663,12 @@ async def _create_emission_approval_request(
     # Determine approvers
     # Handle both formats: list of strings (user IDs) or list of objects with approver_id
     if approval_chain and len(approval_chain) > 0:
-        first_item = approval_chain[0]
+        start_item = approval_chain[min(start_level, len(approval_chain)) - 1]
         # Check if it's a string (user ID directly) or object
-        if isinstance(first_item, str):
-            current_approvers = [first_item]
+        if isinstance(start_item, str):
+            current_approvers = [start_item]
         else:
-            current_approvers = [first_item.get("approver_id")] if first_item else []
+            current_approvers = [start_item.get("approver_id")] if start_item else []
         total_levels = len(approval_chain)
     elif approver_id:
         current_approvers = [approver_id]
@@ -757,7 +758,7 @@ async def _create_emission_approval_request(
         
         # Current state
         "status": "pending",
-        "current_level": 1,
+        "current_level": min(start_level, total_levels),
         "current_approvers": current_approvers,
         "total_levels": total_levels,
         
@@ -1307,6 +1308,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     requires_approval = False
     is_admin = user_role in ["admin", "super_admin"]
     assignment = None
+    approver_start_level = 1
     
     if not is_admin:
         try:
@@ -1318,6 +1320,11 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             )
             if assignment_requires_approval(assignment):
                 requires_approval = True
+            elif not assignment:
+                mode, approver_assignment = await _ghg_approver_mode(
+                    record_dict["organization_id"], current_user["id"], record_data.facility_id)
+                if isinstance(mode, int) and assignment_requires_approval(approver_assignment):
+                    assignment, requires_approval, approver_start_level = approver_assignment, True, mode
         except Exception:
             log_event(logger, logging.WARNING, "ghg.emission.assignment_check", action="ghg.emission.create", outcome="degraded",
                       error_code="ASSIGNMENT_CHECK_FAILED", context={"scope": record_data.scope}, exc_info=True)
@@ -1335,6 +1342,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
             emission_record=record_dict,
             assignment=assignment,
             user_id=current_user["id"],
+            start_level=approver_start_level,
         )
         log_event(logger, logging.INFO, "ghg.emission.approval_requested", action="ghg.emission.create", outcome="succeeded",
                   context={"record_id": record_dict.get("id")})
