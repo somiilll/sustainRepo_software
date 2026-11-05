@@ -22,7 +22,7 @@ from modules.approvals.emission_flow_v2 import (
     APPROVED_COLLECTION,
     PENDING_COLLECTION,
     find_record,
-    intercept_delete as approval_intercept_delete,
+    is_approval_enabled_for_org,
     fetch_emissions_for_user,
     STATUS_PENDING_UPDATE,
     STATUS_PENDING_DELETE,
@@ -1578,6 +1578,8 @@ async def update_emission_record(
             log_event(logger, logging.INFO, "ghg.emission.pending_approvals.cleared", action="ghg.emission.update", outcome="succeeded",
                       context={"record_id": record_id, "approval_count": deleted_result.deleted_count})
     
+    if existing.get("approval_status") == STATUS_PENDING_DELETE:
+        raise HTTPException(status_code=409, detail="This record has a pending deletion request and cannot be edited")
     approver_mode, approver_assignment = (None, None)
     if approval_enabled and not is_admin:
         approver_mode, approver_assignment = await _ghg_approver_mode(org_id, user_id, existing.get("facility_id"))
@@ -2122,12 +2124,12 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
     return [EmissionHistoryResponse(**h) for h in history]
 
 
-async def _create_emission_delete_approval_request(
+async def _request_emission_delete(
     existing: dict, current_user: dict, approver_assignment: Optional[dict] = None, start_level: int = 1,
-) -> None:
-    """Route a queued GHG delete to the assignment's approvers so it appears in their queue.
+) -> bool:
+    """Send a GHG delete through the assignment's approval chain; the record stays until it is approved.
 
-    An approver's own delete skips the levels up to theirs (start_level)."""
+    An approver's own delete skips the levels up to theirs (start_level). Returns False when no approval is needed."""
     assignment = approver_assignment
     if not assignment:
         try:
@@ -2135,25 +2137,29 @@ async def _create_emission_delete_approval_request(
                 org_id=existing.get("organization_id"), user_id=current_user["id"],
                 scope=existing.get("scope"), facility_id=existing.get("facility_id"))
         except Exception:
-            return
+            return False
     if not assignment_requires_approval(assignment):
-        return
+        return False
     chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
     chain = [c for c in chain if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
     if not chain:
-        return
+        return False
+    record_id = existing.get("id")
     now = datetime.now(timezone.utc).isoformat()
+    previous_status = existing.get("approval_status") or "approved"
+    level = min(start_level, len(chain))
     await db.approval_requests.insert_one({
         "id": str(uuid.uuid4()),
         "organization_id": existing.get("organization_id"),
         "workflow_id": f"assignment_{assignment.get('id')}",
         "workflow_name": f"Emission Delete Approval - {existing.get('scope')} - {existing.get('category')}",
         "entity_type": "emission_record",
-        "entity_id": existing.get("id"),
+        "entity_id": record_id,
         "entity_subtype": existing.get("scope"),
         "entity_snapshot": {
             "scope": existing.get("scope"), "category": existing.get("category"), "facility_id": existing.get("facility_id"),
             "reporting_period": existing.get("reporting_period"), "total_emissions": existing.get("total_emissions"),
+            "previous_approval_status": previous_status,
         },
         "request_type": "delete",
         "submitted_by": current_user["id"],
@@ -2161,10 +2167,21 @@ async def _create_emission_delete_approval_request(
         "submitted_by_name": current_user.get("full_name", ""),
         "submitted_at": now,
         "submission_comment": "Deletion requested",
-        "status": "pending", "current_level": min(start_level, len(chain)), "current_approvers": [chain[min(start_level, len(chain)) - 1]],
+        "status": "pending", "current_level": level, "current_approvers": [chain[level - 1]],
         "total_levels": len(chain), "approval_chain": chain,
         "steps_completed": [], "created_at": now, "updated_at": now,
     })
+    await db[APPROVED_COLLECTION].update_one({"id": record_id}, {"$set": {
+        "approval_status": STATUS_PENDING_DELETE, "previous_approval_status": previous_status}})
+    await db.emission_history.insert_one({
+        "id": str(uuid.uuid4()), "emission_id": record_id, "facility_id": existing.get("facility_id"),
+        "organization_id": existing.get("organization_id"), "scope": existing.get("scope"), "category": existing.get("category"),
+        "changed_by": current_user["id"], "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""), "changed_at": now,
+        "version": existing.get("version") or 1, "field_changes": [], "changes_summary": "Deletion Requested",
+        "changes": {"action": "requested", "request_type": "delete"},
+    })
+    return True
 
 
 @router.delete("/emissions/{record_id}")
@@ -2197,32 +2214,20 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error))
 
-    # Approval-workflow gate
-    approver_mode, approver_assignment = (None, None)
-    if current_user.get("role") not in ("admin", "super_admin"):
+    # Approval-workflow gate: non-admins' deletes of approved data go through the assignment's approvers
+    target_collection = source_collection
+    if current_user.get("role") not in ("admin", "super_admin") and source_collection == APPROVED_COLLECTION \
+            and await is_approval_enabled_for_org(existing.get("organization_id")):
+        status = existing.get("approval_status") or "approved"
+        if status not in ("approved", "not_required") and not status.startswith("rejected"):
+            raise HTTPException(status_code=403, detail="Cannot delete a record with pending approval")
         approver_mode, approver_assignment = await _ghg_approver_mode(
             existing.get("organization_id"), current_user["id"], existing.get("facility_id"))
-    if approver_mode == "direct":
-        delete_action, delete_payload = "apply", None
-    else:
-        delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)
-    if delete_action == "block":
-        raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
-    if delete_action == "queue":
-        await db.emission_history.insert_one({
-            "id": str(uuid.uuid4()), "emission_id": record_id, "facility_id": existing.get("facility_id"),
-            "organization_id": existing.get("organization_id"), "scope": existing.get("scope"), "category": existing.get("category"),
-            "changed_by": current_user["id"], "changed_by_email": current_user.get("email", ""),
-            "changed_by_name": current_user.get("full_name", ""), "changed_at": datetime.now(timezone.utc).isoformat(),
-            "version": existing.get("version") or 1, "field_changes": [], "changes_summary": "Deletion Requested",
-            "changes": {"action": "requested", "request_type": "delete"},
-        })
-        await _create_emission_delete_approval_request(
-            existing, current_user, approver_assignment, approver_mode if isinstance(approver_mode, int) else 1)
-        log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
-        return {"message": "Delete request submitted for approval"}
+        if status in ("approved", "not_required") and approver_mode != "direct" and await _request_emission_delete(
+                existing, current_user, approver_assignment, approver_mode if isinstance(approver_mode, int) else 1):
+            log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
+            return {"message": "Delete request submitted for approval"}
 
-    target_collection = (delete_payload or {}).get("target_collection", source_collection)
     try:
         await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), record_id)
     except Exception as error:
