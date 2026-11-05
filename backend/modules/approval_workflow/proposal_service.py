@@ -841,7 +841,7 @@ class ProposalService:
         approver_email = approver.get("email", "") if approver else ""
         approver_name = approver.get("full_name", "") if approver else ""
         
-        if entity_type == "esg_record" and (proposal.get("current_level") or 1) < (proposal.get("total_levels") or 1):
+        if entity_type in ("esg_record", "emission_record") and (proposal.get("current_level") or 1) < (proposal.get("total_levels") or 1):
             advanced = await self._advance_level(proposal, approver_id, approver_name, approver_email, approval_comment, now)
             if advanced:
                 return advanced
