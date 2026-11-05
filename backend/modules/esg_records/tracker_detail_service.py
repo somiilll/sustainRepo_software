@@ -116,44 +116,6 @@ async def _period_context(org_id: str, section: str, category: str, subcategory:
     return context
 
 
-GHG_VERBS = {"created": ("added", "submit"), "updated": ("edited", "update"), "approved": ("approved", "approve"),
-             "rejected": ("sent back", "reject"), "deleted": ("deleted", "update")}
-
-
-async def _ghg_activity(org_id: str, subcategory: str, facility_name: Dict[str, str]) -> List[Dict[str, Any]]:
-    """Add / edit / approve / delete events for GHG entries of the tracker row's scope."""
-    scope = "scope" + subcategory.rsplit("Scope", 1)[-1].strip() if "Scope" in subcategory else None
-    if not scope:
-        return []
-    rows = await db.emission_history.find({"organization_id": org_id, "scope": scope}, {"_id": 0}).sort("changed_at", -1).to_list(300)
-    records = await db.emission_records.find({"id": {"$in": list({r.get("emission_id") for r in rows})}},
-                                             {"_id": 0, "id": 1, "reporting_period": 1, "facility_id": 1}).to_list(300)
-    by_id = {r["id"]: r for r in records}
-    missing_facilities = {f for f in ({(by_id.get(r.get("emission_id")) or {}).get("facility_id") or r.get("facility_id") for r in rows}) if f and f not in facility_name}
-    if missing_facilities:
-        for f in await db.facilities.find({"id": {"$in": list(missing_facilities)}}, {"_id": 0, "id": 1, "name": 1}).to_list(200):
-            facility_name[f["id"]] = f.get("name") or "Facility"
-    events: List[Dict[str, Any]] = []
-    for row in rows:
-        changes = row.get("changes") or {}
-        action = changes.get("action") or "updated"
-        summary = row.get("changes_summary") or ""
-        if action not in GHG_VERBS or summary.startswith("0 field"):
-            continue
-        verb, kind = GHG_VERBS[action]
-        record = by_id.get(row.get("emission_id")) or {}
-        deleted = next((c.get("old_value") for c in row.get("field_changes") or [] if c.get("field") == "deleted"), None) or {}
-        period = record.get("reporting_period") or deleted.get("reporting_period") or row.get("reporting_month") or ""
-        facility = facility_name.get(record.get("facility_id") or row.get("facility_id") or deleted.get("facility_id"), "")
-        who = row.get("changed_by_name") or row.get("changed_by_email") or "Someone"
-        if summary == "Updated by approver":
-            verb = "edited as approver"
-        where = " ".join(x for x in (f"for {period}" if period else "", f"at {facility}" if facility else "") if x)
-        events.append({"at": _iso_utc(row.get("changed_at")), "kind": kind, "actor": who,
-                       "title": f"{who} {verb} {row.get('category') or 'entry'} {where}".strip()})
-    return events
-
-
 async def get_tracker_detail(org_id: str, section: str, category: str, subcategory: str) -> Dict[str, Any]:
     assignments = await db.esg_assignments.find(
         {"organization_id": org_id, "category": category, "subcategory": subcategory}, {"_id": 0}).to_list(200)
@@ -204,14 +166,10 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     approver_ids = [i for a in assignments for i in ([a.get("approver_id")] + [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (a.get("approval_chain") or [])]) if i]
     history = await db.esg_assignment_history.find(
         {"assignment_id": {"$in": [a["id"] for a in assignments]}}, {"_id": 0}).sort("created_at", -1).to_list(30)
-    requests = await db.approval_requests.find(
-        {"organization_id": org_id, "entity_type": "esg_record", "entity_snapshot.category": category,
-         "entity_snapshot.subcategory": subcategory}, {"_id": 0}).sort("submitted_at", -1).to_list(100)
     names = await _user_names([r["user_id"] for r in assignee_rows] + approver_ids + [p.get("submitted_by") for p in periods]
                               + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments]
                               + [i for h in history for i in (h.get("new_value") or {}).get("user_ids", [])]
                               + [i for h in history for i in (h.get("previous_value") or {}).get("user_ids", [])]
-                              + [r.get("submitted_by") for r in requests] + [r.get("resolved_by") for r in requests]
                               + [(v or {}).get("approver_id") for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict)])
 
     for p in periods:
@@ -228,21 +186,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         record_label[rec["id"]] = labels.get(key) or _key_label(key)
     rec_names = await _user_names([r.get("updated_by") or r.get("created_by") for r in section_records])
 
-    def actor_of(r: Dict[str, Any], key: str) -> str:
-        user_id = r.get("resolved_by" if key == "resolved_by_name" else "submitted_by")
-        last_step = (r.get("steps_completed") or [{}])[-1] if key == "resolved_by_name" else {}
-        return r.get(key) or names.get(user_id, {}).get("name") or last_step.get("actor_name") or "Someone"
-
     activity: List[Dict[str, Any]] = []
-    for r in requests:
-        label = record_label.get(r.get("entity_id"), "")
-        suffix = f" {label}" if label else " record"
-        activity.append({"at": _iso_utc(r.get("submitted_at")), "kind": "submit", "actor": actor_of(r, "submitted_by_name"),
-                         "title": f"{actor_of(r, 'submitted_by_name')} submitted{suffix} for approval"})
-        if r.get("status") in ("approved", "rejected") and r.get("resolved_at"):
-            verb = "approved" if r["status"] == "approved" else "sent back"
-            activity.append({"at": _iso_utc(r.get("resolved_at")), "kind": "approve" if r["status"] == "approved" else "reject",
-                             "actor": actor_of(r, "resolved_by_name"), "title": f"{actor_of(r, 'resolved_by_name')} {verb}{suffix}"})
     for a in assignments:
         creator = names.get(a.get("created_by_user_id"), {}).get("name", "Someone")
         created = _iso_utc(a.get("created_at")) or ""
@@ -278,8 +222,6 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         else:
             continue
         activity.append({"at": _iso_utc(h.get("created_at")), "kind": "update", "actor": who, "title": text})
-    if category == "GHG Emissions":
-        activity.extend(await _ghg_activity(org_id, subcategory, facility_name))
     activity.sort(key=lambda e: e["at"] or "", reverse=True)
 
     entries = [{

@@ -30,6 +30,10 @@ def _question_status(item: Any) -> str:
     return "overdue" if item.is_overdue else "pending"
 
 
+def _approvers_changed(previous: Dict[str, Any], new: Dict[str, Any]) -> bool:
+    return any(k in new and k in previous and new[k] != previous[k] for k in ("approver_id", "approval_chain"))
+
+
 def _chain(item: Any) -> List[str]:
     raw = item.approval_chain or ([item.approver_id] if item.approver_id else [])
     return [c if isinstance(c, str) else (c or {}).get("approver_id") for c in raw if c]
@@ -54,20 +58,11 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
         {"_id": 0, "user_id": 1, "assignment_id": 1, "assigned_at": 1}).to_list(2000)
     assignments = await db.esg_assignments.find({"id": {"$in": assignment_ids}}, {"_id": 0}).to_list(2000)
     history = await db.esg_assignment_history.find({"assignment_id": {"$in": assignment_ids}}, {"_id": 0}).sort("created_at", -1).to_list(200)
-    requests = await db.approval_requests.find(
-        {"organization_id": org_id, "entity_type": "esg_response", "entity_id": {"$in": keys},
-         "entity_snapshot.reporting_year": reporting_period}, {"_id": 0}).sort("submitted_at", -1).to_list(300)
-    responses = await db.organization_esg_responses.find(
-        {"org_id": org_id, "reporting_year": reporting_period, "question_key": {"$in": keys}},
-        {"_id": 0, "question_key": 1, "updated_by": 1, "updated_by_name": 1, "updated_at": 1, "approval_status": 1, "status": 1, "kpi_autofill_updated_at": 1}).to_list(1000)
-
     chains = [_chain(i) for i in items if i.requires_approval]
     levels = max((len(c) for c in chains), default=0)
     level_ids = [[c[n] for c in chains if len(c) > n] for n in range(levels)]
     names = await _names([r["user_id"] for r in assignee_rows] + [u for lvl in level_ids for u in lvl]
-                         + [r.get("submitted_by") for r in requests] + [r.get("resolved_by") for r in requests]
                          + [a.get("created_by_user_id") for a in assignments] + [h.get("changed_by_user_id") for h in history]
-                         + [r.get("updated_by") for r in responses]
                          + [i for h in history for i in ((h.get("new_value") or {}).get("user_ids") or []) + ((h.get("previous_value") or {}).get("user_ids") or [])])
     person = lambda uid: names.get(uid, {"id": uid, "name": "User", "email": ""})
     who = lambda uid, fallback="Someone": names.get(uid, {}).get("name") or fallback
@@ -96,23 +91,6 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
     }
 
     activity: List[Dict[str, Any]] = []
-    for r in requests:
-        q = label.get(r.get("entity_id"), r.get("entity_id"))
-        submitter = r.get("submitted_by_name") or who(r.get("submitted_by"))
-        activity.append({"at": _iso(r.get("submitted_at")), "kind": "submit", "actor": submitter, "title": f"{submitter} submitted \"{q}\" for approval"})
-        if r.get("status") in ("approved", "rejected") and r.get("resolved_at"):
-            actor = r.get("resolved_by_name") or who(r.get("resolved_by"))
-            verb = "approved" if r["status"] == "approved" else "sent back"
-            activity.append({"at": _iso(r.get("resolved_at")), "kind": "approve" if r["status"] == "approved" else "reject",
-                             "actor": actor, "title": f"{actor} {verb} \"{q}\""})
-    requested = {r.get("entity_id") for r in requests}
-    for r in responses:
-        if r["question_key"] in requested or r.get("approval_status") in ("approved", "rejected", "pending_approval"):
-            continue
-        if not r.get("updated_by") or r.get("kpi_autofill_updated_at") == r.get("updated_at"):
-            continue
-        actor = r.get("updated_by_name") or who(r.get("updated_by"))
-        activity.append({"at": _iso(r.get("updated_at")), "kind": "update", "actor": actor, "title": f"{actor} saved \"{label.get(r['question_key'], r['question_key'])}\""})
     by_group: Counter = Counter()
     for a in assignments:
         by_group[(a.get("created_by_user_id"), str(a.get("created_at"))[:16])] += 1
@@ -137,6 +115,10 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
             text = f"{actor} added {', '.join(who(i) for i in new_value['user_ids'])} for data entry"
         elif h.get("action") == "assignees_removed" and (h.get("previous_value") or {}).get("user_ids"):
             text = f"{actor} removed {', '.join(who(i) for i in h['previous_value']['user_ids'])} from data entry"
+        elif h.get("action") == "version_updated" and _approvers_changed(h.get("previous_value") or {}, new_value):
+            ids = lambda v: [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (v.get("approval_chain") or [v.get("approver_id")]) if c]
+            show = lambda v: " → ".join(who(i) for i in ids(v)) or "none"
+            text = f"{actor} changed approvers from {show(h.get('previous_value') or {})} to {show(new_value)}"
         else:
             continue
         activity.append({"at": _iso(h.get("created_at")), "kind": "update", "actor": actor, "title": text})
