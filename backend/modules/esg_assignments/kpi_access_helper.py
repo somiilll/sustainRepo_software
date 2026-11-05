@@ -574,6 +574,36 @@ class KPIAccessHelper:
         
         return [r for r in records if r.get("facility_id") in facility_restrictions]
     
+    async def get_assignable_facilities_list(
+        self,
+        user_id: str,
+        organization_id: str,
+        category: str,
+        subcategory: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Facilities a user may add or edit KPI data for: organization-level assignees get none (only org-level data)."""
+        fields = {"_id": 0, "id": 1, "name": 1, "facility_type": 1}
+        if await self.is_admin(user_id, organization_id):
+            return await self._facilities.find({"organization_id": organization_id}, fields).to_list(500)
+        assignee_ids = [a["assignment_id"] for a in await db["esg_assignment_assignees"].find(
+            {"user_id": user_id, "removed_at": None}, {"_id": 0, "assignment_id": 1}).to_list(500)]
+        query = {"organization_id": organization_id, "category": category, "entity_type": "record_category",
+                 "status": {"$nin": ["completed", "cancelled"]},
+                 "$and": [{"$or": [{"id": {"$in": assignee_ids}}, {"approver_id": user_id}, {"approval_chain": user_id}]}]}
+        if subcategory:
+            query["$and"].append({"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]})
+        facility_ids, all_facilities = set(), False
+        for a in await self._assignments.find(query, {"_id": 0, "id": 1, "assignment_level": 1, "facility_id": 1}).to_list(200):
+            if a.get("facility_id") and a.get("assignment_level") != "organization":
+                facility_ids.add(a["facility_id"])
+            elif a["id"] not in assignee_ids:
+                all_facilities = True
+        if all_facilities:
+            return await self._facilities.find({"organization_id": organization_id}, fields).to_list(500)
+        if not facility_ids:
+            return []
+        return await self._facilities.find({"organization_id": organization_id, "id": {"$in": list(facility_ids)}}, fields).to_list(500)
+
     async def get_accessible_facilities_list(
         self,
         user_id: str,

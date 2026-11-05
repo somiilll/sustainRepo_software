@@ -344,10 +344,8 @@ export default function ESGRecordsDataEntry({
     if (!metricCategory || !metricSubcategory) return;
     axios.get(`${API}/api/esg-assignments/kpi-access/facilities/list`, {
       headers, params: { category: metricCategory, subcategory: metricSubcategory },
-    }).then((res) => {
-      if (res.data.approval_workflow_enabled) setFacilities(res.data.facilities || []);
-      else fetchFacilities();
-    }).catch((error) => console.error('Failed to fetch assigned facilities:', error));
+    }).then((res) => setFacilities(res.data.facilities || []))
+      .catch((error) => console.error('Failed to fetch assigned facilities:', error));
   }, [metricCategory, metricSubcategory]);
 
   const fetchReportingYearType = async () => {

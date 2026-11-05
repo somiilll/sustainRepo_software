@@ -609,12 +609,11 @@ async def get_accessible_facilities(
         ).to_list(10000)
     else:
         from .kpi_access_helper import kpi_access_helper
-        facilities = await kpi_access_helper.get_accessible_facilities_list(
+        facilities = await kpi_access_helper.get_assignable_facilities_list(
             user_id=current_user["id"],
             organization_id=current_user["organization_id"],
             category=category,
             subcategory=subcategory,
-            reporting_period=reporting_period,
         )
 
     from modules.sustainability_config.service import resolve_organization_settings
