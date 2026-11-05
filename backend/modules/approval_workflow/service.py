@@ -213,6 +213,8 @@ async def _create_emission_history_entry(
         ("approved", "update"): "Update Approved",
         ("rejected", "create"): "Submission Rejected",
         ("rejected", "update"): "Update Rejected",
+        ("approved", "delete"): "Deletion Approved",
+        ("rejected", "delete"): "Deletion Rejected",
     }
     action_display = action_map.get((action, request_type), f"{action.title()}")
     
@@ -1718,6 +1720,9 @@ class ApprovalWorkflowService:
                     await reject_pending_emission(pending["id"], rejector, comment)
                 else:
                     await db.emission_records.update_one({"id": entity_id}, {"$set": {"approval_status": "approved", "updated_at": _now_iso()}})
+                await _create_approval_version_snapshot(
+                    collection_name="emission_records", record_id=entity_id, action="rejected",
+                    user_id=rejector_id, rejection_reason=comment, request_type="delete")
 
             elif entity_type == "emission_record":
                 # GHG emission records

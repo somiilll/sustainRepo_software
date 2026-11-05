@@ -2209,6 +2209,14 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
     if delete_action == "block":
         raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
     if delete_action == "queue":
+        await db.emission_history.insert_one({
+            "id": str(uuid.uuid4()), "emission_id": record_id, "facility_id": existing.get("facility_id"),
+            "organization_id": existing.get("organization_id"), "scope": existing.get("scope"), "category": existing.get("category"),
+            "changed_by": current_user["id"], "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""), "changed_at": datetime.now(timezone.utc).isoformat(),
+            "version": existing.get("version") or 1, "field_changes": [], "changes_summary": "Deletion Requested",
+            "changes": {"action": "requested", "request_type": "delete"},
+        })
         await _create_emission_delete_approval_request(
             existing, current_user, approver_assignment, approver_mode if isinstance(approver_mode, int) else 1)
         log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
