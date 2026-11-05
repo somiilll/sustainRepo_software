@@ -2122,14 +2122,20 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
     return [EmissionHistoryResponse(**h) for h in history]
 
 
-async def _create_emission_delete_approval_request(existing: dict, current_user: dict) -> None:
-    """Route a queued GHG delete to the assignment's approvers (L1 first) so it appears in their queue."""
-    try:
-        assignment = await _find_emission_assignment(
-            org_id=existing.get("organization_id"), user_id=current_user["id"],
-            scope=existing.get("scope"), facility_id=existing.get("facility_id"))
-    except Exception:
-        return
+async def _create_emission_delete_approval_request(
+    existing: dict, current_user: dict, approver_assignment: Optional[dict] = None, start_level: int = 1,
+) -> None:
+    """Route a queued GHG delete to the assignment's approvers so it appears in their queue.
+
+    An approver's own delete skips the levels up to theirs (start_level)."""
+    assignment = approver_assignment
+    if not assignment:
+        try:
+            assignment = await _find_emission_assignment(
+                org_id=existing.get("organization_id"), user_id=current_user["id"],
+                scope=existing.get("scope"), facility_id=existing.get("facility_id"))
+        except Exception:
+            return
     if not assignment_requires_approval(assignment):
         return
     chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
@@ -2155,7 +2161,8 @@ async def _create_emission_delete_approval_request(existing: dict, current_user:
         "submitted_by_name": current_user.get("full_name", ""),
         "submitted_at": now,
         "submission_comment": "Deletion requested",
-        "status": "pending", "current_level": 1, "current_approvers": [chain[0]], "total_levels": len(chain), "approval_chain": chain,
+        "status": "pending", "current_level": min(start_level, len(chain)), "current_approvers": [chain[min(start_level, len(chain)) - 1]],
+        "total_levels": len(chain), "approval_chain": chain,
         "steps_completed": [], "created_at": now, "updated_at": now,
     })
 
@@ -2191,11 +2198,19 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
             raise HTTPException(status_code=409, detail=str(error))
 
     # Approval-workflow gate
-    delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)
+    approver_mode, approver_assignment = (None, None)
+    if current_user.get("role") not in ("admin", "super_admin"):
+        approver_mode, approver_assignment = await _ghg_approver_mode(
+            existing.get("organization_id"), current_user["id"], existing.get("facility_id"))
+    if approver_mode == "direct":
+        delete_action, delete_payload = "apply", None
+    else:
+        delete_action, delete_payload = await approval_intercept_delete(record_id, current_user)
     if delete_action == "block":
         raise HTTPException(status_code=403, detail=delete_payload or "Not authorized")
     if delete_action == "queue":
-        await _create_emission_delete_approval_request(existing, current_user)
+        await _create_emission_delete_approval_request(
+            existing, current_user, approver_assignment, approver_mode if isinstance(approver_mode, int) else 1)
         log_event(logger, logging.INFO, "ghg.emission.delete.queued", action="ghg.emission.delete", outcome="pending_approval", context={"record_id": record_id})
         return {"message": "Delete request submitted for approval"}
 

@@ -91,8 +91,8 @@ const StatusCell = ({ emission, approvalWorkflowEnabled }) => {
     ? { text: 'Completed', cls: 'bg-green-100 text-green-700' }
     : getStatusDisplay(emission.approval_status);
   
-  // Show user's own pending proposal as "Completed, Awaiting Approval"
-  if (emission.is_my_pending_proposal) {
+  // Show user's own pending proposal as "Completed, Awaiting Approval" (deletions keep their own label)
+  if (emission.is_my_pending_proposal && emission.approval_status !== 'pending_delete') {
     return (
       <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700" data-testid={`emission-status-${emission.id}`}>
         Completed, Awaiting Approval
@@ -110,7 +110,7 @@ const StatusCell = ({ emission, approvalWorkflowEnabled }) => {
 };
 
 const getStatusSortValue = (emission, approvalWorkflowEnabled) => (
-  emission.is_my_pending_proposal
+  emission.is_my_pending_proposal && emission.approval_status !== 'pending_delete'
     ? 'completed awaiting approval'
     : (!approvalWorkflowEnabled && emission.approval_status === 'approved'
       ? 'completed'
