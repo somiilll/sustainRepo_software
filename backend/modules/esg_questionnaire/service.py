@@ -6,6 +6,7 @@ Business logic for config-driven ESG questionnaire system.
 
 import re
 import uuid
+from modules.approval_workflow.approver_chain import DIRECT, entry_level, normalize_chain
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
@@ -631,12 +632,7 @@ class ESGQuestionnaireService:
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
         if not assignment:
             return None
-        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
-        chain = [c for c in chain if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
-        if user_id not in chain:
-            return None
-        index = chain.index(user_id)
-        return "direct" if index + 1 >= len(chain) else index + 2
+        return entry_level(normalize_chain(assignment), user_id, require_membership=True)
 
     async def _should_use_direct_save(
         self,
@@ -851,10 +847,7 @@ class ESGQuestionnaireService:
         
         # Approvers come from the question's assignment (chain level 1, else approver_id)
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
-        chain_ids = []
-        if assignment:
-            chain_ids = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
-            chain_ids = [c for c in chain_ids if c] or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+        chain_ids = normalize_chain(assignment)
         total_levels = max(len(chain_ids), 1)
         start_level = 1
         if user_id in chain_ids and chain_ids.index(user_id) + 1 < len(chain_ids):
@@ -1606,7 +1599,7 @@ class ESGQuestionnaireService:
             
             # Admin and the final approver bypass approval (direct save)
             if is_admin or (not use_direct_save and await self._approver_position(
-                    org_id, question_key, reporting_period, changed_by_user_id) == "direct"):
+                    org_id, question_key, reporting_period, changed_by_user_id) == DIRECT):
                 use_direct_save = True
             
             if not use_direct_save:
@@ -2729,7 +2722,7 @@ class ESGQuestionnaireService:
             
             # Admin and the final approver bypass approval (direct save)
             if is_admin or (not use_direct_save and await self._approver_position(
-                    org_id, question_key, reporting_year, changed_by_user_id) == "direct"):
+                    org_id, question_key, reporting_year, changed_by_user_id) == DIRECT):
                 use_direct_save = True
             
             # Determine final approval_status

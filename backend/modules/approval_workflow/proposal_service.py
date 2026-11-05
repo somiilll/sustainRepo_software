@@ -13,6 +13,8 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
+
+from .approver_chain import normalize_chain
 from fastapi import HTTPException
 
 from shared.database.mongo import db
@@ -854,9 +856,7 @@ class ProposalService:
                           if snap.get("facility_id") else None) or await db.esg_assignments.find_one(query, {"_id": 0})
         if not assignment:
             return []
-        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in assignment.get("approval_chain") or []]
-        chain = [c for c in chain if c]
-        return chain or ([assignment["approver_id"]] if assignment.get("approver_id") else [])
+        return normalize_chain(assignment)
 
     async def _advance_level(self, proposal: Dict[str, Any], approver_id: str, approver_name: str, approver_email: str,
                              comment: Optional[str], now: str) -> Optional[Dict[str, Any]]:

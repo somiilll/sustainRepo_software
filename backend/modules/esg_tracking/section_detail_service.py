@@ -1,4 +1,5 @@
 """Expanded-panel data for a BRSR/GRI section: questions, assignment and approvers, activity."""
+from modules.approval_workflow.approver_chain import normalize_chain
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -35,8 +36,7 @@ def _approvers_changed(previous: Dict[str, Any], new: Dict[str, Any]) -> bool:
 
 
 def _chain(item: Any) -> List[str]:
-    raw = item.approval_chain or ([item.approver_id] if item.approver_id else [])
-    return [c if isinstance(c, str) else (c or {}).get("approver_id") for c in raw if c]
+    return normalize_chain({"approval_chain": item.approval_chain, "approver_id": item.approver_id})
 
 
 async def _names(user_ids: List[str]) -> Dict[str, Dict[str, str]]:

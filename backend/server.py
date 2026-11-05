@@ -102,7 +102,6 @@ from modules.superadmin.router import router as superadmin_router
 # Phase B9: Pydantic models moved to modules/superadmin/contracts.py.
 
 # Approval workflow extension (per-org opt-in feature) - V2 architecture.
-from modules.approvals.router_v2 import router as approvals_router
 
 # Enterprise Approval Workflow Engine (generic multi-level approvals)
 from modules.approval_workflow.router import router as approval_workflow_router
@@ -207,7 +206,6 @@ api_router.include_router(mis_reports_router)
 api_router.include_router(superadmin_router)
 
 # Approval workflow extension (org opt-in)
-api_router.include_router(approvals_router)
 
 # Enterprise Approval Workflow Engine
 api_router.include_router(approval_workflow_router, dependencies=[Depends(require_entitlement("workflow"))])

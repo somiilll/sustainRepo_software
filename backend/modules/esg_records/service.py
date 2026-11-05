@@ -11,6 +11,7 @@ import re
 import uuid
 from fastapi import HTTPException
 from shared.database.mongo import db
+from modules.approval_workflow.approver_chain import approvers_at_level, normalize_chain
 from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 
 from .contracts import (
@@ -236,9 +237,10 @@ class ESGRecordsService:
             )
             by_approver = False
             if not assignment and not allow_without_assignment and not is_admin:
+                from modules.approval_workflow.approver_chain import DIRECT
                 from modules.esg_records.visibility import approver_edit_mode, non_final_approver_assignment
                 mode = await approver_edit_mode(org_id, user_id, data.category, data.subcategory)
-                if mode == "direct":
+                if mode == DIRECT:
                     allow_without_assignment, by_approver = True, True
                 elif isinstance(mode, int):
                     assignment = await non_final_approver_assignment(org_id, user_id, data.category, data.subcategory)
@@ -683,25 +685,11 @@ class ESGRecordsService:
         Uses the approver_id from the assignment or approval_chain if multi-level.
         """
         try:
-            approver_id = assignment.get("approver_id")
-            approval_chain = assignment.get("approval_chain", [])
-            
-            # Determine approvers - use approval_chain if available, otherwise single approver
-            # Handle both formats: list of strings (user IDs) or list of objects with approver_id
-            if approval_chain and len(approval_chain) > 0:
-                start_item = approval_chain[min(start_level, len(approval_chain)) - 1]
-                # Check if it's a string (user ID directly) or object
-                if isinstance(start_item, str):
-                    current_approvers = [start_item]
-                else:
-                    current_approvers = [start_item.get("approver_id")] if start_item else []
-                total_levels = len(approval_chain)
-            elif approver_id:
-                current_approvers = [approver_id]
-                total_levels = 1
-            else:
+            chain = normalize_chain(assignment)
+            if not chain:
                 print("Warning: Assignment requires approval but no approver_id set")
                 return
+            current_approvers, total_levels = approvers_at_level(chain, start_level), len(chain)
             
             # Get submitter info
             submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
@@ -817,20 +805,11 @@ class ESGRecordsService:
         """
         from fastapi import HTTPException
         
-        approver_id = assignment.get("approver_id")
-        approval_chain = assignment.get("approval_chain", [])
+        approval_chain = normalize_chain(assignment)
         
         # Determine approvers
-        if approval_chain and len(approval_chain) > 0:
-            first_item = approval_chain[0]
-            if isinstance(first_item, str):
-                current_approvers = [first_item]
-            else:
-                current_approvers = [first_item.get("approver_id")] if first_item else []
-            total_levels = len(approval_chain)
-        elif approver_id:
-            current_approvers = [approver_id]
-            total_levels = 1
+        if approval_chain:
+            current_approvers, total_levels = approvers_at_level(approval_chain), len(approval_chain)
         else:
             # No approver configured - this is a configuration error
             # Raise an exception so the user sees a real error instead of false "pending approval"
@@ -2021,16 +2000,10 @@ class ESGRecordsService:
             requested_by=user_id, requested_at=now))
         
         # Get approver info from assignment
-        approver_id = assignment.get("approver_id")
-        approval_chain = assignment.get("approval_chain", [])
+        approval_chain = normalize_chain(assignment)
         
-        if approval_chain and len(approval_chain) > 0:
-            first_item = approval_chain[0]
-            current_approvers = [first_item] if isinstance(first_item, str) else [first_item.get("approver_id")]
-            total_levels = len(approval_chain)
-        elif approver_id:
-            current_approvers = [approver_id]
-            total_levels = 1
+        if approval_chain:
+            current_approvers, total_levels = approvers_at_level(approval_chain), len(approval_chain)
         else:
             # No approver configured - auto-approve deletion
             return await self._perform_hard_delete(collection, record, org_id)
@@ -2068,7 +2041,7 @@ class ESGRecordsService:
             "current_level": 1,
             "current_approvers": current_approvers,
             "total_levels": total_levels,
-            "approval_chain": [c if isinstance(c, str) else (c or {}).get("approver_id") for c in approval_chain] or [approver_id],
+            "approval_chain": approval_chain,
             
             "steps_completed": [],
             "created_at": now,

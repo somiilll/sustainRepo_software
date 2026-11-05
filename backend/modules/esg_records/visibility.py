@@ -5,6 +5,7 @@ Non-workflow org  -> records the user created/edited, plus all records of their 
 """
 from typing import Any, Dict, Optional
 
+from modules.approval_workflow.approver_chain import best_entry, entry_level, normalize_chain
 from shared.database.mongo import db as _db
 
 ADMIN_ROLES = {"admin", "super_admin", "org_admin"}
@@ -31,31 +32,22 @@ async def is_category_approver(org_id: str, user_id: str, category: str, subcate
     return count > 0
 
 
-async def approver_edit_mode(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
-    """None: not an approver. "direct": final approver (edit applies at once). int: level an edit by this approver enters approval at."""
-    docs = await _db.esg_assignments.find({
+async def _approver_category_assignments(org_id: str, user_id: str, category: str, subcategory: Optional[str]) -> list:
+    return await _db.esg_assignments.find({
         "organization_id": org_id, "entity_type": "record_category", "category": category,
         "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
-    }, {"_id": 0, "approver_id": 1, "approval_chain": 1}).to_list(20)
-    if not docs:
-        return None
-    levels = []
-    for doc in docs:
-        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in doc.get("approval_chain") or []] or [doc.get("approver_id")]
-        index = chain.index(user_id) if user_id in chain else len(chain) - 1
-        levels.append(index + 2 if index + 1 < len(chain) else None)
-    return "direct" if None in levels else min(levels)
+    }, {"_id": 0}).to_list(20)
+
+
+async def approver_edit_mode(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
+    """None: not an approver. DIRECT: final approver (edit applies at once). int: level an edit by this approver enters approval at."""
+    return best_entry(await _approver_category_assignments(org_id, user_id, category, subcategory), user_id)[0]
 
 
 async def non_final_approver_assignment(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
     """The assignment where this user is an approver but not the last one in the chain (edits then go on to the next level)."""
-    docs = await _db.esg_assignments.find({
-        "organization_id": org_id, "entity_type": "record_category", "category": category,
-        "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
-    }, {"_id": 0}).to_list(20)
-    for doc in docs:
-        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in doc.get("approval_chain") or []] or [doc.get("approver_id")]
-        if user_id in chain and chain.index(user_id) + 1 < len(chain):
+    for doc in await _approver_category_assignments(org_id, user_id, category, subcategory):
+        if isinstance(entry_level(normalize_chain(doc), user_id), int):
             return doc
     return None
 

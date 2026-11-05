@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any, Tuple
 
 from shared.database.mongo import db
 
+from .approver_chain import normalize_chain
 from .models import (
     ApprovalWorkflow,
     ApprovalRequest,
@@ -959,8 +960,7 @@ class ApprovalWorkflowService:
                 assignment = await esg_questionnaire_service._find_question_assignment(
                     request.get("organization_id"), request.get("entity_id"),
                     (request.get("entity_snapshot") or {}).get("reporting_year"))
-                chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in (assignment or {}).get("approval_chain") or []]
-                chain = [c for c in chain if c]
+                chain = normalize_chain(assignment)
                 next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
             elif request.get("request_type") == "delete" and request.get("approval_chain"):
                 chain = [c for c in request["approval_chain"] if c]

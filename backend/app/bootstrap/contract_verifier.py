@@ -61,7 +61,6 @@ _REQUIRED_MODULES: List[str] = [
     "core_platform.auth",
     "core_platform.users",
     "core_platform.organizations",
-    "core_platform.approvals",
     "core_platform.audit_logs",
 ]
 

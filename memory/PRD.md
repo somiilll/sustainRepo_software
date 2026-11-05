@@ -961,3 +961,8 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - BRSR/GRI: approver first-answer already works (submits at next level).
 - Tracker activity shows assignment events only; reminders/escalation settings stored per section (sending not built); My Tasks filters; facility-level multi-approver chain.
 - Debt: chain/approver-position logic duplicated across KPI/GHG/BRSR; GHG routes hold business logic; legacy pending_records + approvals/router_v2 unused; no automated regression tests.
+
+## Refactor (Nov 2026)
+- `modules/approval_workflow/approver_chain.py`: shared chain normalization + approver entry level (used by KPI, GHG, BRSR/GRI).
+- GHG approval logic moved from `emissions/router.py` to `emissions/approval_service.py`; record lookup/list in `emissions/record_store.py`.
+- Legacy GHG pending-records flow removed (`modules/approvals`, `core_platform/approvals`, dead GHG approval UI files). Old `pending_records` collection is no longer used.
