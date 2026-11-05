@@ -51,7 +51,7 @@ def _assignment_changes(previous: Dict[str, Any], new: Dict[str, Any], names: Di
     out = []
     if ("approver_id" in new or "approval_chain" in new) and _chain_ids(previous) != _chain_ids(new):
         names_of = lambda value: " → ".join(names.get(i, {}).get("name", "User") for i in _chain_ids(value)) or "none"
-        out.append(f"approvers from {names_of(previous)} to {names_of(new)}")
+        out.append(f"approvers to {names_of(new)}")
     for key, label in FIELD_LABELS.items():
         if key in new and key in previous and new[key] != previous[key]:
             out.append(f"{label} from {show(key, previous[key])} to {show(key, new[key])}")
@@ -196,7 +196,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
     for a in assignments:
         creator = names.get(a.get("created_by_user_id"), {}).get("name", "Someone")
         created = _iso_utc(a.get("created_at")) or ""
-        first_update = next((h for h in sorted(history, key=lambda x: str(x.get("created_at"))) if h.get("action") == "version_updated"), None)
+        first_update = next((h for h in sorted(history, key=lambda x: str(x.get("created_at"))) if h.get("action") == "version_updated" and h.get("assignment_id") == a["id"]), None)
         original = (first_update or {}).get("previous_value") or {}
         approver_ids_at_creation = _chain_ids({**a, **{k: v for k, v in original.items() if k in ("approver_id", "approval_chain")}})
         frequency_at_creation = original.get("filling_frequency", a.get("filling_frequency", "monthly"))
@@ -211,23 +211,34 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         if a.get("requires_approval") and approvers:
             text += f", with {approvers} as approver{'s' if len(approver_ids_at_creation) > 1 else ''}"
         activity.append({"at": created, "kind": "assign", "actor": creator, "title": text})
-    for h in history:
-        who = names.get(h.get("changed_by_user_id"), {}).get("name", "Someone")
-        action, new_value = h.get("action"), h.get("new_value") or {}
-        if action == "assignees_added" and new_value.get("user_ids") and (_iso_utc(h.get("created_at")) or "") > _plus_seconds(next((_iso_utc(a.get("created_at")) for a in assignments), ""), 10):
-            added = ", ".join(names.get(i, {}).get("name", "User") for i in new_value["user_ids"])
-            text = f"{who} added {added} for data entry"
-        elif action == "assignees_removed" and (h.get("previous_value") or {}).get("user_ids"):
-            removed = ", ".join(names.get(i, {}).get("name", "User") for i in h["previous_value"]["user_ids"])
-            text = f"{who} removed {removed} from data entry"
-        elif action == "version_updated":
-            changes = _assignment_changes(h.get("previous_value") or {}, new_value, names)
-            if not changes:
-                continue
-            text = f"{who} changed " + "; ".join(changes)
-        else:
-            continue
-        activity.append({"at": _iso_utc(h.get("created_at")), "kind": "update", "actor": who, "title": text})
+    facility_of = {a["id"]: a.get("facility_id") for a in assignments}
+    first_created = next((_iso_utc(a.get("created_at")) for a in assignments), "")
+    groups: Dict[Any, List[Dict[str, Any]]] = {}
+    for h in sorted(history, key=lambda x: str(x.get("created_at"))):
+        at = _iso_utc(h.get("created_at")) or ""
+        bucket = next((k for k in groups if k[0] == h.get("assignment_id") and k[1] == h.get("changed_by_user_id") and _plus_seconds(k[2], 10) >= at), None)
+        groups.setdefault(bucket or (h.get("assignment_id"), h.get("changed_by_user_id"), at), []).append(h)
+    for (assignment_id, changed_by, first_at), rows in groups.items():
+        who = names.get(changed_by, {}).get("name", "Someone")
+        facility_id = facility_of.get(assignment_id)
+        fac = facility_name.get(facility_id, "") if facility_id else ""
+        parts: List[str] = []
+        if any(h.get("action") in ("assignees_added", "assignees_removed") and not (
+                h.get("action") == "assignees_added" and (_iso_utc(h.get("created_at")) or "") <= _plus_seconds(next((_iso_utc(a.get("created_at")) for a in assignments if a["id"] == assignment_id), first_created), 10))
+                for h in rows):
+            current = [names.get(r["user_id"], {}).get("name", "User") for r in assignee_rows if r["assignment_id"] == assignment_id]
+            parts.append(f"data entry{f' for {fac}' if fac else ''} to {', '.join(dict.fromkeys(current)) or 'nobody'}")
+        for h in rows:
+            if h.get("action") == "version_updated":
+                parts.extend(_assignment_changes(h.get("previous_value") or {}, h.get("new_value") or {}, names))
+        if parts:
+            has_entry = parts[0].startswith("data entry")
+            head = " and ".join(parts[:2]) if has_entry and len(parts) > 1 and parts[1].startswith("approvers") else parts[0]
+            rest = parts[len(head.split(" and ")):] if has_entry else parts[1:]
+            text = "; ".join([head, *rest])
+            if fac and not has_entry:
+                text += f" for {fac}"
+            activity.append({"at": first_at, "kind": "update", "actor": who, "title": f"{who} changed {text}"})
     activity.sort(key=lambda e: e["at"] or "", reverse=True)
 
     entries = [{
