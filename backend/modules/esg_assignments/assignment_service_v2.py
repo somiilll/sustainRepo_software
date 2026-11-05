@@ -971,6 +971,7 @@ class AssignmentServiceV2:
                 per_facility_approval = {
                     "requires_approval": facility_config.get("requires_approval", assignment_data.get("requires_approval", False)),
                     "approver_id": facility_config.get("approver_id", assignment_data.get("approver_id")),
+                    "approval_chain": facility_config.get("approval_chain", assignment_data.get("approval_chain", [])),
                 }
             else:
                 continue

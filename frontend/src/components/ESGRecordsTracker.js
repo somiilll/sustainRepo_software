@@ -484,6 +484,7 @@ export default function ESGRecordsTracker({
             facilityAssignmentsData[a.facility_id] = {
               user_ids: [],
               approver_id: a.approver_id || '',
+              approval_chain: (a.approval_chain || []).map(c => (typeof c === 'string' ? c : c?.approver_id)).filter(Boolean),
               requires_approval: a.requires_approval || false,
               facility_name: facilities.find(f => f.id === a.facility_id)?.name || ''
             };
@@ -756,7 +757,8 @@ export default function ESGRecordsTracker({
           facilityAssignmentsMap[facilityId] = {
             user_ids: fa.user_ids,
             requires_approval: fa.requires_approval || false,
-            approver_id: fa.approver_id || null,
+            approver_id: multiLevelApprovalEnabled ? (fa.approval_chain?.[0] || null) : (fa.approver_id || null),
+            approval_chain: multiLevelApprovalEnabled && fa.requires_approval ? (fa.approval_chain || []) : [],
           };
         }
         

@@ -376,7 +376,7 @@ export function useAssignmentWizard({
       const hasAssignees = Object.values(form.facility_assignments).some(fa => fa?.user_ids?.length > 0);
       // If any facility has approval enabled, it must have an approver
       const facilitiesWithApprovalIssue = Object.values(form.facility_assignments).filter(
-        fa => fa?.requires_approval && !fa?.approver_id
+        fa => fa?.requires_approval && !(multiLevelApprovalEnabled ? fa?.approval_chain?.length > 0 : fa?.approver_id)
       );
       step2Valid = hasAssignees && facilitiesWithApprovalIssue.length === 0;
     } else {

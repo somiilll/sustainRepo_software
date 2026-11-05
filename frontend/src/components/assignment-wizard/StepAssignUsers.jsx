@@ -218,6 +218,7 @@ export function StepAssignUsers({
             onRemoveUser={(userId) => removeUserFromFacility(facility.id, userId)}
             onUpdateAssignment={(updates) => updateFacilityAssignment(facility.id, facility.name, updates)}
             approvalWorkflowEnabled={approvalWorkflowEnabled}
+            multiLevelApprovalEnabled={multiLevelApprovalEnabled}
           />
         ))}
       </div>
@@ -270,8 +271,10 @@ function FacilityCard({
   onRemoveUser,
   onUpdateAssignment,
   approvalWorkflowEnabled,
+  multiLevelApprovalEnabled,
 }) {
   const assignedUsers = assignment?.user_ids || [];
+  const chain = assignment?.approval_chain || [];
   const hasAssignees = assignedUsers.length > 0;
   const requiresApproval = assignment?.requires_approval || false;
 
@@ -394,7 +397,7 @@ function FacilityCard({
                 </Label>
               </div>
               
-              {requiresApproval && (
+              {requiresApproval && !multiLevelApprovalEnabled && (
                 <Select
                   value={assignment?.approver_id || '__none__'}
                   onValueChange={(v) => onUpdateAssignment({ approver_id: v === '__none__' ? '' : v })}
@@ -412,6 +415,38 @@ function FacilityCard({
                   </SelectContent>
                 </Select>
               )}
+            </div>
+          )}
+          {approvalWorkflowEnabled && requiresApproval && multiLevelApprovalEnabled && (
+            <div className="space-y-2 pt-2" data-testid={`facility-approval-chain-${facility.id}`}>
+              <Label className="text-xs text-text-muted">Approval Chain (in order) *</Label>
+              {chain.map((approverId, index) => {
+                const approver = users.find(u => u.id === approverId);
+                return (
+                  <div key={approverId} className="flex items-center gap-2 p-2 bg-white rounded border">
+                    <Badge variant="outline" className="text-xs bg-violet-100 text-violet-700">L{index + 1}</Badge>
+                    <span className="text-xs flex-1">{approver?.full_name || approver?.email}</span>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateAssignment({ approval_chain: chain.filter((_, i) => i !== index) })}
+                      className="text-red-500 hover:text-red-700"
+                      data-testid={`facility-approver-remove-${facility.id}-${index}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+              <Select value="" onValueChange={(v) => v && onUpdateAssignment({ approval_chain: [...chain, v] })}>
+                <SelectTrigger className="h-8 text-xs" data-testid={`facility-approver-add-${facility.id}`}>
+                  <SelectValue placeholder={`+ Add Level ${chain.length + 1} Approver`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.filter(u => !chain.includes(u.id)).map(u => (
+                    <SelectItem key={u.id} value={u.id}>{u.full_name || u.name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
