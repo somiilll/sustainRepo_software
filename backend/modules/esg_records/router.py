@@ -63,6 +63,16 @@ async def _assert_record_category_access(org_id: str, section: ESG_SECTION, cate
     return entitlement
 
 
+async def _assert_facility_data_allowed(org_id: str, user_id: str, role: str, category: str, subcategory: Optional[str], facility_id: Optional[str]) -> None:
+    """Facility-level data needs a facility-level assignment; organization-level assignees and approvers are limited to organization data."""
+    if not facility_id or role in ("admin", "super_admin"):
+        return
+    from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+    allowed = await kpi_access_helper.get_assignable_facilities_list(user_id, org_id, category, subcategory)
+    if facility_id not in {f["id"] for f in allowed}:
+        raise HTTPException(status_code=403, detail="Your assignment for this category is at organization level, so you cannot add or edit facility-level data")
+
+
 # =============================================================================
 # Idempotency Helper
 # =============================================================================
@@ -454,6 +464,9 @@ async def create_record(
         raise HTTPException(status_code=400, detail="No organization assigned")
 
     entitlement = await _assert_record_category_access(org_id, section, data.category)
+    await _assert_facility_data_allowed(
+        org_id, current_user.get("id") or current_user.get("user_id"), current_user.get("role", ""),
+        data.category, data.subcategory, data.facility_id if data.record_level == "facility" else None)
     if entitlement and data.reporting_period.reporting_type == "monthly":
         module_code = entitlement.rsplit(".", 1)[-1]
         await assert_monthly_row_limit(
@@ -857,14 +870,7 @@ async def update_record(
         is_admin_override = mode == "direct"
         start_level = mode if isinstance(mode, int) else 1
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
-    if not is_admin_override and start_level == 1 and existing.get("facility_id"):
-        from modules.esg_assignments.assignment_resolver import assignment_resolver
-        facility_assignment = await assignment_resolver.resolve(
-            organization_id=org_id, user_id=user_id, category=existing.get("category"),
-            subcategory=existing.get("subcategory"), sub_subcategory=existing.get("sub_subcategory"),
-            facility_id=existing.get("facility_id"), record_level="facility", include_approval_info=False)
-        if not facility_assignment:
-            raise HTTPException(status_code=403, detail="You are not assigned to this facility for this category, so you cannot edit its data")
+    await _assert_facility_data_allowed(org_id, user_id, user_role, existing.get("category"), existing.get("subcategory"), existing.get("facility_id"))
     
     updated = await esg_records_service.update_record(
         section=section,

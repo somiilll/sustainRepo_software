@@ -581,7 +581,7 @@ class KPIAccessHelper:
         category: str,
         subcategory: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Facilities a user may add or edit KPI data for: organization-level assignees get none (only org-level data)."""
+        """Facilities a user may add or edit KPI data for: organization-level assignees and approvers get none (only org-level data)."""
         fields = {"_id": 0, "id": 1, "name": 1, "facility_type": 1}
         if await self.is_admin(user_id, organization_id):
             return await self._facilities.find({"organization_id": organization_id}, fields).to_list(500)
@@ -592,14 +592,9 @@ class KPIAccessHelper:
                  "$and": [{"$or": [{"id": {"$in": assignee_ids}}, {"approver_id": user_id}, {"approval_chain": user_id}]}]}
         if subcategory:
             query["$and"].append({"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]})
-        facility_ids, all_facilities = set(), False
-        for a in await self._assignments.find(query, {"_id": 0, "id": 1, "assignment_level": 1, "facility_id": 1}).to_list(200):
-            if a.get("facility_id") and a.get("assignment_level") != "organization":
-                facility_ids.add(a["facility_id"])
-            elif a["id"] not in assignee_ids:
-                all_facilities = True
-        if all_facilities:
-            return await self._facilities.find({"organization_id": organization_id}, fields).to_list(500)
+        facility_ids = {a["facility_id"] for a in await self._assignments.find(
+            query, {"_id": 0, "assignment_level": 1, "facility_id": 1}).to_list(200)
+            if a.get("facility_id") and a.get("assignment_level") != "organization"}
         if not facility_ids:
             return []
         return await self._facilities.find({"organization_id": organization_id, "id": {"$in": list(facility_ids)}}, fields).to_list(500)
