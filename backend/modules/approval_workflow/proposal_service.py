@@ -161,6 +161,26 @@ def build_emission_proposal_history_event(
     }
 
 
+EMISSION_TOTAL_FIELDS = ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions")
+
+
+def emission_state(source: Dict[str, Any]) -> Dict[str, Any]:
+    """Comparable slice of an emission proposal snapshot: inputs, totals, employees and detail fields."""
+    changes = source.get("proposed_changes") or {}
+    state: Dict[str, Any] = {}
+    inputs = changes.get("inputs") or source.get("dynamic_field_values") or source.get("inputs")
+    if inputs:
+        state["dynamic_field_values"] = inputs
+    if "employees" in source:
+        state["employees"] = source["employees"]
+    state.update({k: source[k] for k in OPTIONAL_FIELD_LABELS if k in source})
+    for field in EMISSION_TOTAL_FIELDS:
+        value = changes.get(field, source.get(field))
+        if value is not None:
+            state[field] = value
+    return state
+
+
 def build_emission_lifecycle_events(
     current: Dict[str, Any],
     updated: Dict[str, Any],
@@ -189,7 +209,38 @@ def build_emission_lifecycle_events(
                         "new_values": {"dynamic_field_values": original_inputs, "total_emissions": total_of(original, "total_emissions"),
                                        "co2e_emissions": total_of(original, "co2e_emissions")}},
         })
+    edits = sorted([e for e in proposal.get("approver_edits") or [] if e.get("before") is not None and e.get("after") is not None],
+                   key=lambda e: str(e.get("at")))
     modification = proposal.get("approver_modifications") or {}
+    total_levels = proposal.get("total_levels") or 1
+    if not is_create and (edits or not modification):
+        def event(before: Dict[str, Any], after: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+            return build_emission_proposal_history_event(
+                {**current, **before}, {**current, **after}, proposal, input_label_map=input_label_map, **kwargs)
+        submitted = event({}, emission_state(original), action="updated", actor_id=proposal.get("submitted_by"),
+                          actor_email=proposal.get("submitted_by_email", ""), actor_name=proposal.get("submitted_by_name", ""),
+                          timestamp=proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"])
+        submitted["changes_summary"] = "Update Submitted"
+        submitted["changes"]["action"] = "submitted"
+        events.append(submitted)
+        for edit in edits:
+            edit_event = event(edit["before"], edit["after"], action="updated", actor_id=edit.get("by_id"), actor_email="",
+                               actor_name=edit.get("by_name", ""), timestamp=str(edit.get("at")))
+            edit_event["changes_summary"] = "Updated by approver"
+            edit_event["changes"]["request_type"] = "update"
+            edit_event["changes"]["approver_edit_fields"] = edit.get("fields", [])
+            events.append(edit_event)
+        for step in proposal.get("steps_completed") or []:
+            if step.get("action") == "approve" and (step.get("level") or 1) < total_levels:
+                level_event = event({}, {}, action="approved", actor_id=step.get("actor_id"), actor_email=step.get("actor_email", ""),
+                                    actor_name=step.get("actor_name", ""), timestamp=str(step.get("timestamp") or approved_event["changed_at"]))
+                level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
+                level_event["field_changes"] = []
+                events.append(level_event)
+        events.sort(key=lambda e: str(e.get("changed_at")))
+        approved_event["field_changes"] = []
+        approved_event["changes"]["old_values"] = approved_event["changes"]["new_values"]
+        return events
     if proposal.get("original_proposal_data") and modification:
         before = {**current, "dynamic_field_values": original_inputs, "employees": original.get("employees") or current.get("employees"),
                   **{k: original[k] for k in OPTIONAL_FIELD_LABELS if k in original}}
@@ -671,10 +722,13 @@ class ProposalService:
                            for k in after_values if after_values.get(k) != before_values.get(k)]
         update_op: Dict[str, Any] = {"$set": update_data}
         if changed_fields:
-            update_op["$push"] = {"approver_edits": {
+            edit_entry = {
                 "level": proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
                 "at": now, "fields": changed_fields, "field_diffs": field_diffs,
-            }}
+            }
+            if entity_type == "emission_record":
+                edit_entry["before"], edit_entry["after"] = emission_state(current_snapshot), emission_state(new_snapshot)
+            update_op["$push"] = {"approver_edits": edit_entry}
         await db.approval_requests.update_one({"id": proposal_id}, update_op)
         
         return await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
