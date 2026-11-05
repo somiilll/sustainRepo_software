@@ -35,17 +35,23 @@ def _iso_utc(value: Any) -> Optional[str]:
 
 
 FIELD_LABELS = {"filling_frequency": "frequency", "start_date": "start date", "end_date": "end date",
-                "requires_approval": "approval requirement", "approver_id": "approver"}
+                "requires_approval": "approval requirement"}
+
+
+def _chain_ids(value: Dict[str, Any]) -> List[str]:
+    chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in value.get("approval_chain") or []]
+    return [c for c in chain if c] or ([value["approver_id"]] if value.get("approver_id") else [])
 
 
 def _assignment_changes(previous: Dict[str, Any], new: Dict[str, Any], names: Dict[str, Dict[str, str]]) -> List[str]:
     def show(key: str, value: Any) -> str:
-        if key == "approver_id":
-            return names.get(value, {}).get("name", "none") if value else "none"
         if key == "requires_approval":
             return "required" if value else "not required"
         return str(value).replace("_", "-") if value else "none"
     out = []
+    if ("approver_id" in new or "approval_chain" in new) and _chain_ids(previous) != _chain_ids(new):
+        names_of = lambda value: " → ".join(names.get(i, {}).get("name", "User") for i in _chain_ids(value)) or "none"
+        out.append(f"approvers from {names_of(previous)} to {names_of(new)}")
     for key, label in FIELD_LABELS.items():
         if key in new and key in previous and new[key] != previous[key]:
             out.append(f"{label} from {show(key, previous[key])} to {show(key, new[key])}")
@@ -170,7 +176,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
                               + [h.get("changed_by_user_id") for h in history] + [a.get("created_by_user_id") for a in assignments]
                               + [i for h in history for i in (h.get("new_value") or {}).get("user_ids", [])]
                               + [i for h in history for i in (h.get("previous_value") or {}).get("user_ids", [])]
-                              + [(v or {}).get("approver_id") for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict)])
+                              + [i for h in history for v in (h.get("previous_value"), h.get("new_value")) if isinstance(v, dict) for i in _chain_ids(v)])
 
     for p in periods:
         p["submitted_by_name"] = names.get(p.get("submitted_by"), {}).get("name")
@@ -192,7 +198,7 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
         created = _iso_utc(a.get("created_at")) or ""
         first_update = next((h for h in sorted(history, key=lambda x: str(x.get("created_at"))) if h.get("action") == "version_updated"), None)
         original = (first_update or {}).get("previous_value") or {}
-        approver_id = original.get("approver_id", a.get("approver_id"))
+        approver_ids_at_creation = _chain_ids({**a, **{k: v for k, v in original.items() if k in ("approver_id", "approval_chain")}})
         frequency_at_creation = original.get("filling_frequency", a.get("filling_frequency", "monthly"))
         people = [names.get(r["user_id"], {}).get("name") for r in assignee_rows
                   if r["assignment_id"] == a["id"] and (_iso_utc(r.get("assigned_at")) or "") <= _plus_seconds(created, 10)]
@@ -201,9 +207,9 @@ async def get_tracker_detail(org_id: str, section: str, category: str, subcatego
             text += f" to {', '.join(p for p in people if p)}"
         text += f" for Facility {facility_name.get(a.get('facility_id'), '')}".rstrip() if a.get("facility_id") else " at org level"
         text += f", {frequency_at_creation.replace('_', '-')}"
-        approver = names.get(approver_id, {}).get("name")
-        if a.get("requires_approval") and approver:
-            text += f", with {approver} as approver"
+        approvers = " → ".join(names.get(i, {}).get("name", "User") for i in approver_ids_at_creation)
+        if a.get("requires_approval") and approvers:
+            text += f", with {approvers} as approver{'s' if len(approver_ids_at_creation) > 1 else ''}"
         activity.append({"at": created, "kind": "assign", "actor": creator, "title": text})
     for h in history:
         who = names.get(h.get("changed_by_user_id"), {}).get("name", "Someone")
