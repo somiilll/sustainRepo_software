@@ -819,16 +819,12 @@ export default function ESGTrackingTab({
       )}
       
       {isGriView && selectedFramework && !selectedSection && (
-        <div className="space-y-5" data-testid="gri-tracker-view">
+        <div className="space-y-8" data-testid="gri-tracker-view">
           <GRIHeader
             framework={selectedFramework}
             sectionCount={sections.length}
             filterByMateriality={filterByMateriality}
             onToggleMateriality={() => setFilterByMateriality((v) => !v)}
-            onAssignUnassigned={() => {
-              const target = sections.find((s) => s.unassigned_count > 0);
-              if (target) openAssignSectionModal(target);
-            }}
           />
           {sections.length === 0 ? (
             <Card className="p-8 text-center text-sm text-text-muted" data-testid="gri-empty">No GRI sections to show for this period.</Card>
@@ -842,10 +838,12 @@ export default function ESGTrackingTab({
               renderPanel={(section) => (
                 <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
                                        onEditAssignment={() => openEditSectionAssignment(section)}
+                                       onAssignQuestion={(q) => openAssignDisclosureModal(q.disclosure)}
                                        reportingPeriod={reportingPeriod} version={sections} />
               )}
             />
           )}
+
         </div>
       )}
 

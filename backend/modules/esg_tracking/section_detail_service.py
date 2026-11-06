@@ -70,6 +70,7 @@ async def get_section_detail(org_id: str, domain: str, framework_id: str, sectio
     questions = [{
         "question_key": i.question_key, "name": i.disclosure_name, "status": _question_status(i), "assigned": i.is_assigned,
         "due_date": _iso(i.due_date), "updated_at": _iso(i.last_response_updated_at),
+        "disclosure": i.model_dump(mode="json"),
     } for i in items]
 
     ref = next((a for a in assignments), {})

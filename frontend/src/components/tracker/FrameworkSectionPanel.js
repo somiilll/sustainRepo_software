@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Loader2, Pencil } from 'lucide-react';
+import { Loader2, Pencil, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ActivityTab, Empty, fmt, NotificationSettings } from './TrackerDetailPanel';
 
@@ -26,10 +26,10 @@ const person = (u) => (
   </li>
 );
 
-const QuestionsTab = ({ items }) => (
+const QuestionsTab = ({ items, onAssignQuestion }) => (
   <ul className="max-h-[26rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="section-panel-questions">
     {items.length === 0 && <Empty>No questions in this section</Empty>}
-    {items.map((q) => {
+    {(items.every((q) => /_[a-z]$/.test(q.question_key)) ? [...items].sort((x, y) => x.question_key.localeCompare(y.question_key)) : items).map((q) => {
       const [label, cls] = Q_STATUS[q.status] || Q_STATUS.pending;
       const letter = (q.question_key || '').match(/_([a-z])$/)?.[1];
       return (
@@ -40,6 +40,12 @@ const QuestionsTab = ({ items }) => (
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />{label}
           </span>
           <span className="w-40 text-right text-xs text-stone-500">{q.assigned ? (q.updated_at ? `Updated ${fmt(q.updated_at)}` : (q.due_date ? `Due ${fmt(q.due_date)}` : 'Assigned')) : 'Not assigned'}</span>
+          {onAssignQuestion && (
+            <button type="button" onClick={() => onAssignQuestion(q)} data-testid={`section-panel-assign-${q.question_key}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 py-1 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100">
+              {q.assigned ? <><Pencil className="h-3 w-3" />Edit</> : <><UserPlus className="h-3 w-3" />Assign</>}
+            </button>
+          )}
         </li>
       );
     })}
@@ -84,7 +90,7 @@ const AssignmentTab = ({ a, saveUrl, saveParams, onEdit }) => (
   </div>
 );
 
-export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, reportingPeriod, version, onEditAssignment }) {
+export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, reportingPeriod, version, onEditAssignment, onAssignQuestion }) {
   const { token } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
@@ -114,7 +120,7 @@ export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, 
           </button>
         ))}
       </div>
-      {tab === 'questions' && <QuestionsTab items={data.questions} />}
+      {tab === 'questions' && <QuestionsTab items={data.questions} onAssignQuestion={onAssignQuestion} />}
       {tab === 'assignment' && <AssignmentTab a={data.assignment} onEdit={onEditAssignment} saveParams={{ reporting_period: reportingPeriod }}
         saveUrl={`${API}/api/tracking/${domain}/frameworks/${frameworkId}/sections/${encodeURIComponent(sectionId)}/notifications`} />}
       {tab === 'activity' && <ActivityTab items={data.activity} />}

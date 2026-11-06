@@ -46,7 +46,7 @@ const Stat = ({ label, value, tone, testId, action }) => (
   </div>
 );
 
-export function GRIHeader({ framework, sectionCount, filterByMateriality, onToggleMateriality, onAssignUnassigned }) {
+export function GRIHeader({ framework, sectionCount, filterByMateriality, onToggleMateriality }) {
   const total = framework.total_disclosures || 0;
   const done = framework.completed_disclosures || 0;
   const pending = framework.pending_disclosures || 0;
@@ -54,7 +54,7 @@ export function GRIHeader({ framework, sectionCount, filterByMateriality, onTogg
   const unassigned = Math.max(total - owned, 0);
   const pct = Math.round(framework.completion_percentage || 0);
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm" data-testid="gri-tracker-header">
+    <div className="mb-8 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm" data-testid="gri-tracker-header">
       <div className="flex flex-wrap items-center gap-6">
         <Ring pct={pct} />
         <div className="min-w-[220px] flex-1">
@@ -74,12 +74,7 @@ export function GRIHeader({ framework, sectionCount, filterByMateriality, onTogg
           <Stat label="Total" value={total} tone="border-stone-200 bg-white text-stone-900" testId="gri-stat-total" />
           <Stat label="Done" value={done} tone="border-emerald-200 bg-emerald-50 text-emerald-800" testId="gri-stat-done" />
           <Stat label="Pending" value={pending} tone="border-amber-200 bg-amber-50 text-amber-800" testId="gri-stat-pending" />
-          <Stat label="Unassigned" value={unassigned} tone="border-red-200 bg-red-50 text-red-800" testId="gri-stat-unassigned"
-                action={unassigned > 0 && (
-                  <button type="button" onClick={onAssignUnassigned} className="text-xs font-semibold underline-offset-2 hover:underline" data-testid="gri-assign-unassigned">
-                    Assign →
-                  </button>
-                )} />
+          <Stat label="Unassigned" value={unassigned} tone="border-red-200 bg-red-50 text-red-800" testId="gri-stat-unassigned" />
         </div>
       </div>
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-stone-100">
@@ -138,7 +133,7 @@ export function GRILedger({ sections, renderPanel, onAssign, onRemind, reminding
 
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm" data-testid="gri-ledger">
-      <div className="hidden grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1.2fr)_140px_150px] gap-4 border-b border-stone-200 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500 md:grid">
+      <div className="hidden grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1.2fr)_140px_150px] gap-8 border-b border-stone-200 bg-stone-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500 md:grid">
         <span>Section</span><span>Progress</span><span>Owner</span><span>Status</span><span className="text-right">Actions</span>
       </div>
       {groups.map((group) => (
@@ -146,7 +141,6 @@ export function GRILedger({ sections, renderPanel, onAssign, onRemind, reminding
           <div className="flex items-center gap-3 border-b border-stone-200 bg-stone-100/70 px-5 py-2.5">
             <span className="rounded-md bg-stone-900 px-2 py-0.5 text-xs font-semibold tabular-nums text-white">{group.id}</span>
             <span className="text-sm font-semibold text-stone-900">{group.name}</span>
-            <span className="text-xs text-stone-500">GRI {group.id}: {group.name}</span>
           </div>
           {group.sections.map((s) => {
             const open = !!expanded[s.section_id];
@@ -154,11 +148,11 @@ export function GRILedger({ sections, renderPanel, onAssign, onRemind, reminding
             const pct = Math.round(s.completion_percentage || 0);
             return (
               <div key={s.section_id} className="border-b border-stone-100 last:border-b-0" data-testid={`gri-row-${s.section_id}`}>
-                <div className="grid cursor-pointer grid-cols-1 items-center gap-3 px-5 py-3.5 transition-colors hover:bg-stone-50 md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1.2fr)_140px_150px] md:gap-4"
+                <div className="grid cursor-pointer grid-cols-1 items-center gap-3 px-5 py-3.5 transition-colors hover:bg-stone-50 md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.3fr)_minmax(0,1.2fr)_140px_150px] md:gap-8"
                      onClick={() => setExpanded((e) => ({ ...e, [s.section_id]: !e[s.section_id] }))}>
                   <div className="flex min-w-0 items-center gap-3">
                     {open ? <ChevronDown className="h-4 w-4 shrink-0 text-stone-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-stone-400" />}
-                    <span className="shrink-0 rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-stone-800">{s.section_id}</span>
+                    <span className="shrink-0 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-sky-700">{s.section_id}</span>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-stone-900">{s.title || s.section_name}</div>
                       <div className="text-xs text-stone-500">{s.total_disclosures} question{s.total_disclosures !== 1 ? 's' : ''}</div>
