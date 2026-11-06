@@ -147,3 +147,75 @@ async def save_section_notification_settings(
         {"$set": {"reminder_rules": [r for r in REMINDER_RULES if r in reminder_rules], "escalation": escalation,
                   "updated_at": datetime.now(timezone.utc)}})
     return result.matched_count
+
+
+async def send_section_reminders(
+    org_id: str, domain: str, framework_id: str, section_id: str, reporting_period: str, sender_name: str,
+) -> Dict[str, int]:
+    """Remind assignees about questions awaiting entry and approvers about questions awaiting approval (email + in-app)."""
+    import html
+    import os
+    from shared.helpers.email import send_email
+    from shared.notifications import create_notification
+
+    _, items = await tracking_service.get_section_disclosures(
+        organization_id=org_id, domain=domain, framework_id=framework_id, section_id=section_id,
+        reporting_period=reporting_period, filters=TrackingFilter())
+    assigned = [i for i in items if i.is_assigned]
+    assignment_ids = list({i.assignment_id for i in assigned if i.assignment_id})
+    assignee_rows = await db.esg_assignment_assignees.find(
+        {"assignment_id": {"$in": assignment_ids}, "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}]},
+        {"_id": 0, "user_id": 1, "assignment_id": 1}).to_list(2000)
+    assignees_by_assignment: Dict[str, List[str]] = {}
+    for row in assignee_rows:
+        assignees_by_assignment.setdefault(row["assignment_id"], []).append(row["user_id"])
+    awaiting_approval = [i for i in assigned if i.approval_status in ("pending_approval", "pending")]
+    open_requests = await db.approval_requests.find(
+        {"organization_id": org_id, "status": "pending", "entity_id": {"$in": [i.question_key for i in awaiting_approval]}},
+        {"_id": 0, "entity_id": 1, "current_approvers": 1}).to_list(2000)
+    approvers_by_question = {r["entity_id"]: r.get("current_approvers") or [] for r in open_requests}
+
+    entry_work: Dict[str, List[str]] = {}
+    approval_work: Dict[str, List[str]] = {}
+    for item in assigned:
+        if item in awaiting_approval:
+            chain = _chain(item)
+            for uid in approvers_by_question.get(item.question_key) or chain[:1]:
+                approval_work.setdefault(uid, []).append(item.disclosure_name)
+        elif not item.is_completed and item.approval_status not in ("approved", "rejected"):
+            for uid in assignees_by_assignment.get(item.assignment_id, []):
+                entry_work.setdefault(uid, []).append(item.disclosure_name)
+
+    people = await db.users.find({"id": {"$in": list(set(entry_work) | set(approval_work))}}, {"_id": 0, "id": 1, "email": 1, "full_name": 1}).to_list(500)
+    users = {u["id"]: u for u in people}
+    app_url = os.environ["FRONTEND_URL"].rstrip("/")
+    framework_label = framework_id.upper()
+
+    async def notify(work: Dict[str, List[str]], kind: str) -> int:
+        sent = 0
+        for uid, names in work.items():
+            user = users.get(uid)
+            if not user:
+                continue
+            action = "awaiting your entry" if kind == "entry" else "awaiting your approval"
+            link = "/workflow/my-task" if kind == "entry" else "/workflow/approver-queue"
+            title = f"Reminder: {len(names)} {framework_label} question{'s' if len(names) != 1 else ''} {action}"
+            await create_notification(
+                user_id=uid, org_id=org_id, title=title, message=f"{sender_name} sent a reminder for {reporting_period}.",
+                notification_type="reminder", link=link, metadata={"framework": framework_id, "section": section_id, "kind": kind})
+            if user.get("email"):
+                listing = "".join(f"<li>{html.escape(n)}</li>" for n in names[:25])
+                more = f"<li>and {len(names) - 25} more</li>" if len(names) > 25 else ""
+                body = (f"<p>Hi {html.escape(user.get('full_name') or 'there')},</p><p>{html.escape(sender_name)} sent a reminder: "
+                        f"{len(names)} {framework_label} question(s) for {html.escape(reporting_period)} are {action}.</p><ul>{listing}{more}</ul>"
+                        f"<p><a href=\"{app_url}{link}\">Open in the app</a></p>")
+                await send_email(user["email"], title, body)
+            sent += 1
+        return sent
+
+    return {
+        "assignees_notified": await notify(entry_work, "entry"),
+        "approvers_notified": await notify(approval_work, "approval"),
+        "questions_awaiting_entry": sum(len(v) for v in entry_work.values()),
+        "questions_awaiting_approval": len({n for v in approval_work.values() for n in v}),
+    }

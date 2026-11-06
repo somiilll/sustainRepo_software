@@ -4,17 +4,17 @@
  */
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ActivityTab, Empty, fmt, NotificationSettings } from './TrackerDetailPanel';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const Q_STATUS = {
-  approved: ['Approved', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-  saved: ['Saved', 'bg-blue-50 text-blue-700 border-blue-200'],
-  pending_approval: ['Awaiting approval', 'bg-amber-50 text-amber-700 border-amber-200'],
-  rejected: ['Sent back', 'bg-red-50 text-red-700 border-red-200'],
+  approved: ['Completed, Approved', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+  saved: ['Completed', 'bg-blue-50 text-blue-700 border-blue-200'],
+  pending_approval: ['Completed, Awaiting Approval', 'bg-amber-50 text-amber-700 border-amber-200'],
+  rejected: ['Completed, Rejected', 'bg-red-50 text-red-700 border-red-200'],
   overdue: ['Overdue', 'bg-red-50 text-red-700 border-red-200'],
   pending: ['Pending', 'bg-stone-100 text-stone-600 border-stone-200'],
 };
@@ -42,8 +42,16 @@ const QuestionsTab = ({ items }) => (
   </ul>
 );
 
-const AssignmentTab = ({ a, saveUrl, saveParams }) => (
+const AssignmentTab = ({ a, saveUrl, saveParams, onEdit }) => (
   <div data-testid="section-panel-assignment">
+  {onEdit && (
+    <div className="flex justify-end pt-3">
+      <button type="button" onClick={onEdit} data-testid="section-panel-edit-assignment"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50">
+        <Pencil className="h-3.5 w-3.5" />Edit assignment
+      </button>
+    </div>
+  )}
   <div className="grid gap-6 pt-4 md:grid-cols-3">
     <div>
       <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Data entry</h5>
@@ -72,7 +80,7 @@ const AssignmentTab = ({ a, saveUrl, saveParams }) => (
   </div>
 );
 
-export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, reportingPeriod, version }) {
+export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, reportingPeriod, version, onEditAssignment }) {
   const { token } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
@@ -103,7 +111,7 @@ export default function FrameworkSectionPanel({ domain, frameworkId, sectionId, 
         ))}
       </div>
       {tab === 'questions' && <QuestionsTab items={data.questions} />}
-      {tab === 'assignment' && <AssignmentTab a={data.assignment} saveParams={{ reporting_period: reportingPeriod }}
+      {tab === 'assignment' && <AssignmentTab a={data.assignment} onEdit={onEditAssignment} saveParams={{ reporting_period: reportingPeriod }}
         saveUrl={`${API}/api/tracking/${domain}/frameworks/${frameworkId}/sections/${encodeURIComponent(sectionId)}/notifications`} />}
       {tab === 'activity' && <ActivityTab items={data.activity} />}
     </div>

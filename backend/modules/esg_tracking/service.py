@@ -931,9 +931,6 @@ class TrackingService:
                                 last_updated = resp_updated
                     
                     comp_status = CompletionStatus.STALE if is_stale else CompletionStatus.COMPLETED
-                elif response is not None:
-                    pending += 1
-                    comp_status = CompletionStatus.IN_PROGRESS
                 else:
                     pending += 1
                     comp_status = CompletionStatus.NOT_STARTED

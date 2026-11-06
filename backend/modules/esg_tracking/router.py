@@ -146,6 +146,21 @@ async def save_section_notifications(
     return {"success": True}
 
 
+@router.post("/{domain}/frameworks/{framework_id}/sections/{section_id}/remind")
+async def remind_section(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Email and in-app reminder to assignees (pending entry) and approvers (pending approval) of a section. Admin only."""
+    from .section_detail_service import send_section_reminders
+    return await send_section_reminders(
+        current_user["organization_id"], domain, framework_id, section_id, reporting_period,
+        current_user.get("full_name") or current_user.get("email") or "An administrator")
+
+
 @router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}")
 async def get_section_disclosures(
     domain: TrackingDomain,

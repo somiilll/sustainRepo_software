@@ -507,13 +507,13 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
   const getStatusBadge = (status) => {
     switch (status) {
       case 'approved':
-        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed, Approved</Badge>;
       case 'saved_approved':
-        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved & Approved</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed, Approved</Badge>;
       case 'saved':
-        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Saved</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
       case 'pending_approval':
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-200"><Clock className="w-3 h-3 mr-1" />Pending Approval</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200"><Clock className="w-3 h-3 mr-1" />Completed, Awaiting Approval</Badge>;;
       case 'submitted':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Send className="w-3 h-3 mr-1" />Submitted</Badge>;
       case 'draft':
@@ -521,7 +521,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
       case 'editing':
         return <Badge className="bg-orange-100 text-orange-800 border-orange-200"><Clock className="w-3 h-3 mr-1" />Editing</Badge>;
       case 'rejected':
-        return <Badge className="bg-red-100 text-red-800 border-red-200"><Circle className="w-3 h-3 mr-1" />Rejected</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-200"><Circle className="w-3 h-3 mr-1" />Completed, Rejected</Badge>;
       case 'in_progress':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200"><Clock className="w-3 h-3 mr-1" />In Progress</Badge>;
       case 'superseded':

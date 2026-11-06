@@ -293,6 +293,7 @@ export default function ESGTrackingTab({
   
   // State
   const [loading, setLoading] = useState(true);
+  const [remindingSection, setRemindingSection] = useState(null);
   const [internalReportingPeriod, setInternalReportingPeriod] = useState(() => getCurrentReportingYear('financial_year'));
   const [frameworkSummary, setFrameworkSummary] = useState(null);
   const [selectedFramework, setSelectedFramework] = useState(null);
@@ -620,6 +621,24 @@ export default function ESGTrackingTab({
   };
   
   // Open assign modal for section
+  const sendSectionReminder = async (section) => {
+    setRemindingSection(section.section_id);
+    try {
+      const res = await axios.post(
+        `${API}/tracking/${domain}/frameworks/${selectedFramework.framework_id}/sections/${encodeURIComponent(section.section_id)}/remind`,
+        null, { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } }
+      );
+      const { assignees_notified: a, approvers_notified: p } = res.data;
+      if (!a && !p) toast.info('Nothing pending in this section to remind about');
+      else toast.success(`Reminder sent to ${a} assignee${a !== 1 ? 's' : ''} and ${p} approver${p !== 1 ? 's' : ''}`);
+    } catch (e) {
+      toast.error('Could not send the reminder');
+    } finally {
+      setRemindingSection(null);
+    }
+  };
+
+  // Open assign modal for section
   const openEditSectionAssignment = async (section) => {
     try {
       const res = await axios.get(
@@ -801,9 +820,11 @@ export default function ESGTrackingTab({
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedFramework(null)}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
+              {selectedFramework.framework_id?.toUpperCase() !== 'GRI' && (
+                <Button variant="ghost" size="sm" onClick={() => setSelectedFramework(null)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              )}
               {selectedFramework.framework_name} Sections
             </h3>
             <div className="flex items-center gap-3">
@@ -876,25 +897,32 @@ export default function ESGTrackingTab({
                       data-testid={`section-expand-${section.section_id}`}
                     >
                       {expandedSections[section.section_id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      <span className="ml-1">Details</span>
+                      <span className="sr-only">Details</span>
                     </Button>
+                    {section.total_disclosures - section.unassigned_count > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); sendSectionReminder(section); }}
+                        disabled={remindingSection === section.section_id}
+                        data-testid={`section-remind-${section.section_id}`}
+                      >
+                        <Bell className="w-4 h-4 mr-1" /> {remindingSection === section.section_id ? 'Sending...' : 'Reminder'}
+                      </Button>
+                    )}
+                    {(section.total_disclosures === 0 || section.unassigned_count > 0) && (
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (section.total_disclosures > 0 && section.unassigned_count === 0) {
-                          openEditSectionAssignment(section);
-                        } else {
-                          openAssignSectionModal(section);
-                        }
+                        openAssignSectionModal(section);
                       }}
                       data-testid={`section-assign-${section.section_id}`}
                     >
-                      {section.total_disclosures > 0 && section.unassigned_count === 0
-                        ? <><Pencil className="w-4 h-4 mr-1" /> Edit Assignment</>
-                        : <><UserPlus className="w-4 h-4 mr-1" /> Assign Section</>}
+                      <UserPlus className="w-4 h-4 mr-1" /> Assign Section
                     </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -906,6 +934,7 @@ export default function ESGTrackingTab({
                 </div>
                 {expandedSections[section.section_id] && (
                   <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
+                                         onEditAssignment={() => openEditSectionAssignment(section)}
                                          reportingPeriod={reportingPeriod} version={sections} />
                 )}
               </Card>
