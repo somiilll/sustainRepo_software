@@ -820,11 +820,6 @@ export default function ESGTrackingTab({
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              {selectedFramework.framework_id?.toUpperCase() !== 'GRI' && (
-                <Button variant="ghost" size="sm" onClick={() => setSelectedFramework(null)}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-              )}
               {selectedFramework.framework_name} Sections
             </h3>
             <div className="flex items-center gap-3">
@@ -905,9 +900,11 @@ export default function ESGTrackingTab({
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); sendSectionReminder(section); }}
                         disabled={remindingSection === section.section_id}
+                        title="Send reminder"
+                        aria-label="Send reminder"
                         data-testid={`section-remind-${section.section_id}`}
                       >
-                        <Bell className="w-4 h-4 mr-1" /> {remindingSection === section.section_id ? 'Sending...' : 'Reminder'}
+                        <Bell className="w-4 h-4" />
                       </Button>
                     )}
                     {(section.total_disclosures === 0 || section.unassigned_count > 0) && (

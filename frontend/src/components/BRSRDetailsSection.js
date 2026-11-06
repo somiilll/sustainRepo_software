@@ -518,7 +518,7 @@ export default function BRSRDetailsSection({
     if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
       return (
         <Badge className="text-xs bg-green-100 text-green-800">
-          Saved
+          Completed
         </Badge>
       );
     }
