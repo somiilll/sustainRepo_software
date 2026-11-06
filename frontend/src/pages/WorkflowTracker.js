@@ -1,58 +1,79 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Leaf, Users2, Shield, ScrollText, BookOpen } from 'lucide-react';
 import ESGRecordsTracker from '../components/ESGRecordsTracker';
 import ESGTrackingTab from '../components/ESGTrackingTab';
 import { ModulePageHeader } from '../components/ModulePageHeader';
+import { useAuth } from '../contexts/AuthContext';
+import { getCurrentReportingYear } from '../utils/reportingYearUtils';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const TRIGGER_CLASS = 'gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-stone-600 transition-colors data-[state=active]:bg-white data-[state=active]:text-stone-900 data-[state=active]:shadow-sm';
 
 /**
  * Workflow Tracker — combined tracker for ESG sections + BRSR/GRI disclosures.
- * Uses ESGTrackingTab directly (no sub-tabs).
  */
 export default function WorkflowTracker() {
   const [section, setSection] = useState('environment');
+  const [griPct, setGriPct] = useState(null);
+  const { getAuthHeader, user } = useAuth();
+
+  useEffect(() => {
+    if (!user || !['admin', 'super_admin'].includes(user.role)) return;
+    axios.get(`${API}/tracking/all/frameworks`, {
+      headers: getAuthHeader(), params: { reporting_period: getCurrentReportingYear('financial_year') },
+    }).then((res) => {
+      const gri = (res.data.frameworks || []).find((fw) => fw.framework_id?.toUpperCase() === 'GRI');
+      if (gri) setGriPct(Math.round(gri.completion_percentage || 0));
+    }).catch(() => {});
+  }, [user, getAuthHeader]);
 
   return (
     <div className="space-y-7" data-testid="workflow-tracker">
       <ModulePageHeader title="Tracker" icon={ScrollText} iconClassName="border-indigo-200 bg-indigo-50 text-indigo-700" testId="workflow-tracker" />
 
       <Tabs value={section} onValueChange={setSection}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
-          <TabsTrigger value="environment" className="gap-2" data-testid="tracker-tab-environment">
+        <TabsList className="inline-flex h-auto max-w-full flex-wrap items-center gap-1 rounded-2xl border border-stone-200 bg-stone-100/80 p-1.5">
+          <TabsTrigger value="environment" className={TRIGGER_CLASS} data-testid="tracker-tab-environment">
             <Leaf className="h-4 w-4" />
             Environment
           </TabsTrigger>
-          <TabsTrigger value="social" className="gap-2" data-testid="tracker-tab-social">
+          <TabsTrigger value="social" className={TRIGGER_CLASS} data-testid="tracker-tab-social">
             <Users2 className="h-4 w-4" />
             Social
           </TabsTrigger>
-          <TabsTrigger value="governance" className="gap-2" data-testid="tracker-tab-governance">
+          <TabsTrigger value="governance" className={TRIGGER_CLASS} data-testid="tracker-tab-governance">
             <Shield className="h-4 w-4" />
             Governance
           </TabsTrigger>
-          <TabsTrigger value="brsr" className="gap-2" data-testid="tracker-tab-brsr">
+          <span className="mx-1 h-6 w-px bg-stone-300" aria-hidden="true" />
+          <TabsTrigger value="brsr" className={TRIGGER_CLASS} data-testid="tracker-tab-brsr">
             <ScrollText className="h-4 w-4" />
             BRSR
           </TabsTrigger>
-          <TabsTrigger value="gri" className="gap-2" data-testid="tracker-tab-gri">
+          <TabsTrigger value="gri" className={TRIGGER_CLASS} data-testid="tracker-tab-gri">
             <BookOpen className="h-4 w-4" />
             GRI
+            {griPct !== null && (
+              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-emerald-700" data-testid="tracker-tab-gri-pct">{griPct}%</span>
+            )}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="environment" className="mt-4">
+        <TabsContent value="environment" className="mt-5">
           <ESGRecordsTracker section="environment" />
         </TabsContent>
-        <TabsContent value="social" className="mt-4">
+        <TabsContent value="social" className="mt-5">
           <ESGRecordsTracker section="social" />
         </TabsContent>
-        <TabsContent value="governance" className="mt-4">
+        <TabsContent value="governance" className="mt-5">
           <ESGRecordsTracker section="governance" />
         </TabsContent>
-        <TabsContent value="brsr" className="mt-4">
+        <TabsContent value="brsr" className="mt-5">
           <ESGTrackingTab domain="all" frameworkFilter="BRSR" hideReportingPeriodSelector={true} />
         </TabsContent>
-        <TabsContent value="gri" className="mt-4">
+        <TabsContent value="gri" className="mt-5">
           <ESGTrackingTab domain="all" frameworkFilter="GRI" hideReportingPeriodSelector={true} />
         </TabsContent>
       </Tabs>

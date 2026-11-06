@@ -92,11 +92,24 @@ async def get_framework_sections(
         filter_by_materiality=filter_by_materiality,
     )
     
+    section_dicts = [s.dict() for s in sections]
+    if framework_id.upper() == "GRI" and section_dicts:
+        from shared.database.mongo import db
+        configs = await db.esg_question_configs.find(
+            {"framework": "GRI", "disclosure_id": {"$in": [s["section_id"] for s in section_dicts]}},
+            {"_id": 0, "disclosure_id": 1, "disclosure_name": 1, "material_topic": 1, "material_topic_id": 1}).to_list(5000)
+        by_disclosure = {c["disclosure_id"]: c for c in configs}
+        for s in section_dicts:
+            config = by_disclosure.get(s["section_id"], {})
+            s["title"] = config.get("disclosure_name")
+            s["topic_id"] = config.get("material_topic_id")
+            s["topic_name"] = config.get("material_topic")
+
     return {
         "framework_id": framework_id,
         "domain": domain.value,
         "reporting_period": reporting_period,
-        "sections": [s.dict() for s in sections],
+        "sections": section_dicts,
         "total_sections": len(sections),
         "filtered_by_materiality": filter_by_materiality,
     }

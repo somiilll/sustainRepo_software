@@ -12,7 +12,7 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 const Q_STATUS = {
   approved: ['Completed, Approved', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-  completed: ['Completed', 'bg-blue-50 text-blue-700 border-blue-200'],
+  completed: ['Completed', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
   pending_approval: ['Completed, Awaiting Approval', 'bg-amber-50 text-amber-700 border-amber-200'],
   rejected: ['Completed, Rejected', 'bg-red-50 text-red-700 border-red-200'],
   overdue: ['Overdue', 'bg-red-50 text-red-700 border-red-200'],
@@ -31,10 +31,14 @@ const QuestionsTab = ({ items }) => (
     {items.length === 0 && <Empty>No questions in this section</Empty>}
     {items.map((q) => {
       const [label, cls] = Q_STATUS[q.status] || Q_STATUS.pending;
+      const letter = (q.question_key || '').match(/_([a-z])$/)?.[1];
       return (
         <li key={q.question_key} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid={`section-panel-question-${q.question_key}`}>
+          {letter && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white text-xs font-semibold text-stone-600">{letter}</span>}
           <span className="min-w-0 flex-1 text-stone-900 line-clamp-2" title={q.name}>{q.name}</span>
-          <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cls}`}>{label}</span>
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cls}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />{label}
+          </span>
           <span className="w-40 text-right text-xs text-stone-500">{q.assigned ? (q.updated_at ? `Updated ${fmt(q.updated_at)}` : (q.due_date ? `Due ${fmt(q.due_date)}` : 'Assigned')) : 'Not assigned'}</span>
         </li>
       );

@@ -27,7 +27,7 @@ const BADGES = {
   pending_approval: ['Completed, Awaiting Approval', 'bg-amber-100 text-amber-800'],
   draft: ['Draft', 'bg-amber-100 text-amber-800'],
   in_progress: ['In progress', 'bg-yellow-100 text-yellow-800'],
-  completed: ['Completed', 'bg-blue-100 text-blue-800'],
+  completed: ['Completed', 'bg-green-100 text-green-800'],
 };
 
 export function QuestionStatusBadge({ status, label }) {

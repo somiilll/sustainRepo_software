@@ -82,6 +82,7 @@ import {
 import MyTasks from './MyTasks';
 
 import FrameworkSectionPanel from './tracker/FrameworkSectionPanel';
+import { GRIHeader, GRILedger } from './tracker/GRITrackerView';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -700,6 +701,8 @@ export default function ESGTrackingTab({
     setAssignModalOpen(true);
   };
   
+  const isGriView = frameworkFilter?.toUpperCase() === 'GRI';
+
   if (!isAdmin) {
     return (
       <Card className="p-8 text-center">
@@ -754,7 +757,7 @@ export default function ESGTrackingTab({
       </div>
       
       {/* Framework Summary Cards */}
-      {frameworkSummary && (
+      {frameworkSummary && !isGriView && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {frameworkSummary.frameworks.map(fw => (
             <Card 
@@ -815,8 +818,39 @@ export default function ESGTrackingTab({
         </div>
       )}
       
+      {isGriView && selectedFramework && !selectedSection && (
+        <div className="space-y-5" data-testid="gri-tracker-view">
+          <GRIHeader
+            framework={selectedFramework}
+            sectionCount={sections.length}
+            filterByMateriality={filterByMateriality}
+            onToggleMateriality={() => setFilterByMateriality((v) => !v)}
+            onAssignUnassigned={() => {
+              const target = sections.find((s) => s.unassigned_count > 0);
+              if (target) openAssignSectionModal(target);
+            }}
+          />
+          {sections.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-text-muted" data-testid="gri-empty">No GRI sections to show for this period.</Card>
+          ) : (
+            <GRILedger
+              sections={sections}
+              onAssign={openAssignSectionModal}
+              onRemind={sendSectionReminder}
+              remindingSection={remindingSection}
+              onOpenSection={setSelectedSection}
+              renderPanel={(section) => (
+                <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
+                                       onEditAssignment={() => openEditSectionAssignment(section)}
+                                       reportingPeriod={reportingPeriod} version={sections} />
+              )}
+            />
+          )}
+        </div>
+      )}
+
       {/* Sections View - One section per row */}
-      {selectedFramework && sections.length > 0 && !selectedSection && (
+      {selectedFramework && sections.length > 0 && !selectedSection && !isGriView && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
