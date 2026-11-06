@@ -17,10 +17,12 @@ export default function TaskStatsCards({ stats, entityType = ENTITY_TYPE.ALL }) 
     pending: stats.pending_count || 0,
     inProgress: stats.in_progress_count || 0,
     overdue: stats.overdue_count || 0,
+    awaitingApproval: stats.awaiting_approval_count || 0,
+    rejected: stats.rejected_count || 0,
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-4" data-testid="my-task-stats">
       <Card className="p-4">
         <div className="text-2xl font-bold text-text-primary">{displayStats.total}</div>
         <div className="text-sm text-text-muted">
@@ -42,6 +44,16 @@ export default function TaskStatsCards({ stats, entityType = ENTITY_TYPE.ALL }) 
         <div className="text-sm text-text-muted">In Progress</div>
       </Card>
       
+      <Card className="p-4">
+        <div className="text-2xl font-bold text-amber-600" data-testid="my-task-stat-awaiting-approval">{displayStats.awaitingApproval}</div>
+        <div className="text-sm text-text-muted">Awaiting approval</div>
+      </Card>
+
+      <Card className="p-4 border-red-200">
+        <div className="text-2xl font-bold text-rose-600" data-testid="my-task-stat-rejected">{displayStats.rejected}</div>
+        <div className="text-sm text-text-muted">Rejected</div>
+      </Card>
+
       <Card className="p-4 border-red-200">
         <div className="text-2xl font-bold text-red-600">{displayStats.overdue}</div>
         <div className="text-sm text-text-muted">Overdue</div>

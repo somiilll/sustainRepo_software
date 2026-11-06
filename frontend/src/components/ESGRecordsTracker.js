@@ -1206,7 +1206,7 @@ export default function ESGRecordsTracker({
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4" data-testid="tracker-stats-row">
         <Card className="p-4">
           <div className="text-2xl font-bold text-text-primary">{stats?.total_categories || 0}</div>
           <div className="text-sm text-text-muted">Total Categories</div>
@@ -1222,6 +1222,10 @@ export default function ESGRecordsTracker({
         <Card className="p-4">
           <div className="text-2xl font-bold text-green-600">{stats?.completed || 0}</div>
           <div className="text-sm text-text-muted">Completed</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-2xl font-bold text-amber-600" data-testid="tracker-stat-awaiting-approval">{stats?.awaiting_approval || 0}</div>
+          <div className="text-sm text-text-muted">Awaiting approval</div>
         </Card>
         <Card className="p-4">
           <div className="text-2xl font-bold text-red-600">{stats?.overdue || 0}</div>

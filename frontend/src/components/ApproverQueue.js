@@ -156,9 +156,6 @@ export default function ApproverQueue() {
       }
       
       const params = { reporting_period: reportingPeriod };
-      if (sectionFilter !== 'all') {
-        params.section = sectionFilter;
-      }
       
       // Fetch questionnaire submissions (old system - GRI disclosures)
       const questionnairePromise = axios.get(
@@ -344,7 +341,7 @@ export default function ApproverQueue() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [getAuthHeader, reportingPeriod, sectionFilter]);
+  }, [getAuthHeader, reportingPeriod]);
 
   // Fetch approval history (approved/rejected items)
   const fetchHistory = useCallback(async () => {
@@ -455,7 +452,15 @@ export default function ApproverQueue() {
 
   // Calculate total pending count
   // Handle both formats: questionnaire items have nested submissions array, approval workflow items are flat
-  const totalPending = submissions.reduce((acc, q) => {
+  const itemSectionKey = (item) => {
+    const framework = (item.framework || '').toLowerCase();
+    if (framework === 'brsr' || framework === 'gri') return framework;
+    if (item.entity_type === 'emission_record') return 'environment';
+    return (item.section || '').toLowerCase();
+  };
+  const visibleSubmissions = sectionFilter === 'all' ? submissions : submissions.filter((item) => itemSectionKey(item) === sectionFilter);
+
+  const totalPending = visibleSubmissions.reduce((acc, q) => {
     if (q.submissions && Array.isArray(q.submissions)) {
       // Questionnaire format: has nested submissions array
       return acc + q.submissions.length;
@@ -535,6 +540,8 @@ export default function ApproverQueue() {
                 <SelectItem value="environment">Environment</SelectItem>
                 <SelectItem value="social">Social</SelectItem>
                 <SelectItem value="governance">Governance</SelectItem>
+                <SelectItem value="brsr">BRSR</SelectItem>
+                <SelectItem value="gri">GRI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -562,7 +569,7 @@ export default function ApproverQueue() {
         
         {/* Pending Tab */}
         <TabsContent value="pending" className="mt-4">
-          {submissions.length === 0 ? (
+          {visibleSubmissions.length === 0 ? (
             <Card className="p-12 text-center">
               <CheckCircle2 className="w-16 h-16 text-green-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-text-primary mb-2">
@@ -574,7 +581,7 @@ export default function ApproverQueue() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {submissions.map((item) => {
+              {visibleSubmissions.map((item) => {
                 const isRecordApproval = item._source === 'approval_workflow';
                 const isEmissionRecord = item.entity_type === 'emission_record';
                 const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';

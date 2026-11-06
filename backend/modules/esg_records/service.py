@@ -2749,28 +2749,43 @@ class ESGRecordsService:
         cat_query = {"section": section, "is_active": True}
         if framework:
             cat_query["frameworks"] = framework
-        total_categories = await self._categories.count_documents(cat_query)
+        category_docs = await self._categories.find(cat_query, {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}).to_list(2000)
+        total_categories = len(category_docs)
 
-        # Get assignment counts
         assign_query = {
             "organization_id": org_id,
             "entity_type": "record_category",
+            "category": {"$in": list({d["category"] for d in category_docs})},
         }
         if reporting_period:
             assign_query["reporting_period"] = reporting_period
+        assignments = await db.esg_assignments.find(
+            assign_query, {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1, "status": 1, "due_date": 1}).to_list(20000)
 
-        assigned = await db.esg_assignments.count_documents(assign_query)
-        
-        # Status counts
-        completed = await db.esg_assignments.count_documents({**assign_query, "status": "completed"})
-        in_progress = await db.esg_assignments.count_documents({**assign_query, "status": "in_progress"})
-        
-        # Overdue count
-        now = datetime.now(timezone.utc)
-        overdue = await db.esg_assignments.count_documents({
-            **assign_query,
-            "due_date": {"$lt": now},
-            "status": {"$nin": ["completed", "approved"]}
+        def covers(a: Dict[str, Any], d: Dict[str, Any]) -> bool:
+            return (a.get("category") == d["category"]
+                    and (not a.get("subcategory") or a.get("subcategory") == d.get("subcategory"))
+                    and (not a.get("sub_subcategory") or a.get("sub_subcategory") == d.get("sub_subcategory")))
+
+        now = datetime.now(timezone.utc).isoformat()
+        closed = {"completed", "approved"}
+        assigned = completed = in_progress = overdue = 0
+        for d in category_docs:
+            matching = [a for a in assignments if covers(a, d)]
+            if not matching:
+                continue
+            assigned += 1
+            open_items = [a for a in matching if a.get("status") not in closed]
+            if not open_items:
+                completed += 1
+            elif any(a.get("status") == "in_progress" for a in open_items):
+                in_progress += 1
+            if any(a.get("due_date") and str(a["due_date"]) < now for a in open_items):
+                overdue += 1
+
+        awaiting_approval = await db.approval_requests.count_documents({
+            "organization_id": org_id, "entity_type": "esg_record", "status": "pending",
+            "entity_snapshot.category": {"$in": list({d["category"] for d in category_docs})},
         })
 
         return {
@@ -2780,7 +2795,8 @@ class ESGRecordsService:
             "completed": completed,
             "in_progress": in_progress,
             "overdue": overdue,
-            "stale": 0,  # Would need to calculate based on last entries
+            "awaiting_approval": awaiting_approval,
+            "stale": 0,
         }
 
     async def create_assignment(
