@@ -27,7 +27,7 @@ def _question_status(item: Any) -> str:
     if approval in ("approved", "rejected"):
         return approval
     if item.is_completed:
-        return "saved"
+        return "completed"
     return "overdue" if item.is_overdue else "pending"
 
 

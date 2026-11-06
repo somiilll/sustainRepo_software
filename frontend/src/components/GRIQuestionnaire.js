@@ -266,7 +266,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
 
   // Save single response (with status) - Last save wins logic
   const { promptAfterSave } = useLinkedFrameworks();
-  const saveResponse = async (responseKey, status = 'saved') => {
+  const saveResponse = async (responseKey, status = 'completed') => {
     setSaving(prev => ({ ...prev, [responseKey]: true }));
     try {
       const response = await axios.post(
@@ -297,7 +297,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
       }
       // Refresh to get updated status
       await fetchDisclosures();
-      if (status === 'saved') promptAfterSave([responseKey]);
+      if (status === 'completed') promptAfterSave([responseKey]);
     } catch (error) {
       console.error('Failed to save response:', error);
       toast.error('Failed to save response');
@@ -401,7 +401,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         'draft': 'Saved as draft',
         'submitted': 'Submitted for approval',
       };
-      toast.success(`${disclosure.disclosure_id} ${statusMessages[draftStatus] || 'saved'}`);
+      toast.success(`${disclosure.disclosure_id} ${statusMessages[draftStatus] || 'completed'}`);
       
       // Refresh to get updated statuses
       await fetchDisclosures();
@@ -428,7 +428,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
   };
 
   // Save all responses for a disclosure - Last save wins logic
-  const saveDisclosure = async (disclosure, status = 'saved') => {
+  const saveDisclosure = async (disclosure, status = 'completed') => {
     setSaving(prev => ({ ...prev, [disclosure.disclosure_id]: true }));
     try {
       const savePromises = [];
@@ -487,7 +487,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
       
       // Refresh to get updated statuses
       await fetchDisclosures();
-      if (status === 'saved') {
+      if (status === 'completed') {
         promptAfterSave(disclosure.questions.flatMap((q) => (q.sub_questions?.length ? q.sub_questions.map((sub) => sub.response_key) : [q.question_key])));
       }
     } catch (error) {
@@ -510,7 +510,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed, Approved</Badge>;
       case 'saved_approved':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed, Approved</Badge>;
-      case 'saved':
+      case 'completed':
         return <Badge className="bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
       case 'pending_approval':
         return <Badge className="bg-purple-100 text-purple-800 border-purple-200"><Clock className="w-3 h-3 mr-1" />Completed, Awaiting Approval</Badge>;;
@@ -542,11 +542,11 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
     if (disclosure) {
       const hasAnyResponse = disclosure.questions.some(q => {
         if (q.sub_questions?.length > 0) {
-          return q.sub_questions.some(sub => sub.response_status === 'saved' || sub.response_status === 'approved' || sub.response_status === 'saved_approved');
+          return q.sub_questions.some(sub => sub.response_status === 'completed' || sub.response_status === 'approved' || sub.response_status === 'saved_approved');
         }
-        return q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved';
+        return q.status === 'completed' || q.status === 'approved' || q.status === 'saved_approved';
       });
-      if (hasAnyResponse) return 'saved';
+      if (hasAnyResponse) return 'completed';
     }
     return 'pending';
   };
@@ -574,7 +574,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
     
     disclosure.questions.forEach(q => {
       total += 1;
-      if (q.status === 'saved' || q.status === 'approved' || q.status === 'saved_approved') {
+      if (q.status === 'completed' || q.status === 'approved' || q.status === 'saved_approved') {
         completed += 1;
       }
     });
@@ -679,7 +679,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                           {(responses[sub.response_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
                         </span>
                         {/* Show if user has a draft (different from saved value) */}
-                        {sub.has_user_draft && sub.saved_status === 'saved' && (
+                        {sub.has_user_draft && sub.saved_status === 'completed' && (
                           <Badge className="text-xs bg-yellow-100 text-yellow-700">
                             You have unsaved changes
                           </Badge>
@@ -687,7 +687,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                       </div>
                       <div className="flex gap-2">
                         {/* Discard Draft button - only show if user has draft and there's a saved value */}
-                        {sub.has_user_draft && sub.saved_status === 'saved' && (
+                        {sub.has_user_draft && sub.saved_status === 'completed' && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -771,7 +771,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                     {(responses[question.question_key] || '').length} / {question.validation_rules?.max_length || 10000} characters
                   </span>
                   {/* Show if user has a draft (different from saved value) */}
-                  {question.has_user_draft && question.saved_status === 'saved' && (
+                  {question.has_user_draft && question.saved_status === 'completed' && (
                     <Badge className="text-xs bg-yellow-100 text-yellow-700">
                       You have unsaved changes
                     </Badge>
@@ -779,7 +779,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
                 </div>
                 <div className="flex gap-2">
                   {/* Discard Draft button - only show if user has draft and there's a saved value */}
-                  {question.has_user_draft && question.saved_status === 'saved' && (
+                  {question.has_user_draft && question.saved_status === 'completed' && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -884,7 +884,7 @@ export default function GRIQuestionnaire({ section, reportingPeriod: externalPer
         const topicQuestions = topic.disclosures.flatMap((d) => d.questions);
         const visibleCount = topic.disclosures.reduce((n, d) => n + (statusFilter === 'all' ? d.questions.length : d.questions.filter((q) => questionProgress[q.question_key] === statusFilter).length), 0);
         if (!visibleCount) return null;
-                const answered = topicQuestions.filter((q) => ['saved', 'approved'].includes(questionProgress[q.question_key])).length;
+                const answered = topicQuestions.filter((q) => ['completed', 'approved'].includes(questionProgress[q.question_key])).length;
         return (
           <GRITopicCard key={topic.slug} topic={topic} answered={answered} total={topicQuestions.length} showMaterial={filterByMateriality && section !== 'general'}
             open={openTopics[topic.slug] !== false} onToggle={() => setOpenTopics((prev) => ({ ...prev, [topic.slug]: prev[topic.slug] === false }))}>

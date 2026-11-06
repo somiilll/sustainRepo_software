@@ -60,7 +60,7 @@ def _empty(value: Any) -> bool:
 
 def adjusted_status(doc: Dict[str, Any], table_config: Optional[Dict[str, Any]] = None) -> Optional[str]:
     """Return 'pending' (never filled in), 'in_progress' (partly answered) or None (keep stored status)."""
-    if not doc or doc.get("status") != "saved" or doc.get("approval_status") in ("approved", "rejected", "pending_approval"):
+    if not doc or doc.get("status") != "completed" or doc.get("approval_status") in ("approved", "rejected", "pending_approval"):
         return None
     key, value = doc.get("question_key"), doc.get("value")
     auto = doc.get("auto_fill") or {}
@@ -92,8 +92,8 @@ def resolved_status(doc: Optional[Dict[str, Any]], table_config: Optional[Dict[s
     adjusted = adjusted_status(doc, table_config)
     if adjusted:
         return adjusted
-    saved = doc.get("status") == "saved" or approval == "pending_approval"
-    return "saved" if saved and _has_reportable_value(doc.get("value")) else "pending"
+    saved = doc.get("status") == "completed" or approval == "pending_approval"
+    return "completed" if saved and _has_reportable_value(doc.get("value")) else "pending"
 
 
 def _dependency(config: Dict[str, Any]):

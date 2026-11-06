@@ -371,7 +371,7 @@ class ESGQuestionnaireService:
         for config in configs:
             key = config["question_key"]
             if config.get("static_note") and not config.get("sub_questions") and key not in responses_map:
-                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "saved"}
+                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "completed"}
         
         # Fetch user's drafts from esg_response_drafts
         user_drafts_map = {}
@@ -487,13 +487,13 @@ class ESGQuestionnaireService:
                         display_status = "rejected"
                         all_approved = False
                         all_saved_or_approved = False
-                    elif sub_status == "saved" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
+                    elif sub_status == "completed" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
                         display_status = "in_progress"
                         has_any_auto_partial = True
                         all_approved = False
                         all_saved_or_approved = False
-                    elif sub_status == "saved":
-                        display_status = "saved"
+                    elif sub_status == "completed":
+                        display_status = "completed"
                         has_any_saved = True
                         all_approved = False
                     elif sub_status == "draft":
@@ -527,7 +527,7 @@ class ESGQuestionnaireService:
                 elif all_approved and all_have_value and has_any_approved:
                     question_data["status"] = "saved_approved"
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
-                    question_data["status"] = "saved"
+                    question_data["status"] = "completed"
                 elif (has_any_saved or has_any_approved) and not all_have_value:
                     question_data["status"] = "in_progress"
                 elif has_any_auto_partial:
@@ -571,8 +571,8 @@ class ESGQuestionnaireService:
                     question_data["status"] = "approved"
                 elif response_approval == "rejected":
                     question_data["status"] = "rejected"
-                elif response.get("status") == "saved":
-                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "saved"
+                elif response.get("status") == "completed":
+                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "completed"
                 elif response.get("status") == "draft":
                     question_data["status"] = "draft"
                 else:
@@ -1241,7 +1241,7 @@ class ESGQuestionnaireService:
                 {
                     "$set": {
                         "value": final_value,
-                        "status": "saved",
+                        "status": "completed",
                         "approval_status": "approved",
                         "framework": framework,
                         "section": section,
@@ -1272,7 +1272,7 @@ class ESGQuestionnaireService:
                 {
                     "$set": {
                         "value": final_value,
-                        "status": "saved",
+                        "status": "completed",
                         "approval_status": "approved",
                         "approved_at": now_iso,
                         "approved_by": approver_user_id,
@@ -1535,7 +1535,7 @@ class ESGQuestionnaireService:
         changed_by_user_id: Optional[str] = None,
         changed_by_user_name: Optional[str] = None,
         changed_by_user_email: Optional[str] = None,
-        status: str = "saved",  # "draft" or "saved"
+        status: str = "completed",  # "draft" or "completed"
         is_admin: bool = False,
     ) -> dict:
         """
@@ -1596,8 +1596,8 @@ class ESGQuestionnaireService:
         if not direct_framework:
             direct_framework = "GRI"  # Default fallback
         
-        # Check workflow logic (only for actual "saved" status, not drafts or empty)
-        if status == "saved" and not value_is_empty:
+        # Check workflow logic (only for actual "completed" status, not drafts or empty)
+        if status == "completed" and not value_is_empty:
             use_direct_save = await self._should_use_direct_save(
                 org_id, question_key, reporting_period
             )
@@ -1662,7 +1662,7 @@ class ESGQuestionnaireService:
         # Determine final status and approval_status
         final_status = status
         final_approval_status = None
-        if value_changed and status == "saved" and not is_admin:
+        if value_changed and status == "completed" and not is_admin:
             final_approval_status = "pending_approval"
             # Notify approvers that a previously-approved answer was re-edited
             try:
@@ -1701,9 +1701,9 @@ class ESGQuestionnaireService:
         )
         result_acknowledged = True
         
-        # If this was a successful "saved" (not draft), clear other users' drafts AND own draft
+        # If this was a successful "completed" (not draft), clear other users' drafts AND own draft
         drafts_cleared = 0
-        if result_acknowledged and status == "saved" and not value_is_empty:
+        if result_acknowledged and status == "completed" and not value_is_empty:
             drafts_cleared = await self._clear_other_users_drafts(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
@@ -1713,7 +1713,7 @@ class ESGQuestionnaireService:
             )
         
         # Admin direct-save: cancel pending approval requests and update V2 assignment
-        if is_admin and status == "saved" and not value_is_empty:
+        if is_admin and status == "completed" and not value_is_empty:
             try:
                 # 1. Cancel any pending approval_request for this exact question_key
                 await db.approval_requests.update_many(
@@ -1784,7 +1784,7 @@ class ESGQuestionnaireService:
             # Determine the action type
             if is_new:
                 action = "created"
-            elif previous_status == "draft" and status == "saved":
+            elif previous_status == "draft" and status == "completed":
                 action = "submitted"
             elif status == "draft":
                 action = "draft_updated"
@@ -2756,7 +2756,7 @@ class ESGQuestionnaireService:
                 reporting_period=reporting_year,
                 framework=framework,
                 section=section,
-                status="saved" if has_value else "pending",
+                status="completed" if has_value else "pending",
                 approval_status=final_approval_status,
                 changed_by_user_id=changed_by_user_id,
                 changed_by_user_name=changed_by_user_name,
@@ -3081,7 +3081,7 @@ class ESGQuestionnaireService:
                     {
                         "$set": {
                             f"response_statuses.{question_key}": {
-                                "status": "saved",
+                                "status": "completed",
                                 "approval_status": approval_status,
                                 "submitted_at": now_iso,
                                 "submitted_by": changed_by_user_id,
@@ -3529,12 +3529,12 @@ class ESGQuestionnaireService:
                 in_section = any(sk.startswith(qk + "_") for sk in section_question_keys)
             
             if in_section:
-                # Add direct question status (a "saved" doc with an empty value is still pending)
+                # Add direct question status (a "completed" doc with an empty value is still pending)
                 from modules.brsr_report.live_kpi_autofill import _has_reportable_value
                 from modules.esg_questionnaire.status_rules import adjusted_status
                 adjusted = adjusted_status(doc, table_config_by_key.get(qk))
                 empty_saved = (
-                    doc.get("status") == "saved"
+                    doc.get("status") == "completed"
                     and doc.get("approval_status") in (None, "not_required")
                     and "value" in doc
                     and not doc.get("sub_responses")

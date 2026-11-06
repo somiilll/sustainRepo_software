@@ -108,7 +108,7 @@ async def _write(org_id: str, period: str, direction: Dict[str, Any], new_value:
                  actor: AuditActor, user_id: Optional[str], auto: bool, config: Dict[str, Any]) -> None:
     now = datetime.now(timezone.utc).isoformat()
     old_value = (old_doc or {}).get("value")
-    fields = {"value": new_value, "status": "saved" if not _empty(new_value) else "pending", "organization_id": org_id,
+    fields = {"value": new_value, "status": "completed" if not _empty(new_value) else "pending", "organization_id": org_id,
               "section": config.get("section"), "updated_at": now}
     if user_id:
         fields["updated_by"] = user_id
@@ -141,7 +141,7 @@ async def sync_linked_values(org_id: str, period: str, triggered_by: Optional[st
         if tgt_manual:
             continue
         config = await _config(d["tgt_fw"], d["tgt_key"])
-        src_has = src is not None and src.get("status") in ("saved", "approved") and not _empty(_get_path(src.get("value"), d["src_path"]))
+        src_has = src is not None and src.get("status") in ("completed", "approved") and not _empty(_get_path(src.get("value"), d["src_path"]))
         if not src_has:
             if _is_auto(tgt) and (tgt.get("linked_from") or {}).get("question_key") == d["src_key"]:
                 await _write(org_id, period, d, "", tgt, actor, triggered_by, False, config)

@@ -397,7 +397,7 @@ class DataChecker:
                 if DataChecker._has_value(value):
                     # Get status from response_statuses if available
                     status_info = section_doc.get("response_statuses", {}).get(question_key, {})
-                    approval_status = status_info.get("status", "saved")
+                    approval_status = status_info.get("status", "completed")
                     updated_at = DataChecker._parse_datetime(
                         status_info.get("updated_at") or section_doc.get("updated_at") or section_doc.get("created_at")
                     )

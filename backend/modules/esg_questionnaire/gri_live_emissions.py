@@ -108,7 +108,7 @@ async def _prefill_editable_answers(org_id: str, reporting_period: str, triggere
     for key in (k for k in PREFILL_KEYS if k not in present):
         await db.organization_esg_responses.insert_one({
             "id": str(uuid.uuid4()), "org_id": org_id, "organization_id": org_id, "framework": "GRI", "section": "general", "question_key": key,
-            "reporting_year": reporting_period, "value": text, "status": "saved", "prefilled_at": now, "created_at": now, "updated_at": now,
+            "reporting_year": reporting_period, "value": text, "status": "completed", "prefilled_at": now, "created_at": now, "updated_at": now,
             "auto_fill": {"coverage": "partial", "synced_at": now}})
         await audit_trail_service.record_system_changes(
             framework="GRI", organization_id=org_id, reporting_period=reporting_period, question_key=key,
@@ -141,7 +141,7 @@ async def sync_gri_live_values(org_id: str, reporting_period: str, triggered_by:
             continue
         await db.organization_esg_responses.update_one(
             {"org_id": org_id, "question_key": key, "reporting_year": reporting_period, "framework": "GRI"},
-            {"$set": {"value": value, "status": "saved", "section": section_by_key[key], "organization_id": org_id,
+            {"$set": {"value": value, "status": "completed", "section": section_by_key[key], "organization_id": org_id,
                       "kpi_autofill_updated_at": now, "updated_at": now},
              "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now}},
             upsert=True)

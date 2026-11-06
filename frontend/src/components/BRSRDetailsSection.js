@@ -483,7 +483,7 @@ export default function BRSRDetailsSection({
           question_key: questionKey, 
           value, 
           reporting_period: reportingPeriod,
-          status: 'saved'
+          status: 'completed'
         },
         { headers: getAuthHeader() }
       );
@@ -515,7 +515,7 @@ export default function BRSRDetailsSection({
     const saveState = status.status;
     
     // Handle "not_required" as completed without approval
-    if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
+    if (approvalState === 'not_required' || (!approvalState && saveState === 'completed')) {
       return (
         <Badge className="text-xs bg-green-100 text-green-800">
           Completed
@@ -528,7 +528,7 @@ export default function BRSRDetailsSection({
       approved: { label: 'Completed, Approved', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Completed, Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+      completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
     };
     
     const cfg = statusConfig[approvalState] || statusConfig[saveState];

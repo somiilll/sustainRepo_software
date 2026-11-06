@@ -162,7 +162,7 @@ class PrincipleToggleResponse(BaseModel):
 class ESGResponseCreate(BaseModel):
     """Create/Update ESG questionnaire responses."""
     responses: Dict[str, Any] = Field(..., description="Question key to answer mapping")
-    status: Optional[str] = Field(default="saved", description="Response status: 'draft' or 'saved'")
+    status: Optional[str] = Field(default="completed", description="Response status: 'draft' or 'completed'")
 
 
 class ESGResponseDocument(BaseModel):

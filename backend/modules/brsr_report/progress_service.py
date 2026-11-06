@@ -6,7 +6,7 @@ from modules.esg_questionnaire.status_rules import resolved_status, mirror_hidde
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
-STATUSES = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
+STATUSES = ("pending", "draft", "in_progress", "completed", "approved", "rejected")
 A_PREFIX = "brsr_a_"
 SECTION_A_GROUPS = (
     ("I", "Details of the listed entity", ["cin", "entity_name", "year_of_incorporation", "registered_address", "corporate_address", "email", "telephone", "website", "financial_year", "stock_exchange", "paid_up_capital", "contact_person", "reporting_boundary", "assurance_provider", "assurance_type"]),
@@ -71,7 +71,7 @@ async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Option
     for section in sections.values():
         counts = section["counts"]
         total = len(section["questions"])
-        answered = counts["saved"] + counts["approved"]
+        answered = counts["completed"] + counts["approved"]
         section.update({
             "total": total, "answered": answered, "groups": [],
             "percent": round(answered / total * 100) if total else 0,
@@ -80,7 +80,7 @@ async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Option
         for group in _group_definitions(name, configs):
             keys = [k for k in group.pop("keys") if k in section["questions"]]
             section["groups"].append({**group, "total": len(keys),
-                                      "answered": sum(section["questions"][k] in ("saved", "approved") for k in keys)})
+                                      "answered": sum(section["questions"][k] in ("completed", "approved") for k in keys)})
     has_approval_states = any(
         doc.get("approval_status") in ("approved", "rejected", "pending_approval") for doc in by_key.values()
     )

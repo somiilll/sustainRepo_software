@@ -679,7 +679,7 @@ export default function BRSRYearlySections({ isEditing = false, hideSections = [
         { question_key: k, value: currentResponses[k], reporting_period: reportingYear, status },
         { headers: getAuthHeader() }
       )));
-      if (status === 'saved') promptAfterSave(toSave);
+      if (status === 'completed') promptAfterSave(toSave);
       
       // Save previous years' turnover data (only if changed)
       const prevYearResponses = {

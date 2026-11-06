@@ -434,7 +434,7 @@ class BRSRLiveKPIAutofillService:
             set_fields: Dict[str, Any] = {
                 "framework": "BRSR",
                 "section": config.get("section") or "section_c",
-                "status": "saved" if _has_reportable_value(result.get("value")) else "pending",
+                "status": "completed" if _has_reportable_value(result.get("value")) else "pending",
                 "updated_at": now,
                 "kpi_autofill_updated_at": now,
                 "kpi_autofill_dynamic_rows": sorted(current_dynamic_keys),

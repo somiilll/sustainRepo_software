@@ -244,7 +244,7 @@ async def get_gri_disclosures(
     return result
 
 
-GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "saved": "saved", "pending_approval": "saved",
+GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "completed": "completed", "saved": "completed", "pending_approval": "completed",
                        "in_progress": "in_progress", "draft": "draft", "rejected": "rejected"}
 
 
@@ -260,7 +260,7 @@ async def get_gri_progress(
         raise HTTPException(status_code=400, detail="No organization assigned")
     await refresh_resolved_status({"org_id": org_id})
     is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
-    statuses = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
+    statuses = ("pending", "draft", "in_progress", "completed", "approved", "rejected")
     sections = {}
     for section in ("general", "environment", "social", "governance"):
         result = await esg_questionnaire_service.get_gri_disclosures(
@@ -274,9 +274,9 @@ async def get_gri_progress(
             topic = question.get("material_topic") or "General disclosures"
             group = groups.setdefault(topic, {"id": re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-"), "numeral": None, "label": topic, "total": 0, "answered": 0})
             group["total"] += 1
-            group["answered"] += status in ("saved", "approved")
+            group["answered"] += status in ("completed", "approved")
         total = len(questions)
-        answered = counts["saved"] + counts["approved"]
+        answered = counts["completed"] + counts["approved"]
         sections[section] = {"questions": questions, "counts": counts, "total": total, "answered": answered,
                              "percent": round(answered / total * 100) if total else 0, "groups": list(groups.values())}
     approval_enabled = await esg_questionnaire_service._has_approval_workflow_enabled(org_id)
@@ -291,7 +291,7 @@ async def save_gri_response(
     """
     Save a single GRI/BRSR disclosure response.
     Expects: { question_key, value, reporting_period, status? }
-    status: "draft" (saves as draft, shown as pending) or "saved" (final save)
+    status: "draft" (saves as draft, shown as pending) or "completed" (final save)
     
     Access control:
     - Admins can save any response
@@ -315,10 +315,12 @@ async def save_gri_response(
     question_key = data.get("question_key")
     value = data.get("value")
     reporting_period = data.get("reporting_period")
-    status = data.get("status", "saved")  # Default to saved
+    status = data.get("status", "completed")
+    if status == "saved":
+        status = "completed"
     
-    if status not in ["draft", "saved"]:
-        raise HTTPException(status_code=400, detail="status must be 'draft' or 'saved'")
+    if status not in ["draft", "completed"]:
+        raise HTTPException(status_code=400, detail="status must be 'draft' or 'completed'")
     
     if not question_key or not reporting_period:
         raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
@@ -364,7 +366,7 @@ async def save_gri_response(
     
 
     # Determine the actual status that will be saved
-    # Empty values should be marked as "pending", not "saved" or "draft"
+    # Empty values should be marked as "pending", not "completed" or "draft"
     value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
     actual_status = "pending" if value_is_empty else status
     

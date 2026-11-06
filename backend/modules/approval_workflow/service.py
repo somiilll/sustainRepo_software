@@ -1407,7 +1407,7 @@ class ApprovalWorkflowService:
                         {
                             "$set": {
                                 "value": final_value,
-                                "status": "saved",
+                                "status": "completed",
                                 "approval_status": "approved",
                                 "framework": framework,
                                 "section": section,
@@ -1789,7 +1789,7 @@ class ApprovalWorkflowService:
                         {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
                         {"$set": {
                             "value": existing_doc["last_approved_value"],
-                            "status": "saved",
+                            "status": "completed",
                             "approval_status": "approved",
                             "updated_at": _now_iso(),
                         },
@@ -2604,7 +2604,7 @@ class ApprovalWorkflowService:
         
         # Prepare update
         update_data = {
-            "status": "saved",
+            "status": "completed",
             "approval_status": "approved",
             "approved_at": now,
             "approved_by": approver.get("id"),
@@ -2736,7 +2736,7 @@ class ApprovalWorkflowService:
         if last_approved_value is not None:
             update_data = {
                 "value": last_approved_value,
-                "status": "saved",
+                "status": "completed",
                 "approval_status": "approved",
                 "updated_at": now,
             }
