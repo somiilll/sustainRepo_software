@@ -116,7 +116,7 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter,
 
 export function BRSRPageNav({ progress, activeTab, prefix = 'brsr' }) {
   const groups = progress?.sections?.[activeTab]?.groups || [];
-  if (groups.length < 2) return null;
+  if (groups.length < 1) return null;
   const goTo = (id) => document.getElementById(`brsr-group-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return (
     <aside className="hidden lg:block" data-testid={`${prefix}-page-nav`}>
