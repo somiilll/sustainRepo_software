@@ -969,3 +969,12 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## P0 backlog (Nov 2026)
 - **P0 — Rate limiter keyed by real client IP:** `shared/security.py` uses `get_remote_address`; behind the proxy everyone shares one IP so one user's retries (login 10/min, other auth 3–10/min) can block the rest. Switch the key function to the first `X-Forwarded-For` address and keep per-email DB lockout (`login_attempts`) as is.
+
+## P1 backlog — Login security hardening (Nov 2026)
+- **P1 — Lock per email + IP:** count failures per (email, IP); cap IP (~20/15 min) and email (~10 across IPs) so an attacker can't lock a victim out.
+- **P1 — Progressive delays instead of a hard 15-min lock:** free attempts 1–3, then 5s/15s/1m/5m up to 15m; reset on success.
+- **P1 — Real client IP + shared counters:** read first `X-Forwarded-For` hop only from the trusted proxy; keep limiter state in DB/Redis, not process memory (the P0 item above covers the IP key; this covers storage).
+- **P1 — Distinct lockout response:** `ACCOUNT_LOCKED` code with retry-after, separate from `RATE_LIMITED`; show "try again in N minutes".
+- **P1 — Admin "Unlock user" action** in user management; password reset also clears the lock.
+- **P1 — Step-up check after 3 failures:** CAPTCHA or emailed one-time code.
+- **P1 — Housekeeping:** TTL index on `login_attempts`; email owner on lockout; keep generic "incorrect email or password" message.
