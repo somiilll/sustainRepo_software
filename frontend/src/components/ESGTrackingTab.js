@@ -701,7 +701,8 @@ export default function ESGTrackingTab({
     setAssignModalOpen(true);
   };
   
-  const isGriView = frameworkFilter?.toUpperCase() === 'GRI';
+  const isGriView = ['GRI', 'BRSR'].includes(frameworkFilter?.toUpperCase());
+  const isGriFramework = frameworkFilter?.toUpperCase() === 'GRI';
 
   if (!isAdmin) {
     return (
@@ -825,9 +826,11 @@ export default function ESGTrackingTab({
             sectionCount={sections.length}
             filterByMateriality={filterByMateriality}
             onToggleMateriality={() => setFilterByMateriality((v) => !v)}
+            title={isGriFramework ? 'GRI Standards' : 'BRSR'}
+            showMateriality={isGriFramework}
           />
           {sections.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-text-muted" data-testid="gri-empty">No GRI sections to show for this period.</Card>
+            <Card className="p-8 text-center text-sm text-text-muted" data-testid="gri-empty">No {isGriFramework ? 'GRI' : 'BRSR'} sections to show for this period.</Card>
           ) : (
             <GRILedger
               sections={sections}

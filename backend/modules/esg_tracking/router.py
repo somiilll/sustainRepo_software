@@ -105,6 +105,18 @@ async def get_framework_sections(
             s["topic_id"] = config.get("material_topic_id")
             s["topic_name"] = config.get("material_topic")
 
+    if framework_id.upper() == "BRSR":
+        from modules.esg_questionnaire.contracts import NGRBC_PRINCIPLES
+        principle_names = {p["key"]: p["name"] for p in NGRBC_PRINCIPLES}
+        general = {"SECTION_A": ("A", "General disclosures"), "SECTION_B": ("B", "Management and process disclosures")}
+        for s in section_dicts:
+            if s["section_id"] in general:
+                letter, title = general[s["section_id"]]
+                s.update(display_id=letter, title=title, topic_id="A-B", topic_name="Sections A and B · General and management disclosures")
+            else:
+                s.update(display_id=s["section_id"], title=principle_names.get(s["section_id"], s["section_name"]),
+                         topic_id="C", topic_name="Section C · Principle-wise performance")
+
     return {
         "framework_id": framework_id,
         "domain": domain.value,

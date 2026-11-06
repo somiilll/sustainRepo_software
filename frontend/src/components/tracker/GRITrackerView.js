@@ -46,7 +46,7 @@ const Stat = ({ label, value, tone, testId, action }) => (
   </div>
 );
 
-export function GRIHeader({ framework, sectionCount, filterByMateriality, onToggleMateriality }) {
+export function GRIHeader({ framework, sectionCount, filterByMateriality, onToggleMateriality, title = 'GRI Standards', showMateriality = true }) {
   const total = framework.total_disclosures || 0;
   const done = framework.completed_disclosures || 0;
   const pending = framework.pending_disclosures || 0;
@@ -59,12 +59,14 @@ export function GRIHeader({ framework, sectionCount, filterByMateriality, onTogg
         <Ring pct={pct} />
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-semibold text-stone-900">GRI Standards</h2>
+            <h2 className="text-xl font-semibold text-stone-900">{title}</h2>
+            {showMateriality && (
             <button type="button" onClick={onToggleMateriality} data-testid="gri-materiality-toggle"
                     className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100">
               <span className={`h-2 w-2 rounded-full ${filterByMateriality ? 'bg-emerald-500' : 'bg-stone-400'}`} />
               {filterByMateriality ? 'Material topics only' : 'All topics'}
             </button>
+            )}
           </div>
           <p className="mt-1 text-sm text-stone-500" data-testid="gri-header-summary">
             {done} of {total} questions done across {sectionCount} sections
@@ -91,13 +93,17 @@ export function GRIHeader({ framework, sectionCount, filterByMateriality, onTogg
   );
 }
 
-const Segments = ({ total, done }) => (
-  <div className="flex gap-0.5" aria-hidden="true">
-    {Array.from({ length: Math.min(total, 12) }).map((_, i) => (
-      <span key={i} className={`h-1.5 w-4 rounded-sm ${i < done ? 'bg-emerald-600' : 'bg-stone-200'}`} />
-    ))}
-  </div>
-);
+const Segments = ({ total, done }) => {
+  const count = Math.min(total, 12);
+  const filled = total > 0 ? Math.round((done / total) * count) : 0;
+  return (
+    <div className="flex gap-0.5" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <span key={i} className={`h-1.5 w-4 rounded-sm ${i < filled ? 'bg-emerald-600' : 'bg-stone-200'}`} />
+      ))}
+    </div>
+  );
+};
 
 const Owner = ({ users }) => {
   if (!users?.length) {
@@ -128,7 +134,7 @@ export function GRILedger({ sections, renderPanel, onAssign, onRemind, reminding
       if (!map.has(key)) map.set(key, { id: key, name: s.topic_name || `GRI ${key}`, sections: [] });
       map.get(key).sections.push(s);
     });
-    return [...map.values()].sort((a, b) => Number(a.id) - Number(b.id));
+    return [...map.values()].sort((a, b) => (Number.isNaN(Number(a.id)) || Number.isNaN(Number(b.id)) ? String(a.id).localeCompare(String(b.id)) : Number(a.id) - Number(b.id)));
   }, [sections]);
 
   return (
@@ -152,7 +158,7 @@ export function GRILedger({ sections, renderPanel, onAssign, onRemind, reminding
                      onClick={() => setExpanded((e) => ({ ...e, [s.section_id]: !e[s.section_id] }))}>
                   <div className="flex min-w-0 items-center gap-3">
                     {open ? <ChevronDown className="h-4 w-4 shrink-0 text-stone-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-stone-400" />}
-                    <span className="shrink-0 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-sky-700">{s.section_id}</span>
+                    <span className="shrink-0 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-sky-700">{s.display_id || s.section_id}</span>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-stone-900">{s.title || s.section_name}</div>
                       <div className="text-xs text-stone-500">{s.total_disclosures} question{s.total_disclosures !== 1 ? 's' : ''}</div>
