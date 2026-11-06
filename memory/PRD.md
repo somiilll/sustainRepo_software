@@ -966,3 +966,6 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - `modules/approval_workflow/approver_chain.py`: shared chain normalization + approver entry level (used by KPI, GHG, BRSR/GRI).
 - GHG approval logic moved from `emissions/router.py` to `emissions/approval_service.py`; record lookup/list in `emissions/record_store.py`.
 - Legacy GHG pending-records flow removed (`modules/approvals`, `core_platform/approvals`, dead GHG approval UI files). Old `pending_records` collection is no longer used.
+
+## P0 backlog (Nov 2026)
+- **P0 — Rate limiter keyed by real client IP:** `shared/security.py` uses `get_remote_address`; behind the proxy everyone shares one IP so one user's retries (login 10/min, other auth 3–10/min) can block the rest. Switch the key function to the first `X-Forwarded-For` address and keep per-email DB lockout (`login_attempts`) as is.

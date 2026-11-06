@@ -29,12 +29,12 @@ const person = (u) => (
 const QuestionsTab = ({ items, onAssignQuestion }) => (
   <ul className="max-h-[26rem] divide-y divide-stone-100 overflow-y-auto pt-2" data-testid="section-panel-questions">
     {items.length === 0 && <Empty>No questions in this section</Empty>}
-    {(items.every((q) => /_[a-z]$/.test(q.question_key)) ? [...items].sort((x, y) => x.question_key.localeCompare(y.question_key)) : items).map((q) => {
+    {(items.every((q) => /_[a-z]$/.test(q.question_key)) ? [...items].sort((x, y) => x.question_key.localeCompare(y.question_key)) : items).map((q, index) => {
       const [label, cls] = Q_STATUS[q.status] || Q_STATUS.pending;
       const letter = (q.question_key || '').match(/_([a-z])$/)?.[1];
       return (
         <li key={q.question_key} className="flex flex-wrap items-center gap-3 py-3 text-sm" data-testid={`section-panel-question-${q.question_key}`}>
-          {letter && <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white text-xs font-semibold text-stone-600">{letter}</span>}
+          <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white px-1 text-xs font-semibold tabular-nums text-stone-600">{letter || index + 1}</span>
           <span className="min-w-0 flex-1 text-stone-900 line-clamp-2" title={q.name}>{q.name}</span>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cls}`}>
             <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />{label}
