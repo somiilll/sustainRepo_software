@@ -46,6 +46,7 @@ import {
 import BRSRYearlySections from './BRSRYearlySections';
 import { SectionEditBar, SectionHeading, SECTION_A_KEYS } from './BRSRSectionEdit';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { NoAssignmentMessage } from './LockedModuleOverlay';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -788,7 +789,7 @@ export default function BRSRDetailsSection({
     );
   }
 
-  const content = (
+  const fullContent = (
     <div className={isCollapsible ? 'p-6 space-y-8 border-t' : 'space-y-6'}>
       {/* Show message if no questions assigned and not admin */}
       {!isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0 && (
@@ -1640,6 +1641,9 @@ export default function BRSRDetailsSection({
           </div>
         </div>
   );
+
+  const noAssignments = !isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0;
+  const content = noAssignments ? <NoAssignmentMessage section="section_a" /> : fullContent;
 
   if (!isCollapsible) {
     return (

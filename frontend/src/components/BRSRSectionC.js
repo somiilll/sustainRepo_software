@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { NoAssignmentMessage } from './LockedModuleOverlay';
 import { mergeBRSRAutofill } from '../utils/brsrAutofill';
 
 
@@ -514,6 +515,8 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       </div>
     );
   }
+
+  if (!isAdmin && allConfigs.length === 0) return <NoAssignmentMessage section="section_c" />;
 
   return (
     <div className="space-y-6">
