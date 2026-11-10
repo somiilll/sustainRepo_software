@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CornerDownRight, FileJson, FileSearch, Files, Info, Pencil, Search, Save, X } from 'lucide-react';
+import { ArrowLeft, Check, CornerDownRight, DatabaseZap, FileJson, FileSearch, Files, Info, Pencil, Scale, Search, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
-import { DocsDialog, EditDialog, EvidenceDialog, TrustBadge, WhyDialog } from './RowDialogs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { DocsDialog, EditDialog, EvidenceDialog, FactorDialog, TrustBadge, WhyDialog } from './RowDialogs';
 import { PENDING, SCOPE_COLOR, SCOPE_LABEL, SOURCE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, saveBlob, scopeOf } from './utils';
 
 const PER = 50;
@@ -44,6 +45,8 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   const [jobsSel, setJobsSel] = useState(new Set());
   const [tech, setTech] = useState(false);
   const [dlg, setDlg] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveRes, setSaveRes] = useState(null);
 
   const jobOf = useCallback((r) => r._job || jobId, [jobId]);
   const actLabel = useCallback((id) => meta.activities.find((a) => a.id === id)?.label || id, [meta]);
@@ -95,6 +98,10 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     try { await api.edit(jobOf(r), r.item_id, body); toast.success('Answered - similar lines will be classified this way'); await load(); } catch (e) { toast.error(`Could not save: ${errText(e)}`); }
   };
 
+  const saveGhg = async (id) => {
+    setSaving(true);
+    try { const res = await api.saveToGhg(id); setSaveRes(res); await load(); if (res.saved && !res.failed.length) toast.success(`${res.saved} line(s) saved`); } catch (e) { toast.error(errText(e)); } finally { setSaving(false); }
+  };
   const exportJson = async (id, all) => { try { const r = await api.exportJson(id, all); saveBlob(r.data, `extraction_${id}${all ? '_all' : ''}.json`); } catch (e) { toast.error(errText(e)); } };
 
   if (rows === null || !jobMeta) return <div className="space-y-3" data-testid="ocr-review-loading">{[70, 100, 90].map((w) => <div key={w} className="h-10 animate-pulse rounded bg-stone-100" style={{ width: `${w}%` }} />)}</div>;
@@ -102,6 +109,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   if (!inbox && ['running', 'queued'].includes(jobMeta.status)) return <div className="rounded-xl border border-stone-200 p-10 text-center text-stone-600">This extraction is still running. Its progress is on the Upload tab.</div>;
 
   const selJobs = inbox ? jobList.filter((j) => !jobsSel.size || jobsSel.has(j.job_id)) : [];
+  const unsaved = rows.filter((r) => (inScope(r) || r.derived) && rstate(r) === 'approved' && !r.review?.saved).length;
   const exportId = inbox ? (selJobs.length === 1 ? selJobs[0].job_id : null) : jobId;
   const good = (counts.ready || 0) + (counts.approved || 0);
   const noFac = rows.filter((r) => inScope(r) && !r.facility?.id && rstate(r) !== 'rejected').length;
@@ -144,15 +152,17 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         {tech && <td className="min-w-[180px] p-2 text-xs">{r.calc?.formula_id ? <><div>{r.calc.formula_label || r.calc.formula_id}</div><div className="mt-1 flex flex-wrap gap-1">{fields.map(([k, v]) => <code key={k} className="rounded bg-stone-100 px-1">{k}={fmtN(v, 4)} {r.calc.fields[`${k}_unit`] || ''}</code>)}</div></> : <><span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-800">Cannot calculate</span><div className="text-stone-500">{(r.calc?.missing || []).join(', ')} missing</div></>}</td>}
         <td className="min-w-[140px] p-2 text-sm">{r.facility?.id ? <div className="font-medium">{r.facility.name}</div> : <div className="font-medium text-amber-700">No facility</div>}
           <div className="text-xs text-stone-500">{r.reporting_period || 'No period'}{r.period?.allocation ? ` · split ${r.period.allocation.map((a) => `${a.period.slice(5)} ${Math.round(a.share * 100)}%`).join(' / ')}` : ''}</div></td>
-        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><TrustBadge t={r.trust} /><span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CLASS[st]}`} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
+        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><TrustBadge t={r.trust} /><span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CLASS[st]}`} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{r.review?.saved && <span className="rounded-full border border-emerald-300 bg-emerald-600 px-2 py-0.5 text-xs text-white" data-testid={`ocr-saved-${r.row_id}`}>Saved</span>}{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
           <div className="text-xs text-stone-500">by {SOURCE_LABEL[r.decision?.source] || r.decision?.source}</div>{!r.facility?.id && !child && <div className="text-xs text-amber-700">Facility not set</div>}
           {!child && answerUi(r)}
+          {r.review?.save_error && !r.review?.saved && <div className="mt-1 rounded border border-rose-200 bg-rose-50 p-1.5 text-xs text-rose-800" data-testid={`ocr-save-error-${r.row_id}`}>{r.review.save_error}{/factor/i.test(r.review.save_error) && <button type="button" className="ml-1 font-semibold underline" onClick={() => setDlg({ type: 'factor', row: r })}>Choose factor</button>}</div>}
           <ul className="mt-1 space-y-0.5 text-xs">{checks.map((c) => <li key={c.message} className={c.level === 'error' ? 'text-rose-700' : 'text-amber-700'}>{c.message}</li>)}</ul></td>
         <td className="p-2"><div className="flex gap-1">
-          {!child && <>
+          {!child && !r.review?.saved && <>
             <button type="button" className="rounded p-1 text-emerald-700 hover:bg-emerald-50" title="Approve" onClick={() => setReview([r.row_id], 'approved')} data-testid={`ocr-approve-${r.row_id}`}><Check className="h-4 w-4" /></button>
             <button type="button" className="rounded p-1 text-rose-600 hover:bg-rose-50" title="Reject" onClick={() => setReview([r.row_id], 'rejected')} data-testid={`ocr-reject-${r.row_id}`}><X className="h-4 w-4" /></button>
             <button type="button" className="rounded p-1 hover:bg-stone-100" title="Edit" onClick={() => setDlg({ type: 'edit', row: r })} data-testid={`ocr-edit-${r.row_id}`}><Pencil className="h-4 w-4" /></button></>}
+          {!r.review?.saved && ['scope_1', 'scope_2', 'scope_3', 'biogenic'].includes(sc) && <button type="button" className="rounded p-1 hover:bg-stone-100" title="Emission factor" onClick={() => setDlg({ type: 'factor', row: r })} data-testid={`ocr-factor-${r.row_id}`}><Scale className="h-4 w-4" /></button>}
           <button type="button" className="rounded p-1 hover:bg-stone-100" title="See it on the document" onClick={() => setDlg({ type: 'evidence', row: r })} data-testid={`ocr-evidence-${r.row_id}`}><FileSearch className="h-4 w-4" /></button>
           <button type="button" className="rounded p-1 hover:bg-stone-100" title="Why this classification" onClick={() => setDlg({ type: 'why', row: r })} data-testid={`ocr-why-${r.row_id}`}><Info className="h-4 w-4" /></button></div></td>
       </tr>
@@ -168,7 +178,8 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         <div className="relative"><Search className="absolute left-2 top-2.5 h-4 w-4 text-stone-400" /><input className="w-60 rounded-md border border-stone-300 py-2 pl-8 pr-2 text-sm" placeholder="Search item, vendor, category..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} data-testid="ocr-search" /></div>
         {!inbox && <Button variant="outline" onClick={() => setDlg({ type: 'docs' })} data-testid="ocr-docs-button"><Files className="mr-1 h-4 w-4" />Documents ({docs.length})</Button>}
         <Button variant="outline" disabled={!exportId} onClick={() => exportJson(exportId, true)} data-testid="ocr-export-all"><FileJson className="mr-1 h-4 w-4" />Export all</Button>
-        <Button disabled={!exportId} title={exportId ? '' : 'Pick one extraction below to export'} onClick={() => exportJson(exportId, false)} data-testid="ocr-export-approved"><Save className="mr-1 h-4 w-4" />Approved ({counts.approved || 0}) - export</Button>
+        <Button variant="outline" disabled={!exportId} title={exportId ? '' : 'Pick one extraction below to export'} onClick={() => exportJson(exportId, false)} data-testid="ocr-export-approved"><Save className="mr-1 h-4 w-4" />Export approved</Button>
+        <Button disabled={!exportId || saving || unsaved === 0} title={exportId ? 'Create GHG emission records (with calculation) and Water records, each with the source document as evidence' : 'Pick one extraction below to save'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Save approved (${unsaved})`}</Button>
       </div>
       {inbox && (
         <div className="rounded-xl border border-stone-200 bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Show lines from</div>
@@ -200,6 +211,17 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
           <span className="flex gap-2"><Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next</Button></span></div>
       </div>
       {dlg?.type === 'edit' && <EditDialog row={dlg.row} meta={meta} jobOf={jobOf} api={api} onClose={() => setDlg(null)} onSaved={() => { setDlg(null); load(); }} />}
+      {dlg?.type === 'factor' && <FactorDialog row={dlg.row} jobOf={jobOf} api={api} onClose={() => setDlg(null)} onSaved={() => { setDlg(null); load(); }} />}
+      {saveRes && (
+        <Dialog open onOpenChange={(o) => !o && setSaveRes(null)}>
+          <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto" data-testid="ocr-save-result">
+            <DialogHeader><DialogTitle>{saveRes.saved} saved{saveRes.failed.length ? `, ${saveRes.failed.length} not saved` : ''}</DialogTitle></DialogHeader>
+            {saveRes.saved > 0 && <p className="text-sm text-emerald-800">Each saved line is now a GHG emission record (with its calculation) or a Water withdrawal record, with the source document attached as evidence. Find them under Emissions and Environment > Water.</p>}
+            {saveRes.failed.map((f) => (
+              <div key={f.row_id} className="rounded-md border border-rose-200 bg-rose-50 p-2 text-sm" data-testid={`ocr-save-failed-${f.row_id}`}><b>{f.label}</b><div className="text-rose-800">{f.reason}</div>
+                {f.needs_factor && <Button size="sm" variant="outline" className="mt-1" onClick={() => { const r = rows.find((x) => x.row_id === f.row_id || x._rid === f.row_id); setSaveRes(null); if (r) setDlg({ type: 'factor', row: r }); }}>Choose emission factor</Button>}</div>))}
+          </DialogContent>
+        </Dialog>)}
       {dlg?.type === 'why' && <WhyDialog row={dlg.row} actLabel={actLabel} jobOf={jobOf} api={api} onClose={() => setDlg(null)} />}
       {dlg?.type === 'evidence' && <EvidenceDialog row={dlg.row} jobOf={jobOf} api={api} onClose={() => setDlg(null)} />}
       {dlg?.type === 'docs' && <DocsDialog docs={docs} skipped={jobMeta.skipped || []} onClose={() => setDlg(null)} />}

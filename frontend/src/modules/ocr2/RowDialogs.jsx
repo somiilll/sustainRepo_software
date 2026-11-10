@@ -148,3 +148,36 @@ export const DocsDialog = ({ docs, skipped, onClose }) => (
     </DialogContent>
   </Dialog>
 );
+
+export const FactorDialog = ({ row, jobOf, api, onClose, onSaved }) => {
+  const [q, setQ] = useState('');
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState('');
+  const [remember, setRemember] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => api.factors(jobOf(row), row._rid || row.row_id, q).then((d) => { setData(d); setErr(''); }).catch((e) => setErr(errText(e))), 250);
+    return () => clearTimeout(t);
+  }, [api, row, jobOf, q]);
+  const pick = async (o) => {
+    try { await api.chooseFactor(jobOf(row), row._rid || row.row_id, { collection: o.collection, id: o.id, remember }); toast.success(`Emission factor set: ${o.label}`); onSaved(); } catch (e) { toast.error(errText(e)); }
+  };
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto" data-testid="ocr-factor-dialog">
+        <DialogHeader><DialogTitle>Emission factor</DialogTitle></DialogHeader>
+        <p className="text-sm text-stone-600">{row.extracted_item} · <b>{row.ghg?.category_label}</b> › {row.ghg?.subcategory_label}</p>
+        {row.review?.save_error && <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">{row.review.save_error}</div>}
+        {data?.current && <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-sm">Currently used: <b>{data.current.label}</b> · {data.current.source || ''} {data.current.region || ''} {data.current.year || ''}</div>}
+        <input className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder="Search factors in this category..." value={q} onChange={(e) => setQ(e.target.value)} data-testid="ocr-factor-search" />
+        {err && <p className="text-sm text-rose-700">{err}</p>}
+        <div className="max-h-[40vh] divide-y overflow-y-auto rounded-lg border border-stone-200" data-testid="ocr-factor-list">
+          {!data ? <div className="h-16 animate-pulse bg-stone-100" /> : data.options.length === 0 ? <p className="p-4 text-sm text-stone-500">No factors match.</p> : data.options.map((o) => (
+            <button key={o.id} type="button" className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-emerald-50" onClick={() => pick(o)} data-testid={`ocr-factor-option-${o.id}`}>
+              <span className="font-medium">{o.label}</span><span className="shrink-0 text-xs text-stone-500">{[o.source, o.region, o.year, o.unit].filter(Boolean).join(' · ')}</span>
+            </button>))}
+        </div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} data-testid="ocr-factor-remember" />Use this factor for similar lines in future</label>
+      </DialogContent>
+    </Dialog>
+  );
+};

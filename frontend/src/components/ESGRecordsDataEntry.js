@@ -644,13 +644,6 @@ export default function ESGRecordsDataEntry({
           throw error;
         }
       }
-      if (!asDraft && ocrWaterPrefill?.line_item_id && response.data?.record?.id) {
-        await axios.post(`${API}/api/ocr-invoice/finalize-water-import`, {
-          line_item_id: ocrWaterPrefill.line_item_id,
-          esg_record_id: response.data.record.id,
-        }, { headers });
-        onOcrWaterImported?.();
-      }
       if (uploadResult.failed.length > 0) {
         toast.error(`Metric saved, but ${uploadResult.failed.length} evidence file(s) could not be uploaded.`);
       }

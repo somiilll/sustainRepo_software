@@ -96,28 +96,6 @@ export function useEmissionSubmit(ctx) {
       commitDraftEvidence = null,
     } = ctx;
     
-    // Helper to finalize OCR import after successful emission save
-    const finalizeOcrImport = async (emissionRecordIds) => {
-      if (!ocrPrefillData?.line_item_id) return;
-      
-      try {
-        console.log('[OCR Finalize] Calling finalize-import with:', {
-          line_item_id: ocrPrefillData.line_item_id,
-          emission_record_ids: emissionRecordIds
-        });
-        
-        await axios.post(`${API}/ocr-invoice/finalize-import`, {
-          line_item_id: ocrPrefillData.line_item_id,
-          emission_record_ids: emissionRecordIds
-        }, { headers: getAuthHeader() });
-        
-        console.log('[OCR Finalize] Successfully finalized OCR import');
-      } catch (err) {
-        console.error('[OCR Finalize] Failed to finalize import:', err);
-        toast.error('GHG entry was saved, but the invoice could not yet be attached as evidence. The OCR row remains available for retry.');
-      }
-    };
-    
     // All emission creation uses the canonical endpoint so the calculated
     // outputs, validation, audit history, and supplier safeguards share one
     // persistence path. Supplier submission and period-lock actions remain in
@@ -456,7 +434,6 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
         await commitSavedEvidence(savedEvidenceRecords);
         toast.success(`Created ${preparedTrips.length} business travel trip${preparedTrips.length === 1 ? '' : 's'}`);
         onSuccess?.();
@@ -519,7 +496,6 @@ export function useEmissionSubmit(ctx) {
             const response = await axios.post(`${API}${c7Built.endpoint}`, applyOcrEmissionMetadata(c7Built.payload, ocrPrefillData), {
               headers: getAuthHeader(),
             });
-            if (response.data?.id) await finalizeOcrImport([response.data.id]);
             if (response.data?.id) {
               await commitSavedEvidence([{
                 id: response.data.id,
@@ -600,7 +576,6 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        if (savedEmissionIds.length > 0) await finalizeOcrImport(savedEmissionIds);
         await commitSavedEvidence(savedEvidenceRecords);
 
         toast.success(`Saved ${formatSavedMonths(c7Built.payloads.map(({ monthKey }) => monthKey))} for ${submissionEmployees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
@@ -730,7 +705,6 @@ export function useEmissionSubmit(ctx) {
             const yResp = await axios.post(apiBase, yPayload, { headers: getAuthHeader() });
             if (yResp.data?.id) {
               linkAuditLog(yearlyCalculation.auditLogId, yResp.data.id);
-              await finalizeOcrImport([yResp.data.id]);
               await commitSavedEvidence([{
                 id: yResp.data.id,
                 evidences: yearlyData.evidences || [],
@@ -911,9 +885,6 @@ export function useEmissionSubmit(ctx) {
           return;
         }
 
-        if (savedEmissionIds.length > 0 && ocrPrefillData?.line_item_id) {
-          await finalizeOcrImport(savedEmissionIds);
-        }
         await commitSavedEvidence(savedEvidenceRecords);
         toast.success(`Created emissions for ${formatSavedMonths(preparedRows.map(({ monthKey }) => monthKey))}`);
         onSuccess?.();

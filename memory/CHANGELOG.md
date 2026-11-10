@@ -812,3 +812,10 @@
 - UI: pages/OCRInvoice.js + modules/ocr2 (Upload, Review, Credits & usage, Learned decisions).
 - Not done: Save-all to GHG emission records / emission calculation (export JSON only). Jev classifier off (no OPENROUTER_API_KEY). OpenAI key out of quota (429), engine falls back to Claude.
 - Dead code left: finalize-import / finalize-water-import calls in useEmissionSubmit.js and ESGRecordsDataEntry.js (old prefill flow, nothing sets it now).
+
+## OCR v2 - Save approved rows (GHG + Water)
+- POST /api/ocr-invoice/jobs/{id}/save: approved rows -> GHG emission records (category by scope+name, factor from fuel_database/scope3_ef, formula via decision tree, calculation, source file attached as evidence, split periods -> one record per month) or Environment > Water > Withdrawal records (litres/KL/ML, one record per row/month).
+- Factor resolution: exact/alias name match or remembered choice; otherwise row is held ("needs factor") and the user picks from a searchable list (GET/POST /jobs/{id}/rows/{row}/factor(s)); choice remembered per org in ocr_ext_factor_choices.
+- Saved rows are locked (edit returns 409). Old OCR finalize-import / finalize-water-import frontend calls removed.
+- Code: ocr_extraction/ghg_save/{saver,water,ghg_save_service,activity_inputs,units}.py (service/activity_inputs/units restored from the old OCR module).
+- Limits: Waste module has no separate record (waste rows are Scope 3 cat 5 GHG records); Water Consumption/Discharge not created; only monthly Water Withdrawal sources (third-party, ground, surface, other); fuel names that differ from factor names (e.g. Gas/Diesel Oil) use a small alias table in saver.py.

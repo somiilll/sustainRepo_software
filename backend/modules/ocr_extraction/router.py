@@ -1,6 +1,7 @@
 """OCR Extraction v2 API (mounted at /api/ocr-invoice). Engine: extractor_core; storage: MongoDB + R2."""
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
@@ -19,6 +20,8 @@ from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user
 from r2_storage import R2Storage
+
+from shared.database.mongo import db as mongo_db
 
 from . import store  # noqa: F401  (also puts the engine package on sys.path via __init__)
 from extractor_core import audit, facilities as fac_mod, llm, normalise, plausibility, usage  # noqa: E402
@@ -460,6 +463,8 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
     if item is None:
         raise HTTPException(404, "No such item")
     tax = load().taxonomy
+    if any((r.get("review") or {}).get("saved") for r in job["rows"] if r["item_id"] == item_id):
+        raise HTTPException(409, "This line is already saved to GHG records. Change the emission record there instead.")
     old = next((r for r in job["rows"] if r["item_id"] == item_id and not r.get("derived")), None)
     dec = dict(job["decisions"].get(item["group_key"], {})) if not old else dict(old["decision"])
     for k in ("quantity", "unit", "amount"):
@@ -733,3 +738,108 @@ def memory_share(c: MemoryChange, user: dict = Depends(get_current_user)):
 def memory_clear(user: dict = Depends(get_current_user)):
     MEMORY.delete_all_decisions(_org(user))
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ save to GHG records
+from .ghg_save import saver, water  # noqa: E402
+
+
+def _raw_rec(row: dict) -> dict:
+    from extractor_core.export import to_record
+    return to_record(row)
+
+
+@router.get("/jobs/{job_id}/rows/{row_id}/factors")
+async def row_factors(job_id: str, row_id: str, q: str = "", user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
+    if not row:
+        raise HTTPException(404, "No such row")
+    rec = _raw_rec(row)
+    try:
+        category = await saver.resolve_category(mongo_db, rec)
+    except saver.SaveError as e:
+        raise HTTPException(400, str(e))
+    chosen = (row.get("review") or {}).get("factor")
+    try:
+        current = await saver.resolve_factor(mongo_db, org, rec, category, chosen)
+    except saver.SaveError:
+        current = None
+    return {"category": category["name"], "current": current, "options": await saver.search_factors(mongo_db, rec, category, q)}
+
+
+class FactorChoice(BaseModel):
+    collection: str
+    id: str
+    remember: bool = True
+
+
+@router.post("/jobs/{job_id}/rows/{row_id}/factor")
+async def choose_factor(job_id: str, row_id: str, c: FactorChoice, user: dict = Depends(get_current_user)):
+    org = _org(user)
+    if c.collection not in ("fuel_database", "scope3_ef"):
+        raise HTTPException(400, "Unknown factor table")
+    if not await mongo_db[c.collection].find_one({"id": c.id}, {"_id": 1}):
+        raise HTTPException(404, "No such emission factor")
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
+    if not row:
+        raise HTTPException(404, "No such row")
+    group = [r for r in job["rows"] if r["row_id"] == row_id]
+    for r in group:
+        r["review"] = {**(r.get("review") or {}), "factor": {"collection": c.collection, "id": c.id}}
+        r["review"].pop("save_error", None)
+    if c.remember:
+        await mongo_db.ocr_ext_factor_choices.update_one({"organization_id": org, "key": saver.factor_key(_raw_rec(row))},
+                                                         {"$set": {"collection": c.collection, "factor_id": c.id}}, upsert=True)
+    await asyncio.to_thread(_save_job, org, job)
+    await asyncio.to_thread(AUDIT.record, org, job_id, "edited", _actor(user), row["item_id"], row_id, row.get("extracted_item"),
+                            {"emission_factor": [None, c.id]}, "Emission factor chosen")
+    return {"ok": True}
+
+
+class SaveRequest(BaseModel):
+    row_ids: list[str] | None = None
+
+
+@router.post("/jobs/{job_id}/save")
+async def save_to_ghg(job_id: str, body: SaveRequest | None = None, user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    summary = await asyncio.to_thread(_summary, org, job_id)
+    keys = dict(zip(summary.get("names", []), summary.get("file_keys", [])))
+    only = set(body.row_ids) if body and body.row_ids else None
+    cache: dict = {}
+    saved, failed, skipped = [], [], []
+    for row in job["rows"]:
+        rv = row.get("review") or {}
+        if rv.get("state") != "approved" or (only and row["row_id"] not in only):
+            continue
+        if rv.get("saved"):
+            skipped.append(row["row_id"])
+            continue
+        rec = _raw_rec(row)
+        if rec["scope"] == "none" or not rec.get("scope"):
+            failed.append({"row_id": row["row_id"], "label": rec["description"], "reason": "This is not a GHG or Water activity, so there is no record to create", "needs_factor": False})
+            continue
+        fkey = keys.get((rec.get("evidence") or {}).get("file"))
+        try:
+            if rec["scope"] == "water":
+                ids = await water.save_water_record(mongo_db, org, user, rec, fkey, cache)
+            else:
+                ids = await saver.save_ghg_record(mongo_db, org, user, rec, rv.get("factor"), fkey, cache)
+            row["review"] = {**rv, "saved": {"record_ids": ids, "at": time.time(), "by": _actor(user)}}
+            row["review"].pop("save_error", None)
+            saved.append({"row_id": row["row_id"], "record_ids": ids})
+            AUDIT.record(org, job_id, "saved", _actor(user), row["item_id"], row["row_id"], row.get("extracted_item"), {"emission_records": [None, ids]}, "Saved as emission / water records")
+        except (saver.SaveError, HTTPException, ValueError) as e:
+            reason = getattr(e, "detail", None) or str(e)
+            row["review"] = {**rv, "save_error": reason}
+            failed.append({"row_id": row["row_id"], "label": rec["description"], "reason": reason, "needs_factor": getattr(e, "needs_factor", False)})
+        except Exception as e:  # noqa: BLE001
+            logger.exception("OCR save to GHG failed")
+            row["review"] = {**rv, "save_error": f"{type(e).__name__}: {e}"}
+            failed.append({"row_id": row["row_id"], "label": rec["description"], "reason": f"{type(e).__name__}: {e}", "needs_factor": False})
+    await asyncio.to_thread(_save_job, org, job)
+    return {"saved": len(saved), "failed": failed, "already_saved": len(skipped), "records": saved}
