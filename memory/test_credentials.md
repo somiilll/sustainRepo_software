@@ -12,3 +12,7 @@
 - goyalsomil2001+1@gmail.com / TestUser123! — Somil1, role user, assignee on Waste/Disposal KPI category and P4 BRSR questions
 - goyalsomil2001+2@gmail.com / TestUser123! — SG, role user, Level 1 approver on Waste/Disposal (chain: SG -> Somil) and P4 BRSR questions
 - goyalsomil2001@gmail.com is Level 2 (final) approver, also admin
+
+## OCR Extraction v2 (/uploads/ocr)
+- Login: goyalsomil2001@gmail.com / TestUser123! (org member; sees 5,000 trial credits auto-granted on first visit)
+- Credit top-up (POST /api/ocr-invoice/usage/grant) is super_admin only.

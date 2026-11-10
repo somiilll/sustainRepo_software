@@ -803,3 +803,12 @@
 - `resolved_status` stored on every response (`esg_questionnaire/status_store.py`), refreshed on save, auto-fill syncs, link pushes and progress loads; admin backfill `POST /api/esg-questionnaire/admin/refresh-resolved-statuses`.
 - Fixed-row tables are checked against `table_config` (rows x columns, previous FY included; unit/remark/link columns and "optional" rows ignored).
 - Section A defaults removed (null), Section B/C number inputs write null (not 0) when cleared.
+
+## OCR Extraction v2 (extraction-handoff.zip) - replaced old OCR
+- Engine copied unchanged to backend/modules/ocr_extraction (engine/extractor_core, mappings, prompts, contracts, golden). Testbench demo app omitted.
+- Old modules/ocr_invoice, its tests and frontend modules/ocr removed. New API mounted at /api/ocr-invoice (router in ocr_extraction/router.py).
+- Storage per organisation in MongoDB: ocr_ext_* collections (decisions, layouts, history, usage, credits, audit, queue, jobs); results in GridFS (ocr_ext_results); uploaded files in R2 (bucket ocr_temp).
+- Credits: 5,000 trial credits auto-granted per org; top-up is super_admin only.
+- UI: pages/OCRInvoice.js + modules/ocr2 (Upload, Review, Credits & usage, Learned decisions).
+- Not done: Save-all to GHG emission records / emission calculation (export JSON only). Jev classifier off (no OPENROUTER_API_KEY). OpenAI key out of quota (429), engine falls back to Claude.
+- Dead code left: finalize-import / finalize-water-import calls in useEmissionSubmit.js and ESGRecordsDataEntry.js (old prefill flow, nothing sets it now).

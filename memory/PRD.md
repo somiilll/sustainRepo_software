@@ -978,3 +978,7 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 - **P1 — Admin "Unlock user" action** in user management; password reset also clears the lock.
 - **P1 — Step-up check after 3 failures:** CAPTCHA or emailed one-time code.
 - **P1 — Housekeeping:** TTL index on `login_attempts`; email owner on lockout; keep generic "incorrect email or password" message.
+
+
+## 2026 OCR v2
+See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG records; login lockout fixes; My Tasks filters.
