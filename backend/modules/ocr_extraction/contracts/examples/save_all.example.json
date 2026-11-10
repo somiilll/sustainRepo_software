@@ -1,0 +1,293 @@
+{
+ "contract_version": "1.0",
+ "org": "testbench",
+ "generated_at": "2026-11-07T12:51:44+00:00",
+ "records": [
+  {
+   "row_id": "5359036c-0-0",
+   "parent_row_id": null,
+   "derived": false,
+   "facility_id": "F1",
+   "reporting_period": "2025-10",
+   "period_allocation": [
+    {
+     "period": "2025-09",
+     "share": 0.0312
+    },
+    {
+     "period": "2025-10",
+     "share": 0.9688
+    }
+   ],
+   "scope": "scope_2",
+   "category": "purchased_electricity",
+   "subcategory": "Non-Renewable Electricity",
+   "scope_label": "Scope 2",
+   "category_label": "Purchased Electricity",
+   "subcategory_label": "Non-Renewable Electricity",
+   "category_id": null,
+   "subcategory_id": null,
+   "modules": [
+    "energy"
+   ],
+   "activity_id": "elec.grid",
+   "formula_id": "s2_energy",
+   "emergent_formula_id": null,
+   "ef_method": "activity",
+   "fields": {
+    "qty_energy": 225545.0,
+    "qty_energy_unit": "kWh"
+   },
+   "description": "Electricity consumed, HT industrial, October 2025",
+   "original_text": "Electricity consumption (HT industrial, KWH)",
+   "vendor": "Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL)",
+   "invoice_number": "202510851098070",
+   "document_date": "07/11/2025",
+   "amount": 2586110.0,
+   "currency": "INR",
+   "evidence": {
+    "file": "UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+    "file_hash": "bdf7b3de69a9aa9311f10308b85a327a4c43ae61",
+    "page": 2,
+    "sheet": null,
+    "excel_row": null,
+    "quotes": [
+     {
+      "field": "line",
+      "page": 2,
+      "quote": "Total Consumption 225545.000 225850.000"
+     },
+     {
+      "field": "period",
+      "page": 2,
+      "quote": "Current 31/10/2025 Previous 30/09/2025"
+     },
+     {
+      "field": "consumer number",
+      "page": 1,
+      "quote": "Consumer No. : 177529058940"
+     }
+    ]
+   },
+   "classification": {
+    "source": "rules",
+    "confidence": 0.85,
+    "reason": "keywords ['electricity', 'energy charges', 'kwh']; HSN/SAC 27160000 -> electricity"
+   },
+   "review": {
+    "state": "approved",
+    "at": 1794055217.5206027
+   }
+  },
+  {
+   "row_id": "5359036c-0-1",
+   "parent_row_id": "5359036c-0-0",
+   "derived": true,
+   "facility_id": "F1",
+   "reporting_period": "2025-10",
+   "period_allocation": [
+    {
+     "period": "2025-09",
+     "share": 0.0312
+    },
+    {
+     "period": "2025-10",
+     "share": 0.9688
+    }
+   ],
+   "scope": "scope_3",
+   "category": "cat_3",
+   "subcategory": "Electricity - T&D losses and Generation",
+   "scope_label": "Scope 3",
+   "category_label": "C3 - Fuel and energy-related activities",
+   "subcategory_label": "Electricity - T&D losses and Generation",
+   "category_id": null,
+   "subcategory_id": null,
+   "modules": [
+    "energy"
+   ],
+   "activity_id": "elec.grid",
+   "formula_id": "s3_activity",
+   "emergent_formula_id": null,
+   "ef_method": "activity",
+   "fields": {
+    "activity_value": 225545.0,
+    "activity_value_unit": "kWh"
+   },
+   "description": "T&D losses and generation - Electricity consumed, HT industrial, October 2025",
+   "original_text": "Electricity consumption (HT industrial, KWH)",
+   "vendor": "Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL)",
+   "invoice_number": "202510851098070",
+   "document_date": "07/11/2025",
+   "amount": null,
+   "currency": "INR",
+   "evidence": {
+    "file": "UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+    "file_hash": "bdf7b3de69a9aa9311f10308b85a327a4c43ae61",
+    "page": 2,
+    "sheet": null,
+    "excel_row": null,
+    "quotes": [
+     {
+      "field": "line",
+      "page": 2,
+      "quote": "Total Consumption 225545.000 225850.000"
+     },
+     {
+      "field": "period",
+      "page": 2,
+      "quote": "Current 31/10/2025 Previous 30/09/2025"
+     },
+     {
+      "field": "consumer number",
+      "page": 1,
+      "quote": "Consumer No. : 177529058940"
+     }
+    ]
+   },
+   "classification": {
+    "source": "rules",
+    "confidence": 0.85,
+    "reason": "Auto-added companion of 5359036c-0-0 (c3_electricity)"
+   },
+   "review": {
+    "state": "approved",
+    "at": 1794055217.5206027
+   }
+  },
+  {
+   "row_id": "38f3bb3b-0-0",
+   "parent_row_id": null,
+   "derived": false,
+   "facility_id": "F1",
+   "reporting_period": "2025-05",
+   "period_allocation": [
+    {
+     "period": "2025-05",
+     "share": 1.0
+    }
+   ],
+   "scope": "scope_1",
+   "category": "mobile_combustion",
+   "subcategory": "Gas/Diesel Oil",
+   "scope_label": "Scope 1",
+   "category_label": "Mobile Combustion",
+   "subcategory_label": "Gas/Diesel Oil",
+   "category_id": null,
+   "subcategory_id": null,
+   "modules": [
+    "energy"
+   ],
+   "activity_id": "fuel.diesel",
+   "formula_id": null,
+   "emergent_formula_id": null,
+   "ef_method": null,
+   "fields": {},
+   "description": "Diesel issued from consumable store for transport/hydra (MR V KOLE)",
+   "original_text": "DIESEL",
+   "vendor": null,
+   "invoice_number": "4002781382",
+   "document_date": "13.05.2025",
+   "amount": null,
+   "currency": "INR",
+   "evidence": {
+    "file": "Diesel Hydra.png",
+    "file_hash": "371c41e238b4b7cb203a5f78d7633f56b3c9cbec",
+    "page": 1,
+    "sheet": null,
+    "excel_row": null,
+    "quotes": [
+     {
+      "field": "line",
+      "page": 1,
+      "quote": "DIESEL 40 NIGOJE-UNI... CONSUMABLE ST..."
+     },
+     {
+      "field": "document date",
+      "page": 1,
+      "quote": "Document Date 13.05.2025"
+     }
+    ]
+   },
+   "classification": {
+    "source": "user",
+    "confidence": 0.5,
+    "reason": "Set by reviewer"
+   },
+   "review": {
+    "state": "approved",
+    "edited": true,
+    "at": 1794055188.3335516
+   }
+  },
+  {
+   "row_id": "38f3bb3b-0-1",
+   "parent_row_id": "38f3bb3b-0-0",
+   "derived": true,
+   "facility_id": "F1",
+   "reporting_period": "2025-05",
+   "period_allocation": [
+    {
+     "period": "2025-05",
+     "share": 1.0
+    }
+   ],
+   "scope": "scope_3",
+   "category": "cat_3",
+   "subcategory": "Fuel - Well to Tank (WTT)",
+   "scope_label": "Scope 3",
+   "category_label": "C3 - Fuel and energy-related activities",
+   "subcategory_label": "Fuel - Well to Tank (WTT)",
+   "category_id": null,
+   "subcategory_id": null,
+   "modules": [
+    "energy"
+   ],
+   "activity_id": "fuel.diesel",
+   "formula_id": null,
+   "emergent_formula_id": null,
+   "ef_method": "activity",
+   "fields": {},
+   "description": "Well-to-tank - Diesel issued from consumable store for transport/hydra (MR V KOLE)",
+   "original_text": "DIESEL",
+   "vendor": null,
+   "invoice_number": "4002781382",
+   "document_date": "13.05.2025",
+   "amount": null,
+   "currency": "INR",
+   "evidence": {
+    "file": "Diesel Hydra.png",
+    "file_hash": "371c41e238b4b7cb203a5f78d7633f56b3c9cbec",
+    "page": 1,
+    "sheet": null,
+    "excel_row": null,
+    "quotes": [
+     {
+      "field": "line",
+      "page": 1,
+      "quote": "DIESEL 40 NIGOJE-UNI... CONSUMABLE ST..."
+     },
+     {
+      "field": "document date",
+      "page": 1,
+      "quote": "Document Date 13.05.2025"
+     }
+    ]
+   },
+   "classification": {
+    "source": "user",
+    "confidence": 0.5,
+    "reason": "Auto-added companion of 38f3bb3b-0-0 (c3_wtt)"
+   },
+   "review": {
+    "state": "approved",
+    "edited": true,
+    "at": 1794055188.3335516
+   }
+  }
+ ],
+ "not_calculable": [
+  "38f3bb3b-0-0",
+  "38f3bb3b-0-1"
+ ]
+}

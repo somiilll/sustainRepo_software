@@ -1,0 +1,9 @@
+{
+  "_about": "Draft facility list for the golden run, taken from the buyer addresses on the sample documents. Replace with the client's real Facilities export.",
+  "facilities": [
+    {"id": "F-CHAKAN", "name": "UCPL Chakan plant", "aliases": ["UCPL", "Chakan plant"], "consumer_numbers": ["177529058940"], "gstins": [], "address_keywords": ["chakan"]},
+    {"id": "F-FARIDABAD", "name": "Apex Manufacturing - Faridabad", "aliases": ["Apex Manufacturing Units", "Apex Unit 2"], "consumer_numbers": [], "gstins": ["06BBBBB5678B2Z0"], "address_keywords": ["faridabad"]},
+    {"id": "F-MATHURA", "name": "Mathura site", "aliases": [], "consumer_numbers": [], "gstins": [], "address_keywords": ["mathura"]},
+    {"id": "F-VADODARA", "name": "Vadodara Cable Plant", "aliases": ["Vadodara"], "consumer_numbers": [], "gstins": [], "address_keywords": ["vadodara"]}
+  ]
+}

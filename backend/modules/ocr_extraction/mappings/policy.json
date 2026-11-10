@@ -1,0 +1,60 @@
+{
+  "_about": "Organisation-level rules the extractor follows. Decided by the product owner on 7 Nov 2026. Emergent should expose these as per-org settings with these defaults.",
+  "review": {
+    "ready_threshold": 0.90,
+    "ask_below": 0.60,
+    "ready_requires_no_warnings": true,
+    "rules_skip_ai_at": 0.95
+  },
+  "no_quantity": {
+    "scope_3": "spend_based_flagged",
+    "scope_1_2": "needs_attention",
+    "_note": "Emergent has no spend formula for Scope 1/2, so a fuel or electricity bill without a quantity cannot be calculated - it goes to review."
+  },
+  "waste_transport": {
+    "mode": "split_if_waste_details",
+    "transport_category": "cat_4",
+    "_note": "Waste details (type, quantity or disposal route) present -> a Waste/Cat 5 record for treatment AND a Cat 4 record for the transport. Only 'waste transport' -> Cat 4 transport record only. Cat 5 never includes transport, so nothing is counted twice."
+  },
+  "freight_direction": {
+    "inbound": "cat_4",
+    "outbound_paid_by_us": "cat_4",
+    "between_own_sites": "cat_4",
+    "outbound_paid_by_customer": "cat_9",
+    "unknown": "cat_4",
+    "_note": "GHG Protocol: transport the company pays for is Cat 4, including outbound. Cat 9 is only transport the company does not pay for."
+  },
+  "companions": {
+    "electricity": {"enabled": true, "mode": "combined", "subcategory_label": "Electricity - T&D losses and Generation"},
+    "fuel_wtt": {"enabled": true, "subcategory_label": "Fuel - Well to Tank (WTT)"},
+    "steam_heat": {"enabled": true, "subcategory_label": "Heat & Steam - T&D losses and Generation"}
+  },
+  "periods": {
+    "fy_start_month": 4,
+    "split_bill_across_months": true,
+    "future_date": "error"
+  },
+  "missing_values": {
+    "facility": "flag",
+    "vendor": "info",
+    "_note": "Never fill 'Default Facility' or 'Corporate Expenditure'."
+  },
+  "duplicates": {
+    "same_file": "error",
+    "same_invoice": "warn",
+    "_key": "vendor GSTIN or name + invoice number + amount"
+  },
+  "currency_default": "INR",
+  "classifier_chain": ["memory", "rules", "jev", "openai_decisions", "claude"],
+  "models": {
+    "extract_fast": "claude-haiku-5-5",
+    "extract_think": "claude-sonnet-5-5",
+    "layout": "claude-haiku-5-5",
+    "classify_fallback": "claude-haiku-5-5"
+  },
+  "jev": {"model": "typesafe/jev-1.13", "url": "https://openrouter.ai/api/alpha/decisions", "timeout_s": 12, "concurrency": 8},
+  "openai_decisions": {"model": "gpt-6-luna", "url": "https://api.openai.com/v1/decisions", "timeout_s": 15},
+  "concurrency_caps": {"claude": 8, "classifier": 16},
+  "timing": {"heavy_slots": 3, "light_slots": 2, "jobs_per_org": 2, "sec_per_page_fast": 10, "sec_per_page_think": 25, "sec_per_sheet": 4},
+  "limits": {"max_files": 30, "max_file_mb": 25, "max_pages": 10, "max_excel_rows": 50000, "layout_sample_rows": 20}
+}

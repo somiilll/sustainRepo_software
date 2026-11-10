@@ -1,0 +1,21 @@
+file,expected,notes
+waste_transportation_invoice.pdf,waste_transportation_invoice.json,Waste transport + disposal on one invoice
+Test invoices/UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf,msedcl_oct25.json,"6-page HT electricity bill, billing period across two months"
+Test invoices/Fire Extinguisher.pdf,fire_extinguisher.json,"SAP purchase order, CO2 vs ABC refills"
+Test invoices/Diesel Hydra.png,diesel_hydra.json,"Low-resolution SAP screenshot, unit not printed"
+raw_material_purchase_invoice.pdf,raw_material_purchase.json,Metals and polymers by weight
+indigo_business_travel_invoice.pdf,indigo_travel.json,Air ticket with fees
+Test invoices/Calibration of DP Type Flow Transmitter.pdf,calibration_sop.json,Not an invoice
+Test invoices/MPCB Consent Location-07.pdf,mpcb_consent.json,"Permit, 13 pages"
+Test invoices/10.LPG JAN.2026.PDF,,14-page bundle of LPG delivery challans
+Test invoices/DVVNL_aug-25.pdf,,"UP electricity bill, meter multiplier"
+Test invoices/March-26 final-Dumad Grid Electricity.pdf,,Gujarat HT electricity bill
+Test invoices/6. Contract vehicle payment agreement 2.pdf,,29-page bus contract with lump-sum diesel reimbursement
+Test invoices/MULTRA.pdf,,"Diesel requisition, use not stated"
+Test invoices/Argon Gas Consumption.png,,Argon/CO2 blend
+Test invoices/LPG Bill.png,,LPG cylinders without weight
+Test invoices/Schlumberger Luanda-By Sea Invoice.pdf,,"Export invoice for oilfield equipment, USD"
+transport_distribution_to_plant.pdf,,Inbound road freight
+water_supply_invoice.pdf,,Municipal water
+uploads/0f3cbfcda168_A_edge_case_test_ledger.xlsx,,Prototype's edge-case ledger (208 prototype rows to compare)
+uploads/0e062129a080_scope3_and_org_context_stress_test.xlsx,,Prototype's Scope 3 stress test (72 prototype rows to compare)

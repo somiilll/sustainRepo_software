@@ -1,0 +1,147 @@
+{
+ "row_id": "5359036c-0-0",
+ "item_id": "5359036c-0",
+ "parent_id": null,
+ "derived": false,
+ "group_key": "electricity consumed ht industrial october|energy|maharashtra state electricity|2716|",
+ "file": "UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+ "source": {
+  "file": "UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+  "path": "C:\\Users\\ruthv\\OneDrive\\Desktop\\CBAM\\extraction-handoff\\testbench\\data\\uploads\\4227301267\\UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+  "kind": "document",
+  "file_hash": "bdf7b3de69a9aa9311f10308b85a327a4c43ae61",
+  "doc_index": 0,
+  "line": 0,
+  "page": 2
+ },
+ "evidence": [
+  {
+   "field": "line",
+   "page": 2,
+   "quote": "Total Consumption 225545.000 225850.000"
+  },
+  {
+   "field": "period",
+   "page": 2,
+   "quote": "Current 31/10/2025 Previous 30/09/2025"
+  },
+  {
+   "field": "consumer number",
+   "page": 1,
+   "quote": "Consumer No. : 177529058940"
+  },
+  {
+   "field": "grand total",
+   "page": 3,
+   "quote": "Total Bill Amount Payable Rs. After PPD upto Due Date 25,86,110"
+  }
+ ],
+ "extracted_item": "Electricity consumed, HT industrial, October 2025",
+ "original_text": "Electricity consumption (HT industrial, KWH)",
+ "vendor": "Maharashtra State Electricity Distribution Co. Ltd. (MSEDCL)",
+ "invoice_number": "202510851098070",
+ "date": "07/11/2025",
+ "activity_id": "elec.grid",
+ "activity_label": "Grid electricity from a utility/DISCOM (MSEDCL, DVVNL, BESCOM, TANGEDCO...) - non-renewable mix",
+ "domain": "electricity",
+ "modules": [
+  "energy"
+ ],
+ "ghg": {
+  "scope": "scope_2",
+  "category": "purchased_electricity",
+  "subcategory": "Non-Renewable Electricity",
+  "scope_label": "Scope 2",
+  "category_label": "Purchased Electricity",
+  "subcategory_label": "Non-Renewable Electricity",
+  "category_id": null,
+  "subcategory_id": null
+ },
+ "calc": {
+  "formula_id": "s2_energy",
+  "formula_label": "Energy consumed",
+  "ef_method": "activity",
+  "fields": {
+   "qty_energy": 225545.0,
+   "qty_energy_unit": "kWh"
+  },
+  "missing": [],
+  "notes": [],
+  "info": [],
+  "status": "ok",
+  "emergent_formula_id": null
+ },
+ "quantity": 225545.0,
+ "unit": "kWh",
+ "dimension": "energy",
+ "raw_quantity": 225545.0,
+ "raw_unit": "kWh",
+ "amount": 2586110.0,
+ "currency": "INR",
+ "facility": {
+  "id": "F1",
+  "name": "Plant 1 - Chakan",
+  "method": "address keyword",
+  "confidence": 0.85
+ },
+ "period": {
+  "reporting_period": "2025-10",
+  "allocation": [
+   {
+    "period": "2025-09",
+    "share": 0.0312
+   },
+   {
+    "period": "2025-10",
+    "share": 0.9688
+   }
+  ],
+  "confidence": 0.96,
+  "method": "billing period",
+  "period_start": "2025-09-30",
+  "period_end": "2025-10-31"
+ },
+ "reporting_period": "2025-10",
+ "decision": {
+  "activity_id": "elec.grid",
+  "confidence": 0.95,
+  "source": "rules",
+  "context": {
+   "freight_direction": "unknown"
+  },
+  "context_confidence": {
+   "freight_direction": 0.6
+  },
+  "reason": "keywords ['electricity', 'energy charges', 'kwh']; HSN/SAC 27160000 -> electricity",
+  "alternatives": [
+   {
+    "activity_id": "elec.renewable",
+    "p": null
+   },
+   {
+    "activity_id": "none.tax_fee",
+    "p": null
+   }
+  ],
+  "question": null
+ },
+ "checks": [
+  {
+   "code": "unclear_on_document",
+   "level": "warn",
+   "message": "Unclear on the document: used_in"
+  }
+ ],
+ "confidence": {
+  "classification": 0.95,
+  "quantity": 0.9,
+  "facility": 0.85,
+  "period": 0.96,
+  "overall": 0.85
+ },
+ "review_status": "needs_attention",
+ "review": {
+  "state": "approved",
+  "at": 1794055217.5206027
+ }
+}

@@ -1,0 +1,503 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "extracted_row.schema.json",
+ "title": "Extracted row",
+ "description": "One row in the OCR Extraction review table. A line item gives one primary row plus linked companion rows (parent_id).",
+ "type": "object",
+ "required": [
+  "row_id",
+  "item_id",
+  "parent_id",
+  "derived",
+  "file",
+  "extracted_item",
+  "activity_id",
+  "ghg",
+  "calc",
+  "quantity",
+  "unit",
+  "amount",
+  "currency",
+  "facility",
+  "period",
+  "reporting_period",
+  "decision",
+  "checks",
+  "confidence",
+  "review_status"
+ ],
+ "properties": {
+  "row_id": {
+   "type": "string"
+  },
+  "item_id": {
+   "type": "string"
+  },
+  "parent_id": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "derived": {
+   "type": "boolean"
+  },
+  "group_key": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "file": {
+   "type": "string"
+  },
+  "source": {
+   "type": "object",
+   "description": "file, kind (document|sheet), file_hash; documents: doc_index, line, page; sheets: sheet, row, hidden_sheet"
+  },
+  "evidence": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "field": {
+      "type": "string"
+     },
+     "page": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "quote": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "extracted_item": {
+   "type": "string"
+  },
+  "original_text": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "vendor": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "invoice_number": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "date": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "activity_id": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "activity_label": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "domain": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "modules": {
+   "type": "array",
+   "items": {
+    "enum": [
+     "energy",
+     "water",
+     "waste"
+    ]
+   }
+  },
+  "ghg": {
+   "type": "object",
+   "required": [
+    "scope",
+    "category",
+    "subcategory"
+   ],
+   "properties": {
+    "scope": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "scope_1",
+      "scope_2",
+      "scope_3",
+      "biogenic",
+      "water",
+      "waste",
+      null
+     ]
+    },
+    "category": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "subcategory": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "scope_label": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "category_label": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "subcategory_label": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "category_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Emergent id - null until the JSON export is mapped in"
+    },
+    "subcategory_id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "calc": {
+   "type": "object",
+   "required": [
+    "formula_id",
+    "fields"
+   ],
+   "properties": {
+    "formula_id": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Key in mappings/formula_fields.json; null = cannot be calculated yet"
+    },
+    "formula_label": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "ef_method": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "enum": [
+      "activity",
+      "spend",
+      "supplier",
+      null
+     ]
+    },
+    "fields": {
+     "type": "object",
+     "description": "Exactly the Emergent formula field keys plus '<key>_unit', e.g. {qty: 500, qty_unit: 'L'}",
+     "additionalProperties": {
+      "type": [
+       "number",
+       "string",
+       "null"
+      ]
+     }
+    },
+    "missing": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "notes": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "info": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "status": {
+     "type": "string"
+    },
+    "emergent_formula_id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "quantity": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "unit": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "dimension": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "raw_quantity": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "raw_unit": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "amount": {
+   "type": [
+    "number",
+    "null"
+   ]
+  },
+  "currency": {
+   "type": "string"
+  },
+  "facility": {
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "method",
+    "confidence"
+   ],
+   "properties": {
+    "id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "method": {
+     "type": "string"
+    },
+    "confidence": {
+     "type": "number"
+    }
+   }
+  },
+  "period": {
+   "type": "object",
+   "required": [
+    "reporting_period",
+    "confidence",
+    "method"
+   ],
+   "properties": {
+    "reporting_period": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "allocation": {
+     "type": [
+      "array",
+      "null"
+     ],
+     "items": {
+      "type": "object",
+      "properties": {
+       "period": {
+        "type": "string"
+       },
+       "share": {
+        "type": "number"
+       },
+       "days": {
+        "type": "integer"
+       }
+      }
+     }
+    },
+    "confidence": {
+     "type": "number"
+    },
+    "method": {
+     "type": "string"
+    },
+    "period_start": {
+     "type": "string"
+    },
+    "period_end": {
+     "type": "string"
+    }
+   }
+  },
+  "reporting_period": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "pattern": "^\\d{4}-\\d{2}$"
+  },
+  "decision": {
+   "type": "object",
+   "required": [
+    "activity_id",
+    "confidence",
+    "source",
+    "reason"
+   ],
+   "properties": {
+    "activity_id": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "confidence": {
+     "type": "number"
+    },
+    "source": {
+     "type": "string",
+     "description": "memory | rules | jev | openai_decisions | claude | rules+<provider> | user | none"
+    },
+    "context": {
+     "type": "object"
+    },
+    "context_confidence": {
+     "type": "object"
+    },
+    "reason": {
+     "type": "string"
+    },
+    "alternatives": {
+     "type": "array"
+    },
+    "question": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "checks": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "code",
+     "level",
+     "message"
+    ],
+    "properties": {
+     "code": {
+      "type": "string"
+     },
+     "level": {
+      "enum": [
+       "info",
+       "warn",
+       "error"
+      ]
+     },
+     "message": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "confidence": {
+   "type": "object",
+   "required": [
+    "classification",
+    "quantity",
+    "facility",
+    "period",
+    "overall"
+   ],
+   "properties": {
+    "classification": {
+     "type": "number"
+    },
+    "quantity": {
+     "type": "number"
+    },
+    "facility": {
+     "type": "number"
+    },
+    "period": {
+     "type": "number"
+    },
+    "overall": {
+     "type": "number"
+    }
+   }
+  },
+  "review_status": {
+   "enum": [
+    "ready",
+    "needs_attention",
+    "ask"
+   ]
+  },
+  "review": {
+   "type": "object",
+   "description": "Reviewer state: {state: ready|needs_attention|ask|approved|rejected, edited?, at?}"
+  }
+ }
+}

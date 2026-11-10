@@ -1,0 +1,120 @@
+{
+  "_about": "Emergent calculation formulas and the field keys each one saves. Source: Emergent's read-only report of 7 Nov 2026 (PREVIEW database). Every field is saved with a sibling '<key>_unit'. 'formula_id' values are our own stable names; fill 'emergent_formula_id' from Emergent's JSON export. Formulas marked status=TBD are not in Emergent's report yet.",
+  "formulas": {
+    "s1_heat": {
+      "label": "Heat basis (NCV x EF x GWP)", "scopes": ["scope_1", "biogenic"],
+      "categories": ["stationary_combustion", "mobile_combustion", "flaring"],
+      "fields": [{"key": "qty", "label": "Quantity Used", "dimension": ["volume", "mass", "gas_volume", "energy"], "required": true}],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s1_quantity": {
+      "label": "Quantity based", "scopes": ["scope_1", "biogenic"],
+      "categories": ["stationary_combustion", "mobile_combustion", "flaring"],
+      "fields": [
+        {"key": "qty", "label": "Quantity Used", "dimension": ["volume", "mass", "gas_volume", "energy"], "required": true},
+        {"key": "ef_quantity", "label": "Emission Factor", "required": false, "note": "user override only; leave empty"}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s1_carbon": {
+      "label": "Carbon composition", "scopes": ["scope_1"], "categories": ["stationary_combustion", "flaring"],
+      "fields": [
+        {"key": "qty", "label": "Quantity Used", "dimension": ["mass", "volume"], "required": true},
+        {"key": "carbon_content", "label": "Carbon Composition(%)", "required": true},
+        {"key": "oxidation_factor", "label": "Oxidation Factor", "required": true}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s1_fugitive": {
+      "label": "Fugitive emissions", "scopes": ["scope_1"], "categories": ["fugitive_emissions"],
+      "fields": [{"key": "qty", "label": "Quantity Used", "dimension": ["mass"], "required": true}],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s1_process_mass": {
+      "label": "Process emissions - EF Mass/Volume", "scopes": ["scope_1"], "categories": ["process_emissions"],
+      "fields": [
+        {"key": "quantity_used_process_emissions", "label": "Quantity Used", "dimension": ["mass", "gas_volume"], "required": true},
+        {"key": "ef_quantity", "label": "Emission Factor", "required": false}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s2_energy": {
+      "label": "Energy consumed", "scopes": ["scope_2"],
+      "categories": ["purchased_electricity", "purchased_heat_steam_cooling"],
+      "fields": [{"key": "qty_energy", "label": "Energy Consumed", "dimension": ["energy"], "required": true}],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_spend": {
+      "label": "Spend based", "scopes": ["scope_3"], "categories": "*",
+      "fields": [{"key": "spent_value", "label": "Amount Spent", "dimension": ["currency"], "required": true}],
+      "ef_method": "spend", "emergent_formula_id": null
+    },
+    "s3_supplier": {
+      "label": "Supplier specific", "scopes": ["scope_3"], "categories": "*",
+      "fields": [
+        {"key": "activity_value_supplier_based", "label": "Quantity of Activity Used", "required": true},
+        {"key": "emission_factor_supplier_based", "label": "Emission Factor", "required": true}
+      ],
+      "ef_method": "supplier", "emergent_formula_id": null
+    },
+    "s3_activity": {
+      "label": "Activity based (quantity x EF)", "scopes": ["scope_3"],
+      "categories": ["cat_1", "cat_2", "cat_3", "cat_5", "cat_10", "cat_11", "cat_12", "cat_13", "cat_14"],
+      "fields": [{"key": "activity_value", "label": "Quantity Used", "dimension": ["mass", "volume", "energy", "gas_volume"], "required": true}],
+      "_note": "Piece counts (Nos, sets) are not used as activity data - no reliable per-piece factors; such lines fall back to spend.",
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_freight_tkm": {
+      "label": "Activity: goods quantity x km", "scopes": ["scope_3"], "categories": ["cat_4", "cat_9"],
+      "fields": [
+        {"key": "qty_travelled", "label": "Quantity of goods travelled", "dimension": ["mass"], "required": true},
+        {"key": "km_travelled", "label": "Distance Travelled per Day", "dimension": ["distance"], "required": true}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_travel_km": {
+      "label": "Km travelled", "scopes": ["scope_3"], "categories": ["cat_6", "cat_7"],
+      "fields": [
+        {"key": "km_travelled", "label": "Distance Travelled per Day", "dimension": ["distance"], "required": true},
+        {"key": "qty_days_travelled", "label": "No. of Days Travelled", "dimension": ["count"], "required": true, "default": 1}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_travel_pkm": {
+      "label": "Passengers and distance", "scopes": ["scope_3"], "categories": ["cat_6", "cat_7"],
+      "fields": [
+        {"key": "qty_passenger", "label": "No. of Passengers travelled", "dimension": ["count"], "required": true, "default": 1},
+        {"key": "km_travelled", "label": "Distance Travelled per Day", "dimension": ["distance"], "required": true}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_hotel": {
+      "label": "Hotel stays", "scopes": ["scope_3"], "categories": ["cat_6"],
+      "fields": [
+        {"key": "qty_room", "label": "No. of rooms taken", "dimension": ["count"], "required": true, "default": 1},
+        {"key": "qty_nights", "label": "No. of Nights Stayed", "dimension": ["count"], "required": true}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "s3_wfh": {
+      "label": "Work from home", "scopes": ["scope_3"], "categories": ["cat_7"],
+      "fields": [
+        {"key": "working_days", "label": "No. of Working Days", "dimension": ["count"], "required": true},
+        {"key": "working_hour_per_day", "label": "Working Hours per day", "dimension": ["count"], "required": true}
+      ],
+      "ef_method": "activity", "emergent_formula_id": null
+    },
+    "water_volume": {
+      "label": "Water volume (Water module)", "status": "TBD", "scopes": ["water"], "categories": ["water_withdrawal", "water_discharge"],
+      "fields": [{"key": "qty", "label": "Volume", "dimension": ["volume"], "required": true}],
+      "ef_method": "none", "emergent_formula_id": null,
+      "note": "Placeholder: Emergent has not reported the Water module record schema yet."
+    },
+    "waste_mass": {
+      "label": "Waste quantity (Waste module)", "status": "TBD", "scopes": ["waste"], "categories": ["waste_generated"],
+      "fields": [{"key": "qty", "label": "Quantity", "dimension": ["mass", "volume"], "required": true}],
+      "ef_method": "none", "emergent_formula_id": null,
+      "note": "Placeholder: Emergent has not reported the Waste module record schema yet."
+    }
+  }
+}

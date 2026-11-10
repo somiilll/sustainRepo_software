@@ -1,0 +1,361 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "invoices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "document_type": {
+            "type": "string",
+            "enum": [
+              "tax_invoice",
+              "utility_bill",
+              "purchase_order",
+              "ticket",
+              "receipt",
+              "lorry_receipt",
+              "delivery_challan",
+              "contract",
+              "certificate_or_permit",
+              "other"
+            ]
+          },
+          "language": {
+            "type": "string"
+          },
+          "vendor_name": {
+            "type": "string"
+          },
+          "vendor_gstin": {
+            "type": "string"
+          },
+          "vendor_type": {
+            "type": "string"
+          },
+          "buyer_name": {
+            "type": "string"
+          },
+          "buyer_gstin": {
+            "type": "string"
+          },
+          "service_address": {
+            "type": "string"
+          },
+          "invoice_number": {
+            "type": "string"
+          },
+          "invoice_date": {
+            "type": "string"
+          },
+          "billing_period_start": {
+            "type": "string"
+          },
+          "billing_period_end": {
+            "type": "string"
+          },
+          "consumer_number": {
+            "type": "string"
+          },
+          "meter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "previous_reading": {
+                "type": "string"
+              },
+              "current_reading": {
+                "type": "string"
+              },
+              "multiplying_factor": {
+                "type": "string"
+              },
+              "units_billed": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "previous_reading",
+              "current_reading",
+              "multiplying_factor",
+              "units_billed"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totals": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subtotal": {
+                "type": "string"
+              },
+              "tax": {
+                "type": "string"
+              },
+              "other_charges": {
+                "type": "string"
+              },
+              "grand_total": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "subtotal",
+              "tax",
+              "other_charges",
+              "grand_total"
+            ]
+          },
+          "transport_of_waste_only": {
+            "type": "boolean"
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "description_en": {
+                  "type": "string"
+                },
+                "hsn_sac": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "rate": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "string"
+                },
+                "nature": {
+                  "type": "string",
+                  "enum": [
+                    "fuel",
+                    "electricity",
+                    "steam_heat",
+                    "water",
+                    "wastewater",
+                    "waste",
+                    "refrigerant",
+                    "industrial_gas",
+                    "freight",
+                    "travel",
+                    "goods",
+                    "service",
+                    "capital_item",
+                    "rent",
+                    "fee_or_tax",
+                    "other"
+                  ]
+                },
+                "used_in": {
+                  "type": "string"
+                },
+                "travel": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "class": {
+                      "type": "string"
+                    },
+                    "passengers": {
+                      "type": "string"
+                    },
+                    "rooms": {
+                      "type": "string"
+                    },
+                    "nights": {
+                      "type": "string"
+                    },
+                    "distance_km": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "origin",
+                    "destination",
+                    "class",
+                    "passengers",
+                    "rooms",
+                    "nights",
+                    "distance_km"
+                  ]
+                },
+                "freight": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "mode": {
+                      "type": "string"
+                    },
+                    "weight_kg": {
+                      "type": "string"
+                    },
+                    "distance_km": {
+                      "type": "string"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "inbound",
+                        "outbound",
+                        "between_own_sites",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "weight_kg",
+                    "distance_km",
+                    "origin",
+                    "destination",
+                    "direction"
+                  ]
+                },
+                "waste": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "waste_type": {
+                      "type": "string"
+                    },
+                    "disposal_method": {
+                      "type": "string"
+                    },
+                    "hazardous": {
+                      "type": "string",
+                      "enum": [
+                        "yes",
+                        "no",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "waste_type",
+                    "disposal_method",
+                    "hazardous"
+                  ]
+                },
+                "confidence": {
+                  "type": "number"
+                },
+                "low_confidence_fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "description",
+                "description_en",
+                "hsn_sac",
+                "quantity",
+                "unit",
+                "rate",
+                "amount",
+                "nature",
+                "used_in",
+                "travel",
+                "freight",
+                "waste",
+                "confidence",
+                "low_confidence_fields"
+              ]
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "page": {
+                  "type": "integer"
+                },
+                "quote": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "page",
+                "quote"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_type",
+          "language",
+          "vendor_name",
+          "vendor_gstin",
+          "vendor_type",
+          "buyer_name",
+          "buyer_gstin",
+          "service_address",
+          "invoice_number",
+          "invoice_date",
+          "billing_period_start",
+          "billing_period_end",
+          "consumer_number",
+          "meter",
+          "currency",
+          "totals",
+          "transport_of_waste_only",
+          "line_items",
+          "evidence",
+          "notes"
+        ]
+      }
+    },
+    "readable": {
+      "type": "boolean"
+    },
+    "unreadable_reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "invoices",
+    "readable",
+    "unreadable_reason"
+  ]
+}

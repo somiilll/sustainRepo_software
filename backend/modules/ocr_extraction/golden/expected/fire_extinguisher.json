@@ -1,0 +1,47 @@
+{
+  "file": "Fire Extinguisher.pdf",
+  "status": "draft - written by the engineer from the document; product owner to confirm",
+  "note": "CO2 refills are Scope 1 fugitive CO2 (count x capacity); ABC powder refills are a Cat 1 service",
+  "rows": [
+    {
+      "match": [
+        "abc",
+        "4"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "period": "2025-05"
+    },
+    {
+      "match": [
+        "abc",
+        "6"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "period": "2025-05"
+    },
+    {
+      "match": [
+        "co2",
+        "4.5"
+      ],
+      "scope": "scope_1",
+      "category": "fugitive_emissions",
+      "quantity": 22.5,
+      "unit": "kg",
+      "period": "2025-05"
+    },
+    {
+      "match": [
+        "co2",
+        "9"
+      ],
+      "scope": "scope_1",
+      "category": "fugitive_emissions",
+      "quantity": 9,
+      "unit": "kg",
+      "period": "2025-05"
+    }
+  ]
+}

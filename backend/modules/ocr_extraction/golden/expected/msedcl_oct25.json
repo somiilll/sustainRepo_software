@@ -1,0 +1,26 @@
+{
+  "file": "UCPL - 0701  MSEDCL BILL October - 2025 177529058940.pdf",
+  "status": "draft - written by the engineer from the document; product owner to confirm",
+  "rows": [
+    {
+      "match": [
+        "electricity"
+      ],
+      "scope": "scope_2",
+      "category": "purchased_electricity",
+      "quantity": 225545,
+      "unit": "kWh",
+      "period": "2025-10"
+    },
+    {
+      "match": [
+        "electricity"
+      ],
+      "scope": "scope_3",
+      "category": "cat_3",
+      "quantity": 225545,
+      "unit": "kWh",
+      "period": "2025-10"
+    }
+  ]
+}

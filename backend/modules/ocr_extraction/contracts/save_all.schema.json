@@ -1,0 +1,236 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "save_all.schema.json",
+ "title": "Save-all payload",
+ "description": "What the review page sends when the user clicks Save all (approved rows only). Companion rows come with their parent.",
+ "type": "object",
+ "required": [
+  "contract_version",
+  "org",
+  "generated_at",
+  "records",
+  "not_calculable"
+ ],
+ "properties": {
+  "contract_version": {
+   "const": "1.0"
+  },
+  "org": {
+   "type": "string"
+  },
+  "generated_at": {
+   "type": "string"
+  },
+  "records": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "row_id",
+     "parent_row_id",
+     "facility_id",
+     "reporting_period",
+     "period_allocation",
+     "scope",
+     "category",
+     "subcategory",
+     "formula_id",
+     "fields",
+     "evidence",
+     "review"
+    ],
+    "properties": {
+     "row_id": {
+      "type": "string"
+     },
+     "parent_row_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "derived": {
+      "type": "boolean"
+     },
+     "facility_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "reporting_period": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "period_allocation": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "period",
+        "share"
+       ],
+       "properties": {
+        "period": {
+         "type": "string"
+        },
+        "share": {
+         "type": "number"
+        }
+       }
+      }
+     },
+     "scope": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "category": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "subcategory": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "scope_label": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "category_label": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "subcategory_label": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "category_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "subcategory_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "modules": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "activity_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "formula_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "emergent_formula_id": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "ef_method": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "fields": {
+      "type": "object",
+      "description": "Exactly the Emergent formula field keys plus '<key>_unit', e.g. {qty: 500, qty_unit: 'L'}",
+      "additionalProperties": {
+       "type": [
+        "number",
+        "string",
+        "null"
+       ]
+      }
+     },
+     "description": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "original_text": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "vendor": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "invoice_number": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "document_date": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "amount": {
+      "type": [
+       "number",
+       "null"
+      ]
+     },
+     "currency": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "evidence": {
+      "type": "object"
+     },
+     "classification": {
+      "type": "object"
+     },
+     "review": {
+      "type": "object"
+     }
+    }
+   }
+  },
+  "not_calculable": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "row_ids missing a formula, facility or period - Save-all must refuse these"
+  }
+ }
+}

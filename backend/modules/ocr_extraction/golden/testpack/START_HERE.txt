@@ -1,0 +1,10 @@
+SUSTAINABILITY OCR TEST PACK
+
+1. Upload files from Upload only.
+2. Do not upload Reviewer or this note.
+3. Read Reviewer/Answer_Key.md for the intended issues and correct handling.
+4. Record observations in Reviewer/Results_Checklist.csv.
+
+Includes: one Excel workbook (4 different layouts), five PDF invoices, and one scanned duplicate JPG. All data is fictional. Several deliberate issues are ambiguous and should trigger clarification. Set up test facilities as described in the answer key if testing automatic facility matching.
+
+The workbook includes one deliberate #DIV/0! formula and malformed values. Do not fix them before testing.

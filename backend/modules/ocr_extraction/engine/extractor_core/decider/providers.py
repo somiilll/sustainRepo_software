@@ -1,0 +1,105 @@
+"""Classifier providers: TypeSafe Jev via OpenRouter (default), OpenAI Decisions API, Claude (last resort)."""
+from __future__ import annotations
+
+import os
+import time
+
+import requests
+
+from .. import llm
+from ..config import load
+from .base import Answer, Provider, ProviderError, Question
+
+
+class JevOpenRouter(Provider):
+    """Same request shape the prototype uses in jev_processor.call_jev_decisions."""
+    name = "jev"
+
+    def available(self) -> bool:
+        return bool(os.environ.get("OPENROUTER_API_KEY"))
+
+    def decide(self, state, questions):
+        cfg = load().policy["jev"]
+        payload = {"model": cfg["model"], "state": state,
+                   "questions": {q.name: {"type": "choice", "instructions": q.instructions, "criteria": q.choices} for q in questions}}
+        t0 = time.time()
+        try:
+            r = requests.post(cfg["url"], json=payload, timeout=cfg["timeout_s"],
+                              headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}", "Content-Type": "application/json",
+                                       "X-Title": "SustainRepo extractor"})
+        except requests.RequestException as e:
+            raise ProviderError(f"Jev network error: {e}") from e
+        if r.status_code != 200:
+            raise ProviderError(f"Jev HTTP {r.status_code}: {r.text[:200]}")
+        data = r.json()
+        raw = data.get("answers") or {}
+        if isinstance(raw, list):
+            raw = {a.get("name"): a for a in raw}
+        out = {}
+        for q in questions:
+            a = raw.get(q.name) or {}
+            ch = a.get("choice")
+            if ch not in q.choices:
+                raise ProviderError(f"Jev gave no valid answer for {q.name}")
+            probs = a.get("probabilities") or {}
+            if isinstance(probs, list):
+                probs = {p.get("value"): p.get("probability") for p in probs}
+            out[q.name] = Answer(ch, float(a.get("confidence", probs.get(ch, 0.5)) or 0.0), probs)
+        return out, {"provider": self.name, "model": cfg["model"], "seconds": round(time.time() - t0, 3),
+                     "cost_usd": float((data.get("usage") or {}).get("cost", 0.0) or 0.0)}
+
+
+class OpenAIDecisions(Provider):
+    name = "openai_decisions"
+
+    def available(self) -> bool:
+        return bool(os.environ.get("OPENAI_API_KEY"))
+
+    def decide(self, state, questions):
+        cfg = load().policy["openai_decisions"]
+        payload = {"model": cfg["model"], "input": state,
+                   "questions": [{"type": "choice", "name": q.name, "instructions": q.instructions,
+                                  "choices": [{"value": v, "description": d} for v, d in q.choices.items()]} for q in questions]}
+        t0 = time.time()
+        try:
+            r = requests.post(cfg["url"], json=payload, timeout=cfg["timeout_s"],
+                              headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": "application/json"})
+        except requests.RequestException as e:
+            raise ProviderError(f"OpenAI Decisions network error: {e}") from e
+        if r.status_code != 200:
+            raise ProviderError(f"OpenAI Decisions HTTP {r.status_code}: {r.text[:200]}")
+        ans = {a["name"]: a for a in r.json().get("answers", [])}
+        out = {}
+        for q in questions:
+            a = ans.get(q.name)
+            if not a or a.get("choice") not in q.choices:
+                raise ProviderError(f"OpenAI Decisions gave no valid answer for {q.name}")
+            probs = {p["value"]: p["probability"] for p in a.get("probabilities", [])}
+            out[q.name] = Answer(a["choice"], float(a.get("confidence", probs.get(a["choice"], 0.5))), probs)
+        return out, {"provider": self.name, "model": cfg["model"], "seconds": round(time.time() - t0, 3)}
+
+
+class ClaudeChooser(Provider):
+    name = "claude"
+    calibrated = False
+
+    def available(self) -> bool:
+        return llm.enabled()
+
+    def decide(self, state, questions):
+        props = {q.name: llm.obj({"choice": {"type": "string", "enum": list(q.choices)}, "confidence": {"type": "number"}})
+                 for q in questions}
+        system = ("You classify one line item from a company's invoices or registers for a GHG inventory. Answer every "
+                  "question with exactly one of its allowed values and a confidence between 0 and 1.")
+        text = state + "\n\nQuestions:\n" + "\n".join(
+            f"- {q.name}: {q.instructions}\n" + "\n".join(f"    {v}: {d}" for v, d in q.choices.items()) for q in questions)
+        t0 = time.time()
+        try:
+            d, usage = llm.call_json(load().policy["models"]["classify_fallback"], system, text, llm.obj(props), max_tokens=1500)
+        except llm.AIUnavailable as e:
+            raise ProviderError(str(e)) from e
+        out = {q.name: Answer(d[q.name]["choice"], min(float(d[q.name]["confidence"]), 0.85)) for q in questions}
+        return out, {"provider": self.name, "seconds": round(time.time() - t0, 3), **usage}
+
+
+PROVIDERS = {"jev": JevOpenRouter, "openai_decisions": OpenAIDecisions, "claude": ClaudeChooser}

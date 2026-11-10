@@ -1,0 +1,32 @@
+{
+  "file": "waste_transportation_invoice.pdf",
+  "status": "draft - written by the engineer from the document; product owner to confirm",
+  "rows": [
+    {
+      "match": [
+        "tipping"
+      ],
+      "scope": "scope_3",
+      "category": "cat_5",
+      "quantity": 6500,
+      "unit": "kg",
+      "period": "2026-08"
+    },
+    {
+      "match": [
+        "transport"
+      ],
+      "scope": "scope_3",
+      "category": "cat_4",
+      "period": "2026-08"
+    },
+    {
+      "match": [
+        "loading"
+      ],
+      "scope": "scope_3",
+      "category": "cat_4",
+      "period": "2026-08"
+    }
+  ]
+}

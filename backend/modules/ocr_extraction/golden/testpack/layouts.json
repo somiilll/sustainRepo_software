@@ -1,0 +1,112 @@
+{
+ "353030b01b123d4d": {
+  "shape": "column_items",
+  "columns": {
+   "facility": 2,
+   "unit": 9,
+   "notes": 10,
+   "period": 3,
+   "quantity": 8
+  },
+  "item_columns": {
+   "0": {
+    "description": "Record ID",
+    "unit": null,
+    "value_kind": "quantity"
+   },
+   "4": {
+    "description": "Period end",
+    "unit": null,
+    "value_kind": "quantity"
+   },
+   "5": {
+    "description": "Opening",
+    "unit": null,
+    "value_kind": "quantity"
+   },
+   "6": {
+    "description": "Closing",
+    "unit": null,
+    "value_kind": "quantity"
+   },
+   "7": {
+    "description": "Multiplier",
+    "unit": null,
+    "value_kind": "quantity"
+   }
+  },
+  "header_units": {},
+  "context": {
+   "title": "",
+   "sheet": "Meter Readings",
+   "fy_start": null
+  },
+  "score": 0.8,
+  "source": "heuristic"
+ },
+ "4398751d09d0c36f": {
+  "shape": "ledger",
+  "columns": {
+   "date": 1,
+   "facility": 2,
+   "quantity": 4,
+   "unit": 5,
+   "description": 3
+  },
+  "header_units": {},
+  "context": {
+   "title": "DEMO INDUSTRIAL WORKS - SITE LOG | October 2026",
+   "sheet": "Site Log",
+   "fy_start": null
+  },
+  "score": 0.9,
+  "source": "heuristic"
+ },
+ "21be7dbc44e973eb": {
+  "shape": "wide_months",
+  "columns": {
+   "facility": 1,
+   "description": 2,
+   "unit": 3,
+   "notes": 8
+  },
+  "month_columns": {
+   "4": "2026-07",
+   "5": "2026-08",
+   "6": "2026-09",
+   "7": "2026-10"
+  },
+  "value_kind": "quantity",
+  "header_units": {},
+  "context": {
+   "title": "DEMO INDUSTRIAL WORKS - JULY TO OCTOBER 2026 | Plant sustainability returns",
+   "sheet": "Monthly Matrix",
+   "fy_start": null
+  },
+  "score": 0.85,
+  "source": "heuristic"
+ },
+ "d011f291f065b068": {
+  "shape": "ledger",
+  "columns": {
+   "invoice_number": 1,
+   "date": 2,
+   "vendor": 3,
+   "facility": 4,
+   "description": 5,
+   "quantity": 6,
+   "unit": 7,
+   "amount": 8,
+   "currency": 9,
+   "period": 10
+  },
+  "header_units": {},
+  "context": {
+   "title": "",
+   "sheet": "Invoice Register",
+   "fy_start": null
+  },
+  "score": 0.95,
+  "source": "heuristic"
+ }
+}

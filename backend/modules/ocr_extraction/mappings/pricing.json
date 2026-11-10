@@ -1,0 +1,28 @@
+{
+  "_about": "How every AI call is turned into one comparable number. Each call is priced in USD from the provider's own rates (or the cost the provider reports), then converted to SustainRepo credits. To add a new model or provider, add one entry under 'models' keyed 'provider:model'. A model that isn't listed is priced with 'default' and flagged as estimated, so nothing is ever free by accident. Prices checked 7 Nov 2026 - re-check when a provider changes rates.",
+  "credit": {
+    "usd_per_credit": 0.001,
+    "markup": 1.0,
+    "round_to": 2,
+    "_note": "1 credit = $0.001 of AI cost x markup. Set markup above 1 to charge customers a margin; usd_per_credit sets the size of a credit."
+  },
+  "steps": {
+    "extract": "Reading documents",
+    "reread": "Re-reading pages that didn't add up",
+    "layout": "Understanding spreadsheet layouts",
+    "classify": "Classifying line items"
+  },
+  "models": {
+    "anthropic:claude-haiku-5-5": {"basis": "tokens", "input_per_mtok": 0.10, "output_per_mtok": 0.50,
+      "long_context": {"above_input_tokens": 100000, "input_per_mtok": 0.50, "output_per_mtok": 2.50}},
+    "anthropic:claude-sonnet-5-5": {"basis": "tokens", "input_per_mtok": 2.00, "output_per_mtok": 10.00},
+    "anthropic:claude-opus-5-5": {"basis": "tokens", "input_per_mtok": 4.00, "output_per_mtok": 20.00},
+    "anthropic:claude-fable-5-1": {"basis": "tokens", "input_per_mtok": 10.00, "output_per_mtok": 50.00},
+    "openrouter:typesafe/jev-1.13": {"basis": "reported", "fallback_per_call": 0.00005,
+      "_note": "OpenRouter returns the exact cost of each call in usage.cost; the fallback is used when it doesn't"},
+    "openai:gpt-6-luna": {"basis": "per_call", "per_call": 0.0005, "estimated": true,
+      "_note": "Placeholder until the OpenAI Decisions price is confirmed on a funded account"}
+  },
+  "default": {"basis": "tokens", "input_per_mtok": 5.00, "output_per_mtok": 25.00, "estimated": true},
+  "providers": {"jev": "openrouter", "openai_decisions": "openai", "claude": "anthropic"}
+}

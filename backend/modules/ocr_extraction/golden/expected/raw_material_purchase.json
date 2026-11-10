@@ -1,0 +1,44 @@
+{
+  "file": "raw_material_purchase_invoice.pdf",
+  "status": "draft - written by the engineer from the document; product owner to confirm",
+  "rows": [
+    {
+      "match": [
+        "steel"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "subcategory": "steel",
+      "quantity": 1500,
+      "unit": "kg"
+    },
+    {
+      "match": [
+        "alumin"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "subcategory": "alumin",
+      "quantity": 500,
+      "unit": "kg"
+    },
+    {
+      "match": [
+        "granules"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "quantity": 800,
+      "unit": "kg"
+    },
+    {
+      "match": [
+        "rubber"
+      ],
+      "scope": "scope_3",
+      "category": "cat_1",
+      "quantity": 350,
+      "unit": "kg"
+    }
+  ]
+}
