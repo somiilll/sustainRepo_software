@@ -213,6 +213,9 @@ class Engine:
                 "facility": fac, "period": per, "reporting_period": per["reporting_period"],
                 "decision": dec or decision,
             }
+            named = load().factor_name_list(ghg.get("subcategory"), (calc or {}).get("ef_method"))
+            if named:
+                r["ghg"] = {**ghg, "subcategory_label": named[0]}
             r["checks"] = row_checks(r, item)
             return finish(r, item)
 

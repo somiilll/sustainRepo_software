@@ -1013,3 +1013,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Edit dialog (`frontend/src/modules/ocr2/EditDialog.jsx`) follows Scope → Reporting period/Facility → Category → Calculation method (Scope 3) → Activity (emission factor) → Fields (form-config fields for Scope 3 structured categories, otherwise Quantity/Unit or Amount/Currency). No live calculation; emissions calculate when approved rows are saved to GHG records.
 - Backend: `modules/ocr_extraction/edit_override.py`; new endpoints `GET /jobs/{id}/rows/{row}/edit-config` and `/factor-options`; `PATCH /jobs/{id}/items/{item}` accepts `override`. The choice is stored in `row.review.override` + `row.review.factor`; `saver.resolve_category` honours it; overridden rows do not confirm classification memory on approval.
 - Pending: confidence 0.85 cap for clean row-by-row reads (rowscan.py), login lockout rework, My Tasks filters, CBAM.
+
+## OCR factor names re-pointed to this system's emission factors (implemented)
+- New `mappings/factor_names.json`: taxonomy subcategory -> real `fuel_database` / `scope3_ef` names, per method (activity / spend). Used by the GHG save factor lookup (`saver.wanted_names`) and shown as the Review subcategory label (`pipeline.make`). Example: Copper -> "Metals" (activity) / "Copper Rolling, Drawing, Extruding, and Alloying" (spend).
+- Also fixed `saver._prefer` crash when a factor's year is a string (travel factors).
+- Not mapped (no matching factor exists): hazardous/ETP/biomedical/battery waste, courier, forwarding, chemicals (activity), industrial gases, C8/C10-C15, WTT. These still show "Choose factor".

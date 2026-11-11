@@ -85,6 +85,11 @@ class Config:
     units: dict
     hsn_rules: list[dict]
     parsing: dict
+    factor_names: dict = field(default_factory=dict)
+
+    def factor_name_list(self, subcategory: str | None, ef_method: str | None) -> list[str]:
+        """Real emission-factor names (this system's tables) for a taxonomy subcategory and method, best first."""
+        return (self.factor_names.get(subcategory or "") or {}).get("spend" if ef_method == "spend" else "activity", [])
 
 
 @lru_cache(maxsize=1)
@@ -96,4 +101,4 @@ def load() -> Config:
     return Config(taxonomy=Taxonomy(_json("activity_taxonomy.json")),
                   formulas=_json("formula_fields.json")["formulas"],
                   policy=_json("policy.json"), units=_json("unit_aliases.json"), hsn_rules=hsn,
-                  parsing=_json("parsing.json"))
+                  parsing=_json("parsing.json"), factor_names=_json("factor_names.json")["map"])

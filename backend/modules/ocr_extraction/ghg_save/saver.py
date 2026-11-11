@@ -71,7 +71,10 @@ def factor_query(rec: dict, category: dict) -> tuple[str, dict]:
 
 
 def _prefer(opts: list[dict]) -> dict:
-    return sorted(opts, key=lambda o: (o.get("region") != "India", -(o.get("year") or 0), o["label"]))[0]
+    def year(o):
+        m = re.search(r"\d{4}", str(o.get("year") or ""))
+        return int(m.group()) if m else 0
+    return sorted(opts, key=lambda o: (o.get("region") != "India", -year(o), o["label"]))[0]
 
 
 async def search_factors(db, rec: dict, category: dict, text: str = "", limit: int = 40) -> list[dict]:
@@ -81,8 +84,7 @@ async def search_factors(db, rec: dict, category: dict, text: str = "", limit: i
         q[field] = {"$regex": re.escape(text), "$options": "i"}
     docs = await db[coll].find(q, {"_id": 0}).limit(400).to_list(400)
     opts = [_option(d, coll) for d in docs]
-    want = norm(rec.get("subcategory"))
-    wants = {want, *ALIASES.get(want, [])}
+    wants = wanted_names(rec)
     t = norm(text)
     opts.sort(key=lambda o: (norm(o["label"]) not in wants, bool(t) and not norm(o["label"]).startswith(t), o["label"].lower(), o.get("region") != "India"))
     return opts[:limit]
@@ -102,14 +104,20 @@ async def resolve_factor(db, org: str, rec: dict, category: dict, chosen: dict |
             return _option(doc, mem["collection"])
     field = "fuel_name" if coll == "fuel_database" else "activity"
     docs = await db[coll].find(q, {"_id": 0}).to_list(2000)
-    want = norm(rec.get("subcategory"))
-    wants = {want, *ALIASES.get(want, [])}
+    wants = wanted_names(rec)
     exact = [_option(d, coll) for d in docs if norm(d.get(field)) in wants]
     if exact:
-        return _prefer(exact)
+        listed = [norm(x) for x in load().factor_name_list(rec.get("subcategory"), rec.get("ef_method"))]
+        best = next((x for x in listed if any(norm(o["label"]) == x for o in exact)), None)
+        return _prefer([o for o in exact if norm(o["label"]) == best] if best else exact)
     if coll == "fuel_database" and len(docs) == 1:
         return _option(docs[0], coll)
     raise SaveError(f"No emission factor named '{rec.get('subcategory')}' in {category['name']}. Choose one in Edit.", True)
+
+
+def wanted_names(rec: dict) -> list[str]:
+    want = norm(rec.get("subcategory"))
+    return [want, *ALIASES.get(want, []), *(norm(x) for x in load().factor_name_list(rec.get("subcategory"), rec.get("ef_method")))]
 
 
 ALIASES = {"gas diesel oil": ["diesel"], "motor gasoline": ["petrol motor gasoline"], "natural gas": ["natural gas"], "mixed solid waste landfill": ["mixed msw municipal solid waste landfilled"]}
