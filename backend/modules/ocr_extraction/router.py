@@ -79,8 +79,12 @@ def _facilities(org: str) -> list[dict]:
 
 
 def _org_context(org: str) -> dict:
-    o = DB.organizations.find_one({"id": org}, {"_id": 0, "name": 1, "industry_sector": 1, "industry": 1, "sector": 1}) or {}
-    return {"name": o.get("name"), "industry": o.get("industry_sector") or o.get("industry") or o.get("sector")}
+    o = DB.organizations.find_one({"id": org}, {"_id": 0, "name": 1, "industry_sector": 1, "industry": 1, "sector": 1, "general_description": 1, "process_description": 1}) or {}
+    facs = [{"name": f.get("name"), "sector": f.get("sector"), "products": f.get("products_manufactured"), "machinery": f.get("machinery_used")}
+            for f in DB.facilities.find({"organization_id": org, "is_deleted": {"$ne": True}, "is_active": {"$ne": False}},
+                                         {"_id": 0, "name": 1, "sector": 1, "products_manufactured": 1, "machinery_used": 1}) if f.get("name")]
+    return {"name": o.get("name"), "industry": o.get("industry_sector") or o.get("industry") or o.get("sector"),
+            "overview": o.get("general_description"), "process": o.get("process_description"), "facilities": facs}
 
 
 def _engine(org: str, facilities: list[dict] | None = None) -> Engine:
@@ -528,7 +532,7 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
         new_rows = [r for r in new_rows if r is parent or (same and r.get("derived"))]
     for r in new_rows:
         r["review"] = {**(r.get("review") or {}), "state": r["review_status"], "edited": True}
-    remember = e.remember and changed_class and dec.get("activity_id")
+    remember = e.remember and changed_class and (dec.get("activity_id") or dec.get("factor_match"))
     if remember:
         eng.classifier.remember(item, dec, source="user", scope="all" if e.scope == "all" else "vendor")
     job["rows"] = [r for r in job["rows"] if r["item_id"] != item_id]

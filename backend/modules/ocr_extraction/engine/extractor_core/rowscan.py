@@ -24,7 +24,10 @@ from .config import load
 from .units import normalize_unit, parse_locale_number
 
 ROLES = ["quantity", "amount", "distance", "weight", "count", "identifier", "unclear"]
-BATCH, MAX_AI_ROWS = 40, 400
+BATCH, MAX_AI_ROWS = 10, 400
+LEVELS = ["certain", "likely", "uncertain", "guess"]
+TAGS = ["unit_printed", "currency_printed", "column_pattern", "spec_in_name", "only_number_in_row", "code_or_serial", "unit_assumed", "ambiguous_between_roles", "no_context"]
+LEVEL_CAP = {"certain": 0.9, "likely": 0.8}
 
 _NUM = r"\d[\d,.'’]*\d|\d"
 DATE_NUM = re.compile(r"\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b")
@@ -280,13 +283,15 @@ SYSTEM = (
     "identifier (invoice/phone/code/year/serial) or unclear. A number written inside the item's name or spec (a vessel's '8000+ TEU' or '500 DWT', paper '22 HCC 76 micron', 'M12 bolt') "
     "describes the item, it is not an activity amount: answer identifier. A number with no currency is NOT money unless the row clearly says it is a cost. "
     "Give a unit only when the row prints it or it is unmistakable; put unit_printed=true only if the unit text appears in the row. "
-    "Give a currency only when the row prints one. Use the hint about the same column in other rows as evidence, not proof. "
+    "Give a currency only when the row prints one. For every number also give a level - certain (the row states it outright), likely (strong evidence from the row or its column), "
+    "uncertain (plausible but could be another role) or guess - and short evidence tags from the allowed list. Never use a numeric score. Use the hint about the same column in other rows as evidence, not proof. "
     "A number beside a description that has no other value is more likely a quantity or an amount than an identifier. If you are not sure, answer unclear.")
 
 
 def _schema() -> dict:
     S, I, B = {"type": "string"}, {"type": "integer"}, {"type": "boolean"}
-    num = llm.obj({"id": I, "role": {"type": "string", "enum": ROLES}, "unit": S, "unit_printed": B, "currency": S})
+    num = llm.obj({"id": I, "role": {"type": "string", "enum": ROLES}, "unit": S, "unit_printed": B, "currency": S,
+                   "level": {"type": "string", "enum": LEVELS}, "tags": {"type": "array", "items": {"type": "string", "enum": TAGS}}})
     return llm.obj({"rows": {"type": "array", "items": llm.obj({"row": I, "numbers": {"type": "array", "items": num}})}})
 
 
@@ -324,6 +329,8 @@ def _apply_answer(item: dict, answers: list[dict]) -> None:
             continue
         answered.add(a["id"])
         role, unit = a["role"], (a["unit"] or c["unit"] or "").strip() or None
+        level, tags = a.get("level") or "uncertain", a.get("tags") or []
+        item["scan"].setdefault("ai_levels", []).append({"id": a["id"], "text": c["text"], "role": role, "level": level, "tags": tags})
         if role == "identifier":
             item["scan"].setdefault("as_identifier", []).append(c["text"])
             continue
@@ -331,9 +338,12 @@ def _apply_answer(item: dict, answers: list[dict]) -> None:
         ok = (role in ("count", "unclear") or c["kind"] == "bare" or role == c["kind"]) and role != "unclear"
         ok = ok and not (role == "distance" and n and n["dimension"] != "distance") and not (role == "weight" and n and n["dimension"] != "mass")
         ok = ok and not (role in ("quantity", "count") and n and n["dimension"] in ("currency", "distance"))
-        if not ok or unit and not n:
+        if not ok or unit and not n or level == "guess":
             notes.append(f"Could not confirm what {c['text']!r} means - please check")
             continue
+        if level == "uncertain":
+            notes.append(f"{c['text']!r} read as {role}, but the AI is not sure ({', '.join(tags) or 'no evidence'}) - confirm it")
+        item["line_confidence"] = min(item["line_confidence"], LEVEL_CAP.get(level, 0.6))
         currency = (a["currency"] or c["currency"] or "").upper() or None
         currency = currency if currency in set(load().parsing["currencies"].values()) else None
         if role == "amount" and not currency:

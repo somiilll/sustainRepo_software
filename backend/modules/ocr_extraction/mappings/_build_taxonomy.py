@@ -353,6 +353,9 @@ acts += [
 ]
 
 # ------------------------------------------------------------------ write
+REMOVED_DOMAINS = {"purchased_goods", "purchased_services", "capital_goods", "waste", "freight", "business_travel", "employee_commute",
+                   "leased_assets", "downstream_value_chain"}      # classified against the factor tables (scope3_ef), not this list
+acts = [a for a in acts if a["domain"] not in REMOVED_DOMAINS]
 ids = [a["id"] for a in acts]
 assert len(ids) == len(set(ids)), "duplicate ids"
 for a in acts:

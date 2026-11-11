@@ -97,7 +97,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   };
 
   const answer = async (r, kind, val) => {
-    const body = kind === 'factor' ? { remember: false, scope: 'vendor', factor_id: val } : { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
+    const body = kind === 'factor' ? { remember: true, scope: 'vendor', factor_id: val } : { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
     if (kind === 'ctx') body.use_context = val;
     try { await api.edit(jobOf(r), r.item_id, body); toast.success('Answered - similar lines will be classified this way'); await load(); } catch (e) { toast.error(`Could not save: ${errText(e)}`); }
   };

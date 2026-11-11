@@ -15,7 +15,7 @@ from ..config import load
 from ..group import dimension, memory_keys
 from . import rules
 from .base import ProviderError, Question
-from .factors import slim
+from .factors import sector_map, slim
 from .providers import PROVIDERS
 
 USE_CONTEXT_Q = {
@@ -58,7 +58,29 @@ def build_state(item: dict, org_context: dict | None) -> str:
     oc = org_context or {}
     if oc.get("industry"):
         parts.append(f"Reporting company: {oc.get('name', '')} ({oc['industry']})")
+    if oc.get("overview"):
+        parts.append("About the company: " + str(oc["overview"])[:400])
+    if oc.get("process"):
+        parts.append("Company process: " + str(oc["process"])[:400])
+    if fac := facility_context(item, oc.get("facilities") or []):
+        parts.append(fac)
     return ". ".join(parts)
+
+
+def _fac_line(f: dict) -> str:
+    bits = [f"sector {f['sector']}" if f.get("sector") else "", f"makes {f['products']}" if f.get("products") else "",
+            f"machinery {f['machinery']}" if f.get("machinery") else ""]
+    return ", ".join(b for b in bits if b)
+
+
+def facility_context(item: dict, facilities: list[dict]) -> str | None:
+    """The facility the row names (profile), otherwise a short list of all facilities, so the model knows what the plant does."""
+    hint = str(item.get("facility_hint") or "").strip().lower()
+    hit = next((f for f in facilities if hint and f["name"].strip().lower() == hint), None)
+    if hit and _fac_line(hit):
+        return f"Facility {hit['name']}: {_fac_line(hit)}"
+    lines = [f"{f['name']} ({_fac_line(f)})" for f in facilities[:8] if _fac_line(f)]
+    return ("Facilities: " + "; ".join(lines))[:500] if lines else None
 
 
 class Classifier:
@@ -107,7 +129,9 @@ class Classifier:
               Question("freight_direction", "If this is goods transport, which direction and who pays?", DIRECTION_Q)]
         a1, p1 = self._ask(state, q1)
         dom = a1["domain"].choice
-        acts = self.tax.by_domain[dom]
+        acts = self.tax.by_domain.get(dom)
+        if not acts:         # purchases, waste, freight, travel...: chosen from the real factor names, not from an activity list
+            return {"factor_domain": dom, "domain_confidence": a1["domain"].confidence, "provider": p1.name, "alternatives": []}
         r_act = rules_pick.get("activity_id")
         if len(acts) == 1:
             act, p_act, probs, prov = acts[0]["id"], 1.0, {}, p1
@@ -168,6 +192,45 @@ class Classifier:
         return self._factor_decision(picked, min(ans.confidence, 0.95), p.name, f"{p.name} picked factor '{picked['name']}' from the matching names",
                                      [c for c in r["candidates"] if c["id"] != picked["id"]])
 
+    def _factor_by_domain(self, item: dict, dom: str, dom_conf: float) -> dict | None:
+        """Sector first, then the factor, both chosen from real factor names that this line's data can feed (no activity list)."""
+        idx = self._index()
+        cands = idx.candidates(item, dom) if idx else []
+        if not cands:
+            return None
+        state = build_state(item, self.org_context)
+        sectors, _ = sector_map()
+        by_sec: dict[str, list[dict]] = {}
+        for c in cands:
+            by_sec.setdefault(idx.sector_of(c) or "other_manufacturing", []).append(c)
+        p_sec = 1.0
+        if len(by_sec) > 1:
+            q = Question("sector", "Which sector does this purchase belong to? Decide what the product or service really is and what this company does with it.",
+                         {k: sectors.get(k, k) for k in by_sec})
+            a, _ = self._ask(state, [q])
+            sec, p_sec = a["sector"].choice, a["sector"].confidence
+        else:
+            sec = next(iter(by_sec))
+        pool = idx.rank(item, by_sec[sec])[:150]
+        choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(pool)}
+        choices["none"] = "None of these names describes the item"
+        q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material. "
+                               "Pick the most specific name for what the item is.", choices)
+        a, p = self._ask(state, [q])
+        ans = a["factor"]
+        probs = sorted(((k, v) for k, v in ans.probabilities.items() if k != "none" and v), key=lambda kv: -kv[1])
+        if ans.choice == "none" or ans.choice not in choices:
+            picked, conf = pool[0], 0.2
+            reason = f"{p.name}: no factor name clearly fits - best guess shown"
+        else:
+            picked, conf = pool[int(ans.choice[1:])], min(dom_conf, p_sec, ans.confidence)
+            reason = f"{p.name}: sector {sec} ({p_sec:.0%}), factor '{picked['name']}' ({ans.confidence:.0%})"
+        alts = [pool[int(k[1:])] for k, _ in probs if pool[int(k[1:])]["id"] != picked["id"]][:3] or [c for c in pool if c["id"] != picked["id"]][:3]
+        d = self._factor_decision(picked, conf, p.name, reason, alts)
+        if conf < self.policy["review"]["ask_below"]:
+            d["question"] = "Please confirm what this item is."
+        return d
+
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:
         ek, dk = memory_keys(item)
@@ -175,6 +238,13 @@ class Classifier:
         if self.memory is not None:
             for key, base in ((ek, 0.99), (dk, 0.95)):
                 m = self.memory.get_decision(self.org, key)
+                if m and str(m["activity_id"]).startswith("factor:"):
+                    idx = self._index()
+                    ent = idx.entry_by_id(m["activity_id"][7:]) if idx else None
+                    if ent:
+                        mem = {**self._factor_decision(ent, base if m["source"] == "user" else base - 0.03, "memory", "Remembered factor choice", []),
+                               "memory_source": m["source"], "memory_scope": "all vendors" if key == dk else "this vendor"}
+                        break
                 if m and m["activity_id"] in self.tax.activities:
                     conf = base if m["source"] == "user" else base - 0.03
                     mem = {"activity_id": m["activity_id"], "confidence": conf, "source": "memory", "memory_source": m["source"],
@@ -208,6 +278,13 @@ class Classifier:
                 ai = self._ai(item, r)
             except ProviderError as e:
                 ai_err = str(e)
+            if ai and ai.get("factor_domain"):
+                try:
+                    if d := self._factor_by_domain(item, ai["factor_domain"], ai["domain_confidence"]):
+                        return d
+                except ProviderError as e:
+                    ai_err = str(e)
+                ai = None
 
         if ai and r["activity_id"]:
             if ai["activity_id"] == r["activity_id"]:
@@ -274,9 +351,10 @@ class Classifier:
 
     def remember(self, item: dict, decision: dict, source: str = "auto", scope: str = "vendor") -> None:
         """A correction is remembered for that vendor only; scope='all' also applies it to the same wording from any vendor."""
-        if self.memory is None or not decision.get("activity_id"):
+        aid = decision.get("activity_id") or (f"factor:{decision['factor_match']['id']}" if decision.get("factor_match") else None)
+        if self.memory is None or not aid:
             return
         ek, dk = memory_keys(item)
-        self.memory.save_decision(self.org, ek, decision["activity_id"], decision.get("context"), source)
+        self.memory.save_decision(self.org, ek, aid, decision.get("context"), source)
         if source == "user" and scope == "all":
-            self.memory.save_decision(self.org, dk, decision["activity_id"], decision.get("context"), source)
+            self.memory.save_decision(self.org, dk, aid, decision.get("context"), source)

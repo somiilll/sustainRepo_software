@@ -6,7 +6,10 @@ copper product), freight words -> C4/C9, travel -> C6/C7, everything else -> C1/
 """
 from __future__ import annotations
 
+import json
 import re
+from functools import lru_cache
+from pathlib import Path
 
 from ..fields import display_quantity
 
@@ -77,6 +80,16 @@ def rec_is_route_variant(best: dict, scored: list[dict]) -> bool:
     return sum(1 for s in scored if s["rec"].entry["name"].split(" - ")[0].lower() == base) >= 2
 
 
+DOMAIN_CATS = {"purchased_goods": ("C1",), "purchased_services": ("C1",), "capital_goods": ("C2",), "waste": ("C5",), "freight": ("C4", "C9"),
+               "business_travel": ("C6",), "employee_commute": ("C7",), "leased_assets": ("C8", "C13"), "downstream_value_chain": ("C10", "C11", "C12", "C14", "C15")}
+
+
+@lru_cache(maxsize=1)
+def sector_map() -> tuple[dict, dict]:
+    d = json.loads((Path(__file__).resolve().parents[3] / "mappings" / "factor_sectors.json").read_text(encoding="utf-8"))
+    return d["sectors"], d["map"]
+
+
 class Rec:
     __slots__ = ("entry", "words", "ranges")
 
@@ -118,6 +131,27 @@ class FactorIndex:
                     self.scope3.setdefault((e["name"].lower(), e["method"]), {})[f"C{m.group(1)}"] = Rec(e)
             else:
                 self.fuel.setdefault((e["name"].lower(), "activity"), {})[e["category"]] = Rec(e)
+
+    def candidates(self, item: dict, domain: str) -> list[dict]:
+        """Every factor an item of this domain could use and that its data can feed (spend needs an amount, a physical factor needs a quantity)."""
+        prefs = DOMAIN_CATS.get(domain)
+        if not prefs:
+            return []
+        qty, unit, dim = display_quantity(item)
+        entries = [r.entry for r in self._pool(self.scope3, prefs, qty, unit, dim, item.get("amount"))]
+        if item.get("amount") is not None and qty is None and not item.get("distance_km"):
+            entries = [e for e in entries if e["method"] == "spend"] or entries      # money only: the spend-based factor is the one that can be calculated
+        return entries
+
+    @staticmethod
+    def sector_of(entry: dict) -> str | None:
+        return sector_map()[1].get(entry["name"].strip().lower())
+
+    @staticmethod
+    def rank(item: dict, entries: list[dict]) -> list[dict]:
+        """Entries sharing the most words with the item first - only used to order a long list, never to exclude by itself."""
+        dw = words(item_text(item))
+        return sorted(entries, key=lambda e: -len(name_parts(e["name"])[0] & dw))
 
     def entry_by_id(self, factor_id: str) -> dict | None:
         return self._by_id.get(factor_id)

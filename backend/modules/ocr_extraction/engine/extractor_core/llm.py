@@ -44,8 +44,10 @@ def enabled() -> bool:
     return any(provider_enabled(p) for p in KEY_ENV)
 
 
-def chain() -> list[str]:
-    return [p for p in load().policy.get("ai_chain", ["openai", "claude"]) if p in KEY_ENV]
+def chain(task: str | None = None) -> list[str]:
+    pol = load().policy
+    order = (pol.get("ai_chain_tasks") or {}).get(task) or pol.get("ai_chain", ["openai", "claude"])
+    return [p for p in order if p in KEY_ENV]
 
 
 def _model(provider: str, task: str) -> str:
@@ -180,7 +182,7 @@ def call_json(task: str, system: str, content, schema: dict, max_tokens: int = 8
     """task is a key of policy.json -> models / openai_models. Returns (parsed JSON, usage); usage['failures'] lists the
     providers that failed on the way (a fallback happened). Raises AIUnavailable when every provider failed."""
     failures: list[dict] = []
-    for provider in chain():
+    for provider in chain(task):
         model = _model(provider, task)
         try:
             data, usage = call_provider(provider, model, system, content, schema, max_tokens, effort, task)
