@@ -148,6 +148,15 @@ def drop_descriptors(found: list[dict], text: str, decimal_comma: bool | None = 
     return keep, names if len(keep) < len(found) else []
 
 
+def _embedded(text: str, cell: str) -> bool:
+    """True when the number sits between words inside a text cell ('CREPE PAPER 22 HCC'): part of the item's name or spec."""
+    m = re.search(rf"(?<![\w.,/-]){re.escape(text)}(?![\w])", cell)
+    if not m:
+        return False
+    before, after = cell[:m.start()].rstrip(), cell[m.end():].lstrip()
+    return bool(before and after and before[-1].isalpha() and after[0].isalpha())
+
+
 def _is_blank(v) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
 
@@ -193,10 +202,16 @@ def read_cells(cells: list, ctx: Context) -> dict:
         found, rest = extract_numbers(DATEISH.sub(" ", s), col, ctx.decimal_comma, strip_bare=False)
         found, desc = drop_descriptors(found, s, ctx.decimal_comma)
         out.setdefault("descriptors", []).extend(desc)
+        for c in found:
+            if c["kind"] == "bare" and _embedded(c["text"], s):
+                c["emb"] = True
         cands += found
         if rest:
             texts.append(rest)
             tcols.append(col)
+    if any(c["kind"] in ("amount", "quantity") and not c.get("emb") for c in cands):
+        out["descriptors"] += [c["text"] for c in cands if c.get("emb")]       # the row already has its value: these describe the item
+        cands = [c for c in cands if not c.get("emb")]
     for i, c in enumerate(cands, start=1):
         c["id"] = i
     out.update(cands=cands, text=" ".join(texts), text_cols=tcols)
@@ -262,8 +277,8 @@ SYSTEM = (
     "You interpret numbers in rows of an unstructured Excel sheet from an Indian company, for a greenhouse-gas inventory. "
     "Code has already found every number; you never change, add or compute numbers. For each listed number id give its role: "
     "quantity (amount of a fuel, material, energy, water or waste), amount (money spent), distance, weight, count (passengers, rooms, nights, items), "
-    "identifier (invoice/phone/code/year/serial) or unclear. A number that sizes or classes the thing described (a vessel's '8000+ TEU' or '500 DWT') "
-    "is descriptive, not an activity amount: answer identifier. A number with no currency is NOT money unless the row clearly says it is a cost. "
+    "identifier (invoice/phone/code/year/serial) or unclear. A number written inside the item's name or spec (a vessel's '8000+ TEU' or '500 DWT', paper '22 HCC 76 micron', 'M12 bolt') "
+    "describes the item, it is not an activity amount: answer identifier. A number with no currency is NOT money unless the row clearly says it is a cost. "
     "Give a unit only when the row prints it or it is unmistakable; put unit_printed=true only if the unit text appears in the row. "
     "Give a currency only when the row prints one. Use the hint about the same column in other rows as evidence, not proof. "
     "A number beside a description that has no other value is more likely a quantity or an amount than an identifier. If you are not sure, answer unclear.")

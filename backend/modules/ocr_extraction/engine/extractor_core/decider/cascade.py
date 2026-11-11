@@ -137,7 +137,7 @@ class Classifier:
     @staticmethod
     def _factor_decision(entry: dict, conf: float, source: str, reason: str, alts: list[dict]) -> dict:
         return {"activity_id": None, "factor_match": slim(entry), "confidence": round(conf, 3), "source": source, "context": {},
-                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None} for a in alts[:3]], "question": None}
+                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None, "factor": slim(a)} for a in alts[:3]], "question": None}
 
     def _factor_first(self, item: dict) -> dict | None:
         idx = self._index()

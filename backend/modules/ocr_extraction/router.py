@@ -26,6 +26,7 @@ from shared.database.mongo import db as mongo_db
 from . import factor_inputs, factor_source, store  # noqa: F401  (also puts the engine package on sys.path via __init__)
 from extractor_core import audit, facilities as fac_mod, llm, normalise, plausibility, usage  # noqa: E402
 from extractor_core.config import load  # noqa: E402
+from extractor_core.decider.factors import slim  # noqa: E402
 from extractor_core.export import approval_blockers, save_all_payload  # noqa: E402
 from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
@@ -459,6 +460,7 @@ class ItemEdit(BaseModel):
     facility_id: str | None = None
     reporting_period: str | None = None
     override: Override | None = None
+    factor_id: str | None = None
     remember: bool = True
     scope: str = "vendor"
 
@@ -490,8 +492,14 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
         if not fac:
             raise HTTPException(400, "Unknown facility")
         item["facility_hint"], item["consumer_number"], item["buyer_gstin"] = fac["name"], None, None
-    changed_class = bool(e.activity_id) or bool(e.use_context)
-    if e.activity_id:
+    changed_class = bool(e.activity_id) or bool(e.use_context) or bool(e.factor_id)
+    if e.factor_id:
+        entry = factor_source.get_index().entry_by_id(e.factor_id)
+        if not entry:
+            raise HTTPException(400, "Unknown emission factor")
+        dec = {"activity_id": None, "factor_match": slim(entry), "confidence": 0.99, "source": "user", "context": {}, "alternatives": [],
+               "reason": "Emission factor chosen by reviewer", "question": None}
+    elif e.activity_id:
         if e.activity_id not in tax.activities:
             raise HTTPException(400, "Unknown activity")
         ctx = dict(dec.get("context") or {}) if e.activity_id == dec.get("activity_id") else {}

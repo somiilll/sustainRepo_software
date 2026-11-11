@@ -21,13 +21,16 @@ const Ring = ({ pct }) => {
   );
 };
 
+const INPUT_LABEL = { km_travelled: 'Distance', qty_passenger: 'Passengers', qty_room: 'Rooms', qty_nights: 'Nights', qty_days_travelled: 'Days' };
 const QtyCell = ({ r }) => {
+  const extra = Object.entries(r.calc?.fields || {}).filter(([k]) => INPUT_LABEL[k]);
   const pq = r.raw_quantity; const pu = (r.raw_unit || '').trim(); const cq = r.quantity; const cu = r.unit || '';
   const same = cq == null || (pq != null && Math.abs(cq - pq) < 1e-9 && (!pu || pu.toLowerCase() === cu.toLowerCase()));
   return (
     <div>
       {pq != null ? <><b>{fmtN(pq, 3)}</b> <span className="text-stone-500">{pu || cu}</span></> : cq != null ? <><b>{fmtN(cq, 3)}</b> <span className="text-stone-500">{cu}</span></> : <span className="text-stone-400">No quantity</span>}
       {pq != null && !same && <div className="text-xs text-stone-500" title="The value used for the emissions calculation">→ {fmtN(cq, 3)} {cu} for calculation</div>}
+      {extra.map(([k, v]) => <div key={k} className="text-xs text-stone-500" data-testid={`ocr-input-${r.row_id}-${k}`}>{INPUT_LABEL[k]}: <b>{fmtN(v, 3)}</b> {r.calc.fields[`${k}_unit`] || ''}</div>)}
       {r.amount != null && <div className="text-xs text-stone-500">{r.currency === 'INR' ? '₹' : `${r.currency || ''} `}{fmtN(r.amount)}</div>}
     </div>
   );
@@ -94,7 +97,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   };
 
   const answer = async (r, kind, val) => {
-    const body = { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
+    const body = kind === 'factor' ? { remember: false, scope: 'vendor', factor_id: val } : { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
     if (kind === 'ctx') body.use_context = val;
     try { await api.edit(jobOf(r), r.item_id, body); toast.success('Answered - similar lines will be classified this way'); await load(); } catch (e) { toast.error(`Could not save: ${errText(e)}`); }
   };
@@ -123,6 +126,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     const a = actOf(r.activity_id);
     let opts;
     if (a?.context_key === 'use_context' && /use|used|where|vehicle|equipment/i.test(d.question)) opts = Object.entries(meta.use_context).map(([k, v]) => ['ctx', k, v.split(' (')[0]]);
+    else if (d.factor_match) { const fs = [d.factor_match, ...(d.alternatives || []).map((x) => x.factor)].filter((f, i, arr) => f && arr.findIndex((g) => g?.id === f.id) === i).slice(0, 4); const common = fs.length > 1 && fs.every((f) => f.name.split(' - ')[0] === fs[0].name.split(' - ')[0]); opts = fs.map((f) => ['factor', f.id, (common ? f.name.split(' - ').slice(1).join(' - ') : f.name).slice(0, 42)]); }
     else opts = [r.activity_id, ...(d.alternatives || []).map((x) => x.activity_id)].filter((x, i, s) => x && actOf(x) && s.indexOf(x) === i).slice(0, 3).map((id) => ['act', id, actLabel(id).split(' (')[0].slice(0, 42)]);
     return (
       <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs"><div className="mb-1 font-medium text-sky-900">{d.question}</div>

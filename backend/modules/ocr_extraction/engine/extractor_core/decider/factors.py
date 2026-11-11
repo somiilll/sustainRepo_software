@@ -110,6 +110,7 @@ class FactorIndex:
     def __init__(self, entries: list[dict]):
         self.scope3: dict[tuple, dict[str, Rec]] = {}
         self.fuel: dict[tuple, dict[str, Rec]] = {}
+        self._by_id = {e["id"]: e for e in entries}
         for e in entries:
             if e["collection"] == "scope3_ef":
                 m = re.match(r"C(\d+)\b", e["category"])
@@ -117,6 +118,9 @@ class FactorIndex:
                     self.scope3.setdefault((e["name"].lower(), e["method"]), {})[f"C{m.group(1)}"] = Rec(e)
             else:
                 self.fuel.setdefault((e["name"].lower(), "activity"), {})[e["category"]] = Rec(e)
+
+    def entry_by_id(self, factor_id: str) -> dict | None:
+        return self._by_id.get(factor_id)
 
     # ------------------------------------------------------------------ intent
     @staticmethod
