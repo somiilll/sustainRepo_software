@@ -24,7 +24,7 @@ def of(row: dict, item: dict) -> dict:
         if row["decision"].get("question"):
             reasons.insert(0, row["decision"]["question"])
         return {"state": "needs_attention", "reason": (reasons or ["Please review this row"])[0]}
-    return {"state": "categorised" if row.get("activity_id") else "extracted", "reason": None}
+    return {"state": "categorised" if row.get("activity_id") or row["decision"].get("factor_match") else "extracted", "reason": None}
 
 
 def counts(rows: list[dict]) -> dict[str, int]:

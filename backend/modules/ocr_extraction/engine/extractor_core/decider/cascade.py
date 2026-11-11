@@ -15,6 +15,7 @@ from ..config import load
 from ..group import dimension, memory_keys
 from . import rules
 from .base import ProviderError, Question
+from .factors import slim
 from .providers import PROVIDERS
 
 USE_CONTEXT_Q = {
@@ -62,10 +63,11 @@ def build_state(item: dict, org_context: dict | None) -> str:
 
 class Classifier:
     def __init__(self, memory=None, org: str = "default", org_context: dict | None = None, use_ai: bool = True,
-                 chain: list[str] | None = None, providers: dict | None = None):
+                 chain: list[str] | None = None, providers: dict | None = None, factors=None):
         cfg = load()
         self.tax, self.policy = cfg.taxonomy, cfg.policy
         self.memory, self.org, self.org_context = memory, org, org_context or {}
+        self._factors = factors
         names = [n for n in (chain or self.policy["classifier_chain"]) if n in PROVIDERS]
         self.providers = providers if providers is not None else [PROVIDERS[n]() for n in names]
         self.use_ai = use_ai
@@ -124,17 +126,64 @@ class Classifier:
                 "freight_direction": (a1["freight_direction"].choice, a1["freight_direction"].confidence),
                 "alternatives": [{"activity_id": k, "p": round(v, 3)} for k, v in alts]}
 
+    # ------------------------------------------------------------------ DB factor names first
+    def _index(self):
+        try:
+            return self._factors() if self._factors else None
+        except Exception as e:                       # the factor tables are unreachable: fall back to the taxonomy
+            self.calls.append({"provider": "factor_db", "error": f"factor names unavailable: {e}"[:200]})
+            return None
+
+    @staticmethod
+    def _factor_decision(entry: dict, conf: float, source: str, reason: str, alts: list[dict]) -> dict:
+        return {"activity_id": None, "factor_match": slim(entry), "confidence": round(conf, 3), "source": source, "context": {},
+                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None} for a in alts[:3]], "question": None}
+
+    def _factor_first(self, item: dict) -> dict | None:
+        idx = self._index()
+        r = idx.match(item) if idx else None
+        if not r:
+            return None
+        alts = [c for c in r["candidates"] if c["id"] != r["entry"]["id"]]
+        if r["status"] == "strong":
+            return self._factor_decision(r["entry"], r["confidence"], "factor_names", r["reason"], alts)
+        if not self.use_ai or len(r["candidates"]) < 2:
+            return None
+        choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(r["candidates"])}
+        choices["none"] = "None of these names describes the item"
+        q = Question("factor", "Which emission-factor name describes this line item best? Waste or scrap wording means a waste-treatment factor, "
+                               "not the material itself. Pick the most specific name.", choices)
+        try:
+            a, p = self._ask(build_state(item, self.org_context), [q])
+        except ProviderError:
+            return None
+        ans = a["factor"]
+        if ans.choice == "none" or ans.confidence < 0.6:
+            return None
+        picked = r["candidates"][int(ans.choice[1:])]
+        return self._factor_decision(picked, min(ans.confidence, 0.95), p.name, f"{p.name} picked factor '{picked['name']}' from the matching names",
+                                     [c for c in r["candidates"] if c["id"] != picked["id"]])
+
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:
         ek, dk = memory_keys(item)
+        mem = None
         if self.memory is not None:
             for key, base in ((ek, 0.99), (dk, 0.95)):
                 m = self.memory.get_decision(self.org, key)
                 if m and m["activity_id"] in self.tax.activities:
                     conf = base if m["source"] == "user" else base - 0.03
-                    return {"activity_id": m["activity_id"], "confidence": conf, "source": "memory", "memory_source": m["source"],
-                            "memory_scope": "all vendors" if key == dk else "this vendor", "context": m["context"], "reason": f"Remembered ({'your correction' if m['source'] == 'user' else 'earlier confident decision'}, used {m['hits']}x)",
-                            "alternatives": [], "question": None}
+                    mem = {"activity_id": m["activity_id"], "confidence": conf, "source": "memory", "memory_source": m["source"],
+                           "memory_scope": "all vendors" if key == dk else "this vendor", "context": m["context"], "reason": f"Remembered ({'your correction' if m['source'] == 'user' else 'earlier confident decision'}, used {m['hits']}x)",
+                           "alternatives": [], "question": None}
+                    break
+        if mem and mem["memory_source"] == "user":
+            return mem
+        fm = self._factor_first(item)
+        if fm:
+            return fm
+        if mem:
+            return mem
         r = rules.evaluate(item)
         ctx: dict = {}
         ctx_conf: dict = {}
@@ -176,6 +225,10 @@ class Classifier:
             act, conf, source = r["activity_id"], r["confidence"] if rules_enough else min(r["confidence"], 0.8), "rules"
             reason = "; ".join(r["reasons"]) + (f" (AI unavailable: {ai_err[:80]})" if ai_err else "")
         else:
+            idx = self._index()
+            fuel = idx.match_fuel(item, ctx.get("use_context") if ctx_conf.get("use_context", 0) >= 0.7 else None) if idx else None
+            if fuel:
+                return self._factor_decision(fuel["entry"], fuel["confidence"], "factor_names", fuel["reason"], [])
             return {"activity_id": None, "confidence": 0.0, "source": "none", "context": ctx, "alternatives": [],
                     "reason": "No rule matched" + (f"; AI unavailable: {ai_err[:120]}" if ai_err else ""),
                     "question": "What is this item? Pick the activity it belongs to."}

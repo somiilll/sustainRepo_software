@@ -1018,3 +1018,9 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - New `mappings/factor_names.json`: taxonomy subcategory -> real `fuel_database` / `scope3_ef` names, per method (activity / spend). Used by the GHG save factor lookup (`saver.wanted_names`) and shown as the Review subcategory label (`pipeline.make`). Example: Copper -> "Metals" (activity) / "Copper Rolling, Drawing, Extruding, and Alloying" (spend).
 - Also fixed `saver._prefer` crash when a factor's year is a string (travel factors).
 - Not mapped (no matching factor exists): hazardous/ETP/biomedical/battery waste, courier, forwarding, chemicals (activity), industrial gases, C8/C10-C15, WTT. These still show "Choose factor".
+
+## OCR DB-first factor matching (Nov 2026)
+- New `decider/factors.py` + `ocr_extraction/factor_source.py`: row description is matched to real `scope3_ef` / `fuel_database` factor names BEFORE the 155-activity taxonomy; category comes from the factor row. Waste words beat material words (C5), freight -> C4/C9, travel -> C6/C7, else C1/C2.
+- Order: user memory -> DB factor names (strong match) -> auto memory -> Jev shortlist of DB names -> rules/taxonomy. Claude removed from `classifier_chain` (policy.json); chain is memory, rules, jev, openai_decisions.
+- OPENROUTER_API_KEY saved is invalid (401, not an `sk-or-` key) - Jev unverified until re-entered. Not yet tested by testing agent (user: don't test).
+- Not done: confidence 0.85 bump (user declined), waste-transport/WTT companions for DB-matched rows.

@@ -1,6 +1,6 @@
 # Creates pending Scope2/Scope3 emission records as SG (non-admin assignee) for approver-queue testing
 import requests, json, sys
-B = "https://esg-tracker-preview--48lkisoi.preview.emergentagent.com"
+B = "https://ocr-factor-match--4fgyofns.preview.emergentagent.com"
 def login(email):
     s = requests.Session()
     t = s.post(f"{B}/api/auth/login", json={"email": email, "password": "TestUser123!"}).json()["access_token"]

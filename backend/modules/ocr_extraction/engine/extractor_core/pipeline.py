@@ -19,6 +19,7 @@ from . import crosscheck, extract, layout, llm, normalise, rowscan, rowstate, sc
 from . import facilities as fac_mod
 from .config import load
 from .decider.cascade import Classifier
+from .decider.factors import row_parts
 from .derive import co2_share, companion_specs
 from .fields import capacity_conversion
 from .fields import build_calc, display_quantity
@@ -44,13 +45,13 @@ class OutOfCredits(Exception):
 
 class Engine:
     def __init__(self, memory=None, org: str = "default", org_context: dict | None = None,
-                 facilities: list[dict] | None = None, use_ai: bool = True, providers=None, reference_date=None):
+                 facilities: list[dict] | None = None, use_ai: bool = True, providers=None, reference_date=None, factors=None):
         self.memory, self.org = memory, org
         self.reference_date = reference_date          # "today" for date checks; tests pin it
         self.org_context = org_context or {}
         self.facilities = facilities or []
         self.use_ai = use_ai
-        self.classifier = Classifier(memory, org, self.org_context, use_ai=use_ai, providers=providers)
+        self.classifier = Classifier(memory, org, self.org_context, use_ai=use_ai, providers=providers, factors=factors)
         self._alias_of = (lambda name: memory.get_facility_alias(org, name)) if memory is not None else None
 
     # ------------------------------------------------------------------ ingest
@@ -218,6 +219,14 @@ class Engine:
                 r["ghg"] = {**ghg, "subcategory_label": named[0]}
             r["checks"] = row_checks(r, item)
             return finish(r, item)
+
+        if decision.get("factor_match"):
+            fm = decision["factor_match"]
+            p = row_parts(fm, item)
+            row = make(f"{base_id}-0", None, p["ghg"], p["calc"], item.get("description_en") or item.get("description") or fm["name"],
+                       amount=item.get("amount"), quantity=p["quantity"], unit_=p["unit"])
+            row["review"] = p["review"]
+            return [row]
 
         if not aid:
             ghg = {"scope": None, "category": None, "subcategory": None, "scope_label": "Unclassified", "category_label": "", "subcategory_label": ""}

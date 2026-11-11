@@ -45,7 +45,7 @@
     "_key": "vendor GSTIN or name + invoice number + amount"
   },
   "currency_default": "INR",
-  "classifier_chain": ["memory", "rules", "jev", "openai_decisions", "claude"],
+  "classifier_chain": ["memory", "rules", "jev", "openai_decisions"],
   "models": {
     "extract_fast": "claude-haiku-5-5",
     "extract_think": "claude-sonnet-5-5",
