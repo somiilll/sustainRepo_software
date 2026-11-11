@@ -724,7 +724,16 @@ def _describe_key(key: str) -> dict:
 
 @router.get("/memory")
 def memory_list(user: dict = Depends(get_current_user)):
-    return [{**r, **_describe_key(r["key"]), "confirmed": r["source"] == "user"} for r in MEMORY.list_decisions(_org(user))]
+    idx = factor_source.get_index()
+    acts = load().taxonomy.activities
+    out = []
+    for r in MEMORY.list_decisions(_org(user)):
+        aid = str(r["activity_id"])
+        ent = idx.entry_by_id(aid[7:]) if aid.startswith("factor:") else None
+        label = f"{ent['name']} ({ent['category'].split(' - ')[0]}, {ent['method']})" if ent else (acts[aid]["label"] if aid in acts else None)
+        out.append({**r, **_describe_key(r["key"]), "confirmed": r["source"] == "user", "means_label": label or "Retired item - no longer used",
+                    "editable": aid in acts})
+    return out
 
 
 class MemoryChange(BaseModel):
