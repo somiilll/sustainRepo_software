@@ -32,7 +32,7 @@ from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
 from extractor_core.pipeline import Engine, JobCancelled  # noqa: E402
 from extractor_core.validate import finish, row_checks, trust as trust_of  # noqa: E402
-from .edit_override import Override, apply_override, edit_config, factor_options  # noqa: E402
+from .edit_override import Override, apply_override, edit_config, factor_options, prefill  # noqa: E402
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -824,6 +824,19 @@ async def row_factor_options(job_id: str, row_id: str, scope: str, category_id: 
     if not row:
         raise HTTPException(404, "No such row")
     return {"options": await factor_options(mongo_db, row, scope, category_id, method, q)}
+
+
+@router.get("/jobs/{job_id}/rows/{row_id}/factor-prefill")
+async def row_factor_prefill(job_id: str, row_id: str, collection: str, factor_id: str, category_id: str, method: str = "activity", user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
+    item = next((i for i in job["items"] if row and i["item_id"] == row["item_id"]), None)
+    if not row or not item:
+        raise HTTPException(404, "No such row")
+    if collection not in ("fuel_database", "scope3_ef"):
+        raise HTTPException(400, "Unknown factor table")
+    return await asyncio.to_thread(prefill, item, collection, factor_id, category_id, method)
 
 
 class FactorChoice(BaseModel):

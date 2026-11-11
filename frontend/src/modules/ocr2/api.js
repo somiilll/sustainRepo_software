@@ -37,6 +37,7 @@ export const makeOcrApi = (headers) => {
     chooseFactor: (id, rowId, body) => send('post', `/jobs/${id}/rows/${encodeURIComponent(rowId)}/factor`, body),
     editConfig: (id, rowId) => get(`/jobs/${id}/rows/${encodeURIComponent(rowId)}/edit-config`),
     factorOptions: (id, rowId, params) => get(`/jobs/${id}/rows/${encodeURIComponent(rowId)}/factor-options`, { params }),
+    factorPrefill: (id, rowId, params) => get(`/jobs/${id}/rows/${encodeURIComponent(rowId)}/factor-prefill`, { params }),
     formConfig: (categoryId, scope) => axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/calc-engine/form-config/${categoryId}`, { headers, params: { scope } }).then((r) => r.data),
     saveToGhg: (id, row_ids) => send('post', `/jobs/${id}/save`, { row_ids }),
     memory: () => get('/memory'),

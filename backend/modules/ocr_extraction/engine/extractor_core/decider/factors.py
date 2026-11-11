@@ -149,36 +149,27 @@ class FactorIndex:
         return sorted(entries, key=key)
 
     @staticmethod
-    def _split(name: str) -> tuple[str, str]:
-        head, _, tail = name.rpartition(" - ")
-        return (head, tail) if head else (name, "")
+    def _core_words(entry: dict) -> frozenset:
+        return frozenset(w for w in name_parts(re.sub(r"\([^)]*\)", " ", entry["name"]))[0] if not any(c.isdigit() for c in w))
 
     @classmethod
-    def variants(cls, entry: dict, entries: list[dict], text: str) -> tuple[list[dict], list[str]]:
-        """Factors that differ from `entry` only by a suffix (' - Recycled') or by a prefix before the same suffix ('Van, class I - Diesel').
-        Returns (siblings, unresolved axes): an axis is unresolved when the row's own wording names none of the variants on it."""
-        head, tail = cls._split(entry["name"])
-        lead = lambda h: re.split(r"[,(]", h, 1)[0].strip().lower()       # noqa: E731
-        suffix_sibs, prefix_sibs = [], []
+    def variants(cls, entry: dict, entries: list[dict], text: str) -> tuple[list[dict], bool]:
+        """Factors whose names are almost the same words as `entry` (same category and method) differ only in a few words (a treatment,
+        a fuel, a class, 'Recycled'...). Returns (siblings, unresolved): unresolved when the row's own wording names none of the picked
+        factor's distinguishing words, so the choice between the variants is a guess."""
+        fw = cls._core_words(entry)
+        sibs = []
         for e in entries:
             if e["id"] == entry["id"] or e["name"] == entry["name"] or e["method"] != entry["method"] or e["category"] != entry["category"]:
                 continue
-            h, t = cls._split(e["name"])
-            if tail and t and h == head and t != tail:
-                suffix_sibs.append(e)
-            elif tail and t == tail and h != head and lead(h) == lead(head):
-                prefix_sibs.append(e)
-        dw = words(text)
-        open_axes = []
-        for axis, sibs, part in (("suffix", suffix_sibs, lambda n: cls._split(n)[1]), ("prefix", prefix_sibs, lambda n: cls._split(n)[0])):
-            if not sibs:
-                continue
-            parts = [words(part(x["name"])) for x in [entry, *sibs]]
-            named = any((w - frozenset().union(*(o for j, o in enumerate(parts) if j != i))) - {x for x in w if any(c.isdigit() for c in x)} & dw
-                        for i, w in enumerate(parts))
-            if not named:
-                open_axes.append(axis)
-        return suffix_sibs + prefix_sibs, open_axes
+            ow = cls._core_words(e)
+            core, both_sides = len(fw & ow), bool(fw - ow) and bool(ow - fw)
+            if core >= (2 if both_sides else 1) and len(fw ^ ow) <= 4:
+                sibs.append(e)
+        if not sibs:
+            return [], False
+        others = frozenset().union(*(cls._core_words(x) for x in sibs))
+        return sibs, not ((fw - others) & words(text))
 
     def entry_by_id(self, factor_id: str) -> dict | None:
         return self._by_id.get(factor_id)

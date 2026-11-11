@@ -21,7 +21,6 @@ from .providers import PROVIDERS
 
 SHORTLIST = 6
 ALTERNATIVES = 8
-AXIS_LABEL = {"suffix": "the treatment, fuel or type", "prefix": "the size or class"}
 USE_CONTEXT_Q = {
     "stationary_equipment": "Burned in fixed equipment we own or control: DG set, boiler, furnace, kiln, heater, canteen",
     "company_vehicle": "Fuel for vehicles we own or lease (cars, trucks, buses in our fleet)",
@@ -189,16 +188,27 @@ class Classifier:
         by_sec: dict[str, list[dict]] = {}
         for c in cands:
             by_sec.setdefault(idx.sector_of(c) or "other_manufacturing", []).append(c)
+        rd = item.get("_described") or {}
+        extra = " ".join([rd.get("plain", ""), *rd.get("synonyms", [])])
+        sec = "all"
         if dom in ("purchased_goods", "purchased_services", "capital_goods") and len(cands) > 150 and len(by_sec) > 1:
             q = Question("sector", "Which sector does this purchase belong to? Decide what the product or service really is and what this company does with it.",
                          {k: sectors.get(k, k) for k in by_sec})
             a, _ = self._ask(state, [q])
             sec = a["sector"].choice
-        else:
-            sec = "all" if len(by_sec) > 1 else next(iter(by_sec))     # freight, waste and travel lists are short and are not grouped by industry
-        rd = item.get("_described") or {}
-        pool = idx.rank(item, cands if sec == "all" else by_sec[sec], " ".join([rd.get("plain", ""), *rd.get("synonyms", [])]))[:60]
-        choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(pool)}
+            near = list(dict.fromkeys([sec, *(k for k, v in sorted(a["sector"].probabilities.items(), key=lambda kv: -kv[1]) if k in by_sec and v)]))[:3]
+            # sector is a hint, not a gate: best names anywhere + best names in Jev's likeliest sectors
+            merged = [*idx.rank(item, cands, extra)[:20]]
+            for k, n in zip(near, (25, 10, 5)):
+                merged += idx.rank(item, by_sec[k], extra)[:n]
+            pool = list({c["id"]: c for c in merged}.values())[:60]
+        elif len(by_sec) == 1:
+            sec = next(iter(by_sec))                   # freight, waste and travel lists are short and are not grouped by industry
+        if sec == "all" or len(by_sec) == 1:
+            pool = idx.rank(item, cands, extra)[:60]
+        show_sector = len(by_sec) > 1 and sec != "all"
+        choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']}" + (f", {sectors.get(idx.sector_of(c) or '', '')[:40]}" if show_sector else "") + ")"
+                   for i, c in enumerate(pool)}
         choices["none"] = "None of these names describes the item"
         q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material. "
                                "Pick the most specific name for what the item is.", choices)
@@ -225,12 +235,12 @@ class Classifier:
                                          ["no_good_option", *tags], "Please confirm what this item is.")
         picked = pool[int(ans.choice[1:])]
         alts = [pool[int(k[1:])] for k in (short_keys + order) if k != ans.choice and k in choices and k != "none"]
-        sibs, open_axes = idx.variants(picked, cands, item_text(item))
+        sibs, unresolved = idx.variants(picked, cands, item_text(item))
         alts = list(({x["id"]: x for x in [*sibs, *alts, *pool] if x["id"] != picked["id"]}).values())[:ALTERNATIVES]
         question = "Please confirm what this item is." if level in ("uncertain", "guess") else None
-        if open_axes:
+        if unresolved:
             level, tags = "uncertain", [*tags, "variant_unspecified"]
-            question = "The item does not say " + " or ".join(AXIS_LABEL[a] for a in open_axes) + " - please choose the right variant."
+            question = "The item does not say which variant it is - please choose the right one."
         return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", alts, level, tags, question)
 
     # ------------------------------------------------------------------ one group

@@ -108,6 +108,12 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
     if (!o) return;
     setFObj(o);
     set({ factor: id, u: pickUnit(o.allowed_units, f.u), cur: isSpend ? pickUnit(o.allowed_units, f.cur) || f.cur : f.cur });
+    api.factorPrefill(job, rid, { collection: o.collection, factor_id: id, category_id: f.cat, method }).then((p) => {
+      const patch = {};
+      if (p.dynamic && Object.keys(p.dynamic).length) patch.dyn = p.dynamic;
+      if (!isSpend && p.quantity != null && p.unit) { patch.q = p.quantity; patch.u = p.unit; }
+      if (Object.keys(patch).length) set(patch);
+    }).catch(() => {});
   };
 
   const dynOk = dynFields.every((x) => !x.required || (f.dyn[x.variable]?.value ?? '') !== '');

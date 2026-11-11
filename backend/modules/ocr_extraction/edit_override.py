@@ -11,7 +11,8 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from extractor_core.config import load
-from extractor_core.decider.factors import bind_inputs
+from extractor_core.decider.factors import _fit, bind_inputs
+from extractor_core.fields import display_quantity
 from extractor_core.export import to_record
 from extractor_core.validate import finish, row_checks
 
@@ -168,3 +169,23 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
         DB.ocr_ext_factor_choices.update_one({"organization_id": org, "key": saver.factor_key(to_record(row))},
                                              {"$set": {"collection": ov.factor_collection, "factor_id": ov.factor_id}}, upsert=True)
     return old
+
+
+def prefill(item: dict, collection: str, factor_id: str, category_id: str, method: str) -> dict:
+    """What the row already holds, mapped onto the inputs of the chosen factor: {'dynamic': {var: {value, unit}}, 'quantity', 'unit', 'amount', 'currency'}."""
+    doc = DB[collection].find_one({"id": factor_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(400, "That activity no longer exists")
+    factor = saver._option(doc, collection)
+    out: dict = {"dynamic": {}, "quantity": None, "unit": None, "amount": item.get("amount"), "currency": item.get("currency")}
+    if method == "spend":
+        return out
+    spec = factor_inputs.required_inputs({"collection": collection, "category_id": category_id, "method": "activity", "activity_type": doc.get("activity_type")}) if collection == "scope3_ef" else None
+    if spec:
+        b = bind_inputs(spec, item, factor.get("allowed_units"))
+        out["dynamic"] = {k: {"value": v, "unit": b["fields"].get(f"{k}_unit", "")} for k, v in b["fields"].items() if not k.endswith("_unit")}
+    qty, unit, dim = display_quantity(item)
+    st, q2, u2 = _fit(factor.get("allowed_units") or [], qty, unit, dim)
+    if st == "ok":
+        out["quantity"], out["unit"] = q2, u2
+    return out
