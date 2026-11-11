@@ -56,7 +56,7 @@
   "openai_models": {"layout": "gpt-5.4-mini", "extract_fast": "gpt-5.4-mini", "extract_think": "gpt-5.5", "interpret": "gpt-5.4-mini"},
   "ai_chain": ["openai", "claude"],
   "ai_retry": {"attempts": 3, "backoff_s": 1.5, "no_credit_block_s": 900, "auth_block_s": 3600},
-  "jev": {"model": "typesafe/jev-1.13", "url": "https://openrouter.ai/api/alpha/decisions", "timeout_s": 12, "concurrency": 8},
+  "jev": {"model": "typesafe/jev-1.13", "api_model": "jev-latest", "url": "https://api.typesafe.ai/v1/systemone", "openrouter_url": "https://openrouter.ai/api/alpha/decisions", "timeout_s": 12, "concurrency": 8},
   "openai_decisions": {"model": "gpt-6-luna", "url": "https://api.openai.com/v1/decisions", "timeout_s": 15},
   "concurrency_caps": {"claude": 8, "classifier": 16},
   "timing": {"heavy_slots": 3, "light_slots": 2, "jobs_per_org": 2, "sec_per_page_fast": 10, "sec_per_page_think": 25, "sec_per_sheet": 4},

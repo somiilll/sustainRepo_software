@@ -12,6 +12,8 @@ from ..fields import display_quantity
 
 STOP = {"of", "and", "the", "for", "to", "in", "with", "from", "a", "an", "per", "by", "on", "at", "or", "as", "used", "type", "item", "other", "nos", "no",
         "service", "services", "charge", "charges", "cost", "fee", "fees"}
+GENERIC_WASTE = {"wast", "scrap", "ewast"}
+ROUTE_ORDER = ("landfill", "recycl", "combust", "compost")
 TREATMENT = {"landfill", "recycl", "compost", "combust", "anaerob", "digest", "digestate", "cur", "dry", "wet"}
 WASTE = {"wast", "scrap", "landfill", "recycl", "compost", "disposal", "incinerat", "dross", "sludg", "residu", "rubbl", "debri", "ewast", "refus", "garbag"}
 FREIGHT = {"cargo", "freight", "lorry", "truck", "vessel", "tanker", "teu", "dwt", "haulag", "tkm", "shipment"}
@@ -64,6 +66,15 @@ def item_text(item: dict) -> str:
              item.get("waste_type"), item.get("disposal_method"), item.get("freight_mode"), item.get("travel_mode")]
     t = " ".join(str(p) for p in parts if p)
     return t if len(str(item.get("description") or "")) >= 4 else t + " " + str(item.get("context") or "")
+
+
+def stem_name(name: str) -> set:
+    return set(words(name))
+
+
+def rec_is_route_variant(best: dict, scored: list[dict]) -> bool:
+    base = best["rec"].entry["name"].split(" - ")[0].lower()
+    return sum(1 for s in scored if s["rec"].entry["name"].split(" - ")[0].lower() == base) >= 2
 
 
 class Rec:
@@ -129,8 +140,11 @@ class FactorIndex:
     @staticmethod
     def _score(rec: Rec, dw: frozenset, nums: list[tuple[float, str]], dwords: int, waste: bool = False) -> dict | None:
         fw = rec.words
-        if waste and not (dw & TREATMENT):
-            fw = fw - TREATMENT          # 'copper waste' names no disposal route: Landfilled/Recycled/Combusted all stay candidates
+        if waste:
+            dw = dw - GENERIC_WASTE
+            fw = fw - GENERIC_WASTE
+            if not (dw & TREATMENT):
+                fw = fw - TREATMENT      # 'copper waste' names no disposal route: Landfilled/Recycled/Combusted all stay candidates
         if not fw:
             return None
         common = len(fw & dw)
@@ -147,7 +161,7 @@ class FactorIndex:
             in_range = bool(nums) and sat == len(rec.ranges)
         if contain < 0.5:
             return None
-        return {"rec": rec, "contain": contain, "cover": cover, "exact": fw == dw, "in_range": in_range,
+        return {"rec": rec, "common": common, "contain": contain, "cover": cover, "exact": fw == dw, "in_range": in_range,
                 "score": contain * (0.6 + 0.4 * cover) + 0.02 * len(fw)}
 
     def _pool(self, table: dict, prefs: tuple[str, ...], qty, unit, dim, amount):
@@ -185,6 +199,8 @@ class FactorIndex:
         if not scored:
             return None
         scored.sort(key=lambda s: -s["score"])
+        if scored[0]["common"] >= 2:
+            scored = [s for s in scored if s["common"] >= 2]
         best = scored[0]
         second = next((s for s in scored[1:] if s["rec"].entry["name"].lower() != best["rec"].entry["name"].lower()), None)
         margin_ok = second is None or second["score"] <= 0.6 * best["score"] or len(best["rec"].words) > len(second["rec"].words) and best["contain"] == 1 and second["contain"] < 1
@@ -196,7 +212,14 @@ class FactorIndex:
             conf = 0.95 if nw >= 2 else 0.92
         elif best["in_range"] and best["contain"] >= 0.6 and margin_ok:
             conf = 0.9
+        elif best["common"] >= 2 and best["contain"] >= 0.6 and margin_ok:
+            conf = 0.85
         short = [s["rec"].entry for s in scored[:30]]
+        if name == "waste" and not (dw & TREATMENT) and best["contain"] >= 0.5 and rec_is_route_variant(best, scored):
+            group = [s["rec"].entry for s in scored if s["rec"].entry["name"].split(" - ")[0].lower() == best["rec"].entry["name"].split(" - ")[0].lower()]
+            group.sort(key=lambda e: next((i for i, r in enumerate(ROUTE_ORDER) if r in stem_name(e["name"])), 9))
+            return {"status": "route_unspecified", "entry": group[0], "confidence": 0.6, "candidates": group,
+                    "reason": f"Material matches '{group[0]['name'].split(' - ')[0]}' but no disposal route is written", "intent": name}
         reason = f"Description matches factor '{best['rec'].entry['name']}' ({best['rec'].entry['category']})"
         if conf:
             return {"status": "strong", "entry": best["rec"].entry, "confidence": conf, "candidates": short, "reason": reason, "intent": name}

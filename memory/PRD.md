@@ -1024,3 +1024,5 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Order: user memory -> DB factor names (strong match) -> auto memory -> Jev shortlist of DB names -> rules/taxonomy. Claude removed from `classifier_chain` (policy.json); chain is memory, rules, jev, openai_decisions.
 - OPENROUTER_API_KEY saved is invalid (401, not an `sk-or-` key) - Jev unverified until re-entered. Not yet tested by testing agent (user: don't test).
 - Not done: confidence 0.85 bump (user declined), waste-transport/WTT companions for DB-matched rows.
+- Update: the saved OPENROUTER_API_KEY is actually a TypeSafe key. Jev provider now calls https://api.typesafe.ai/v1/systemone directly (model jev-latest); keys starting `sk-or-` still go through OpenRouter. `TYPESAFE_API_KEY` is read first if present. Verified live: Jev answers choice questions (200).
+- Waste with material but no disposal route -> C5 factor defaulting to Landfilled at 0.6 confidence with an open question (Landfilled / Recycled / Combusted).

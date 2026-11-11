@@ -1,4 +1,4 @@
-"""Classifier providers: TypeSafe Jev via OpenRouter (default), OpenAI Decisions API, Claude (last resort)."""
+"""Classifier providers: TypeSafe Jev (direct TypeSafe API key, or an OpenRouter key), OpenAI Decisions API, Claude (last resort)."""
 from __future__ import annotations
 
 import os
@@ -15,18 +15,24 @@ class JevOpenRouter(Provider):
     """Same request shape the prototype uses in jev_processor.call_jev_decisions."""
     name = "jev"
 
+    @staticmethod
+    def _key() -> str:
+        return os.environ.get("TYPESAFE_API_KEY") or os.environ.get("OPENROUTER_API_KEY") or ""
+
     def available(self) -> bool:
-        return bool(os.environ.get("OPENROUTER_API_KEY"))
+        return bool(self._key())
 
     def decide(self, state, questions):
         cfg = load().policy["jev"]
-        payload = {"model": cfg["model"], "state": state,
+        key = self._key()
+        via_openrouter = key.startswith("sk-or-")
+        url, model = (cfg["openrouter_url"], cfg["model"]) if via_openrouter else (cfg["url"], cfg["api_model"])
+        payload = {"model": model, "state": state,
                    "questions": {q.name: {"type": "choice", "instructions": q.instructions, "criteria": q.choices} for q in questions}}
         t0 = time.time()
         try:
-            r = requests.post(cfg["url"], json=payload, timeout=cfg["timeout_s"],
-                              headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}", "Content-Type": "application/json",
-                                       "X-Title": "SustainRepo extractor"})
+            r = requests.post(url, json=payload, timeout=cfg["timeout_s"],
+                              headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "X-Title": "SustainRepo extractor"})
         except requests.RequestException as e:
             raise ProviderError(f"Jev network error: {e}") from e
         if r.status_code != 200:

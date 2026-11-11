@@ -147,6 +147,10 @@ class Classifier:
         alts = [c for c in r["candidates"] if c["id"] != r["entry"]["id"]]
         if r["status"] == "strong":
             return self._factor_decision(r["entry"], r["confidence"], "factor_names", r["reason"], alts)
+        if r["status"] == "route_unspecified":
+            d = self._factor_decision(r["entry"], r["confidence"], "factor_names", r["reason"], alts)
+            d["question"] = "No disposal route is written. Choose: " + " / ".join(c["name"].split(" - ")[-1] for c in r["candidates"][:4])
+            return d
         if not self.use_ai or len(r["candidates"]) < 2:
             return None
         choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(r["candidates"])}
