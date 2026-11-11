@@ -127,7 +127,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     const a = actOf(r.activity_id);
     let opts;
     if (a?.context_key === 'use_context' && /use|used|where|vehicle|equipment/i.test(d.question)) opts = Object.entries(meta.use_context).map(([k, v]) => ['ctx', k, v.split(' (')[0]]);
-    else if (d.factor_match) { const fs = [d.factor_match, ...(d.alternatives || []).map((x) => x.factor)].filter((f, i, arr) => f && arr.findIndex((g) => g?.id === f.id) === i).slice(0, 4); const common = fs.length > 1 && fs.every((f) => f.name.split(' - ')[0] === fs[0].name.split(' - ')[0]); opts = fs.map((f) => ['factor', f.id, (common ? f.name.split(' - ').slice(1).join(' - ') : f.name).slice(0, 42)]); }
+    else if (d.factor_match) { const fs = [d.factor_match, ...(d.alternatives || []).map((x) => x.factor)].filter((f, i, arr) => f && arr.findIndex((g) => g?.id === f.id) === i).slice(0, 8); const common = fs.length > 1 && fs.every((f) => f.name.split(' - ')[0] === fs[0].name.split(' - ')[0]); opts = fs.map((f) => ['factor', f.id, (common ? f.name.split(' - ').slice(1).join(' - ') : f.name).slice(0, 42)]); }
     else opts = [r.activity_id, ...(d.alternatives || []).map((x) => x.activity_id)].filter((x, i, s) => x && actOf(x) && s.indexOf(x) === i).slice(0, 3).map((id) => ['act', id, actLabel(id).split(' (')[0].slice(0, 42)]);
     return (
       <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs"><div className="mb-1 font-medium text-sky-900">{d.question}</div>

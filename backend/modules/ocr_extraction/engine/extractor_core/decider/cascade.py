@@ -16,10 +16,12 @@ from ..group import dimension, memory_keys
 from . import rules
 from .base import ProviderError, Question
 from . import describe
-from .factors import sector_map, slim
+from .factors import item_text, sector_map, slim
 from .providers import PROVIDERS
 
 SHORTLIST = 6
+ALTERNATIVES = 8
+AXIS_LABEL = {"suffix": "the treatment, fuel or type", "prefix": "the size or class"}
 USE_CONTEXT_Q = {
     "stationary_equipment": "Burned in fixed equipment we own or control: DG set, boiler, furnace, kiln, heater, canteen",
     "company_vehicle": "Fuel for vehicles we own or lease (cars, trucks, buses in our fleet)",
@@ -166,7 +168,7 @@ class Classifier:
     @staticmethod
     def _factor_decision(entry: dict, source: str, reason: str, alts: list[dict], level: str, tags: list[str], question: str | None = None) -> dict:
         return {"activity_id": None, "factor_match": slim(entry), "confidence": None, "level": level, "tags": tags, "source": source, "context": {},
-                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None, "factor": slim(a)} for a in alts[:3]], "question": question}
+                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None, "factor": slim(a)} for a in alts[:ALTERNATIVES]], "question": question}
 
     def _factor_first(self, item: dict) -> dict | None:
         """Stage 1: an exact factor name is used as it is. Anything else goes on to classification + Haiku identification."""
@@ -223,9 +225,13 @@ class Classifier:
                                          ["no_good_option", *tags], "Please confirm what this item is.")
         picked = pool[int(ans.choice[1:])]
         alts = [pool[int(k[1:])] for k in (short_keys + order) if k != ans.choice and k in choices and k != "none"]
-        alts = list(({x["id"]: x for x in alts if x["id"] != picked["id"]}).values())[:3] or [x for x in pool if x["id"] != picked["id"]][:3]
-        return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", alts, level, tags,
-                                     "Please confirm what this item is." if level in ("uncertain", "guess") else None)
+        sibs, open_axes = idx.variants(picked, cands, item_text(item))
+        alts = list(({x["id"]: x for x in [*sibs, *alts, *pool] if x["id"] != picked["id"]}).values())[:ALTERNATIVES]
+        question = "Please confirm what this item is." if level in ("uncertain", "guess") else None
+        if open_axes:
+            level, tags = "uncertain", [*tags, "variant_unspecified"]
+            question = "The item does not say " + " or ".join(AXIS_LABEL[a] for a in open_axes) + " - please choose the right variant."
+        return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", alts, level, tags, question)
 
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:

@@ -139,9 +139,46 @@ class FactorIndex:
 
     @staticmethod
     def rank(item: dict, entries: list[dict], extra: str = "") -> list[dict]:
-        """Entries sharing the most words with the item (and its internal plain-words reading) first."""
+        """Closest name first (most shared words, fewest unrelated words); at equal closeness the physical (activity) factor beats the spend one."""
         dw = words(item_text(item) + " " + extra)
-        return sorted(entries, key=lambda e: -len(name_parts(e["name"])[0] & dw))
+
+        def key(e):
+            fw = name_parts(e["name"])[0]
+            common = len(fw & dw)
+            return (-common, len(fw) - common, 0 if e["method"] == "activity" else 1)
+        return sorted(entries, key=key)
+
+    @staticmethod
+    def _split(name: str) -> tuple[str, str]:
+        head, _, tail = name.rpartition(" - ")
+        return (head, tail) if head else (name, "")
+
+    @classmethod
+    def variants(cls, entry: dict, entries: list[dict], text: str) -> tuple[list[dict], list[str]]:
+        """Factors that differ from `entry` only by a suffix (' - Recycled') or by a prefix before the same suffix ('Van, class I - Diesel').
+        Returns (siblings, unresolved axes): an axis is unresolved when the row's own wording names none of the variants on it."""
+        head, tail = cls._split(entry["name"])
+        lead = lambda h: re.split(r"[,(]", h, 1)[0].strip().lower()       # noqa: E731
+        suffix_sibs, prefix_sibs = [], []
+        for e in entries:
+            if e["id"] == entry["id"] or e["name"] == entry["name"] or e["method"] != entry["method"] or e["category"] != entry["category"]:
+                continue
+            h, t = cls._split(e["name"])
+            if tail and t and h == head and t != tail:
+                suffix_sibs.append(e)
+            elif tail and t == tail and h != head and lead(h) == lead(head):
+                prefix_sibs.append(e)
+        dw = words(text)
+        open_axes = []
+        for axis, sibs, part in (("suffix", suffix_sibs, lambda n: cls._split(n)[1]), ("prefix", prefix_sibs, lambda n: cls._split(n)[0])):
+            if not sibs:
+                continue
+            parts = [words(part(x["name"])) for x in [entry, *sibs]]
+            named = any((w - frozenset().union(*(o for j, o in enumerate(parts) if j != i))) - {x for x in w if any(c.isdigit() for c in x)} & dw
+                        for i, w in enumerate(parts))
+            if not named:
+                open_axes.append(axis)
+        return suffix_sibs + prefix_sibs, open_axes
 
     def entry_by_id(self, factor_id: str) -> dict | None:
         return self._by_id.get(factor_id)
