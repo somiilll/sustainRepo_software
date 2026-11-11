@@ -164,7 +164,8 @@ class FactorIndex:
                 continue
             ow = cls._core_words(e)
             core, both_sides = len(fw & ow), bool(fw - ow) and bool(ow - fw)
-            if core >= (2 if both_sides else 1) and len(fw ^ ow) <= 4:
+            same_head = " - " in e["name"] and e["name"].rpartition(" - ")[0].lower() == entry["name"].rpartition(" - ")[0].lower()
+            if same_head or (core >= (2 if both_sides else 1) and len(fw ^ ow) <= 4):
                 sibs.append(e)
         if not sibs:
             return [], False
@@ -259,7 +260,8 @@ class FactorIndex:
             scored = [s for s in scored if s["common"] >= 2]
         best = scored[0]
         nw = len(best["rec"].words)
-        conf = 1.0 if best["exact"] else None
+        tied = best["exact"] and any(o["exact"] and o["rec"].entry["name"] != best["rec"].entry["name"] and abs(o["score"] - best["score"]) < 1e-9 for o in scored[1:])
+        conf = 1.0 if best["exact"] and not tied else None
         short = [s["rec"].entry for s in scored[:30]]
         reason = f"Description matches factor '{best['rec'].entry['name']}' ({best['rec'].entry['category']})"
         if conf:
