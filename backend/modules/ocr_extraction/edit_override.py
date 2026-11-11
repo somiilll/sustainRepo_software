@@ -23,6 +23,7 @@ DB = store.DB
 SCOPE_KEY = {"scope1": "scope_1", "scope2": "scope_2", "scope3": "scope_3", "biogenic": "biogenic"}
 SCOPE_CODE = {v: k for k, v in SCOPE_KEY.items()}
 MAIN_FIELD = {"scope_1": "qty", "biogenic": "qty", "scope_2": "qty_energy", "scope_3": "activity_value"}
+METHOD_NAME = {"activity": "activity_basis", "spend": "spend_basis"}
 FACTOR_TABLE = {"scope1": "fuel_database", "scope2": "fuel_database", "biogenic": "fuel_database", "scope3": "scope3_ef"}
 
 
@@ -66,6 +67,11 @@ async def edit_config(db, org: str, row: dict) -> dict:
     scopes = [s for s in scopes if enabled.get(s["code"])]
     code_of = {s["id"]: s["code"] for s in scopes}
     cats = await db.emission_categories.find({"is_active": {"$ne": False}, "scope_id": {"$in": list(code_of)}}, {"_id": 0, "id": 1, "name": 1, "code": 1, "scope_id": 1}).to_list(300)
+    methods: dict[str, list[str]] = {}
+    async for g in db.scope3_ef.aggregate([{"$group": {"_id": {"c": "$category", "m": "$method"}}}]):
+        m = {v: k for k, v in METHOD_NAME.items()}.get(g["_id"]["m"])
+        if m:
+            methods.setdefault(str(g["_id"]["c"]).lower(), []).append(m)
     out = []
     for c in sorted(cats, key=_cat_sort):
         scope = code_of[c["scope_id"]]
@@ -74,7 +80,8 @@ async def edit_config(db, org: str, row: dict) -> dict:
             continue
         if scope == "scope3" and m and not caps.is_scope3_sheet_enabled(m.group(1)):
             continue
-        out.append({"id": c["id"], "name": c["name"], "code": c["code"], "scope": scope})
+        have = methods.get(c["name"].lower(), []) if scope == "scope3" else ["activity"]
+        out.append({"id": c["id"], "name": c["name"], "code": c["code"], "scope": scope, "methods": [m for m in ("activity", "spend") if m in have]})
 
     review = row.get("review") or {}
     ov = review.get("override")

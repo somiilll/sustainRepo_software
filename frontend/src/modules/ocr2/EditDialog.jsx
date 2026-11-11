@@ -4,9 +4,10 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { deriveGhgFields } from '../ghg/config/deriveGhgFields';
 import { errText } from './api';
+import { MonthPicker } from './MonthPicker';
 
 const METHOD = { activity: 'activity_basis', spend: 'spend_basis', supplier: 'supplier_basis' };
-const METHOD_LABEL = { activity: 'Activity', spend: 'Spend', supplier: 'Supplier' };
+const METHOD_LABEL = { activity: 'Average data', spend: 'Spend' };
 const inputCls = 'w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm disabled:bg-stone-100 disabled:text-stone-400';
 const Field = ({ label, children, full, hint }) => <label className={`block text-sm ${full ? 'sm:col-span-2' : ''}`}><span className="mb-1 block text-xs font-medium text-stone-600">{label}</span>{children}{hint && <span className="mt-0.5 block text-xs text-stone-500">{hint}</span>}</label>;
 const num = (v) => (v === '' || v == null ? null : Number(v));
@@ -64,6 +65,11 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
   const method = f?.scope === 'scope3' ? f.method : 'activity';
   const cats = useMemo(() => (cfg && f ? cfg.categories.filter((c) => c.scope === f.scope) : []), [cfg, f?.scope]);
   const catObj = cats.find((c) => c.id === f?.cat);
+  const methods = f?.scope === 'scope3' ? catObj?.methods || ['activity'] : ['activity'];
+
+  useEffect(() => {
+    if (f?.scope === 'scope3' && catObj && !methods.includes(f.method)) setF((s) => ({ ...s, method: methods[0], factor: '', dyn: {}, u: '' }));
+  }, [catObj?.id, f?.method, f?.scope]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!cascade || !f.cat) { setFactors([]); return undefined; }
@@ -101,7 +107,7 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
   const isSpend = cascade && method === 'spend';
   const units = fObj?.allowed_units || [];
   const changeScope = (scope) => { set({ scope, cat: '', factor: '', dyn: {}, u: '' }); setFObj(null); setFText(''); };
-  const changeCat = (cat) => { set({ cat, factor: '', dyn: {}, u: '' }); setFObj(null); setFText(''); };
+  const changeCat = (cat) => { const ms = cats.find((c) => c.id === cat)?.methods || ['activity']; set({ cat, method: ms.includes(f.method) ? f.method : ms[0], factor: '', dyn: {}, u: '' }); setFObj(null); setFText(''); };
   const changeMethod = (m) => { set({ method: m, factor: '', dyn: {}, u: '' }); setFObj(null); };
   const changeFactor = (id) => {
     const o = factors.find((x) => x.id === id);
@@ -147,10 +153,10 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Scope"><select className={inputCls} value={f.scope} onChange={(e) => changeScope(e.target.value)} disabled={f.scope === 'water'} data-testid="ocr-edit-scope">
             {!f.scope && <option value="">Select scope</option>}{cfg.scopes.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select></Field>
-          <Field label="Reporting period (YYYY-MM)"><input className={inputCls} value={f.period} onChange={(e) => set({ period: e.target.value })} placeholder="2026-04" data-testid="ocr-edit-period" /></Field>
+          <Field label="Reporting month"><MonthPicker className={inputCls} value={f.period} onChange={(v) => set({ period: v })} testid="ocr-edit-period" /></Field>
           <Field label="Facility" full><select className={inputCls} value={f.fac} onChange={(e) => set({ fac: e.target.value })} data-testid="ocr-edit-facility"><option value="">- keep ({row.facility?.name || 'none'}) -</option>{meta.facilities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
           {cascade && <Field label="Category" full><select className={inputCls} value={f.cat} onChange={(e) => changeCat(e.target.value)} data-testid="ocr-edit-category"><option value="">Select category</option>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
-          {f.scope === 'scope3' && f.cat && <Field label="Calculation method" full><select className={inputCls} value={f.method} onChange={(e) => changeMethod(e.target.value)} data-testid="ocr-edit-method">{Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>}
+          {f.scope === 'scope3' && f.cat && <Field label="Calculation method" full><select className={inputCls} value={f.method} onChange={(e) => changeMethod(e.target.value)} data-testid="ocr-edit-method">{methods.map((k) => <option key={k} value={k}>{METHOD_LABEL[k]}</option>)}</select></Field>}
           {cascade && f.cat && (
             <Field label="Activity" full hint={row.ghg?.subcategory_label ? `Read from the document: ${row.ghg.subcategory_label}` : undefined}>
               <input className={`${inputCls} mb-1`} value={fText} onChange={(e) => setFText(e.target.value)} placeholder="Filter activities..." data-testid="ocr-edit-activity-filter" />
