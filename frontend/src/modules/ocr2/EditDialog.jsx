@@ -17,7 +17,7 @@ const catCode = (c) => { const m = /^C(\d+)\b/i.exec(c?.name || ''); return m ? 
 
 const initState = (row, cur) => {
   const raw = row.quantity == null;
-  return { fac: '', period: row.reporting_period || '', scope: cur.scope || '', cat: cur.category_id || '', method: cur.ef_method || 'activity', factor: cur.factor?.id || '',
+  return { fac: row.facility?.id || '', period: row.reporting_period || '', scope: cur.scope || '', cat: cur.category_id || '', method: cur.ef_method || 'activity', factor: cur.factor?.id || '',
     q: (raw ? row.raw_quantity : row.quantity) ?? '', u: (raw ? row.raw_unit : row.unit) || row.raw_unit || '', a: row.amount ?? '', cur: row.currency || 'INR',
     dyn: cur.dynamic || {}, rem: true };
 };
@@ -97,7 +97,7 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
   if (!f) {
     return (
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent className="max-w-2xl" data-testid="ocr-edit-dialog"><DialogHeader><DialogTitle>Edit record</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-2xl bg-white" data-testid="ocr-edit-dialog"><DialogHeader><DialogTitle>Edit record</DialogTitle></DialogHeader>
           {err ? <p className="text-sm text-rose-700">{err}</p> : <div className="h-24 animate-pulse rounded bg-stone-100" />}</DialogContent>
       </Dialog>
     );
@@ -130,7 +130,7 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
 
   const save = async () => {
     const body = { remember: f.rem, scope: 'vendor' };
-    if (f.fac) body.facility_id = f.fac;
+    if (f.fac && f.fac !== base.fac) body.facility_id = f.fac;
     if (f.period && f.period !== base.period) body.reporting_period = f.period;
     if (num(f.q) !== num(base.q) && num(f.q) != null) body.quantity = num(f.q);
     if (f.u && f.u !== base.u) body.unit = f.u;
@@ -145,16 +145,16 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" data-testid="ocr-edit-dialog">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto bg-white" data-testid="ocr-edit-dialog">
         <DialogHeader><DialogTitle>Edit record</DialogTitle></DialogHeader>
         {row.decision?.question && <div className="rounded-md border-l-4 border-sky-500 bg-sky-50 p-2 text-sm"><b>Question:</b> {row.decision.question}</div>}
-        <p className="text-sm text-stone-600">{row.extracted_item}{row.original_text ? ` · "${row.original_text.slice(0, 100)}"` : ''}</p>
+        <p className="text-sm text-stone-600">{row.extracted_item}{row.original_text && !same(row.original_text, row.extracted_item) ? ` · "${row.original_text.slice(0, 100)}"` : ''}</p>
         {err && <p className="text-sm text-rose-700" data-testid="ocr-edit-error">{err}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Scope"><select className={inputCls} value={f.scope} onChange={(e) => changeScope(e.target.value)} disabled={f.scope === 'water'} data-testid="ocr-edit-scope">
             {!f.scope && <option value="">Select scope</option>}{cfg.scopes.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}</select></Field>
           <Field label="Reporting month"><MonthPicker className={inputCls} value={f.period} onChange={(v) => set({ period: v })} testid="ocr-edit-period" /></Field>
-          <Field label="Facility" full><select className={inputCls} value={f.fac} onChange={(e) => set({ fac: e.target.value })} data-testid="ocr-edit-facility"><option value="">- keep ({row.facility?.name || 'none'}) -</option>{meta.facilities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
+          <Field label="Facility" full><select className={inputCls} value={f.fac} onChange={(e) => set({ fac: e.target.value })} data-testid="ocr-edit-facility">{!f.fac && <option value="">Select facility</option>}{meta.facilities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
           {cascade && <Field label="Category" full><select className={inputCls} value={f.cat} onChange={(e) => changeCat(e.target.value)} data-testid="ocr-edit-category"><option value="">Select category</option>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
           {f.scope === 'scope3' && f.cat && <Field label="Calculation method" full><select className={inputCls} value={f.method} onChange={(e) => changeMethod(e.target.value)} data-testid="ocr-edit-method">{methods.map((k) => <option key={k} value={k}>{METHOD_LABEL[k]}</option>)}</select></Field>}
           {cascade && f.cat && (
@@ -184,7 +184,6 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
           )}
           {!cascade && <Field label={`Amount (${row.currency || ''})`}><input className={inputCls} type="number" step="any" value={f.a} onChange={(e) => set({ a: e.target.value })} data-testid="ocr-edit-amount" /></Field>}
         </div>
-        <p className="text-xs text-stone-500" data-testid="ocr-edit-note">Nothing is calculated here. Emissions are calculated when the approved row is saved to GHG records.</p>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.rem} onChange={(e) => set({ rem: e.target.checked })} data-testid="ocr-edit-remember" />Remember this activity for similar lines</label>
         <DialogFooter><Button variant="outline" onClick={onClose} data-testid="ocr-edit-cancel">Cancel</Button><Button disabled={busy || blocked} onClick={save} data-testid="ocr-edit-save">Save</Button></DialogFooter>
       </DialogContent>
