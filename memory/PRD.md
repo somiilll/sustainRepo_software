@@ -999,3 +999,12 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Common schema (`schema.py`): all sheet readers build items with `new_item` and pass `validate_item` (signals, not AI confidence).
 - No silent row loss: every non-empty row gets a disposition (read, read_row_by_row, structure, summary, zero); non-read rows are stored as `source_rows` and served by `GET /api/ocr-invoice/jobs/{id}/source-rows`.
 - Tests: 142 engine tests pass (`engine/tests/test_rowscan.py` extended). Thresholds (header data share 0.5, yield 0.4, 3-of-4 checks, similarity 0.75) are chosen, not validated on a real corpus.
+
+## OCR semantic validation (Aug 2026, second pass)
+- `values.parse_value`: strict cell values (number, or number with currency/unit/multiplier). Facility codes, periods, IDs and free text with digits are never quantities.
+- `layout.spec_quality`: hard checks (headers that are data - facility names, periods, measurements or values repeating in the body; pivot sanity) plus soft checks (yield, column content consistency, numeric value columns, trust). `reasons` explain rejections.
+- `crosscheck.check_item`: every layout row is re-read by the row reader (code only) and compared field by field (description, quantity/amount, unit, facility); semantic issues (facility/period/code used as description, currency read as quantity, missing description although row has text) send the row back to the row-by-row reader. Table rejected when >= 50% of rows fail.
+- Row reader keeps digits inside descriptions, adds column hints for the AI, and sends numbers read as identifiers to Needs Attention instead of Couldn't read.
+- `metrics.import_report` separates source rows, ignored (structure/summary/zero), extracted, categorised, needs attention, couldn't read, technical failures, re-read rows and a `reconciled` flag. Items carry `source.cells` (e.g. B14).
+- parsing.json gained currency variants (ruppe, rupya, dollor...) and unit_aliases.json a few spelling variants.
+- 160 engine tests pass. Real `ocr.xlsx` (29 rows, copy at /app/tmp/ocr_user_file.xlsx) now yields 29 rows, all categorised or flagged with reasons. Testing agent NOT run (user asked not to test).
