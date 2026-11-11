@@ -1,29 +1,420 @@
 {
   "_about": "Raw unit spellings seen on Indian bills and registers -> canonical unit, dimension and factor to the canonical unit. 'emergent_unit' is the label written to '<key>_unit'; confirm against Emergent's units list.",
   "canonical": {
-    "L": {"dimension": "volume", "emergent_unit": "L"},
-    "kg": {"dimension": "mass", "emergent_unit": "kg"},
-    "kWh": {"dimension": "energy", "emergent_unit": "kWh"},
-    "m3": {"dimension": "gas_volume", "emergent_unit": "m3"},
-    "km": {"dimension": "distance", "emergent_unit": "km"},
-    "nos": {"dimension": "count", "emergent_unit": "Nos"},
-    "INR": {"dimension": "currency", "emergent_unit": "INR"}
+    "L": {
+      "dimension": "volume",
+      "emergent_unit": "L"
+    },
+    "kg": {
+      "dimension": "mass",
+      "emergent_unit": "kg"
+    },
+    "kWh": {
+      "dimension": "energy",
+      "emergent_unit": "kWh"
+    },
+    "m3": {
+      "dimension": "gas_volume",
+      "emergent_unit": "m3"
+    },
+    "km": {
+      "dimension": "distance",
+      "emergent_unit": "km"
+    },
+    "nos": {
+      "dimension": "count",
+      "emergent_unit": "Nos"
+    },
+    "INR": {
+      "dimension": "currency",
+      "emergent_unit": "INR"
+    }
   },
   "aliases": {
-    "l": ["L", 1], "ltr": ["L", 1], "ltrs": ["L", 1], "litre": ["L", 1], "litres": ["L", 1], "liter": ["L", 1], "liters": ["L", 1], "lit": ["L", 1],
-    "ml": ["L", 0.001], "kl": ["L", 1000], "kilolitre": ["L", 1000], "kiloliter": ["L", 1000], "kls": ["L", 1000],
-    "gal": ["L", 3.78541], "gallon": ["L", 3.78541], "gallons": ["L", 3.78541], "bbl": ["L", 158.987],
-    "kg": ["kg", 1], "kgs": ["kg", 1], "kilogram": ["kg", 1], "kilograms": ["kg", 1], "kilo": ["kg", 1],
-    "g": ["kg", 0.001], "gm": ["kg", 0.001], "gms": ["kg", 0.001], "gram": ["kg", 0.001], "grams": ["kg", 0.001],
-    "t": ["kg", 1000], "mt": ["kg", 1000], "ton": ["kg", 1000], "tons": ["kg", 1000], "tonne": ["kg", 1000], "tonnes": ["kg", 1000], "metric ton": ["kg", 1000], "mts": ["kg", 1000],
-    "qtl": ["kg", 100], "quintal": ["kg", 100], "quintals": ["kg", 100], "lb": ["kg", 0.453592], "lbs": ["kg", 0.453592],
-    "kwh": ["kWh", 1], "units": ["kWh", 1], "unit": ["kWh", 1], "kvah": ["kWh", 1], "mwh": ["kWh", 1000], "gwh": ["kWh", 1000000],
-    "mmbtu": ["kWh", 293.071], "gj": ["kWh", 277.778], "therm": ["kWh", 29.3071], "kcal": ["kWh", 0.00116222],
-    "m3": ["m3", 1], "cu m": ["m3", 1], "cum": ["m3", 1], "cubic meter": ["m3", 1], "cubic metre": ["m3", 1], "scm": ["m3", 1], "ccf": ["m3", 2.83168], "hcf": ["m3", 2.83168], "mcf": ["m3", 28.3168], "cf": ["m3", 0.0283168], "cubic feet": ["m3", 0.0283168], "cu ft": ["m3", 0.0283168], "nm3": ["m3", 1], "sm3": ["m3", 1],
-    "km": ["km", 1], "kms": ["km", 1], "kilometre": ["km", 1], "kilometer": ["km", 1], "kilometres": ["km", 1], "mile": ["km", 1.60934], "miles": ["km", 1.60934],
-    "nos": ["nos", 1], "no": ["nos", 1], "no.": ["nos", 1], "pcs": ["nos", 1], "pc": ["nos", 1], "ea": ["nos", 1], "each": ["nos", 1], "set": ["nos", 1], "sets": ["nos", 1],
-    "trip": ["nos", 1], "trips": ["nos", 1], "night": ["nos", 1], "nights": ["nos", 1], "room_nights": ["nos", 1], "days": ["nos", 1], "day": ["nos", 1],
-    "rs": ["INR", 1], "rs.": ["INR", 1], "inr": ["INR", 1], "₹": ["INR", 1]
+    "l": [
+      "L",
+      1
+    ],
+    "ltr": [
+      "L",
+      1
+    ],
+    "ltrs": [
+      "L",
+      1
+    ],
+    "litre": [
+      "L",
+      1
+    ],
+    "litres": [
+      "L",
+      1
+    ],
+    "liter": [
+      "L",
+      1
+    ],
+    "liters": [
+      "L",
+      1
+    ],
+    "lit": [
+      "L",
+      1
+    ],
+    "ml": [
+      "L",
+      0.001
+    ],
+    "kl": [
+      "L",
+      1000
+    ],
+    "kilolitre": [
+      "L",
+      1000
+    ],
+    "kiloliter": [
+      "L",
+      1000
+    ],
+    "kls": [
+      "L",
+      1000
+    ],
+    "gal": [
+      "L",
+      3.78541
+    ],
+    "gallon": [
+      "L",
+      3.78541
+    ],
+    "gallons": [
+      "L",
+      3.78541
+    ],
+    "bbl": [
+      "L",
+      158.987
+    ],
+    "kg": [
+      "kg",
+      1
+    ],
+    "kgs": [
+      "kg",
+      1
+    ],
+    "kilogram": [
+      "kg",
+      1
+    ],
+    "kilograms": [
+      "kg",
+      1
+    ],
+    "kilo": [
+      "kg",
+      1
+    ],
+    "g": [
+      "kg",
+      0.001
+    ],
+    "gm": [
+      "kg",
+      0.001
+    ],
+    "gms": [
+      "kg",
+      0.001
+    ],
+    "gram": [
+      "kg",
+      0.001
+    ],
+    "grams": [
+      "kg",
+      0.001
+    ],
+    "t": [
+      "kg",
+      1000
+    ],
+    "mt": [
+      "kg",
+      1000
+    ],
+    "ton": [
+      "kg",
+      1000
+    ],
+    "tons": [
+      "kg",
+      1000
+    ],
+    "tonne": [
+      "kg",
+      1000
+    ],
+    "tonnes": [
+      "kg",
+      1000
+    ],
+    "metric ton": [
+      "kg",
+      1000
+    ],
+    "mts": [
+      "kg",
+      1000
+    ],
+    "qtl": [
+      "kg",
+      100
+    ],
+    "quintal": [
+      "kg",
+      100
+    ],
+    "quintals": [
+      "kg",
+      100
+    ],
+    "lb": [
+      "kg",
+      0.453592
+    ],
+    "lbs": [
+      "kg",
+      0.453592
+    ],
+    "kwh": [
+      "kWh",
+      1
+    ],
+    "units": [
+      "kWh",
+      1
+    ],
+    "unit": [
+      "kWh",
+      1
+    ],
+    "kvah": [
+      "kWh",
+      1
+    ],
+    "mwh": [
+      "kWh",
+      1000
+    ],
+    "gwh": [
+      "kWh",
+      1000000
+    ],
+    "mmbtu": [
+      "kWh",
+      293.071
+    ],
+    "gj": [
+      "kWh",
+      277.778
+    ],
+    "therm": [
+      "kWh",
+      29.3071
+    ],
+    "kcal": [
+      "kWh",
+      0.00116222
+    ],
+    "m3": [
+      "m3",
+      1
+    ],
+    "cu m": [
+      "m3",
+      1
+    ],
+    "cum": [
+      "m3",
+      1
+    ],
+    "cubic meter": [
+      "m3",
+      1
+    ],
+    "cubic metre": [
+      "m3",
+      1
+    ],
+    "scm": [
+      "m3",
+      1
+    ],
+    "ccf": [
+      "m3",
+      2.83168
+    ],
+    "hcf": [
+      "m3",
+      2.83168
+    ],
+    "mcf": [
+      "m3",
+      28.3168
+    ],
+    "cf": [
+      "m3",
+      0.0283168
+    ],
+    "cubic feet": [
+      "m3",
+      0.0283168
+    ],
+    "cu ft": [
+      "m3",
+      0.0283168
+    ],
+    "nm3": [
+      "m3",
+      1
+    ],
+    "sm3": [
+      "m3",
+      1
+    ],
+    "km": [
+      "km",
+      1
+    ],
+    "kms": [
+      "km",
+      1
+    ],
+    "kilometre": [
+      "km",
+      1
+    ],
+    "kilometer": [
+      "km",
+      1
+    ],
+    "kilometres": [
+      "km",
+      1
+    ],
+    "mile": [
+      "km",
+      1.60934
+    ],
+    "miles": [
+      "km",
+      1.60934
+    ],
+    "nos": [
+      "nos",
+      1
+    ],
+    "no": [
+      "nos",
+      1
+    ],
+    "no.": [
+      "nos",
+      1
+    ],
+    "pcs": [
+      "nos",
+      1
+    ],
+    "pc": [
+      "nos",
+      1
+    ],
+    "ea": [
+      "nos",
+      1
+    ],
+    "each": [
+      "nos",
+      1
+    ],
+    "set": [
+      "nos",
+      1
+    ],
+    "sets": [
+      "nos",
+      1
+    ],
+    "trip": [
+      "nos",
+      1
+    ],
+    "trips": [
+      "nos",
+      1
+    ],
+    "night": [
+      "nos",
+      1
+    ],
+    "nights": [
+      "nos",
+      1
+    ],
+    "room_nights": [
+      "nos",
+      1
+    ],
+    "days": [
+      "nos",
+      1
+    ],
+    "day": [
+      "nos",
+      1
+    ],
+    "rs": [
+      "INR",
+      1
+    ],
+    "rs.": [
+      "INR",
+      1
+    ],
+    "inr": [
+      "INR",
+      1
+    ],
+    "₹": [
+      "INR",
+      1
+    ],
+    "tonn": [
+      "kg",
+      1000
+    ],
+    "tonns": [
+      "kg",
+      1000
+    ],
+    "ltre": [
+      "L",
+      1
+    ],
+    "killograms": [
+      "kg",
+      1
+    ],
+    "kilometers": [
+      "km",
+      1
+    ]
   },
   "warn_units": {
     "kvah": "kVAh is apparent energy; billed kWh is usually also printed - prefer kWh. Treated 1:1 and flagged.",

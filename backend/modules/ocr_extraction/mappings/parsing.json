@@ -33,7 +33,15 @@
     "aud": "AUD",
     "cad": "CAD",
     "zar": "ZAR",
-    "brl": "BRL"
+    "brl": "BRL",
+    "ruppe": "INR",
+    "ruppee": "INR",
+    "rupe": "INR",
+    "rupya": "INR",
+    "rupaye": "INR",
+    "rs/-": "INR",
+    "dollor": "USD",
+    "dollors": "USD"
   },
   "multipliers": {
     "k": 1000,

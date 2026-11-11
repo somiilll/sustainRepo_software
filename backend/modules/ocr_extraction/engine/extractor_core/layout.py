@@ -10,13 +10,17 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 from functools import lru_cache
+
+from openpyxl.utils import get_column_letter
 
 from . import llm, schema
 from .config import load
 from .normalise import Table, _cell_str, _data_like
 from .periods import fy_start_year, parse_date, parse_month
-from .units import normalize_unit, parse_number, unit_from_header
+from .units import normalize_unit, unit_from_header
+from .values import parse_value
 
 ROLE_ALIASES = {
     "description": ["description", "item description", "item", "particulars", "material", "material description", "item name",
@@ -58,14 +62,17 @@ def is_summary_row(row, above) -> bool:
     m = _summary_rx().match(label)
     if not m:
         return False
-    nums = [(c, parse_number(v)) for c, v in enumerate(row) if _is_number(v)]
-    if not nums or not any(ch.isalpha() for ch in label[m.end():]):
+    nums = [(c, parse_value(v)) for c, v in enumerate(row) if _is_number(v)]
+    rest = label[m.end():]
+    if not nums:
+        return not re.search(r"\d", rest)                    # 'Total fuel' restates; 'Total waste 500 kg' carries its own figure
+    if not any(ch.isalpha() for ch in rest):
         return True
     prev = above()
     for c, v in nums:
         col = []
         for r in reversed(prev):
-            x = parse_number(_get(r, c)) if _is_number(_get(r, c)) else None
+            x = parse_value(_get(r, c)) if _is_number(_get(r, c)) else None
             if x is None and isinstance(_get(r, c), str) and _get(r, c).strip():
                 break
             if x is not None:
@@ -76,7 +83,7 @@ def is_summary_row(row, above) -> bool:
 
 
 def _is_number(v) -> bool:
-    return not isinstance(v, bool) and parse_number(v) is not None and not hasattr(v, "strftime")
+    return not isinstance(v, bool) and parse_value(v) is not None and not hasattr(v, "strftime")
 
 
 def _clean_header(h: str) -> str:
@@ -94,7 +101,7 @@ def _col_numeric_share(t: Table, c: int, n: int = 40) -> float:
     if not vals:
         return 0.0
     return sum(1 for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool) or
-               (isinstance(v, str) and parse_number(v) is not None and not re.search(r"[a-z]{3,}", v.lower()))) / len(vals)
+               (isinstance(v, str) and parse_value(v) is not None and not re.search(r"[a-z]{3,}", v.lower()))) / len(vals)
 
 
 def heuristic_spec(t: Table) -> dict:
@@ -263,20 +270,100 @@ def remember(memory, org: str, t: Table, spec: dict) -> None:
         memory.save_layout(org, fingerprint(t), _jsonable(spec))
 
 
-def spec_quality(t: Table, spec: dict, items: list[dict]) -> dict:
-    """Does this mapped layout really fit the sheet? Four independent signals - the AI's own score is only one of them:
-    yield (enough rows turned into items), value columns hold numbers, the mapped headers are titles rather than data,
-    and the layout is remembered or scored well. It must yield and pass at least three signals."""
-    cols = spec.get("columns", {})
-    rows_with_items = len({it["source"]["row"] for it in items})
+def is_period_text(s: str) -> bool:
+    s = (s or "").strip().lower()
+    return bool(re.fullmatch(r"(?:fy\s*)?'?\d{2,4}\s*[-/]\s*\d{1,4}|\d{4}|(?:19|20)\d{2}[-/ ]\d{1,2}", s) or (parse_month(s, None) or "").startswith(("????", "20")))
+
+
+def _norm(s) -> str:
+    return re.sub(r"[^0-9a-z]", "", str(s or "").lower())
+
+
+def column_profile(t: Table, c: int, is_facility, n: int = 40) -> Counter:
+    """What the cells of a column really are across many rows: number, measurement, facility, period or text."""
+    kinds: Counter = Counter()
+    for r in t.rows[:n]:
+        v = _get(r, c)
+        s = _cell_str(v)
+        if not s:
+            continue
+        if hasattr(v, "strftime"):
+            kinds["period"] += 1
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            kinds["number"] += 1
+        elif is_facility(s):
+            kinds["facility"] += 1
+        elif parse_value(s) is not None:
+            kinds["measurement"] += 1
+        elif parse_month(s, None) and not re.search(r"[a-z]{4,}", s.lower().replace("september", "").replace("december", "")) or re.fullmatch(r"(?:fy\s*)?\d{2,4}\s*[-/]\s*\d{1,4}", s.lower()):
+            kinds["period"] += 1
+        else:
+            kinds["text"] += 1
+    return kinds
+
+
+def header_is_data(t: Table, c: int, is_facility, body_values: set[str]) -> str | None:
+    """Why a header cell is really a data value (a facility, a period, a measurement, or text that reappears in the body)."""
+    h = _cell_str(t.header[c]) if c < t.ncols else ""
+    if not h:
+        return None
+    if is_facility(h):
+        return f"'{h}' is a facility name"
+    if _data_like(h) or parse_value(h) is not None:
+        return f"'{h}' is a measurement"
+    if parse_month(h, None) or re.fullmatch(r"(?:fy\s*)?\d{2,4}\s*[-/]\s*\d{1,4}", h.lower()):
+        return f"'{h}' is a reporting period"
+    if len(_norm(h)) >= 3 and _norm(h) in body_values:
+        return f"'{h}' also appears as a value in the rows below"
+    return None
+
+
+def spec_quality(t: Table, spec: dict, items: list[dict], is_facility=lambda s: False) -> dict:
+    """Does this mapped layout really fit the sheet? Checked from the CONTENT of many rows, not from the guessed headers:
+      hard checks (any failure rejects the layout)
+        headers_not_data   no mapped header is a facility name, period, measurement or a value that repeats in the body
+        pivot_sane         item names are descriptive and distinct (>= 2 item columns), and the items are not one repeated name
+      soft checks (at least 3 of 4 must pass)
+        yield              enough rows turned into items
+        columns_consistent every mapped column holds one kind of content (text / numbers / facilities) across rows
+        value_columns_numeric  the value columns are numeric
+        layout_trusted     remembered earlier, or scored well by the reader (an AI score is only this one signal)
+    `reasons` says why a layout failed, in plain words."""
+    shape, cols = spec["shape"], spec.get("columns", {})
+    body_values = {_norm(_cell_str(v)) for r in t.rows for v in r if isinstance(v, str)}
+    month_cols = set(spec.get("month_columns", {}))
+    mapped = [c for c in [*cols.values(), *spec.get("item_columns", {})] if isinstance(c, int) and c not in month_cols]
+    reasons = [r for c in mapped if (r := header_is_data(t, c, is_facility, body_values))]
     value_cols = [c for k in ("quantity", "amount", "distance_km") if (c := cols.get(k)) is not None]
+    consistent = True
+    for role, c in cols.items():
+        if not isinstance(c, int) or role not in ("description", "quantity", "amount", "distance_km"):
+            continue
+        prof = column_profile(t, c, is_facility)
+        total = sum(prof.values())
+        good = prof["text"] if role == "description" else prof["number"] + prof["measurement"]
+        if total >= 3 and good / total < 0.6:
+            consistent = False
+            reasons.append(f"column {get_column_letter(c + 1)} ({role}) mixes content: {dict(prof)}")
+    pivot_ok = True
+    if shape == "column_items" and len(spec.get("item_columns", {})) < 2:
+        pivot_ok = False
+        reasons.append("a pivot layout needs at least 2 item columns")
+    if len(items) >= 5 and not spec.get("constant_description") and shape != "column_items":
+        top, n = Counter((it.get("description") or "").strip() for it in items).most_common(1)[0]
+        if n / len(items) >= 0.5 and (is_facility(top) or is_period_text(top) or not re.search(r"[A-Za-z]{2,}", top)):
+            pivot_ok = False
+            reasons.append(f"{n} of {len(items)} items are all described as '{top[:30]}', which is not an activity")
     signals = {
-        "yield": rows_with_items / max(len(t.rows), 1) >= MIN_YIELD,
-        "value_columns_numeric": all(_col_numeric_share(t, c) >= 0.5 for c in value_cols) if value_cols else spec["shape"] != "ledger",
-        "headers_are_titles": not any(_data_like(t.header[c]) for c in cols.values() if isinstance(c, int) and c < t.ncols),
+        "headers_not_data": not reasons or not any("also appears" in r or "is a" in r for r in reasons),
+        "pivot_sane": pivot_ok,
+        "yield": len({it["source"]["row"] for it in items}) / max(len(t.rows), 1) >= MIN_YIELD,
+        "columns_consistent": consistent,
+        "value_columns_numeric": all(_col_numeric_share(t, c) >= 0.5 for c in value_cols) if value_cols else shape != "ledger",
         "layout_trusted": spec["source"] == "memory" or spec.get("score", 0) >= 0.6,
     }
-    return {"ok": signals["yield"] and sum(signals.values()) >= 3, "signals": signals}
+    soft = sum(signals[k] for k in ("yield", "columns_consistent", "value_columns_numeric", "layout_trusted"))
+    return {"ok": signals["headers_not_data"] and signals["pivot_sane"] and signals["yield"] and soft >= 3, "signals": signals, "reasons": reasons}
 
 
 # ------------------------------------------------------------------------------- apply the spec to every row
@@ -299,14 +386,15 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
     def base(r_idx: int, row) -> dict:
         d = parse_date(_get(row, cols.get("date"))) if cols.get("date") is not None else None
         per = parse_month(_get(row, cols.get("period")), fy0) if cols.get("period") is not None else None
-        return schema.new_item({**source, "sheet": t.sheet, "row": t.row_nums[r_idx], "hidden_sheet": t.hidden_sheet}, **{
+        return schema.new_item({**source, "sheet": t.sheet, "row": t.row_nums[r_idx], "hidden_sheet": t.hidden_sheet,
+                                "cells": {k: f"{get_column_letter(c + 1)}{t.row_nums[r_idx]}" for k, c in cols.items() if isinstance(c, int)}}, **{
             "facility_hint": _cell_str(_get(row, cols.get("facility"))) or ctx.get("facility") or None,
             "vendor": _cell_str(_get(row, cols.get("vendor"))) or None,
             "invoice_number": _cell_str(_get(row, cols.get("invoice_number"))) or None,
             "hsn": re.sub(r"\D", "", _cell_str(_get(row, cols.get("hsn")))) or None,
             "date": d.isoformat() if d else None,
             "period_hint": per if per and not per.startswith("????") else (f"{d.year:04d}-{d.month:02d}" if d else None),
-            "distance_km": parse_number(_get(row, cols.get("distance_km"))),
+            "distance_km": parse_value(_get(row, cols.get("distance_km"))),
             "origin": _cell_str(_get(row, cols.get("origin"))) or None,
             "destination": _cell_str(_get(row, cols.get("destination"))) or None,
             "notes": " ".join(x for x in [_cell_str(_get(row, cols.get("notes"))), _cell_str(_get(row, cols.get("category_hint"))),
@@ -321,8 +409,8 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
             continue
         if spec["shape"] == "ledger":
             desc = _cell_str(_get(row, cols.get("description"))) or spec.get("constant_description") or ""
-            qty = parse_number(_get(row, cols.get("quantity")))
-            amt = parse_number(_get(row, cols.get("amount")))
+            qty = parse_value(_get(row, cols.get("quantity")))
+            amt = parse_value(_get(row, cols.get("amount")))
             if not desc or (qty is None and amt is None):
                 continue
             unit = _cell_str(_get(row, cols.get("unit"))) or hu.get(cols.get("quantity")) or None
@@ -343,7 +431,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
             unit = _cell_str(_get(row, cols.get("unit"))) or None
             for c, per in spec["month_columns"].items():
                 cell = _get(row, c)
-                v = parse_number(cell)
+                v = parse_value(cell)
                 if v is None or v == 0:
                     continue
                 cell_unit = None
@@ -361,7 +449,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
                 items.append(it)
         elif spec["shape"] == "column_items":
             for c, meta in spec["item_columns"].items():
-                v = parse_number(_get(row, c))
+                v = parse_value(_get(row, c))
                 if v is None or v == 0:
                     continue
                 it = base(i, row)

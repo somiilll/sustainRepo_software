@@ -15,7 +15,8 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import extract, layout, llm, normalise, rowscan, rowstate, schema, usage
+from . import crosscheck, extract, layout, llm, normalise, rowscan, rowstate, schema, usage
+from . import facilities as fac_mod
 from .config import load
 from .decider.cascade import Classifier
 from .derive import co2_share, companion_specs
@@ -54,29 +55,50 @@ class Engine:
 
     # ------------------------------------------------------------------ ingest
     def _ingest_sheet(self, path: Path, src: dict, metrics: dict) -> tuple[list[dict], dict]:
-        """Tables are read with their detected layout; every other non-empty row is read one by one. Each non-empty row
-        ends with exactly one disposition (read / read_row_by_row / structure / summary / zero) - none is dropped silently."""
+        """Tables are read with their detected layout and every layout row is re-checked against the row itself; everything else
+        (and every row that fails the check) is read row by row. Each non-empty row ends with exactly one disposition - none is dropped."""
         info = {"tables": [], "warnings": [], "sheets": [], "source_rows": []}
         items: list[dict] = []
+        is_facility = lambda s: fac_mod.names_a_facility(s, self.facilities, self._alias_of)   # noqa: E731
         for sheet, grid, hidden in normalise.read_grids(path):
             rows = normalise.non_empty_rows(grid)
             text_of = {no: " | ".join(str(v).strip() for v in cells if v is not None and str(v).strip()) for no, cells in rows}
+            ctx = rowscan.Context(sheet=sheet, source=src, hidden=hidden, fy0=fy_start_year(sheet), facilities=self.facilities, alias_of=self._alias_of,
+                                  decimal_comma=detect_decimal_comma(str(v) for _, c in rows for v in c if isinstance(v, str)))
             fate: dict[int, tuple[str, str | None]] = {}
+            reread: dict[int, list[str]] = {}
             by_layout: list[dict] = []
             for t in normalise.tables_from_grid(sheet, grid, hidden):
                 spec = layout.map_table(t, self.org, self.memory, self.use_ai and len(t.rows) >= 3, metrics)
                 got = layout.apply_spec(t, spec, src) if spec["shape"] != "unknown" else []
-                quality = layout.spec_quality(t, spec, got) if got else {"ok": False, "signals": {}}
+                quality = layout.spec_quality(t, spec, got, is_facility) if got else {"ok": False, "signals": {}, "reasons": []}
+                rejected = None
                 if got and not quality["ok"]:
-                    failed = ", ".join(k for k, ok in quality["signals"].items() if not ok)
-                    info["warnings"].append(f"Sheet '{sheet}' row {t.first_row}: the detected table layout did not hold up ({failed}) - its rows were read one by one")
+                    failed = [k for k, ok in quality["signals"].items() if not ok]
+                    rejected = f"layout checks failed ({', '.join(failed)}): " + "; ".join(quality["reasons"][:2])
+                elif got:
+                    repeated = crosscheck.repeated_descriptions(got) if not spec.get("constant_description") else set()
+                    bad: dict[int, list[str]] = {}
+                    for it in got:
+                        res = crosscheck.check_item(it, grid[it["source"]["row"] - 1], ctx, repeated, from_row_text=spec.get("columns", {}).get("description") is not None and spec["shape"] != "column_items")
+                        it["read_notes"] += res["notes"]
+                        if res["issues"]:
+                            bad.setdefault(it["source"]["row"], []).extend(res["issues"])
+                    if len(bad) >= 0.5 * len({it["source"]["row"] for it in got}):
+                        rejected = "row-level cross-check failed: " + "; ".join(next(iter(bad.values()))[:2])
+                    else:
+                        reread.update(bad)
+                        got = [it for it in got if it["source"]["row"] not in bad]
+                if rejected:
+                    info["warnings"].append(f"Sheet '{sheet}' row {t.first_row}: {rejected} - its rows were read one by one")
                     got = []
                 elif got:
                     layout.remember(self.memory, self.org, t, spec)
                     fate.update({no: ("structure", "Column titles or sheet title") for no in t.meta_rows})
                 info["tables"].append({"sheet": t.sheet, "first_row": t.first_row, "rows": len(t.rows), "shape": spec["shape"],
                                        "layout_source": spec["source"], "layout_score": round(spec.get("score", 0), 2), "items": len(got),
-                                       "checks": quality["signals"], "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
+                                       "checks": quality["signals"], "rejected": rejected, "reread_rows": len(reread),
+                                       "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
                 info["warnings"] += spec.get("warnings", [])
                 by_layout += got
             fate.update({it["source"]["row"]: ("read", None) for it in by_layout})
@@ -88,23 +110,42 @@ class Engine:
                     fate[no] = ("summary", "Summary row - restates the rows above, so it is not counted again")
                 else:
                     left.append((no, cells))
-            ctx = rowscan.Context(sheet=sheet, source=src, hidden=hidden, fy0=fy_start_year(sheet), facilities=self.facilities, alias_of=self._alias_of,
-                                  decimal_comma=detect_decimal_comma(str(v) for _, c in rows for v in c if isinstance(v, str)))
             scanned, zero_rows = rowscan.scan_rows(left, ctx)
             fate.update({no: ("zero", "Every number in the row is 0 - nothing to record") for no in zero_rows})
-            fate.update({it["source"]["row"]: ("read_row_by_row", None) for it in scanned})
             rowscan.interpret(scanned, metrics, self.use_ai)
+            for it in scanned:
+                no = it["source"]["row"]
+                if no in reread:
+                    it["source"]["reread"] = reread[no][:3]
+                fate[no] = ({"extracted": "read_row_by_row", "needs_attention": "needs_attention", "unreadable": "couldnt_read", "failed": "failed"}[it["read_state"]],
+                            "; ".join(it["read_notes"][:1]) or None)
             for it in by_layout:
                 schema.validate_item(it)
             for no in (n for n, _ in rows if n not in fate):             # cannot happen; if it ever does it is reported, not hidden
                 fate[no] = ("unaccounted", "This row was not processed")
             counts = Counter(d for d, _ in fate.values())
             mode = "unstructured" if not by_layout else "structured" if counts["read"] >= 0.8 * len(rows) else "mixed"
-            info["sheets"].append({"sheet": sheet, "mode": mode, "non_empty_rows": len(rows), **counts})
+            info["sheets"].append({"sheet": sheet, "mode": mode, "non_empty_rows": len(rows), "re_read_rows": len(reread), **counts})
             info["source_rows"] += [{"file": src.get("file"), "sheet": sheet, "row": no, "disposition": d, "reason": why, "text": text_of[no][:200]}
-                                    for no, (d, why) in sorted(fate.items()) if d not in ("read", "read_row_by_row")]
+                                    for no, (d, why) in sorted(fate.items()) if d in ("structure", "summary", "zero", "unaccounted")]
             items += by_layout + scanned
         return items, info
+
+    @staticmethod
+    def _import_report(docs: list[dict], rows: list[dict], states: dict) -> dict:
+        """Source rows, extracted rows, categorised rows, rows needing attention, ignored rows and technical failures - kept apart."""
+        sheets = [s for d in docs for s in d.get("sheets", [])]
+        if not sheets:
+            return {}
+        total = lambda k: sum(s.get(k, 0) for s in sheets)          # noqa: E731
+        ignored = {k: total(k) for k in ("structure", "summary", "zero")}
+        with_records = {(r["source"].get("file"), r["source"].get("sheet"), r["source"].get("row")) for r in rows if not r.get("derived") and r["source"].get("sheet")}
+        return {"source_rows": total("non_empty_rows"), "ignored": {**ignored, "total": sum(ignored.values())},
+                "rows_with_records": len(with_records), "records": sum(1 for r in rows if not r.get("derived")),
+                "extracted": states["extracted"] + states["categorised"], "categorised": states["categorised"],
+                "needs_attention": states["needs_attention"], "couldnt_read": states["couldnt_read"], "technical_failures": states["failed"],
+                "re_read_rows": total("re_read_rows"), "unaccounted": total("unaccounted"),
+                "reconciled": len(with_records) + sum(ignored.values()) == total("non_empty_rows") and not total("unaccounted")}
 
     def _ingest_document(self, path: Path, src: dict, think: bool, metrics: dict) -> tuple[list[dict], dict]:
         pages, warns = normalise.read_pages(path, load().policy["limits"]["max_pages"])
@@ -384,7 +425,7 @@ class Engine:
             "usage": {"events": events, **usage.summarise(events)},
             "metrics": {
                 "files": len(paths), "items": len(items), "groups": len(groups), "rows": len(rows),
-                "status": status_counts, "row_states": rowstate.counts(rows), "seconds": round(time.time() - t0, 1),
+                "status": status_counts, "row_states": rowstate.counts(rows), "import_report": self._import_report(docs, rows, rowstate.counts(rows)), "seconds": round(time.time() - t0, 1),
                 "ai_failures": (metrics.get("ai_failures", []) + [f for c in metrics["llm_calls"] for f in c.get("failures", [])])[:20],
                 "classifier_calls": {p: sum(1 for c in calls if c.get("provider") == p and "error" not in c) for p in {c.get("provider") for c in calls}},
                 "classifier_errors": [c for c in calls if "error" in c][:10],

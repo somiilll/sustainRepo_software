@@ -168,8 +168,81 @@ def test_every_source_row_gets_a_disposition_and_nothing_is_dropped(tmp_path):
     res = Engine(None, org="t", facilities=[], use_ai=False).run([str(path)], facility_choices={})
     sheet = res["documents"][0]["sheets"][0]
     assert sheet["non_empty_rows"] == 8
-    assert sheet["read"] + sheet.get("read_row_by_row", 0) + sheet.get("summary", 0) + sheet.get("zero", 0) + sheet.get("structure", 0) == 8
+    assert sum(sheet.get(k, 0) for k in ("read", "read_row_by_row", "needs_attention", "couldnt_read", "failed", "summary", "zero", "structure")) == 8
+    assert res["metrics"]["import_report"]["reconciled"]
     shown = {r["row"]: r["disposition"] for r in res["source_rows"]}
     assert shown[1] == "structure" and shown[5] == "summary"
     read_rows = {r["source"]["row"] for r in res["rows"] if not r.get("derived")}
     assert {3, 4, 6, 9} <= read_rows                                           # 'Total waste 500 kg' and the stray note are kept
+
+
+@pytest.mark.parametrize("cell,value", [("12.5 KL", 12.5), ("Rs. 678987", 678987.0), ("30000 ruppe", 30000.0), ("(500)", -500.0), ("1.234,56", 1234.56), (7, 7.0)])
+def test_strict_values_accept_numbers_with_currency_or_unit(cell, value):
+    from extractor_core.values import parse_value
+    assert parse_value(cell) == pytest.approx(value)
+
+
+@pytest.mark.parametrize("cell", ["fac1", "2026-09", "FY 2026-2027", "INV-2024-001", "300km , 2t", "Plant 7", None, True])
+def test_identifiers_periods_and_codes_are_never_plain_numbers(cell):
+    from extractor_core.values import parse_value
+    assert parse_value(cell) is None
+
+
+def _sheet(tmp_path, rows, name="m.xlsx"):
+    import openpyxl
+    wb = openpyxl.Workbook()
+    for r in rows:
+        wb.active.append(r)
+    path = tmp_path / name
+    wb.save(path)
+    return path
+
+
+def _run(path, facilities=None):
+    from extractor_core.pipeline import Engine
+    return Engine(None, org="t", facilities=facilities or FACS, use_ai=False).run([str(path)], facility_choices={})
+
+
+def test_a_data_row_taken_as_header_with_a_facility_name_as_pivot_item_is_rejected_and_every_row_is_read(tmp_path):
+    rows = [["Steel wire - 5000 rupees", None, "Fac2", None, "FY 26-27"], [None, "Cargo", "Fac1", 30, "2026-09"]]
+    rows += [[f"item {i}", f"Spare part {i}", "Fac2" if i % 2 else "Fac1", 1000 + i, "2026-09"] for i in range(8)]
+    res = _run(_sheet(tmp_path, rows))
+    sheet = res["documents"][0]["sheets"][0]
+    assert sheet["non_empty_rows"] == 10 and res["metrics"]["import_report"]["reconciled"]
+    assert {r["source"]["row"] for r in res["rows"] if not r.get("derived")} == set(range(1, 11))
+    assert not any((r["original_text"] or "").strip().lower() in ("fac1", "fac2") for r in res["rows"])
+
+
+def test_layout_rows_that_contradict_their_source_row_are_read_again(tmp_path):
+    rows = [["Item", "Qty", "Unit"]] + [[f"Diesel {i}", 100 + i, "L"] for i in range(6)]
+    path = _sheet(tmp_path, rows)
+    from extractor_core import crosscheck, layout
+    real = layout.apply_spec
+
+    def corrupt(t, spec, src):
+        items = real(t, spec, src)
+        items[2]["description"] = "Fac1"                 # one row wrongly read as a facility name
+        items[3]["quantity"] = 99999.0                   # one value that is not in the row
+        return items
+    layout.apply_spec = corrupt
+    try:
+        res = _run(path)
+    finally:
+        layout.apply_spec = real
+    sheet = res["documents"][0]["sheets"][0]
+    assert sheet["re_read_rows"] == 2 and sheet["read"] == 4 and sheet.get("read_row_by_row", 0) + sheet.get("needs_attention", 0) >= 2
+    assert {r["source"]["row"] for r in res["rows"] if not r.get("derived")} == set(range(2, 8))
+    assert crosscheck.check_item({"description": "Fac1", "source": {"row": 1}, "quantity": None, "raw": {}}, ["Fac1", 5], rowscan.Context("S", {}, facilities=FACS), set())["issues"]
+
+
+def test_import_report_keeps_source_ignored_and_failed_apart(tmp_path):
+    rows = [["Item", "Qty", "Unit"], ["Diesel", 100, "L"], ["Petrol", 50, "L"], ["Total", 150], ["Spare", 0, "L"], ["note"]]
+    rep = _run(_sheet(tmp_path, rows))["metrics"]["import_report"]
+    assert rep["source_rows"] == 6 and rep["ignored"] == {"structure": 1, "summary": 1, "zero": 0, "total": 2}     # an explicit 0 in a table is a reading, kept
+    assert rep["reconciled"] and rep["unaccounted"] == 0 and rep["technical_failures"] == 0
+
+
+def test_items_carry_source_cell_references(tmp_path):
+    res = _run(_sheet(tmp_path, [["Item", "Qty", "Unit"], ["Diesel", 100, "L"], ["Petrol", 50, "L"]]))
+    cells = [r["source"]["cells"] for r in res["rows"] if not r.get("derived")]
+    assert {"description": "A2", "quantity": "B2", "unit": "C2"}.items() <= cells[0].items() or cells[0].get("quantity") == "B2"

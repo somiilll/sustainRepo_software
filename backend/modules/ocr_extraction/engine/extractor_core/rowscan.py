@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from collections import Counter
 from functools import lru_cache
 from typing import Callable
 
 from . import facilities as fac_mod
 from . import llm
 from .periods import parse_date, parse_month
+from openpyxl.utils import get_column_letter
+
 from . import schema
 from .config import load
 from .units import normalize_unit, parse_locale_number
@@ -48,9 +51,9 @@ def _rx() -> dict:
     mult = "|".join(re.escape(m) for m in sorted(p["multipliers"], key=len, reverse=True))
     return {
         "before": re.compile(rf"(?<![A-Za-z])({cur})\.?\s*({_NUM})(?:\s*({mult})\b)?", re.I),
-        "after": re.compile(rf"(?<![\w.,])({_NUM})\s*(?:({mult})\s*)?({cur})(?![A-Za-z])", re.I),
+        "after": re.compile(rf"(?<![\w.,])({_NUM})\s*(?:({mult})\s*)?({cur})\.?(?![A-Za-z])", re.I),
         "unit": re.compile(rf"(?<![\w.,/-])({_NUM})\s*([A-Za-z][A-Za-z0-9³²./]{{0,11}})(?![A-Za-z0-9])"),
-        "bare": re.compile(rf"(?<![\w.,/-])({_NUM})(?![\w]|[-/]\d)"),
+        "bare": re.compile(rf"(?<![\w.,/-])({_NUM})(?![\w/]|[.,'’-]\d)"),
     }
 
 
@@ -77,8 +80,9 @@ def _unit_cand(value: float, unit: str, text: str, col: int | None) -> dict | No
     return _cand("quantity", value, text, col, unit=unit)
 
 
-def extract_numbers(text: str, col: int | None = None, decimal_comma: bool | None = None) -> tuple[list[dict], str]:
-    """Every number in a text with its currency/unit, plus the text left over once those pieces are taken out."""
+def extract_numbers(text: str, col: int | None = None, decimal_comma: bool | None = None, strip_bare: bool = True) -> tuple[list[dict], str]:
+    """Every number in a text with its currency/unit, plus the text left over once those pieces are taken out. Numbers with no unit
+    or currency stay in the leftover text when strip_bare is False, so a description never loses digits ('CTC 72.560M/C')."""
     rx = _rx()
     taken: list[tuple[int, int]] = []
     cands: list[dict] = []
@@ -106,7 +110,9 @@ def extract_numbers(text: str, col: int | None = None, decimal_comma: bool | Non
             take(m, _cand("bare", v, m.group(0), col))
     order = sorted(zip(taken, cands), key=lambda x: x[0][0])
     rest, pos = [], 0
-    for (s, e), _ in order:
+    for (s, e), cand in order:
+        if cand["kind"] == "bare" and not strip_bare:
+            continue
         rest.append(text[pos:s])
         pos = e
     rest.append(text[pos:])
@@ -121,11 +127,12 @@ def _facility_cell(s: str, ctx: Context) -> tuple[str, str] | None:
     return fac_mod.detect_in_text(s, ctx.facilities, ctx.alias_of) if ctx.facilities else None
 
 
-def _read_cells(cells: list, ctx: Context) -> dict:
+def read_cells(cells: list, ctx: Context) -> dict:
     """The code step: pull numbers, facility, date/period and description text out of one row."""
     cands: list[dict] = []
     texts: list[str] = []
-    out = {"facility": None, "date": None, "period": None}
+    tcols: list[int] = []
+    out = {"facility": None, "date": None, "period": None, "facility_col": None}
     prev: dict | None = None
     for col, v in enumerate(cells):
         if _is_blank(v) or isinstance(v, bool):
@@ -146,6 +153,7 @@ def _read_cells(cells: list, ctx: Context) -> dict:
         prev = None
         if (f := _facility_cell(s, ctx)) and not out["facility"]:
             out["facility"], s = f
+            out["facility_col"] = col
             if not s:
                 continue
         if (pm := parse_month(s, ctx.fy0)) and not pm.startswith("????"):
@@ -153,18 +161,25 @@ def _read_cells(cells: list, ctx: Context) -> dict:
             continue
         for m in DATE_NUM.finditer(s):
             out["date"] = out["date"] or parse_date(m.group(0))
-        found, rest = extract_numbers(DATEISH.sub(" ", s), col, ctx.decimal_comma)
+        found, rest = extract_numbers(DATEISH.sub(" ", s), col, ctx.decimal_comma, strip_bare=False)
         cands += found
         if rest:
             texts.append(rest)
+            tcols.append(col)
     for i, c in enumerate(cands, start=1):
         c["id"] = i
-    out.update(cands=cands, text=" ".join(texts))
+    out.update(cands=cands, text=" ".join(texts), text_cols=tcols)
     return out
+
+
+def _ref(col: int | None, row: int) -> str | None:
+    return f"{get_column_letter(col + 1)}{row}" if col is not None else None
 
 
 def _put(item: dict, role: str, c: dict, unit: str | None, currency: str | None) -> bool:
     """Fill one value slot of the item. False when the slot is already taken (two values for one role)."""
+    if _ref(c["col"], item["source"]["row"]):
+        item["source"].setdefault("cells", {})["amount" if role == "amount" else "distance_km" if role == "distance" else "quantity"] = _ref(c["col"], item["source"]["row"])
     if role == "amount":
         if item["amount"] is not None:
             return False
@@ -184,7 +199,7 @@ def _put(item: dict, role: str, c: dict, unit: str | None, currency: str | None)
 
 
 def _item(row_no: int, cells: list, ctx: Context) -> dict | None:
-    r = _read_cells(cells, ctx)
+    r = read_cells(cells, ctx)
     d = r["date"]
     item = schema.new_item(
         {**ctx.source, "sheet": ctx.sheet, "row": row_no, "hidden_sheet": ctx.hidden, "scan": "row"},
@@ -192,6 +207,8 @@ def _item(row_no: int, cells: list, ctx: Context) -> dict | None:
         period_hint=r["period"] or (f"{d.year:04d}-{d.month:02d}" if d else None), context=" | ".join(x for x in [ctx.sheet, ctx.title] if x),
         line_confidence=0.85, raw={"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
         scan={"candidates": r["cands"], "pending": [], "ai_resolved": False})
+    cells_ref = {"description": [_ref(c, row_no) for c in r["text_cols"]], "facility": _ref(r["facility_col"], row_no)}
+    item["source"]["cells"] = {k: v for k, v in cells_ref.items() if v}
     live = [c for c in r["cands"] if c["value"] != 0]
     if not r["cands"] and not r["facility"]:
         item.update(read_state="unreadable", read_notes=["No number found in this row"])
@@ -216,7 +233,8 @@ SYSTEM = (
     "quantity (amount of a fuel, material, energy, water or waste), amount (money spent), distance, weight, count (passengers, rooms, nights, items), "
     "identifier (invoice/phone/code/year/serial) or unclear. A number with no currency is NOT money unless the row clearly says it is a cost. "
     "Give a unit only when the row prints it or it is unmistakable; put unit_printed=true only if the unit text appears in the row. "
-    "Give a currency only when the row prints one. If you are not sure, answer unclear.")
+    "Give a currency only when the row prints one. Use the hint about the same column in other rows as evidence, not proof. "
+    "A number beside a description that has no other value is more likely a quantity or an amount than an identifier. If you are not sure, answer unclear.")
 
 
 def _schema() -> dict:
@@ -225,11 +243,24 @@ def _schema() -> dict:
     return llm.obj({"rows": {"type": "array", "items": llm.obj({"row": I, "numbers": {"type": "array", "items": num}})}})
 
 
-def _prompt(items: list[dict]) -> str:
+def column_hints(items: list[dict]) -> dict[int, str]:
+    """What the numbers that code could read with certainty look like in each column, over the whole sheet: a signal for the
+    AI (and the reader) about what an unlabelled number in the same column probably is."""
+    seen: dict[int, Counter] = {}
+    for it in items:
+        for c in it["scan"]["candidates"]:
+            if c["kind"] != "bare" and c["col"] is not None:
+                seen.setdefault(c["col"], Counter())[f"{c['kind']} ({c['currency'] or c['unit'] or 'no unit'})"] += 1
+    return {col: ", ".join(f"{k} x{n}" for k, n in cnt.most_common(2)) for col, cnt in seen.items()}
+
+
+def _prompt(items: list[dict], hints: dict[int, str]) -> str:
     lines = []
     for it in items:
         by_id = {c["id"]: c for c in it["scan"]["candidates"]}
-        nums = "; ".join(f"#{i} = {by_id[i]['value']:g} (as written: '{by_id[i]['text']}', kind from code: {by_id[i]['kind']})" for i in it["scan"]["pending"])
+        nums = "; ".join(f"#{i} = {by_id[i]['value']:g} (as written: '{by_id[i]['text']}', kind from code: {by_id[i]['kind']}"
+                         + (f", other rows with a number in this same column hold: {hints[by_id[i]['col']]}" if by_id[i]["col"] in hints else "") + ")"
+                         for i in it["scan"]["pending"])
         lines.append(f"row {it['source']['row']} (sheet {it['source']['sheet']}): \"{it['raw']['row']}\" -> numbers to interpret: {nums}")
     return "\n".join(lines)
 
@@ -247,6 +278,7 @@ def _apply_answer(item: dict, answers: list[dict]) -> None:
         answered.add(a["id"])
         role, unit = a["role"], (a["unit"] or c["unit"] or "").strip() or None
         if role == "identifier":
+            item["scan"].setdefault("as_identifier", []).append(c["text"])
             continue
         n = normalize_unit(unit) if unit else None
         ok = (role in ("count", "unclear") or c["kind"] == "bare" or role == c["kind"]) and role != "unclear"
@@ -264,6 +296,8 @@ def _apply_answer(item: dict, answers: list[dict]) -> None:
         if role == "count" and not unit:
             unit = "nos"
         item["scan"]["ai_resolved"] = True
+        if role in ("quantity", "amount", "distance", "weight", "count"):
+            item["description"] = re.sub(r"\s+", " ", item["description"].replace(c["text"], " ", 1)).strip(" -–,;:|")
         if not _put(item, "distance" if role == "distance" else "amount" if role == "amount" else "quantity", c, unit, currency):
             notes.append(f"Two values for the same field in this row ({c['text']!r}) - choose which to use")
     left = [i for i in item["scan"]["pending"] if i not in answered and by_id[i]["kind"] == "bare"]
@@ -274,6 +308,8 @@ def _finalise(item: dict) -> None:
     if item["read_state"] == "unreadable":
         return
     has_value = any(item[k] is not None for k in ("quantity", "amount", "distance_km"))
+    if not has_value and item["scan"].get("as_identifier"):
+        item["read_notes"].append(f"{', '.join(item['scan']['as_identifier'])} was read as an identifier, not a value - confirm whether it is a quantity or an amount")
     if item["processing_error"]:
         item["read_state"] = "failed"
     elif not has_value and not item["read_notes"]:
@@ -292,12 +328,13 @@ def interpret(items: list[dict], metrics: dict, use_ai: bool = True) -> None:
         for it in todo:
             it["read_notes"].append("AI is switched off, so the meaning of the unlabelled numbers needs your confirmation")
         todo = []
+    hints = column_hints(items)
     for chunk_at in range(0, min(len(todo), MAX_AI_ROWS), BATCH):
         chunk = todo[chunk_at:chunk_at + BATCH]
         try:
             if not llm.enabled():
                 raise llm.AIUnavailable("No AI provider is configured", "auth")
-            data, usage = llm.call_json("interpret", SYSTEM, _prompt(chunk), _schema(), max_tokens=6000)
+            data, usage = llm.call_json("interpret", SYSTEM, _prompt(chunk, hints), _schema(), max_tokens=6000)
             metrics.setdefault("llm_calls", []).append({"step": "interpret", **usage})
             metrics.setdefault("ai_failures", []).extend(usage.get("failures", []))
             answers = {r["row"]: r["numbers"] for r in data["rows"]}

@@ -159,7 +159,12 @@ def _mentions_a_facility(text: str) -> bool:
     """'Facility 1', 'Plant B', 'Site-3': a facility label followed by a short code. Used only to NOTICE that a cell names a
     facility we do not know yet (so the customer is asked), never to decide which one it is."""
     labels = "|".join(re.escape(x) for x in load().parsing["facility_labels"])
-    return bool(re.fullmatch(rf"(?:{labels})[\s\-_.:#]*[A-Za-z0-9]{{1,6}}", text.strip(), re.I))
+    return bool(re.fullmatch(rf"(?:{labels})[\s\-_.:#]*(?:\d[A-Za-z0-9]{{0,5}}|[A-Za-z])", text.strip(), re.I))
+
+
+def names_a_facility(text: str, facilities: list[dict], alias_of=None) -> bool:
+    """True when a cell is a known (or similar) facility name, or reads like a facility mention - so it is not an activity or a title."""
+    return bool(match_name(text, facilities, alias_of)) or _mentions_a_facility(text)
 
 
 def detect_in_text(text: str, facilities: list[dict], alias_of=None) -> tuple[str, str] | None:
