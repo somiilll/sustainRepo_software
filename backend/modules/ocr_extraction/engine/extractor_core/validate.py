@@ -90,8 +90,6 @@ def row_checks(row: dict, item: dict) -> list[dict]:
             c.append({"code": "needs_quantity", "level": "warn", "message": f"{', '.join(calc['missing'])} missing - Scope 1/2 cannot be spend-based"})
         else:
             c.append({"code": "cannot_calculate", "level": "warn", "message": "; ".join(calc["notes"]) or "Missing values"})
-    elif calc.get("ef_method") == "spend":
-        c.append({"code": "spend_based", "level": "warn", "message": "Spend-based (no physical quantity) - lower data quality"})
     if calc.get("status") == "TBD":
         c.append({"code": "module_schema_tbd", "level": "info", "message": "Water/Waste record schema not confirmed with Emergent yet"})
     for n in calc.get("notes", []):
