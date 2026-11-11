@@ -156,6 +156,7 @@ def finish(row: dict, item: dict) -> dict:
             "facility": row["facility"]["confidence"], "period": row["period"]["confidence"]}
     conf["overall"] = round(min(conf.values()), 3)
     row["confidence"] = conf
+    row["read_tags"] = (item.get("scan") or {}).get("ai_levels") or []
     levels = {c["level"] for c in row["checks"]}
     if row["decision"].get("question") or conf["classification"] < pol["ask_below"]:
         row["review_status"] = "ask"

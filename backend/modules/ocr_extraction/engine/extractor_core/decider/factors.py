@@ -335,7 +335,7 @@ def clear_descriptor_notes(item: dict, factor_name: str) -> None:
     if len(keep) != len(notes):
         item["read_notes"] = keep
         if not keep and item.get("read_state") == "needs_attention":
-            item["read_state"], item["line_confidence"] = "extracted", 0.85
+            item["read_state"], item["line_confidence"] = "extracted", 0.97
 
 
 def row_parts(fm: dict, item: dict, spec: list[dict] | None = None) -> dict:

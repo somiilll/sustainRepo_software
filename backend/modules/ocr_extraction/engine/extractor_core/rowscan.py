@@ -27,7 +27,7 @@ ROLES = ["quantity", "amount", "distance", "weight", "count", "identifier", "unc
 BATCH, MAX_AI_ROWS = 10, 400
 LEVELS = ["certain", "likely", "uncertain", "guess"]
 TAGS = ["unit_printed", "currency_printed", "column_pattern", "spec_in_name", "only_number_in_row", "code_or_serial", "unit_assumed", "ambiguous_between_roles", "no_context"]
-LEVEL_CAP = {"certain": 0.9, "likely": 0.8}
+LEVEL_CAP = {"certain": 0.95, "likely": 0.8}
 
 _NUM = r"\d[\d,.'’]*\d|\d"
 DATE_NUM = re.compile(r"\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b")
@@ -254,7 +254,7 @@ def _item(row_no: int, cells: list, ctx: Context) -> dict | None:
         {**ctx.source, "sheet": ctx.sheet, "row": row_no, "hidden_sheet": ctx.hidden, "scan": "row"},
         description=r["text"], facility_hint=r["facility"], date=d.isoformat() if d else None,
         period_hint=r["period"] or (f"{d.year:04d}-{d.month:02d}" if d else None), context=" | ".join(x for x in [ctx.sheet, ctx.title] if x),
-        line_confidence=0.85, raw={"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
+        line_confidence=0.97, raw={"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
         scan={"candidates": r["cands"], "pending": [], "ai_resolved": False, "descriptors": r["descriptors"]})
     cells_ref = {"description": [_ref(c, row_no) for c in r["text_cols"]], "facility": _ref(r["facility_col"], row_no)}
     item["source"]["cells"] = {k: v for k, v in cells_ref.items() if v}
