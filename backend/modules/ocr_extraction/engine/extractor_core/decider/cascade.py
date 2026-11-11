@@ -15,6 +15,7 @@ from ..config import load
 from ..group import dimension, memory_keys
 from . import rules
 from .base import ProviderError, Question
+from . import describe
 from .factors import sector_map, slim
 from .providers import PROVIDERS
 
@@ -58,6 +59,9 @@ def build_state(item: dict, org_context: dict | None) -> str:
     oc = org_context or {}
     if oc.get("industry"):
         parts.append(f"Reporting company: {oc.get('name', '')} ({oc['industry']})")
+    if item.get("_described"):
+        d = item["_described"]
+        parts.append("Plain-words reading of the item (AI inference, may be wrong" + (", brand not recognised" if d["unknown"] else "") + "): " + d["plain"][:400])
     if oc.get("overview"):
         parts.append("About the company: " + str(oc["overview"])[:400])
     if oc.get("process"):
@@ -189,23 +193,31 @@ class Classifier:
             sec = a["sector"].choice
         else:
             sec = "all" if len(by_sec) > 1 else next(iter(by_sec))     # freight, waste and travel lists are short and are not grouped by industry
-        pool = idx.rank(item, cands if sec == "all" else by_sec[sec])[:150]
+        rd = item.get("_described") or {}
+        pool = idx.rank(item, cands if sec == "all" else by_sec[sec], " ".join([rd.get("plain", ""), *rd.get("synonyms", [])]))[:60]
         choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(pool)}
         choices["none"] = "None of these names describes the item"
-        q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material "
-                               "(if no disposal route is written, say needs_disposal_route). Pick the most specific name for what the item is.", choices)
-        a, p = self._ask(state, [q], only=["claude"])
+        q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material. "
+                               "Pick the most specific name for what the item is.", choices)
+        a, p = self._ask(state, [q])
         ans = a["factor"]
+        tags = ["jev_pick"] + (["unknown_brand"] if rd.get("unknown") else [])
         if ans.choice == "none" or ans.choice not in choices:
             return self._factor_decision(pool[0], p.name, f"{p.name}: no factor name clearly fits - best guess shown", pool[1:4], "guess",
-                                         list(dict.fromkeys(["no_good_option", *ans.tags])), "Please confirm what this item is.")
+                                         ["no_good_option", *tags], "Please confirm what this item is.")
         picked = pool[int(ans.choice[1:])]
-        q_text = "Please confirm what this item is." if ans.level in ("uncertain", "guess") else None
-        return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", [c for c in pool if c["id"] != picked["id"]][:3],
-                                     ans.level, ans.tags, q_text)
+        c = ans.confidence or 0
+        rev = self.policy["review"]
+        level = "certain" if c >= rev["ready_threshold"] else "likely" if c >= rev["ask_below"] else "uncertain"
+        top = [pool[int(k[1:])] for k, v in sorted(ans.probabilities.items(), key=lambda kv: -kv[1]) if k in choices and k != "none" and v][:4]
+        alts = [x for x in top if x["id"] != picked["id"]][:3] or [x for x in pool if x["id"] != picked["id"]][:3]
+        return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", alts, level, tags,
+                                     "Please confirm what this item is." if level == "uncertain" else None)
 
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:
+        if self.use_ai and (rd := describe.lookup(describe.text_of(item))):
+            item = {**item, "_described": rd}
         ek, dk = memory_keys(item)
         mem = None
         if self.memory is not None:
@@ -292,7 +304,7 @@ class Classifier:
             for k in ("use_context", "freight_direction"):
                 v, c = ai[k]
                 # the AI must be clearly sure to override/add context (it answers these even for non-fuel items)
-                if c >= 0.85 and c > ctx_conf.get(k, 0) and not (k == "freight_direction" and v == "unknown"):
+                if c >= self.policy["review"]["ready_threshold"] and c > ctx_conf.get(k, 0) and not (k == "freight_direction" and v == "unknown"):
                     ctx[k], ctx_conf[k] = v, c
         question = None
         if self.tax.context_key(act) == "use_context" and ctx_conf.get("use_context", 0) < 0.7:
@@ -305,7 +317,24 @@ class Classifier:
                 "context_confidence": ctx_conf, "reason": reason, "alternatives": alts, "question": question}
 
     # ------------------------------------------------------------------ many groups
+    def prepare(self, groups: list[dict]) -> None:
+        """Haiku writes the internal plain-words reading, 10 items per call, only for items with no exact factor name and no remembered answer."""
+        idx = self._index()
+        if not (self.use_ai and idx):
+            return
+        texts = []
+        for g in groups:
+            rep = g["rep"]
+            m = idx.match(rep)
+            ek, dk = memory_keys(rep)
+            known = self.memory is not None and (self.memory.get_decision(self.org, ek) or self.memory.get_decision(self.org, dk))
+            if not (m and m["status"] == "strong") and not known:
+                texts.append(describe.text_of(rep))
+        if texts:
+            describe.describe_missing(texts, build_state({}, self.org_context))
+
     def classify_groups(self, groups: list[dict], progress=None) -> dict[str, dict]:
+        self.prepare(groups)
         out: dict[str, dict] = {}
         conc = self.policy["jev"]["concurrency"]
         done = [0]

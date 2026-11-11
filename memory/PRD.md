@@ -1044,3 +1044,10 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Rows no longer carry `confidence` numbers; `row.basis` = {classification, quantity, facility, period} each {level, tags}. Ready = classification & quantity certain/likely, facility & period found, no warn/error, no question. Chips shown in ReviewTab; RowDialogs shows Basis. Old jobs still hold the old `confidence` field.
 - Kept domains (fuels, electricity, refrigerants, water...) still use rules + Jev; their level is derived from Jev's own probability (not shown).
 - Verified by engine run on /tmp/ocr_try2.xlsx; not run by testing agent / browser (user: don't test). Internal numeric `confidence` values remain inside facility/period resolvers and old-flow decisions but are not shown or used for the factor path.
+
+## OCR describe-first pipeline (completed)
+- Flow: exact DB factor name -> skip AI; else Haiku (10 rows/call, cached, "unknown" allowed) writes a hidden plain-words description (decider/describe.py, never stored or shown); factors ranked on raw + described text; Jev picks the final factor from the shortlist; code handles qty/facility/period.
+- Confidence: cut-offs now come from policy.json review.ready_threshold (0.84) / ask_below (0.60) instead of hardcoded 0.85/0.9 (cascade.py, validate.py).
+- Direct keys only (ANTHROPIC/OPENAI/OPENROUTER); Emergent key never used for OCR.
+- Known: 17 pre-existing stale unit tests in engine/tests (taxonomy-era) fail with and without this change.
+- Backlog: My Tasks filters (WorkflowMyTask.js), CBAM module, catalog sync bundle, auth rate limiter, admin override attribution.

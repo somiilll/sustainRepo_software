@@ -165,7 +165,8 @@ def decision_basis(d: dict) -> dict:
     if src == "none" or not d.get("activity_id"):
         return {"level": "none", "tags": ["no_match"]}
     tags = ["rules_and_ai_agree"] if src.startswith("rules+") else [SOURCE_NAME.get(src, src)]
-    return {"level": "certain" if c >= 0.9 else "likely" if c >= 0.6 else "uncertain", "tags": tags}
+    rev = load().policy["review"]
+    return {"level": "certain" if c >= rev["ready_threshold"] else "likely" if c >= rev["ask_below"] else "uncertain", "tags": tags}
 
 
 def read_basis(row: dict, item: dict) -> dict:

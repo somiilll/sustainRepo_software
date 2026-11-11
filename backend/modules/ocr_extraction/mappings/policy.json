@@ -54,7 +54,7 @@
     "interpret": "claude-haiku-5-5"
   },
   "openai_models": {"layout": "gpt-5.4-mini", "extract_fast": "gpt-5.4-mini", "extract_think": "gpt-5.5", "interpret": "gpt-5.4-mini"},
-  "ai_chain_tasks": {"interpret": ["claude", "openai"]},
+  "ai_chain_tasks": {"interpret": ["claude", "openai"], "classify_fallback": ["claude"]},
 "ai_chain": ["openai", "claude"],
   "ai_retry": {"attempts": 3, "backoff_s": 1.5, "no_credit_block_s": 900, "auth_block_s": 3600},
   "jev": {"model": "typesafe/jev-1.13", "api_model": "jev-latest", "url": "https://api.typesafe.ai/v1/systemone", "openrouter_url": "https://openrouter.ai/api/alpha/decisions", "timeout_s": 12, "concurrency": 8},

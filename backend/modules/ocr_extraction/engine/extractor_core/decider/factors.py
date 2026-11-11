@@ -138,9 +138,9 @@ class FactorIndex:
         return sector_map()[1].get(entry["name"].strip().lower())
 
     @staticmethod
-    def rank(item: dict, entries: list[dict]) -> list[dict]:
-        """Entries sharing the most words with the item first - only used to order a long list, never to exclude by itself."""
-        dw = words(item_text(item))
+    def rank(item: dict, entries: list[dict], extra: str = "") -> list[dict]:
+        """Entries sharing the most words with the item (and its internal plain-words reading) first."""
+        dw = words(item_text(item) + " " + extra)
         return sorted(entries, key=lambda e: -len(name_parts(e["name"])[0] & dw))
 
     def entry_by_id(self, factor_id: str) -> dict | None:
