@@ -19,6 +19,7 @@ from . import describe
 from .factors import sector_map, slim
 from .providers import PROVIDERS
 
+SHORTLIST = 6
 USE_CONTEXT_Q = {
     "stationary_equipment": "Burned in fixed equipment we own or control: DG set, boiler, furnace, kiln, heater, canteen",
     "company_vehicle": "Fuel for vehicles we own or lease (cars, trucks, buses in our fleet)",
@@ -176,7 +177,7 @@ class Classifier:
         return self._factor_decision(r["entry"], "factor_names", r["reason"], [c for c in r["candidates"] if c["id"] != r["entry"]["id"]], "certain", ["exact_name"])
 
     def _factor_by_domain(self, item: dict, dom: str) -> dict | None:
-        """Classification (Jev) gave the item type; Jev picks the sector, then Haiku identifies the factor among that sector's real factor names."""
+        """Classification (Jev) gave the item type; Jev picks the sector and narrows the factor names to a shortlist; Haiku makes the final factor choice."""
         idx = self._index()
         cands = idx.candidates(item, dom) if idx else []
         if not cands:
@@ -202,17 +203,29 @@ class Classifier:
         a, p = self._ask(state, [q])
         ans = a["factor"]
         tags = ["jev_pick"] + (["unknown_brand"] if rd.get("unknown") else [])
+        order = [k for k, v in sorted(ans.probabilities.items(), key=lambda kv: -kv[1]) if k in choices and k != "none" and v]
+        short_keys = list(dict.fromkeys(([ans.choice] if ans.choice in choices and ans.choice != "none" else []) + order))[:SHORTLIST]
+        short_keys = short_keys or [f"f{i}" for i in range(min(SHORTLIST, len(pool)))]
+        hq_choices = {k: choices[k] for k in short_keys}
+        hq_choices["none"] = choices["none"]
+        hq = Question("factor", q.instructions + " Jev has already narrowed the list; you make the final choice.", hq_choices)
+        try:
+            ha, p = self._ask(state, [hq], only=["claude"])
+            ans, tags = ha["factor"], ["haiku_final", *tags]
+            level = ans.level if ans.level in ("certain", "likely", "uncertain", "guess") else "uncertain"
+            tags += [t for t in ans.tags if t not in tags]
+        except ProviderError:                          # Haiku unavailable: Jev's own pick stands
+            rev = self.policy["review"]
+            c = ans.confidence or 0
+            level = "certain" if c >= rev["ready_threshold"] else "likely" if c >= rev["ask_below"] else "uncertain"
         if ans.choice == "none" or ans.choice not in choices:
             return self._factor_decision(pool[0], p.name, f"{p.name}: no factor name clearly fits - best guess shown", pool[1:4], "guess",
                                          ["no_good_option", *tags], "Please confirm what this item is.")
         picked = pool[int(ans.choice[1:])]
-        c = ans.confidence or 0
-        rev = self.policy["review"]
-        level = "certain" if c >= rev["ready_threshold"] else "likely" if c >= rev["ask_below"] else "uncertain"
-        top = [pool[int(k[1:])] for k, v in sorted(ans.probabilities.items(), key=lambda kv: -kv[1]) if k in choices and k != "none" and v][:4]
-        alts = [x for x in top if x["id"] != picked["id"]][:3] or [x for x in pool if x["id"] != picked["id"]][:3]
+        alts = [pool[int(k[1:])] for k in (short_keys + order) if k != ans.choice and k in choices and k != "none"]
+        alts = list(({x["id"]: x for x in alts if x["id"] != picked["id"]}).values())[:3] or [x for x in pool if x["id"] != picked["id"]][:3]
         return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", alts, level, tags,
-                                     "Please confirm what this item is." if level == "uncertain" else None)
+                                     "Please confirm what this item is." if level in ("uncertain", "guess") else None)
 
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:
