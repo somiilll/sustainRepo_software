@@ -1,7 +1,7 @@
 {
   "_about": "Organisation-level rules the extractor follows. Decided by the product owner on 7 Nov 2026. Emergent should expose these as per-org settings with these defaults.",
   "review": {
-    "ready_threshold": 0.90,
+    "ready_threshold": 0.84,
     "ask_below": 0.60,
     "ready_requires_no_warnings": true,
     "rules_skip_ai_at": 0.95
