@@ -14,7 +14,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import extract, layout, llm, normalise, usage
+from . import extract, layout, llm, normalise, rowscan, rowstate, usage
 from .config import load
 from .decider.cascade import Classifier
 from .derive import co2_share, companion_specs
@@ -22,8 +22,13 @@ from .fields import capacity_conversion
 from .fields import build_calc, display_quantity
 from .group import group_items
 from . import plausibility
-from .facilities import apply_choice, fixed_facility
-from .validate import doc_key, finish, match_facility, resolve_period, row_checks
+from .facilities import apply_choice, resolve as resolve_facility
+from .periods import fy_start_year
+from .validate import doc_key, finish, resolve_period, row_checks
+
+UNREADABLE_KEY = "__unreadable__"
+UNREADABLE_DECISION = {"activity_id": None, "confidence": 0.0, "source": "none", "context": {}, "alternatives": [],
+                       "reason": "The row could not be read, so it was not classified", "question": "This row could not be read - enter or fix its values"}
 
 
 class JobCancelled(Exception):
@@ -43,21 +48,37 @@ class Engine:
         self.facilities = facilities or []
         self.use_ai = use_ai
         self.classifier = Classifier(memory, org, self.org_context, use_ai=use_ai, providers=providers)
+        self._alias_of = (lambda name: memory.get_facility_alias(org, name)) if memory is not None else None
 
     # ------------------------------------------------------------------ ingest
     def _ingest_sheet(self, path: Path, src: dict, metrics: dict) -> tuple[list[dict], dict]:
-        info = {"tables": [], "warnings": []}
+        """Tables are read with their layout; every other non-empty row is read one by one, so no row is lost."""
+        info = {"tables": [], "warnings": [], "sheets": []}
         items: list[dict] = []
-        for t in normalise.read_tables(path):
-            spec = layout.map_table(t, self.org, self.memory, self.use_ai, metrics)
-            got = layout.apply_spec(t, spec, src) if spec["shape"] != "unknown" else []
-            info["tables"].append({"sheet": t.sheet, "first_row": t.first_row, "rows": len(t.rows), "shape": spec["shape"],
-                                   "layout_source": spec["source"], "layout_score": round(spec.get("score", 0), 2),
-                                   "items": len(got), "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
-            if spec["shape"] == "unknown" and len(t.rows) >= 3 and not re.search(r"instruction|legend|lookup|readme|help|note", t.sheet, re.I):
-                info["warnings"].append(f"Sheet '{t.sheet}' row {t.first_row}: could not understand this table's layout")
-            info["warnings"] += spec.get("warnings", [])
-            items += got
+        for sheet, grid, hidden in normalise.read_grids(path):
+            rows = normalise.non_empty_rows(grid)
+            by_layout: list[dict] = []
+            structure: set[int] = set()
+            for t in normalise.tables_from_grid(sheet, grid, hidden):
+                spec = layout.map_table(t, self.org, self.memory, self.use_ai and len(t.rows) >= 3, metrics)
+                got = layout.apply_spec(t, spec, src) if spec["shape"] != "unknown" else []
+                info["tables"].append({"sheet": t.sheet, "first_row": t.first_row, "rows": len(t.rows), "shape": spec["shape"],
+                                       "layout_source": spec["source"], "layout_score": round(spec.get("score", 0), 2),
+                                       "items": len(got), "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
+                info["warnings"] += spec.get("warnings", [])
+                if got:
+                    structure.update(t.meta_rows)
+                by_layout += got
+            covered = {it["source"]["row"] for it in by_layout}
+            totals = {no for no, cells in rows if no not in covered and layout.is_total_row(cells)}
+            ctx = rowscan.Context(sheet=sheet, source=src, hidden=hidden, fy0=fy_start_year(sheet), facilities=self.facilities, alias_of=self._alias_of)
+            scanned, zero_rows = rowscan.scan_rows([(no, c) for no, c in rows if no not in covered | structure | totals], ctx)
+            rowscan.interpret(scanned, metrics, self.use_ai)
+            info["sheets"].append({"sheet": sheet, "non_empty_rows": len(rows), "read_by_layout": len(covered), "read_row_by_row": len(scanned),
+                                   "header_or_title_rows": len(structure), "total_rows": len(totals), "zero_rows": zero_rows})
+            if scanned and not by_layout:
+                info["warnings"].append(f"Sheet '{sheet}': no table layout recognised - its {len(scanned)} rows were read one by one")
+            items += by_layout + scanned
         return items, info
 
     def _ingest_document(self, path: Path, src: dict, think: bool, metrics: dict) -> tuple[list[dict], dict]:
@@ -105,7 +126,7 @@ class Engine:
         base_id = item["item_id"]
         rows = []
         qty, unit, dim = display_quantity(item)
-        fac = fixed_facility(item) or match_facility(item, self.facilities)
+        fac = resolve_facility(item, self.facilities, self._alias_of)
         per = resolve_period(item)
         if aid:
             conv, _ = capacity_conversion(tax.get(aid), item)
@@ -211,7 +232,9 @@ class Engine:
                           "files_total": len(paths), "files_done": live["files_done"], "credits": spent(),
                           "elapsed": round(time.time() - t0, 1)})
 
-        seen_hashes = {}
+        first_by_hash: dict[str, str] = {}               # decided in upload order, so threads cannot race for "first"
+        for p in paths:
+            first_by_hash.setdefault(normalise.file_hash(p), p.name)
 
         def ingest(path: Path):
             if cancel is not None and cancel.is_set():
@@ -221,10 +244,9 @@ class Engine:
             try:
                 h = normalise.file_hash(path)
                 src["file_hash"] = h
-                if h in seen_hashes:
-                    d.update(status="duplicate", warnings=[f"Same file as {seen_hashes[h]} in this upload"])
+                if first_by_hash[h] != path.name:
+                    d.update(status="duplicate", warnings=[f"Same file as {first_by_hash[h]} in this upload"])
                     return d, []
-                seen_hashes[h] = path.name
                 if self.memory is not None and (prev := self.memory.seen(self.org, "file:" + h)):
                     d["warnings"].append(f"This exact file was uploaded before ({prev['file_name']}, job {prev['job_id']})")
                     d["duplicate_of_previous"] = True
@@ -247,7 +269,7 @@ class Engine:
         # Classification starts as soon as a file has been read, while the other files are still being read:
         # the workers keep reading in the background and this loop classifies the lines of the file that just finished.
         groups_by_key: dict[str, dict] = {}
-        decisions: dict[str, dict] = {}
+        decisions: dict[str, dict] = {UNREADABLE_KEY: UNREADABLE_DECISION}
         say("reading", 0, len(paths))
         with ThreadPoolExecutor(max_workers=4) as ex:
             for n, (d, its) in enumerate(ex.map(ingest, paths), start=1):
@@ -260,7 +282,10 @@ class Engine:
                 items += its
                 live["items"], live["files_done"] = len(items), n
                 fresh = []
-                for g in group_items(its):
+                for it in its:
+                    if it.get("read_state") == "unreadable":
+                        it["group_key"] = UNREADABLE_KEY
+                for g in group_items([it for it in its if it.get("read_state") != "unreadable"]):
                     if g["key"] in groups_by_key:                    # the same item was already seen in an earlier file
                         groups_by_key[g["key"]]["item_ids"] += g["item_ids"]
                     else:
@@ -303,8 +328,11 @@ class Engine:
                     if r["item_id"] == it["item_id"]:
                         r["checks"].append({"code": "duplicate", "level": "warn", "message": msg})
                         finish(r, it)
+        item_of = {it["item_id"]: it for it in items}
         plausibility.apply(items, rows, docs, history=(lambda k: self.memory.get_history(self.org, k)) if self.memory is not None else None,
                            today=self.reference_date)
+        for r in rows:
+            r["state"] = rowstate.of(r, item_of[r["item_id"]])
         for d in docs:
             d["rows"] = by_doc.get(d["doc_id"], 0)
         if self.memory is not None:
@@ -330,7 +358,8 @@ class Engine:
             "usage": {"events": events, **usage.summarise(events)},
             "metrics": {
                 "files": len(paths), "items": len(items), "groups": len(groups), "rows": len(rows),
-                "status": status_counts, "seconds": round(time.time() - t0, 1),
+                "status": status_counts, "row_states": rowstate.counts(rows), "seconds": round(time.time() - t0, 1),
+                "ai_failures": (metrics.get("ai_failures", []) + [f for c in metrics["llm_calls"] for f in c.get("failures", [])])[:20],
                 "classifier_calls": {p: sum(1 for c in calls if c.get("provider") == p and "error" not in c) for p in {c.get("provider") for c in calls}},
                 "classifier_errors": [c for c in calls if "error" in c][:10],
                 "providers_disabled": dict(self.classifier.disabled),

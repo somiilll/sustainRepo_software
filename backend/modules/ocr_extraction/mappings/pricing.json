@@ -10,7 +10,8 @@
     "extract": "Reading documents",
     "reread": "Re-reading pages that didn't add up",
     "layout": "Understanding spreadsheet layouts",
-    "classify": "Classifying line items"
+    "classify": "Classifying line items",
+    "interpret": "Reading numbers in unstructured rows"
   },
   "models": {
     "anthropic:claude-haiku-5-5": {"basis": "tokens", "input_per_mtok": 0.10, "output_per_mtok": 0.50,
@@ -20,6 +21,8 @@
     "anthropic:claude-fable-5-1": {"basis": "tokens", "input_per_mtok": 10.00, "output_per_mtok": 50.00},
     "openrouter:typesafe/jev-1.13": {"basis": "reported", "fallback_per_call": 0.00005,
       "_note": "OpenRouter returns the exact cost of each call in usage.cost; the fallback is used when it doesn't"},
+    "openai:gpt-5.4-mini": {"basis": "tokens", "input_per_mtok": 0.25, "output_per_mtok": 2.00, "estimated": true},
+    "openai:gpt-5.5": {"basis": "tokens", "input_per_mtok": 1.25, "output_per_mtok": 10.00, "estimated": true},
     "openai:gpt-6-luna": {"basis": "per_call", "per_call": 0.0005, "estimated": true,
       "_note": "Placeholder until the OpenAI Decisions price is confirmed on a funded account"}
   },

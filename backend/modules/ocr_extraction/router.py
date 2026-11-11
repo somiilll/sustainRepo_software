@@ -260,7 +260,7 @@ def _clean_choices(raw: str, files: list[str], facs: list[dict]) -> dict:
         if name not in files or not isinstance(c, dict):
             continue
         one: dict = {}
-        if "default" in c:
+        if c.get("default"):
             one["default"] = c["default"]
         if isinstance(c.get("map"), dict):
             one["map"] = dict(c["map"])

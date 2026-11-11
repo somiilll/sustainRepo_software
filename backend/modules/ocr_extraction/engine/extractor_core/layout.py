@@ -41,7 +41,12 @@ ROLE_ALIASES = {
     "category_hint": ["category", "type", "expense type", "head", "account head", "ledger name", "nature", "expense head", "sub category", "scope"],
     "vehicle": ["vehicle", "vehicle no", "vehicle number", "equipment", "asset", "dg set"],
 }
+MIN_AI_LAYOUT_SCORE = 0.5
 TOTAL_ROW = re.compile(r"^\s*(grand\s*)?(sub\s*)?total\b|^\s*sum\b|^\s*net\s+total|^\s*total\s*:", re.I)
+
+
+def is_total_row(row) -> bool:
+    return bool(TOTAL_ROW.search(" ".join(_cell_str(v) for v in row[:4])))
 
 
 def _clean_header(h: str) -> str:
@@ -163,11 +168,11 @@ def _layout_schema() -> dict:
     })
 
 
-def llm_spec(t: Table, model: str) -> tuple[dict, dict]:
-    sample = "\n".join(f"row {t.first_row + i}: " + " | ".join(_cell_str(v) for v in r) for i, r in enumerate(t.rows[:20]))
+def llm_spec(t: Table) -> tuple[dict, dict]:
+    sample = "\n".join(f"row {t.row_nums[i]}: " + " | ".join(_cell_str(v) for v in r) for i, r in enumerate(t.rows[:20]))
     content = (f"Sheet: {t.sheet}\nTitle lines: {t.title_lines}\nHeader: " +
                " | ".join(f"[{c}] {h}" for c, h in enumerate(t.header)) + f"\nSample rows:\n{sample}")
-    d, usage = llm.call_json(model, LAYOUT_SYSTEM, content, _layout_schema(), max_tokens=3000)
+    d, usage = llm.call_json("layout", LAYOUT_SYSTEM, content, _layout_schema(), max_tokens=3000)
     cols = {k: v for k, v in d["columns"].items() if isinstance(v, int) and 0 <= v < t.ncols}
     spec = {"shape": d["shape"], "columns": cols, "header_units": {c: unit_from_header(h) for c, h in enumerate(t.header) if unit_from_header(h)},
             "context": {"title": " | ".join(t.title_lines), "sheet": t.sheet, "fy_start": fy_start_year(" ".join(t.title_lines + [t.sheet])),
@@ -212,11 +217,12 @@ def map_table(t: Table, org: str, memory, use_llm: bool, metrics: dict) -> dict:
     spec = heuristic_spec(t)
     if spec["score"] < 0.75 and use_llm and llm.enabled():
         try:
-            spec2, usage = llm_spec(t, load().policy["models"]["layout"])
+            spec2, usage = llm_spec(t)
             metrics.setdefault("llm_calls", []).append({"step": "layout", **usage})
-            if spec2["shape"] != "unknown" and spec2["score"] >= spec["score"]:
+            if spec2["shape"] != "unknown" and spec2["score"] >= max(spec["score"], MIN_AI_LAYOUT_SCORE):
                 spec = spec2
         except llm.AIUnavailable as e:
+            metrics.setdefault("ai_failures", []).extend(e.failures)
             spec.setdefault("warnings", []).append(f"Layout AI unavailable: {e}")
     if memory is not None and spec["shape"] != "unknown" and spec["score"] >= 0.75:
         memory.save_layout(org, fp, _jsonable(spec))
@@ -244,7 +250,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
         d = parse_date(_get(row, cols.get("date"))) if cols.get("date") is not None else None
         per = parse_month(_get(row, cols.get("period")), fy0) if cols.get("period") is not None else None
         return {
-            "source": {**source, "sheet": t.sheet, "row": t.first_row + r_idx, "hidden_sheet": t.hidden_sheet},
+            "source": {**source, "sheet": t.sheet, "row": t.row_nums[r_idx], "hidden_sheet": t.hidden_sheet},
             "facility_hint": _cell_str(_get(row, cols.get("facility"))) or ctx.get("facility") or None,
             "vendor": _cell_str(_get(row, cols.get("vendor"))) or None,
             "invoice_number": _cell_str(_get(row, cols.get("invoice_number"))) or None,
@@ -262,8 +268,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
         }
 
     for i, row in enumerate(t.rows):
-        joined = " ".join(_cell_str(v) for v in row[:4])
-        if TOTAL_ROW.search(joined):
+        if is_total_row(row):
             continue
         if spec["shape"] == "ledger":
             desc = _cell_str(_get(row, cols.get("description"))) or spec.get("constant_description") or ""

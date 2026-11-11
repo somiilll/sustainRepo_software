@@ -61,11 +61,15 @@ class OpenAIDecisions(Provider):
                    "questions": [{"type": "choice", "name": q.name, "instructions": q.instructions,
                                   "choices": [{"value": v, "description": d} for v, d in q.choices.items()]} for q in questions]}
         t0 = time.time()
-        try:
-            r = requests.post(cfg["url"], json=payload, timeout=cfg["timeout_s"],
-                              headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": "application/json"})
-        except requests.RequestException as e:
-            raise ProviderError(f"OpenAI Decisions network error: {e}") from e
+        for attempt in range(3):
+            try:
+                r = requests.post(cfg["url"], json=payload, timeout=cfg["timeout_s"],
+                                  headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": "application/json"})
+            except requests.RequestException as e:
+                raise ProviderError(f"OpenAI Decisions network error: {e}") from e
+            if r.status_code != 429 or "insufficient_quota" in r.text or attempt == 2:      # only a plain rate limit is worth waiting for
+                break
+            time.sleep(min(float(r.headers.get("retry-after") or 2 ** attempt), 10))
         if r.status_code != 200:
             raise ProviderError(f"OpenAI Decisions HTTP {r.status_code}: {r.text[:200]}")
         ans = {a["name"]: a for a in r.json().get("answers", [])}
@@ -95,7 +99,7 @@ class ClaudeChooser(Provider):
             f"- {q.name}: {q.instructions}\n" + "\n".join(f"    {v}: {d}" for v, d in q.choices.items()) for q in questions)
         t0 = time.time()
         try:
-            d, usage = llm.call_json(load().policy["models"]["classify_fallback"], system, text, llm.obj(props), max_tokens=1500)
+            d, usage = llm.call_provider("claude", load().policy["models"]["classify_fallback"], system, text, llm.obj(props), max_tokens=1500, task="classify_fallback")
         except llm.AIUnavailable as e:
             raise ProviderError(str(e)) from e
         out = {q.name: Answer(d[q.name]["choice"], min(float(d[q.name]["confidence"]), 0.85)) for q in questions}

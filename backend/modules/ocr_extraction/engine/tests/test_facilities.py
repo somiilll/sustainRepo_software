@@ -37,13 +37,14 @@ def test_a_remembered_mapping_is_suggested_next_time():
     assert mem.get_facility_alias("org", "plant  z -  unknown") is None
 
 
-def test_apply_choice_order_column_then_sheet_then_default():
+def test_apply_choice_maps_names_and_keeps_sheet_and_default_as_fallbacks():
     items = [{"facility_hint": "Plant A", "source": {"sheet": "S1"}}, {"facility_hint": "Plant Z - Unknown", "source": {"sheet": "S1"}},
              {"facility_hint": None, "source": {"sheet": "S2"}}, {"facility_hint": None, "source": {"sheet": "S3"}}]
     facilities.apply_choice(items, {"map": {"Plant A": "TP-A", "Plant Z - Unknown": None}, "sheets": {"S2": "TP-B"}, "default": "TP-HO"}, FACILITIES)
-    got = [facilities.fixed_facility(i) for i in items]
-    assert [g["id"] for g in got] == ["TP-A", None, "TP-B", "TP-HO"]
+    got = [facilities.fixed_facility(i) for i in items[:2]]
+    assert [g["id"] for g in got] == ["TP-A", None]
     assert got[0]["confidence"] == 1.0 and got[1]["method"] == "left unassigned by you"
+    assert [i.get("facility_default", {}).get("id") for i in items[2:]] == ["TP-B", "TP-HO"]    # fallbacks, only for rows naming no facility
     other = [{"facility_hint": "Plant A"}]
     facilities.apply_choice(other, None, FACILITIES)
     assert facilities.fixed_facility(other[0]) is None                # no choice made: normal matching applies
@@ -75,6 +76,6 @@ def test_a_customer_choice_overrides_what_the_file_says(run_with_choice):
     assert a["id"] == "TP-HO"
 
 
-def test_a_name_the_customer_did_not_map_is_left_unassigned_not_auto_matched(run_with_choice):
-    b = facility_of(run_with_choice, "Invoice Register", 4)             # 'Plant B - Vadodara' was not in the map and the default is None
-    assert b["id"] is None and b["method"] == "left unassigned by you"
+def test_a_facility_named_in_the_row_is_never_overridden_by_the_default(run_with_choice):
+    b = facility_of(run_with_choice, "Invoice Register", 4)             # 'Plant B - Vadodara' is named in the row and not in the map
+    assert b["id"] == "TP-B" and b["method"] == "exact name"

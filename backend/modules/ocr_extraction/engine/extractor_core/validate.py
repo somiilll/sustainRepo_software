@@ -118,9 +118,12 @@ def row_checks(row: dict, item: dict) -> list[dict]:
     lcf = [f.lower() for f in item.get("low_confidence_fields") or []]
     if lcf:
         c.append({"code": "unclear_on_document", "level": "warn", "message": "Unclear on the document: " + ", ".join(item["low_confidence_fields"])})
+    c += [{"code": "row_read", "level": "warn", "message": n} for n in item.get("read_notes") or []]
     if not row["facility"]["id"]:
+        sug = (row["facility"].get("suggestion") or {}).get("name")
+        hint = f" for {item['facility_hint'][:60]!r}" if item.get("facility_hint") else ""
         c.append({"code": "facility_unmatched", "level": "warn",
-                  "message": f"No facility matched{(' for ' + repr(item.get('facility_hint')[:60])) if item.get('facility_hint') else ''} - choose one"})
+                  "message": f"Facility{hint} not recognised - did you mean {sug!r}? Confirm it to assign" if sug else f"No facility matched{hint} - choose one"})
     elif row["facility"]["method"] == "only facility in organisation":
         c.append({"code": "facility_assumed", "level": "info", "message": "Assigned to the only facility in the organisation"})
     p = row["period"]

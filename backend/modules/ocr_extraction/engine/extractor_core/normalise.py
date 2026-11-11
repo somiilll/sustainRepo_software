@@ -10,6 +10,7 @@ import base64
 import csv
 import hashlib
 import io
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -45,6 +46,8 @@ class Table:
     first_row: int                        # 1-based Excel row number of rows[0]
     title_lines: list[str] = field(default_factory=list)
     hidden_sheet: bool = False
+    row_nums: list[int] = field(default_factory=list)      # Excel row number of each entry of rows
+    meta_rows: list[int] = field(default_factory=list)     # Excel rows holding this table's header and title lines
 
     @property
     def ncols(self) -> int:
@@ -68,7 +71,24 @@ def _numeric_cells(row) -> int:
                (isinstance(v, str) and parse_number(v) is not None and not any(c.isalpha() for c in v.replace("Rs", "").replace("INR", ""))))
 
 
+_PERIOD_WORDS = re.compile(r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-']*\d{2,4}\b|\bfy\s*'?\d{2,4}(?:\s*[-/]\s*\d{2,4})?", re.I)
+_YEAR = re.compile(r"(?:19|20)\d{2}")
+_LOOSE_NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?(?![\w])")
+
+
+def _data_like(v) -> bool:
+    """A cell that carries a measurement ('Paper 100', '2000 l', 'Rs 500') is data, never a column title.
+    Years, months and financial years ('Apr-25', 'FY 2025-26') are fine in titles."""
+    if isinstance(v, bool) or hasattr(v, "strftime"):
+        return False
+    s = _cell_str(v)
+    s = s[:-2] if isinstance(v, float) and s.endswith(".0") else s
+    return not _YEAR.fullmatch(s) and bool(_LOOSE_NUMBER.search(_PERIOD_WORDS.sub(" ", s)))
+
+
 def _header_like(row, nxt) -> bool:
+    if any(_data_like(v) for v in row):
+        return False
     ne = _nonempty(row)
     if ne < 2 or len({_cell_str(v) for v in row if _cell_str(v)}) < 2:     # a merged title repeats one value
         return False
@@ -87,7 +107,7 @@ def _grid_from_openpyxl(ws) -> list[list]:
     return grid
 
 
-def _tables_from_grid(sheet: str, grid: list[list], hidden: bool) -> list[Table]:
+def tables_from_grid(sheet: str, grid: list[list], hidden: bool) -> list[Table]:
     width = max((len(r) for r in grid), default=0)
     grid = [list(r) + [None] * (width - len(r)) for r in grid]
     # drop columns that are empty everywhere
@@ -96,6 +116,7 @@ def _tables_from_grid(sheet: str, grid: list[list], hidden: bool) -> list[Table]
     tables: list[Table] = []
     i, n = 0, len(grid)
     titles: list[str] = []
+    title_rows: list[int] = []
     while i < n:
         row = grid[i]
         if _nonempty(row) == 0:
@@ -106,17 +127,20 @@ def _tables_from_grid(sheet: str, grid: list[list], hidden: bool) -> list[Table]
             distinct = list(dict.fromkeys(_cell_str(v) for v in row if _cell_str(v)))
             if len(distinct) <= 2:
                 titles.append(" ".join(distinct))
+                title_rows.append(i + 1)
             i += 1
             continue
         header = [_cell_str(v) for v in row]
+        header_rows = [i + 1]
         j = i + 1
         # two-row header: next row also mostly text and the one after has numbers
         if j < n and _nonempty(grid[j]) >= 2 and _numeric_cells(grid[j]) == 0 and j + 1 < n and _numeric_cells(grid[j + 1]) >= 1:
             sub = [_cell_str(v) for v in grid[j]]
             header = [(f"{a} {b}".strip() if a != b else a) for a, b in zip(header, sub)]
+            header_rows.append(j + 1)
             j += 1
         start = j
-        body = []
+        body, nums = [], []
         blank_run = 0
         while j < n:
             r = grid[j]
@@ -132,15 +156,17 @@ def _tables_from_grid(sheet: str, grid: list[list], hidden: bool) -> list[Table]
                 break
             blank_run = 0
             body.append(r)
+            nums.append(j + 1)
             j += 1
         if body:
-            tables.append(Table(sheet, header, body, start + 1, titles[-3:], hidden))
-        titles = []
+            tables.append(Table(sheet, header, body, nums[0], titles[-3:], hidden, nums, header_rows + title_rows[-3:]))
+        titles, title_rows = [], []
         i = j
     return tables
 
 
-def read_tables(path: str | Path) -> list[Table]:
+def read_grids(path: str | Path) -> list[tuple[str, list[list], bool]]:
+    """[(sheet name, raw cell grid, hidden)] - row i of a grid is Excel row i + 1."""
     p = Path(path)
     ext = p.suffix.lower()
     if ext in (".csv", ".tsv"):
@@ -158,20 +184,23 @@ def read_tables(path: str | Path) -> list[Table]:
                 delim = csv.Sniffer().sniff(text[:5000], delimiters=",;|\t").delimiter
             except csv.Error:
                 pass
-        grid = [row for row in csv.reader(io.StringIO(text or ""), delimiter=delim)]
-        return _tables_from_grid(p.stem, grid, False)
+        return [(p.stem, [row for row in csv.reader(io.StringIO(text or ""), delimiter=delim)], False)]
     if ext == ".xls":
         import pandas as pd
-        out = []
-        for name, df in pd.read_excel(p, sheet_name=None, header=None).items():   # needs xlrd
-            out += _tables_from_grid(name, df.where(df.notna(), None).values.tolist(), False)
-        return out
+        return [(name, df.where(df.notna(), None).values.tolist(), False)       # needs xlrd
+                for name, df in pd.read_excel(p, sheet_name=None, header=None).items()]
     import openpyxl
     wb = openpyxl.load_workbook(p, data_only=True)
-    out = []
-    for ws in wb.worksheets:
-        out += _tables_from_grid(ws.title, _grid_from_openpyxl(ws), ws.sheet_state != "visible")
-    return out
+    return [(ws.title, _grid_from_openpyxl(ws), ws.sheet_state != "visible") for ws in wb.worksheets]
+
+
+def read_tables(path: str | Path) -> list[Table]:
+    return [t for name, grid, hidden in read_grids(path) for t in tables_from_grid(name, grid, hidden)]
+
+
+def non_empty_rows(grid: list[list]) -> list[tuple[int, list]]:
+    """[(Excel row number, cells)] for every row that holds anything."""
+    return [(i + 1, r) for i, r in enumerate(grid) if _nonempty(r)]
 
 
 # =============================================================================== documents

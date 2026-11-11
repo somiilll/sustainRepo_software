@@ -982,3 +982,11 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 
 ## 2026 OCR v2
 See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG records; login lockout fixes; My Tasks filters.
+
+## OCR refinement (Aug 2026)
+- Row-by-row reader (`ocr_extraction/engine/extractor_core/rowscan.py`): code extracts numbers/units/currency/distance, AI interprets only unlabelled numbers, code validates; bare numbers are never rupees. Every non-empty row keeps its Excel row number; header detection no longer treats data lines as headers.
+- Facility matching in `facilities.py`: exact normalised and alias auto-match, approximate only suggests. Upload dialog default applies only to rows without a facility.
+- AI chain in `llm.py`: OpenAI first, Claude second, own keys only. 429 insufficient_quota (no retry, provider skipped 15 min) is told apart from rate limit (backoff retry). Structured logs per call.
+- Row states (`rowstate.py`): extracted, categorised, needs_attention, couldnt_read, failed. Shown as a badge in Review.
+- Tests: `engine/tests/test_rowscan.py`; 133 engine tests pass. Verified live with a fixture through the API; the user's original ocr.xlsx was not available.
+- Backlog: Auth lockout per account+IP (P1), My Tasks filters (P2), CBAM (P1), catalog sync bundle (P1), admin override history wording.

@@ -67,8 +67,8 @@ def event(step: str, provider: str, model: str | None, input_tokens: int = 0, ou
 
 
 def from_llm_call(c: dict) -> dict:
-    """A Claude call recorded by extract.py / layout.py."""
-    return event(c.get("step", "extract"), "anthropic", c.get("model"), c.get("input_tokens", 0), c.get("output_tokens", 0),
+    """An OpenAI/Claude call recorded by extract.py / layout.py / rowscan.py."""
+    return event(c.get("step", "extract"), {"claude": "anthropic"}.get(c.get("provider"), c.get("provider") or "anthropic"), c.get("model"), c.get("input_tokens", 0), c.get("output_tokens", 0),
                  c.get("seconds", 0))
 
 

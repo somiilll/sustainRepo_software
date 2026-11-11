@@ -10,7 +10,7 @@ import threading
 
 from .config import load
 
-DEFAULTS = {"claude": 8, "classifier": 16}
+DEFAULTS = {"claude": 8, "openai": 8, "classifier": 16}
 _sems: dict[tuple[str, int], threading.BoundedSemaphore] = {}
 _lock = threading.Lock()
 

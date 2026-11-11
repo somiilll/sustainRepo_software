@@ -1,4 +1,11 @@
 export const STATUS_LABEL = { ready: 'Ready', needs_attention: 'Needs attention', ask: 'Question', approved: 'Approved', rejected: 'Rejected' };
+export const ROW_STATE = {
+  extracted: { label: 'Extracted', cls: 'bg-sky-50 text-sky-800 border-sky-200' },
+  categorised: { label: 'Categorised', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  needs_attention: { label: 'Needs attention', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+  couldnt_read: { label: "Couldn't read", cls: 'bg-stone-100 text-stone-700 border-stone-300' },
+  failed: { label: 'Failed', cls: 'bg-rose-50 text-rose-800 border-rose-200' },
+};
 export const STATUS_ORDER = ['approved', 'ready', 'needs_attention', 'ask', 'rejected'];
 export const STATUS_CLASS = {
   approved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
