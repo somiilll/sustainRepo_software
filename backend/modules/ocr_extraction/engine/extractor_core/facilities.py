@@ -2,8 +2,8 @@
 
 A facility name seen in a file is matched at three levels - only the first two ever assign a facility by themselves:
   exact      same name once case, spaces and punctuation are ignored      "FAC 1", "fac-1"  -> Fac1     auto
-  alias      a known alias: one the customer confirmed earlier, or the     "Facility 1"     -> Fac1     auto
-             same name with a generic word (facility/plant/site/unit) dropped, when it points to ONE facility
+  alias      an alias recorded on the facility, or one the customer         "Facility 1"     -> Fac1     auto, but only
+             confirmed earlier in an upload                                                              once recorded
   approximate similar spelling                                            "fac11"          -> Fac1     the customer must confirm
 Similarity never assigns a facility; it only produces a suggestion.
 
@@ -21,9 +21,9 @@ from collections import Counter
 from difflib import SequenceMatcher
 
 from . import layout, normalise
+from .config import load
 from .validate import match_facility
 
-GENERIC_WORDS = {"facility", "fac", "plant", "site", "unit", "location", "factory", "works"}
 APPROX_CUTOFF = 0.75
 METHOD = {"exact": "exact name", "alias": "known alias", "approximate": "similar name - please confirm"}
 
@@ -32,32 +32,23 @@ def _key(s: str | None) -> str:
     return re.sub(r"[^0-9a-z]", "", (s or "").lower())
 
 
-def _alias_key(s: str | None) -> str:
-    """'Facility 1', 'Fac-1' and 'Plant 1' all become '1': generic words carry no identity."""
-    return "".join(t for t in re.findall(r"[a-z]+|\d+", (s or "").lower()) if t not in GENERIC_WORDS)
-
-
-def _names(f: dict) -> list[str]:
-    return [f["name"], *f.get("aliases", [])]
-
-
 def match_name(name: str | None, facilities: list[dict], alias_of=None) -> dict | None:
-    """{'id','name','level'} for a facility name seen in a file, or None. level is exact | alias | approximate."""
+    """{'id','name','level'} for a facility name seen in a file, or None. level is exact | alias | approximate.
+    Words such as Plant / Site / Unit / Facility are NOT treated as interchangeable: only an alias someone recorded counts."""
     k = _key(name)
     if not k:
         return None
-    hits = [f for f in facilities if k in {_key(n) for n in _names(f)}]
-    if len(hits) == 1:
-        return {"id": hits[0]["id"], "name": hits[0]["name"], "level": "exact"}
+    for f in facilities:                                                      # (a facility's own name is unique per org)
+        if k == _key(f["name"]):
+            return {"id": f["id"], "name": f["name"], "level": "exact"}
+    listed = [f for f in facilities if k in {_key(a) for a in f.get("aliases", [])}]
+    if len(listed) == 1:
+        return {"id": listed[0]["id"], "name": listed[0]["name"], "level": "alias"}
     fid = alias_of(name) if alias_of else None
     saved = next((f for f in facilities if f["id"] == fid), None) if fid else None
     if saved:
         return {"id": saved["id"], "name": saved["name"], "level": "alias", "saved": True}
-    ak = _alias_key(name)
-    hits = [f for f in facilities if ak and ak in {_alias_key(n) for n in _names(f)}]
-    if len(hits) == 1:
-        return {"id": hits[0]["id"], "name": hits[0]["name"], "level": "alias"}
-    scored = sorted(((SequenceMatcher(None, k, _key(n)).ratio(), f) for f in facilities for n in _names(f)), key=lambda x: -x[0])
+    scored = sorted(((SequenceMatcher(None, k, _key(n)).ratio(), f) for f in facilities for n in [f["name"], *f.get("aliases", [])]), key=lambda x: -x[0])
     if scored and scored[0][0] >= APPROX_CUTOFF and (len(scored) == 1 or scored[1][1]["id"] == scored[0][1]["id"] or scored[1][0] < scored[0][0]):
         return {"id": scored[0][1]["id"], "name": scored[0][1]["name"], "level": "approximate"}
     return None
@@ -164,6 +155,13 @@ def resolve(item: dict, facilities: list[dict], alias_of=None) -> dict:
     return match_facility({**item, "facility_hint": None} if hint else item, facilities)
 
 
+def _mentions_a_facility(text: str) -> bool:
+    """'Facility 1', 'Plant B', 'Site-3': a facility label followed by a short code. Used only to NOTICE that a cell names a
+    facility we do not know yet (so the customer is asked), never to decide which one it is."""
+    labels = "|".join(re.escape(x) for x in load().parsing["facility_labels"])
+    return bool(re.fullmatch(rf"(?:{labels})[\s\-_.:#]*[A-Za-z0-9]{{1,6}}", text.strip(), re.I))
+
+
 def detect_in_text(text: str, facilities: list[dict], alias_of=None) -> tuple[str, str] | None:
     """A facility named inside a free-text cell ('Fac1 - Steel wire'): (facility text, the rest of the cell).
     Exact/alias names are taken anywhere; a similar-looking short token only counts when it looks like a facility code."""
@@ -174,4 +172,6 @@ def detect_in_text(text: str, facilities: list[dict], alias_of=None) -> tuple[st
         if m and (m["level"] != "approximate" or looks_like_code):
             rest = text.replace(cand, " ", 1).strip(" -–:|;,")
             return cand, rest
+        if _mentions_a_facility(cand):
+            return cand, text.replace(cand, " ", 1).strip(" -–:|;,")
     return None

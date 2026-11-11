@@ -405,6 +405,12 @@ def get_job(job_id: str, user: dict = Depends(get_current_user)):
                                   "review", "linked", "row_count", "credits", "usage")}
 
 
+@router.get("/jobs/{job_id}/source-rows")
+def get_source_rows(job_id: str, user: dict = Depends(get_current_user)):
+    """Spreadsheet rows that were deliberately not turned into records (column titles, summary rows, all-zero rows), with the reason."""
+    return _read_job(_org(user), job_id).get("source_rows", [])
+
+
 @router.get("/jobs/{job_id}/rows")
 def get_rows(job_id: str, user: dict = Depends(get_current_user)):
     return _read_job(_org(user), job_id).get("rows", [])

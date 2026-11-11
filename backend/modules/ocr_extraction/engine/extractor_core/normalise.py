@@ -86,8 +86,36 @@ def _data_like(v) -> bool:
     return not _YEAR.fullmatch(s) and bool(_LOOSE_NUMBER.search(_PERIOD_WORDS.sub(" ", s)))
 
 
+def _is_number_cell(v) -> bool:
+    if isinstance(v, bool) or hasattr(v, "strftime"):
+        return False
+    return isinstance(v, (int, float)) or bool(re.fullmatch(r"-?\d[\d,.]*", _cell_str(v)))
+
+
+def _vocab_hits(row) -> int:
+    """Cells that are column titles we know ('Qty', 'Amount (Rs)', 'Apr-25')."""
+    from .layout import ROLE_ALIASES, _clean_header          # late import: layout imports this module
+    from .periods import parse_month
+    known = {a for aliases in ROLE_ALIASES.values() for a in aliases}
+    return sum(1 for v in row if isinstance(v, str) and (_clean_header(v) in known or (parse_month(v, None) or "").startswith(("????", "20"))))
+
+
+def _title_evidence(row) -> bool:
+    """Weighs several signals instead of one rule: a row of titles may hold years, a 1..12 month sequence or 'Scope 1';
+    a row of data ('Paper 100', 'Electricity | 1200 | kWh') may not."""
+    cells = [v for v in row if _cell_str(v)]
+    nums = [v for v in cells if _is_number_cell(v)]
+    ints = sorted(int(float(str(v).replace(",", ""))) for v in nums if float(str(v).replace(",", "")).is_integer())
+    stray = [v for v in nums if not _YEAR.fullmatch(str(int(float(str(v).replace(",", "")))) if float(str(v).replace(",", "")).is_integer() else "x")]
+    in_sequence = len(ints) >= 3 and ints == list(range(ints[0], ints[0] + len(ints)))
+    if stray and not in_sequence:
+        return False
+    data = sum(1 for v in cells if not _is_number_cell(v) and _data_like(v))
+    return not (data / max(len(cells), 1) >= 0.5 and _vocab_hits(row) < data)
+
+
 def _header_like(row, nxt) -> bool:
-    if any(_data_like(v) for v in row):
+    if not _title_evidence(row):
         return False
     ne = _nonempty(row)
     if ne < 2 or len({_cell_str(v) for v in row if _cell_str(v)}) < 2:     # a merged title repeats one value

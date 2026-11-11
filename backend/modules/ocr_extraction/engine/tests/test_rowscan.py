@@ -36,8 +36,11 @@ def test_exact_normalised_match_is_automatic(name):
     assert facilities.match_name(name, FACS)["level"] == "exact"
 
 
-def test_generic_word_alias_is_automatic_but_similarity_is_not():
-    assert facilities.match_name("Facility 1", FACS)["level"] == "alias"
+def test_plant_site_unit_facility_are_not_interchangeable_but_recorded_aliases_work():
+    assert facilities.match_name("Facility 1", FACS) is None and facilities.match_name("Plant 1", FACS) is None
+    with_alias = [{"id": "f1", "name": "Fac1", "aliases": ["Facility 1"]}, {"id": "f2", "name": "Fac2"}]
+    assert facilities.match_name("facility-1", with_alias)["level"] == "alias"
+    assert facilities.match_name("Facility 1", FACS, alias_of=lambda n: "f1")["level"] == "alias"      # confirmed by the customer earlier
     near = facilities.match_name("fac11", FACS)
     assert near["level"] == "approximate" and near["id"] == "f1"
     item = {"facility_hint": "fac11", "source": {"kind": "sheet"}, "facility_default": {"id": "f2", "name": "Fac2"}}
@@ -59,7 +62,7 @@ def test_every_row_keeps_its_number_and_a_state(monkeypatch):
     metrics: dict = {}
     rowscan.interpret(items, metrics, use_ai=True)
     by_row = {i["source"]["row"]: i for i in items}
-    assert zero == 1 and set(by_row) == {2, 5, 7}
+    assert zero == [9] and set(by_row) == {2, 5, 7}
     assert by_row[2]["amount"] == 500000 and by_row[2]["facility_hint"] == "FAC 1" and by_row[2]["read_state"] == "extracted"
     assert by_row[5]["read_state"] == "unreadable"
     assert by_row[7]["processing_error"] and by_row[7]["read_state"] == "failed"      # AI needed but unreachable
@@ -116,3 +119,57 @@ def test_unstructured_lines_are_not_mistaken_for_a_table():
     assert normalise.tables_from_grid("S", grid, False) == []
     real = [["Item", "Qty", "Unit"], ["Diesel", 100, "L"], ["Petrol", 50, "L"]]
     assert normalise.tables_from_grid("S", real, False)[0].row_nums == [2, 3]
+
+
+@pytest.mark.parametrize("text,value,currency", [("Invoice USD 1,234.50 diesel", 1234.5, "USD"), ("Fuel 12.500,75 EUR", 12500.75, "EUR"),
+                                                 ("Strom CHF 1'234.50", 1234.5, "CHF"), ("Transport £2 million", 2e6, "GBP"), ("Steel 45 lakh INR", 4.5e6, "INR")])
+def test_currencies_and_number_formats_are_data_driven(text, value, currency):
+    (c,), _ = rowscan.extract_numbers(text)
+    assert c["kind"] == "amount" and c["currency"] == currency and c["value"] == pytest.approx(value)
+
+
+def test_decimal_comma_files_are_read_by_their_own_convention():
+    from extractor_core.units import detect_decimal_comma
+    assert detect_decimal_comma(["1.234,56 kg", "7,5 l"]) is True and detect_decimal_comma(["1,234.56", "3.5"]) is False
+    assert rowscan.extract_numbers("Diesel 1,234 l", decimal_comma=True)[0][0]["value"] == pytest.approx(1.234)
+    assert rowscan.extract_numbers("Diesel 1,234 l", decimal_comma=False)[0][0]["value"] == 1234
+
+
+def test_titles_with_numbers_are_still_titles_but_data_lines_are_not():
+    from extractor_core import normalise
+    scope = [["Scope 1", "Quantity", "Unit"], ["Diesel", 100, "L"], ["Petrol", 50, "L"]]
+    assert normalise.tables_from_grid("S", scope, False)[0].row_nums == [2, 3]
+    years = [["Item", "FY 2025", "FY 2024"], ["Diesel", 1, 2], ["Gas", 3, 4]]
+    assert len(normalise.tables_from_grid("S", years, False)) == 1
+    data_lines = [["Paper 100", "Fac2"], ["Electricity", 1200, "kWh", "Fac1"], ["Petrol", 50, "ltr", 5400]]
+    assert normalise.tables_from_grid("S", data_lines, False) == []
+
+
+def test_summary_rows_are_told_apart_from_activity_rows_that_start_with_total():
+    from extractor_core.layout import is_summary_row
+    above = [["Diesel", 100], ["Petrol", 50]]
+    assert is_summary_row(["Grand total", 150], lambda: above)
+    assert is_summary_row(["Total", 12345], lambda: above)                    # label only: nothing of its own to record
+    assert is_summary_row(["Total fuel", 150], lambda: above)                 # a sum of the rows above
+    assert not is_summary_row(["Total waste 500 kg", 500], lambda: above)     # real activity that merely starts with 'Total'
+    assert not is_summary_row(["Diesel", 100], lambda: above)
+
+
+def test_every_source_row_gets_a_disposition_and_nothing_is_dropped(tmp_path):
+    import openpyxl
+    from extractor_core.pipeline import Engine
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for r in [["Fuel register"], ["Item", "Qty", "Unit"], ["Diesel", 100, "L"], ["Petrol", 50, "L"], ["Total fuel", 150], ["Total waste 500 kg"],
+              ["Spare", 0, "L"], [None], ["a stray note"]]:
+        ws.append(r)
+    path = tmp_path / "mixed.xlsx"
+    wb.save(path)
+    res = Engine(None, org="t", facilities=[], use_ai=False).run([str(path)], facility_choices={})
+    sheet = res["documents"][0]["sheets"][0]
+    assert sheet["non_empty_rows"] == 8
+    assert sheet["read"] + sheet.get("read_row_by_row", 0) + sheet.get("summary", 0) + sheet.get("zero", 0) + sheet.get("structure", 0) == 8
+    shown = {r["row"]: r["disposition"] for r in res["source_rows"]}
+    assert shown[1] == "structure" and shown[5] == "summary"
+    read_rows = {r["source"]["row"] for r in res["rows"] if not r.get("derived")}
+    assert {3, 4, 6, 9} <= read_rows                                           # 'Total waste 500 kg' and the stray note are kept

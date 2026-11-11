@@ -3,31 +3,27 @@
   1. CODE   finds every number in the row with its unit, currency and distance - never the AI.
   2. AI     says what a number WITHOUT a unit or currency means (quantity? money? passengers? an invoice number?).
   3. CODE   checks the AI answer against the original row. Anything uncertain is left for manual review.
-A bare number is never assumed to be rupees. Every row keeps its Excel row number.
+A bare number is never assumed to be money. Currencies, multipliers and units come from mappings/*.json (any country);
+number formats ('1,234.56', '1.234,56', "1'234.56") are read per sheet. Every row keeps its Excel row number.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Callable
 
 from . import facilities as fac_mod
 from . import llm
 from .periods import parse_date, parse_month
-from .units import normalize_unit
+from . import schema
+from .config import load
+from .units import normalize_unit, parse_locale_number
 
-CURRENCIES = {"₹": "INR", "rs": "INR", "inr": "INR", "rupee": "INR", "rupees": "INR", "$": "USD", "us$": "USD", "usd": "USD", "dollar": "USD",
-              "dollars": "USD", "€": "EUR", "eur": "EUR", "euro": "EUR", "euros": "EUR", "£": "GBP", "gbp": "GBP"}
-MULTIPLIER = {"lakh": 1e5, "lakhs": 1e5, "lac": 1e5, "lacs": 1e5, "crore": 1e7, "crores": 1e7}
 ROLES = ["quantity", "amount", "distance", "weight", "count", "identifier", "unclear"]
 BATCH, MAX_AI_ROWS = 40, 400
 
-_NUM = r"\d[\d,]*(?:\.\d+)?"
-_CUR = r"₹|us\$|\$|€|£|rs\.?|inr|usd|eur|gbp|rupees?|dollars?|euros?"
-CUR_BEFORE = re.compile(rf"(?<![A-Za-z])({_CUR})\s*({_NUM})(?:\s*(lakhs?|lacs?|crores?)\b)?", re.I)
-CUR_AFTER = re.compile(rf"(?<![\w.,])({_NUM})\s*(?:(lakhs?|lacs?|crores?)\s*)?({_CUR})(?![A-Za-z])", re.I)
-NUM_UNIT = re.compile(rf"(?<![\w.,/-])({_NUM})\s*([A-Za-z][A-Za-z0-9³²./]{{0,11}})(?![A-Za-z0-9])")
-BARE = re.compile(rf"(?<![\w.,/-])({_NUM})(?![\w]|[-/]\d)")
+_NUM = r"\d[\d,.'’]*\d|\d"
 DATE_NUM = re.compile(r"\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b")
 DATEISH = re.compile(rf"{DATE_NUM.pattern}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s\-']*\d{{2,4}}\b|\bfy\s*'?\d{{2,4}}(?:\s*[-/]\s*\d{{2,4}})?", re.I)
 
@@ -41,14 +37,29 @@ class Context:
     fy0: int | None = None
     facilities: list[dict] = field(default_factory=list)
     alias_of: Callable | None = None
+    decimal_comma: bool | None = None
+
+
+@lru_cache(maxsize=1)
+def _rx() -> dict:
+    """Patterns built from mappings/parsing.json, so a new currency or multiplier needs no code change."""
+    p = load().parsing
+    cur = "|".join(re.escape(c) for c in sorted(p["currencies"], key=len, reverse=True))
+    mult = "|".join(re.escape(m) for m in sorted(p["multipliers"], key=len, reverse=True))
+    return {
+        "before": re.compile(rf"(?<![A-Za-z])({cur})\.?\s*({_NUM})(?:\s*({mult})\b)?", re.I),
+        "after": re.compile(rf"(?<![\w.,])({_NUM})\s*(?:({mult})\s*)?({cur})(?![A-Za-z])", re.I),
+        "unit": re.compile(rf"(?<![\w.,/-])({_NUM})\s*([A-Za-z][A-Za-z0-9³²./]{{0,11}})(?![A-Za-z0-9])"),
+        "bare": re.compile(rf"(?<![\w.,/-])({_NUM})(?![\w]|[-/]\d)"),
+    }
 
 
 def _currency(token: str) -> str:
-    return CURRENCIES[token.lower().rstrip(".") if token.lower() != "rs." else "rs"]
+    return load().parsing["currencies"][token.lower().rstrip(".") or token.lower()]
 
 
-def _num(s: str) -> float:
-    return float(s.replace(",", "").rstrip("."))
+def _mult(token: str | None) -> float:
+    return float(load().parsing["multipliers"].get((token or "").lower(), 1))
 
 
 def _cand(kind: str, value: float, text: str, col: int | None, unit: str | None = None, currency: str | None = None) -> dict:
@@ -60,14 +71,15 @@ def _unit_cand(value: float, unit: str, text: str, col: int | None) -> dict | No
     if not n:
         return None
     if n["dimension"] == "currency":
-        return _cand("amount", value, text, col, currency=CURRENCIES.get(unit.lower().strip(". "), "INR"))
+        return _cand("amount", value, text, col, currency=load().parsing["currencies"].get(unit.lower().strip(". "), None))
     if n["dimension"] == "distance":
         return _cand("distance", value * n["factor"], text, col, unit="km")
     return _cand("quantity", value, text, col, unit=unit)
 
 
-def extract_numbers(text: str, col: int | None = None) -> tuple[list[dict], str]:
+def extract_numbers(text: str, col: int | None = None, decimal_comma: bool | None = None) -> tuple[list[dict], str]:
     """Every number in a text with its currency/unit, plus the text left over once those pieces are taken out."""
+    rx = _rx()
     taken: list[tuple[int, int]] = []
     cands: list[dict] = []
 
@@ -75,21 +87,23 @@ def extract_numbers(text: str, col: int | None = None) -> tuple[list[dict], str]
         return not any(m.start() < e and s < m.end() for s, e in taken)
 
     def take(m, cand) -> None:
-        taken.append((m.start(), m.end()))
-        cands.append(cand)
+        if cand["value"] is not None:
+            taken.append((m.start(), m.end()))
+            cands.append(cand)
 
-    for m in CUR_BEFORE.finditer(text):
-        if free(m):
-            take(m, _cand("amount", _num(m.group(2)) * MULTIPLIER.get((m.group(3) or "").lower(), 1), m.group(0), col, currency=_currency(m.group(1))))
-    for m in CUR_AFTER.finditer(text):
-        if free(m):
-            take(m, _cand("amount", _num(m.group(1)) * MULTIPLIER.get((m.group(2) or "").lower(), 1), m.group(0), col, currency=_currency(m.group(3))))
-    for m in NUM_UNIT.finditer(text):
-        if free(m) and (c := _unit_cand(_num(m.group(1)), m.group(2), m.group(0), col)):
+    num = lambda tok: parse_locale_number(tok, decimal_comma)   # noqa: E731
+    for m in rx["before"].finditer(text):
+        if free(m) and (v := num(m.group(2))) is not None:
+            take(m, _cand("amount", v * _mult(m.group(3)), m.group(0), col, currency=_currency(m.group(1))))
+    for m in rx["after"].finditer(text):
+        if free(m) and (v := num(m.group(1))) is not None:
+            take(m, _cand("amount", v * _mult(m.group(2)), m.group(0), col, currency=_currency(m.group(3))))
+    for m in rx["unit"].finditer(text):
+        if free(m) and (v := num(m.group(1))) is not None and (c := _unit_cand(v, m.group(2), m.group(0), col)):
             take(m, c)
-    for m in BARE.finditer(text):
-        if free(m):
-            take(m, _cand("bare", _num(m.group(1)), m.group(0), col))
+    for m in rx["bare"].finditer(text):
+        if free(m) and (v := num(m.group(1))) is not None:
+            take(m, _cand("bare", v, m.group(0), col))
     order = sorted(zip(taken, cands), key=lambda x: x[0][0])
     rest, pos = [], 0
     for (s, e), _ in order:
@@ -139,7 +153,7 @@ def _read_cells(cells: list, ctx: Context) -> dict:
             continue
         for m in DATE_NUM.finditer(s):
             out["date"] = out["date"] or parse_date(m.group(0))
-        found, rest = extract_numbers(DATEISH.sub(" ", s), col)
+        found, rest = extract_numbers(DATEISH.sub(" ", s), col, ctx.decimal_comma)
         cands += found
         if rest:
             texts.append(rest)
@@ -172,23 +186,19 @@ def _put(item: dict, role: str, c: dict, unit: str | None, currency: str | None)
 def _item(row_no: int, cells: list, ctx: Context) -> dict | None:
     r = _read_cells(cells, ctx)
     d = r["date"]
-    item = {
-        "source": {**ctx.source, "sheet": ctx.sheet, "row": row_no, "hidden_sheet": ctx.hidden, "scan": "row"},
-        "description": r["text"], "quantity": None, "unit": None, "amount": None, "currency": None, "distance_km": None, "weight_kg": None,
-        "facility_hint": r["facility"], "vendor": None, "invoice_number": None, "hsn": None, "origin": None, "destination": None, "notes": None,
-        "date": d.isoformat() if d else None, "period_hint": r["period"] or (f"{d.year:04d}-{d.month:02d}" if d else None),
-        "context": " | ".join(x for x in [ctx.sheet, ctx.title] if x), "line_confidence": 0.85,
-        "raw": {"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
-        "read_state": "extracted", "read_notes": [], "processing_error": None,
-        "scan": {"candidates": r["cands"], "pending": []},
-    }
+    item = schema.new_item(
+        {**ctx.source, "sheet": ctx.sheet, "row": row_no, "hidden_sheet": ctx.hidden, "scan": "row"},
+        description=r["text"], facility_hint=r["facility"], date=d.isoformat() if d else None,
+        period_hint=r["period"] or (f"{d.year:04d}-{d.month:02d}" if d else None), context=" | ".join(x for x in [ctx.sheet, ctx.title] if x),
+        line_confidence=0.85, raw={"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
+        scan={"candidates": r["cands"], "pending": [], "ai_resolved": False})
     live = [c for c in r["cands"] if c["value"] != 0]
     if not r["cands"] and not r["facility"]:
         item.update(read_state="unreadable", read_notes=["No number found in this row"])
         item["description"] = item["description"] or item["raw"]["row"]
         return item
     if r["cands"] and not live:
-        return None                                              # an all-zero row records nothing (counted as 'zero rows')
+        return None                                              # an all-zero row records nothing; the caller lists it as a zero row
     for kind in ("amount", "quantity", "distance"):
         same = [c for c in live if c["kind"] == kind]
         if len(same) == 1:
@@ -245,13 +255,15 @@ def _apply_answer(item: dict, answers: list[dict]) -> None:
         if not ok or unit and not n:
             notes.append(f"Could not confirm what {c['text']!r} means - please check")
             continue
-        currency = CURRENCIES.get((a["currency"] or c["currency"] or "").lower())
+        currency = (a["currency"] or c["currency"] or "").upper() or None
+        currency = currency if currency in set(load().parsing["currencies"].values()) else None
         if role == "amount" and not currency:
             notes.append(f"Currency not stated for {c['text']!r} - confirm it")
         if role in ("quantity", "weight", "count") and (unit is None or not re.search(rf"\b{re.escape(unit.lower())}\b", row_text)):
             notes.append(f"Unit {'assumed as ' + repr(unit) if unit else 'missing'} for {c['text']!r} - confirm it")
         if role == "count" and not unit:
             unit = "nos"
+        item["scan"]["ai_resolved"] = True
         if not _put(item, "distance" if role == "distance" else "amount" if role == "amount" else "quantity", c, unit, currency):
             notes.append(f"Two values for the same field in this row ({c['text']!r}) - choose which to use")
     left = [i for i in item["scan"]["pending"] if i not in answered and by_id[i]["kind"] == "bare"]
@@ -299,9 +311,11 @@ def interpret(items: list[dict], metrics: dict, use_ai: bool = True) -> None:
         it["read_notes"].append("Too many unstructured rows in this upload for AI to interpret - please check the numbers")
     for it in items:
         _finalise(it)
+        schema.validate_item(it)
 
 
-def scan_rows(rows: list[tuple[int, list]], ctx: Context) -> tuple[list[dict], int]:
-    """(items, zero_rows) for [(excel row number, cells)]. One item per row, whatever the row holds."""
-    items = [_item(no, cells, ctx) for no, cells in rows]
-    return [i for i in items if i], sum(1 for i in items if i is None)
+def scan_rows(rows: list[tuple[int, list]], ctx: Context) -> tuple[list[dict], list[int]]:
+    """(items, zero row numbers) for [(excel row number, cells)]. One item per row, except rows holding only zeros,
+    which record nothing and are reported by number so they are never silently dropped."""
+    items = [(no, _item(no, cells, ctx)) for no, cells in rows]
+    return [i for _, i in items if i], [no for no, i in items if i is None]

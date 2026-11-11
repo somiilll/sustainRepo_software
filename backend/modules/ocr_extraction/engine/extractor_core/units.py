@@ -28,6 +28,43 @@ def parse_number(val) -> float | None:
     return -v if neg else v
 
 
+def parse_locale_number(token: str, decimal_comma: bool | None = None) -> float | None:
+    """'1,50,000.50' / '1.234,56' / "1'234.56" / '1,234' -> a float. `decimal_comma` (from detect_decimal_comma) settles the
+    one truly ambiguous case, a single separator followed by three digits ('1,234' is 1234 or 1.234)."""
+    t = str(token).strip().replace("'", "").replace("’", "")
+    if not t or not t[0].isdigit():
+        return None
+    has_c, has_d = "," in t, "." in t
+    if has_c and has_d:
+        dec = "," if t.rfind(",") > t.rfind(".") else "."
+    elif has_c or has_d:
+        sep = "," if has_c else "."
+        parts = t.split(sep)
+        three = len(parts) == 2 and len(parts[1]) == 3
+        if len(parts) > 2 or (three and (decimal_comma is False or (decimal_comma is None and sep == ","))):
+            dec = None                                       # repeated, or 'x,yyy' in an English-style file: grouping
+        elif three and decimal_comma is True and sep == ".":
+            dec = None
+        else:
+            dec = sep
+    else:
+        dec = None
+    t = t.replace(",", "").replace(".", "") if dec is None else "".join(ch for ch in t if ch.isdigit() or ch == dec).replace(dec, ".")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def detect_decimal_comma(texts) -> bool | None:
+    """True/False when a sheet's own numbers show its convention ('1.234,56' vs '1,234.56'); None when they do not."""
+    eu = en = 0
+    for s in texts:
+        eu += len(re.findall(r"\d\.\d{3},\d|\d,\d{1,2}(?!\d)", s))
+        en += len(re.findall(r"\d,\d{3}\.\d|\d\.\d{1,2}(?![\d,])", s))
+    return True if eu > en else False if en > eu else None
+
+
 def _clean(u: str) -> str:
     u = str(u).strip().lower().replace("³", "3").replace("²", "2")
     u = re.sub(r"^(in|per)\s+", "", u)

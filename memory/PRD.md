@@ -990,3 +990,12 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Row states (`rowstate.py`): extracted, categorised, needs_attention, couldnt_read, failed. Shown as a badge in Review.
 - Tests: `engine/tests/test_rowscan.py`; 133 engine tests pass. Verified live with a fixture through the API; the user's original ocr.xlsx was not available.
 - Backlog: Auth lockout per account+IP (P1), My Tasks filters (P2), CBAM (P1), catalog sync bundle (P1), admin override history wording.
+
+## OCR generalisation (Aug 2026)
+- Adaptive structure detection (`normalise._title_evidence`, `layout.spec_quality`): header rows judged on several signals (stray numbers, year/1..12 sequences, known column titles, data-like share); a mapped layout must yield rows and pass 3 of 4 independent checks, otherwise its rows are read row by row. AI score is one signal only.
+- Summary rows (`layout.is_summary_row`): "Total" rows are skipped only when label-only or equal to the sum above; "Total waste 500 kg" is kept. Labels live in `mappings/parsing.json`.
+- Facilities: exact normalised name, recorded aliases (facility `aliases` or customer-confirmed), approximate = suggestion only. Plant/Site/Unit/Facility are NOT interchangeable; `facility_labels` only helps notice an unknown facility mention so the customer is asked.
+- International parsing: currencies, multipliers, summary and facility labels in `mappings/parsing.json`; per-sheet decimal convention (`units.parse_locale_number`, `detect_decimal_comma`); units remain in `unit_aliases.json`.
+- Common schema (`schema.py`): all sheet readers build items with `new_item` and pass `validate_item` (signals, not AI confidence).
+- No silent row loss: every non-empty row gets a disposition (read, read_row_by_row, structure, summary, zero); non-read rows are stored as `source_rows` and served by `GET /api/ocr-invoice/jobs/{id}/source-rows`.
+- Tests: 142 engine tests pass (`engine/tests/test_rowscan.py` extended). Thresholds (header data share 0.5, yield 0.4, 3-of-4 checks, similarity 0.75) are chosen, not validated on a real corpus.

@@ -11,10 +11,11 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import extract, layout, llm, normalise, rowscan, rowstate, usage
+from . import extract, layout, llm, normalise, rowscan, rowstate, schema, usage
 from .config import load
 from .decider.cascade import Classifier
 from .derive import co2_share, companion_specs
@@ -24,6 +25,7 @@ from .group import group_items
 from . import plausibility
 from .facilities import apply_choice, resolve as resolve_facility
 from .periods import fy_start_year
+from .units import detect_decimal_comma
 from .validate import doc_key, finish, resolve_period, row_checks
 
 UNREADABLE_KEY = "__unreadable__"
@@ -52,32 +54,55 @@ class Engine:
 
     # ------------------------------------------------------------------ ingest
     def _ingest_sheet(self, path: Path, src: dict, metrics: dict) -> tuple[list[dict], dict]:
-        """Tables are read with their layout; every other non-empty row is read one by one, so no row is lost."""
-        info = {"tables": [], "warnings": [], "sheets": []}
+        """Tables are read with their detected layout; every other non-empty row is read one by one. Each non-empty row
+        ends with exactly one disposition (read / read_row_by_row / structure / summary / zero) - none is dropped silently."""
+        info = {"tables": [], "warnings": [], "sheets": [], "source_rows": []}
         items: list[dict] = []
         for sheet, grid, hidden in normalise.read_grids(path):
             rows = normalise.non_empty_rows(grid)
+            text_of = {no: " | ".join(str(v).strip() for v in cells if v is not None and str(v).strip()) for no, cells in rows}
+            fate: dict[int, tuple[str, str | None]] = {}
             by_layout: list[dict] = []
-            structure: set[int] = set()
             for t in normalise.tables_from_grid(sheet, grid, hidden):
                 spec = layout.map_table(t, self.org, self.memory, self.use_ai and len(t.rows) >= 3, metrics)
                 got = layout.apply_spec(t, spec, src) if spec["shape"] != "unknown" else []
+                quality = layout.spec_quality(t, spec, got) if got else {"ok": False, "signals": {}}
+                if got and not quality["ok"]:
+                    failed = ", ".join(k for k, ok in quality["signals"].items() if not ok)
+                    info["warnings"].append(f"Sheet '{sheet}' row {t.first_row}: the detected table layout did not hold up ({failed}) - its rows were read one by one")
+                    got = []
+                elif got:
+                    layout.remember(self.memory, self.org, t, spec)
+                    fate.update({no: ("structure", "Column titles or sheet title") for no in t.meta_rows})
                 info["tables"].append({"sheet": t.sheet, "first_row": t.first_row, "rows": len(t.rows), "shape": spec["shape"],
-                                       "layout_source": spec["source"], "layout_score": round(spec.get("score", 0), 2),
-                                       "items": len(got), "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
+                                       "layout_source": spec["source"], "layout_score": round(spec.get("score", 0), 2), "items": len(got),
+                                       "checks": quality["signals"], "columns": {k: t.header[v] for k, v in spec.get("columns", {}).items() if v is not None and v < t.ncols}})
                 info["warnings"] += spec.get("warnings", [])
-                if got:
-                    structure.update(t.meta_rows)
                 by_layout += got
-            covered = {it["source"]["row"] for it in by_layout}
-            totals = {no for no, cells in rows if no not in covered and layout.is_total_row(cells)}
-            ctx = rowscan.Context(sheet=sheet, source=src, hidden=hidden, fy0=fy_start_year(sheet), facilities=self.facilities, alias_of=self._alias_of)
-            scanned, zero_rows = rowscan.scan_rows([(no, c) for no, c in rows if no not in covered | structure | totals], ctx)
+            fate.update({it["source"]["row"]: ("read", None) for it in by_layout})
+            left = []
+            for no, cells in rows:
+                if no in fate:
+                    continue
+                if layout.is_summary_row(cells, lambda no=no: grid[:no - 1]):
+                    fate[no] = ("summary", "Summary row - restates the rows above, so it is not counted again")
+                else:
+                    left.append((no, cells))
+            ctx = rowscan.Context(sheet=sheet, source=src, hidden=hidden, fy0=fy_start_year(sheet), facilities=self.facilities, alias_of=self._alias_of,
+                                  decimal_comma=detect_decimal_comma(str(v) for _, c in rows for v in c if isinstance(v, str)))
+            scanned, zero_rows = rowscan.scan_rows(left, ctx)
+            fate.update({no: ("zero", "Every number in the row is 0 - nothing to record") for no in zero_rows})
+            fate.update({it["source"]["row"]: ("read_row_by_row", None) for it in scanned})
             rowscan.interpret(scanned, metrics, self.use_ai)
-            info["sheets"].append({"sheet": sheet, "non_empty_rows": len(rows), "read_by_layout": len(covered), "read_row_by_row": len(scanned),
-                                   "header_or_title_rows": len(structure), "total_rows": len(totals), "zero_rows": zero_rows})
-            if scanned and not by_layout:
-                info["warnings"].append(f"Sheet '{sheet}': no table layout recognised - its {len(scanned)} rows were read one by one")
+            for it in by_layout:
+                schema.validate_item(it)
+            for no in (n for n, _ in rows if n not in fate):             # cannot happen; if it ever does it is reported, not hidden
+                fate[no] = ("unaccounted", "This row was not processed")
+            counts = Counter(d for d, _ in fate.values())
+            mode = "unstructured" if not by_layout else "structured" if counts["read"] >= 0.8 * len(rows) else "mixed"
+            info["sheets"].append({"sheet": sheet, "mode": mode, "non_empty_rows": len(rows), **counts})
+            info["source_rows"] += [{"file": src.get("file"), "sheet": sheet, "row": no, "disposition": d, "reason": why, "text": text_of[no][:200]}
+                                    for no, (d, why) in sorted(fate.items()) if d not in ("read", "read_row_by_row")]
             items += by_layout + scanned
         return items, info
 
@@ -333,6 +358,7 @@ class Engine:
                            today=self.reference_date)
         for r in rows:
             r["state"] = rowstate.of(r, item_of[r["item_id"]])
+        source_rows = [r for d in docs for r in d.pop("source_rows", [])]
         for d in docs:
             d["rows"] = by_doc.get(d["doc_id"], 0)
         if self.memory is not None:
@@ -353,7 +379,7 @@ class Engine:
         for r in rows:
             status_counts[r["review_status"]] = status_counts.get(r["review_status"], 0) + 1
         result = {
-            "job_id": job_id, "mode": mode, "documents": docs, "rows": rows, "skipped": skipped,
+            "job_id": job_id, "mode": mode, "documents": docs, "rows": rows, "skipped": skipped, "source_rows": source_rows,
             "items": items, "decisions": decisions,
             "usage": {"events": events, **usage.summarise(events)},
             "metrics": {

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+from functools import lru_cache
 
-from . import llm
+from . import llm, schema
 from .config import load
-from .normalise import Table, _cell_str
+from .normalise import Table, _cell_str, _data_like
 from .periods import fy_start_year, parse_date, parse_month
 from .units import normalize_unit, parse_number, unit_from_header
 
@@ -41,12 +42,41 @@ ROLE_ALIASES = {
     "category_hint": ["category", "type", "expense type", "head", "account head", "ledger name", "nature", "expense head", "sub category", "scope"],
     "vehicle": ["vehicle", "vehicle no", "vehicle number", "equipment", "asset", "dg set"],
 }
-MIN_AI_LAYOUT_SCORE = 0.5
-TOTAL_ROW = re.compile(r"^\s*(grand\s*)?(sub\s*)?total\b|^\s*sum\b|^\s*net\s+total|^\s*total\s*:", re.I)
+MIN_YIELD = 0.4
 
 
-def is_total_row(row) -> bool:
-    return bool(TOTAL_ROW.search(" ".join(_cell_str(v) for v in row[:4])))
+@lru_cache(maxsize=1)
+def _summary_rx() -> re.Pattern:
+    labels = sorted(load().parsing["summary_labels"], key=len, reverse=True)
+    return re.compile(r"^\s*(?:" + "|".join(re.escape(x) for x in labels) + r")\b\s*[:.\-–]?", re.I)
+
+
+def is_summary_row(row, above) -> bool:
+    """A row that only restates other rows. 'Grand total | 1234' is one. 'Total waste 500 kg' is NOT unless its figure equals the
+    sum of the numbers above it - so real activity lines that merely start with 'Total' are kept. `above()` gives the rows above."""
+    label = " ".join(v.strip() for v in row[:4] if isinstance(v, str) and v.strip())
+    m = _summary_rx().match(label)
+    if not m:
+        return False
+    nums = [(c, parse_number(v)) for c, v in enumerate(row) if _is_number(v)]
+    if not nums or not any(ch.isalpha() for ch in label[m.end():]):
+        return True
+    prev = above()
+    for c, v in nums:
+        col = []
+        for r in reversed(prev):
+            x = parse_number(_get(r, c)) if _is_number(_get(r, c)) else None
+            if x is None and isinstance(_get(r, c), str) and _get(r, c).strip():
+                break
+            if x is not None:
+                col.append(x)
+        if len(col) >= 2 and abs(sum(col) - v) <= 0.005 * max(abs(v), 1):
+            return True
+    return False
+
+
+def _is_number(v) -> bool:
+    return not isinstance(v, bool) and parse_number(v) is not None and not hasattr(v, "strftime")
 
 
 def _clean_header(h: str) -> str:
@@ -219,14 +249,34 @@ def map_table(t: Table, org: str, memory, use_llm: bool, metrics: dict) -> dict:
         try:
             spec2, usage = llm_spec(t)
             metrics.setdefault("llm_calls", []).append({"step": "layout", **usage})
-            if spec2["shape"] != "unknown" and spec2["score"] >= max(spec["score"], MIN_AI_LAYOUT_SCORE):
+            if spec2["shape"] != "unknown" and spec2["score"] >= spec["score"]:
                 spec = spec2
         except llm.AIUnavailable as e:
             metrics.setdefault("ai_failures", []).extend(e.failures)
             spec.setdefault("warnings", []).append(f"Layout AI unavailable: {e}")
-    if memory is not None and spec["shape"] != "unknown" and spec["score"] >= 0.75:
-        memory.save_layout(org, fp, _jsonable(spec))
     return spec
+
+
+def remember(memory, org: str, t: Table, spec: dict) -> None:
+    """Keep a layout for next time - only after it proved itself on the sheet (see spec_quality)."""
+    if memory is not None and spec["source"] != "memory" and spec["shape"] != "unknown" and spec["score"] >= 0.75:
+        memory.save_layout(org, fingerprint(t), _jsonable(spec))
+
+
+def spec_quality(t: Table, spec: dict, items: list[dict]) -> dict:
+    """Does this mapped layout really fit the sheet? Four independent signals - the AI's own score is only one of them:
+    yield (enough rows turned into items), value columns hold numbers, the mapped headers are titles rather than data,
+    and the layout is remembered or scored well. It must yield and pass at least three signals."""
+    cols = spec.get("columns", {})
+    rows_with_items = len({it["source"]["row"] for it in items})
+    value_cols = [c for k in ("quantity", "amount", "distance_km") if (c := cols.get(k)) is not None]
+    signals = {
+        "yield": rows_with_items / max(len(t.rows), 1) >= MIN_YIELD,
+        "value_columns_numeric": all(_col_numeric_share(t, c) >= 0.5 for c in value_cols) if value_cols else spec["shape"] != "ledger",
+        "headers_are_titles": not any(_data_like(t.header[c]) for c in cols.values() if isinstance(c, int) and c < t.ncols),
+        "layout_trusted": spec["source"] == "memory" or spec.get("score", 0) >= 0.6,
+    }
+    return {"ok": signals["yield"] and sum(signals.values()) >= 3, "signals": signals}
 
 
 # ------------------------------------------------------------------------------- apply the spec to every row
@@ -249,8 +299,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
     def base(r_idx: int, row) -> dict:
         d = parse_date(_get(row, cols.get("date"))) if cols.get("date") is not None else None
         per = parse_month(_get(row, cols.get("period")), fy0) if cols.get("period") is not None else None
-        return {
-            "source": {**source, "sheet": t.sheet, "row": t.row_nums[r_idx], "hidden_sheet": t.hidden_sheet},
+        return schema.new_item({**source, "sheet": t.sheet, "row": t.row_nums[r_idx], "hidden_sheet": t.hidden_sheet}, **{
             "facility_hint": _cell_str(_get(row, cols.get("facility"))) or ctx.get("facility") or None,
             "vendor": _cell_str(_get(row, cols.get("vendor"))) or None,
             "invoice_number": _cell_str(_get(row, cols.get("invoice_number"))) or None,
@@ -265,10 +314,10 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
             "context": title_ctx, "line_confidence": 0.97, "currency": _cell_str(_get(row, cols.get("currency"))) or None,
             "raw": {k: v for k, v in {"quantity": raw_text(row, "quantity"), "amount": raw_text(row, "amount"),
                                       "date": raw_text(row, "date")}.items() if v},
-        }
+        })
 
     for i, row in enumerate(t.rows):
-        if is_total_row(row):
+        if is_summary_row(row, lambda i=i: t.rows[:i]):
             continue
         if spec["shape"] == "ledger":
             desc = _cell_str(_get(row, cols.get("description"))) or spec.get("constant_description") or ""

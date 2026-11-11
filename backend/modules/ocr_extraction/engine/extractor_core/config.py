@@ -84,6 +84,7 @@ class Config:
     policy: dict
     units: dict
     hsn_rules: list[dict]
+    parsing: dict
 
 
 @lru_cache(maxsize=1)
@@ -94,4 +95,5 @@ def load() -> Config:
     hsn.sort(key=lambda r: -len(r["code_prefix"]))      # most specific code first
     return Config(taxonomy=Taxonomy(_json("activity_taxonomy.json")),
                   formulas=_json("formula_fields.json")["formulas"],
-                  policy=_json("policy.json"), units=_json("unit_aliases.json"), hsn_rules=hsn)
+                  policy=_json("policy.json"), units=_json("unit_aliases.json"), hsn_rules=hsn,
+                  parsing=_json("parsing.json"))
