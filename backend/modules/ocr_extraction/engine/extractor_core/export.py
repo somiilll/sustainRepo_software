@@ -36,7 +36,7 @@ def to_record(row: dict) -> dict:
         "evidence": {"file": row.get("file"), "file_hash": (row.get("source") or {}).get("file_hash"),
                      "page": (row.get("source") or {}).get("page"), "sheet": (row.get("source") or {}).get("sheet"),
                      "excel_row": (row.get("source") or {}).get("row"), "quotes": row.get("evidence", [])[:3]},
-        "classification": {"source": row["decision"].get("source"), "confidence": row["confidence"]["overall"],
+        "classification": {"source": row["decision"].get("source"), "level": row["basis"]["classification"]["level"], "tags": row["basis"]["classification"]["tags"],
                            "reason": row["decision"].get("reason")},
         "review": row.get("review") or {"state": row.get("review_status")},
     }

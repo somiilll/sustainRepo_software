@@ -19,7 +19,7 @@ export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
         <DialogHeader><DialogTitle>Why this classification</DialogTitle></DialogHeader>
         <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-2 text-sm">
           {rowKV('Activity', <b>{row.activity_label || '-'}</b>)}
-          {rowKV('Decided by', `${SOURCE_LABEL[d.source] || d.source} · ${Math.round(100 * (d.confidence || 0))}%`)}
+          {rowKV('Decided by', `${SOURCE_LABEL[d.source] || d.source}${d.level ? ' · ' + d.level : ''}${(d.tags || []).length ? ' (' + d.tags.map((t) => t.replace(/_/g, ' ')).join(', ') + ')' : ''}`)}
           {rowKV('Reason', d.reason)}
           {d.alternatives?.length > 0 && rowKV('Alternatives', d.alternatives.map((a) => `${actLabel(a.activity_id)}${a.p != null ? ` (${Math.round(100 * a.p)}%)` : ''}`).join(', '))}
           {rowKV('GHG', `${row.ghg?.scope_label} › ${row.ghg?.category_label} › ${row.ghg?.subcategory_label}`)}
@@ -27,7 +27,7 @@ export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
           {rowKV('Formula', `${c.formula_label || 'none'} (${c.ef_method || '-'})`)}
           {rowKV('Fields', <code className="whitespace-pre-wrap text-xs">{JSON.stringify(c.fields || {}, null, 1)}</code>)}
           {row.trust && rowKV('Trust', <><TrustBadge t={row.trust} /><ul className="mt-1 list-disc pl-5 text-xs text-stone-600">{row.trust.reasons.map((x) => <li key={x}>{x}</li>)}</ul></>)}
-          {rowKV('Scores', Object.entries(row.confidence || {}).map(([k, v]) => `${k} ${Math.round(100 * v)}%`).join(' · '))}
+          {rowKV('Basis', Object.entries(row.basis || {}).map(([k, v]) => `${k}: ${v.level}${(v.tags || []).length ? ' (' + v.tags.map((t) => t.replace(/_/g, ' ')).join(', ') + ')' : ''}`).join(' · '))}
           {rowKV('Facility match', `${row.facility?.name || 'none'} (${row.facility?.method})`)}
           {rowKV('Period', `${row.reporting_period || 'none'} (${row.period?.method})`)}
           {rowKV('All checks', (row.checks || []).map((x) => <div key={x.message} className={x.level === 'error' ? 'text-rose-700' : x.level === 'warn' ? 'text-amber-700' : 'text-stone-500'}>{x.level}: {x.message}</div>))}

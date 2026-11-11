@@ -97,10 +97,12 @@ class ClaudeChooser(Provider):
         return llm.enabled()
 
     def decide(self, state, questions):
-        props = {q.name: llm.obj({"choice": {"type": "string", "enum": list(q.choices)}, "confidence": {"type": "number"}})
-                 for q in questions}
-        system = ("You classify one line item from a company's invoices or registers for a GHG inventory. Answer every "
-                  "question with exactly one of its allowed values and a confidence between 0 and 1.")
+        props = {q.name: llm.obj({"choice": {"type": "string", "enum": list(q.choices)},
+                                  "level": {"type": "string", "enum": ["certain", "likely", "uncertain", "guess"]},
+                                  "tags": {"type": "array", "items": {"type": "string", "enum": FACTOR_TAGS}}}) for q in questions}
+        system = ("You identify which existing emission factor best matches one line item from a company's invoices or registers. Use the company and "
+                  "facility context. Answer every question with exactly one allowed value, a level (certain = the wording names it outright, likely = strong "
+                  "evidence, uncertain = plausible but another option could fit, guess) and short evidence tags. Never give a number.")
         text = state + "\n\nQuestions:\n" + "\n".join(
             f"- {q.name}: {q.instructions}\n" + "\n".join(f"    {v}: {d}" for v, d in q.choices.items()) for q in questions)
         t0 = time.time()
@@ -108,8 +110,10 @@ class ClaudeChooser(Provider):
             d, usage = llm.call_provider("claude", load().policy["models"]["classify_fallback"], system, text, llm.obj(props), max_tokens=1500, task="classify_fallback")
         except llm.AIUnavailable as e:
             raise ProviderError(str(e)) from e
-        out = {q.name: Answer(d[q.name]["choice"], min(float(d[q.name]["confidence"]), 0.85)) for q in questions}
+        out = {q.name: Answer(d[q.name]["choice"], None, {}, d[q.name]["level"], d[q.name].get("tags") or []) for q in questions}
         return out, {"provider": self.name, "seconds": round(time.time() - t0, 3), **usage}
 
 
+FACTOR_TAGS = ["exact_name", "product_inferred", "material_inferred", "brand_unknown", "org_context_used", "ambiguous_between_options",
+               "needs_disposal_route", "no_good_option", "spend_proxy"]
 PROVIDERS = {"jev": JevOpenRouter, "openai_decisions": OpenAIDecisions, "claude": ClaudeChooser}

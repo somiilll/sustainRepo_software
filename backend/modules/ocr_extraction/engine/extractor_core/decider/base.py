@@ -15,8 +15,10 @@ class Question:
 @dataclass
 class Answer:
     choice: str
-    confidence: float
+    confidence: float | None
     probabilities: dict[str, float] = field(default_factory=dict)
+    level: str | None = None          # chat models answer with a level and evidence tags, not a number
+    tags: list[str] = field(default_factory=list)
 
 
 class ProviderError(Exception):

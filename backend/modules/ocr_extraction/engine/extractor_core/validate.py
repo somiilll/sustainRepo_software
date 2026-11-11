@@ -143,22 +143,62 @@ def row_checks(row: dict, item: dict) -> list[dict]:
     return c
 
 
+ORDER = ["certain", "likely", "uncertain", "guess"]
+FACILITY_LEVEL = {"chosen by you": "certain", "you chose this before": "certain", "default for rows without a facility": "certain",
+                  "exact name": "certain", "known alias": "certain", "similar name - please confirm": "uncertain"}
+PERIOD_LEVEL = {"billing period": "certain", "period column": "certain", "invoice date": "likely"}
+
+
+def _worse(a: str, b: str) -> str:
+    return max(a, b, key=ORDER.index)
+
+
+def decision_basis(d: dict) -> dict:
+    """What the classification rests on. Factor decisions carry the AI's own level and tags; the older flows (rules, Jev, memory) are described by method."""
+    if d.get("level"):
+        return {"level": d["level"], "tags": d.get("tags") or []}
+    src, c = d.get("source") or "", d.get("confidence") or 0
+    if src == "user" or (src == "memory" and d.get("memory_source") == "user"):
+        return {"level": "certain", "tags": ["confirmed_by_you"]}
+    if src == "memory":
+        return {"level": "likely", "tags": ["remembered_ai_answer"]}
+    if src == "none" or not d.get("activity_id"):
+        return {"level": "none", "tags": ["no_match"]}
+    tags = ["rules_and_ai_agree"] if src.startswith("rules+") else [SOURCE_NAME.get(src, src)]
+    return {"level": "certain" if c >= 0.9 else "likely" if c >= 0.6 else "uncertain", "tags": tags}
+
+
+def read_basis(row: dict, item: dict) -> dict:
+    if row["calc"].get("formula_id") is None:
+        return {"level": "none", "tags": ["missing_value"]}
+    ai = (item.get("scan") or {}).get("ai_levels") or []
+    level, tags = "certain", ["read_from_row"]
+    for a in ai:
+        level, tags = _worse(level, a["level"]), (a.get("tags") or ["ai_read"]) if _worse(level, a["level"]) == a["level"] else tags
+    if item.get("read_notes"):
+        level, tags = _worse(level, "uncertain"), tags + ["see_notes"]
+    if any("quantity" in f.lower() or f.lower() in ("unit", "amount") for f in item.get("low_confidence_fields") or []):
+        level, tags = _worse(level, "uncertain"), tags + ["unclear_on_document"]
+    return {"level": level, "tags": tags}
+
+
 def finish(row: dict, item: dict) -> dict:
     pol = load().policy["review"]
-    q_conf = float(item.get("line_confidence") or 0.9)
-    if any(f.lower() in ("quantity", "unit", "amount") or "quantity" in f.lower() for f in item.get("low_confidence_fields") or []):
-        q_conf = min(q_conf, 0.7)
-    if row["calc"].get("formula_id") is None:
-        q_conf = min(q_conf, 0.5)
-    conf = {"classification": row["decision"]["confidence"], "quantity": round(q_conf, 3),
-            "facility": row["facility"]["confidence"], "period": row["period"]["confidence"]}
-    conf["overall"] = round(min(conf.values()), 3)
-    row["confidence"] = conf
+    fm, pm = row["facility"].get("method") or "", row["period"].get("method") or ""
+    plevel = PERIOD_LEVEL.get(pm, "none")
+    if pm == "invoice date" and (row["period"].get("confidence") or 1) < 0.9:
+        plevel = "uncertain"
+    basis = {"classification": decision_basis(row["decision"]), "quantity": read_basis(row, item),
+             "facility": {"level": FACILITY_LEVEL.get(fm, "none") if row["facility"].get("id") else "none", "tags": [fm] if fm else []},
+             "period": {"level": plevel, "tags": [pm] if pm and pm != "none" else []}}
+    row["basis"] = basis
     row["read_tags"] = (item.get("scan") or {}).get("ai_levels") or []
     levels = {c["level"] for c in row["checks"]}
-    if row["decision"].get("question") or conf["classification"] < pol["ask_below"]:
+    good = lambda k: basis[k]["level"] in ("certain", "likely")      # noqa: E731
+    if row["decision"].get("question") or basis["classification"]["level"] in ("uncertain", "guess", "none"):
         row["review_status"] = "ask"
-    elif conf["overall"] >= pol["ready_threshold"] and not ({"warn", "error"} & levels if pol["ready_requires_no_warnings"] else {"error"} & levels):
+    elif good("classification") and good("quantity") and basis["facility"]["level"] != "none" and basis["period"]["level"] != "none" \
+            and not ({"warn", "error"} & levels if pol["ready_requires_no_warnings"] else {"error"} & levels):
         row["review_status"] = "ready"
     else:
         row["review_status"] = "needs_attention"
@@ -170,17 +210,17 @@ TRUST_LABEL = {"high": "High", "check": "Check", "needs_you": "Needs you"}
 
 
 def trust(row: dict) -> dict:
-    """A plain label instead of a made-up percentage: {'level': high | check | needs_you, 'label', 'reasons': [..]}.
+    """A plain label with reasons, no percentages: {'level': high | check | needs_you, 'label', 'reasons': [..]}.
 
-    High      the method(s) agree or you confirmed it before, and nothing looks odd.
-    Check     only one method decided, the answer was remembered but never confirmed, or there is a warning.
-    Needs you a question is open, a value is missing, the methods disagree, or a check failed.
-    Percentages come later, once enough reviewed lines show how often each level is right."""
-    d, conf, checks = row["decision"], row["confidence"], row.get("checks") or []
-    src, reason = d.get("source") or "", d.get("reason") or ""
+    High      identified outright (exact name, your confirmation, or the AI says certain) and nothing looks odd.
+    Check     the AI says likely, only one method decided, or there is a warning.
+    Needs you a question is open, a value is missing, or a check failed."""
+    d, b, checks = row["decision"], row["basis"], row.get("checks") or []
     needs: list[str] = []
     look: list[str] = []
     good: str | None = None
+    cl = b["classification"]
+    tags = ", ".join(t.replace("_", " ") for t in cl["tags"][:3])
 
     if row.get("review_status") == "ask":
         needs.append(d.get("question") or "We are not sure what this item is")
@@ -189,31 +229,17 @@ def trust(row: dict) -> dict:
     if not row["period"].get("reporting_period"):
         needs.append("No period found")
     needs += [c["message"] for c in checks if c["level"] == "error"]
-    if "please check" in reason:
+    if "please check" in (d.get("reason") or ""):
         needs.append("Two methods gave different answers")
 
-    if src == "memory":
-        if d.get("memory_source") == "user":
-            good = "You confirmed this item before" + (" (any vendor)" if d.get("memory_scope") == "all vendors" else "")
-        else:
-            look.append("Remembered from an earlier AI answer that nobody has confirmed yet")
-    elif src == "user":
-        good = "Set by you"
-    elif src.startswith("rules+"):
-        other = src.split("+", 1)[1]
-        good = "Rules and " + SOURCE_NAME.get(other, other) + " agree"
-    elif src == "rules":
-        if conf["classification"] >= 0.95:
-            good = "Matched a clear rule"
-        else:
-            look.append("Only a rule decided this, and it is not a strong match")
-    else:
-        look.append(f"Only one method decided this ({SOURCE_NAME.get(src, src)})")
-
-    look += [c["message"] for c in checks if c["level"] == "warn" and c["code"] != "facility_unmatched"]   # facility is shown as its own setup step
-    if conf["quantity"] < 0.9:
+    if cl["level"] == "certain":
+        good = "Matched exactly" if "exact_name" in cl["tags"] else "You confirmed this item before" if "confirmed_by_you" in cl["tags"] else f"Clearly identified ({tags})"
+    elif cl["level"] == "likely":
+        look.append(f"Likely match ({tags}) - worth a glance")
+    look += [c["message"] for c in checks if c["level"] == "warn" and c["code"] != "facility_unmatched"]
+    if b["quantity"]["level"] in ("uncertain", "guess"):
         look.append("The quantity was hard to read")
-    if conf["period"] < 0.9 and row["period"].get("reporting_period"):
+    if b["period"]["level"] in ("likely", "uncertain") and row["period"].get("reporting_period"):
         look.append("The period is a best guess")
 
     if needs:

@@ -99,9 +99,9 @@ class Classifier:
         self.disabled: dict[str, str] = {}   # provider -> why it was switched off for the rest of this job
 
     # ------------------------------------------------------------------ AI
-    def _ask(self, state: str, questions: list[Question]):
+    def _ask(self, state: str, questions: list[Question], only: list[str] | None = None):
         errors = []
-        for p in self.providers:
+        for p in ([PROVIDERS[n]() for n in only] if only else self.providers):
             if not p.available() or p.name in self.disabled:
                 continue
             try:
@@ -159,41 +159,20 @@ class Classifier:
             return None
 
     @staticmethod
-    def _factor_decision(entry: dict, conf: float, source: str, reason: str, alts: list[dict]) -> dict:
-        return {"activity_id": None, "factor_match": slim(entry), "confidence": round(conf, 3), "source": source, "context": {},
-                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None, "factor": slim(a)} for a in alts[:3]], "question": None}
+    def _factor_decision(entry: dict, source: str, reason: str, alts: list[dict], level: str, tags: list[str], question: str | None = None) -> dict:
+        return {"activity_id": None, "factor_match": slim(entry), "confidence": None, "level": level, "tags": tags, "source": source, "context": {},
+                "reason": reason, "alternatives": [{"activity_id": None, "label": a["name"], "p": None, "factor": slim(a)} for a in alts[:3]], "question": question}
 
     def _factor_first(self, item: dict) -> dict | None:
+        """Stage 1: an exact factor name is used as it is. Anything else goes on to classification + Haiku identification."""
         idx = self._index()
         r = idx.match(item) if idx else None
-        if not r:
+        if not r or r["status"] != "strong":
             return None
-        alts = [c for c in r["candidates"] if c["id"] != r["entry"]["id"]]
-        if r["status"] == "strong":
-            return self._factor_decision(r["entry"], r["confidence"], "factor_names", r["reason"], alts)
-        if r["status"] == "route_unspecified":
-            d = self._factor_decision(r["entry"], r["confidence"], "factor_names", r["reason"], alts)
-            d["question"] = "No disposal route is written. Choose: " + " / ".join(c["name"].split(" - ")[-1] for c in r["candidates"][:4])
-            return d
-        if not self.use_ai or len(r["candidates"]) < 2:
-            return None
-        choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(r["candidates"])}
-        choices["none"] = "None of these names describes the item"
-        q = Question("factor", "Which emission-factor name describes this line item best? Waste or scrap wording means a waste-treatment factor, "
-                               "not the material itself. Pick the most specific name.", choices)
-        try:
-            a, p = self._ask(build_state(item, self.org_context), [q])
-        except ProviderError:
-            return None
-        ans = a["factor"]
-        if ans.choice == "none" or ans.confidence < 0.6:
-            return None
-        picked = r["candidates"][int(ans.choice[1:])]
-        return self._factor_decision(picked, min(ans.confidence, 0.95), p.name, f"{p.name} picked factor '{picked['name']}' from the matching names",
-                                     [c for c in r["candidates"] if c["id"] != picked["id"]])
+        return self._factor_decision(r["entry"], "factor_names", r["reason"], [c for c in r["candidates"] if c["id"] != r["entry"]["id"]], "certain", ["exact_name"])
 
-    def _factor_by_domain(self, item: dict, dom: str, dom_conf: float) -> dict | None:
-        """Sector first, then the factor, both chosen from real factor names that this line's data can feed (no activity list)."""
+    def _factor_by_domain(self, item: dict, dom: str) -> dict | None:
+        """Classification (Jev) gave the item type; Jev picks the sector, then Haiku identifies the factor among that sector's real factor names."""
         idx = self._index()
         cands = idx.candidates(item, dom) if idx else []
         if not cands:
@@ -203,33 +182,27 @@ class Classifier:
         by_sec: dict[str, list[dict]] = {}
         for c in cands:
             by_sec.setdefault(idx.sector_of(c) or "other_manufacturing", []).append(c)
-        p_sec = 1.0
-        if len(by_sec) > 1:
+        if dom in ("purchased_goods", "purchased_services", "capital_goods") and len(cands) > 150 and len(by_sec) > 1:
             q = Question("sector", "Which sector does this purchase belong to? Decide what the product or service really is and what this company does with it.",
                          {k: sectors.get(k, k) for k in by_sec})
             a, _ = self._ask(state, [q])
-            sec, p_sec = a["sector"].choice, a["sector"].confidence
+            sec = a["sector"].choice
         else:
-            sec = next(iter(by_sec))
-        pool = idx.rank(item, by_sec[sec])[:150]
+            sec = "all" if len(by_sec) > 1 else next(iter(by_sec))     # freight, waste and travel lists are short and are not grouped by industry
+        pool = idx.rank(item, cands if sec == "all" else by_sec[sec])[:150]
         choices = {f"f{i}": f"{c['name']} ({c['category'].split(' - ')[0]}, {c['method']})" for i, c in enumerate(pool)}
         choices["none"] = "None of these names describes the item"
-        q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material. "
-                               "Pick the most specific name for what the item is.", choices)
-        a, p = self._ask(state, [q])
+        q = Question("factor", "Which emission-factor name fits this line best? Waste or scrap wording means a waste-treatment factor, not the material "
+                               "(if no disposal route is written, say needs_disposal_route). Pick the most specific name for what the item is.", choices)
+        a, p = self._ask(state, [q], only=["claude"])
         ans = a["factor"]
-        probs = sorted(((k, v) for k, v in ans.probabilities.items() if k != "none" and v), key=lambda kv: -kv[1])
         if ans.choice == "none" or ans.choice not in choices:
-            picked, conf = pool[0], 0.2
-            reason = f"{p.name}: no factor name clearly fits - best guess shown"
-        else:
-            picked, conf = pool[int(ans.choice[1:])], min(dom_conf, p_sec, ans.confidence)
-            reason = f"{p.name}: sector {sec} ({p_sec:.0%}), factor '{picked['name']}' ({ans.confidence:.0%})"
-        alts = [pool[int(k[1:])] for k, _ in probs if pool[int(k[1:])]["id"] != picked["id"]][:3] or [c for c in pool if c["id"] != picked["id"]][:3]
-        d = self._factor_decision(picked, conf, p.name, reason, alts)
-        if conf < self.policy["review"]["ask_below"]:
-            d["question"] = "Please confirm what this item is."
-        return d
+            return self._factor_decision(pool[0], p.name, f"{p.name}: no factor name clearly fits - best guess shown", pool[1:4], "guess",
+                                         list(dict.fromkeys(["no_good_option", *ans.tags])), "Please confirm what this item is.")
+        picked = pool[int(ans.choice[1:])]
+        q_text = "Please confirm what this item is." if ans.level in ("uncertain", "guess") else None
+        return self._factor_decision(picked, p.name, f"{p.name} identified '{picked['name']}' (sector {sec})", [c for c in pool if c["id"] != picked["id"]][:3],
+                                     ans.level, ans.tags, q_text)
 
     # ------------------------------------------------------------------ one group
     def classify(self, item: dict) -> dict:
@@ -242,7 +215,8 @@ class Classifier:
                     idx = self._index()
                     ent = idx.entry_by_id(m["activity_id"][7:]) if idx else None
                     if ent:
-                        mem = {**self._factor_decision(ent, base if m["source"] == "user" else base - 0.03, "memory", "Remembered factor choice", []),
+                        mem = {**self._factor_decision(ent, "memory", "Remembered factor choice", [], "certain" if m["source"] == "user" else "likely",
+                                                       ["confirmed_by_you"] if m["source"] == "user" else ["remembered_ai_answer"]),
                                "memory_source": m["source"], "memory_scope": "all vendors" if key == dk else "this vendor"}
                         break
                 if m and m["activity_id"] in self.tax.activities:
@@ -280,7 +254,7 @@ class Classifier:
                 ai_err = str(e)
             if ai and ai.get("factor_domain"):
                 try:
-                    if d := self._factor_by_domain(item, ai["factor_domain"], ai["domain_confidence"]):
+                    if d := self._factor_by_domain(item, ai["factor_domain"]):
                         return d
                 except ProviderError as e:
                     ai_err = str(e)
@@ -309,7 +283,7 @@ class Classifier:
             idx = self._index()
             fuel = idx.match_fuel(item, ctx.get("use_context") if ctx_conf.get("use_context", 0) >= 0.7 else None) if idx else None
             if fuel:
-                return self._factor_decision(fuel["entry"], fuel["confidence"], "factor_names", fuel["reason"], [])
+                return self._factor_decision(fuel["entry"], "factor_names", fuel["reason"], [], "certain", ["exact_name"])
             return {"activity_id": None, "confidence": 0.0, "source": "none", "context": ctx, "alternatives": [],
                     "reason": "No rule matched" + (f"; AI unavailable: {ai_err[:120]}" if ai_err else ""),
                     "question": "What is this item? Pick the activity it belongs to."}

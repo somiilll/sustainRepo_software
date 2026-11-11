@@ -148,7 +148,7 @@ def _read_job(org: str, job_id: str) -> dict:
     if not j:
         raise HTTPException(404, "This extraction has no saved result")
     for r in j.get("rows", []):
-        if "trust" not in r and r.get("confidence") and r.get("decision") and r.get("calc") and r.get("period"):
+        if "trust" not in r and r.get("basis") and r.get("decision") and r.get("calc") and r.get("period"):
             r["trust"] = trust_of(r)
     return j
 

@@ -426,7 +426,7 @@ class Engine:
                         self.memory.mark_seen(self.org, "doc:" + k, d["file"], job_id)
             for g in groups:     # confident AI decisions speed up the next upload
                 dec = decisions[g["key"]]
-                if dec.get("activity_id") and dec["source"] not in ("memory", "rules") and dec["confidence"] >= 0.95:
+                if dec.get("activity_id") and dec["source"] not in ("memory", "rules") and (dec.get("confidence") or 0) >= 0.95:
                     self.classifier.remember(g["rep"], dec, "auto")
 
         calls = self.classifier.calls
