@@ -81,5 +81,28 @@
     "branch",
     "warehouse",
     "office"
+  ],
+  "descriptors": [
+    {
+      "label": "vessel classification",
+      "units": [
+        "teu",
+        "dwt",
+        "grt",
+        "gt"
+      ],
+      "nouns": [
+        "ship",
+        "vessel",
+        "carrier",
+        "tanker",
+        "freighter",
+        "barge",
+        "container",
+        "cargo",
+        "bulker",
+        "bulk"
+      ]
+    }
   ]
 }

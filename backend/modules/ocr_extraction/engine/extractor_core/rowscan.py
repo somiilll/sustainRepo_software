@@ -119,6 +119,35 @@ def extract_numbers(text: str, col: int | None = None, decimal_comma: bool | Non
     return [c for _, c in order], re.sub(r"\s+", " ", " ".join(rest)).strip(" -–,;:|()")
 
 
+@lru_cache(maxsize=1)
+def _descriptor_rules() -> list[tuple[re.Pattern, re.Pattern]]:
+    out = []
+    for d in load().parsing.get("descriptors", []):
+        units = "|".join(re.escape(u) for u in d["units"])
+        nouns = "|".join(re.escape(n) for n in d["nouns"])
+        out.append((re.compile(rf"(?<![\w.,/-])({_NUM})\s*\+?\s*(?:{units})\b", re.I), re.compile(rf"\b(?:{nouns})", re.I)))
+    return out
+
+
+def drop_descriptors(found: list[dict], text: str, decimal_comma: bool | None = None) -> tuple[list[dict], list[str]]:
+    """A number is descriptive (a vessel size class such as '8000+ TEU container ship') only when it is directly followed by
+    a size-class word AND the same text names the kind of thing being classed. Anything else stays a candidate for the AI."""
+    skip: list[float] = []
+    names: list[str] = []
+    for num_rx, noun_rx in _descriptor_rules():
+        for m in num_rx.finditer(text):
+            before, after = text[:m.start()].split()[-3:], text[m.end():].split()[:3]
+            if after[:1] and after[0].lower() == "of":
+                continue                                     # '8000 TEU of containers' states how much moved, not the class
+            if not noun_rx.search(" ".join(before + after)):
+                continue                                     # the classed thing must sit right beside the size
+            if (v := parse_locale_number(m.group(1), decimal_comma)) is not None:
+                skip.append(v)
+                names.append(m.group(0).strip())
+    keep = [c for c in found if not (c["kind"] == "bare" and c["value"] in skip)]
+    return keep, names if len(keep) < len(found) else []
+
+
 def _is_blank(v) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
 
@@ -132,7 +161,7 @@ def read_cells(cells: list, ctx: Context) -> dict:
     cands: list[dict] = []
     texts: list[str] = []
     tcols: list[int] = []
-    out = {"facility": None, "date": None, "period": None, "facility_col": None}
+    out = {"facility": None, "date": None, "period": None, "facility_col": None, "descriptors": []}
     prev: dict | None = None
     for col, v in enumerate(cells):
         if _is_blank(v) or isinstance(v, bool):
@@ -162,6 +191,8 @@ def read_cells(cells: list, ctx: Context) -> dict:
         for m in DATE_NUM.finditer(s):
             out["date"] = out["date"] or parse_date(m.group(0))
         found, rest = extract_numbers(DATEISH.sub(" ", s), col, ctx.decimal_comma, strip_bare=False)
+        found, desc = drop_descriptors(found, s, ctx.decimal_comma)
+        out.setdefault("descriptors", []).extend(desc)
         cands += found
         if rest:
             texts.append(rest)
@@ -206,7 +237,7 @@ def _item(row_no: int, cells: list, ctx: Context) -> dict | None:
         description=r["text"], facility_hint=r["facility"], date=d.isoformat() if d else None,
         period_hint=r["period"] or (f"{d.year:04d}-{d.month:02d}" if d else None), context=" | ".join(x for x in [ctx.sheet, ctx.title] if x),
         line_confidence=0.85, raw={"row": " | ".join(str(v).strip() for v in cells if not _is_blank(v))},
-        scan={"candidates": r["cands"], "pending": [], "ai_resolved": False})
+        scan={"candidates": r["cands"], "pending": [], "ai_resolved": False, "descriptors": r["descriptors"]})
     cells_ref = {"description": [_ref(c, row_no) for c in r["text_cols"]], "facility": _ref(r["facility_col"], row_no)}
     item["source"]["cells"] = {k: v for k, v in cells_ref.items() if v}
     live = [c for c in r["cands"] if c["value"] != 0]
@@ -231,7 +262,8 @@ SYSTEM = (
     "You interpret numbers in rows of an unstructured Excel sheet from an Indian company, for a greenhouse-gas inventory. "
     "Code has already found every number; you never change, add or compute numbers. For each listed number id give its role: "
     "quantity (amount of a fuel, material, energy, water or waste), amount (money spent), distance, weight, count (passengers, rooms, nights, items), "
-    "identifier (invoice/phone/code/year/serial) or unclear. A number with no currency is NOT money unless the row clearly says it is a cost. "
+    "identifier (invoice/phone/code/year/serial) or unclear. A number that sizes or classes the thing described (a vessel's '8000+ TEU' or '500 DWT') "
+    "is descriptive, not an activity amount: answer identifier. A number with no currency is NOT money unless the row clearly says it is a cost. "
     "Give a unit only when the row prints it or it is unmistakable; put unit_printed=true only if the unit text appears in the row. "
     "Give a currency only when the row prints one. Use the hint about the same column in other rows as evidence, not proof. "
     "A number beside a description that has no other value is more likely a quantity or an amount than an identifier. If you are not sure, answer unclear.")

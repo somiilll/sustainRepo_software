@@ -23,7 +23,7 @@ from r2_storage import R2Storage
 
 from shared.database.mongo import db as mongo_db
 
-from . import factor_source, store  # noqa: F401  (also puts the engine package on sys.path via __init__)
+from . import factor_inputs, factor_source, store  # noqa: F401  (also puts the engine package on sys.path via __init__)
 from extractor_core import audit, facilities as fac_mod, llm, normalise, plausibility, usage  # noqa: E402
 from extractor_core.config import load  # noqa: E402
 from extractor_core.export import approval_blockers, save_all_payload  # noqa: E402
@@ -83,7 +83,7 @@ def _org_context(org: str) -> dict:
 
 
 def _engine(org: str, facilities: list[dict] | None = None) -> Engine:
-    return Engine(MEMORY, org=org, org_context=_org_context(org), facilities=facilities if facilities is not None else _facilities(org), use_ai=True, factors=factor_source.get_index)
+    return Engine(MEMORY, org=org, org_context=_org_context(org), facilities=facilities if facilities is not None else _facilities(org), use_ai=True, factors=factor_source.get_index, factor_inputs=factor_inputs.required_inputs)
 
 
 def _ensure_trial(org: str) -> None:

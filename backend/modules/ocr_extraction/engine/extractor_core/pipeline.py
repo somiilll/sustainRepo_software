@@ -19,7 +19,7 @@ from . import crosscheck, extract, layout, llm, normalise, rowscan, rowstate, sc
 from . import facilities as fac_mod
 from .config import load
 from .decider.cascade import Classifier
-from .decider.factors import row_parts
+from .decider.factors import clear_descriptor_notes, row_parts
 from .derive import co2_share, companion_specs
 from .fields import capacity_conversion
 from .fields import build_calc, display_quantity
@@ -45,13 +45,14 @@ class OutOfCredits(Exception):
 
 class Engine:
     def __init__(self, memory=None, org: str = "default", org_context: dict | None = None,
-                 facilities: list[dict] | None = None, use_ai: bool = True, providers=None, reference_date=None, factors=None):
+                 facilities: list[dict] | None = None, use_ai: bool = True, providers=None, reference_date=None, factors=None, factor_inputs=None):
         self.memory, self.org = memory, org
         self.reference_date = reference_date          # "today" for date checks; tests pin it
         self.org_context = org_context or {}
         self.facilities = facilities or []
         self.use_ai = use_ai
         self.classifier = Classifier(memory, org, self.org_context, use_ai=use_ai, providers=providers, factors=factors)
+        self.factor_inputs = factor_inputs
         self._alias_of = (lambda name: memory.get_facility_alias(org, name)) if memory is not None else None
 
     # ------------------------------------------------------------------ ingest
@@ -188,6 +189,8 @@ class Engine:
     def rows_for_item(self, item: dict, decision: dict) -> list[dict]:
         tax = load().taxonomy
         aid = decision.get("activity_id")
+        if decision.get("factor_match"):
+            clear_descriptor_notes(item, decision["factor_match"]["name"])
         if aid and tax.get(aid).get("no_record"):
             return []
         base_id = item["item_id"]
@@ -222,7 +225,7 @@ class Engine:
 
         if decision.get("factor_match"):
             fm = decision["factor_match"]
-            p = row_parts(fm, item)
+            p = row_parts(fm, item, self.factor_inputs(fm) if self.factor_inputs else None)
             row = make(f"{base_id}-0", None, p["ghg"], p["calc"], item.get("description_en") or item.get("description") or fm["name"],
                        amount=item.get("amount"), quantity=p["quantity"], unit_=p["unit"])
             row["review"] = p["review"]

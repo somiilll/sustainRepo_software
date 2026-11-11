@@ -240,8 +240,69 @@ class FactorIndex:
         return None
 
 
-def row_parts(fm: dict, item: dict) -> dict:
-    """ghg / calc / review blocks for a row whose factor was matched from the DB (nothing is calculated here)."""
+QTY_VARS = {"activity_value", "qty", "qty_energy"}
+INPUT_LABEL = {"qty_travelled": "Weight of goods carried", "km_travelled": "Distance travelled (km)", "qty_passenger": "Number of passengers",
+               "qty_room": "Number of rooms", "qty_nights": "Number of nights", "qty_days_travelled": "Days travelled", "activity_value": "Quantity"}
+
+
+def bind_inputs(spec: list[dict], item: dict, allowed: list | None = None) -> dict:
+    """Maps what was extracted (quantity, weight, distance, passengers, rooms, nights) onto the inputs the factor's formula
+    declares. {'fields': {var: value, var_unit: unit}, 'missing': [labels], 'notes': [...]}; nothing is guessed."""
+    from ..fields import _value_for
+    qty, unit, dim = display_quantity(item)
+    fields, missing, notes = {}, [], []
+    room_nights = str(item.get("unit") or "").lower().replace(" ", "_") == "room_nights"
+    for inp in spec:
+        var = inp["variable"]
+        v = u = None
+        if var in QTY_VARS:
+            if allowed:
+                st, q2, u2 = _fit(allowed, qty, unit, dim)
+                if st == "ok":
+                    v, u = q2, u2
+                elif qty is not None:
+                    notes.append(f"Unit '{unit or item.get('unit') or ''}' does not fit this factor - allowed: {', '.join(allowed)}")
+            elif qty is not None and unit:
+                v, u = qty, unit
+        elif room_nights and var in ("qty_room", "qty_nights"):
+            v, u = (1, "Nos") if var == "qty_room" else (item.get("quantity"), "nights")
+        else:
+            v, u = _value_for(var, {"default": inp.get("default")}, item, qty, unit, dim)
+            if v is None and var == "qty_passenger" and dim == "count" and qty:
+                v, u = qty, "Nos"
+        if v is None:
+            if inp.get("required", True):
+                missing.append(INPUT_LABEL.get(var, var))
+            continue
+        fields[var], fields[f"{var}_unit"] = v, u or inp.get("expected_unit") or ""
+    return {"fields": fields, "missing": missing, "notes": notes}
+
+
+def clear_descriptor_notes(item: dict, factor_name: str) -> None:
+    """'Could not confirm what 8000 means' is withdrawn when 8000 is demonstrably a size class written in the matched factor's name."""
+    _, ranges = name_parts(factor_name)
+    notes = item.get("read_notes") or []
+    if not ranges or not notes:
+        return
+    keep = []
+    for n in notes:
+        m = re.search(r"what '([\d.,]+)' means", n)
+        try:
+            v = _f(m.group(1)) if m else None
+        except ValueError:
+            v = None
+        if v is not None and any(lo <= v <= hi for lo, hi, _ in ranges):
+            continue
+        keep.append(n)
+    if len(keep) != len(notes):
+        item["read_notes"] = keep
+        if not keep and item.get("read_state") == "needs_attention":
+            item["read_state"], item["line_confidence"] = "extracted", 0.85
+
+
+def row_parts(fm: dict, item: dict, spec: list[dict] | None = None) -> dict:
+    """ghg / calc / review blocks for a row whose factor was matched from the DB (nothing is calculated here).
+    `spec` = the inputs the factor's formula declares as required (from the calculation engine's decision tree)."""
     from ..config import load
     sk = SCOPE_CODE[fm["scope"]]
     qty, unit, dim = display_quantity(item)
@@ -253,6 +314,12 @@ def row_parts(fm: dict, item: dict) -> dict:
             fields = {"spent_value": item["amount"], "spent_value_unit": item.get("currency") or load().policy["currency_default"]}
         else:
             missing = ["Amount spent"]
+    elif spec and sk == "scope_3":
+        b = bind_inputs(spec, item, fm["allowed_units"])
+        fields, missing, notes = ({} if b["missing"] else b["fields"]), b["missing"], b["notes"]
+        main = next((v for v in ("activity_value", "qty_travelled") if f"{v}_unit" in b["fields"]), None)
+        if main:
+            shown_q, shown_u = b["fields"][main], b["fields"][f"{main}_unit"]
     else:
         status, q2, u2 = _fit(fm["allowed_units"], qty, unit, dim)
         if status == "ok":
@@ -266,9 +333,10 @@ def row_parts(fm: dict, item: dict) -> dict:
     tax = load().taxonomy.raw
     ghg = {"scope": sk, "category": fm["category"], "subcategory": fm["name"], "scope_label": tax["scope_labels"][sk],
            "category_label": fm["category"], "subcategory_label": fm["name"], "category_id": fm["category_id"], "subcategory_id": fm["id"]}
+    required = [i["variable"] for i in spec] if spec and not spend else None
     calc = {"formula_id": "reviewer_selection" if fields else None, "formula_label": "Matched to the emission factor name - calculated when saved",
             "ef_method": ef_method, "fields": fields, "missing": missing, "notes": notes, "info": [],
-            "status": "ok" if fields else "incomplete", "emergent_formula_id": None}
+            "status": "ok" if fields else "incomplete", "emergent_formula_id": None, "required_inputs": required}
     ref = {"collection": fm["collection"], "id": fm["id"]}
     review = {"factor": ref, "override": {"scope": fm["scope"], "category_id": fm["category_id"], "ef_method": ef_method, "factor": ref, "dynamic": None}}
     return {"ghg": ghg, "calc": calc, "review": review, "quantity": shown_q, "unit": shown_u}

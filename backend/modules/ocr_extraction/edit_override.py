@@ -11,10 +11,11 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from extractor_core.config import load
+from extractor_core.decider.factors import bind_inputs
 from extractor_core.export import to_record
 from extractor_core.validate import finish, row_checks
 
-from . import store
+from . import factor_inputs, store
 from .ghg_save import saver
 
 DB = store.DB
@@ -122,6 +123,13 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
         raise HTTPException(400, "Unknown calculation method")
 
     dynamic = {k: v for k, v in (ov.dynamic or {}).items() if isinstance(v, dict) and v.get("value") not in (None, "")}
+    if not dynamic and method == "activity" and ov.scope == "scope3":
+        spec = factor_inputs.required_inputs({"collection": ov.factor_collection, "category_id": cat["id"], "method": "activity", "activity_type": doc.get("activity_type")})
+        if spec and not (len(spec) == 1 and spec[0]["variable"] == "activity_value"):
+            bound = bind_inputs(spec, item, factor.get("allowed_units"))
+            if bound["missing"]:
+                raise HTTPException(400, "This emission factor needs: " + ", ".join(bound["missing"]) + ". Enter them before saving.")
+            dynamic = {k: {"value": v, "unit": bound["fields"].get(f"{k}_unit", "")} for k, v in bound["fields"].items() if not k.endswith("_unit")}
     if dynamic:
         fields = {}
         for k, v in dynamic.items():
