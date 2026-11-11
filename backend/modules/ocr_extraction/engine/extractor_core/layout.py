@@ -20,7 +20,7 @@ from .config import load
 from .normalise import Table, _cell_str, _data_like
 from .periods import fy_start_year, parse_date, parse_month
 from .units import normalize_unit, unit_from_header
-from .values import parse_value
+from .values import cell_unit, parse_value
 
 ROLE_ALIASES = {
     "description": ["description", "item description", "item", "particulars", "material", "material description", "item name",
@@ -371,6 +371,24 @@ def _get(row, c):
     return row[c] if c is not None and c < len(row) else None
 
 
+def _by_unit_kind(it: dict, qty_cell, qty, amt_cell, amt, unit):
+    """A cell's own unit outranks its column header: '500 kg' under 'Value' is a quantity, 'Rs 500' under 'Qty' is an amount, '20 km' is a distance."""
+    u = cell_unit(amt_cell) if amt is not None else None
+    if u and u[1]["dimension"] != "currency":
+        tok, n = u
+        if n["dimension"] == "distance":
+            it["distance_km"] = it["distance_km"] if it["distance_km"] is not None else amt * n["factor"]
+        elif qty is None:
+            qty, unit = amt, unit or tok
+        else:
+            return qty, amt, unit
+        amt = None
+    u = cell_unit(qty_cell) if qty is not None else None
+    if u and u[1]["dimension"] == "currency" and amt is None:
+        qty, amt = None, qty
+    return qty, amt, unit
+
+
 def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
     cols = spec.get("columns", {})
     hu = spec.get("header_units", {})
@@ -418,6 +436,7 @@ def apply_spec(t: Table, spec: dict, source: dict) -> list[dict]:
                 m = re.search(r"[A-Za-z][A-Za-z. ]{0,10}$", _get(row, cols.get("quantity")).strip())
                 unit = m.group(0).strip() if m and normalize_unit(m.group(0)) else None
             it = base(i, row)
+            qty, amt, unit = _by_unit_kind(it, _get(row, cols.get("quantity")), qty, _get(row, cols.get("amount")), amt, unit)
             if spec.get("constant_description") and not cols.get("description") and unit:
                 desc = f"{desc} ({unit})"                        # the unit tells the classifier what kind of reading this is
             it.update(description=desc, quantity=qty, unit=unit, amount=amt)

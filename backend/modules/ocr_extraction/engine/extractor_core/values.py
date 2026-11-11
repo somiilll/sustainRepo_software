@@ -33,3 +33,16 @@ def parse_value(cell, decimal_comma: bool | None = None) -> float | None:
         return None
     v = parse_locale_number(m["num"], decimal_comma)
     return None if v is None else -v if m["open"] in ("-", "(") else v
+
+
+def cell_unit(cell) -> tuple[str, dict] | None:
+    """The unit (or currency) a text cell carries, as (token, normalised): '500 kg' -> ('kg', {dimension: mass}), 'Rs 500' -> ('Rs', {dimension: currency})."""
+    if not isinstance(cell, str):
+        return None
+    m = _CELL.fullmatch(cell)
+    if not m:
+        return None
+    for tok in [m["pre"].strip(" ."), *re.split(r"[\s/]+", m["suf"])]:
+        if tok and (n := normalize_unit(tok)):
+            return tok, n
+    return None
