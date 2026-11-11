@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { DocsDialog, EditDialog, EvidenceDialog, FactorDialog, TrustBadge, WhyDialog } from './RowDialogs';
+import { EditDialog } from './EditDialog';
+import { DocsDialog, EvidenceDialog, FactorDialog, TrustBadge, WhyDialog } from './RowDialogs';
 import { PENDING, ROW_STATE, SCOPE_COLOR, SCOPE_LABEL, SOURCE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, saveBlob, scopeOf } from './utils';
 
 const PER = 50;

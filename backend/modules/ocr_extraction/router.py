@@ -31,6 +31,7 @@ from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
 from extractor_core.pipeline import Engine, JobCancelled  # noqa: E402
 from extractor_core.validate import finish, row_checks, trust as trust_of  # noqa: E402
+from .edit_override import Override, apply_override, edit_config, factor_options  # noqa: E402
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -457,6 +458,7 @@ class ItemEdit(BaseModel):
     amount: float | None = None
     facility_id: str | None = None
     reporting_period: str | None = None
+    override: Override | None = None
     remember: bool = True
     scope: str = "vendor"
 
@@ -508,8 +510,16 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
             r["facility"] = {"id": fac["id"], "name": fac["name"], "method": "set by reviewer", "confidence": 0.99}
             r["checks"] = row_checks(r, item)
             finish(r, item)
+    if e.override:
+        parent = next((r for r in new_rows if not r.get("derived")), None)
+        if parent is None:
+            raise HTTPException(400, "This line has no record to edit")
+        before = parent["ghg"]
+        apply_override(parent, item, e.override, e.remember, org)
+        same = before.get("scope") == parent["ghg"]["scope"] and str(before.get("category_label") or "").lower() == parent["ghg"]["category_label"].lower()
+        new_rows = [r for r in new_rows if r is parent or (same and r.get("derived"))]
     for r in new_rows:
-        r["review"] = {"state": r["review_status"], "edited": True}
+        r["review"] = {**(r.get("review") or {}), "state": r["review_status"], "edited": True}
     remember = e.remember and changed_class and dec.get("activity_id")
     if remember:
         eng.classifier.remember(item, dec, source="user", scope="all" if e.scope == "all" else "vendor")
@@ -560,7 +570,7 @@ def review(job_id: str, a: ReviewAction, user: dict = Depends(get_current_user))
                              changes={"review_state": [before, r["review"]["state"]]})
                 if a.state == "approved":
                     it = next((i for i in job["items"] if i["item_id"] == r["item_id"]), None)
-                    if it and r.get("activity_id"):
+                    if it and r.get("activity_id") and not (r.get("review") or {}).get("override"):
                         MEMORY.confirm(org, memory_keys(it)[0], r["activity_id"])
                     if (r.get("quantity") or 0) > 0 and r.get("reporting_period"):
                         MEMORY.add_history(org, plausibility.history_key(r), r["reporting_period"], r["quantity"], r.get("unit"), job_id, r["row_id"])
@@ -773,6 +783,26 @@ async def row_factors(job_id: str, row_id: str, q: str = "", user: dict = Depend
     except saver.SaveError:
         current = None
     return {"category": category["name"], "current": current, "options": await saver.search_factors(mongo_db, rec, category, q)}
+
+
+@router.get("/jobs/{job_id}/rows/{row_id}/edit-config")
+async def row_edit_config(job_id: str, row_id: str, user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
+    if not row:
+        raise HTTPException(404, "No such row")
+    return await edit_config(mongo_db, org, row)
+
+
+@router.get("/jobs/{job_id}/rows/{row_id}/factor-options")
+async def row_factor_options(job_id: str, row_id: str, scope: str, category_id: str, method: str = "activity", q: str = "", user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
+    if not row:
+        raise HTTPException(404, "No such row")
+    return {"options": await factor_options(mongo_db, row, scope, category_id, method, q)}
 
 
 class FactorChoice(BaseModel):

@@ -1008,3 +1008,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - `metrics.import_report` separates source rows, ignored (structure/summary/zero), extracted, categorised, needs attention, couldn't read, technical failures, re-read rows and a `reconciled` flag. Items carry `source.cells` (e.g. B14).
 - parsing.json gained currency variants (ruppe, rupya, dollor...) and unit_aliases.json a few spelling variants.
 - 160 engine tests pass. Real `ocr.xlsx` (29 rows, copy at /app/tmp/ocr_user_file.xlsx) now yields 29 rows, all categorised or flagged with reasons. Testing agent NOT run (user asked not to test).
+
+## OCR Edit Dialog — cascading selection (implemented, NOT tested; user said "dont test")
+- Edit dialog (`frontend/src/modules/ocr2/EditDialog.jsx`) follows Scope → Reporting period/Facility → Category → Calculation method (Scope 3) → Activity (emission factor) → Fields (form-config fields for Scope 3 structured categories, otherwise Quantity/Unit or Amount/Currency). No live calculation; emissions calculate when approved rows are saved to GHG records.
+- Backend: `modules/ocr_extraction/edit_override.py`; new endpoints `GET /jobs/{id}/rows/{row}/edit-config` and `/factor-options`; `PATCH /jobs/{id}/items/{item}` accepts `override`. The choice is stored in `row.review.override` + `row.review.factor`; `saver.resolve_category` honours it; overridden rows do not confirm classification memory on approval.
+- Pending: confidence 0.85 cap for clean row-by-row reads (rowscan.py), login lockout rework, My Tasks filters, CBAM.

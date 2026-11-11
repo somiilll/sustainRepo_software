@@ -35,6 +35,11 @@ def category_name(rec: dict) -> str:
 
 
 async def resolve_category(db, rec: dict) -> dict:
+    chosen_id = ((rec.get("review") or {}).get("override") or {}).get("category_id")
+    if chosen_id:
+        chosen = await db.emission_categories.find_one({"id": chosen_id, "is_active": {"$ne": False}}, {"_id": 0})
+        if chosen:
+            return chosen
     scope_code = SCOPE_CODE.get(rec["scope"])
     if not scope_code:
         raise SaveError("Only Scope 1, 2, 3 and Biogenic rows can be saved to GHG records")

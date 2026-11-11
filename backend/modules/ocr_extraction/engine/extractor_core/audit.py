@@ -25,6 +25,7 @@ def snapshot(row: dict | None) -> dict:
         "activity": row.get("activity_label") or row.get("activity_id"),
         "scope": g.get("scope_label"),
         "category": g.get("category_label"),
+        "activity_choice": g.get("subcategory_label"),
         "quantity": row.get("raw_quantity"),
         "unit": row.get("raw_unit"),
         "amount": row.get("amount"),

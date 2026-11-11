@@ -5,55 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { errText } from './api';
 import { SOURCE_LABEL, STATUS_CLASS, TRUST_CLASS, fmtDate, fmtN } from './utils';
 
-const Field = ({ label, children, full }) => <label className={`block text-sm ${full ? 'col-span-2' : ''}`}><span className="mb-1 block text-xs font-medium text-stone-600">{label}</span>{children}</label>;
-const inputCls = 'w-full rounded-md border border-stone-300 bg-white px-2 py-1.5 text-sm';
-
 export const TrustBadge = ({ t }) => (t ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TRUST_CLASS[t.level]}`} title={(t.reasons || []).join('\n')}>{t.label}</span> : null);
-
-export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
-  const ctxNow = row.decision?.context?.use_context || '';
-  const [f, setF] = useState({ activity: row.activity_id || '', ctx: ctxNow, q: row.raw_quantity ?? '', u: row.raw_unit || row.unit || '', a: row.amount ?? '', p: row.reporting_period || '', fac: '', rem: true, all: false });
-  const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-  const byDom = {};
-  meta.activities.forEach((a) => { (byDom[a.domain] = byDom[a.domain] || []).push(a); });
-  const showCtx = meta.activities.find((a) => a.id === f.activity)?.context_key === 'use_context';
-  const num = (v) => (v === '' || v == null ? null : Number(v));
-
-  const save = async () => {
-    const body = { remember: f.rem, scope: f.all ? 'all' : 'vendor', activity_id: f.activity };
-    if (f.ctx && f.ctx !== ctxNow) body.use_context = f.ctx;
-    if (num(f.q) !== (row.raw_quantity ?? null)) body.quantity = num(f.q);
-    if (f.u && f.u !== (row.raw_unit || row.unit || '')) body.unit = f.u;
-    if (num(f.a) !== (row.amount ?? null)) body.amount = num(f.a);
-    if (f.p && f.p !== (row.reporting_period || '')) body.reporting_period = f.p;
-    if (f.fac) body.facility_id = f.fac;
-    setBusy(true);
-    try { await api.edit(jobOf(row), row.item_id, body); toast.success('Saved and recalculated'); onSaved(); } catch (e) { toast.error(`Could not save: ${errText(e)}`); setBusy(false); }
-  };
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto" data-testid="ocr-edit-dialog">
-        <DialogHeader><DialogTitle>Edit record</DialogTitle></DialogHeader>
-        {row.decision?.question && <div className="rounded-md border-l-4 border-sky-500 bg-sky-50 p-2 text-sm"><b>Question:</b> {row.decision.question}</div>}
-        <p className="text-sm text-stone-600">{row.extracted_item}{row.original_text ? ` · "${row.original_text.slice(0, 100)}"` : ''}</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Activity" full><select className={inputCls} value={f.activity} onChange={set('activity')} data-testid="ocr-edit-activity">
-            {Object.entries(byDom).map(([d, list]) => <optgroup key={d} label={(meta.domains[d] || d).slice(0, 60)}>{list.map((a) => <option key={a.id} value={a.id}>{a.label.slice(0, 110)}</option>)}</optgroup>)}</select></Field>
-          {showCtx && <Field label="Where was the fuel used?" full><select className={inputCls} value={f.ctx} onChange={set('ctx')} data-testid="ocr-edit-context"><option value="">- not set -</option>{Object.entries(meta.use_context).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>}
-          <Field label="Quantity (as printed)"><input className={inputCls} type="number" step="any" value={f.q} onChange={set('q')} data-testid="ocr-edit-quantity" /></Field>
-          <Field label="Unit"><input className={inputCls} value={f.u} onChange={set('u')} placeholder="L, kg, kWh, KL, MT, km..." data-testid="ocr-edit-unit" /></Field>
-          <Field label={`Amount (${row.currency || ''})`}><input className={inputCls} type="number" step="any" value={f.a} onChange={set('a')} data-testid="ocr-edit-amount" /></Field>
-          <Field label="Reporting period (YYYY-MM)"><input className={inputCls} value={f.p} onChange={set('p')} placeholder="2026-04" data-testid="ocr-edit-period" /></Field>
-          <Field label="Facility" full><select className={inputCls} value={f.fac} onChange={set('fac')} data-testid="ocr-edit-facility"><option value="">- keep ({row.facility?.name || 'none'}) -</option>{meta.facilities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
-        </div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.rem} onChange={set('rem')} data-testid="ocr-edit-remember" />Remember this for the same item from this vendor{row.vendor ? ` (${row.vendor})` : ''}</label>
-        <label className="ml-6 flex items-center gap-2 text-sm"><input type="checkbox" checked={f.all} onChange={set('all')} data-testid="ocr-edit-all-vendors" />Also use it for this wording from <b>any vendor</b></label>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={busy} onClick={save} data-testid="ocr-edit-save">Save &amp; recalculate</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-};
 
 const ACTION = { approved: 'Approved', rejected: 'Rejected', reset: 'Reset to review', edited: 'Edited', approval_blocked: 'Approval refused' };
 export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
