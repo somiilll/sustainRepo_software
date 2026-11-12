@@ -5,12 +5,11 @@ import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { makeOcrApi, errText } from '../modules/ocr2/api';
-import { MemoryTab } from '../modules/ocr2/MemoryTab';
 import { ReviewTab } from '../modules/ocr2/ReviewTab';
 import { UploadTab } from '../modules/ocr2/UploadTab';
 import { fmtCr } from '../modules/ocr2/utils';
 
-const TABS = [['upload', 'Upload'], ['review', 'Review'], ['memory', 'Learned decisions']];
+const TABS = [['upload', 'Upload'], ['review', 'Review']];
 const TODO = ['ready', 'check', 'input', 'unreadable', 'needs_attention', 'ask'];
 
 const parseHash = () => {
@@ -61,7 +60,6 @@ export default function OCRInvoice() {
       {!meta ? <div className="h-40 animate-pulse rounded-xl bg-stone-100" /> : <>
         {route.view === 'upload' && <UploadTab api={api} usage={usage} refreshUsage={refreshUsage} onOpenJob={() => go('review')} />}
         {route.view === 'review' && <ReviewTab api={api} meta={meta} goUpload={() => go('upload')} />}
-        {route.view === 'memory' && <MemoryTab api={api} meta={meta} />}
       </>}
     </main>
   );

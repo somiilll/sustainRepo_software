@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { ChevronDown, ChevronRight, ChevronUp, Coins, LogOut, Settings, User as UserIcon, Users, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
@@ -343,8 +343,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="z-50 w-60 border border-stone-200 bg-white shadow-lg" data-testid="sidebar-account-menu">
-            <DropdownMenuLabel className="truncate text-xs font-normal text-stone-500" data-testid="sidebar-user-email">{user.email}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => navigate('/profile')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-profile"><UserIcon className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => navigate('/account-settings')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-settings"><Settings className="mr-2 h-4 w-4" />Account Settings</DropdownMenuItem>
             {['admin', 'super_admin'].includes(user.role) && <DropdownMenuItem onSelect={() => navigate('/users')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-users"><Users className="mr-2 h-4 w-4" />Users Management</DropdownMenuItem>}
