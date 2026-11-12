@@ -187,6 +187,12 @@ class FactorIndex:
     def entry_by_id(self, factor_id: str) -> dict | None:
         return self._by_id.get(factor_id)
 
+    def search(self, text: str, limit: int = 40) -> list[dict]:
+        """Factors whose name or category contains every word typed, shortest names first."""
+        ws = [w for w in re.split(r"\W+", text.lower()) if w]
+        hits = [e for e in self._by_id.values() if all(w in f"{e['name']} {e['category']}".lower() for w in ws)]
+        return sorted(hits, key=lambda e: (len(e["name"]), e["name"].lower()))[:limit]
+
     # ------------------------------------------------------------------ intent
     @staticmethod
     def intent(item: dict, dw: frozenset) -> tuple[str, tuple[str, ...]] | None:

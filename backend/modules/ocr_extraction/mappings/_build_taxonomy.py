@@ -184,7 +184,7 @@ acts += [
       modules=["energy"], companions=["electricity"], hsn=["2716"]),
     A("elec.renewable", "electricity", "Renewable electricity: green tariff, open-access solar/wind, PPA, I-REC/REC-backed supply",
       ["green tariff", "green energy", "open access", "solar ppa", "wind ppa", "renewable", "i-rec", "green power", "solar", "net metering", "wind power"],
-      ["energy"], g("scope_2", "purchased_electricity", "Renewable Electricity"), ["s2_energy"], modules=["energy"], companions=["electricity"]),
+      ["energy"], g("scope_2", "purchased_electricity", "Renewable Electricity"), ["s2_energy"], modules=["energy"]),
     A("elec.captive_third_party", "electricity", "Electricity bought from a third-party captive/group-captive plant",
       ["group captive", "captive power", "third party power"], ["energy"],
       g("scope_2", "purchased_electricity", "Non-Renewable Electricity"), ["s2_energy"], modules=["energy"], companions=["electricity"]),

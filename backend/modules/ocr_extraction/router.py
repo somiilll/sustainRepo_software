@@ -772,10 +772,19 @@ def memory_list(user: dict = Depends(get_current_user)):
     for r in MEMORY.list_decisions(_org(user)):
         aid = str(r["activity_id"])
         ent = idx.entry_by_id(aid[7:]) if aid.startswith("factor:") else None
-        label = f"{ent['name']} ({ent['category'].split(' - ')[0]}, {ent['method']})" if ent else (acts[aid]["label"] if aid in acts else None)
+        label = _factor_label(ent) if ent else (acts[aid]["label"] if aid in acts else None)
         out.append({**r, **_describe_key(r["key"]), "confirmed": r["source"] == "user", "means_label": label or "Retired item - no longer used",
-                    "editable": aid in acts})
+                    "editable": ent is not None})
     return out
+
+
+def _factor_label(ent: dict) -> str:
+    return f"{ent['name']} ({ent['category'].split(' - ')[0]}, {ent['method']})"
+
+
+@router.get("/memory/factors")
+def memory_factors(q: str = "", user: dict = Depends(get_current_user)):
+    return [{"id": f"factor:{e['id']}", "label": _factor_label(e)} for e in factor_source.get_index().search(q)]
 
 
 class MemoryChange(BaseModel):
@@ -795,11 +804,12 @@ def memory_forget(c: MemoryChange, user: dict = Depends(get_current_user)):
 @router.post("/memory/change")
 def memory_change(c: MemoryChange, user: dict = Depends(get_current_user)):
     org = _org(user)
-    if not c.activity_id or c.activity_id not in load().taxonomy.activities:
-        raise HTTPException(400, "Unknown activity")
+    ent = factor_source.get_index().entry_by_id(c.activity_id[7:]) if c.activity_id and c.activity_id.startswith("factor:") else None
+    if not ent:
+        raise HTTPException(400, "Unknown emission factor")
     if not MEMORY.set_decision(org, c.key, c.activity_id):
         raise HTTPException(404, "No such memory")
-    AUDIT.record(org, "memory", "memory_changed", _actor(user), label=c.key, note=f"Now means {c.activity_id}")
+    AUDIT.record(org, "memory", "memory_changed", _actor(user), label=c.key, note=f"Now means {_factor_label(ent)}")
     return {"ok": True}
 
 

@@ -2809,9 +2809,7 @@
    "modules": [
     "energy"
    ],
-   "companions": [
-    "electricity"
-   ]
+   "companions": []
   },
   {
    "id": "elec.captive_third_party",

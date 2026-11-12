@@ -40,6 +40,7 @@ export const makeOcrApi = (headers) => {
     formConfig: (categoryId, scope) => axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/calc-engine/form-config/${categoryId}`, { headers, params: { scope } }).then((r) => r.data),
     saveToGhg: (id, row_ids, pending_only = false) => send('post', `/jobs/${id}/save`, { row_ids, pending_only }),
     memory: () => get('/memory'),
+    memoryFactors: (q) => get(`/memory/factors?q=${encodeURIComponent(q)}`),
     forget: (key) => send('post', '/memory/forget', { key }),
     change: (key, activity_id) => send('post', '/memory/change', { key, activity_id }),
     share: (key) => send('post', '/memory/share', { key }),
