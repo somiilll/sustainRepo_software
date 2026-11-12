@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CircleHelp, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
+import { Check, ChevronDown, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
@@ -140,7 +140,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
     return (
       <Popover open={qOpen === r.row_id} onOpenChange={(o) => setQOpen(o ? r.row_id : null)}>
         <PopoverTrigger asChild>
-          <button type="button" className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100" title={d.question} aria-label="Answer this question" data-testid={`ocr-question-${r.row_id}`}><CircleHelp className="h-4 w-4" /></button>
+          <button type="button" className="inline-flex items-center gap-0.5 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 hover:bg-sky-100" title={d.question} aria-label="Choose an answer" data-testid={`ocr-question-${r.row_id}`}>Choose<ChevronDown className="h-3.5 w-3.5" /></button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 bg-white p-3 text-xs" data-testid={`ocr-question-panel-${r.row_id}`}>
           <div className="mb-2 font-medium text-stone-900">{d.question}</div>
@@ -172,11 +172,10 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
         </td>
         <td className="min-w-[140px] p-2 text-sm">{r.facility?.id ? <div className="font-medium">{r.facility.name}</div> : <div className="font-medium text-amber-700">No facility</div>}
           <div className="text-xs text-stone-500">{r.reporting_period || 'No period'}{r.period?.allocation ? ` · split ${r.period.allocation.map((a) => `${a.period.slice(5)} ${Math.round(a.share * 100)}%`).join(' / ')}` : ''}</div></td>
-        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[st]}`} title={(r.trust?.reasons || []).join('\n')} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{r.review?.saved && <span className="rounded-full border border-emerald-300 bg-emerald-600 px-2 py-0.5 text-xs text-white" data-testid={`ocr-saved-${r.row_id}`}>Saved</span>}{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
+        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[st]}`} title={(r.trust?.reasons || []).join('\n')} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{!child && answerUi(r)}{r.review?.saved && <span className="rounded-full border border-emerald-300 bg-emerald-600 px-2 py-0.5 text-xs text-white" data-testid={`ocr-saved-${r.row_id}`}>Saved</span>}{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
           {!child && !r.decision?.question && ['input', 'check', 'unreadable'].includes(st) && (r.state?.state === 'couldnt_read' || r.state?.state === 'failed' ? r.state.reason : r.trust?.reasons?.[0]) && <div className="mt-1 text-xs text-stone-600" data-testid={`ocr-need-${r.row_id}`}>{r.state?.state === 'couldnt_read' || r.state?.state === 'failed' ? r.state.reason : r.trust.reasons[0]}</div>}
           {!r.facility?.id && !child && <div className="text-xs text-amber-700">Facility not set</div>}
           {!child && (r.read_tags || []).length > 0 && <div className="mt-1 flex flex-col gap-1" data-testid={`ocr-read-tags-${r.row_id}`}>{r.read_tags.map((t) => <div key={t.id} className="flex flex-wrap items-center gap-1 text-[11px]"><span className={`rounded border px-1.5 py-0.5 ${LEVEL_CLASS[t.level] || LEVEL_CLASS.uncertain}`} title={`AI read '${t.text}' as ${t.role}`} data-testid={`ocr-read-level-${r.row_id}-${t.id}`}>{t.text}: {t.role} · {t.level}</span>{(t.tags || []).map((g) => <span key={g} className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-600" data-testid={`ocr-read-tag-${r.row_id}-${t.id}-${g}`}>{g.replace(/_/g, ' ')}</span>)}</div>)}</div>}
-          {!child && answerUi(r)}
           {r.review?.save_error && !r.review?.saved && <div className="mt-1 rounded border border-rose-200 bg-rose-50 p-1.5 text-xs text-rose-800" data-testid={`ocr-save-error-${r.row_id}`}>{r.review.save_error}{/factor/i.test(r.review.save_error) && <button type="button" className="ml-1 font-semibold underline" onClick={() => setDlg({ type: 'factor', row: r })}>Choose factor</button>}</div>}
           <ul className="mt-1 space-y-0.5 text-xs">{checks.map((c) => <li key={c.message} className={c.level === 'error' ? 'text-rose-700' : 'text-amber-700'}>{c.message}</li>)}</ul></td>
         <td className="p-2"><div className="flex gap-1">
