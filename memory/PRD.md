@@ -1086,3 +1086,6 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Profile: removed recovery email; "Recovery mobile" -> "Mobile number"; added "Designation" (shown as chip in banner). User fields are now `mobile_number` and `designation` (old `recovery_email`/`recovery_mobile` removed; no data existed).
 - Admin "Add New User" (UserManagement.js, PUT /api/admin/users) and Super Admin "Add team account" (AdminManagement.js, POST /api/super-admin/accounts) accept optional mobile + designation; shared validation in modules/users/profile_fields.py.
 - Verified: PUT /api/auth/profile save/validate/clear via curl. Create-user dialogs not run end-to-end (no testing agent).
+
+## P0 backlog (Nov 2026) — OCR credits
+- **P0 — Starting OCR credits per organization will change:** today every org gets a hard-coded 5,000 "Trial credits" grant on first OCR visit (`TRIAL_CREDITS = 5000` in `modules/ocr_extraction/router.py`, applied by `_ensure_trial`). Needs a configurable, per-organization starting amount (e.g. set by super admin on the organization / plan) instead of the constant.
