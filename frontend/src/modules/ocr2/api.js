@@ -10,7 +10,6 @@ export const makeOcrApi = (headers) => {
     usage: (days = 30) => get(`/usage?days=${days}`),
     grant: (credits, note) => send('post', '/usage/grant', { credits, note }),
     jobs: () => get('/jobs'),
-    job: (id) => get(`/jobs/${id}`),
     rows: (id) => get(`/jobs/${id}/rows`),
     audit: (id, itemId) => get(`/jobs/${id}/audit`, { params: { item_id: itemId } }),
     preview: (files) => {
@@ -32,7 +31,6 @@ export const makeOcrApi = (headers) => {
     review: (id, row_ids, state) => send('post', `/jobs/${id}/review`, { row_ids, state }),
     edit: (id, itemId, body) => send('patch', `/jobs/${id}/items/${itemId}`, body),
     page: (id, file, page, q) => axios.get(`${BASE}/jobs/${id}/page`, { headers, params: { file, page, q }, responseType: 'blob' }),
-    exportJson: (id, includeUnapproved) => axios.get(`${BASE}/jobs/${id}/export`, { headers, params: { include_unapproved: includeUnapproved }, responseType: 'blob' }),
     factors: (id, rowId, q) => get(`/jobs/${id}/rows/${encodeURIComponent(rowId)}/factors`, { params: { q } }),
     chooseFactor: (id, rowId, body) => send('post', `/jobs/${id}/rows/${encodeURIComponent(rowId)}/factor`, body),
     editConfig: (id, rowId) => get(`/jobs/${id}/rows/${encodeURIComponent(rowId)}/edit-config`),

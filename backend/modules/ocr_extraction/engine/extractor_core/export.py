@@ -7,9 +7,6 @@ re-deriving anything. Rows with review_status 'rejected' are never exported.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-CONTRACT_VERSION = "1.0"
 
 
 def to_record(row: dict) -> dict:
@@ -50,13 +47,3 @@ def approval_blockers(rows: list[dict], ids: set[str]) -> set[str]:
     bad |= {r["parent_id"] for r in rows if r["row_id"] in bad and r.get("parent_id")}
     bad |= {r["row_id"] for r in rows if r.get("parent_id") in bad}
     return bad
-
-
-def save_all_payload(rows: list[dict], org: str = "default", only_approved: bool = True) -> dict:
-    pick = [r for r in rows if (r.get("review") or {}).get("state") == "approved"] if only_approved else         [r for r in rows if (r.get("review") or {}).get("state") != "rejected"]
-    recs = [to_record(r) for r in pick]
-    # an incomplete record is never exported as a record, even if it was approved and then edited: it is listed instead
-    blocked = [r["row_id"] for r in recs if not r["formula_id"] or not r["facility_id"] or not r["reporting_period"]]
-    return {"contract_version": CONTRACT_VERSION, "org": org,
-            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "records": [r for r in recs if r["row_id"] not in set(blocked)], "not_calculable": blocked}

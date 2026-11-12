@@ -268,18 +268,13 @@ def test_bare_units_means_kwh():
 
 # ------------------------------------------------------------------ approval guard
 def test_incomplete_rows_cannot_be_approved_or_exported(fake):
-    from extractor_core.export import approval_blockers, save_all_payload
+    from extractor_core.export import approval_blockers
     eng = Engine(providers=[fake])                       # no facilities configured -> facility missing
     rows = rows_for(eng, item(description="HSD diesel for DG set", quantity=500, unit="Ltr", amount=45000))
     parent = next(r for r in rows if not r.get("derived"))
     assert not parent["facility"].get("id")
     bad = approval_blockers(rows, {parent["row_id"]})
     assert parent["row_id"] in bad and len(bad) == len(rows)          # the companion rows are held back with it
-    # even if such a row ended up approved (e.g. edited after approval) it must not be exported as a record
-    for r in rows:
-        r["review"] = {"state": "approved"}
-    payload = save_all_payload(rows, "org")
-    assert payload["records"] == [] and set(payload["not_calculable"]) == {r["row_id"] for r in rows}
 
 
 def test_job_stops_when_the_credit_budget_is_exceeded(fake, tmp_path):

@@ -12,10 +12,6 @@ gives the balance, the usage per day, per step, per model and per job.
 from __future__ import annotations
 
 import json
-import sqlite3
-import threading
-import time
-from pathlib import Path
 
 from .config import MAPPINGS
 
@@ -107,73 +103,3 @@ def summarise(events: list[dict]) -> dict:
         b["cost_usd"] = round(b["cost_usd"], 6)
         b["credits"] = round(b["credits"], 2)
     return {"total": tot, "by_step": by_step, "by_model": by_model}
-
-
-class Ledger:
-    """Usage events and credit grants per organisation."""
-
-    def __init__(self, path: str | Path):
-        self._db = sqlite3.connect(str(path), check_same_thread=False)
-        self._lock = threading.Lock()
-        self._db.executescript("""
-            CREATE TABLE IF NOT EXISTS usage_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT, job_id TEXT, ts REAL, step TEXT, provider TEXT, model TEXT,
-                calls INTEGER, ok INTEGER, input_tokens INTEGER, output_tokens INTEGER, seconds REAL, cost_usd REAL,
-                cost_basis TEXT, estimated INTEGER, credits REAL);
-            CREATE INDEX IF NOT EXISTS ix_usage_org_ts ON usage_events(org, ts);
-            CREATE TABLE IF NOT EXISTS credit_grants (id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT, ts REAL, credits REAL, note TEXT);
-        """)
-
-    def has_job(self, org: str, job_id: str) -> bool:
-        return self._db.execute("SELECT 1 FROM usage_events WHERE org=? AND job_id=? LIMIT 1", (org, job_id)).fetchone() is not None
-
-    def record(self, org: str, job_id: str, events: list[dict], ts: float | None = None) -> None:
-        ts = ts or time.time()
-        with self._lock:
-            self._db.executemany(
-                "INSERT INTO usage_events (org, job_id, ts, step, provider, model, calls, ok, input_tokens, output_tokens, seconds,"
-                " cost_usd, cost_basis, estimated, credits) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [(org, job_id, ts, e["step"], e["provider"], e["model"], e["calls"], int(e["ok"]), e["input_tokens"], e["output_tokens"],
-                  e["seconds"], e["cost_usd"], e["cost_basis"], int(e["estimated"]), e["credits"]) for e in events])
-            self._db.commit()
-
-    def grant(self, org: str, credits: float, note: str = "") -> None:
-        with self._lock:
-            self._db.execute("INSERT INTO credit_grants (org, ts, credits, note) VALUES (?,?,?,?)", (org, time.time(), credits, note))
-            self._db.commit()
-
-    def forget_job(self, org: str, job_id: str) -> None:
-        """Deleting a job keeps its usage (it was spent); kept for tests and resets."""
-        with self._lock:
-            self._db.execute("DELETE FROM usage_events WHERE org=? AND job_id=?", (org, job_id))
-            self._db.commit()
-
-    def balance(self, org: str) -> dict:
-        granted = self._db.execute("SELECT COALESCE(SUM(credits),0) FROM credit_grants WHERE org=?", (org,)).fetchone()[0]
-        used = self._db.execute("SELECT COALESCE(SUM(credits),0) FROM usage_events WHERE org=?", (org,)).fetchone()[0]
-        return {"granted": round(granted, 2), "used": round(used, 2), "remaining": round(granted - used, 2)}
-
-    def report(self, org: str, since: float) -> dict:
-        q = self._db.execute(
-            "SELECT job_id, ts, step, provider, model, calls, ok, input_tokens, output_tokens, seconds, cost_usd, cost_basis, estimated,"
-            " credits FROM usage_events WHERE org=? AND ts>=? ORDER BY ts", (org, since)).fetchall()
-        cols = ["job_id", "ts", "step", "provider", "model", "calls", "ok", "input_tokens", "output_tokens", "seconds", "cost_usd",
-                "cost_basis", "estimated", "credits"]
-        events = [dict(zip(cols, r)) for r in q]
-        for e in events:
-            e["ok"], e["estimated"] = bool(e["ok"]), bool(e["estimated"])
-        by_day: dict[str, dict] = {}
-        by_job: dict[str, dict] = {}
-        for e in events:
-            d = time.strftime("%Y-%m-%d", time.localtime(e["ts"]))
-            day = by_day.setdefault(d, {"credits": 0.0, "by_step": {}})
-            day["credits"] = round(day["credits"] + e["credits"], 2)
-            day["by_step"][e["step"]] = round(day["by_step"].get(e["step"], 0) + e["credits"], 2)
-            j = by_job.setdefault(e["job_id"], {"job_id": e["job_id"], "ts": e["ts"], "credits": 0.0, "cost_usd": 0.0, "calls": 0})
-            j["credits"] = round(j["credits"] + e["credits"], 2)
-            j["cost_usd"] = round(j["cost_usd"] + e["cost_usd"], 6)
-            j["calls"] += e["calls"] if e["ok"] else 0
-        grants = [{"ts": r[0], "credits": r[1], "note": r[2]} for r in
-                  self._db.execute("SELECT ts, credits, note FROM credit_grants WHERE org=? ORDER BY ts DESC LIMIT 20", (org,))]
-        return {"balance": self.balance(org), "summary": summarise(events), "by_day": by_day,
-                "by_job": sorted(by_job.values(), key=lambda j: -j["ts"]), "grants": grants}

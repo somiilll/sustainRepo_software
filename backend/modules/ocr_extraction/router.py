@@ -27,7 +27,7 @@ from . import factor_inputs, factor_source, store  # noqa: F401  (also puts the 
 from extractor_core import audit, facilities as fac_mod, llm, normalise, plausibility, usage  # noqa: E402
 from extractor_core.config import load  # noqa: E402
 from extractor_core.decider.factors import slim  # noqa: E402
-from extractor_core.export import approval_blockers, save_all_payload  # noqa: E402
+from extractor_core.export import approval_blockers  # noqa: E402
 from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
 from extractor_core import rowstate  # noqa: E402
@@ -617,15 +617,6 @@ def job_audit(job_id: str, item_id: str | None = None, limit: int = 200, user: d
     org = _org(user)
     _summary(org, job_id)
     return AUDIT.for_item(org, job_id, item_id) if item_id else AUDIT.for_job(org, job_id, min(limit, 1000))
-
-
-@router.get("/jobs/{job_id}/export")
-def export(job_id: str, include_unapproved: bool = False, user: dict = Depends(get_current_user)):
-    org = _org(user)
-    job = _read_job(org, job_id)
-    payload = save_all_payload(job["rows"], org, only_approved=not include_unapproved)
-    return Response(json.dumps(payload, indent=2, default=str), media_type="application/json",
-                    headers={"Content-Disposition": f'attachment; filename="extraction_{job_id}.json"'})
 
 
 @router.get("/jobs/{job_id}/page")
