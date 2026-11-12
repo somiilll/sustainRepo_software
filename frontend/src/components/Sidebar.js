@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useModuleAccess } from '../hooks/useModuleAccess';
 import sidebarConfig from '../config/sidebarConfig';
 import { Button } from './ui/button';
-import { ChevronDown, ChevronRight, LogOut, X } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { ChevronDown, ChevronRight, ChevronUp, Coins, LogOut, Settings, User as UserIcon, Users, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import superAdminSidebarConfig from '../config/superAdminSidebarConfig';
 import { isSupplierMutedMenuItem } from '../config/supplierNavigation';
@@ -333,11 +334,25 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
       </nav>
 
       <div className="border-t border-stone-200 p-3">
-        <div className="mb-2 truncate px-1 text-xs text-stone-500" data-testid="sidebar-user-email">{user.email}</div>
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-stone-600 hover:text-red-600" onClick={handleLogout} data-testid="sidebar-logout">
-          <LogOut className="h-4 w-4" />
-          Logout
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-stone-100" data-testid="sidebar-account-trigger">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold uppercase text-emerald-800">{(user.full_name || user.email || '?').charAt(0)}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-stone-800" data-testid="sidebar-user-name">{user.full_name || user.email}</span>
+              <ChevronUp className="h-4 w-4 shrink-0 text-stone-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start" className="z-50 w-60 border border-stone-200 bg-white shadow-lg" data-testid="sidebar-account-menu">
+            <DropdownMenuLabel className="truncate text-xs font-normal text-stone-500" data-testid="sidebar-user-email">{user.email}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => navigate('/profile')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-profile"><UserIcon className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate('/account-settings')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-settings"><Settings className="mr-2 h-4 w-4" />Account Settings</DropdownMenuItem>
+            {['admin', 'super_admin'].includes(user.role) && <DropdownMenuItem onSelect={() => navigate('/users')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-users"><Users className="mr-2 h-4 w-4" />Users Management</DropdownMenuItem>}
+            {!isSupplier && hasAccess('uploads.ocr') && <DropdownMenuItem onSelect={() => navigate('/credits-usage')} className="focus:bg-stone-100 focus:text-stone-900" data-testid="account-menu-credits"><Coins className="mr-2 h-4 w-4" />Credits Usage</DropdownMenuItem>}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={handleLogout} className="text-red-600 focus:bg-red-50 focus:text-red-600" data-testid="sidebar-logout"><LogOut className="mr-2 h-4 w-4" />Log out</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

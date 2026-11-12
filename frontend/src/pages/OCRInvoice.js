@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Coins, FileText } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { makeOcrApi, errText } from '../modules/ocr2/api';
-import { CreditsTab } from '../modules/ocr2/CreditsTab';
 import { MemoryTab } from '../modules/ocr2/MemoryTab';
 import { ReviewTab } from '../modules/ocr2/ReviewTab';
 import { UploadTab } from '../modules/ocr2/UploadTab';
 import { fmtCr } from '../modules/ocr2/utils';
 
-const TABS = [['upload', 'Upload'], ['review', 'Review'], ['credits', 'Credits and usage'], ['memory', 'Learned decisions']];
+const TABS = [['upload', 'Upload'], ['review', 'Review'], ['memory', 'Learned decisions']];
 const TODO = ['ready', 'check', 'input', 'unreadable', 'needs_attention', 'ask'];
 
 const parseHash = () => {
@@ -20,6 +20,7 @@ const parseHash = () => {
 
 export default function OCRInvoice() {
   const { getAuthHeader } = useAuth();
+  const navigate = useNavigate();
   const headers = getAuthHeader();
   const api = useMemo(() => makeOcrApi(headers), [JSON.stringify(headers)]); // eslint-disable-line react-hooks/exhaustive-deps
   const [route, setRoute] = useState(parseHash());
@@ -45,7 +46,7 @@ export default function OCRInvoice() {
         icon={FileText}
         iconClassName="border-teal-200 bg-teal-50 text-teal-700"
         testId="ocr-invoice"
-        aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
+        aside={b && <button type="button" onClick={() => navigate('/credits-usage')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
       <div className="pb-5">
         <nav className="inline-flex flex-wrap gap-1 rounded-2xl bg-stone-100 p-1.5" data-testid="ocr-tabs">
@@ -60,7 +61,6 @@ export default function OCRInvoice() {
       {!meta ? <div className="h-40 animate-pulse rounded-xl bg-stone-100" /> : <>
         {route.view === 'upload' && <UploadTab api={api} usage={usage} refreshUsage={refreshUsage} onOpenJob={() => go('review')} />}
         {route.view === 'review' && <ReviewTab api={api} meta={meta} goUpload={() => go('upload')} />}
-        {route.view === 'credits' && <CreditsTab api={api} usage={usage} setUsage={setUsage} />}
         {route.view === 'memory' && <MemoryTab api={api} meta={meta} />}
       </>}
     </main>

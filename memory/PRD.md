@@ -1067,3 +1067,7 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - "Means" dropdown in Learned Decisions now searches real Scope 3 EF + Fuel DB factors (`GET /api/ocr-invoice/memory/factors?q=`); `/memory/change` accepts only `factor:<id>`. Old taxonomy-based decisions cleared. `elec.renewable` no longer adds the Scope 3 T&D companion. NOT tested (user instruction).
 - **P0 — Scope 1/2 edge cases still on taxonomy (not in Scope 3 EF / Fuel DB):** Scope 2 purchased electricity (grid/renewable/captive) and heat/steam/cooling, refrigerant/fugitive gases, industrial gases, water/wastewater, "no record" fees. Learned decisions for these show read-only in Learned Decisions. Needs factor-based sourcing and an editable dropdown for them.
 - P1 — Restore plausibility checks (outlier and duplicate-line warnings) removed from `plausibility.py` at user request ("later").
+
+## Account menu (Nov 2026)
+- Sidebar bottom: name row opens pop-up menu (Profile, Account Settings, Users Management [admin/super_admin], Credits Usage [OCR access, non-supplier], Log out). 'Profile' and 'Users' removed from sidebar list.
+- Pages: /profile (personal info only), /account-settings (change password, password reset, platform subscription), /credits-usage (CreditsTab moved out of OCR; OCR credits badge links to it). Smoke-checked once by screenshot only; no full testing (user instruction).

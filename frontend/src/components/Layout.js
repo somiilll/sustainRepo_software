@@ -18,6 +18,7 @@ const API = `${BACKEND_URL}/api`;
 const SUPPLIER_ALLOWED_ROUTES = [
   '/dashboard',
   '/profile',
+  '/account-settings',
   '/facilities',
   '/supplier-assessment/supplier',
   '/supplier-assessment/questionnaire',
