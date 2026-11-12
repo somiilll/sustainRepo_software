@@ -106,6 +106,8 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
     } catch (e) { toast.error(errText(e)); }
   };
   const askReview = (ids, state) => setConfirm({ ids, state });
+  const selStates = [...sel].map((id) => rstate((rows || []).find((r) => r.row_id === id) || {}));
+  const allSel = (st) => selStates.length > 0 && selStates.every((x) => x === st);
   const purge = async (ids) => {
     const byJob = {};
     ids.forEach((id) => { const r = rows.find((x) => x.row_id === id); if (r) (byJob[jobOf(r)] = byJob[jobOf(r)] || []).push(r._rid || r.row_id); });
@@ -224,7 +226,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
           <div className="relative ml-auto"><Search className="absolute left-2 top-2.5 h-4 w-4 text-stone-400" /><input className="w-64 rounded-md border border-stone-300 py-1.5 pl-8 pr-2 text-sm" placeholder="Search item, vendor, category..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} data-testid="ocr-search" /></div>
         </div>
         {filter === 'rejected' && counts.rejected > 0 && <div className="flex items-center justify-between gap-2 border-b bg-rose-50/60 p-2 text-sm" data-testid="ocr-rejected-bar"><span>{counts.rejected} rejected line{counts.rejected > 1 ? 's' : ''}</span><Button size="sm" variant="destructive" onClick={() => setConfirm({ purge: true, ids: sel.size ? [...sel] : rows.filter((r) => !r.derived && inScope(r) && rstate(r) === 'rejected').map((r) => r.row_id) })} data-testid="ocr-delete-permanently"><Trash2 className="mr-1 h-4 w-4" />Delete permanently{sel.size ? ` (${sel.size} selected)` : ' (all)'}</Button></div>}
-        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b><Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button><Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button><Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
+        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b>{!allSel('approved') && <Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button>}{!allSel('rejected') && <Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button>}<Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-stone-50 text-left text-xs text-stone-500">
           <th className="p-2"><input type="checkbox" aria-label="Select page" checked={slice.length > 0 && slice.every((r) => sel.has(r.row_id))} onChange={(e) => setSel((s) => { const n = new Set(s); slice.forEach((r) => (e.target.checked ? n.add(r.row_id) : n.delete(r.row_id))); return n; })} data-testid="ocr-select-all" /></th>
           <th className="p-2">Line item</th><th className="p-2">Quantity</th><th className="p-2">Classification</th><th className="p-2">Facility · period</th><th className="p-2">Confidence · status</th><th className="p-2" /></tr></thead>
