@@ -165,6 +165,10 @@ async def attach_evidence(db, org: str, user: dict, emission_id: str, file_key: 
     if not file_key:
         return
     if file_key not in cache:
+        known = await db.uploaded_files.find_one({"organization_id": org, "source": "ocr_extraction", "ocr_file_key": file_key}, {"_id": 0, "id": 1})
+        if known:
+            cache[file_key] = (known["id"], f"/api/files/{known['id']}")
+    if file_key not in cache:
         r2 = get_r2_storage()
         content, ctype = await r2.get_file("ocr_temp", file_key)
         up = await r2.upload_file(file_content=content, filename=filename, bucket_type="emission_evidence",
@@ -175,7 +179,7 @@ async def attach_evidence(db, org: str, user: dict, emission_id: str, file_key: 
         await db.uploaded_files.insert_one({"id": fid, "original_filename": filename, "stored_filename": up["key"], "bucket_name": up.get("bucket"),
                                             "bucket_type": "emission_evidence", "r2_key": up["key"], "file_size": len(content),
                                             "content_type": ctype or "application/octet-stream", "organization_id": org,
-                                            "uploaded_by": user.get("id"), "uploaded_at": datetime.now(timezone.utc).isoformat(), "source": "ocr_extraction"})
+                                            "uploaded_by": user.get("id"), "uploaded_at": datetime.now(timezone.utc).isoformat(), "source": "ocr_extraction", "ocr_file_key": file_key})
         cache[file_key] = (fid, f"/api/files/{fid}")
     fid, url = cache[file_key]
     await db.emission_records.update_one({"id": emission_id, "organization_id": org}, {"$set": {"evidence_url": url, "evidence_file_name": filename, "evidence_file_id": fid}})
@@ -222,15 +226,13 @@ async def save_ghg_record(db, org: str, user: dict, rec: dict, chosen: dict | No
             fuel_database_id=values.get("fuel_id"),
             source_of_information="OCR Excel Upload" if is_sheet else "OCR Invoice Upload",
             record_source=rec.get("invoice_number") or "",
-            notes="\n".join(x for x in (f"Vendor: {rec['vendor']}" if rec.get("vendor") else "", f"Item: {rec.get('description') or ''}",
-                                        f"OCR extraction row {rec['row_id']}") if x),
+            notes="\n".join(x for x in (f"Vendor: {rec['vendor']}" if rec.get("vendor") else "", f"Item: {rec.get('description') or ''}") if x),
             upload_source="ocr_upload", ocr_line_item_id=rec["row_id"],
         )
         emission = await create_emission_record(payload, user)
         data = emission.model_dump() if hasattr(emission, "model_dump") else emission
         if calc.get("audit_log_id") and data.get("id"):
             await db.ce_calculation_audit_logs.update_one({"id": calc["audit_log_id"]}, {"$set": {"emission_record_id": data["id"]}})
-        if not is_sheet:
-            await attach_evidence(db, org, user, data["id"], file_key, (rec.get("evidence") or {}).get("file") or "document", evidence_cache)
+        await attach_evidence(db, org, user, data["id"], file_key, (rec.get("evidence") or {}).get("file") or "document", evidence_cache)
         ids.append(data["id"])
     return ids
