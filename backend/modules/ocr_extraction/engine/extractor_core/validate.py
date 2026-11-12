@@ -153,6 +153,18 @@ def _worse(a: str, b: str) -> str:
     return max(a, b, key=ORDER.index)
 
 
+TAG_TEXT = {"unknown_brand": "brand not recognised", "material_inferred": "material guessed from the name", "ambiguous_between_options": "more than one option fits",
+            "spend_proxy": "estimated from the amount spent", "no_good_option": "no clear match", "variant_unspecified": "variant not stated",
+            "unit_printed": "unit is printed", "currency_printed": "currency is printed", "column_pattern": "same as the other rows", "spec_in_name": "number is part of the item name",
+            "only_number_in_row": "only number on the row", "code_or_serial": "looks like a code or serial number", "unit_assumed": "unit was assumed",
+            "ambiguous_between_roles": "could be a quantity or an amount", "no_context": "nothing nearby to confirm it"}
+TAG_HIDDEN = {"haiku_final", "jev_pick", "org_context_used", "exact_name"}
+
+
+def plain(tags: list) -> list[str]:
+    return [TAG_TEXT.get(t, t.replace("_", " ")) for t in tags if t not in TAG_HIDDEN]
+
+
 def decision_basis(d: dict) -> dict:
     """What the classification rests on. Factor decisions carry the AI's own level and tags; the older flows (rules, Jev, memory) are described by method."""
     if d.get("level"):
@@ -192,6 +204,8 @@ def finish(row: dict, item: dict) -> dict:
     basis = {"classification": decision_basis(row["decision"]), "quantity": read_basis(row, item),
              "facility": {"level": FACILITY_LEVEL.get(fm, "none") if row["facility"].get("id") else "none", "tags": [fm] if fm else []},
              "period": {"level": plevel, "tags": [pm] if pm and pm != "none" else []}}
+    for v in basis.values():
+        v["notes"] = plain(v.get("tags") or [])
     row["basis"] = basis
     row["read_tags"] = (item.get("scan") or {}).get("ai_levels") or []
     levels = {c["level"] for c in row["checks"]}
@@ -221,7 +235,7 @@ def trust(row: dict) -> dict:
     look: list[str] = []
     good: str | None = None
     cl = b["classification"]
-    tags = ", ".join(t.replace("_", " ") for t in cl["tags"][:3])
+    tags = ", ".join(plain(cl["tags"])[:3])
 
     if row.get("review_status") == "ask":
         needs.append(d.get("question") or "We are not sure what this item is")
@@ -234,9 +248,9 @@ def trust(row: dict) -> dict:
         needs.append("Two methods gave different answers")
 
     if cl["level"] == "certain":
-        good = "Matched exactly" if "exact_name" in cl["tags"] else "You confirmed this item before" if "confirmed_by_you" in cl["tags"] else f"Clearly identified ({tags})"
+        good = "Matched exactly" if "exact_name" in cl["tags"] else "You confirmed this item before" if "confirmed_by_you" in cl["tags"] else f"Clearly identified ({tags})" if tags else "Clearly identified"
     elif cl["level"] == "likely":
-        look.append(f"Likely match ({tags}) - worth a glance")
+        look.append(f"Likely match ({tags}) - worth a glance" if tags else "Likely match - worth a glance")
     look += [c["message"] for c in checks if c["level"] == "warn" and c["code"] != "facility_unmatched"]
     if b["quantity"]["level"] in ("uncertain", "guess"):
         look.append("The quantity was hard to read")
