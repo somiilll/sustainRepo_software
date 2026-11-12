@@ -516,7 +516,7 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
                "context_confidence": {k: 0.99 for k in ctx}, "reason": "Set by reviewer", "alternatives": [], "question": None}
     elif e.use_context:
         dec = {**dec, "context": {**(dec.get("context") or {}), "use_context": e.use_context},
-               "context_confidence": {**(dec.get("context_confidence") or {}), "use_context": 0.99}, "question": None,
+               "context_confidence": {**(dec.get("context_confidence") or {}), "use_context": 0.99}, "question": None, "level": "certain", "tags": ["confirmed_by_you"],
                "confidence": max(dec.get("confidence", 0), 0.95), "source": "user", "reason": "Use confirmed by reviewer"}
     eng = _engine(org, facs)
     new_rows = eng.rows_for_item(item, dec)

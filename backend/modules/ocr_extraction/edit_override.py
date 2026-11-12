@@ -165,7 +165,7 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
         row["quantity"], row["unit"], row["dimension"] = ov.quantity, ov.unit, None
     if method == "spend":
         row["amount"], row["currency"] = ov.amount, ov.currency or row.get("currency")
-    row["decision"] = {**row["decision"], "source": "user", "confidence": 0.99, "question": None, "alternatives": [],
+    row["decision"] = {**row["decision"], "source": "user", "confidence": 0.99, "question": None, "alternatives": [], "level": "certain", "tags": ["confirmed_by_you"],
                        "reason": "Scope, category and activity chosen by reviewer"}
     row["checks"] = row_checks({**row, "activity_id": None}, item)
     finish(row, item)
