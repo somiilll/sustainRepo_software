@@ -1076,3 +1076,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 
 ## P1 backlog (Nov 2026)
 - **P1 — Contact Sales email must say which module the user clicked from:** the email to info@sustainrepo.com should include the module/page the user opened Contact Sales from (e.g. RepoPilot, Account Settings > Renew subscription / Contact support, locked module overlay). Needs: `ContactSalesDialog` to accept a `source` prop, `POST /api/contact-sales` to store/send it, and every caller (`RepoPilot.js`, `Layout.js`, `AccountSettings.js`, locked-module overlays) to pass its own label.
+
+## Profile redesign (Nov 2026)
+- /profile: gradient cover banner + overlapping initials avatar, name, role badge, organization, member-since; Personal information card (inline-editable Full name, Recovery email, Recovery mobile; read-only sign-in email) and Role & access card with link to Account Settings. Design: /app/design_guidelines.json.
+- Backend: `PUT /api/auth/profile` now accepts optional full_name, recovery_email, recovery_mobile (only sent fields change; empty clears; email/mobile validated).
+- NOTE: recovery email/mobile are stored only; password reset still goes to the sign-in email. Smoke-checked by screenshot (desktop + mobile, recovery mobile save). Not covered by testing agent.

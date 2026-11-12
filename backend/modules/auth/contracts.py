@@ -38,7 +38,9 @@ class PasswordReset(BaseModel):
 
 
 class ProfileUpdate(BaseModel):
-    full_name: str
+    full_name: Optional[str] = None
+    recovery_email: Optional[str] = None
+    recovery_mobile: Optional[str] = None
 
 
 class ResetPasswordRequest(BaseModel):

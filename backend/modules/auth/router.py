@@ -11,6 +11,7 @@ Auth router — 7 routes:
 Behaviour preserved exactly from server.py — same response shapes,
 status codes, validation messages, and side effects (email sending).
 """
+import re
 import logging
 import os
 import uuid
@@ -287,14 +288,27 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/auth/profile", response_model=UserResponse)
 async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
-    """Update current user's profile (name)."""
-    if not profile_data.full_name or len(profile_data.full_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    """Update current user's profile (name, recovery email, recovery mobile). Only the fields sent are changed."""
+    update_dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    sent = profile_data.model_fields_set
+    if "full_name" in sent:
+        name = (profile_data.full_name or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+        update_dict["full_name"] = name
+    if "recovery_email" in sent:
+        email = (profile_data.recovery_email or "").strip().lower()
+        if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise HTTPException(status_code=400, detail="Enter a valid recovery email")
+        update_dict["recovery_email"] = email or None
+    if "recovery_mobile" in sent:
+        mobile = (profile_data.recovery_mobile or "").strip()
+        if mobile and not re.fullmatch(r"\+?[0-9][0-9 \-]{6,18}[0-9]", mobile):
+            raise HTTPException(status_code=400, detail="Enter a valid mobile number")
+        update_dict["recovery_mobile"] = mobile or None
+    if len(update_dict) == 1:
+        raise HTTPException(status_code=400, detail="Nothing to update")
 
-    update_dict = {
-        "full_name": profile_data.full_name.strip(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
     await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
 
     updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
