@@ -47,17 +47,19 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
-      <nav className="mb-2 inline-flex flex-wrap gap-1 rounded-2xl bg-stone-100 p-1.5" data-testid="ocr-tabs">
-        {TABS.map(([k, label]) => (
-          <button key={k} type="button" onClick={() => go(k)} data-testid={`ocr-tab-${k}`}
-            className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium transition-colors ${route.view === k ? 'bg-emerald-700 text-white shadow-sm' : 'text-stone-600 hover:bg-stone-200/70'}`}>
-            {label}{k === 'review' && todo > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800" data-testid="ocr-review-count">{todo}</span>}
-          </button>
-        ))}
-      </nav>
+      <div className="pb-5">
+        <nav className="inline-flex flex-wrap gap-1 rounded-2xl bg-stone-100 p-1.5" data-testid="ocr-tabs">
+          {TABS.map(([k, label]) => (
+            <button key={k} type="button" onClick={() => go(k)} data-testid={`ocr-tab-${k}`}
+              className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium transition-colors ${route.view === k ? 'bg-emerald-700 text-white shadow-sm' : 'text-stone-600 hover:bg-stone-200/70'}`}>
+              {label}{k === 'review' && todo > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800" data-testid="ocr-review-count">{todo}</span>}
+            </button>
+          ))}
+        </nav>
+      </div>
       {!meta ? <div className="h-40 animate-pulse rounded-xl bg-stone-100" /> : <>
-        {route.view === 'upload' && <UploadTab api={api} usage={usage} refreshUsage={refreshUsage} onOpenJob={(id) => go('review', id)} />}
-        {route.view === 'review' && <ReviewTab key={route.arg || 'inbox'} api={api} meta={meta} jobId={route.arg} onOpenJob={(id) => go('review', id)} onBackToInbox={() => go('review')} goUpload={() => go('upload')} />}
+        {route.view === 'upload' && <UploadTab api={api} usage={usage} refreshUsage={refreshUsage} onOpenJob={() => go('review')} />}
+        {route.view === 'review' && <ReviewTab api={api} meta={meta} goUpload={() => go('upload')} />}
         {route.view === 'credits' && <CreditsTab api={api} usage={usage} setUsage={setUsage} />}
         {route.view === 'memory' && <MemoryTab api={api} meta={meta} />}
       </>}

@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CornerDownRight, DatabaseZap, FileSearch, Files, Info, Pencil, Search, X } from 'lucide-react';
+import { Check, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { EditDialog } from './EditDialog';
-import { DocsDialog, EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
-import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, scopeOf } from './utils';
+import { EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
+import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtN, rstate, scopeOf } from './utils';
 
 const PER = 50;
 const TABS = ['pending', 'all', 'ready', 'check', 'input', 'unreadable', 'approved', 'rejected'];
@@ -38,12 +38,10 @@ const QtyCell = ({ r }) => {
   );
 };
 
-export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload }) => {
-  const inbox = !jobId;
+export const ReviewTab = ({ api, meta, goUpload }) => {
   const [rows, setRows] = useState(null);
-  const [jobMeta, setJobMeta] = useState(null);
   const [jobList, setJobList] = useState([]);
-  const [filter, setFilter] = useState(inbox ? 'pending' : 'all');
+  const [filter, setFilter] = useState('pending');
   const [scope, setScope] = useState('all');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(0);
@@ -54,24 +52,19 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   const [saveRes, setSaveRes] = useState(null);
   const [confirm, setConfirm] = useState(null);
 
-  const jobOf = useCallback((r) => r._job || jobId, [jobId]);
+  const jobOf = useCallback((r) => r._job, []);
   const actLabel = useCallback((id) => meta.activities.find((a) => a.id === id)?.label || id, [meta]);
   const actOf = useCallback((id) => meta.activities.find((a) => a.id === id), [meta]);
 
   const load = useCallback(async () => {
-    if (inbox) {
-      const jobs = (await api.jobs()).filter((j) => j.status === 'done').sort((a, b) => (b.created || 0) - (a.created || 0));
-      const lists = await Promise.all(jobs.map(async (j) => (await api.rows(j.job_id)).map((r) => ({ ...r, _job: j.job_id, _rid: r.row_id, row_id: `${j.job_id}:${r.row_id}`, parent_id: r.parent_id ? `${j.job_id}:${r.parent_id}` : r.parent_id }))));
-      setJobList(jobs); setRows(lists.flat()); setJobMeta({ documents: [], metrics: {}, credits: 0 });
-    } else {
-      const [job, rs] = await Promise.all([api.job(jobId), api.rows(jobId)]);
-      setJobMeta(job); setRows(rs);
-    }
-  }, [api, inbox, jobId]);
+    const jobs = (await api.jobs()).filter((j) => j.status === 'done').sort((a, b) => (b.created || 0) - (a.created || 0));
+    const lists = await Promise.all(jobs.map(async (j) => (await api.rows(j.job_id)).map((r) => ({ ...r, _job: j.job_id, _rid: r.row_id, row_id: `${j.job_id}:${r.row_id}`, parent_id: r.parent_id ? `${j.job_id}:${r.parent_id}` : r.parent_id }))));
+    setJobList(jobs); setRows(lists.flat());
+  }, [api]);
 
-  useEffect(() => { setRows(null); setSel(new Set()); setPage(0); setFilter(inbox ? 'pending' : 'all'); setJobsSel(new Set()); load().catch((e) => toast.error(errText(e, 'Could not load the extraction'))); }, [load, inbox]);
+  useEffect(() => { setRows(null); setSel(new Set()); setPage(0); setFilter('pending'); setJobsSel(new Set()); load().catch((e) => toast.error(errText(e, 'Could not load the extraction'))); }, [load]);
 
-  const inScope = useCallback((r) => !r.derived && (!jobsSel.size || jobsSel.has(r._job || jobId)), [jobsSel, jobId]);
+  const inScope = useCallback((r) => !r.derived && (!jobsSel.size || jobsSel.has(r._job)), [jobsSel]);
   const [counts, scopes] = useMemo(() => {
     const c = { all: 0, ready: 0, check: 0, input: 0, unreadable: 0, approved: 0, rejected: 0, pending: 0 }; const sc = {};
     (rows || []).filter(inScope).forEach((r) => { c.all++; c[rstate(r)] = (c[rstate(r)] || 0) + 1; if (PENDING.includes(rstate(r))) c.pending++; sc[scopeOf(r)] = (sc[scopeOf(r)] || 0) + 1; });
@@ -123,17 +116,15 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     try { const res = await api.saveToGhg(id); setSaveRes(res); await load(); if (res.saved && !res.failed.length) toast.success(`${res.saved} line(s) saved`); } catch (e) { toast.error(errText(e)); } finally { setSaving(false); }
   };
 
-  if (rows === null || !jobMeta) return <div className="space-y-3" data-testid="ocr-review-loading">{[70, 100, 90].map((w) => <div key={w} className="h-10 animate-pulse rounded bg-stone-100" style={{ width: `${w}%` }} />)}</div>;
-  if (inbox && !jobList.length) return <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-stone-500" data-testid="ocr-review-empty">No finished extractions yet. <button type="button" className="text-emerald-700 underline" onClick={goUpload}>Go to Upload</button></div>;
-  if (!inbox && ['running', 'queued'].includes(jobMeta.status)) return <div className="rounded-xl border border-stone-200 p-10 text-center text-stone-600">This extraction is still running. Its progress is on the Upload tab.</div>;
+  if (rows === null) return <div className="space-y-3" data-testid="ocr-review-loading">{[70, 100, 90].map((w) => <div key={w} className="h-10 animate-pulse rounded bg-stone-100" style={{ width: `${w}%` }} />)}</div>;
+  if (!jobList.length) return <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-stone-500" data-testid="ocr-review-empty">No finished extractions yet. <button type="button" className="text-emerald-700 underline" onClick={goUpload}>Go to Upload</button></div>;
 
-  const selJobs = inbox ? jobList.filter((j) => !jobsSel.size || jobsSel.has(j.job_id)) : [];
+  const selJobs = jobList.filter((j) => !jobsSel.size || jobsSel.has(j.job_id));
   const unsaved = rows.filter((r) => (inScope(r) || r.derived) && rstate(r) === 'approved' && !r.review?.saved).length;
-  const exportId = inbox ? (selJobs.length === 1 ? selJobs[0].job_id : null) : jobId;
+  const exportId = selJobs.length === 1 ? selJobs[0].job_id : null;
   const good = (counts.ready || 0) + (counts.approved || 0);
   const noFac = rows.filter((r) => inScope(r) && !r.facility?.id && rstate(r) !== 'rejected').length;
-  const credits = inbox ? selJobs.reduce((a, j) => a + (j.credits || 0), 0) : jobMeta.credits;
-  const docs = inbox ? [] : jobMeta.documents || [];
+  const credits = selJobs.reduce((a, j) => a + (j.credits || 0), 0);
 
   const answerUi = (r) => {
     const d = r.decision || {}; const st = rstate(r);
@@ -191,14 +182,10 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
 
   return (
     <div className="space-y-5" data-testid="ocr-review-tab">
-      <div className="flex flex-wrap items-center gap-3">
-        {!inbox && <Button variant="ghost" size="sm" onClick={onBackToInbox} data-testid="ocr-back-inbox"><ArrowLeft className="mr-1 h-4 w-4" />All pending items</Button>}
-        <div className="min-w-0 flex-1">{!inbox && <h2 className="text-xl font-semibold text-stone-900">Review extracted data</h2>}
-          {!inbox && <p className="text-sm text-stone-500">{`${jobMeta.names.length} file${jobMeta.names.length > 1 ? 's' : ''} · ${fmtDate(jobMeta.created)} · ${jobMeta.mode === 'think' ? 'Deep read' : 'Standard'} · ${jobMeta.metrics?.items ?? '?'} lines read in ${jobMeta.metrics?.seconds ?? '?'}s`}</p>}</div>
-        {!inbox && <Button variant="outline" onClick={() => setDlg({ type: 'docs' })} data-testid="ocr-docs-button"><Files className="mr-1 h-4 w-4" />Documents ({docs.length})</Button>}
-        {unsaved > 0 && <Button disabled={!exportId || saving} title={exportId ? 'These approved lines could not be saved to GHG records. Try saving them again.' : 'Pick one extraction below to retry'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>}
-      </div>
-      {inbox && (
+      {unsaved > 0 && <div className="flex justify-end">
+        <Button disabled={!exportId || saving} title={exportId ? 'These approved lines could not be saved to GHG records. Try saving them again.' : 'Pick one extraction below to retry'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>
+      </div>}
+      {(
         <div className="rounded-xl border border-stone-200 bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Show lines from</div>
           <div className="flex flex-wrap gap-2"><button type="button" className={`rounded-full border px-3 py-1 text-xs ${jobsSel.size ? 'border-stone-300' : 'border-emerald-600 bg-emerald-50 font-semibold'}`} onClick={() => { setJobsSel(new Set()); setPage(0); }} data-testid="ocr-jobs-all">All extractions</button>
             {jobList.map((j) => <button key={j.job_id} type="button" className={`max-w-[260px] truncate rounded-full border px-3 py-1 text-xs ${jobsSel.has(j.job_id) ? 'border-emerald-600 bg-emerald-50 font-semibold' : 'border-stone-300'}`} title={j.names.join(', ')}
@@ -253,7 +240,6 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         </Dialog>)}
       {dlg?.type === 'why' && <WhyDialog row={dlg.row} actLabel={actLabel} jobOf={jobOf} api={api} onClose={() => setDlg(null)} />}
       {dlg?.type === 'evidence' && <EvidenceDialog row={dlg.row} jobOf={jobOf} api={api} onClose={() => setDlg(null)} />}
-      {dlg?.type === 'docs' && <DocsDialog docs={docs} skipped={jobMeta.skipped || []} onClose={() => setDlg(null)} />}
     </div>
   );
 };

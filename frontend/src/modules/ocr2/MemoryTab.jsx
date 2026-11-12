@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Brain, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
@@ -14,7 +14,7 @@ export const MemoryTab = ({ api, meta }) => {
   return (
     <div className="space-y-4" data-testid="ocr-memory-tab">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1"><h2 className="flex items-center gap-2 text-xl font-semibold"><Brain className="h-5 w-5 text-emerald-700" />Learned decisions</h2><p className="text-sm text-stone-500">What the extractor remembers from your corrections. Undo anything that is wrong; the next upload asks the rules and AI again.</p></div>
+        <div className="min-w-0 flex-1" />
         {list.length > 0 && <Button variant="outline" onClick={() => window.confirm('Forget every learned decision? Saved sheet layouts are kept.') && act(() => api.clearMemory(), 'All decisions forgotten')} data-testid="ocr-memory-clear"><Trash2 className="mr-1 h-4 w-4" />Forget all decisions</Button>}
       </div>
       {list.length === 0 ? <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-stone-500" data-testid="ocr-memory-empty">Nothing learned yet. Corrections and answers you give in Review are remembered here.</div> : (

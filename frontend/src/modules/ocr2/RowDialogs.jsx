@@ -7,6 +7,7 @@ import { SOURCE_LABEL, STATUS_CLASS, TRUST_CLASS, fmtDate, fmtN } from './utils'
 
 export const TrustBadge = ({ t }) => (t ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TRUST_CLASS[t.level]}`} title={(t.reasons || []).join('\n')}>{{ high: 'Ready', check: 'Check', needs_you: 'Needs input' }[t.level] || t.label}</span> : null);
 
+const LEVEL_TEXT = { certain: 'text-emerald-700', likely: 'text-amber-600', uncertain: 'text-rose-600', guess: 'text-rose-600' };
 const ACTION = { approved: 'Approved', rejected: 'Rejected', reset: 'Reset to review', edited: 'Edited', approval_blocked: 'Approval refused' };
 export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
   const [hist, setHist] = useState(null);
@@ -18,16 +19,13 @@ export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
       <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto" data-testid="ocr-why-dialog">
         <DialogHeader><DialogTitle>Why this classification</DialogTitle></DialogHeader>
         <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-2 text-sm">
-          {rowKV('Activity', <b>{row.activity_label || '-'}</b>)}
-          {rowKV('Decided by', `${SOURCE_LABEL[d.source] || d.source}${d.level ? ' · ' + d.level : ''}${(d.tags || []).length ? ' (' + d.tags.map((t) => t.replace(/_/g, ' ')).join(', ') + ')' : ''}`)}
           {rowKV('Reason', d.reason)}
           {d.alternatives?.length > 0 && rowKV('Alternatives', d.alternatives.map((a) => `${actLabel(a.activity_id)}${a.p != null ? ` (${Math.round(100 * a.p)}%)` : ''}`).join(', '))}
           {rowKV('GHG', `${row.ghg?.scope_label} › ${row.ghg?.category_label} › ${row.ghg?.subcategory_label}`)}
           {rowKV('Quantity', `As printed: ${row.raw_quantity != null ? `${fmtN(row.raw_quantity, 4)} ${row.raw_unit || ''}` : 'none'}${row.quantity != null ? ` · in calculation: ${fmtN(row.quantity, 4)} ${row.unit || ''}` : ''}`)}
-          {rowKV('Formula', `${c.formula_label || 'none'} (${c.ef_method || '-'})`)}
           {rowKV('Fields', <code className="whitespace-pre-wrap text-xs">{JSON.stringify(c.fields || {}, null, 1)}</code>)}
           {row.trust && rowKV('Trust', <><TrustBadge t={row.trust} /><ul className="mt-1 list-disc pl-5 text-xs text-stone-600">{row.trust.reasons.map((x) => <li key={x}>{x}</li>)}</ul></>)}
-          {rowKV('Basis', Object.entries(row.basis || {}).map(([k, v]) => `${k}: ${v.level}${(v.tags || []).length ? ' (' + v.tags.map((t) => t.replace(/_/g, ' ')).join(', ') + ')' : ''}`).join(' · '))}
+          {rowKV('Basis', <span data-testid="ocr-why-basis">{Object.entries(row.basis || {}).map(([k, v], i) => <span key={k}>{i > 0 && ' · '}<span className="capitalize">{k}</span>: <b className={LEVEL_TEXT[v.level] || ''}>{v.level}</b>{k !== 'classification' && (v.tags || []).length ? ` (${v.tags.map((t) => t.replace(/_/g, ' ')).join(', ')})` : ''}</span>)}</span>)}
           {rowKV('Facility match', `${row.facility?.name || 'none'} (${row.facility?.method})`)}
           {rowKV('Period', `${row.reporting_period || 'none'} (${row.period?.method})`)}
           {rowKV('All checks', (row.checks || []).map((x) => <div key={x.message} className={x.level === 'error' ? 'text-rose-700' : x.level === 'warn' ? 'text-amber-700' : 'text-stone-500'}>{x.level}: {x.message}</div>))}
@@ -84,22 +82,6 @@ export const EvidenceDialog = ({ row, jobOf, api, onClose }) => {
     </Dialog>
   );
 };
-
-export const DocsDialog = ({ docs, skipped, onClose }) => (
-  <Dialog open onOpenChange={(o) => !o && onClose()}>
-    <DialogContent className="max-h-[88vh] max-w-4xl overflow-y-auto" data-testid="ocr-docs-dialog">
-      <DialogHeader><DialogTitle>Documents in this extraction</DialogTitle></DialogHeader>
-      <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs text-stone-500"><th className="py-1">File</th><th>Status</th><th>Read as</th><th>Records</th><th>Warnings and checks</th></tr></thead>
-        <tbody>{docs.map((d) => (
-          <tr key={d.file} className="border-b align-top"><td className="py-2"><b>{d.file}</b><div className="text-xs text-stone-500">{d.kind}{d.pages ? ` · ${d.pages} page(s)` : ''}{d.model ? ` · ${d.model}` : ''}</div></td>
-            <td><span className={`rounded-full border px-2 py-0.5 text-xs ${d.status === 'ok' ? STATUS_CLASS.ready : d.status === 'duplicate' ? STATUS_CLASS.needs_attention : STATUS_CLASS.rejected}`}>{d.status}</span></td>
-            <td>{(d.document_types || []).join(', ')}{(d.tables || []).map((t) => <div key={`${t.sheet}${t.first_row}`} className="text-xs text-stone-500">{t.sheet} r{t.first_row}: {t.shape} ({t.layout_source}, {t.items} items)</div>)}</td>
-            <td>{d.rows ?? 0}</td>
-            <td><ul className="space-y-0.5 text-xs">{[...(d.warnings || []).map((w) => ['warn', w]), ...(d.checks || []).map((c) => [c.level, c.message])].map(([l, m], i) => <li key={i} className={l === 'error' ? 'text-rose-700' : 'text-amber-700'}>{m}</li>)}</ul></td></tr>))}</tbody></table>
-      {skipped.length > 0 && <div className="rounded-lg border border-stone-200 p-3"><h3 className="text-sm font-semibold">Lines not recorded</h3><p className="mb-1 text-xs text-stone-500">Taxes, fees and permits are not emissions activities</p>{skipped.slice(0, 50).map((s, i) => <div key={i} className="text-xs text-stone-600">{s.file}: {s.text} {s.amount != null ? `(${fmtN(s.amount)})` : ''}</div>)}</div>}
-    </DialogContent>
-  </Dialog>
-);
 
 export const FactorDialog = ({ row, jobOf, api, onClose, onSaved }) => {
   const [q, setQ] = useState('');

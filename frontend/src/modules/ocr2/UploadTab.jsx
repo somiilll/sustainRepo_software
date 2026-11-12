@@ -94,10 +94,9 @@ const DoneCard = ({ j, onOpen, onDismiss }) => {
 
 const kindTag = (name = '') => { const e = name.split('.').pop().toLowerCase(); return ['xlsx', 'xls', 'xlsm'].includes(e) ? ['XLS', 'bg-emerald-50 text-emerald-700'] : e === 'csv' ? ['CSV', 'bg-emerald-50 text-emerald-700'] : e === 'pdf' ? ['PDF', 'bg-rose-50 text-rose-700'] : ['IMG', 'bg-sky-50 text-sky-700']; };
 
-const JobCard = ({ j, onOpen, onDelete, onRetry }) => {
+const JobCard = ({ j, onDelete, onRetry }) => {
   const rv = j.review || {};
   const tot = Object.values(rv).reduce((a, b) => a + b, 0) || 1;
-  const todo = ['ready', 'check', 'input', 'unreadable', 'needs_attention', 'ask'].reduce((n, k) => n + (rv[k] || 0), 0);
   const failed = ['failed', 'cancelled', 'interrupted'].includes(j.status);
   const m = j.metrics || {};
   const [tag, tagCls] = kindTag(j.names[0]);
@@ -118,7 +117,6 @@ const JobCard = ({ j, onOpen, onDelete, onRetry }) => {
           </div>
           <div className="flex flex-wrap gap-1.5">{Object.entries(j.scopes || {}).sort().map(([k, v]) => <span key={k} className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800">{SCOPE_LABEL[k] || k} · {v}</span>)}</div>
           <div className="text-xs text-stone-600 lg:w-24 lg:text-center">{fmtCr(j.credits)} credits</div>
-          <Button variant="outline" size="sm" className="rounded-xl border-emerald-700 text-emerald-800 hover:bg-emerald-50" onClick={() => onOpen(j.job_id)} data-testid={`ocr-open-${j.job_id}`}>{todo > 0 ? `Review ${todo} line${todo > 1 ? 's' : ''}` : 'Open'}</Button>
         </>
       )}
       <button type="button" className="rounded-xl border border-stone-200 p-2.5 text-rose-600 hover:bg-rose-50" onClick={() => onDelete(j.job_id)} aria-label="Delete" data-testid={`ocr-delete-${j.job_id}`}><Trash2 className="h-4 w-4" /></button>
@@ -206,7 +204,7 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50"><CloudUpload className="h-8 w-8 text-emerald-700" /></div>
             <div className="mt-5 text-lg font-semibold text-stone-900">Drop files here, or <span className="text-emerald-700 underline">browse</span></div>
-            <p className="mt-2 max-w-md text-sm text-stone-500">PDF invoices and bills, scans and phone photos, Excel and CSV registers. Reads Hindi, Marathi and more.</p>
+            <p className="mt-2 max-w-md text-sm text-stone-500">PDF invoices and bills, scans and phone photos, Excel and CSV registers.</p>
             <div className="mt-5 flex flex-wrap justify-center gap-2" data-testid="ocr-file-types">
               {[['PDF', 'bg-rose-50 text-rose-700'], ['XLSX', 'bg-emerald-50 text-emerald-700'], ['CSV', 'bg-emerald-50 text-emerald-700'], ['JPG', 'bg-sky-50 text-sky-700'], ['PNG', 'bg-indigo-50 text-indigo-700']].map(([t, c]) => <span key={t} className={`rounded-md px-2.5 py-1 text-xs font-semibold ${c}`}>{t}</span>)}
             </div>
@@ -254,7 +252,7 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
         {jobs === null ? <div className="h-24 animate-pulse rounded-xl bg-stone-100" /> : history.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-stone-500" data-testid="ocr-no-jobs">No extractions yet. Drop a bill above to start.</div>
         ) : (
-          <div className="space-y-3">{history.map((j) => <JobCard key={j.job_id} j={j} onOpen={onOpenJob} onDelete={del} onRetry={(id) => act(() => api.retry(id), 'Back in line')} />)}</div>
+          <div className="space-y-3">{history.map((j) => <JobCard key={j.job_id} j={j} onDelete={del} onRetry={(id) => act(() => api.retry(id), 'Back in line')} />)}</div>
         )}
       </div>
 
