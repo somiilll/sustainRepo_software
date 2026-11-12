@@ -341,7 +341,7 @@ def create_job(files: list[UploadFile] = File(...), mode: str = Form("fast"), fo
         lane = "light" if all(normalise.file_kind(p) == "sheet" for p in paths) else "heavy"
         keys = []
         for name, p in zip(names, paths):
-            key = f"ocr-extraction/{org}/{job_id}/{name}"
+            key = f"ocr/{org}/{time.strftime('%Y-%m-%d', time.gmtime())}/{job_id}/{name}"
             r2().client.upload_file(str(p), _bucket(), key)
             keys.append(key)
     finally:
@@ -434,7 +434,10 @@ def delete_job(job_id: str, user: dict = Depends(get_current_user)):
     QUEUE.remove(job_id)
     JOBS.delete(job_id)
     DB.ocr_ext_jobs.delete_one({"job_id": job_id, "org": org})
-    for key in s.get("file_keys", []):
+    DB.ocr_ext_deleted.update_one({"job_id": job_id, "org": org}, {"$set": {"names": s.get("names", []), "rows": s.get("row_count", 0), "pages": sum(d.get("pages") or 0 for d in s.get("documents", [])),
+                                                                           "mode": s.get("mode"), "extract_credits": (s.get("usage") or {}).get("by_step", {}).get("extract", {}).get("credits", 0),
+                                                                           "deleted_at": time.time()}}, upsert=True)
+    for key in filter(None, s.get("file_keys", [])):
         try:
             r2().client.delete_object(Bucket=_bucket(), Key=key)
         except Exception:  # noqa: BLE001
@@ -605,6 +608,7 @@ async def review(job_id: str, a: ReviewAction, user: dict = Depends(get_current_
     job, ids, out = await asyncio.to_thread(_apply_review, org, job_id, a, user)
     if a.state == "approved" and ids:
         out["save"] = await _save_rows(org, user, job_id, job, ids)
+    await asyncio.to_thread(_cleanup_files, org, job_id, job)
     return out
 
 
@@ -631,7 +635,7 @@ def page_image(job_id: str, file: str, page: int = 1, q: str = "", user: dict = 
     name = Path(file).name
     key = next((k for n, k in zip(s.get("names", []), s.get("file_keys", [])) if n == name), None)
     if not key:
-        raise HTTPException(404, "File not found")
+        raise HTTPException(404, "The original file was removed after all its lines were saved or rejected" if name in s.get("files_removed", []) else "File not found")
     body = r2().client.get_object(Bucket=_bucket(), Key=key)["Body"].read()
     suf = Path(name).suffix.lower()
     if suf == ".pdf":
@@ -678,8 +682,11 @@ def usage_report(days: int = 30, user: dict = Depends(get_current_user)):
         info[j["job_id"]] = {"names": j.get("names", []), "rows": j.get("row_count", 0), "files": len(j.get("names", [])),
                              "pages": sum(d.get("pages") or 0 for d in j.get("documents", [])), "mode": j.get("mode"),
                              "extract_credits": (j.get("usage") or {}).get("by_step", {}).get("extract", {}).get("credits", 0)}
+    gone = {d["job_id"]: d for d in DB.ocr_ext_deleted.find({"org": org}, {"_id": 0})}
     for jb in rep["by_job"]:
-        jb.update(info.get(jb["job_id"], {"names": ["(deleted job)"], "rows": 0, "files": 0, "pages": 0, "mode": None}))
+        d = gone.get(jb["job_id"])
+        jb.update(info.get(jb["job_id"]) or ({"names": d["names"], "rows": d.get("rows", 0), "files": len(d["names"]), "pages": d.get("pages", 0), "mode": d.get("mode"),
+                                              "extract_credits": d.get("extract_credits", 0), "deleted": True} if d else {"names": ["(deleted job)"], "rows": 0, "files": 0, "pages": 0, "mode": None, "deleted": True}))
     st = rep["summary"]["by_step"]
     pages = sum(j["pages"] for j in rep["by_job"] if j.get("mode") == "fast")
     models = load().policy["models"]
@@ -895,6 +902,24 @@ class SaveRequest(BaseModel):
 SAVE_BUDGET_S = 70
 
 
+def _cleanup_files(org: str, job_id: str, job: dict) -> None:
+    """Delete an uploaded file from temporary storage once every line read from it is saved to GHG records or rejected."""
+    s = DB.ocr_ext_jobs.find_one({"job_id": job_id, "org": org}, {"_id": 0, "names": 1, "file_keys": 1})
+    if not s:
+        return
+    names, keys = s.get("names", []), list(s.get("file_keys", []))
+    for i, (name, key) in enumerate(zip(names, keys)):
+        rows = [r for r in job["rows"] if r.get("file") == name]
+        if not key or not rows or not all((r.get("review") or {}).get("saved") or (r.get("review") or {}).get("state") == "rejected" for r in rows):
+            continue
+        try:
+            r2().client.delete_object(Bucket=_bucket(), Key=key)
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not delete %s from storage", key)
+            continue
+        DB.ocr_ext_jobs.update_one({"job_id": job_id, "org": org}, {"$set": {f"file_keys.{i}": None}, "$addToSet": {"files_removed": name}})
+
+
 async def _save_rows(org: str, user: dict, job_id: str, job: dict, only: set | None, pending_only: bool = False) -> dict:
     summary = await asyncio.to_thread(_summary, org, job_id)
     keys = dict(zip(summary.get("names", []), summary.get("file_keys", [])))
@@ -942,4 +967,6 @@ async def _save_rows(org: str, user: dict, job_id: str, job: dict, only: set | N
 async def save_to_ghg(job_id: str, body: SaveRequest | None = None, user: dict = Depends(get_current_user)):
     org = _org(user)
     job = await asyncio.to_thread(_read_job, org, job_id)
-    return await _save_rows(org, user, job_id, job, set(body.row_ids) if body and body.row_ids else None, bool(body and body.pending_only))
+    out = await _save_rows(org, user, job_id, job, set(body.row_ids) if body and body.row_ids else None, bool(body and body.pending_only))
+    await asyncio.to_thread(_cleanup_files, org, job_id, job)
+    return out

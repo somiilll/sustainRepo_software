@@ -46,7 +46,7 @@ export const CreditsTab = ({ api, usage, setUsage }) => {
       <div className="rounded-xl border border-stone-200 bg-white p-4"><h3 className="mb-2 flex items-center gap-2 font-semibold"><Coins className="h-4 w-4" />Per extraction</h3>
         {jobs.length === 0 ? <p className="text-sm text-stone-500">Nothing extracted in this period.</p> : (
           <table className="w-full text-sm"><thead><tr className="border-b text-left text-xs text-stone-500"><th className="py-1">Extraction</th><th>When</th><th>Pages</th><th>Records</th><th className="text-right">Credits</th></tr></thead>
-            <tbody>{jobs.map((j) => <tr key={j.job_id} className="border-b"><td className="max-w-[320px] truncate py-1.5">{(j.names || []).join(', ')}</td><td>{fmtDate(j.ts)}</td><td>{j.pages || '-'}</td><td>{j.rows}</td><td className="text-right font-medium">{fmtCr(j.credits)}</td></tr>)}</tbody></table>)}</div>
+            <tbody>{jobs.map((j) => <tr key={j.job_id} className="border-b"><td className="max-w-[320px] truncate py-1.5">{(j.names || []).join(', ')}{j.deleted && j.names?.[0] !== '(deleted job)' ? ' (deleted)' : ''}</td><td>{fmtDate(j.ts)}</td><td>{j.pages || '-'}</td><td>{j.rows}</td><td className="text-right font-medium">{fmtCr(j.credits)}</td></tr>)}</tbody></table>)}</div>
     </div>
   );
 };
