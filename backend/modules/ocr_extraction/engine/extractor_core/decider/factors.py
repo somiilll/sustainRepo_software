@@ -74,10 +74,22 @@ DOMAIN_CATS = {"purchased_goods": ("C1",), "purchased_services": ("C1",), "capit
                "business_travel": ("C6",), "employee_commute": ("C7",), "leased_assets": ("C8", "C13"), "downstream_value_chain": ("C10", "C11", "C12", "C14", "C15")}
 
 
+_sector_source = None
+
+
+def set_sector_source(fn) -> None:
+    """The host app supplies the {factor name: sector id} map (it lives in the database and follows the factor list)."""
+    global _sector_source
+    _sector_source = fn
+
+
 @lru_cache(maxsize=1)
+def sector_defs() -> dict:
+    return json.loads((Path(__file__).resolve().parents[3] / "mappings" / "factor_sector_defs.json").read_text(encoding="utf-8"))
+
+
 def sector_map() -> tuple[dict, dict]:
-    d = json.loads((Path(__file__).resolve().parents[3] / "mappings" / "factor_sectors.json").read_text(encoding="utf-8"))
-    return d["sectors"], d["map"]
+    return sector_defs(), (_sector_source() if _sector_source else {})
 
 
 class Rec:

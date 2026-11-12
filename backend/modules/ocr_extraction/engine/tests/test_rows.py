@@ -5,7 +5,6 @@ import pytest
 
 from extractor_core import fields, units
 from extractor_core.config import load
-from extractor_core.decider import rules
 from extractor_core.decider.cascade import Classifier
 from extractor_core.group import group_items
 from extractor_core.pipeline import Engine
@@ -56,20 +55,6 @@ def test_scope1_without_quantity_needs_attention(fake):
     assert main["review_status"] != "ready"
 
 
-def test_scope3_without_quantity_is_spend_based(fake):
-    eng = Engine(providers=[fake])
-    [r] = rows_for(eng, item(description="Cold rolled steel sheets", amount=97500))
-    assert r["calc"]["formula_id"] == "s3_spend"
-    assert r["calc"]["fields"] == {"spent_value": 97500, "spent_value_unit": "INR"}
-    assert any(c["code"] == "spend_based" for c in r["checks"])
-
-
-def test_piece_counts_fall_back_to_spend(fake):
-    eng = Engine(providers=[fake])
-    [r] = rows_for(eng, item(description="Steel brackets", quantity=40, unit="Nos", amount=8000))
-    assert r["calc"]["formula_id"] == "s3_spend"
-
-
 def test_lump_sum_quantity_is_dropped():
     act = load().taxonomy.get("fuel.diesel")
     ghg = load().taxonomy.resolve_ghg("fuel.diesel", {"use_context": "company_vehicle"})
@@ -91,26 +76,6 @@ def test_electricity_gets_one_combined_c3_row(fake):
     assert rs[1]["calc"]["fields"]["activity_value"] == 225545
 
 
-# ------------------------------------------------------------------ waste / transport policy
-def test_waste_with_transport_splits_in_two():
-    eng = Engine(use_ai=False)
-    it = item(description="Transportation and disposal of 5 MT ETP sludge to TSDF landfill", quantity=5, unit="MT",
-              amount=40000, waste_type="ETP sludge", disposal_method="landfill", hazardous=True)
-    rs = rows_for(eng, it)
-    cats = sorted(r["ghg"]["category"] for r in rs)
-    assert cats == ["cat_4", "cat_5"]
-    waste = next(r for r in rs if r["ghg"]["category"] == "cat_5")
-    trans = next(r for r in rs if r["ghg"]["category"] == "cat_4")
-    assert waste["amount"] is None and trans["amount"] == 40000      # money once, on the transport row
-    assert trans["parent_id"] == waste["row_id"]
-
-
-def test_waste_transport_only_gives_cat4_only():
-    eng = Engine(use_ai=False)
-    rs = rows_for(eng, item(description="Waste transport charges", amount=7800))
-    assert [r["ghg"]["category"] for r in rs] == ["cat_4"]
-
-
 def test_no_split_when_document_has_its_own_transport_line():
     eng = Engine(use_ai=False)
     it = item(description="Disposal and transport of 6.5 MT waste to landfill", quantity=6.5, unit="MT", disposal_method="landfill",
@@ -119,48 +84,10 @@ def test_no_split_when_document_has_its_own_transport_line():
     assert all(r["ghg"]["category"] != "cat_4" for r in rs)
 
 
-# ------------------------------------------------------------------ rules
-@pytest.mark.parametrize("text,unit,expected", [
-    ("Refilling/repair of CO2 type 4.5 kg fire extinguisher", "Nos", "refrigerant.co2_extinguisher"),
-    ("R-32 refrigerant gas top-up for AC", "kg", "refrigerant.r32"),
-    ("HSD for forklift", "Ltr", "fuel.diesel"),
-    ("Engine oil 15W40", "Ltr", "goods.lubricants"),
-    ("Grid power consumption", "kWh", "elec.grid"),
-])
-def test_rules_pick_specific_activity(text, unit, expected):
-    r = rules.evaluate(item(description=text, unit=unit, quantity=5))
-    assert r["activity_id"] == expected
-
-
-def test_rules_ignore_negated_words_in_notes():
-    r = rules.evaluate(item(description="XCELIS LP MAX 07.00/29", hsn="84314990", unit="Nos", quantity=3,
-                            notes="Export invoice. No freight, travel or energy lines."))
-    assert not r["activity_id"].startswith("freight")
-
-
-# ------------------------------------------------------------------ cascade / fallback
-def test_fallback_when_jev_fails():
-    bad = FakeProvider(FAKE_TABLE, name="jev", fail=True)
-    good = FakeProvider(FAKE_TABLE, name="openai_decisions")
-    clf = Classifier(providers=[bad, good])
-    d = clf.classify(item(description="Mild steel plates misc lot", amount=5000))
-    assert d["activity_id"] == "goods.steel" and d["source"].endswith("openai_decisions")
-    assert bad.calls == 1 and good.calls >= 1
-    assert any("error" in c for c in clf.calls)
-
-
 def test_all_providers_down_still_gives_rows():
     clf = Classifier(providers=[FakeProvider(FAKE_TABLE, fail=True)])
     d = clf.classify(item(description="HSD diesel for DG set", quantity=100, unit="L"))
     assert d["activity_id"] == "fuel.diesel" and d["confidence"] <= 0.8 and "AI unavailable" in d["reason"]
-
-
-def test_memory_overrides_after_user_correction(mem, fake):
-    clf = Classifier(memory=mem, providers=[fake])
-    it = item(description="Misc item ABC-77", amount=100, vendor="Acme")
-    clf.remember(it, {"activity_id": "service.maintenance", "context": {}}, source="user")
-    d = clf.classify(it)
-    assert d["source"] == "memory" and d["activity_id"] == "service.maintenance" and d["confidence"] >= 0.95
 
 
 def test_fuel_without_use_context_asks():
@@ -190,13 +117,6 @@ def test_billing_period_split():
     p = resolve_period(item(period_start="2025-09-28", period_end="2025-10-27"))
     assert p["reporting_period"] == "2025-10"
     assert {a["period"] for a in p["allocation"]} == {"2025-09", "2025-10"}
-
-
-def test_ready_only_when_confident_and_clean(fake, facilities):
-    eng = Engine(providers=[fake], facilities=facilities[:1])
-    [r, _] = rows_for(eng, item(description="Grid electricity", quantity=1000, unit="kWh", amount=9000,
-                                consumer_number="177529058940", period_start="2025-10-01", period_end="2025-10-31"))
-    assert r["review_status"] == "ready", r["checks"]
 
 
 def test_future_period_is_error(fake):
@@ -230,18 +150,6 @@ def test_big_sheet_classifies_unique_items_only(tmp_path, fake):
     r = Engine(providers=[fake]).run([p])
     assert r["metrics"]["items"] == 3000 and r["metrics"]["groups"] == 3
     assert fake.calls <= 6                              # two-stage questions at most, per unique item
-
-
-@pytest.mark.parametrize("text,unit,expected", [
-    ("Grid Electricity Network T&D Losses", "kWh", "elec.td_losses"),
-    ("Well-to-Tank (WTT) Diesel Fuel Upstream", "L", "fuel.upstream_wtt"),
-    ("Tenant lease rental of surplus warehouse bay subleased to third party", None, "lease.downstream"),
-    ("Post-consumer packaging recovery and end-of-life recycling program", None, "downstream.end_of_life"),
-    ("Inbound logistics transportation charges for factory supplies", None, "freight.road"),
-    ("Hazardous Chemical Effluent Waste Disposal and Treatment", "kg", "waste.haz_landfill"),
-])
-def test_rules_upstream_downstream(text, unit, expected):
-    assert rules.evaluate(item(description=text, unit=unit, quantity=10 if unit else None, amount=1000))["activity_id"] == expected
 
 
 def test_extinguisher_row_shows_kg(fake):

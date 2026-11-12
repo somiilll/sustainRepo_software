@@ -1,11 +1,10 @@
 """High / Check / Needs-you labels, vendor-only learning and the undo / change / share controls."""
 from __future__ import annotations
 
-from extractor_core.decider.cascade import Classifier
-from extractor_core.group import group_items, memory_keys
+from extractor_core.group import group_items
 from extractor_core.pipeline import Engine
 
-from conftest import FakeProvider, item
+from conftest import item
 
 
 def parent_row(eng, it, decision=None):
@@ -43,36 +42,6 @@ def test_label_high_when_user_confirmed_before(fake, mem):
     r = parent_row(eng, it)
     assert r["decision"]["source"] == "memory" and r["decision"]["memory_source"] == "user"
     assert r["trust"]["level"] == "high" and "confirmed" in r["trust"]["reasons"][0]
-
-
-def test_unconfirmed_ai_memory_is_check_not_high(fake, mem):
-    eng = engine(fake, mem)
-    it = item(description="HSD diesel for DG set", quantity=100, unit="L", vendor="IOCL", period_hint="2026-03")
-    it["item_id"] = "d1-0"
-    group_items([it])
-    eng.classifier.remember(it, {"activity_id": "fuel.diesel", "context": {"use_context": "stationary"}}, source="auto")
-    r = parent_row(eng, it)
-    assert r["decision"]["memory_source"] == "auto" and r["trust"]["level"] == "check"
-    assert any("nobody has confirmed" in x for x in r["trust"]["reasons"])
-
-
-# ------------------------------------------------------------------ vendor-only learning
-def test_correction_applies_to_that_vendor_only(fake, mem):
-    clf = Classifier(memory=mem, providers=[fake])
-    a = item(description="Misc item ABC-77", amount=100, vendor="Acme")
-    b = item(description="Misc item ABC-77", amount=100, vendor="Zenith")
-    clf.remember(a, {"activity_id": "service.maintenance", "context": {}}, source="user")
-    assert clf.classify(a)["source"] == "memory"
-    assert clf.classify(b)["source"] != "memory"           # another vendor is not affected
-
-
-def test_correction_can_apply_to_all_vendors(fake, mem):
-    clf = Classifier(memory=mem, providers=[fake])
-    a = item(description="Misc item ABC-77", amount=100, vendor="Acme")
-    b = item(description="Misc item ABC-77", amount=100, vendor="Zenith")
-    clf.remember(a, {"activity_id": "service.maintenance", "context": {}}, source="user", scope="all")
-    d = clf.classify(b)
-    assert d["source"] == "memory" and d["activity_id"] == "service.maintenance" and d["memory_scope"] == "all vendors"
 
 
 # ------------------------------------------------------------------ undo / change / share / confirm

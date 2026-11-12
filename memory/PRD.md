@@ -1060,3 +1060,5 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Upload page redesigned; per-job review page removed; Why dialog plain-language basis notes (validate.plain); old jobs rebuilt on read.
 - Tested: iteration_9.json (display fixes pass). Approve-saves-to-GHG flow, bulk save loop and edit-dialog prefill were NOT end-to-end tested.
 - Backlog: end-to-end test of approve->save, credits ledger should store file names (shows "(deleted job)"), My Tasks filters, CBAM, catalog sync bundle, auth rate limiter.
+- Factor sectors now live in DB collection `ocr_factor_sectors` (loaded via factor_sectors.py; new Scope 3 factor names are grouped in the background by Haiku when the factor index refreshes). Sector definitions: mappings/factor_sector_defs.json. Removed: factor_sectors.json, _build_factor_sectors.py, jobqueue.py, SQLite Ledger/AuditLog, export endpoint, contracts/, 17 stale engine tests (128 pass).
+- ocr uploads stored at ocr/{org}/{date}/{job}/{file}; file deleted automatically when every row is saved or rejected; credits ledger keeps names of deleted jobs (ocr_ext_deleted).

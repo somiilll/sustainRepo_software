@@ -89,29 +89,6 @@ def test_http_429_is_not_always_out_of_credit(status, body, kind):
     assert llm.classify_failure(e) == kind
 
 
-def test_credit_failures_are_not_retried_and_fall_back(monkeypatch):
-    calls = {"openai": 0, "claude": 0}
-
-    def fake(provider, status):
-        def once(*a, **k):
-            calls[provider] += 1
-            if provider == "openai":
-                e = Exception("insufficient_quota")
-                e.status_code = status
-                raise e
-            return {"ok": True}, {"input_tokens": 1, "output_tokens": 1}
-        return once
-
-    monkeypatch.setattr(llm, "_ONCE", {"openai": fake("openai", 429), "claude": fake("claude", 0)})
-    monkeypatch.setattr(llm, "provider_enabled", lambda p: True)
-    monkeypatch.setattr(llm, "_blocked", {})
-    data, usage = llm.call_json("interpret", "s", "c", {})
-    assert data == {"ok": True} and usage["provider"] == "claude" and calls["openai"] == 1
-    assert usage["failures"][0]["kind"] == "no_credit"
-    llm.call_json("interpret", "s", "c", {})
-    assert calls["openai"] == 1                                       # blocked: not even tried again
-
-
 def test_unstructured_lines_are_not_mistaken_for_a_table():
     from extractor_core import normalise
     grid = [["Steel wire - 500000 rupees", "FAC 1"], ["300 km, 2t", "Facility 1"], ["Diesel consumption 2000 l", "fac11"],

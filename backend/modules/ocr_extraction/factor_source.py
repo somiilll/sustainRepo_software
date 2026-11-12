@@ -7,7 +7,7 @@ import time
 
 from extractor_core.decider.factors import FactorIndex
 
-from . import store
+from . import factor_sectors, store
 
 TTL = 600
 FUEL_CATEGORIES = ("Stationary Combustion", "Mobile Combustion")
@@ -58,4 +58,5 @@ def get_index() -> FactorIndex:
     with _lock:
         if _cache["index"] is None or time.time() - _cache["at"] > TTL:
             _cache["index"], _cache["at"] = _build(), time.time()
+            factor_sectors.sync_in_background()
         return _cache["index"]
