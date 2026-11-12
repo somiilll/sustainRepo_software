@@ -5,9 +5,10 @@ import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Settings, Lock, Phone, Calendar, AlertTriangle, Check, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Calendar, Check, Eye, EyeOff, LifeBuoy, Lock, Settings } from 'lucide-react';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { toast } from 'sonner';
+import { ContactSalesDialog } from '../components/ContactSalesDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -15,6 +16,7 @@ const API = `${BACKEND_URL}/api`;
 export default function AccountSettings() {
   const { user, getAuthHeader } = useAuth();
   const [changingPassword, setChangingPassword] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -47,6 +49,9 @@ export default function AccountSettings() {
             day: 'numeric' 
           }),
           daysRemaining,
+          startDate: new Date(expiryDate.getFullYear() - 1, expiryDate.getMonth(), expiryDate.getDate() + 1).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          endDate: expiryDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          percentLeft: Math.max(0, Math.min(100, Math.round((daysRemaining / 365) * 100))),
           isExpired: daysRemaining <= 0,
           isExpiringSoon: daysRemaining > 0 && daysRemaining <= 30
         });
@@ -91,44 +96,38 @@ export default function AccountSettings() {
     }
   };
 
+  const sub = subscriptionInfo;
+  const showSub = sub && (user?.role === 'admin' || user?.role === 'user');
+  const tone = sub?.isExpired ? { text: 'text-red-700', bar: 'bg-red-500', badge: 'border-red-200 bg-red-50 text-red-700', dot: 'bg-red-500', label: 'Expired' }
+    : sub?.isExpiringSoon ? { text: 'text-amber-700', bar: 'bg-amber-500', badge: 'border-amber-200 bg-amber-50 text-amber-700', dot: 'bg-amber-500', label: 'Expiring soon' }
+    : { text: 'text-emerald-800', bar: 'bg-gradient-to-r from-emerald-700 to-emerald-400', badge: 'border-emerald-200 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-600', label: 'Active' };
+
   return (
-    <div className="space-y-7">
-      <ModulePageHeader title="Account Settings" icon={Settings} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="account-settings" />
+    <div className="space-y-7" data-testid="account-settings-page">
+      <ModulePageHeader title="Account Settings" subtitle="Manage your password, account recovery and subscription" icon={Settings} iconClassName="border-sky-200 bg-sky-50 text-sky-700" testId="account-settings" />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-secondary/10 p-3 rounded-lg">
-              <Lock className="w-6 h-6 text-secondary" />
-            </div>
-            <h3 className="text-lg font-heading font-bold text-text-primary">Security</h3>
-          </div>
-
-          {!changingPassword ? (
-            <div className="space-y-4">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
+        <div className="space-y-6 lg:col-span-3">
+          <section className="rounded-2xl border border-stone-200 bg-white shadow-sm p-6" data-testid="account-security-card">
+            <div className="mb-5 flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-50 text-slate-700"><Lock className="h-5 w-5" /></div>
               <div>
-                <Label className="text-xs text-text-muted">Password</Label>
-                <p className="text-text-primary font-medium mt-1">••••••••</p>
-              </div>
-              <Button
-                onClick={() => setChangingPassword(true)}
-                className="w-full bg-secondary hover:bg-secondary/90 text-white rounded-full"
-              >
-                Change Password
-              </Button>
-
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs font-medium text-blue-800 mb-2">Password Requirements:</p>
-                <ul className="text-xs text-blue-700 space-y-1 ml-4">
-                  <li>• Minimum 8 characters</li>
-                  <li>• At least one uppercase letter</li>
-                  <li>• At least one lowercase letter</li>
-                  <li>• At least one number</li>
-                  <li>• At least one special character (!@#$%^&amp;*()_+-=[]{}|;:,.&lt;&gt;?)</li>
-                </ul>
+                <h3 className="text-lg font-semibold text-stone-900">Security</h3>
+                <p className="text-sm text-stone-500">Keep your account protected with a strong password</p>
               </div>
             </div>
-          ) : (
+            {!changingPassword ? (
+              <>
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-stone-100 bg-stone-50 px-5 py-4">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">Password</div>
+                    <div className="mt-1 text-lg tracking-widest text-stone-900">••••••••</div>
+                  </div>
+                  <Button onClick={() => setChangingPassword(true)} className="rounded-lg bg-slate-900 px-5 text-white hover:bg-slate-800" data-testid="account-change-password-button">Change password</Button>
+                </div>
+                <p className="mt-5 text-sm text-stone-500">Use at least 8 characters with upper and lower case letters, a number and a special character.</p>
+              </>
+            ) : (
             <form onSubmit={handlePasswordChange} className="space-y-4">
               {/* Password Requirements - Shown upfront */}
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -254,98 +253,47 @@ export default function AccountSettings() {
                 </Button>
               </div>
             </form>
-          )}
-        </Card>
-      </div>
-
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-accent/10 p-3 rounded-lg">
-            <Phone className="w-6 h-6 text-accent" />
-          </div>
-          <h3 className="text-lg font-heading font-bold text-text-primary">Account Recovery</h3>
-        </div>
-        <p className="text-sm text-text-secondary mb-4">
-          If you forget your password, you can request a password reset link.
-        </p>
-        <Button
-          onClick={() => window.location.href = '/forgot-password'}
-          variant="outline"
-          className="rounded-full"
-        >
-          Go to Password Reset
-        </Button>
-      </Card>
-
-      {/* Subscription Info - Only for Admin/User */}
-      {subscriptionInfo && (user?.role === 'admin' || user?.role === 'user') && (
-        <Card className={`p-6 border rounded-xl ${
-          subscriptionInfo.isExpired 
-            ? 'border-red-300 bg-red-50' 
-            : subscriptionInfo.isExpiringSoon 
-              ? 'border-yellow-300 bg-yellow-50' 
-              : 'border-stone-200 bg-white'
-        }`}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`p-3 rounded-lg ${
-              subscriptionInfo.isExpired 
-                ? 'bg-red-100' 
-                : subscriptionInfo.isExpiringSoon 
-                  ? 'bg-yellow-100' 
-                  : 'bg-green-100'
-            }`}>
-              {subscriptionInfo.isExpired || subscriptionInfo.isExpiringSoon ? (
-                <AlertTriangle className={`w-6 h-6 ${subscriptionInfo.isExpired ? 'text-red-600' : 'text-yellow-600'}`} />
-              ) : (
-                <Calendar className="w-6 h-6 text-green-600" />
-              )}
-            </div>
-            <h3 className="text-lg font-heading font-bold text-text-primary">Platform Subscription</h3>
-          </div>
-          
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs text-text-muted">Subscription Expiry Date</Label>
-              <p className={`text-lg font-semibold mt-1 ${
-                subscriptionInfo.isExpired 
-                  ? 'text-red-600' 
-                  : subscriptionInfo.isExpiringSoon 
-                    ? 'text-yellow-700' 
-                    : 'text-green-600'
-              }`}>
-                {subscriptionInfo.expiryDate}
-              </p>
-            </div>
-            
-            <div>
-              <Label className="text-xs text-text-muted">Status</Label>
-              <p className={`font-medium mt-1 ${
-                subscriptionInfo.isExpired 
-                  ? 'text-red-600' 
-                  : subscriptionInfo.isExpiringSoon 
-                    ? 'text-yellow-700' 
-                    : 'text-green-600'
-              }`}>
-                {subscriptionInfo.isExpired 
-                  ? 'Expired' 
-                  : `${subscriptionInfo.daysRemaining} days remaining`
-                }
-              </p>
-            </div>
-
-            {(subscriptionInfo.isExpired || subscriptionInfo.isExpiringSoon) && (
-              <div className={`mt-4 p-3 rounded-lg ${subscriptionInfo.isExpired ? 'bg-red-100' : 'bg-yellow-100'}`}>
-                <p className={`text-sm ${subscriptionInfo.isExpired ? 'text-red-700' : 'text-yellow-700'}`}>
-                  {subscriptionInfo.isExpired 
-                    ? 'Your subscription has expired. Please contact your administrator to renew access.'
-                    : 'Your subscription is expiring soon. Please contact your administrator to ensure uninterrupted access.'
-                  }
-                </p>
-              </div>
             )}
-          </div>
-        </Card>
-      )}
+          </section>
+
+          <section className="rounded-2xl border border-stone-200 bg-white shadow-sm flex flex-wrap items-center gap-4 p-6" data-testid="account-recovery-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><LifeBuoy className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg font-semibold text-stone-900">Account recovery</h3>
+              <p className="text-sm text-stone-500">If you forget your password, you can request a password reset link by email.</p>
+            </div>
+            <Button variant="outline" className="rounded-lg" onClick={() => window.location.href = '/forgot-password'} data-testid="account-password-reset-button">Go to password reset<ArrowRight className="ml-2 h-4 w-4" /></Button>
+          </section>
+        </div>
+
+        {showSub && (
+          <section className="rounded-2xl border border-stone-200 bg-white shadow-sm overflow-hidden lg:col-span-2" data-testid="account-subscription-card">
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Calendar className="h-5 w-5" /></div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-semibold text-stone-900">Platform subscription</h3>
+                  <p className="text-sm text-stone-500">Your SustainRepo plan</p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${tone.badge}`} data-testid="account-subscription-status"><span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />{tone.label}</span>
+              </div>
+              <div className="mt-6 text-xs font-semibold uppercase tracking-wider text-stone-500">Subscription expiry date</div>
+              <div className={`mt-1 text-3xl font-bold ${tone.text}`} data-testid="account-subscription-expiry">{sub.expiryDate}</div>
+              <div className="mt-6 flex items-baseline gap-2">
+                <span className="text-3xl font-semibold text-stone-900" data-testid="account-subscription-days">{Math.max(sub.daysRemaining, 0)}</span>
+                <span className="text-stone-500">days remaining</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200"><div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${sub.percentLeft}%` }} /></div>
+              <div className="mt-3 flex justify-between text-sm text-stone-500"><span>{sub.startDate}</span><span>{sub.endDate}</span></div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 border-t border-stone-100 bg-stone-50 px-6 py-4">
+              <Button className="rounded-lg bg-emerald-700 text-white hover:bg-emerald-800" onClick={() => setContactOpen(true)} data-testid="account-renew-button">Renew subscription</Button>
+              <button type="button" className="text-sm font-medium text-emerald-700 hover:underline" onClick={() => setContactOpen(true)} data-testid="account-contact-support">Contact support</button>
+            </div>
+          </section>
+        )}
+      </div>
+      <ContactSalesDialog open={contactOpen} onOpenChange={setContactOpen} user={user} getAuthHeader={getAuthHeader} />
     </div>
   );
 }

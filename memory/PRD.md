@@ -1072,3 +1072,4 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Sidebar bottom: name row opens pop-up menu (Profile, Account Settings, Users Management [admin/super_admin], Credits Usage [OCR access, non-supplier], Log out). 'Profile' and 'Users' removed from sidebar list.
 - Pages: /profile (personal info only), /account-settings (change password, password reset, platform subscription), /credits-usage (CreditsTab moved out of OCR; OCR credits badge links to it). Smoke-checked once by screenshot only; no full testing (user instruction).
 - Learned Decisions tab hidden from OCR page (MemoryTab code and backend kept); account menu no longer shows email.
+- Account Settings redesigned (two-column: Security + Account recovery | Platform subscription with status badge, days-left bar; Renew/Contact support open Contact Sales dialog). Subscription start is derived as expiry minus 1 year (no start date stored). ModulePageHeader got optional subtitle.
