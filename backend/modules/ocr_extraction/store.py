@@ -185,7 +185,7 @@ class MongoLedger:
             day = by_day.setdefault(d, {"credits": 0.0, "by_step": {}})
             day["credits"] = round(day["credits"] + e["credits"], 2)
             day["by_step"][e["step"]] = round(day["by_step"].get(e["step"], 0) + e["credits"], 2)
-            j = by_job.setdefault(e["job_id"], {"job_id": e["job_id"], "ts": e["ts"], "credits": 0.0, "cost_usd": 0.0, "calls": 0})
+            j = by_job.setdefault(e["job_id"], {"job_id": e["job_id"], "ts": e["ts"], "credits": 0.0, "cost_usd": 0.0, "calls": 0, "user": e.get("user_name")})
             j["credits"] = round(j["credits"] + e["credits"], 2)
             j["cost_usd"] = round(j["cost_usd"] + e["cost_usd"], 6)
             j["calls"] += e["calls"] if e["ok"] else 0
