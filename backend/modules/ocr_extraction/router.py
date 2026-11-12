@@ -30,6 +30,7 @@ from extractor_core.decider.factors import slim  # noqa: E402
 from extractor_core.export import approval_blockers, save_all_payload  # noqa: E402
 from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
+from extractor_core import rowstate  # noqa: E402
 from extractor_core.pipeline import Engine, JobCancelled  # noqa: E402
 from extractor_core.validate import finish, row_checks, trust as trust_of  # noqa: E402
 from .edit_override import Override, apply_override, edit_config, factor_options, prefill  # noqa: E402
@@ -103,6 +104,8 @@ def _review_counts(rows: list[dict]) -> dict:
         if r.get("derived"):
             continue
         k = (r.get("review") or {}).get("state", r.get("review_status"))
+        if k not in ("approved", "rejected"):
+            k = r.get("shown") or ("ready" if k == "ready" else "input")
         c[k] = c.get(k, 0) + 1
     return c
 
@@ -532,6 +535,7 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
         new_rows = [r for r in new_rows if r is parent or (same and r.get("derived"))]
     for r in new_rows:
         r["review"] = {**(r.get("review") or {}), "state": r["review_status"], "edited": True}
+        r["shown"] = rowstate.shown(r)
     remember = e.remember and changed_class and (dec.get("activity_id") or dec.get("factor_match"))
     if remember:
         eng.classifier.remember(item, dec, source="user", scope="all" if e.scope == "all" else "vendor")

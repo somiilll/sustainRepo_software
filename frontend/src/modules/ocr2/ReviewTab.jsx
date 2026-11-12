@@ -5,11 +5,11 @@ import { Button } from '../../components/ui/button';
 import { errText } from './api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { EditDialog } from './EditDialog';
-import { DocsDialog, EvidenceDialog, FactorDialog, TrustBadge, WhyDialog } from './RowDialogs';
-import { PENDING, ROW_STATE, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, saveBlob, scopeOf } from './utils';
+import { DocsDialog, EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
+import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, saveBlob, scopeOf } from './utils';
 
 const PER = 50;
-const TABS = ['pending', 'all', 'ready', 'needs_attention', 'ask', 'approved', 'rejected'];
+const TABS = ['pending', 'all', 'ready', 'check', 'input', 'unreadable', 'approved', 'rejected'];
 
 const Ring = ({ pct }) => {
   const r = 26; const c = 2 * Math.PI * r;
@@ -71,7 +71,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
 
   const inScope = useCallback((r) => !r.derived && (!jobsSel.size || jobsSel.has(r._job || jobId)), [jobsSel, jobId]);
   const [counts, scopes] = useMemo(() => {
-    const c = { all: 0, ready: 0, needs_attention: 0, ask: 0, approved: 0, rejected: 0, pending: 0 }; const sc = {};
+    const c = { all: 0, ready: 0, check: 0, input: 0, unreadable: 0, approved: 0, rejected: 0, pending: 0 }; const sc = {};
     (rows || []).filter(inScope).forEach((r) => { c.all++; c[rstate(r)] = (c[rstate(r)] || 0) + 1; if (PENDING.includes(rstate(r))) c.pending++; sc[scopeOf(r)] = (sc[scopeOf(r)] || 0) + 1; });
     return [c, sc];
   }, [rows, inScope]);
@@ -156,7 +156,8 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
           {r.modules?.length > 0 && <div className="text-xs text-stone-400">Also in {r.modules.map((x) => x[0].toUpperCase() + x.slice(1)).join(', ')}</div>}</td>
         <td className="min-w-[140px] p-2 text-sm">{r.facility?.id ? <div className="font-medium">{r.facility.name}</div> : <div className="font-medium text-amber-700">No facility</div>}
           <div className="text-xs text-stone-500">{r.reporting_period || 'No period'}{r.period?.allocation ? ` · split ${r.period.allocation.map((a) => `${a.period.slice(5)} ${Math.round(a.share * 100)}%`).join(' / ')}` : ''}</div></td>
-        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><TrustBadge t={r.trust} /><span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CLASS[st]}`} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{r.state && !child && ROW_STATE[r.state.state] && ROW_STATE[r.state.state].label !== STATUS_LABEL[st] && <span className={`rounded-full border px-2 py-0.5 text-xs ${ROW_STATE[r.state.state].cls}`} title={r.state.reason || ''} data-testid={`ocr-row-state-${r.row_id}`}>{ROW_STATE[r.state.state].label}</span>}{r.review?.saved && <span className="rounded-full border border-emerald-300 bg-emerald-600 px-2 py-0.5 text-xs text-white" data-testid={`ocr-saved-${r.row_id}`}>Saved</span>}{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
+        <td className="min-w-[200px] max-w-[260px] p-2"><div className="flex flex-wrap items-center gap-1"><span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[st]}`} title={(r.trust?.reasons || []).join('\n')} data-testid={`ocr-status-${r.row_id}`}>{STATUS_LABEL[st] || st}</span>{r.review?.saved && <span className="rounded-full border border-emerald-300 bg-emerald-600 px-2 py-0.5 text-xs text-white" data-testid={`ocr-saved-${r.row_id}`}>Saved</span>}{r.review?.edited && <span className="text-[10px] text-stone-500">edited</span>}</div>
+          {!child && ['input', 'check', 'unreadable'].includes(st) && (r.state?.state === 'couldnt_read' || r.state?.state === 'failed' ? r.state.reason : r.trust?.reasons?.[0]) && <div className="mt-1 text-xs text-stone-600" data-testid={`ocr-need-${r.row_id}`}>{r.state?.state === 'couldnt_read' || r.state?.state === 'failed' ? r.state.reason : r.trust.reasons[0]}</div>}
           {!r.facility?.id && !child && <div className="text-xs text-amber-700">Facility not set</div>}
           {!child && (r.read_tags || []).length > 0 && <div className="mt-1 flex flex-col gap-1" data-testid={`ocr-read-tags-${r.row_id}`}>{r.read_tags.map((t) => <div key={t.id} className="flex flex-wrap items-center gap-1 text-[11px]"><span className={`rounded border px-1.5 py-0.5 ${LEVEL_CLASS[t.level] || LEVEL_CLASS.uncertain}`} title={`AI read '${t.text}' as ${t.role}`} data-testid={`ocr-read-level-${r.row_id}-${t.id}`}>{t.text}: {t.role} · {t.level}</span>{(t.tags || []).map((g) => <span key={g} className="rounded bg-stone-100 px-1.5 py-0.5 text-stone-600" data-testid={`ocr-read-tag-${r.row_id}-${t.id}-${g}`}>{g.replace(/_/g, ' ')}</span>)}</div>)}</div>}
           {!child && answerUi(r)}
@@ -199,11 +200,11 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         <div><div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-500">By scope</div><div className="flex flex-wrap gap-1">{Object.entries(scopes).sort().map(([k, v]) => <button key={k} type="button" className={`rounded-full border px-2 py-0.5 text-xs ${scope === k ? 'border-stone-900 font-semibold' : 'border-stone-200'}`} style={{ color: SCOPE_COLOR[k] }} onClick={() => { setScope(scope === k ? 'all' : k); setPage(0); }} data-testid={`ocr-scope-${k}`}>{SCOPE_LABEL[k] || k} · {v}</button>)}</div></div>
         <div className="text-right"><div className="text-xs font-semibold uppercase tracking-wide text-stone-500">Credits used</div><div className="text-2xl font-semibold">{fmtCr(credits)}</div></div>
       </div>
-      {counts.ask > 0 && <div className="flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm"><span className="flex-1"><b>{counts.ask} line{counts.ask > 1 ? 's need' : ' needs'} a quick answer</b> - for example, where a fuel was used. Answer inline and similar lines are remembered.</span>{filter !== 'ask' && <Button size="sm" variant="outline" onClick={() => setFilter('ask')}>Show questions</Button>}</div>}
+      {counts.input > 0 && <div className="flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm"><span className="flex-1"><b>{counts.input} line{counts.input > 1 ? 's need' : ' needs'} a quick answer</b> - for example, where a fuel was used. Answer inline and similar lines are remembered.</span>{filter !== 'ask' && <Button size="sm" variant="outline" onClick={() => setFilter('ask')}>Show questions</Button>}</div>}
       {noFac > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><b>{noFac} record{noFac > 1 ? 's have' : ' has'} no facility.</b> Use Edit to assign one, or choose facilities before the next extraction.</div>}
       <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b p-3">
-          {TABS.map((k) => <button key={k} type="button" className={`rounded-full border px-3 py-1 text-sm ${filter === k ? 'border-emerald-600 bg-emerald-50 font-semibold text-emerald-900' : 'border-stone-200 text-stone-600'}`} onClick={() => { setFilter(k); setPage(0); }} data-testid={`ocr-tab-${k}`}>{k === 'pending' ? 'To do' : k === 'all' ? 'All' : STATUS_LABEL[k]} <span className="text-xs text-stone-500">{counts[k] || 0}</span></button>)}
+          {TABS.filter((k) => k !== 'unreadable' || counts[k] > 0).map((k) => <button key={k} type="button" className={`rounded-full border px-3 py-1 text-sm ${filter === k ? 'border-emerald-600 bg-emerald-50 font-semibold text-emerald-900' : 'border-stone-200 text-stone-600'}`} onClick={() => { setFilter(k); setPage(0); }} data-testid={`ocr-tab-${k}`}>{k === 'pending' ? 'To do' : k === 'all' ? 'All' : STATUS_LABEL[k]} <span className="text-xs text-stone-500">{counts[k] || 0}</span></button>)}
         </div>
         {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b><Button size="sm" onClick={() => setReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button><Button size="sm" variant="outline" onClick={() => setReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button><Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-stone-50 text-left text-xs text-stone-500">

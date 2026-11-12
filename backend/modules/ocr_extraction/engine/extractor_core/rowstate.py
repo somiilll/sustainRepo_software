@@ -33,3 +33,16 @@ def counts(rows: list[dict]) -> dict[str, int]:
         if not r.get("derived"):
             out[r["state"]["state"]] += 1
     return out
+
+
+def shown(row: dict) -> str:
+    """The one label a reviewer sees before approving: ready | check | input | unreadable."""
+    if (row.get("state") or {}).get("state") in ("couldnt_read", "failed"):
+        return "unreadable"
+    level = (row.get("trust") or {}).get("level")
+    rs = row.get("review_status")
+    if rs == "ready":
+        return "check" if level == "check" else "ready"
+    if rs == "ask" or level == "needs_you" or not (row.get("facility") or {}).get("id"):
+        return "input"
+    return "check"

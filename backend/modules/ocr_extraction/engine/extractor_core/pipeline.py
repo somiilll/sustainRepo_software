@@ -414,6 +414,7 @@ class Engine:
                            today=self.reference_date)
         for r in rows:
             r["state"] = rowstate.of(r, item_of[r["item_id"]])
+            r["shown"] = rowstate.shown(r)
         source_rows = [r for d in docs for r in d.pop("source_rows", [])]
         for d in docs:
             d["rows"] = by_doc.get(d["doc_id"], 0)

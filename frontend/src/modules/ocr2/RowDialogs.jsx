@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { errText } from './api';
 import { SOURCE_LABEL, STATUS_CLASS, TRUST_CLASS, fmtDate, fmtN } from './utils';
 
-export const TrustBadge = ({ t }) => (t ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TRUST_CLASS[t.level]}`} title={(t.reasons || []).join('\n')}>{t.label}</span> : null);
+export const TrustBadge = ({ t }) => (t ? <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${TRUST_CLASS[t.level]}`} title={(t.reasons || []).join('\n')}>{{ high: 'Ready', check: 'Check', needs_you: 'Needs input' }[t.level] || t.label}</span> : null);
 
 const ACTION = { approved: 'Approved', rejected: 'Rejected', reset: 'Reset to review', edited: 'Edited', approval_blocked: 'Approval refused' };
 export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {

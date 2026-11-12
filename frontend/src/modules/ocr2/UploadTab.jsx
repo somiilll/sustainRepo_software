@@ -80,10 +80,11 @@ const DoneCard = ({ j, onOpen, onDismiss }) => {
     <div className="rounded-xl border border-emerald-300 bg-emerald-50/50 p-5 shadow-sm" data-testid={`ocr-done-${j.job_id}`}>
       <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-700" /><h3 className="font-semibold text-emerald-950">Extraction complete</h3><span className="text-sm text-stone-500">{j.metrics?.seconds ?? ''}s</span></div>
       <p className="mt-1 truncate text-sm text-stone-600">{j.names.join(', ')}</p>
-      <div className="mt-3 grid grid-cols-2 gap-3 text-center text-xs text-stone-500 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-3 text-center text-xs text-stone-500 sm:grid-cols-5">
         <div className="rounded-lg bg-white p-2">Lines<div className="text-base font-semibold text-stone-900">{total}</div></div>
         <div className="rounded-lg bg-white p-2">Ready<div className="text-base font-semibold text-green-700">{rv.ready || 0}</div></div>
-        <div className="rounded-lg bg-white p-2">Need you<div className="text-base font-semibold text-amber-700">{(rv.needs_attention || 0) + (rv.ask || 0)}</div></div>
+        <div className="rounded-lg bg-white p-2">Check<div className="text-base font-semibold text-amber-700">{rv.check || 0}</div></div>
+        <div className="rounded-lg bg-white p-2">Needs input<div className="text-base font-semibold text-rose-700">{(rv.input || 0) + (rv.unreadable || 0) + (rv.needs_attention || 0) + (rv.ask || 0)}</div></div>
         <div className="rounded-lg bg-white p-2">Credits used<div className="text-base font-semibold text-stone-900">{fmtCr(j.credits)}</div></div>
       </div>
       <div className="mt-4 flex gap-2"><Button onClick={() => onOpen(j.job_id)} data-testid={`ocr-review-now-${j.job_id}`}>Review now</Button><Button variant="ghost" onClick={() => onDismiss(j.job_id)}>Dismiss</Button></div>
