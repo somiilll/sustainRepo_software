@@ -1062,3 +1062,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Backlog: end-to-end test of approve->save, credits ledger should store file names (shows "(deleted job)"), My Tasks filters, CBAM, catalog sync bundle, auth rate limiter.
 - Factor sectors now live in DB collection `ocr_factor_sectors` (loaded via factor_sectors.py; new Scope 3 factor names are grouped in the background by Haiku when the factor index refreshes). Sector definitions: mappings/factor_sector_defs.json. Removed: factor_sectors.json, _build_factor_sectors.py, jobqueue.py, SQLite Ledger/AuditLog, export endpoint, contracts/, 17 stale engine tests (128 pass).
 - ocr uploads stored at ocr/{org}/{date}/{job}/{file}; file deleted automatically when every row is saved or rejected; credits ledger keeps names of deleted jobs (ocr_ext_deleted).
+
+## OCR Learned Decisions (Nov 2026)
+- "Means" dropdown in Learned Decisions now searches real Scope 3 EF + Fuel DB factors (`GET /api/ocr-invoice/memory/factors?q=`); `/memory/change` accepts only `factor:<id>`. Old taxonomy-based decisions cleared. `elec.renewable` no longer adds the Scope 3 T&D companion. NOT tested (user instruction).
+- **P0 — Scope 1/2 edge cases still on taxonomy (not in Scope 3 EF / Fuel DB):** Scope 2 purchased electricity (grid/renewable/captive) and heat/steam/cooling, refrigerant/fugitive gases, industrial gases, water/wastewater, "no record" fees. Learned decisions for these show read-only in Learned Decisions. Needs factor-based sourcing and an editable dropdown for them.
+- P1 — Restore plausibility checks (outlier and duplicate-line warnings) removed from `plausibility.py` at user request ("later").
