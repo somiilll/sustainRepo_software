@@ -39,8 +39,8 @@ class PasswordReset(BaseModel):
 
 class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
-    recovery_email: Optional[str] = None
-    recovery_mobile: Optional[str] = None
+    mobile_number: Optional[str] = None
+    designation: Optional[str] = None
 
 
 class ResetPasswordRequest(BaseModel):
@@ -58,8 +58,8 @@ class UserResponse(BaseModel):
     organization_id: Optional[str] = None
     assigned_facilities: List[str] = Field(default_factory=list)
     requires_password_change: bool = False
-    recovery_email: Optional[str] = None
-    recovery_mobile: Optional[str] = None
+    mobile_number: Optional[str] = None
+    designation: Optional[str] = None
     created_at: str
 
 

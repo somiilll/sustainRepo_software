@@ -11,7 +11,6 @@ Auth router — 7 routes:
 Behaviour preserved exactly from server.py — same response shapes,
 status codes, validation messages, and side effects (email sending).
 """
-import re
 import logging
 import os
 import uuid
@@ -45,6 +44,7 @@ from modules.auth.dependencies import (
     mark_supplier_invitation_accepted_on_login,
 )
 from modules.auth.email_templates import password_reset_email
+from modules.users.profile_fields import clean_designation, clean_mobile
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +137,8 @@ async def signup(request: Request, user_data: UserCreate, response: Response):
         "organization_id": user_data.organization_id,
         "assigned_facilities": [],
         "requires_password_change": False,
-        "recovery_email": None,
-        "recovery_mobile": None,
+        "mobile_number": None,
+        "designation": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -288,7 +288,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/auth/profile", response_model=UserResponse)
 async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
-    """Update current user's profile (name, recovery email, recovery mobile). Only the fields sent are changed."""
+    """Update current user's profile (name, mobile number, designation). Only the fields sent are changed."""
     update_dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
     sent = profile_data.model_fields_set
     if "full_name" in sent:
@@ -296,16 +296,10 @@ async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depen
         if len(name) < 2:
             raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
         update_dict["full_name"] = name
-    if "recovery_email" in sent:
-        email = (profile_data.recovery_email or "").strip().lower()
-        if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-            raise HTTPException(status_code=400, detail="Enter a valid recovery email")
-        update_dict["recovery_email"] = email or None
-    if "recovery_mobile" in sent:
-        mobile = (profile_data.recovery_mobile or "").strip()
-        if mobile and not re.fullmatch(r"\+?[0-9][0-9 \-]{6,18}[0-9]", mobile):
-            raise HTTPException(status_code=400, detail="Enter a valid mobile number")
-        update_dict["recovery_mobile"] = mobile or None
+    if "mobile_number" in sent:
+        update_dict["mobile_number"] = clean_mobile(profile_data.mobile_number)
+    if "designation" in sent:
+        update_dict["designation"] = clean_designation(profile_data.designation)
     if len(update_dict) == 1:
         raise HTTPException(status_code=400, detail="Nothing to update")
 

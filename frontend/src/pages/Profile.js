@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Building2, Calendar, Check, Lock, Mail, Pencil, Phone, ShieldCheck, User, X } from 'lucide-react';
+import { ArrowRight, Briefcase, Building2, Calendar, Check, Lock, Mail, Pencil, Phone, ShieldCheck, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -93,6 +93,7 @@ export default function Profile() {
             <h1 className="truncate text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl" data-testid="profile-user-name">{name}</h1>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-stone-500 sm:justify-start">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-800" data-testid="profile-role-badge">{ROLE_LABELS[user?.role] || user?.role}</span>
+              {user?.designation && <span className="inline-flex items-center gap-1.5" data-testid="profile-designation-chip"><Briefcase className="h-4 w-4 text-stone-400" />{user.designation}</span>}
               {orgName && <span className="inline-flex items-center gap-1.5" data-testid="profile-organization-name"><Building2 className="h-4 w-4 text-stone-400" />{orgName}</span>}
               {since && <span className="inline-flex items-center gap-1.5" data-testid="profile-member-since-date"><Calendar className="h-4 w-4 text-stone-400" />Member since {since}</span>}
             </div>
@@ -106,7 +107,7 @@ export default function Profile() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-700"><User className="h-5 w-5" /></div>
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-stone-900">Personal information</h2>
-              <p className="text-sm text-stone-500">Your name and how we can reach you</p>
+              <p className="text-sm text-stone-500">Your name, role in the team and how we can reach you</p>
             </div>
           </div>
           <div className="divide-y divide-stone-100">
@@ -118,8 +119,8 @@ export default function Profile() {
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-500"><Lock className="h-3 w-3" />Sign-in email</span>
               </div>
             </div>
-            <EditableField id="recovery-email" label="Recovery email" icon={Mail} type="email" value={user?.recovery_email} placeholder="name@example.com" onSave={saveField('recovery_email', 'Recovery email updated')} />
-            <EditableField id="recovery-mobile" label="Recovery mobile" icon={Phone} type="tel" value={user?.recovery_mobile} placeholder="+91 98765 43210" onSave={saveField('recovery_mobile', 'Recovery mobile updated')} />
+            <EditableField id="mobile" label="Mobile number" icon={Phone} type="tel" value={user?.mobile_number} placeholder="+91 98765 43210" onSave={saveField('mobile_number', 'Mobile number updated')} />
+            <EditableField id="designation" label="Designation" icon={Briefcase} value={user?.designation} placeholder="e.g. Sustainability Manager" onSave={saveField('designation', 'Designation updated')} />
           </div>
         </section>
 

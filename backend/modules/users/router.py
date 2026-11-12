@@ -23,6 +23,7 @@ from modules.auth.contracts import UserResponse
 from modules.auth.dependencies import get_admin_user
 from modules.auth.email_templates import user_invite_email
 from modules.users.contracts import UserCreateRequest
+from modules.users.profile_fields import clean_designation, clean_mobile
 from modules.users.facility_assignments import (
     assert_direct_assignment_mode,
     direct_assignments_for_new_user,
@@ -73,6 +74,8 @@ async def create_user(
         "password_hash": get_password_hash(temp_password),
         "organization_id": org_id,
         "assigned_facilities": assigned_facilities,
+        "mobile_number": clean_mobile(user_data.mobile_number),
+        "designation": clean_designation(user_data.designation),
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { FacilityAssignmentPicker } from '../components/FacilityAssignmentPicker';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const EMPTY_FORM = { email: '', full_name: '', organization_id: '', role: 'user', assigned_facilities: [] };
+const EMPTY_FORM = { email: '', full_name: '', mobile_number: '', designation: '', organization_id: '', role: 'user', assigned_facilities: [] };
 
 const roleMeta = {
   admin: { label: 'Admin', icon: UserCog, className: 'bg-amber-100 text-amber-800' },
@@ -176,6 +176,16 @@ export default function AdminManagement() {
               <div className="space-y-2">
                 <Label htmlFor="account-email">Email *</Label>
                 <Input id="account-email" type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} required className="bg-stone-50" data-testid="team-account-email-input" />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="account-mobile">Mobile number</Label>
+                  <Input id="account-mobile" type="tel" value={formData.mobile_number} onChange={(event) => setFormData({ ...formData, mobile_number: event.target.value })} placeholder="+91 98765 43210" className="bg-stone-50" data-testid="team-account-mobile-input" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="account-designation">Designation</Label>
+                  <Input id="account-designation" value={formData.designation} onChange={(event) => setFormData({ ...formData, designation: event.target.value })} placeholder="e.g. Sustainability Head" maxLength={100} className="bg-stone-50" data-testid="team-account-designation-input" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-role">Account role *</Label>

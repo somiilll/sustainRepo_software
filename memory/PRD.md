@@ -1081,3 +1081,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - /profile: gradient cover banner + overlapping initials avatar, name, role badge, organization, member-since; Personal information card (inline-editable Full name, Recovery email, Recovery mobile; read-only sign-in email) and Role & access card with link to Account Settings. Design: /app/design_guidelines.json.
 - Backend: `PUT /api/auth/profile` now accepts optional full_name, recovery_email, recovery_mobile (only sent fields change; empty clears; email/mobile validated).
 - NOTE: recovery email/mobile are stored only; password reset still goes to the sign-in email. Smoke-checked by screenshot (desktop + mobile, recovery mobile save). Not covered by testing agent.
+
+## Profile fields update (Nov 2026)
+- Profile: removed recovery email; "Recovery mobile" -> "Mobile number"; added "Designation" (shown as chip in banner). User fields are now `mobile_number` and `designation` (old `recovery_email`/`recovery_mobile` removed; no data existed).
+- Admin "Add New User" (UserManagement.js, PUT /api/admin/users) and Super Admin "Add team account" (AdminManagement.js, POST /api/super-admin/accounts) accept optional mobile + designation; shared validation in modules/users/profile_fields.py.
+- Verified: PUT /api/auth/profile save/validate/clear via curl. Create-user dialogs not run end-to-end (no testing agent).
