@@ -1073,3 +1073,6 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Pages: /profile (personal info only), /account-settings (change password, password reset, platform subscription), /credits-usage (CreditsTab moved out of OCR; OCR credits badge links to it). Smoke-checked once by screenshot only; no full testing (user instruction).
 - Learned Decisions tab hidden from OCR page (MemoryTab code and backend kept); account menu no longer shows email.
 - Account Settings redesigned (two-column: Security + Account recovery | Platform subscription with status badge, days-left bar; Renew/Contact support open Contact Sales dialog). Subscription start is derived as expiry minus 1 year (no start date stored). ModulePageHeader got optional subtitle.
+
+## P1 backlog (Nov 2026)
+- **P1 — Contact Sales email must say which module the user clicked from:** the email to info@sustainrepo.com should include the module/page the user opened Contact Sales from (e.g. RepoPilot, Account Settings > Renew subscription / Contact support, locked module overlay). Needs: `ContactSalesDialog` to accept a `source` prop, `POST /api/contact-sales` to store/send it, and every caller (`RepoPilot.js`, `Layout.js`, `AccountSettings.js`, locked-module overlays) to pass its own label.
