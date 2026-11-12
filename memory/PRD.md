@@ -1051,3 +1051,12 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Direct keys only (ANTHROPIC/OPENAI/OPENROUTER); Emergent key never used for OCR.
 - Known: 17 pre-existing stale unit tests in engine/tests (taxonomy-era) fail with and without this change.
 - Backlog: My Tasks filters (WorkflowMyTask.js), CBAM module, catalog sync bundle, auth rate limiter, admin override attribution.
+
+## OCR v2 session updates (Nov 2026)
+- Haiku makes the final factor choice from a Jev-narrowed shortlist (sector is a hint, not a gate); ties between equal exact matches now ask a variant question; variants found by shared words, not " - " naming.
+- Cell unit outranks column header ('500 kg' under 'Value' is a quantity). Edit dialog: autofill from row, methods per category (no supplier), month picker (no future), unique activities (facility sector), white background.
+- Approve now saves to GHG records immediately (retry button only for failures; saved lines can't be rejected/reset); confirmation popup on approve/reject; Excel sources attached as evidence once per file; no OCR row-id note.
+- Status labels simplified to Ready / Check / Needs input / Couldn't read / Approved / Rejected (row.shown); "Choose" pill for questions.
+- Upload page redesigned; per-job review page removed; Why dialog plain-language basis notes (validate.plain); old jobs rebuilt on read.
+- Tested: iteration_9.json (display fixes pass). Approve-saves-to-GHG flow, bulk save loop and edit-dialog prefill were NOT end-to-end tested.
+- Backlog: end-to-end test of approve->save, credits ledger should store file names (shows "(deleted job)"), My Tasks filters, CBAM, catalog sync bundle, auth rate limiter.

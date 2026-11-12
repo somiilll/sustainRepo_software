@@ -32,7 +32,7 @@ from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
 from extractor_core import rowstate  # noqa: E402
 from extractor_core.pipeline import Engine, JobCancelled  # noqa: E402
-from extractor_core.validate import finish, row_checks, trust as trust_of  # noqa: E402
+from extractor_core.validate import finish, plain, row_checks, trust as trust_of  # noqa: E402
 from .edit_override import Override, apply_override, edit_config, factor_options, prefill  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,9 @@ def _read_job(org: str, job_id: str) -> dict:
     if not j:
         raise HTTPException(404, "This extraction has no saved result")
     for r in j.get("rows", []):
-        if "trust" not in r and r.get("basis") and r.get("decision") and r.get("calc") and r.get("period"):
+        if r.get("basis") and r.get("decision") and r.get("calc") and r.get("period"):
+            for v in r["basis"].values():
+                v["notes"] = plain(v.get("tags") or [])
             r["trust"] = trust_of(r)
     return j
 

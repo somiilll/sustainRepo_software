@@ -156,13 +156,14 @@ def _worse(a: str, b: str) -> str:
 TAG_TEXT = {"unknown_brand": "brand not recognised", "material_inferred": "material guessed from the name", "ambiguous_between_options": "more than one option fits",
             "spend_proxy": "estimated from the amount spent", "no_good_option": "no clear match", "variant_unspecified": "variant not stated",
             "unit_printed": "unit is printed", "currency_printed": "currency is printed", "column_pattern": "same as the other rows", "spec_in_name": "number is part of the item name",
-            "only_number_in_row": "only number on the row", "code_or_serial": "looks like a code or serial number", "unit_assumed": "unit was assumed",
+            "only_number_in_row": "only number on the row", "code_or_serial": "looks like a code or serial number", "unit_assumed": "unit was assumed", "brand_unknown": "brand not recognised", "product_inferred": "product guessed from the name",
+            "missing_value": "value is missing", "needs_disposal_route": "disposal route not stated", "ai_read": "read by AI",
             "ambiguous_between_roles": "could be a quantity or an amount", "no_context": "nothing nearby to confirm it"}
-TAG_HIDDEN = {"haiku_final", "jev_pick", "org_context_used", "exact_name"}
+TAG_HIDDEN = {"haiku_final", "jev_pick", "org_context_used", "exact_name", "none", "rules_and_ai_agree"}
 
 
 def plain(tags: list) -> list[str]:
-    return [TAG_TEXT.get(t, t.replace("_", " ")) for t in tags if t not in TAG_HIDDEN]
+    return list(dict.fromkeys(TAG_TEXT.get(t, t.replace("_", " ")) for t in tags if t not in TAG_HIDDEN))
 
 
 def decision_basis(d: dict) -> dict:

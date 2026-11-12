@@ -19,13 +19,13 @@ export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
       <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto" data-testid="ocr-why-dialog">
         <DialogHeader><DialogTitle>Why this classification</DialogTitle></DialogHeader>
         <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-2 text-sm">
-          {rowKV('Reason', d.reason)}
+          {rowKV('Reason', (d.reason || '').replace(/^(claude|jev|haiku|openai)\S* identified /i, 'Identified ').replace(/ \(sector [^)]*\)/, ''))}
           {d.alternatives?.length > 0 && rowKV('Alternatives', d.alternatives.map((a) => `${a.label || a.factor?.name || actLabel(a.activity_id) || '-'}${a.p != null ? ` (${Math.round(100 * a.p)}%)` : ''}`).join(', '))}
           {rowKV('GHG', `${row.ghg?.scope_label} › ${row.ghg?.category_label} › ${row.ghg?.subcategory_label}`)}
           {rowKV('Quantity', `As printed: ${row.raw_quantity != null ? `${fmtN(row.raw_quantity, 4)} ${row.raw_unit || ''}` : 'none'}${row.quantity != null ? ` · in calculation: ${fmtN(row.quantity, 4)} ${row.unit || ''}` : ''}`)}
           {rowKV('Fields', <code className="whitespace-pre-wrap text-xs">{JSON.stringify(c.fields || {}, null, 1)}</code>)}
           {row.trust && rowKV('Trust', <><TrustBadge t={row.trust} /><ul className="mt-1 list-disc pl-5 text-xs text-stone-600">{row.trust.reasons.map((x) => <li key={x}>{x}</li>)}</ul></>)}
-          {rowKV('Basis', <span data-testid="ocr-why-basis">{Object.entries(row.basis || {}).map(([k, v], i) => <span key={k}>{i > 0 && ' · '}<span className="capitalize">{k}</span>: <b className={LEVEL_TEXT[v.level] || ''}>{v.level}</b>{k !== 'classification' && (v.notes || []).length ? ` (${v.notes.join(', ')})` : ''}</span>)}</span>)}
+          {rowKV('Basis', <span data-testid="ocr-why-basis">{Object.entries(row.basis || {}).map(([k, v], i) => <span key={k}>{i > 0 && ' · '}<span className="capitalize">{k}</span>: <b className={LEVEL_TEXT[v.level] || 'text-stone-500'}>{v.level === 'none' ? 'not set' : v.level}</b>{k !== 'classification' && (v.notes || []).length ? ` (${v.notes.join(', ')})` : ''}</span>)}</span>)}
           {rowKV('Facility match', `${row.facility?.name || 'none'} (${row.facility?.method})`)}
           {rowKV('Period', `${row.reporting_period || 'none'} (${row.period?.method})`)}
         </dl>
