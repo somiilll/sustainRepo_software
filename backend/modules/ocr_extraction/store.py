@@ -161,10 +161,12 @@ class MongoLedger:
     def record(self, org, job_id, events, ts=None):
         ts = ts or time.time()
         if events:
-            DB.ocr_ext_usage_events.insert_many([{**e, "org": org, "job_id": job_id, "ts": ts} for e in events])
+            who = DB.ocr_ext_jobs.find_one({"job_id": job_id, "org": org}, {"_id": 0, "created_by": 1, "created_by_id": 1}) or {}
+            tag = {"source": "OCR", "user_id": who.get("created_by_id"), "user_name": who.get("created_by")}
+            DB.ocr_ext_usage_events.insert_many([{**e, **tag, "org": org, "job_id": job_id, "ts": ts} for e in events])
 
     def grant(self, org, credits, note=""):
-        DB.ocr_ext_credit_grants.insert_one({"org": org, "ts": time.time(), "credits": credits, "note": note})
+        DB.ocr_ext_credit_grants.insert_one({"org": org, "ts": time.time(), "credits": credits, "note": note, "source": "OCR"})
 
     def forget_job(self, org, job_id):
         DB.ocr_ext_usage_events.delete_many({"org": org, "job_id": job_id})

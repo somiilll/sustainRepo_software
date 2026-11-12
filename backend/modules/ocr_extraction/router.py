@@ -348,7 +348,7 @@ def create_job(files: list[UploadFile] = File(...), mode: str = Form("fast"), fo
         shutil.rmtree(tmp, ignore_errors=True)
     now = time.time()
     DB.ocr_ext_jobs.insert_one({"job_id": job_id, "org": org, "status": "queued", "created": now, "mode": mode, "names": names, "file_keys": keys,
-                                "facility_choices": choices, "file_hashes": sorted(hashes), "created_by": _actor(user)})
+                                "facility_choices": choices, "file_hashes": sorted(hashes), "created_by": _actor(user), "created_by_id": user.get("id")})
     QUEUE.submit(job_id, org, mode, lane, names, keys, pages=pages, est_seconds=est, created=now)
     return {"job_id": job_id, "est_seconds": est, **QUEUE.wait_info(job_id)}
 
