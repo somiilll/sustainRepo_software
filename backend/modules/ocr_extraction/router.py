@@ -40,7 +40,7 @@ router = APIRouter()
 
 DB = store.DB
 MEMORY, LEDGER, AUDIT, JOBS = store.MongoMemory(), store.MongoLedger(), store.MongoAudit(), store.JobStore()
-TRIAL_CREDITS = 5000
+TRIAL_CREDITS = 1000
 PROGRESS_KEYS = ("stage", "done", "total", "message", "items", "files_total", "files_done", "credits", "elapsed")
 _live: dict[str, dict] = {}
 _live_lock = threading.Lock()

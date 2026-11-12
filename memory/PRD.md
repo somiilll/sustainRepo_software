@@ -1089,3 +1089,7 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 
 ## P0 backlog (Nov 2026) — OCR credits
 - **P0 — Starting OCR credits per organization will change:** today every org gets a hard-coded 5,000 "Trial credits" grant on first OCR visit (`TRIAL_CREDITS = 5000` in `modules/ocr_extraction/router.py`, applied by `_ensure_trial`). Needs a configurable, per-organization starting amount (e.g. set by super admin on the organization / plan) instead of the constant.
+
+## Credits update (Nov 2026)
+- Starting OCR credits hard-coded to 1,000 (was 5,000) — applies only to organizations that have not opened OCR yet; existing grants unchanged.
+- **P1 — Super admin credit management:** super admin sets the credits for each organization, can add extra credits any time (UI for the existing `POST /api/ocr-invoice/usage/grant`), and can set markups (per organization, on top of `mappings/pricing.json` markup). Replaces the hard-coded trial amount (supersedes the earlier P0 note).
