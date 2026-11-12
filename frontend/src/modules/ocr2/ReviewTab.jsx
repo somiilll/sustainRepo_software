@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
+import { Check, CircleHelp, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { EditDialog } from './EditDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
 import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtN, rstate, scopeOf } from './utils';
 
@@ -51,6 +52,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
   const [saving, setSaving] = useState(false);
   const [saveRes, setSaveRes] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [qOpen, setQOpen] = useState(null);
 
   const jobOf = useCallback((r) => r._job, []);
   const actLabel = useCallback((id) => meta.activities.find((a) => a.id === id)?.label || id, [meta]);
@@ -132,12 +134,20 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
     const a = actOf(r.activity_id);
     let opts;
     if (a?.context_key === 'use_context' && /use|used|where|vehicle|equipment/i.test(d.question)) opts = Object.entries(meta.use_context).map(([k, v]) => ['ctx', k, v.split(' (')[0]]);
-    else if (d.factor_match) { const fs = [d.factor_match, ...(d.alternatives || []).map((x) => x.factor)].filter((f, i, arr) => f && arr.findIndex((g) => g?.id === f.id) === i).slice(0, 8); const common = fs.length > 1 && fs.every((f) => f.name.split(' - ')[0] === fs[0].name.split(' - ')[0]); opts = fs.map((f) => ['factor', f.id, (common ? f.name.split(' - ').slice(1).join(' - ') : f.name).slice(0, 42)]); }
-    else opts = [r.activity_id, ...(d.alternatives || []).map((x) => x.activity_id)].filter((x, i, s) => x && actOf(x) && s.indexOf(x) === i).slice(0, 3).map((id) => ['act', id, actLabel(id).split(' (')[0].slice(0, 42)]);
+    else if (d.factor_match) { const fs = [d.factor_match, ...(d.alternatives || []).map((x) => x.factor)].filter((f, i, arr) => f && arr.findIndex((g) => g?.id === f.id) === i).slice(0, 8); const common = fs.length > 1 && fs.every((f) => f.name.split(' - ')[0] === fs[0].name.split(' - ')[0]); opts = fs.map((f) => ['factor', f.id, (common ? f.name.split(' - ').slice(1).join(' - ') : f.name)]); }
+    else opts = [r.activity_id, ...(d.alternatives || []).map((x) => x.activity_id)].filter((x, i, s) => x && actOf(x) && s.indexOf(x) === i).slice(0, 3).map((id) => ['act', id, actLabel(id).split(' (')[0]]);
+    const pick = (t, v) => { setQOpen(null); answer(r, t, v); };
     return (
-      <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs"><div className="mb-1 font-medium text-sky-900">{d.question}</div>
-        <div className="flex flex-wrap gap-1">{opts.map(([t, v, l]) => <button key={v} type="button" className="rounded border border-sky-300 bg-white px-2 py-0.5 hover:bg-sky-100" onClick={() => answer(r, t, v)} data-testid={`ocr-answer-${r.row_id}-${v}`}>{l}</button>)}
-          <button type="button" className="rounded border border-dashed border-sky-300 bg-white px-2 py-0.5" onClick={() => setDlg({ type: 'edit', row: r })}>Other...</button></div></div>
+      <Popover open={qOpen === r.row_id} onOpenChange={(o) => setQOpen(o ? r.row_id : null)}>
+        <PopoverTrigger asChild>
+          <button type="button" className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100" title={d.question} aria-label="Answer this question" data-testid={`ocr-question-${r.row_id}`}><CircleHelp className="h-4 w-4" /></button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-72 bg-white p-3 text-xs" data-testid={`ocr-question-panel-${r.row_id}`}>
+          <div className="mb-2 font-medium text-stone-900">{d.question}</div>
+          <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">{opts.map(([t, v, l]) => <button key={v} type="button" className="rounded border border-stone-200 px-2 py-1.5 text-left hover:bg-sky-50" onClick={() => pick(t, v)} data-testid={`ocr-answer-${r.row_id}-${v}`}>{l}</button>)}
+            <button type="button" className="rounded border border-dashed border-stone-300 px-2 py-1.5 text-left text-stone-600 hover:bg-stone-50" onClick={() => { setQOpen(null); setDlg({ type: 'edit', row: r }); }}>Other...</button></div>
+        </PopoverContent>
+      </Popover>
     );
   };
 
