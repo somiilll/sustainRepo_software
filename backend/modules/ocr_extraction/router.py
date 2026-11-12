@@ -921,7 +921,7 @@ async def _save_rows(org: str, user: dict, job_id: str, job: dict, only: set | N
             row["review"] = {**rv, "saved": {"record_ids": ids, "at": time.time(), "by": _actor(user)}}
             row["review"].pop("save_error", None)
             saved.append({"row_id": row["row_id"], "record_ids": ids})
-            AUDIT.record(org, job_id, "saved", _actor(user), row["item_id"], row["row_id"], row.get("extracted_item"), {"emission_records": [None, ids]}, "Saved as emission / water records")
+            AUDIT.record(org, job_id, "saved", _actor(user), row["item_id"], row["row_id"], row.get("extracted_item"), {"emission_records": [None, ids]}, "Saved as emission")
         except (saver.SaveError, HTTPException, ValueError) as e:
             reason = getattr(e, "detail", None) or str(e)
             row["review"] = {**rv, "save_error": reason}

@@ -29,7 +29,7 @@ export const CreditsTab = ({ api, usage, setUsage }) => {
   return (
     <div className="space-y-5" data-testid="ocr-credits-tab">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1"><h2 className="text-xl font-semibold">Credits &amp; usage</h2><p className="text-sm text-stone-500">Every AI call - reading, layout mapping and classification - is priced the same way and counted in credits.</p></div>
+        <div className="min-w-0 flex-1"><h2 className="text-xl font-semibold">Credits &amp; usage</h2></div>
         <div className="flex rounded-lg border border-stone-200 p-0.5">{[7, 30, 90].map((d) => <button key={d} type="button" className={`rounded-md px-3 py-1 text-sm ${days === d ? 'bg-emerald-700 text-white' : 'text-stone-600'}`} onClick={() => setDays(d)} data-testid={`ocr-days-${d}`}>{d} days</button>)}</div>
         {usage.can_grant && <Button onClick={topUp} data-testid="ocr-add-credits"><Plus className="mr-1 h-4 w-4" />Add credits</Button>}
       </div>

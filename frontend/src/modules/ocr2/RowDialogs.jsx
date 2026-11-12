@@ -28,13 +28,12 @@ export const WhyDialog = ({ row, actLabel, jobOf, api, onClose }) => {
           {rowKV('Basis', <span data-testid="ocr-why-basis">{Object.entries(row.basis || {}).map(([k, v], i) => <span key={k}>{i > 0 && ' · '}<span className="capitalize">{k}</span>: <b className={LEVEL_TEXT[v.level] || ''}>{v.level}</b>{k !== 'classification' && (v.tags || []).length ? ` (${v.tags.map((t) => t.replace(/_/g, ' ')).join(', ')})` : ''}</span>)}</span>)}
           {rowKV('Facility match', `${row.facility?.name || 'none'} (${row.facility?.method})`)}
           {rowKV('Period', `${row.reporting_period || 'none'} (${row.period?.method})`)}
-          {rowKV('All checks', (row.checks || []).map((x) => <div key={x.message} className={x.level === 'error' ? 'text-rose-700' : x.level === 'warn' ? 'text-amber-700' : 'text-stone-500'}>{x.level}: {x.message}</div>))}
         </dl>
         <div className="rounded-lg border border-stone-200 p-3"><h3 className="mb-2 text-sm font-semibold">History</h3>
           {hist === null ? <div className="h-4 w-1/2 animate-pulse rounded bg-stone-100" /> : hist.length === 0 ? <p className="text-sm text-stone-500">No changes yet. Approvals, edits and answers are recorded here.</p> : hist.map((e) => (
             <div key={e.id} className="mb-2 text-sm"><b>{ACTION[e.action] || e.action}</b> <span className="text-stone-500">by {e.actor} · {fmtDate(e.ts)}</span>
-              {Object.entries(e.changes || {}).map(([k, [a, b]]) => <div key={k} className="text-xs text-stone-500">{k.replace('_', ' ')}: {a == null || a === '' ? 'empty' : String(a)} → <b>{b == null || b === '' ? 'empty' : String(b)}</b></div>)}
-              {e.note && <div className="text-xs text-stone-500">{e.note}</div>}</div>))}
+              {Object.entries(e.changes || {}).filter(([k]) => k !== 'emission_records').map(([k, [a, b]]) => <div key={k} className="text-xs text-stone-500">{k.replace('_', ' ')}: {a == null || a === '' ? 'empty' : String(a)} → <b>{b == null || b === '' ? 'empty' : String(b)}</b></div>)}
+              {e.note && <div className="text-xs text-stone-500">{e.note === 'Saved as emission / water records' ? 'Saved as emission' : e.note}</div>}</div>))}
         </div>
       </DialogContent>
     </Dialog>
