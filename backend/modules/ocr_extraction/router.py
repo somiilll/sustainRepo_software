@@ -558,16 +558,19 @@ class ReviewAction(BaseModel):
     state: str
 
 
-@router.post("/jobs/{job_id}/review")
-def review(job_id: str, a: ReviewAction, user: dict = Depends(get_current_user)):
-    org = _org(user)
+def _apply_review(org: str, job_id: str, a: ReviewAction, user: dict):
     if a.state not in ("approved", "rejected", "reset"):
         raise HTTPException(400, "state must be approved, rejected or reset")
     job = _read_job(org, job_id)
     who = _actor(user)
     ids = set(a.row_ids)
     ids |= {r["row_id"] for r in job["rows"] if r.get("parent_id") in ids}
-    n, blocked = 0, []
+    n, blocked, locked = 0, [], []
+    if a.state in ("rejected", "reset"):
+        saved_ids = {r["row_id"] for r in job["rows"] if (r.get("review") or {}).get("saved")}
+        saved_ids |= {r["row_id"] for r in job["rows"] if r.get("parent_id") in saved_ids}
+        locked = sorted(ids & saved_ids)
+        ids -= saved_ids
     if a.state == "approved":
         bad = approval_blockers(job["rows"], ids)
         blocked = sorted(bad)
@@ -591,7 +594,16 @@ def review(job_id: str, a: ReviewAction, user: dict = Depends(get_current_user))
                     if (r.get("quantity") or 0) > 0 and r.get("reporting_period"):
                         MEMORY.add_history(org, plausibility.history_key(r), r["reporting_period"], r["quantity"], r.get("unit"), job_id, r["row_id"])
     _save_job(org, job)
-    return {"updated": n, "blocked": blocked}
+    return job, ids, {"updated": n, "blocked": blocked, "locked": locked}
+
+
+@router.post("/jobs/{job_id}/review")
+async def review(job_id: str, a: ReviewAction, user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job, ids, out = await asyncio.to_thread(_apply_review, org, job_id, a, user)
+    if a.state == "approved" and ids:
+        out["save"] = await _save_rows(org, user, job_id, job, ids)
+    return out
 
 
 @router.get("/jobs/{job_id}/audit")
@@ -875,23 +887,26 @@ async def choose_factor(job_id: str, row_id: str, c: FactorChoice, user: dict = 
 
 class SaveRequest(BaseModel):
     row_ids: list[str] | None = None
+    pending_only: bool = False
 
 
-@router.post("/jobs/{job_id}/save")
-async def save_to_ghg(job_id: str, body: SaveRequest | None = None, user: dict = Depends(get_current_user)):
-    org = _org(user)
-    job = await asyncio.to_thread(_read_job, org, job_id)
+SAVE_BUDGET_S = 70
+
+
+async def _save_rows(org: str, user: dict, job_id: str, job: dict, only: set | None, pending_only: bool = False) -> dict:
     summary = await asyncio.to_thread(_summary, org, job_id)
     keys = dict(zip(summary.get("names", []), summary.get("file_keys", [])))
-    only = set(body.row_ids) if body and body.row_ids else None
     cache: dict = {}
     saved, failed, skipped = [], [], []
+    t0 = time.time()
     for row in job["rows"]:
         rv = row.get("review") or {}
         if rv.get("state") != "approved" or (only and row["row_id"] not in only):
             continue
         if rv.get("saved"):
             skipped.append(row["row_id"])
+            continue
+        if time.time() - t0 > SAVE_BUDGET_S or (pending_only and rv.get("save_error")):
             continue
         rec = _raw_rec(row)
         if rec["scope"] == "none" or not rec.get("scope"):
@@ -916,4 +931,13 @@ async def save_to_ghg(job_id: str, body: SaveRequest | None = None, user: dict =
             row["review"] = {**rv, "save_error": f"{type(e).__name__}: {e}"}
             failed.append({"row_id": row["row_id"], "label": rec["description"], "reason": f"{type(e).__name__}: {e}", "needs_factor": False})
     await asyncio.to_thread(_save_job, org, job)
-    return {"saved": len(saved), "failed": failed, "already_saved": len(skipped), "records": saved}
+    remaining = sum(1 for r in job["rows"] if (r.get("review") or {}).get("state") == "approved" and not (r.get("review") or {}).get("saved")
+                    and not (r.get("review") or {}).get("save_error") and (not only or r["row_id"] in only))
+    return {"saved": len(saved), "failed": failed, "already_saved": len(skipped), "records": saved, "remaining": remaining}
+
+
+@router.post("/jobs/{job_id}/save")
+async def save_to_ghg(job_id: str, body: SaveRequest | None = None, user: dict = Depends(get_current_user)):
+    org = _org(user)
+    job = await asyncio.to_thread(_read_job, org, job_id)
+    return await _save_rows(org, user, job_id, job, set(body.row_ids) if body and body.row_ids else None, bool(body and body.pending_only))

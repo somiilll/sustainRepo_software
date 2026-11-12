@@ -3,6 +3,7 @@ import { ArrowLeft, Check, CornerDownRight, DatabaseZap, FileJson, FileSearch, F
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { EditDialog } from './EditDialog';
 import { DocsDialog, EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
@@ -51,6 +52,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   const [dlg, setDlg] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveRes, setSaveRes] = useState(null);
+  const [confirm, setConfirm] = useState(null);
 
   const jobOf = useCallback((r) => r._job || jobId, [jobId]);
   const actLabel = useCallback((id) => meta.activities.find((a) => a.id === id)?.label || id, [meta]);
@@ -87,14 +89,28 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
   const setReview = async (ids, state) => {
     const byJob = {};
     ids.forEach((id) => { const r = rows.find((x) => x.row_id === id); if (r) (byJob[jobOf(r)] = byJob[jobOf(r)] || []).push(r._rid || r.row_id); });
-    let blocked = 0; let updated = 0;
+    let blocked = 0; let updated = 0; let locked = 0; let saved = 0; const failed = [];
     try {
-      for (const [j, list] of Object.entries(byJob)) { const res = await api.review(j, list, state); blocked += res.blocked?.length || 0; updated += res.updated || 0; }
+      for (const [j, list] of Object.entries(byJob)) {
+        const res = await api.review(j, list, state);
+        blocked += res.blocked?.length || 0; updated += res.updated || 0; locked += res.locked?.length || 0;
+        let sv = res.save;
+        for (let i = 0; sv && i < 60; i += 1) {
+          saved += sv.saved; failed.push(...sv.failed);
+          if (!sv.remaining) break;
+          sv = await api.saveToGhg(j, list, true);
+        }
+      }
       if (blocked) toast.warning(`${blocked} record(s) not approved yet: they need a quantity, facility and period first (use Edit)`);
-      else if (state === 'approved') toast.success(`${updated} record(s) approved`);
+      if (locked) toast.warning(`${locked} line(s) already saved to GHG records can't be rejected or reset`);
+      if (state === 'approved' && updated) {
+        if (saved) toast.success(`${saved} line(s) approved and saved to GHG records`);
+        if (failed.length) { toast.error(`${failed.length} approved line(s) could not be saved - see why and retry`); setSaveRes({ saved, failed }); }
+      }
       setSel(new Set()); await load();
     } catch (e) { toast.error(errText(e)); }
   };
+  const askReview = (ids, state) => setConfirm({ ids, state });
 
   const answer = async (r, kind, val) => {
     const body = kind === 'factor' ? { remember: true, scope: 'vendor', factor_id: val } : { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
@@ -165,8 +181,8 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
           <ul className="mt-1 space-y-0.5 text-xs">{checks.map((c) => <li key={c.message} className={c.level === 'error' ? 'text-rose-700' : 'text-amber-700'}>{c.message}</li>)}</ul></td>
         <td className="p-2"><div className="flex gap-1">
           {!child && !r.review?.saved && <>
-            {st !== 'approved' && <button type="button" className="rounded p-1 text-emerald-700 hover:bg-emerald-50" title="Approve" onClick={() => setReview([r.row_id], 'approved')} data-testid={`ocr-approve-${r.row_id}`}><Check className="h-4 w-4" /></button>}
-            {st !== 'rejected' && <button type="button" className="rounded p-1 text-rose-600 hover:bg-rose-50" title="Reject" onClick={() => setReview([r.row_id], 'rejected')} data-testid={`ocr-reject-${r.row_id}`}><X className="h-4 w-4" /></button>}
+            {st !== 'approved' && <button type="button" className="rounded p-1 text-emerald-700 hover:bg-emerald-50" title="Approve" onClick={() => askReview([r.row_id], 'approved')} data-testid={`ocr-approve-${r.row_id}`}><Check className="h-4 w-4" /></button>}
+            {st !== 'rejected' && <button type="button" className="rounded p-1 text-rose-600 hover:bg-rose-50" title="Reject" onClick={() => askReview([r.row_id], 'rejected')} data-testid={`ocr-reject-${r.row_id}`}><X className="h-4 w-4" /></button>}
             <button type="button" className="rounded p-1 hover:bg-stone-100" title="Edit" onClick={() => setDlg({ type: 'edit', row: r })} data-testid={`ocr-edit-${r.row_id}`}><Pencil className="h-4 w-4" /></button></>}
           <button type="button" className="rounded p-1 hover:bg-stone-100" title="See it on the document" onClick={() => setDlg({ type: 'evidence', row: r })} data-testid={`ocr-evidence-${r.row_id}`}><FileSearch className="h-4 w-4" /></button>
           <button type="button" className="rounded p-1 hover:bg-stone-100" title="Why this classification" onClick={() => setDlg({ type: 'why', row: r })} data-testid={`ocr-why-${r.row_id}`}><Info className="h-4 w-4" /></button></div></td>
@@ -184,7 +200,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         {!inbox && <Button variant="outline" onClick={() => setDlg({ type: 'docs' })} data-testid="ocr-docs-button"><Files className="mr-1 h-4 w-4" />Documents ({docs.length})</Button>}
         <Button variant="outline" disabled={!exportId} onClick={() => exportJson(exportId, true)} data-testid="ocr-export-all"><FileJson className="mr-1 h-4 w-4" />Export all</Button>
         <Button variant="outline" disabled={!exportId} title={exportId ? '' : 'Pick one extraction below to export'} onClick={() => exportJson(exportId, false)} data-testid="ocr-export-approved"><Save className="mr-1 h-4 w-4" />Export approved</Button>
-        <Button disabled={!exportId || saving || unsaved === 0} title={exportId ? 'Create GHG emission records (with calculation) and Water records, each with the source document as evidence' : 'Pick one extraction below to save'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Save approved (${unsaved})`}</Button>
+        {unsaved > 0 && <Button disabled={!exportId || saving} title={exportId ? 'These approved lines could not be saved to GHG records. Try saving them again.' : 'Pick one extraction below to retry'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>}
       </div>
       {inbox && (
         <div className="rounded-xl border border-stone-200 bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Show lines from</div>
@@ -206,7 +222,7 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         <div className="flex flex-wrap items-center gap-2 border-b p-3">
           {TABS.filter((k) => k !== 'unreadable' || counts[k] > 0).map((k) => <button key={k} type="button" className={`rounded-full border px-3 py-1 text-sm ${filter === k ? 'border-emerald-600 bg-emerald-50 font-semibold text-emerald-900' : 'border-stone-200 text-stone-600'}`} onClick={() => { setFilter(k); setPage(0); }} data-testid={`ocr-tab-${k}`}>{k === 'pending' ? 'To do' : k === 'all' ? 'All' : STATUS_LABEL[k]} <span className="text-xs text-stone-500">{counts[k] || 0}</span></button>)}
         </div>
-        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b><Button size="sm" onClick={() => setReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button><Button size="sm" variant="outline" onClick={() => setReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button><Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
+        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b><Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button><Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button><Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-stone-50 text-left text-xs text-stone-500">
           <th className="p-2"><input type="checkbox" aria-label="Select page" checked={slice.length > 0 && slice.every((r) => sel.has(r.row_id))} onChange={(e) => setSel((s) => { const n = new Set(s); slice.forEach((r) => (e.target.checked ? n.add(r.row_id) : n.delete(r.row_id))); return n; })} data-testid="ocr-select-all" /></th>
           <th className="p-2">Line item</th><th className="p-2">Quantity</th><th className="p-2">Classification</th><th className="p-2">Facility · period</th><th className="p-2">Confidence · status</th><th className="p-2" /></tr></thead>
@@ -214,6 +230,19 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         <div className="flex items-center justify-between border-t p-3 text-sm text-stone-600"><span>{parents.length} line{parents.length === 1 ? '' : 's'} (+ linked rows) · page {Math.min(page, pages - 1) + 1} of {pages}</span>
           <span className="flex gap-2"><Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next</Button></span></div>
       </div>
+      {confirm && (
+        <AlertDialog open onOpenChange={(o) => !o && setConfirm(null)}>
+          <AlertDialogContent className="bg-white" data-testid="ocr-confirm-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirm.state === 'approved' ? 'Approve' : 'Reject'} {confirm.ids.length} line{confirm.ids.length === 1 ? '' : 's'}?</AlertDialogTitle>
+              <AlertDialogDescription>{confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="ocr-confirm-cancel">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { const c = confirm; setConfirm(null); setReview(c.ids, c.state); }} data-testid="ocr-confirm-ok">{confirm.state === 'approved' ? 'Approve and save' : 'Reject'}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>)}
       {dlg?.type === 'edit' && <EditDialog row={dlg.row} meta={meta} jobOf={jobOf} api={api} onClose={() => setDlg(null)} onSaved={() => { setDlg(null); load(); }} />}
       {dlg?.type === 'factor' && <FactorDialog row={dlg.row} jobOf={jobOf} api={api} onClose={() => setDlg(null)} onSaved={() => { setDlg(null); load(); }} />}
       {saveRes && (
