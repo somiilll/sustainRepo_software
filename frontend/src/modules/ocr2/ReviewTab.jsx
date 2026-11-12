@@ -239,7 +239,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
           <AlertDialogContent className="bg-white" data-testid="ocr-confirm-dialog">
             <AlertDialogHeader>
               <AlertDialogTitle>{confirm.purge ? 'Delete' : confirm.state === 'approved' ? 'Approve' : 'Reject'} {confirm.ids.length} {confirm.purge ? 'rejected ' : ''}line{confirm.ids.length === 1 ? '' : 's'}{confirm.purge ? ' permanently' : ''}?</AlertDialogTitle>
-              <AlertDialogDescription>{confirm.purge ? 'These lines are removed for good and cannot be reset. If an extraction then has nothing left to review (every remaining line is saved), it is removed from Upload and Review and its file is deleted from storage.' : confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
+              <AlertDialogDescription>{confirm.purge ? 'These lines are removed and cannot be reset.' : confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel data-testid="ocr-confirm-cancel">Cancel</AlertDialogCancel>
