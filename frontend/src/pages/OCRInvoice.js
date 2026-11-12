@@ -47,10 +47,10 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
-      <nav className="flex flex-wrap gap-2" data-testid="ocr-tabs">
+      <nav className="mb-2 inline-flex flex-wrap gap-1 rounded-2xl bg-stone-100 p-1.5" data-testid="ocr-tabs">
         {TABS.map(([k, label]) => (
           <button key={k} type="button" onClick={() => go(k)} data-testid={`ocr-tab-${k}`}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${route.view === k ? 'bg-emerald-700 text-white shadow-sm' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>
+            className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium transition-colors ${route.view === k ? 'bg-emerald-700 text-white shadow-sm' : 'text-stone-600 hover:bg-stone-200/70'}`}>
             {label}{k === 'review' && todo > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800" data-testid="ocr-review-count">{todo}</span>}
           </button>
         ))}

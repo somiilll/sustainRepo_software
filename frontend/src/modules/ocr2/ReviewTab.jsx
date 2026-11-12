@@ -200,9 +200,9 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
       </div>
       {inbox && (
         <div className="rounded-xl border border-stone-200 bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Show lines from</div>
-          <div className="flex flex-wrap gap-2"><button type="button" className={`rounded-full border px-3 py-1 text-xs ${jobsSel.size ? 'border-stone-300' : 'border-emerald-600 bg-emerald-50 font-semibold'}`} onClick={() => { setJobsSel(new Set()); setPage(0); }} data-testid="ocr-jobs-all">All extractions · {jobList.length}</button>
+          <div className="flex flex-wrap gap-2"><button type="button" className={`rounded-full border px-3 py-1 text-xs ${jobsSel.size ? 'border-stone-300' : 'border-emerald-600 bg-emerald-50 font-semibold'}`} onClick={() => { setJobsSel(new Set()); setPage(0); }} data-testid="ocr-jobs-all">All extractions</button>
             {jobList.map((j) => <button key={j.job_id} type="button" className={`max-w-[260px] truncate rounded-full border px-3 py-1 text-xs ${jobsSel.has(j.job_id) ? 'border-emerald-600 bg-emerald-50 font-semibold' : 'border-stone-300'}`} title={j.names.join(', ')}
-              onClick={() => { setJobsSel((s) => { const n = new Set(s); if (n.has(j.job_id)) n.delete(j.job_id); else n.add(j.job_id); return n; }); setPage(0); setSel(new Set()); }} data-testid={`ocr-jobs-${j.job_id}`}>{j.names[0]}{j.names.length > 1 ? ` +${j.names.length - 1}` : ''} · {rows.filter((r) => !r.derived && r._job === j.job_id && PENDING.includes(rstate(r))).length} to do</button>)}</div></div>
+              onClick={() => { setJobsSel((s) => { const n = new Set(s); if (n.has(j.job_id)) n.delete(j.job_id); else n.add(j.job_id); return n; }); setPage(0); setSel(new Set()); }} data-testid={`ocr-jobs-${j.job_id}`}>{j.names[0]}{j.names.length > 1 ? ` +${j.names.length - 1}` : ''}</button>)}</div></div>
       )}
       <div className="grid gap-5 rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[auto_1.4fr_1fr_auto]" data-testid="ocr-summary">
         <div className="flex items-center gap-3"><Ring pct={counts.all ? good / counts.all : 0} /><div><b>{good} of {counts.all} ready</b><div className="text-xs text-stone-500">approved or ready to approve</div></div></div>
