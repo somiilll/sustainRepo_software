@@ -833,13 +833,13 @@ async def row_edit_config(job_id: str, row_id: str, user: dict = Depends(get_cur
 
 
 @router.get("/jobs/{job_id}/rows/{row_id}/factor-options")
-async def row_factor_options(job_id: str, row_id: str, scope: str, category_id: str, method: str = "activity", q: str = "", user: dict = Depends(get_current_user)):
+async def row_factor_options(job_id: str, row_id: str, scope: str, category_id: str, method: str = "activity", q: str = "", facility_id: str | None = None, user: dict = Depends(get_current_user)):
     org = _org(user)
     job = await asyncio.to_thread(_read_job, org, job_id)
     row = next((r for r in job["rows"] if r["row_id"] == row_id), None)
     if not row:
         raise HTTPException(404, "No such row")
-    return {"options": await factor_options(mongo_db, row, scope, category_id, method, q)}
+    return {"options": await factor_options(mongo_db, row, scope, category_id, method, q, org, facility_id)}
 
 
 @router.get("/jobs/{job_id}/rows/{row_id}/factor-prefill")

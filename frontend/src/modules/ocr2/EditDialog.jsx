@@ -75,10 +75,10 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
     if (!cascade || !f.cat) { setFactors([]); return undefined; }
     let dead = false;
     setFLoading(true);
-    const t = setTimeout(() => api.factorOptions(job, rid, { scope: f.scope, category_id: f.cat, method, q: fText })
+    const t = setTimeout(() => api.factorOptions(job, rid, { scope: f.scope, category_id: f.cat, method, q: fText, ...(f.fac ? { facility_id: f.fac } : {}) })
       .then((d) => { if (!dead) setFactors(d.options); }).catch((e) => { if (!dead) { setFactors([]); setErr(errText(e)); } }).finally(() => { if (!dead) setFLoading(false); }), fText ? 250 : 0);
     return () => { dead = true; clearTimeout(t); };
-  }, [api, job, rid, cascade, f?.scope, f?.cat, method, fText]);
+  }, [api, job, rid, cascade, f?.scope, f?.cat, f?.fac, method, fText]);
 
   useEffect(() => {
     if (f?.scope !== 'scope3' || !f.cat) { setFormConfig(null); return undefined; }
@@ -163,7 +163,7 @@ export const EditDialog = ({ row, meta, jobOf, api, onClose, onSaved }) => {
               <select className={inputCls} value={f.factor} onChange={(e) => changeFactor(e.target.value)} disabled={fLoading} data-testid="ocr-edit-activity">
                 <option value="">{fLoading ? 'Loading...' : factors.length ? 'Select activity' : 'No activities for this category and method'}</option>
                 {fObj && !factors.some((x) => x.id === fObj.id) && <option value={fObj.id}>{fObj.label}</option>}
-                {factors.map((o) => <option key={o.id} value={o.id}>{o.label}{o.source ? ` · ${o.source}` : ''}{o.region ? ` · ${o.region}` : ''}</option>)}
+                {factors.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
               </select>
             </Field>
           )}

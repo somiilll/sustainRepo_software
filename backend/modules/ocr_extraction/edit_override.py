@@ -102,14 +102,16 @@ async def edit_config(db, org: str, row: dict) -> dict:
             "categories": out, "current": current}
 
 
-async def factor_options(db, row: dict, scope: str, category_id: str, method: str, q: str) -> list[dict]:
+async def factor_options(db, row: dict, scope: str, category_id: str, method: str, q: str, org: str = "", facility_id: str | None = None) -> list[dict]:
     if scope not in SCOPE_KEY:
         raise HTTPException(400, "Unknown scope")
     cat = await db.emission_categories.find_one({"id": category_id, "is_active": {"$ne": False}}, {"_id": 0})
     if not cat:
         raise HTTPException(400, "Unknown category")
     rec = {"scope": SCOPE_KEY[scope], "ef_method": method if scope == "scope3" else "activity", "subcategory": (row.get("ghg") or {}).get("subcategory")}
-    return await saver.search_factors(db, rec, cat, q, limit=300)
+    fid = facility_id or (row.get("facility") or {}).get("id")
+    fac = await db.facilities.find_one({"id": fid, "organization_id": org}, {"_id": 0, "sector": 1}) if fid else None
+    return await saver.search_factors(db, rec, cat, q, limit=300, sector=(fac or {}).get("sector") or None, unique=True)
 
 
 def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str) -> dict:

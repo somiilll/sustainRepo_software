@@ -70,6 +70,23 @@ def factor_query(rec: dict, category: dict) -> tuple[str, dict]:
     return "fuel_database", {"scope": scope_code, "is_active": {"$ne": False}, "$or": [{"category": category["name"]}, {"categories": category["name"]}]}
 
 
+def _one_per_name(docs: list[dict], field: str, sector: str | None) -> list[dict]:
+    """One record per name: the one made for the facility's industry sector, then India, then the newest year."""
+    def year(d):
+        m = re.search(r"\d{4}", str(d.get("year_applicable") or d.get("source") or ""))
+        return int(m.group()) if m else 0
+
+    def key(d):
+        sectors = d.get("industry_sectors") or [d.get("industry_sector")]
+        return (bool(sector) and sector not in sectors, d.get("region") != "India", -year(d))
+    best: dict[str, dict] = {}
+    for d in docs:
+        n = norm(d.get(field))
+        if n not in best or key(d) < key(best[n]):
+            best[n] = d
+    return list(best.values())
+
+
 def _prefer(opts: list[dict]) -> dict:
     def year(o):
         m = re.search(r"\d{4}", str(o.get("year") or ""))
@@ -77,12 +94,14 @@ def _prefer(opts: list[dict]) -> dict:
     return sorted(opts, key=lambda o: (o.get("region") != "India", -year(o), o["label"]))[0]
 
 
-async def search_factors(db, rec: dict, category: dict, text: str = "", limit: int = 40) -> list[dict]:
+async def search_factors(db, rec: dict, category: dict, text: str = "", limit: int = 40, sector: str | None = None, unique: bool = False) -> list[dict]:
     coll, q = factor_query(rec, category)
     field = "fuel_name" if coll == "fuel_database" else "activity"
     if text:
         q[field] = {"$regex": re.escape(text), "$options": "i"}
     docs = await db[coll].find(q, {"_id": 0}).limit(400).to_list(400)
+    if unique:
+        docs = _one_per_name(docs, field, sector)
     opts = [_option(d, coll) for d in docs]
     wants = wanted_names(rec)
     t = norm(text)
