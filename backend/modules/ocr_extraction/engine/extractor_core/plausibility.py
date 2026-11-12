@@ -101,21 +101,7 @@ def apply(items: list[dict], rows: list[dict], docs: list[dict] | None = None, h
             if c.get("level") in ("warn", "error"):
                 flag(r, "document_check", f"Document check: {c['message']}")
 
-    # 3. the same line twice in one upload (also across a PDF and a spreadsheet)
-    seen: dict[tuple, dict] = {}
-    for r in parents:
-        q, a = r.get("quantity"), r.get("amount")
-        fac = (r.get("facility") or {}).get("id")
-        if not q or not (a or fac) or any(c["code"] == "duplicate" for c in r["checks"]):
-            continue                          # without an amount, only a matched facility makes "same quantity" meaningful
-        key = (r.get("activity_id"), round(q, 4), r.get("unit"), round(a, 2) if a else None, r.get("reporting_period"), fac if not a else None)
-        first = seen.setdefault(key, r)
-        if first is not r:
-            s = first.get("source") or {}
-            where = f"{first.get('file')}{' ' + s['sheet'] if s.get('sheet') else ''}{' row ' + str(s['row']) if s.get('row') else ''}"
-            flag(r, "possible_duplicate", f"Same activity, quantity, amount and month as {where} - possible duplicate, do not count twice")
-
-    # 4. a monthly series: missing months and values far from the others
+    # 3. a monthly series: missing months and values far from the others
     series: dict[tuple, list[dict]] = {}
     for r in parents:
         s = r.get("source") or {}
@@ -138,9 +124,9 @@ def apply(items: list[dict], rows: list[dict], docs: list[dict] | None = None, h
                 med = statistics.median(others) if others else 0
                 q = r["quantity"]
                 if med and q and (q / med > OUTLIER_RATIO or q / med < 1 / OUTLIER_RATIO):
-                    flag(r, "series_outlier", f"{q:,.4g} {r.get('unit') or ''} is {q / med:.2g}x the other months here (typically {med:,.4g}) - check the unit or a missing digit")
+                    flag(r, "series_outlier", f"{q:,.4g} {r.get('unit') or ''} is far {'higher' if q > med else 'lower'} than the other months in this row (usually about {med:,.4g}). Check the unit or a missing or extra digit")
 
-    # 5. an explicit upstream-fuel line next to an automatically added one
+    # 4. an explicit upstream-fuel line next to an automatically added one
     auto = [r for r in rows if r.get("derived") and (r.get("ghg") or {}).get("category") == "cat_3"]
     for r in parents:
         if r.get("activity_id") == "fuel.upstream_wtt" and any(a.get("reporting_period") == r.get("reporting_period") for a in auto):

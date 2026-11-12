@@ -75,12 +75,6 @@ def test_the_workbook_is_read_without_stopping(result):
     assert len(parents(result)) >= 45                                  # four sheets, many lines
 
 
-def test_exact_duplicate_row_is_flagged_not_counted_twice(result):         # R01 row 2 and R07 row 8
-    r8 = parents(result, "Invoice Register", 8)[0]
-    assert "possible_duplicate" in codes(r8) and r8["review_status"] != "ready"
-    assert "possible_duplicate" not in codes(parents(result, "Invoice Register", 2)[0])
-
-
 def test_impossible_and_future_dates_are_flagged(result):
     assert "bad_date" in codes(parents(result, "Invoice Register", 11)[0])          # R10: 31/02/2026
     r12 = parents(result, "Invoice Register", 12)[0]                                # R11: 2027-10-15
@@ -138,12 +132,6 @@ def test_meter_reading_sheet_gives_one_row_per_reading_not_one_per_column(result
     rows = parents(result, "Meter Readings")
     assert sorted(r["quantity"] for r in rows) == [600.0, 1000.0, 2500.0, 2600.0, 3000.0, 11000.0, 11000.0]
     assert not any((r.get("extracted_item") or "").lower() in ("opening", "closing", "multiplier", "record id") for r in rows)
-
-
-def test_a_repeated_meter_reading_with_a_new_row_id_is_flagged(result):               # E05 repeats E04 (11,000 kWh, same month)
-    flagged = [r for r in parents(result, "Meter Readings") if "possible_duplicate" in codes(r)]
-    # row 5 (E04) is also flagged: it repeats the October 11 MWh already given for the same plant on the Monthly Matrix sheet
-    assert 6 in [r["source"]["row"] for r in flagged]
 
 
 def test_a_flagged_row_is_never_ready(result):

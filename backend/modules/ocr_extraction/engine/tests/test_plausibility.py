@@ -57,13 +57,6 @@ def test_series_gap_and_outlier():
     assert all("series_gap" in c for c in _run(gap).values())
 
 
-def test_possible_duplicate_across_files_in_one_upload():
-    a, b = _row(1, 100, "2026-10", amount=9000), _row(2, 100, "2026-10", amount=9000)
-    b["file"], b["source"] = "invoice.pdf", {"page": 1}
-    out = _run([a, b])
-    assert out["r1"] == set() and out["r2"] == {"possible_duplicate"}
-
-
 def test_history_outlier_uses_only_earlier_approved_months():
     mem = Memory()
     r = _row(1, 5000, "2026-10", activity="fuel.diesel")

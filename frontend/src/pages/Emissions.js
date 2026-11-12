@@ -1293,7 +1293,6 @@ export default function Emissions({ organizationGhgOverrides = null }) {
         density: fuel.density?.toString() || '',
         density_unit: fuel.density_unit || '',
         conversion_factor: fuel.conversion_factor?.toString() || '1',
-        source_of_information: fuel.source || '',
         quantity_unit: defaultUnit  // Set default unit based on fuel type
       }));
       setOverrideCalorificValue(false);
