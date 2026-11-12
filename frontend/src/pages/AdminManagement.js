@@ -61,6 +61,8 @@ export default function AdminManagement() {
     return accounts.filter((account) => [
       account.full_name,
       account.email,
+      account.designation,
+      account.mobile_number,
       account.role,
       getOrganizationName(account.organization_id),
     ].some((value) => value?.toLowerCase().includes(query)));
@@ -245,6 +247,8 @@ export default function AdminManagement() {
             </div>
             <h2 className="truncate text-xl font-heading font-bold text-text-primary" data-testid={`team-account-name-${account.id}`}>{account.full_name}</h2>
             <p className="mt-1 truncate text-sm text-text-muted" data-testid={`team-account-email-${account.id}`}>{account.email}</p>
+            {account.designation && <p className="mt-1 truncate text-sm font-medium text-stone-700" data-testid={`team-account-designation-${account.id}`}>{account.designation}</p>}
+            {account.mobile_number && <p className="mt-1 truncate text-sm text-text-muted" data-testid={`team-account-mobile-${account.id}`}>{account.mobile_number}</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.className}`} data-testid={`team-account-role-${account.id}`}>{meta.label}</span>
               {account.requires_password_change && <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800" data-testid={`team-account-password-change-${account.id}`}>Password change pending</span>}
