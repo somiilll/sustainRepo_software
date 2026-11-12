@@ -97,7 +97,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
         }
       }
       if (blocked) toast.warning(`${blocked} record(s) not approved yet: they need a quantity, facility and period first (use Edit)`);
-      if (locked) toast.warning(`${locked} line(s) already saved to GHG records can't be rejected or reset`);
+      if (locked) toast.warning(`${locked} line(s) already saved to GHG records can't be rejected`);
       if (state === 'approved' && updated) {
         if (saved) toast.success(`${saved} line(s) approved and saved to GHG records`);
         if (failed.length) { toast.error(`${failed.length} approved line(s) could not be saved - see why and retry`); setSaveRes({ saved, failed }); }
@@ -226,7 +226,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
           <div className="relative ml-auto"><Search className="absolute left-2 top-2.5 h-4 w-4 text-stone-400" /><input className="w-64 rounded-md border border-stone-300 py-1.5 pl-8 pr-2 text-sm" placeholder="Search item, vendor, category..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} data-testid="ocr-search" /></div>
         </div>
         {filter === 'rejected' && counts.rejected > 0 && <div className="flex items-center justify-between gap-2 border-b bg-rose-50/60 p-2 text-sm" data-testid="ocr-rejected-bar"><span>{counts.rejected} rejected line{counts.rejected > 1 ? 's' : ''}</span><Button size="sm" variant="destructive" onClick={() => setConfirm({ purge: true, ids: sel.size ? [...sel] : rows.filter((r) => !r.derived && inScope(r) && rstate(r) === 'rejected').map((r) => r.row_id) })} data-testid="ocr-delete-permanently"><Trash2 className="mr-1 h-4 w-4" />Delete permanently{sel.size ? ` (${sel.size} selected)` : ' (all)'}</Button></div>}
-        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b>{!allSel('approved') && <Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button>}{!allSel('rejected') && <Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button>}<Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
+        {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b>{!allSel('approved') && <Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button>}{!allSel('rejected') && <Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button>}<Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-stone-50 text-left text-xs text-stone-500">
           <th className="p-2"><input type="checkbox" aria-label="Select page" checked={slice.length > 0 && slice.every((r) => sel.has(r.row_id))} onChange={(e) => setSel((s) => { const n = new Set(s); slice.forEach((r) => (e.target.checked ? n.add(r.row_id) : n.delete(r.row_id))); return n; })} data-testid="ocr-select-all" /></th>
           <th className="p-2">Line item</th><th className="p-2">Quantity</th><th className="p-2">Classification</th><th className="p-2">Facility · period</th><th className="p-2">Confidence · status</th><th className="p-2" /></tr></thead>
@@ -239,7 +239,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
           <AlertDialogContent className="bg-white" data-testid="ocr-confirm-dialog">
             <AlertDialogHeader>
               <AlertDialogTitle>{confirm.purge ? 'Delete' : confirm.state === 'approved' ? 'Approve' : 'Reject'} {confirm.ids.length} {confirm.purge ? 'rejected ' : ''}line{confirm.ids.length === 1 ? '' : 's'}{confirm.purge ? ' permanently' : ''}?</AlertDialogTitle>
-              <AlertDialogDescription>{confirm.purge ? 'These lines are removed and cannot be reset.' : confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
+              <AlertDialogDescription>{confirm.purge ? 'These lines are removed and cannot be restored.' : confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected or edited here.' : 'Rejected lines are left out of GHG records.'}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel data-testid="ocr-confirm-cancel">Cancel</AlertDialogCancel>
@@ -253,7 +253,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
         <Dialog open onOpenChange={(o) => !o && setSaveRes(null)}>
           <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto" data-testid="ocr-save-result">
             <DialogHeader><DialogTitle>{saveRes.saved} saved{saveRes.failed.length ? `, ${saveRes.failed.length} not saved` : ''}</DialogTitle></DialogHeader>
-            {saveRes.saved > 0 && <p className="text-sm text-emerald-800">Each saved line is now a GHG emission record (with its calculation) or a Water withdrawal record, with the source document attached as evidence. Find them under Emissions and Environment > Water.</p>}
+            {saveRes.saved > 0 && <p className="text-sm text-emerald-800">Each saved line is now a GHG emission record (with its calculation) or a Water withdrawal record, with the source document attached as evidence. Find them under Emissions and Environment &gt; Water.</p>}
             {saveRes.failed.map((f) => (
               <div key={f.row_id} className="rounded-md border border-rose-200 bg-rose-50 p-2 text-sm" data-testid={`ocr-save-failed-${f.row_id}`}><b>{f.label}</b><div className="text-rose-800">{f.reason}</div>
                 {f.needs_factor && <Button size="sm" variant="outline" className="mt-1" onClick={() => { const r = rows.find((x) => x.row_id === f.row_id || x._rid === f.row_id); setSaveRes(null); if (r) setDlg({ type: 'factor', row: r }); }}>Choose emission factor</Button>}</div>))}
