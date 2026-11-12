@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, CloudUpload, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, RotateCw, Sparkles, Trash2, X, Zap } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CloudUpload, FileSpreadsheet, FileText, Image as ImageIcon, Loader2, RotateCw, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -92,28 +92,36 @@ const DoneCard = ({ j, onOpen, onDismiss }) => {
   );
 };
 
+const kindTag = (name = '') => { const e = name.split('.').pop().toLowerCase(); return ['xlsx', 'xls', 'xlsm'].includes(e) ? ['XLS', 'bg-emerald-50 text-emerald-700'] : e === 'csv' ? ['CSV', 'bg-emerald-50 text-emerald-700'] : e === 'pdf' ? ['PDF', 'bg-rose-50 text-rose-700'] : ['IMG', 'bg-sky-50 text-sky-700']; };
+
 const JobCard = ({ j, onOpen, onDelete, onRetry }) => {
   const rv = j.review || {};
   const tot = Object.values(rv).reduce((a, b) => a + b, 0) || 1;
+  const todo = ['ready', 'check', 'input', 'unreadable', 'needs_attention', 'ask'].reduce((n, k) => n + (rv[k] || 0), 0);
   const failed = ['failed', 'cancelled', 'interrupted'].includes(j.status);
   const m = j.metrics || {};
+  const [tag, tagCls] = kindTag(j.names[0]);
   return (
-    <div className={`rounded-xl border bg-white p-4 shadow-sm ${failed ? 'border-rose-200' : 'cursor-pointer border-stone-200 hover:border-emerald-300'}`} onClick={() => !failed && onOpen(j.job_id)} data-testid={`ocr-job-${j.job_id}`}>
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1"><b className="block truncate text-stone-900" title={j.names.join(', ')}>{j.names[0]}{j.names.length > 1 && <span className="font-normal text-stone-500"> +{j.names.length - 1} more</span>}</b>
+    <div className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm lg:flex-row lg:items-center ${failed ? 'border-rose-200' : 'border-stone-200'}`} data-testid={`ocr-job-${j.job_id}`}>
+      <div className="flex min-w-0 items-center gap-3 lg:w-[26%]">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${tagCls}`}>{tag}</span>
+        <div className="min-w-0"><b className="block truncate text-sm text-stone-900" title={j.names.join(', ')}>{j.names[0]}{j.names.length > 1 && <span className="font-normal text-stone-500"> +{j.names.length - 1} more</span>}</b>
           <span className="text-xs text-stone-500">{failed ? `${j.status[0].toUpperCase()}${j.status.slice(1)}` : `${m.rows ?? 0} records from ${m.items ?? 0} lines`} · {ago(j.created)}{!failed && ` · ${j.mode === 'think' ? 'Deep read' : 'Standard'}`}{failed && j.credits ? ` · ${fmtCr(j.credits)} credits used` : ''}</span></div>
-        <button type="button" className="rounded p-1 text-stone-400 hover:text-rose-600" onClick={(e) => { e.stopPropagation(); onDelete(j.job_id); }} aria-label="Delete" data-testid={`ocr-delete-${j.job_id}`}><Trash2 className="h-4 w-4" /></button>
       </div>
       {failed ? (
-        <><p className="mt-2 text-sm text-rose-700">{j.error}</p><Button size="sm" variant="outline" className="mt-2" onClick={(e) => { e.stopPropagation(); onRetry(j.job_id); }} data-testid={`ocr-retry-${j.job_id}`}><RotateCw className="mr-1 h-3.5 w-3.5" />Retry</Button></>
+        <div className="flex flex-1 flex-wrap items-center gap-3"><p className="flex-1 text-sm text-rose-700">{j.error}</p><Button size="sm" variant="outline" onClick={() => onRetry(j.job_id)} data-testid={`ocr-retry-${j.job_id}`}><RotateCw className="mr-1 h-3.5 w-3.5" />Retry</Button></div>
       ) : (
         <>
-          <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-stone-100">{STATUS_ORDER.filter((k) => rv[k]).map((k) => <i key={k} title={`${rv[k]} ${STATUS_LABEL[k]}`} style={{ width: `${(100 * rv[k]) / tot}%`, background: STATUS_BAR[k] }} />)}</div>
-          <div className="mt-2 flex flex-wrap gap-x-3 text-xs text-stone-600">{STATUS_ORDER.filter((k) => rv[k]).map((k) => <span key={k}>{rv[k]} {STATUS_LABEL[k]}</span>)}</div>
-          <div className="mt-2 flex flex-wrap gap-1">{Object.entries(j.scopes || {}).sort().map(([k, v]) => <span key={k} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700">{SCOPE_LABEL[k] || k} · {v}</span>)}</div>
-          <div className="mt-3 text-xs text-stone-500">{fmtCr(j.credits)} credits</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex h-2 overflow-hidden rounded-full bg-stone-100">{STATUS_ORDER.filter((k) => rv[k]).map((k) => <i key={k} title={`${rv[k]} ${STATUS_LABEL[k]}`} style={{ width: `${(100 * rv[k]) / tot}%`, background: STATUS_BAR[k] }} />)}</div>
+            <div className="mt-2 flex flex-wrap gap-x-3 text-xs text-stone-600">{STATUS_ORDER.filter((k) => rv[k]).map((k) => <span key={k}>{rv[k]} {STATUS_LABEL[k]}</span>)}</div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">{Object.entries(j.scopes || {}).sort().map(([k, v]) => <span key={k} className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800">{SCOPE_LABEL[k] || k} · {v}</span>)}</div>
+          <div className="text-xs text-stone-600 lg:w-24 lg:text-center">{fmtCr(j.credits)} credits</div>
+          <Button variant="outline" size="sm" className="rounded-xl border-emerald-700 text-emerald-800 hover:bg-emerald-50" onClick={() => onOpen(j.job_id)} data-testid={`ocr-open-${j.job_id}`}>{todo > 0 ? `Review ${todo} line${todo > 1 ? 's' : ''}` : 'Open'}</Button>
         </>
       )}
+      <button type="button" className="rounded-xl border border-stone-200 p-2.5 text-rose-600 hover:bg-rose-50" onClick={() => onDelete(j.job_id)} aria-label="Delete" data-testid={`ocr-delete-${j.job_id}`}><Trash2 className="h-4 w-4" /></button>
     </div>
   );
 };
@@ -189,21 +197,24 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
 
   return (
     <div className="space-y-6" data-testid="ocr-upload-tab">
-      <div className="grid gap-6 rounded-xl border border-stone-200 bg-white p-5 shadow-sm lg:grid-cols-[1.4fr_1fr]">
-        <div className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr] lg:items-stretch">
+        <div className="flex flex-col gap-4">
           <div
-            className="flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 p-8 text-center transition-colors hover:border-emerald-500 hover:bg-emerald-50/40"
+            className="flex min-h-[380px] flex-1 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-stone-300 bg-white px-8 py-12 text-center transition-colors hover:border-emerald-500 hover:bg-emerald-50/30"
             role="button" tabIndex={0} onClick={() => fileInput.current?.click()} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && fileInput.current?.click()}
             onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]); }} data-testid="ocr-dropzone"
           >
-            <CloudUpload className="h-10 w-10 text-emerald-700" />
-            <div className="mt-2 text-lg font-semibold text-stone-900">Drop files here or <span className="text-emerald-700 underline">browse</span></div>
-            <div className="mt-1 text-sm text-stone-500">PDF invoices and bills · scans and phone photos · Excel and CSV registers · Hindi, Marathi and more</div>
-            <div className="text-xs text-stone-400">Up to 10 pages per PDF · 50,000 rows per sheet · 30 files, 25 MB each</div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50"><CloudUpload className="h-8 w-8 text-emerald-700" /></div>
+            <div className="mt-5 text-lg font-semibold text-stone-900">Drop files here, or <span className="text-emerald-700 underline">browse</span></div>
+            <p className="mt-2 max-w-md text-sm text-stone-500">PDF invoices and bills, scans and phone photos, Excel and CSV registers. Reads Hindi, Marathi and more.</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2" data-testid="ocr-file-types">
+              {[['PDF', 'bg-rose-50 text-rose-700'], ['XLSX', 'bg-emerald-50 text-emerald-700'], ['CSV', 'bg-emerald-50 text-emerald-700'], ['JPG', 'bg-sky-50 text-sky-700'], ['PNG', 'bg-indigo-50 text-indigo-700']].map(([t, c]) => <span key={t} className={`rounded-md px-2.5 py-1 text-xs font-semibold ${c}`}>{t}</span>)}
+            </div>
+            <div className="mt-4 text-xs text-stone-500">Up to 30 files, 25 MB each · 10 pages per PDF · 50,000 rows per sheet</div>
             <input ref={fileInput} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.avif,.heic,.tif,.tiff,.xlsx,.xlsm,.xls,.csv" onChange={(e) => { addFiles([...e.target.files]); e.target.value = ''; }} data-testid="ocr-file-input" />
           </div>
           {chosen.length > 0 && (
-            <div className="divide-y rounded-lg border border-stone-200">
+            <div className="divide-y rounded-2xl border border-stone-200 bg-white">
               {chosen.map((c, i) => { const K = KIND_ICON[fileKind(c.file.name)]; return (
                 <div key={`${c.file.name}-${c.file.size}`} className="flex items-center gap-3 px-3 py-2 text-sm">
                   <K className="h-4 w-4 text-stone-500" /><span className="min-w-0 flex-1 truncate font-medium">{c.file.name}</span>
@@ -212,17 +223,21 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
                 </div>); })}
             </div>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {[['fast', Zap, 'Standard', 'Fast and low-cost. Pages whose numbers do not add up are re-read automatically.'], ['think', Sparkles, 'Deep read', 'The strongest model for every page. For faded scans and handwritten bills.']].map(([k, Icon, t, d]) => (
-              <button key={k} type="button" onClick={() => setMode(k)} className={`flex gap-3 rounded-lg border p-3 text-left ${mode === k ? 'border-emerald-600 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`} data-testid={`ocr-mode-${k}`}>
-                <Icon className="mt-0.5 h-5 w-5 text-emerald-700" /><div><b className="text-sm">{t}</b><p className="text-xs text-stone-500">{d}</p></div>
+        </div>
+        <div className="flex flex-col rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-stone-900">Reading mode</h2>
+          <div className="mt-4 space-y-3">
+            {[['fast', 'Standard', 'Recommended', 'bg-emerald-50 text-emerald-800', 'Fast and low-cost. Pages whose totals don\u2019t add up are re-read automatically.'], ['think', 'Deep read', 'More credits', 'bg-amber-50 text-amber-800', 'The strongest model on every page. Best for faded scans and handwritten bills.']].map(([k, t, tag, tagCls, d]) => (
+              <button key={k} type="button" onClick={() => setMode(k)} className={`flex w-full gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${mode === k ? 'border-emerald-700 bg-emerald-50/60' : 'border-stone-200 hover:border-stone-300'}`} data-testid={`ocr-mode-${k}`}>
+                <span className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${mode === k ? 'border-emerald-700' : 'border-stone-300'}`}>{mode === k && <span className="h-2.5 w-2.5 rounded-full bg-emerald-700" />}</span>
+                <span><span className="flex items-center gap-2"><b className="text-sm text-stone-900">{t}</b><span className={`rounded-md px-2 py-0.5 text-xs font-medium ${tagCls}`}>{tag}</span></span><span className="mt-1 block text-sm text-stone-500">{d}</span></span>
               </button>))}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 text-sm text-stone-600" data-testid="ocr-estimate">
-              {!chosen.length ? 'Choose files to see the estimated time and credits' : <><b>{chosen.length} file{chosen.length > 1 ? 's' : ''}</b>{pages ? ` · ${pages} page${pages > 1 ? 's' : ''}` : ''} · about <b>{fmtWait(secs)}</b> · estimated <b>{fmtCr(Math.max(lo, 0.1))}{hi > lo * 1.05 ? `-${fmtCr(hi)}` : ''} credits</b></>}
+          <div className="mt-auto border-t border-stone-200 pt-5">
+            <div className="text-sm text-stone-500" data-testid="ocr-estimate">
+              {!chosen.length ? 'Add files to see the estimated time and credits' : <><b>{chosen.length} file{chosen.length > 1 ? 's' : ''}</b>{pages ? ` · ${pages} page${pages > 1 ? 's' : ''}` : ''} · about <b>{fmtWait(secs)}</b> · estimated <b>{fmtCr(Math.max(lo, 0.1))}{hi > lo * 1.05 ? `-${fmtCr(hi)}` : ''} credits</b></>}
             </div>
-            <Button size="lg" disabled={!chosen.length || busy} onClick={start} data-testid="ocr-start-button">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Start extraction</Button>
+            <Button size="lg" className="mt-4 h-11 w-full rounded-xl text-sm" disabled={!chosen.length || busy} onClick={start} data-testid="ocr-start-button">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Start extraction</Button>
           </div>
         </div>
       </div>
@@ -235,11 +250,11 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
       )}
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-stone-900">Recent extractions {history.length > 0 && <span className="text-sm font-normal text-stone-500">· {history.length}</span>}</h2>
+        <h2 className="mb-3 text-base font-semibold text-stone-900">Recent extractions {history.length > 0 && <span className="text-sm font-normal text-stone-500">· {history.length}</span>}</h2>
         {jobs === null ? <div className="h-24 animate-pulse rounded-xl bg-stone-100" /> : history.length === 0 ? (
           <div className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-stone-500" data-testid="ocr-no-jobs">No extractions yet. Drop a bill above to start.</div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{history.map((j) => <JobCard key={j.job_id} j={j} onOpen={onOpenJob} onDelete={del} onRetry={(id) => act(() => api.retry(id), 'Back in line')} />)}</div>
+          <div className="space-y-3">{history.map((j) => <JobCard key={j.job_id} j={j} onOpen={onOpenJob} onDelete={del} onRetry={(id) => act(() => api.retry(id), 'Back in line')} />)}</div>
         )}
       </div>
 

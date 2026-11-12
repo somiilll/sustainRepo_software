@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Brain, Coins, FileText, ListChecks, UploadCloud } from 'lucide-react';
+import { Coins, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModulePageHeader } from '../components/ModulePageHeader';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +10,8 @@ import { ReviewTab } from '../modules/ocr2/ReviewTab';
 import { UploadTab } from '../modules/ocr2/UploadTab';
 import { fmtCr } from '../modules/ocr2/utils';
 
-const TABS = [['upload', 'Upload', UploadCloud], ['review', 'Review', ListChecks], ['credits', 'Credits & usage', Coins], ['memory', 'Learned decisions', Brain]];
+const TABS = [['upload', 'Upload'], ['review', 'Review'], ['credits', 'Credits and usage'], ['memory', 'Learned decisions']];
+const TODO = ['ready', 'check', 'input', 'unreadable', 'needs_attention', 'ask'];
 
 const parseHash = () => {
   const [view, arg] = (window.location.hash.slice(1) || 'upload').split('/');
@@ -24,6 +25,7 @@ export default function OCRInvoice() {
   const [route, setRoute] = useState(parseHash());
   const [meta, setMeta] = useState(null);
   const [usage, setUsage] = useState(null);
+  const [todo, setTodo] = useState(0);
 
   useEffect(() => { const f = () => setRoute(parseHash()); window.addEventListener('hashchange', f); return () => window.removeEventListener('hashchange', f); }, []);
   const go = (view, arg) => { window.location.hash = arg ? `${view}/${arg}` : view; };
@@ -32,6 +34,8 @@ export default function OCRInvoice() {
     api.meta().then(setMeta).catch((e) => toast.error(errText(e, 'OCR could not be loaded')));
     refreshUsage();
   }, [api, refreshUsage]);
+
+  useEffect(() => { api.jobs().then((d) => setTodo((d.jobs || d || []).reduce((n, j) => n + TODO.reduce((m, k) => m + ((j.review || {})[k] || 0), 0), 0))).catch(() => {}); }, [api, route.view, route.arg]);
 
   const b = usage?.balance;
   return (
@@ -43,9 +47,12 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
-      <nav className="flex flex-wrap gap-1 border-b border-stone-200" data-testid="ocr-tabs">
-        {TABS.map(([k, label, Icon]) => (
-          <button key={k} type="button" onClick={() => go(k)} className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium ${route.view === k ? 'border-emerald-700 text-emerald-900' : 'border-transparent text-stone-500 hover:text-stone-800'}`} data-testid={`ocr-tab-nav-${k}`}><Icon className="h-4 w-4" />{label}</button>
+      <nav className="flex flex-wrap gap-2" data-testid="ocr-tabs">
+        {TABS.map(([k, label]) => (
+          <button key={k} type="button" onClick={() => go(k)} data-testid={`ocr-tab-${k}`}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${route.view === k ? 'bg-emerald-700 text-white shadow-sm' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>
+            {label}{k === 'review' && todo > 0 && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800" data-testid="ocr-review-count">{todo}</span>}
+          </button>
         ))}
       </nav>
       {!meta ? <div className="h-40 animate-pulse rounded-xl bg-stone-100" /> : <>
