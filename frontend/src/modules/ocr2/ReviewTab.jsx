@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ChevronDown, CornerDownRight, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
+import { Check, ChevronDown, CornerDownRight, Trash2, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
@@ -106,6 +106,16 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
     } catch (e) { toast.error(errText(e)); }
   };
   const askReview = (ids, state) => setConfirm({ ids, state });
+  const purge = async (ids) => {
+    const byJob = {};
+    ids.forEach((id) => { const r = rows.find((x) => x.row_id === id); if (r) (byJob[jobOf(r)] = byJob[jobOf(r)] || []).push(r._rid || r.row_id); });
+    try {
+      let deleted = 0; let removed = 0;
+      for (const [j, list] of Object.entries(byJob)) { const res = await api.discardRejected(j, list); deleted += res.deleted; removed += res.job_removed ? 1 : 0; }
+      toast.success(`${deleted} rejected line(s) deleted${removed ? `; ${removed} extraction(s) with nothing left to review were removed and their files deleted` : ''}`);
+      setSel(new Set()); await load();
+    } catch (e) { toast.error(errText(e)); }
+  };
 
   const answer = async (r, kind, val) => {
     const body = kind === 'factor' ? { remember: true, scope: 'vendor', factor_id: val } : { remember: true, scope: 'vendor', activity_id: kind === 'act' ? val : r.activity_id };
@@ -213,6 +223,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
           {TABS.filter((k) => k !== 'unreadable' || counts[k] > 0).map((k) => <button key={k} type="button" className={`rounded-full border px-3 py-1 text-sm ${filter === k ? 'border-emerald-600 bg-emerald-50 font-semibold text-emerald-900' : 'border-stone-200 text-stone-600'}`} onClick={() => { setFilter(k); setPage(0); }} data-testid={`ocr-tab-${k}`}>{k === 'pending' ? 'To do' : k === 'all' ? 'All' : STATUS_LABEL[k]} <span className="text-xs text-stone-500">{counts[k] || 0}</span></button>)}
           <div className="relative ml-auto"><Search className="absolute left-2 top-2.5 h-4 w-4 text-stone-400" /><input className="w-64 rounded-md border border-stone-300 py-1.5 pl-8 pr-2 text-sm" placeholder="Search item, vendor, category..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} data-testid="ocr-search" /></div>
         </div>
+        {filter === 'rejected' && counts.rejected > 0 && <div className="flex items-center justify-between gap-2 border-b bg-rose-50/60 p-2 text-sm" data-testid="ocr-rejected-bar"><span>{counts.rejected} rejected line{counts.rejected > 1 ? 's' : ''}</span><Button size="sm" variant="destructive" onClick={() => setConfirm({ purge: true, ids: sel.size ? [...sel] : rows.filter((r) => !r.derived && inScope(r) && rstate(r) === 'rejected').map((r) => r.row_id) })} data-testid="ocr-delete-permanently"><Trash2 className="mr-1 h-4 w-4" />Delete permanently{sel.size ? ` (${sel.size} selected)` : ' (all)'}</Button></div>}
         {sel.size > 0 && <div className="flex items-center gap-2 border-b bg-emerald-50/60 p-2 text-sm"><b>{sel.size} selected</b><Button size="sm" onClick={() => askReview([...sel], 'approved')} data-testid="ocr-bulk-approve">Approve</Button><Button size="sm" variant="outline" onClick={() => askReview([...sel], 'rejected')} data-testid="ocr-bulk-reject">Reject</Button><Button size="sm" variant="ghost" onClick={() => setReview([...sel], 'reset')}>Reset</Button><Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Clear selection</Button></div>}
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b bg-stone-50 text-left text-xs text-stone-500">
           <th className="p-2"><input type="checkbox" aria-label="Select page" checked={slice.length > 0 && slice.every((r) => sel.has(r.row_id))} onChange={(e) => setSel((s) => { const n = new Set(s); slice.forEach((r) => (e.target.checked ? n.add(r.row_id) : n.delete(r.row_id))); return n; })} data-testid="ocr-select-all" /></th>
@@ -225,12 +236,12 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
         <AlertDialog open onOpenChange={(o) => !o && setConfirm(null)}>
           <AlertDialogContent className="bg-white" data-testid="ocr-confirm-dialog">
             <AlertDialogHeader>
-              <AlertDialogTitle>{confirm.state === 'approved' ? 'Approve' : 'Reject'} {confirm.ids.length} line{confirm.ids.length === 1 ? '' : 's'}?</AlertDialogTitle>
-              <AlertDialogDescription>{confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
+              <AlertDialogTitle>{confirm.purge ? 'Delete' : confirm.state === 'approved' ? 'Approve' : 'Reject'} {confirm.ids.length} {confirm.purge ? 'rejected ' : ''}line{confirm.ids.length === 1 ? '' : 's'}{confirm.purge ? ' permanently' : ''}?</AlertDialogTitle>
+              <AlertDialogDescription>{confirm.purge ? 'These lines are removed for good and cannot be reset. If an extraction then has nothing left to review (every remaining line is saved), it is removed from Upload and Review and its file is deleted from storage.' : confirm.state === 'approved' ? 'Approved lines are saved to GHG emission records straight away. Once saved, a line can no longer be rejected, reset or edited here.' : 'Rejected lines are left out of GHG records. You can reset a rejected line later.'}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel data-testid="ocr-confirm-cancel">Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => { const c = confirm; setConfirm(null); setReview(c.ids, c.state); }} data-testid="ocr-confirm-ok">{confirm.state === 'approved' ? 'Approve and save' : 'Reject'}</AlertDialogAction>
+              <AlertDialogAction onClick={() => { const c = confirm; setConfirm(null); if (c.purge) purge(c.ids); else setReview(c.ids, c.state); }} data-testid="ocr-confirm-ok">{confirm.purge ? 'Delete permanently' : confirm.state === 'approved' ? 'Approve and save' : 'Reject'}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>)}

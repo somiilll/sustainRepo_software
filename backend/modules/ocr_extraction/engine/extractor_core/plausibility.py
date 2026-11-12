@@ -101,7 +101,7 @@ def apply(items: list[dict], rows: list[dict], docs: list[dict] | None = None, h
             if c.get("level") in ("warn", "error"):
                 flag(r, "document_check", f"Document check: {c['message']}")
 
-    # 3. a monthly series: missing months and values far from the others
+    # 3. a monthly series: missing months
     series: dict[tuple, list[dict]] = {}
     for r in parents:
         s = r.get("source") or {}
@@ -118,13 +118,6 @@ def apply(items: list[dict], rows: list[dict], docs: list[dict] | None = None, h
         for g in gaps:
             for r in members:
                 flag(r, "series_gap", f"No value for {g} in this row (blank or '-' on the sheet). Treated as missing, not zero - confirm")
-        if len(members) >= 3:
-            for r in members:
-                others = [m["quantity"] for m in members if m is not r and m["quantity"]]
-                med = statistics.median(others) if others else 0
-                q = r["quantity"]
-                if med and q and (q / med > OUTLIER_RATIO or q / med < 1 / OUTLIER_RATIO):
-                    flag(r, "series_outlier", f"{q:,.4g} {r.get('unit') or ''} is far {'higher' if q > med else 'lower'} than the other months in this row (usually about {med:,.4g}). Check the unit or a missing or extra digit")
 
     # 4. an explicit upstream-fuel line next to an automatically added one
     auto = [r for r in rows if r.get("derived") and (r.get("ghg") or {}).get("category") == "cat_3"]

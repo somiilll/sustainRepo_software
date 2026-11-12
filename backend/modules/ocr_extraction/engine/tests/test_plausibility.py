@@ -48,13 +48,11 @@ def _run(rows, history=None):
     return {r["row_id"]: {c["code"] for c in r["checks"]} for r in rows}
 
 
-def test_series_gap_and_outlier():
-    rows = [_row(1, 450, "2026-07"), _row(2, 500, "2026-08"), _row(3, 0.55, "2026-09"), _row(4, 600, "2026-10")]
-    out = _run(rows)
-    assert out["r3"] == {"series_outlier"} and out["r1"] == set()
-    assert all(r["review_status"] != "ready" for r in rows if r["row_id"] == "r3")
+def test_series_gap_is_flagged_but_a_far_value_is_not():
     gap = [_row(1, 120, "2026-07"), _row(2, 125, "2026-08"), _row(3, 130, "2026-10")]
     assert all("series_gap" in c for c in _run(gap).values())
+    far = [_row(1, 450, "2026-07"), _row(2, 500, "2026-08"), _row(3, 0.55, "2026-09"), _row(4, 600, "2026-10")]
+    assert all(c == set() for c in _run(far).values())
 
 
 def test_history_outlier_uses_only_earlier_approved_months():

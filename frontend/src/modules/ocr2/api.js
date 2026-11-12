@@ -28,6 +28,7 @@ export const makeOcrApi = (headers) => {
     cancel: (id) => send('post', `/jobs/${id}/cancel`),
     retry: (id) => send('post', `/jobs/${id}/retry`),
     remove: (id) => send('delete', `/jobs/${id}`),
+    discardRejected: (id, row_ids) => send('post', `/jobs/${id}/discard-rejected`, { row_ids }),
     review: (id, row_ids, state) => send('post', `/jobs/${id}/review`, { row_ids, state }),
     edit: (id, itemId, body) => send('patch', `/jobs/${id}/items/${itemId}`, body),
     page: (id, file, page, q) => axios.get(`${BASE}/jobs/${id}/page`, { headers, params: { file, page, q }, responseType: 'blob' }),

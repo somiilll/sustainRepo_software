@@ -427,9 +427,7 @@ def get_rows(job_id: str, user: dict = Depends(get_current_user)):
     return _read_job(_org(user), job_id).get("rows", [])
 
 
-@router.delete("/jobs/{job_id}")
-def delete_job(job_id: str, user: dict = Depends(get_current_user)):
-    org = _org(user)
+def _remove_job(org: str, job_id: str) -> None:
     s = _summary(org, job_id)
     QUEUE.remove(job_id)
     JOBS.delete(job_id)
@@ -442,7 +440,35 @@ def delete_job(job_id: str, user: dict = Depends(get_current_user)):
             r2().client.delete_object(Bucket=_bucket(), Key=key)
         except Exception:  # noqa: BLE001
             logger.warning("Could not delete %s from storage", key)
+
+
+@router.delete("/jobs/{job_id}")
+def delete_job(job_id: str, user: dict = Depends(get_current_user)):
+    _remove_job(_org(user), job_id)
     return {"ok": True}
+
+
+class DiscardRequest(BaseModel):
+    row_ids: list[str] | None = None
+
+
+@router.post("/jobs/{job_id}/discard-rejected")
+def discard_rejected(job_id: str, body: DiscardRequest, user: dict = Depends(get_current_user)):
+    """Permanently delete rejected lines. An extraction with nothing left to review (every remaining line saved) is removed with its file."""
+    org = _org(user)
+    job = _read_job(org, job_id)
+    pick = set(body.row_ids) if body.row_ids else None
+    gone = {r["row_id"] for r in job["rows"] if (r.get("review") or {}).get("state") == "rejected" and not (r.get("review") or {}).get("saved") and (pick is None or r["row_id"] in pick)}
+    gone |= {r["row_id"] for r in job["rows"] if r.get("parent_id") in gone}
+    job["rows"] = [r for r in job["rows"] if r["row_id"] not in gone]
+    live = {r["item_id"] for r in job["rows"]}
+    job["items"] = [i for i in job.get("items", []) if i["item_id"] in live]
+    if all((r.get("review") or {}).get("saved") for r in job["rows"]):
+        _remove_job(org, job_id)
+        return {"deleted": len(gone), "job_removed": True}
+    _save_job(org, job)
+    _cleanup_files(org, job_id, job, drop_empty=True)
+    return {"deleted": len(gone), "job_removed": False}
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -893,7 +919,7 @@ class SaveRequest(BaseModel):
 SAVE_BUDGET_S = 70
 
 
-def _cleanup_files(org: str, job_id: str, job: dict) -> None:
+def _cleanup_files(org: str, job_id: str, job: dict, drop_empty: bool = False) -> None:
     """Delete an uploaded file from temporary storage once every line read from it is saved to GHG records or rejected."""
     s = DB.ocr_ext_jobs.find_one({"job_id": job_id, "org": org}, {"_id": 0, "names": 1, "file_keys": 1})
     if not s:
@@ -901,7 +927,7 @@ def _cleanup_files(org: str, job_id: str, job: dict) -> None:
     names, keys = s.get("names", []), list(s.get("file_keys", []))
     for i, (name, key) in enumerate(zip(names, keys)):
         rows = [r for r in job["rows"] if r.get("file") == name]
-        if not key or not rows or not all((r.get("review") or {}).get("saved") or (r.get("review") or {}).get("state") == "rejected" for r in rows):
+        if not key or (not rows and not drop_empty) or not all((r.get("review") or {}).get("saved") or (r.get("review") or {}).get("state") == "rejected" for r in rows):
             continue
         try:
             r2().client.delete_object(Bucket=_bucket(), Key=key)
