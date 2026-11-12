@@ -5,7 +5,6 @@ import { Button } from '../../components/ui/button';
 import { errText } from './api';
 import { fmtCr, fmtDate, fmtN } from './utils';
 
-const STEP_LABEL = { extract: 'Reading documents', reread: 'Re-reading pages', layout: 'Spreadsheet layouts', classify: 'Classifying lines' };
 
 const Kpi = ({ label, value, unit, foot, testId }) => (
   <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm" data-testid={testId}>
@@ -22,7 +21,6 @@ export const CreditsTab = ({ api, usage, setUsage }) => {
   if (!usage) return <div className="h-40 animate-pulse rounded-xl bg-stone-100" />;
   const b = usage.balance; const t = usage.summary.total; const jobs = usage.by_job;
   const rows = jobs.reduce((a, j) => a + (j.rows || 0), 0); const files = jobs.reduce((a, j) => a + (j.files || 0), 0);
-  const steps = Object.entries(usage.summary.by_step).sort((a, z) => z[1].credits - a[1].credits);
   const topUp = async () => {
     const v = window.prompt('How many credits to add?', '1000');
     if (!v) return;
@@ -41,9 +39,7 @@ export const CreditsTab = ({ api, usage, setUsage }) => {
         <Kpi label="Per document" value={files ? fmtCr(t.credits / files) : '-'} unit="credits" />
         <Kpi label="Per record" value={rows ? fmtCr(t.credits / rows) : '-'} unit="credits" foot={`${fmtN(rows, 0)} records`} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-xl border border-stone-200 bg-white p-4"><h3 className="mb-2 font-semibold">Where credits went</h3>
-          {steps.length === 0 ? <p className="text-sm text-stone-500">No usage in this period.</p> : <table className="w-full text-sm"><tbody>{steps.map(([k, v]) => <tr key={k} className="border-b"><td className="py-1.5">{STEP_LABEL[k] || k}</td><td className="text-right text-stone-500">{fmtN(v.calls, 0)} calls</td><td className="text-right font-medium">{fmtCr(v.credits)}</td></tr>)}</tbody></table>}</div>
+      <div className="grid gap-5">
         <div className="rounded-xl border border-stone-200 bg-white p-4"><h3 className="mb-2 font-semibold">Credit history</h3>
           {usage.grants.length === 0 ? <p className="text-sm text-stone-500">No credits added yet.</p> : usage.grants.map((g) => <div key={g.ts} className="flex justify-between border-b py-1.5 text-sm"><span>{g.note || 'Credits'} <span className="text-stone-500">· {fmtDate(g.ts)}</span></span><b className="text-emerald-700">+{fmtCr(g.credits)}</b></div>)}</div>
       </div>

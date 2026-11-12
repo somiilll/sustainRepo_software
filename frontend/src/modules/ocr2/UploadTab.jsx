@@ -225,15 +225,6 @@ export const UploadTab = ({ api, usage, refreshUsage, onOpenJob }) => {
             <Button size="lg" disabled={!chosen.length || busy} onClick={start} data-testid="ocr-start-button">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Start extraction</Button>
           </div>
         </div>
-        <div className="rounded-lg bg-stone-50 p-4 text-sm">
-          <h3 className="font-semibold text-stone-900">How it works</h3>
-          <ol className="mt-3 space-y-3 text-stone-600">
-            <li><b className="text-stone-900">Read.</b> Every line, quantity, unit, amount and date, with the page it came from.</li>
-            <li><b className="text-stone-900">Classify.</b> Each line goes to the right scope, category and sub-category. Identical items are classified once.</li>
-            <li><b className="text-stone-900">Prepare.</b> Units converted, T&amp;D and well-to-tank rows added, facility and period matched.</li>
-            <li><b className="text-stone-900">You review.</b> Approve what is right and answer the few questions. Your corrections are remembered.</li>
-          </ol>
-        </div>
       </div>
 
       {(live.length > 0 || finished.length > 0) && (

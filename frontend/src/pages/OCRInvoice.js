@@ -41,7 +41,7 @@ export default function OCRInvoice() {
         icon={FileText}
         iconClassName="border-teal-200 bg-teal-50 text-teal-700"
         testId="ocr-invoice"
-        aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
+        aside={b && <button type="button" onClick={() => go('credits')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
       <nav className="flex flex-wrap gap-1 border-b border-stone-200" data-testid="ocr-tabs">
         {TABS.map(([k, label, Icon]) => (

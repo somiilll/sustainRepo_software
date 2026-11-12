@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, CornerDownRight, DatabaseZap, FileJson, FileSearch, Files, Info, Pencil, Search, Save, X } from 'lucide-react';
+import { ArrowLeft, Check, CornerDownRight, DatabaseZap, FileSearch, Files, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { errText } from './api';
@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { EditDialog } from './EditDialog';
 import { DocsDialog, EvidenceDialog, FactorDialog, WhyDialog } from './RowDialogs';
-import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, saveBlob, scopeOf } from './utils';
+import { PENDING, SCOPE_COLOR, SCOPE_LABEL, STATUS_BAR, STATUS_CLASS, STATUS_LABEL, STATUS_ORDER, fmtCr, fmtDate, fmtN, rstate, scopeOf } from './utils';
 
 const PER = 50;
 const TABS = ['pending', 'all', 'ready', 'check', 'input', 'unreadable', 'approved', 'rejected'];
@@ -122,7 +122,6 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     setSaving(true);
     try { const res = await api.saveToGhg(id); setSaveRes(res); await load(); if (res.saved && !res.failed.length) toast.success(`${res.saved} line(s) saved`); } catch (e) { toast.error(errText(e)); } finally { setSaving(false); }
   };
-  const exportJson = async (id, all) => { try { const r = await api.exportJson(id, all); saveBlob(r.data, `extraction_${id}${all ? '_all' : ''}.json`); } catch (e) { toast.error(errText(e)); } };
 
   if (rows === null || !jobMeta) return <div className="space-y-3" data-testid="ocr-review-loading">{[70, 100, 90].map((w) => <div key={w} className="h-10 animate-pulse rounded bg-stone-100" style={{ width: `${w}%` }} />)}</div>;
   if (inbox && !jobList.length) return <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-stone-500" data-testid="ocr-review-empty">No finished extractions yet. <button type="button" className="text-emerald-700 underline" onClick={goUpload}>Go to Upload</button></div>;
@@ -194,12 +193,10 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
     <div className="space-y-5" data-testid="ocr-review-tab">
       <div className="flex flex-wrap items-center gap-3">
         {!inbox && <Button variant="ghost" size="sm" onClick={onBackToInbox} data-testid="ocr-back-inbox"><ArrowLeft className="mr-1 h-4 w-4" />All pending items</Button>}
-        <div className="min-w-0 flex-1"><h2 className="text-xl font-semibold text-stone-900">{inbox ? 'Review' : 'Review extracted data'}</h2>
-          <p className="text-sm text-stone-500">{inbox ? `Everything that still needs you, from ${selJobs.length} extraction${selJobs.length === 1 ? '' : 's'} · ${counts.all} line${counts.all === 1 ? '' : 's'}` : `${jobMeta.names.length} file${jobMeta.names.length > 1 ? 's' : ''} · ${fmtDate(jobMeta.created)} · ${jobMeta.mode === 'think' ? 'Deep read' : 'Standard'} · ${jobMeta.metrics?.items ?? '?'} lines read in ${jobMeta.metrics?.seconds ?? '?'}s`}</p></div>
+        <div className="min-w-0 flex-1">{!inbox && <h2 className="text-xl font-semibold text-stone-900">Review extracted data</h2>}
+          {!inbox && <p className="text-sm text-stone-500">{`${jobMeta.names.length} file${jobMeta.names.length > 1 ? 's' : ''} · ${fmtDate(jobMeta.created)} · ${jobMeta.mode === 'think' ? 'Deep read' : 'Standard'} · ${jobMeta.metrics?.items ?? '?'} lines read in ${jobMeta.metrics?.seconds ?? '?'}s`}</p>}</div>
         <div className="relative"><Search className="absolute left-2 top-2.5 h-4 w-4 text-stone-400" /><input className="w-60 rounded-md border border-stone-300 py-2 pl-8 pr-2 text-sm" placeholder="Search item, vendor, category..." value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} data-testid="ocr-search" /></div>
         {!inbox && <Button variant="outline" onClick={() => setDlg({ type: 'docs' })} data-testid="ocr-docs-button"><Files className="mr-1 h-4 w-4" />Documents ({docs.length})</Button>}
-        <Button variant="outline" disabled={!exportId} onClick={() => exportJson(exportId, true)} data-testid="ocr-export-all"><FileJson className="mr-1 h-4 w-4" />Export all</Button>
-        <Button variant="outline" disabled={!exportId} title={exportId ? '' : 'Pick one extraction below to export'} onClick={() => exportJson(exportId, false)} data-testid="ocr-export-approved"><Save className="mr-1 h-4 w-4" />Export approved</Button>
         {unsaved > 0 && <Button disabled={!exportId || saving} title={exportId ? 'These approved lines could not be saved to GHG records. Try saving them again.' : 'Pick one extraction below to retry'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>}
       </div>
       {inbox && (
@@ -216,7 +213,6 @@ export const ReviewTab = ({ api, meta, jobId, onOpenJob, onBackToInbox, goUpload
         <div><div className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-500">By scope</div><div className="flex flex-wrap gap-1">{Object.entries(scopes).sort().map(([k, v]) => <button key={k} type="button" className={`rounded-full border px-2 py-0.5 text-xs ${scope === k ? 'border-stone-900 font-semibold' : 'border-stone-200'}`} style={{ color: SCOPE_COLOR[k] }} onClick={() => { setScope(scope === k ? 'all' : k); setPage(0); }} data-testid={`ocr-scope-${k}`}>{SCOPE_LABEL[k] || k} · {v}</button>)}</div></div>
         <div className="text-right"><div className="text-xs font-semibold uppercase tracking-wide text-stone-500">Credits used</div><div className="text-2xl font-semibold">{fmtCr(credits)}</div></div>
       </div>
-      {counts.input > 0 && <div className="flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm"><span className="flex-1"><b>{counts.input} line{counts.input > 1 ? 's need' : ' needs'} a quick answer</b> - for example, where a fuel was used. Answer inline and similar lines are remembered.</span>{filter !== 'ask' && <Button size="sm" variant="outline" onClick={() => setFilter('ask')}>Show questions</Button>}</div>}
       {noFac > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><b>{noFac} record{noFac > 1 ? 's have' : ' has'} no facility.</b> Use Edit to assign one, or choose facilities before the next extraction.</div>}
       <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b p-3">
