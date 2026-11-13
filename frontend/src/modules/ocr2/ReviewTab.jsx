@@ -30,12 +30,14 @@ const QtyCell = ({ r }) => {
   const extra = Object.entries(r.calc?.fields || {}).filter(([k]) => INPUT_LABEL[k]);
   const pq = r.raw_quantity; const pu = (r.raw_unit || '').trim(); const cq = r.quantity; const cu = r.unit || '';
   const same = cq == null || (pq != null && Math.abs(cq - pq) < 1e-9 && (!pu || pu.toLowerCase() === cu.toLowerCase()));
+  const spend = r.calc?.ef_method === 'spend';
+  const money = spend && r.calc?.fields?.spent_value != null ? r.calc.fields.spent_value : r.amount;
   return (
     <div>
       {pq != null ? <><b>{fmtN(pq, 3)}</b> <span className="text-stone-500">{pu || cu}</span></> : cq != null ? <><b>{fmtN(cq, 3)}</b> <span className="text-stone-500">{cu}</span></> : <span className="text-stone-400">No quantity</span>}
-      {pq != null && !same && <div className="text-xs text-stone-500" title="The value used for the emissions calculation">→ {fmtN(cq, 3)} {cu} for calculation</div>}
+      {pq != null && !same && !spend && <div className="text-xs text-stone-500" title="The value used for the emissions calculation">→ {fmtN(cq, 3)} {cu} for calculation</div>}
       {extra.map(([k, v]) => <div key={k} className="text-xs text-stone-500" data-testid={`ocr-input-${r.row_id}-${k}`}>{INPUT_LABEL[k]}: <b>{fmtN(v, 3)}</b> {r.calc.fields[`${k}_unit`] || ''}</div>)}
-      {r.amount != null && <div className="text-xs text-stone-500">{r.currency === 'INR' ? '₹' : `${r.currency || ''} `}{fmtN(r.amount)}</div>}
+      {money != null && <div className="text-xs text-stone-500" data-testid={`ocr-amount-${r.row_id}`}>{r.currency === 'INR' ? '₹' : `${r.currency || ''} `}{fmtN(money)}</div>}
     </div>
   );
 };
