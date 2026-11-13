@@ -276,12 +276,24 @@ class Engine:
             else:
                 f = load().formulas[c["formula"]]
                 key = f["fields"][0]["key"]
-                fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") else {}
+                wtt, tied = None, []
+                if c["kind"] == "c3_wtt":
+                    idx = self.classifier._index()
+                    mem = self.classifier.memory
+                    wtt, tied = idx.fuel_wtt_factor(item, mem.get_factor_choice(self.classifier.org, idx.wtt_key(item)) if mem is not None else None) if idx else (None, [])
+                    if wtt:
+                        cg.update(subcategory=wtt["name"], subcategory_label=wtt["name"], category_id=wtt["category_id"], subcategory_id=wtt["id"])
+                fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") and (wtt or c["kind"] != "c3_wtt") else {}
+                missing = [] if fields else [f["fields"][0]["label"] if (wtt or c["kind"] != "c3_wtt") else "Well-to-tank factor of this fuel - choose in Edit" + (f" ({', '.join(tied[:4])})" if tied else "")]
                 calc = {"formula_id": c["formula"] if fields else None, "formula_label": f["label"], "ef_method": "activity",
-                        "fields": fields, "missing": [] if fields else [f["fields"][0]["label"]], "notes": [], "status": "ok",
+                        "fields": fields, "missing": missing, "notes": [], "status": "ok",
                         "emergent_formula_id": f.get("emergent_formula_id")}
-                rows.append(make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
-                                 dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"}))
+                row = make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
+                           dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"})
+                if wtt:
+                    ref = {"collection": wtt["collection"], "id": wtt["id"]}
+                    row["review"] = {**(row.get("review") or {}), "factor": ref, "override": {"scope": "scope3", "category_id": wtt["category_id"], "ef_method": "activity", "factor": ref, "dynamic": None}}
+                rows.append(row)
         return rows
 
     # ------------------------------------------------------------------ run

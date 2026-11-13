@@ -287,6 +287,24 @@ class FactorIndex:
         return {"status": "ambiguous", "entry": best["rec"].entry, "confidence": 0.5, "candidates": short,
                 "reason": reason, "intent": name}
 
+    @staticmethod
+    def wtt_key(item: dict) -> str:
+        return "wtt|" + " ".join(sorted(words(item_text(item))))
+
+    def fuel_wtt_factor(self, item: dict, remembered_id: str | None = None) -> tuple[dict | None, list[str]]:
+        """(the C3 'fuel and energy-related' factor named after this fuel, []) or (None, names of the equally close factors)."""
+        dw = words(item_text(item))
+        entries = [r.entry for (n, m), by in self.scope3.items() if m == "activity" for c, r in by.items()
+                   if c == "C3" and not re.search(r"t&d|loss and generation", n)]
+        scored = sorted(((len(name_parts(e["name"])[0] & dw), e) for e in entries), key=lambda t: t[0], reverse=True)
+        if not scored or scored[0][0] == 0:
+            return None, []
+        tied = [t[1]["name"] for t in scored if t[0] == scored[0][0]]
+        pick = next((t[1] for t in scored if t[1]["id"] == remembered_id), None) if remembered_id and len(tied) > 1 else None
+        if pick:
+            return pick, []
+        return (scored[0][1], []) if len(tied) == 1 else (None, tied)
+
     def match_fuel(self, item: dict, use_context: str | None) -> dict | None:
         cat = FUEL_CATEGORY.get(use_context or "")
         text = item_text(item)

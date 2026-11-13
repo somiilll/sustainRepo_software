@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from extractor_core.config import load
-from extractor_core.decider.factors import _fit, bind_inputs
+from extractor_core.decider.factors import FactorIndex, _fit, bind_inputs
 from extractor_core.fields import display_quantity
 from extractor_core.export import to_record
 from extractor_core.validate import finish, row_checks
@@ -177,6 +177,9 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
     if remember:
         DB.ocr_ext_factor_choices.update_one({"organization_id": org, "key": saver.factor_key(to_record(row))},
                                              {"$set": {"collection": ov.factor_collection, "factor_id": ov.factor_id}}, upsert=True)
+        if row.get("derived") and str(old.get("subcategory") or "").lower().startswith("fuel - well to tank"):
+            DB.ocr_ext_factor_choices.update_one({"organization_id": org, "key": FactorIndex.wtt_key(item)},
+                                                 {"$set": {"collection": ov.factor_collection, "factor_id": ov.factor_id}}, upsert=True)
     return old
 
 
