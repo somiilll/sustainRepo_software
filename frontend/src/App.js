@@ -98,7 +98,6 @@ import SupplierFacilitySetup from './modules/supplier-assessment/SupplierFacilit
 // SupplierPortalEmissions removed - suppliers use main GHG Emissions flow
 import OCRInvoice from './pages/OCRInvoice';
 import SustainabilityConfig from './pages/SustainabilityConfig';
-import { OCRProvider } from './contexts/OCRContext';
 import { SupplierAssessmentPeriodProvider } from './contexts/SupplierAssessmentPeriodContext';
 import { ConnectivityProvider } from './contexts/ConnectivityContext';
 import { ConnectivityStatusBanner } from './components/ConnectivityStatusBanner';
@@ -453,15 +452,13 @@ function App() {
     <AuthProvider>
       <ConnectivityProvider>
         <OrganizationProvider>
-          <OCRProvider>
-            <BrowserRouter>
-              <div className="App">
-                <ConnectivityStatusBanner />
-                <OrganizationErrorGate />
-                <Toaster position="top-right" />
-              </div>
-            </BrowserRouter>
-          </OCRProvider>
+          <BrowserRouter>
+            <div className="App">
+              <ConnectivityStatusBanner />
+              <OrganizationErrorGate />
+              <Toaster position="top-right" />
+            </div>
+          </BrowserRouter>
         </OrganizationProvider>
       </ConnectivityProvider>
     </AuthProvider>

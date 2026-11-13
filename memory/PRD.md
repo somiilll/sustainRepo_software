@@ -1113,3 +1113,9 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Factor picker (RowDialogs FactorDialog / EditDialog list): one entry per factor name (latest year, facility sector, India first), no source/region/year/unit text; WTT lines list only fuels (T&D/heat entries hidden, rows tagged companion=c3_wtt). WTT row unit now checked against the C3 factor's allowed units (e.g. LPG needs L/kl/m3; kg gives 'Quantity in L, kl, ...' needs input instead of failing at approve). Old jobs keep old rows. Follow-up idea: convert kg->L with the fuel's density.
 - Derived (companion) rows: Emission factor dialog now has Quantity + Unit after picking a factor (unit list = that factor's allowed units); POST /jobs/{id}/rows/{rid}/factor accepts optional quantity+unit, rewrites the row's calc fields and re-checks it. Not tested (no testing requested).
 - WTT default: when several C3 factors tie, policy.json companions.fuel_wtt.preferred_factors (now 'Diesel (100% mineral diesel)') is used; a reviewer's remembered pick still wins.
+
+## Cleanup 2 (Nov 2026)
+- Deleted: contexts/OCRContext.js (+ provider in App.js), MultiEmployeeInput.jsx.bak, /app/tmp OCR fixtures, unreferenced OILES/Scope3 template xlsx in frontend/public (+ public/downloads), ocr_extraction/EMERGENT_FOLLOWUP.md, __pycache__, old test_reports screenshots.
+- KEPT on purpose: /app/.playwright (server.py sets PLAYWRIGHT_BROWSERS_PATH=/app/.playwright for PDF rendering), .emergent/backups and /app/backups (data rollback snapshots), memory/ docs, backend/tests/golden.
+- Still open: OCR prefill plumbing in Emissions.js / EmissionEntryForm.js / ESGRecords* (unused since old OCR removed).
+- P1: waste-invoice classification (transport line must not become a landfill row; priced service line without quantity -> spend-based/skip) — decide generic rule, no waste-specific hardcoding.
