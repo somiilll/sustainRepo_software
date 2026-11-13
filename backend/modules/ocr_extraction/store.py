@@ -48,6 +48,10 @@ class MongoMemory:
         d = DB.ocr_ext_decisions.find_one({"org": org, "key": key}, _NOID)
         return {"activity_id": d["activity_id"], "context": d.get("context") or {}, "source": d["source"], "hits": d.get("hits", 1)} if d else None
 
+    def get_factor_choice(self, org, key):
+        d = DB.ocr_ext_factor_choices.find_one({"organization_id": org, "key": key}, {"_id": 0, "factor_id": 1})
+        return d["factor_id"] if d else None
+
     def save_decision(self, org, key, activity_id, context, source):
         with self._lock:
             cur = DB.ocr_ext_decisions.find_one({"org": org, "key": key}, {"source": 1})

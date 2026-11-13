@@ -26,7 +26,7 @@
   },
   "companions": {
     "electricity": {"enabled": true, "mode": "combined", "subcategory_label": "Electricity - T&D losses and Generation"},
-    "fuel_wtt": {"enabled": true, "subcategory_label": "Fuel - Well to Tank (WTT)"},
+    "fuel_wtt": {"enabled": true, "subcategory_label": "Fuel - Well to Tank (WTT)", "preferred_factors": ["Diesel (100% mineral diesel)"]},
     "steam_heat": {"enabled": true, "subcategory_label": "Heat & Steam - T&D losses and Generation"}
   },
   "periods": {

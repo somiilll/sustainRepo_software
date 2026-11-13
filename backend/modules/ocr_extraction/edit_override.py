@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from extractor_core.config import load
-from extractor_core.decider.factors import _fit, bind_inputs
+from extractor_core.decider.factors import FactorIndex, _fit, bind_inputs
 from extractor_core.fields import display_quantity
 from extractor_core.export import to_record
 from extractor_core.validate import finish, row_checks
@@ -102,6 +102,13 @@ async def edit_config(db, org: str, row: dict) -> dict:
             "categories": out, "current": current}
 
 
+def drop_non_fuel(row: dict, opts: list[dict]) -> list[dict]:
+    """A well-to-tank line is for a fuel: the electricity and heat T&D entries of the same category are not offered."""
+    if row.get("companion") != "c3_wtt":
+        return opts
+    return [o for o in opts if not re.search(r"t&d|loss and generation", str(o["label"]).lower())]
+
+
 async def factor_options(db, row: dict, scope: str, category_id: str, method: str, q: str, org: str = "", facility_id: str | None = None) -> list[dict]:
     if scope not in SCOPE_KEY:
         raise HTTPException(400, "Unknown scope")
@@ -111,7 +118,7 @@ async def factor_options(db, row: dict, scope: str, category_id: str, method: st
     rec = {"scope": SCOPE_KEY[scope], "ef_method": method if scope == "scope3" else "activity", "subcategory": (row.get("ghg") or {}).get("subcategory")}
     fid = facility_id or (row.get("facility") or {}).get("id")
     fac = await db.facilities.find_one({"id": fid, "organization_id": org}, {"_id": 0, "sector": 1}) if fid else None
-    return await saver.search_factors(db, rec, cat, q, limit=300, sector=(fac or {}).get("sector") or None, unique=True)
+    return drop_non_fuel(row, await saver.search_factors(db, rec, cat, q, limit=300, sector=(fac or {}).get("sector") or None, unique=True))
 
 
 def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str) -> dict:
@@ -177,6 +184,9 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
     if remember:
         DB.ocr_ext_factor_choices.update_one({"organization_id": org, "key": saver.factor_key(to_record(row))},
                                              {"$set": {"collection": ov.factor_collection, "factor_id": ov.factor_id}}, upsert=True)
+        if row.get("derived") and str(old.get("subcategory") or "").lower().startswith("fuel - well to tank"):
+            DB.ocr_ext_factor_choices.update_one({"organization_id": org, "key": FactorIndex.wtt_key(item)},
+                                                 {"$set": {"collection": ov.factor_collection, "factor_id": ov.factor_id}}, upsert=True)
     return old
 
 
