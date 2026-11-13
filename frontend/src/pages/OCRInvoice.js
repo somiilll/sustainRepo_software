@@ -47,7 +47,7 @@ export default function OCRInvoice() {
         testId="ocr-invoice"
         aside={b && <button type="button" onClick={() => navigate('/credits-usage')} className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm shadow-sm" data-testid="ocr-credits-badge"><Coins className="h-4 w-4 text-amber-600" /><b>{fmtCr(b.remaining)}</b> credits left</button>}
       />
-      <div className="pb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-5">
         <nav className="inline-flex flex-wrap gap-1 rounded-2xl bg-stone-100 p-1.5" data-testid="ocr-tabs">
           {TABS.map(([k, label]) => (
             <button key={k} type="button" onClick={() => go(k)} data-testid={`ocr-tab-${k}`}
@@ -56,6 +56,7 @@ export default function OCRInvoice() {
             </button>
           ))}
         </nav>
+        <div id="ocr-tabs-actions" />
       </div>
       {!meta ? <div className="h-40 animate-pulse rounded-xl bg-stone-100" /> : <>
         {route.view === 'upload' && <UploadTab api={api} usage={usage} refreshUsage={refreshUsage} onOpenJob={() => go('review')} />}
