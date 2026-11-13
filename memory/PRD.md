@@ -1134,3 +1134,9 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Freight factor choice by data: weight+distance -> activity (tkm), weight only -> spend. Physical factors whose units can't take the quantity are skipped.
 - Tests: engine/tests/test_extract_lines.py (130 pass). Gap: DB has no hazardous-waste/sludge C5 factor.
 - Pending: plausibility checks restore, contact-sales context, superadmin credits, MIS cron, My Tasks filters.
+
+## OCR travel/waste reader fixes (Nov 2026) - NOT TESTED (user asked no testing)
+- Prompt: nature = what the line does (moving waste = freight); one trip/ride/stay = one line; multi-leg ticket = one line per leg (same printed_line, fare shared equally).
+- Code safety net `_merge_trip_parts` (extract.py): merges cab/rail/flight fare components on the same route and all hotel nights into one line; info check `line_note`.
+- Flight distance from IATA codes (airportsdata, great-circle x policy.travel.flight_distance_uplift 1.08); flights/rail/taxi without distance fall back to spend factors.
+- Note: uvicorn had been upgraded to 0.54 in the venv and broke reload; reinstalled pinned 0.25.0.

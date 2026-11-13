@@ -160,6 +160,8 @@ class FactorIndex:
             # moving goods: tonne-km factors need the distance too - with it the activity factor is used, without it the spend one
             want = "activity" if item.get("distance_km") else "spend"
             entries = [e for e in entries if e["method"] == want] or entries
+        elif item.get("travel_kind") in ("flight", "rail", "taxi") and not item.get("distance_km") and item.get("amount") is not None:
+            entries = [e for e in entries if e["method"] == "spend"] or entries      # a journey without a distance can only be spend-based
         return entries
 
     @staticmethod

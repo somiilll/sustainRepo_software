@@ -6,6 +6,7 @@ pandas>=2.2
 pymupdf>=1.24
 pillow>=11
 xlrd>=2.0            # legacy .xls only
+airportsdata>=20260905   # flight distance from airport codes
 pillow-heif>=0.18    # HEIC phone photos (optional)
 pillow-avif-plugin>=1.4  # AVIF images (optional, built into Pillow 11.2+)
 # tests / testbench

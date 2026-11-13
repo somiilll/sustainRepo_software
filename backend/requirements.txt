@@ -3,6 +3,7 @@ aiohttp==3.13.3
 aiosignal==1.4.0
 aiosmtplib==5.1.0
 aiosqlite==0.22.1
+airportsdata==20260905
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anthropic==0.84.0
@@ -104,6 +105,7 @@ pdf2image==1.17.0
 pdfminer.six==20260107
 pdfplumber==0.11.10
 pillow==12.3.0
+pillow_heif==1.8.1
 pip-api==0.0.34
 pip-requirements-parser==32.0.1
 pip_audit==2.10.1
@@ -178,4 +180,3 @@ wrapt==2.2.2
 xlrd==2.0.2
 yarl==1.22.0
 zipp==3.23.0
-pillow-heif==1.8.1
