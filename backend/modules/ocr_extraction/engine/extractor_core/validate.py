@@ -142,6 +142,8 @@ def row_checks(row: dict, item: dict) -> list[dict]:
         c.append({"code": "hidden_sheet", "level": "info", "message": "Row comes from a hidden sheet"})
     if item.get("spend_note") and row.get("amount") is not None:
         c.append({"code": "spend_includes_extras", "level": "info", "message": item["spend_note"]})
+    if item.get("spend_warning") and row.get("amount") is not None and not row.get("derived"):
+        c.append({"code": "amount_uncertain", "level": "warn", "message": item["spend_warning"]})
     c += [{"code": "line_note", "level": "info", "message": n} for n in item.get("line_notes") or [] if not row.get("derived")]
     return c
 

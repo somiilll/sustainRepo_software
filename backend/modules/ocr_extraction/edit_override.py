@@ -173,7 +173,8 @@ def apply_override(row: dict, item: dict, ov: Override, remember: bool, org: str
     if not dynamic and method != "spend":
         row["quantity"], row["unit"], row["dimension"] = ov.quantity, ov.unit, None
     if method == "spend":
-        row["amount"], row["currency"] = ov.amount, ov.currency or row.get("currency")
+        row["amount"], row["spend_amount"], row["currency"] = ov.amount, ov.amount, ov.currency or row.get("currency")
+        item["spend_warning"] = None
     row["decision"] = {**row["decision"], "source": "user", "confidence": 0.99, "question": None, "alternatives": [], "level": "certain", "tags": ["confirmed_by_you"],
                        "reason": "Scope, category and activity chosen by reviewer"}
     row["checks"] = row_checks({**row, "activity_id": None}, item)
@@ -196,7 +197,7 @@ def prefill(item: dict, collection: str, factor_id: str, category_id: str, metho
     if not doc:
         raise HTTPException(400, "That activity no longer exists")
     factor = saver._option(doc, collection)
-    out: dict = {"dynamic": {}, "quantity": None, "unit": None, "amount": item.get("amount"), "currency": item.get("currency")}
+    out: dict = {"dynamic": {}, "quantity": None, "unit": None, "amount": item.get("spend_amount") or item.get("amount"), "currency": item.get("currency")}
     if method == "spend":
         return out
     spec = factor_inputs.required_inputs({"collection": collection, "category_id": category_id, "method": "activity", "activity_type": doc.get("activity_type")}) if collection == "scope3_ef" else None

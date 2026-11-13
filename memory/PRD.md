@@ -1140,3 +1140,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Code safety net `_merge_trip_parts` (extract.py): merges cab/rail/flight fare components on the same route and all hotel nights into one line; info check `line_note`.
 - Flight distance from IATA codes (airportsdata, great-circle x policy.travel.flight_distance_uplift 1.08); flights/rail/taxi without distance fall back to spend factors.
 - Note: uvicorn had been upgraded to 0.54 in the venv and broke reload; reinstalled pinned 0.25.0.
+
+## Row amount display + uncertain-amount warning (Nov 2026)
+- Rows carry `spend_amount` (printed amount + share of taxes/add-ons); Review shows it for every row (activity and spend).
+- Warn check `amount_uncertain` when the invoice total is missing or line amounts exceed the invoice total (scaled down to it).
+- Reviewer-edited amount resets spend_amount/note/warning; Edit prefill uses spend_amount.

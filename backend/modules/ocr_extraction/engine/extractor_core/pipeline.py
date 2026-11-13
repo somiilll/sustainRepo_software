@@ -213,7 +213,8 @@ class Engine:
                 "activity_id": activity_id, "activity_label": act["label"] if act else None, "domain": act["domain"] if act else None,
                 "modules": act["modules"] if act else [], "ghg": ghg, "calc": calc,
                 "quantity": quantity, "unit": unit_, "dimension": dim, "raw_quantity": item.get("quantity"), "raw_unit": item.get("unit"),
-                "amount": amount, "currency": item.get("currency") or load().policy["currency_default"],
+                "amount": amount, "spend_amount": (item.get("spend_amount") or amount) if amount is not None and amount == item.get("amount") else amount,
+                "currency": item.get("currency") or load().policy["currency_default"],
                 "facility": fac, "period": per, "reporting_period": per["reporting_period"],
                 "decision": dec or decision,
             }

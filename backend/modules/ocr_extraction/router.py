@@ -519,6 +519,8 @@ def edit_item(job_id: str, item_id: str, e: ItemEdit, user: dict = Depends(get_c
         v = getattr(e, k)
         if v is not None:
             item[k] = v
+    if e.amount is not None:          # the reviewer's amount is the full amount: no share of extras, nothing left to doubt
+        item["spend_amount"], item["spend_note"], item["spend_warning"] = e.amount, None, None
     if e.reporting_period:
         if not re.fullmatch(r"\d{4}-\d{2}", e.reporting_period):
             raise HTTPException(400, "Period must be YYYY-MM")

@@ -31,7 +31,7 @@ const QtyCell = ({ r }) => {
   const pq = r.raw_quantity; const pu = (r.raw_unit || '').trim(); const cq = r.quantity; const cu = r.unit || '';
   const same = cq == null || (pq != null && Math.abs(cq - pq) < 1e-9 && (!pu || pu.toLowerCase() === cu.toLowerCase()));
   const spend = r.calc?.ef_method === 'spend';
-  const money = spend && r.calc?.fields?.spent_value != null ? r.calc.fields.spent_value : r.amount;
+  const money = r.spend_amount ?? (spend && r.calc?.fields?.spent_value != null ? r.calc.fields.spent_value : r.amount);
   return (
     <div>
       {pq != null ? <><b>{fmtN(pq, 3)}</b> <span className="text-stone-500">{pu || cu}</span></> : cq != null ? <><b>{fmtN(cq, 3)}</b> <span className="text-stone-500">{cu}</span></> : <span className="text-stone-400">No quantity</span>}

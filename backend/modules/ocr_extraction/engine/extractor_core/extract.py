@@ -272,26 +272,32 @@ def flight_km(origin, destination) -> float | None:
     return round(2 * 6371.0 * math.asin(math.sqrt(h)) * load().policy["travel"].get("flight_distance_uplift", 1.0), 1)
 
 
-def _spend_amounts(inv: dict, lines: list[dict], amounts: dict[int, float | None]) -> tuple[dict, str | None]:
+def _spend_amounts(inv: dict, lines: list[dict], amounts: dict[int, float | None]) -> tuple[dict, str | None, str | None]:
     """Each main line's amount plus its share (by value) of everything else on the invoice - taxes, add-on fees, surcharges.
     The extra is the gap between the grand total and the main lines, so a fee the reader left out is still counted."""
     base = sum(a for a in amounts.values() if a)
     if not load().policy.get("spend_includes_tax") or not base:
-        return amounts, None
+        return amounts, None, None
     tot = inv.get("totals") or {}
     grand = _num(tot.get("grand_total"))
+    warning = None
+    if not grand:
+        warning = "Invoice total not found - the amount may be missing taxes or charges; check it against the invoice"
+    elif base - grand > max(1.0, 0.001 * grand):
+        warning = (f"Line amounts add up to {base:,.2f}, more than the invoice total {grand:,.2f} (an amount may be repeated) - "
+                   "the amounts were scaled down to the total; check them against the invoice")
     if grand:
         extra = grand - base
     else:
         extra = sum(v for v in (_num(tot.get("tax")), _num(tot.get("other_charges"))) if v) + \
                 sum(_num(l.get("amount")) or 0 for i, l in enumerate(lines) if i not in amounts and "merged_into" not in l)
     if abs(extra) <= max(1.0, 0.001 * base):
-        return amounts, None
+        return amounts, None, warning
     names = [l.get("description_en") or l.get("description") for i, l in enumerate(lines) if i not in amounts and "merged_into" not in l]
     names += [label for k, label in (("tax", "taxes"), ("other_charges", "other charges")) if _num(tot.get(k))]
     note = (f"Includes {extra:,.2f} of taxes / add-on charges" + (f" ({', '.join(str(n) for n in names[:5])})" if names else "")
             + f" shared over the invoice lines by value (lines {base:,.2f}, invoice total {(grand or base + extra):,.2f})")
-    return {i: round(a + extra * a / base, 2) if a else a for i, a in amounts.items()}, note
+    return {i: round(a + extra * a / base, 2) if a else a for i, a in amounts.items()}, note, warning
 
 
 def _travel_terms(tr: dict) -> tuple[str, str | None, str | None]:
@@ -318,7 +324,7 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
     items = []
     ev_all = inv.get("evidence") or []
     amounts = _one_amount_per_printed_line(lines, main)
-    spend_amounts, spend_note = _spend_amounts(inv, lines, amounts)
+    spend_amounts, spend_note, spend_warning = _spend_amounts(inv, lines, amounts)
     for i in main:
         l = lines[i]
         tr, fr, ws = l.get("travel") or {}, l.get("freight") or {}, l.get("waste") or {}
@@ -344,7 +350,7 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
             "description_en": l.get("description_en") or l.get("description") or "",
             "hsn": re.sub(r"\D", "", l.get("hsn_sac") or "") or None,
             "quantity": q if isinstance(q, (int, float)) else parse_number(q), "unit": unit,
-            "amount": amounts[i], "spend_amount": spend_amounts[i], "spend_note": spend_note if amounts[i] else None, "rate": l.get("rate"), "currency": inv.get("currency"),
+            "amount": amounts[i], "spend_amount": spend_amounts[i], "spend_note": spend_note if amounts[i] else None, "spend_warning": spend_warning if amounts[i] else None, "rate": l.get("rate"), "currency": inv.get("currency"),
             "nature": l.get("nature"), "used_in": l.get("used_in"),
             "vendor": inv.get("vendor_name"), "vendor_gstin": inv.get("vendor_gstin"),
             "invoice_number": inv.get("invoice_number"), "date": inv.get("invoice_date"),
