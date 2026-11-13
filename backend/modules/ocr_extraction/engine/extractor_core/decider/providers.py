@@ -107,7 +107,7 @@ class ClaudeChooser(Provider):
             f"- {q.name}: {q.instructions}\n" + "\n".join(f"    {v}: {d}" for v, d in q.choices.items()) for q in questions)
         t0 = time.time()
         try:
-            d, usage = llm.call_json("classify_fallback", system, text, llm.obj(props), max_tokens=1500)
+            d, usage = llm.call_json("classify_fallback", system, text, llm.obj(props), max_tokens=8000, effort="high")
         except llm.AIUnavailable as e:
             raise ProviderError(str(e)) from e
         out = {q.name: Answer(d[q.name]["choice"], None, {}, d[q.name]["level"], d[q.name].get("tags") or []) for q in questions}

@@ -209,7 +209,7 @@ def llm_spec(t: Table) -> tuple[dict, dict]:
     sample = "\n".join(f"row {t.row_nums[i]}: " + " | ".join(_cell_str(v) for v in r) for i, r in enumerate(t.rows[:20]))
     content = (f"Sheet: {t.sheet}\nTitle lines: {t.title_lines}\nHeader: " +
                " | ".join(f"[{c}] {h}" for c, h in enumerate(t.header)) + f"\nSample rows:\n{sample}")
-    d, usage = llm.call_json("layout", LAYOUT_SYSTEM, content, _layout_schema(), max_tokens=3000)
+    d, usage = llm.call_json("layout", LAYOUT_SYSTEM, content, _layout_schema(), max_tokens=12000, effort="high")
     cols = {k: v for k, v in d["columns"].items() if isinstance(v, int) and 0 <= v < t.ncols}
     spec = {"shape": d["shape"], "columns": cols, "header_units": {c: unit_from_header(h) for c, h in enumerate(t.header) if unit_from_header(h)},
             "context": {"title": " | ".join(t.title_lines), "sheet": t.sheet, "fy_start": fy_start_year(" ".join(t.title_lines + [t.sheet])),

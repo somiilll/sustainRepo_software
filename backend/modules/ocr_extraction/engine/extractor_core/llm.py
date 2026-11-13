@@ -184,8 +184,9 @@ def call_json(task: str, system: str, content, schema: dict, max_tokens: int = 8
     failures: list[dict] = []
     for provider in chain(task):
         model = _model(provider, task)
+        eff = load().policy.get("openai_effort", effort) if provider == "openai" else effort      # the GPT backups always think at medium
         try:
-            data, usage = call_provider(provider, model, system, content, schema, max_tokens, effort, task)
+            data, usage = call_provider(provider, model, system, content, schema, max_tokens, eff, task)
             return data, {**usage, "failures": failures}
         except AIUnavailable as e:
             failures.append({"provider": provider, "model": model, "task": task, "kind": e.kind, "reason": str(e)[:200]})

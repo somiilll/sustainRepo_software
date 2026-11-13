@@ -155,6 +155,7 @@
                     "capital_item",
                     "rent",
                     "fee_or_tax",
+                    "add_on",
                     "other"
                   ]
                 },
@@ -163,9 +164,6 @@
                 },
                 "printed_line": {
                   "type": "integer"
-                },
-                "add_on": {
-                  "type": "boolean"
                 },
                 "travel": {
                   "type": "object",
@@ -295,7 +293,6 @@
                 "nature",
                 "used_in",
                 "printed_line",
-                "add_on",
                 "travel",
                 "freight",
                 "waste",

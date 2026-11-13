@@ -57,6 +57,7 @@
   "openai_models": {"layout": "gpt-6.1-terra", "extract_fast": "gpt-6.1-terra", "extract_think": "gpt-6.1-sol", "interpret": "gpt-6.1-terra", "classify_fallback": "gpt-6.1-terra"},
   "_ai_chain_note": "Claude first everywhere; OpenAI is only the backup (Haiku -> gpt-6.1-terra, Sonnet -> gpt-6.1-sol)",
   "ai_chain": ["claude", "openai"],
+  "openai_effort": "medium",
   "ai_retry": {"attempts": 3, "backoff_s": 1.5, "no_credit_block_s": 900, "auth_block_s": 3600},
   "jev": {"model": "typesafe/jev-1.13", "api_model": "jev-latest", "url": "https://api.typesafe.ai/v1/systemone", "openrouter_url": "https://openrouter.ai/api/alpha/decisions", "timeout_s": 12, "concurrency": 8},
   "openai_decisions": {"model": "gpt-6-luna", "url": "https://api.openai.com/v1/decisions", "timeout_s": 15},

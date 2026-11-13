@@ -29,7 +29,7 @@ Rules
    fees, rounding, discounts, and every charge billed on top of a main line (fuel or other surcharges, loading/handling,
    documentation, convenience/booking fees, seat selection, meals, breakfast, baggage, laundry, extra-km, waiting, tolls,
    parking, driver allowance). Their money goes in totals (tax or other_charges); it is later shared over the main
-   lines by value, so it is never lost. If you still return such a charge as a line, set add_on = true.
+   lines by value, so it is never lost. If you still return such a charge as a line, set nature = add_on.
    Exception: for a utility bill, return ONE line for the energy/water consumed with its quantity and the TOTAL bill
    amount as amount.
 4. One printed line can hold more than one emission activity, and then it MUST be returned as several line_items, one
@@ -71,8 +71,8 @@ def schema() -> dict:
         "description": S, "description_en": S, "hsn_sac": S,
         "quantity": S, "unit": S, "rate": S, "amount": S,
         "nature": E("fuel", "electricity", "steam_heat", "water", "wastewater", "waste", "refrigerant", "industrial_gas", "freight",
-                    "travel", "goods", "service", "capital_item", "rent", "fee_or_tax", "other"),
-        "used_in": S, "printed_line": {"type": "integer"}, "add_on": B,
+                    "travel", "goods", "service", "capital_item", "rent", "fee_or_tax", "add_on", "other"),
+        "used_in": S, "printed_line": {"type": "integer"},
         "travel": llm.obj({"mode": S, "origin": S, "destination": S, "class": S, "passengers": S, "rooms": S, "nights": S, "vehicle_size": S, "distance_km": S}),
         "freight": llm.obj({"mode": S, "weight_kg": S, "distance_km": S, "origin": S, "destination": S,
                             "direction": E("inbound", "outbound", "between_own_sites", "unknown")}),
@@ -133,7 +133,7 @@ def _content(pages: list[Page]) -> list[dict]:
 
 def read_document(pages: list[Page], think: bool, metrics: dict) -> dict:
     data, usage = llm.call_json("extract_think" if think else "extract_fast", SYSTEM, _content(pages), schema(),
-                                max_tokens=16000, effort="medium" if think else "low")
+                                max_tokens=16000 if think else 32000, effort="medium" if think else "xhigh")
     metrics.setdefault("llm_calls", []).append({"step": "extract", **usage})
     data = tidy(data)
     data["_model"] = usage["model"]
@@ -182,7 +182,7 @@ PAID_PART = ("freight", "travel", "service", "goods", "rent", "capital_item")
 
 
 def _is_add_on(l: dict) -> bool:
-    return bool(l.get("add_on")) or l.get("nature") == "fee_or_tax"
+    return bool(l.get("add_on")) or l.get("nature") in ("fee_or_tax", "add_on")
 
 
 def _main_lines(lines: list[dict]) -> list[int]:

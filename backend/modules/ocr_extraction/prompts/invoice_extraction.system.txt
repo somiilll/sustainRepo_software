@@ -16,7 +16,7 @@ Rules
    fees, rounding, discounts, and every charge billed on top of a main line (fuel or other surcharges, loading/handling,
    documentation, convenience/booking fees, seat selection, meals, breakfast, baggage, laundry, extra-km, waiting, tolls,
    parking, driver allowance). Their money goes in totals (tax or other_charges); it is later shared over the main
-   lines by value, so it is never lost. If you still return such a charge as a line, set add_on = true.
+   lines by value, so it is never lost. If you still return such a charge as a line, set nature = add_on.
    Exception: for a utility bill, return ONE line for the energy/water consumed with its quantity and the TOTAL bill
    amount as amount.
 4. One printed line can hold more than one emission activity, and then it MUST be returned as several line_items, one
