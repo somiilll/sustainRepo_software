@@ -1093,3 +1093,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 ## Credits update (Nov 2026)
 - Starting OCR credits hard-coded to 1,000 (was 5,000) — applies only to organizations that have not opened OCR yet; existing grants unchanged.
 - **P1 — Super admin credit management:** super admin sets the credits for each organization, can add extra credits any time (UI for the existing `POST /api/ocr-invoice/usage/grant`), and can set markups (per organization, on top of `mappings/pricing.json` markup). Replaces the hard-coded trial amount (supersedes the earlier P0 note).
+
+## Cleanup (Nov 2026)
+- Removed from server.py startup: seed_scopes_and_categories, seed_calc_engine, airports CSV seed, and the extra index/sync steps (sustainability, supplier assessment x3 + questionnaire bank sync, bulk upload indexes, BRSR turnover and accounts-payable-days config). Target staging/prod DBs must already contain scopes, emission_categories, ce_* collections and airports; `airports.csv` file and seed function still exist but are no longer called.
+- Removed backend/scripts/* except export_catalog_bundle.py; removed OCR leftovers and helper files from backend/tests (golden/ GHG regression suite kept).
+- Still at startup: ensure_indexes (shared), check_expired_subscriptions, OCR queue, catalog bundle apply, task-status migration (one-time), hourly in-process MIS scheduler. Candidates to move to platform cron: check_expired_subscriptions, MIS scheduler.

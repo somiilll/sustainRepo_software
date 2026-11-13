@@ -3438,11 +3438,11 @@ async def get_audit_filter_options(
     }
 
 # ----- Dynamic Scopes & Categories (SuperAdmin-managed) -----
-from scopes_module import build_scopes_router, seed_scopes_and_categories
+from scopes_module import build_scopes_router
 api_router.include_router(build_scopes_router(db, get_current_user, get_super_admin_user))
 
 # ----- Calc Engine (Phase 1: foundations) -----
-from calc_engine import build_calc_engine_router, seed_calc_engine
+from calc_engine import build_calc_engine_router
 api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
 
 # ----- Scope 3 Bulk Upload Module (Enterprise) -----
@@ -4028,29 +4028,6 @@ async def startup_event():
         await migrate_to_synced_task_status(db)
     except Exception:
         logging.getLogger(__name__).exception("Task status migration failed")
-    await seed_scopes_and_categories(db)
-    await seed_calc_engine(db)
-    from modules.sustainability_config.service import ensure_indexes as ensure_sustainability_indexes
-    await ensure_sustainability_indexes()
-    from modules.supplier_assessment.programs import ensure_indexes as ensure_supplier_assessment_indexes
-    await ensure_supplier_assessment_indexes()
-    from modules.supplier_assessment.documents_service import ensure_indexes as ensure_supplier_document_indexes
-    await ensure_supplier_document_indexes()
-    from modules.supplier_assessment.training_service import ensure_indexes as ensure_supplier_training_indexes
-    await ensure_supplier_training_indexes()
-    from modules.supplier_assessment.questionnaire_service import sync_questionnaire_banks_for_all_organizations
-    await sync_questionnaire_banks_for_all_organizations()
-    from bulk_upload_scope3.router import ensure_bulk_upload_indexes
-    await ensure_bulk_upload_indexes(db)
-    from modules.brsr_report.turnover_maintenance import ensure_turnover_configuration
-    await ensure_turnover_configuration()
-    from modules.brsr_report.accounts_payable_maintenance import ensure_accounts_payable_days_configuration
-    await ensure_accounts_payable_days_configuration()
-    # Seed airport reference data from CSV
-    from modules.airports.service import seed_airports_from_csv
-    import os
-    csv_path = os.path.join(os.path.dirname(__file__), "modules", "airports", "airports.csv")
-    await seed_airports_from_csv(csv_path)
     global mis_reports_scheduler_task
     mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 
