@@ -311,6 +311,11 @@ class FactorIndex:
             return None, []
         tied = [t[1]["name"] for t in scored if t[0] == scored[0][0]]
         pick = next((t[1] for t in scored if t[1]["id"] == remembered_id), None) if remembered_id and len(tied) > 1 else None
+        if not pick and len(tied) > 1:
+            from ..config import load
+            preferred = {n.lower() for n in load().policy["companions"]["fuel_wtt"].get("preferred_factors", [])}
+            near = [t[1] for t in scored if t[0] == scored[0][0] and t[1]["name"].lower() in preferred]
+            pick = near[0] if len(near) == 1 else None
         if pick:
             return pick, []
         return (scored[0][1], []) if len(tied) == 1 else (None, tied)
