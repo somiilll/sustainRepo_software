@@ -64,5 +64,5 @@
   "openai_decisions": {"model": "gpt-6-luna", "url": "https://api.openai.com/v1/decisions", "timeout_s": 15},
   "concurrency_caps": {"claude": 8, "classifier": 16},
   "timing": {"heavy_slots": 3, "light_slots": 2, "jobs_per_org": 2, "sec_per_page_fast": 10, "sec_per_page_think": 25, "sec_per_sheet": 4},
-  "limits": {"max_files": 30, "max_file_mb": 25, "max_pages": 30, "max_excel_rows": 50000, "layout_sample_rows": 20}
+  "limits": {"max_files": 30, "max_file_mb": 25, "max_pages": 10, "max_excel_rows": 50000, "layout_sample_rows": 20}
 }

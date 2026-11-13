@@ -1156,5 +1156,5 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - `lines_vs_total` (replaces lines_vs_subtotal): main lines counted once per printed_line + add-ons/other charges + tax vs subtotal/grand total (policy.reconcile tolerance 2%, critical gap 20%); overcount = critical, small gap = warn only.
 - qty x rate skipped on merged trip parts; reader leaves rate empty on combined lines.
 - Second read only for the failed invoice's pages (from evidence pages; whole doc if unknown), replaces those invoices only if fewer critical checks.
-- Limits: max_pages 30, extract max_tokens 64000, AI client timeout 300s.
+- Limits: max_pages 10, extract max_tokens 64000, AI client timeout 300s.
 - Open: Claude 'compiled grammar too large' intermittent with add_on boolean field (fix = fold into nature enum) - not applied.
