@@ -26,7 +26,7 @@ from shared.database.mongo import db as mongo_db
 from . import factor_inputs, factor_source, store  # noqa: F401  (also puts the engine package on sys.path via __init__)
 from extractor_core import audit, facilities as fac_mod, llm, normalise, plausibility, usage  # noqa: E402
 from extractor_core.config import load  # noqa: E402
-from extractor_core.decider.factors import slim  # noqa: E402
+from extractor_core.decider.factors import FactorIndex, slim  # noqa: E402
 from extractor_core.export import approval_blockers  # noqa: E402
 from extractor_core.group import memory_keys  # noqa: E402
 from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
@@ -897,6 +897,8 @@ class FactorChoice(BaseModel):
     collection: str
     id: str
     remember: bool = True
+    quantity: float | None = None
+    unit: str | None = None
 
 
 @router.post("/jobs/{job_id}/rows/{row_id}/factor")
@@ -914,9 +916,28 @@ async def choose_factor(job_id: str, row_id: str, c: FactorChoice, user: dict = 
     for r in group:
         r["review"] = {**(r.get("review") or {}), "factor": {"collection": c.collection, "id": c.id}}
         r["review"].pop("save_error", None)
+    if c.quantity is not None and c.unit:
+        fdoc = await mongo_db[c.collection].find_one({"id": c.id}, {"_id": 0})
+        opt = saver._option(fdoc, c.collection)
+        allowed = [u.lower() for u in opt["allowed_units"]]
+        if allowed and c.unit.lower() not in allowed:
+            raise HTTPException(400, f"Unit '{c.unit}' is not allowed for '{opt['label']}'. Allowed: {', '.join(opt['allowed_units'])}")
+        item = next(i for i in job["items"] if i["item_id"] == row["item_id"])
+        key = {"scope_1": "qty", "biogenic": "qty", "scope_2": "qty_energy", "scope_3": "activity_value"}.get(row["ghg"].get("scope"), "activity_value")
+        row["calc"] = {**row["calc"], "formula_id": row["calc"].get("formula_id") or "reviewer_selection", "fields": {key: c.quantity, f"{key}_unit": c.unit},
+                       "missing": [], "status": "ok"}
+        row["quantity"], row["unit"] = c.quantity, c.unit
+        if row.get("companion") == "c3_wtt":
+            row["ghg"] = {**row["ghg"], "subcategory": opt["label"], "subcategory_label": opt["label"], "subcategory_id": opt["id"]}
+        row["checks"] = row_checks(row, item)
+        finish(row, item)
     if c.remember:
         await mongo_db.ocr_ext_factor_choices.update_one({"organization_id": org, "key": saver.factor_key(_raw_rec(row))},
                                                          {"$set": {"collection": c.collection, "factor_id": c.id}}, upsert=True)
+        if row.get("companion") == "c3_wtt":
+            wtt_item = next(i for i in job["items"] if i["item_id"] == row["item_id"])
+            await mongo_db.ocr_ext_factor_choices.update_one({"organization_id": org, "key": FactorIndex.wtt_key(wtt_item)},
+                                                             {"$set": {"collection": c.collection, "factor_id": c.id}}, upsert=True)
     await asyncio.to_thread(_save_job, org, job)
     await asyncio.to_thread(AUDIT.record, org, job_id, "edited", _actor(user), row["item_id"], row_id, row.get("extracted_item"),
                             {"emission_factor": [None, c.id]}, "Emission factor chosen")
