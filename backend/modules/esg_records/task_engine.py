@@ -1147,29 +1147,6 @@ async def refresh_overdue_tasks(
     return {"synced": synced}
 
 
-async def migrate_to_synced_task_status(db: AsyncIOMotorDatabase) -> None:
-    """One-time: drop tasks that never had a synced status and regenerate them from the assignments."""
-    marker = "task_status_sync_v1"
-    try:
-        await db["schema_migrations"].insert_one({"_id": marker, "started_at": datetime.now(tz.utc)})
-    except Exception:
-        return
-    stale = {"status_synced_at": {"$exists": False}}
-    stale_ids = [t["id"] async for t in db["esg_reporting_tasks"].find(stale, {"_id": 0, "id": 1})]
-    await db["esg_task_assignees"].delete_many({"task_id": {"$in": stale_ids}})
-    await db["esg_reporting_tasks"].delete_many(stale)
-    regenerated = 0
-    async for assignment in db["esg_assignments"].find(
-        {"lifecycle_status": {"$nin": ["cancelled", "orphaned"]}}, {"_id": 0}
-    ):
-        await generate_tasks_for_assignment(db, assignment)
-        regenerated += 1
-    await db["schema_migrations"].update_one(
-        {"_id": marker},
-        {"$set": {"finished_at": datetime.now(tz.utc), "deleted_tasks": len(stale_ids), "regenerated_assignments": regenerated}},
-    )
-
-
 async def remove_assignee_for_assignment(
     db: AsyncIOMotorDatabase,
     assignment_id: str,

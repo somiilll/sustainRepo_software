@@ -4023,11 +4023,6 @@ async def startup_event():
         await apply_bundle_once()
     except Exception:
         logging.getLogger(__name__).exception("Catalog bundle sync failed")
-    from modules.esg_records.task_engine import migrate_to_synced_task_status
-    try:
-        await migrate_to_synced_task_status(db)
-    except Exception:
-        logging.getLogger(__name__).exception("Task status migration failed")
     global mis_reports_scheduler_task
     mis_reports_scheduler_task = asyncio.create_task(run_mis_reports_scheduler())
 

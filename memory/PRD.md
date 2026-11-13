@@ -1100,5 +1100,6 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Still at startup: ensure_indexes (shared), check_expired_subscriptions, OCR queue, catalog bundle apply, task-status migration (one-time), hourly in-process MIS scheduler. Candidates to move to platform cron: check_expired_subscriptions, MIS scheduler.
 
 ## P2 backlog (Nov 2026)
-- **P2 — Remove `migrate_to_synced_task_status`:** one-time task-status migration (`modules/esg_records/task_engine.py`, called from `startup_event` in `server.py`). Not needed on staging/prod because the workflow module has no old data there; on an empty DB it is a no-op, so it is left in place until removed.
+- `migrate_to_synced_task_status` REMOVED (function and startup call) — workflow has no old data on staging/prod.
+- **P2 — Hourly MIS report scheduler:** `run_mis_reports_scheduler` in `server.py` is an in-process loop started at every backend start (timing resets on restart; two backend copies would double-send). Move to a platform cron webhook (`.emergent/crons.yml`) calling `process_due_schedules`.
 - OCR factor sector sync (`factor_sectors.sync_in_background`): decision = keep; copy `ocr_factor_sectors` from production to staging so staging does not re-group ~3,900 names with Haiku.
