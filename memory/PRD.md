@@ -928,3 +928,178 @@ Provide dependable, organization-aware ESG and GHG management for customer organ
 ## Catalog bundle sync (staging)
 - backend/modules/catalog_sync + backend/data/catalog_bundle/bundle.json.gz (939 KPIs, 827 KPI->BRSR/GRI mappings, 590 BRSR/GRI questions, 64 KPI categories). Applied once per bundle version per database at backend startup (marker in catalog_sync_log); local wins, extras removed (backed up in catalog_sync_backup).
 - Re-export after more local edits: `cd /app/backend && python -m scripts.export_catalog_bundle <new-version>`; the new version applies once on each environment at next deploy.
+
+## Task status sync
+- esg_reporting_tasks.status is now a synced cache of completion_service.get_task_status (+ status_synced_at). Writers: task_engine.sync_task_status / sync_tasks_matching / refresh_overdue_tasks; triggers: task creation, record save/revert/delete, approval decisions, monthly cron (1st, 00:05 UTC) POST /api/cron/sync-task-status (needs WEBHOOK_CRON_SECRET in env; .emergent/crons.yml).
+- One-time startup migration task_status_sync_v1 (schema_migrations) deletes legacy tasks without status_synced_at and regenerates from assignments (no backfill script).
+
+## ESG Records Tracker redesign
+- Row: progress chips (Completed/Pending/Overdue). Expanded panel (TrackerDetailPanel.js) with tabs Periods, Assignment and approvers, Activity, Linked disclosures; real due rules/dates via GET /api/esg-records/tracker/detail/{assignment_id} (tracker_detail_service.py). Approve/Send back buttons are display-only.
+- NOT verified: user chose to skip checking; no screenshot or E2E test run. Backend and frontend start without errors in logs.
+
+## Tracker panel update
+- Removed FY label. Activity tab: avatar timeline sentences, scrollable (max-h 22rem). "Linked disclosures" replaced by "Linked entries" (current submitted records per period; View entry links to the section page).
+- Assignment and approvers: Reminders (7d before, on deadline, every 3d overdue) and Escalation (5d / 10d / don't notify, pick one) saved on all assignments of the subcategory via PUT /api/esg-records/tracker-detail/notifications (admin only; fields reminder_rules, escalation). Saved only, NO notifications are sent yet.
+- "Edit assignment" button inside the tab; row UserPlus icon only shown when the subcategory has no assignment. Calendar icon replaced by chevron in the actions column.
+- User said "dont test": only backend curl-checked; frontend not visually verified.
+- Activity fixes: creation sentence lists only assignees/approver/frequency as at creation; later changes read "X added Y for data entry" / "X changed frequency from a to b"; no-op version bumps hidden. Naive stored timestamps treated as UTC and shown in IST with an "IST" suffix. Tab row no longer scrolls (removed overflow-x-auto). Verified with curl only; UI not tested.
+
+## Update (latest session)
+- C2 approver-edit recalculation fixed (spend-basis exchange rate hydrated; failures block save with 422).
+- C7 approver queue: employee list stored in proposal snapshot; per-employee input changes in version history.
+- Approver edits of optional fields (supplier name/code, asset name, from/to location, notes, processes, evidence) saved and shown in version history.
+- Non-admin BRSR/GRI: no Generate Report; progress counts only assigned questions; Section A II/III hidden if unassigned; Workflow Tracker greyed out.
+- BRSR/GRI save approval now decided by question assignment (same as KPIs), not org workflow.
+- KPI tracker: Linked entries tab removed; GHG add/edit/approve/delete events now in Activity.
+- BRSR/GRI section rows: expandable panel (Questions / Assignment and approvers / Activity) via GET /api/tracking/{domain}/frameworks/{fw}/sections/{id}/detail.
+- BRSR/GRI multi-level approval: request total_levels from assignment chain; next level resolved from chain; section re-assign now updates approver chain of already-assigned questions.
+- NOT TESTED by testing agent (user asked not to test): section panel UI, multi-level BRSR approval flow, GHG activity in tracker UI.
+
+## Approval workflow session (Nov 2026) — NOT covered by testing agent
+- GHG: delete is now a single approval request (no pending_records copy); approver edit/delete/create (L1 -> next level, final approver direct); multi-level advance for emission_record; per-step history written idempotently (proposal_service.sync_emission_request_history).
+- KPI: approver can create data (L1 -> L2, final direct); delete requests carry approval_chain.
+- BRSR/GRI: approver first-answer already works (submits at next level).
+- Tracker activity shows assignment events only; reminders/escalation settings stored per section (sending not built); My Tasks filters; facility-level multi-approver chain.
+- Debt: chain/approver-position logic duplicated across KPI/GHG/BRSR; GHG routes hold business logic; legacy pending_records + approvals/router_v2 unused; no automated regression tests.
+
+## Refactor (Nov 2026)
+- `modules/approval_workflow/approver_chain.py`: shared chain normalization + approver entry level (used by KPI, GHG, BRSR/GRI).
+- GHG approval logic moved from `emissions/router.py` to `emissions/approval_service.py`; record lookup/list in `emissions/record_store.py`.
+- Legacy GHG pending-records flow removed (`modules/approvals`, `core_platform/approvals`, dead GHG approval UI files). Old `pending_records` collection is no longer used.
+
+## P0 backlog (Nov 2026)
+- **P0 — Rate limiter keyed by real client IP:** `shared/security.py` uses `get_remote_address`; behind the proxy everyone shares one IP so one user's retries (login 10/min, other auth 3–10/min) can block the rest. Switch the key function to the first `X-Forwarded-For` address and keep per-email DB lockout (`login_attempts`) as is.
+
+## P1 backlog — Login security hardening (Nov 2026)
+- **P1 — Lock per email + IP:** count failures per (email, IP); cap IP (~20/15 min) and email (~10 across IPs) so an attacker can't lock a victim out.
+- **P1 — Progressive delays instead of a hard 15-min lock:** free attempts 1–3, then 5s/15s/1m/5m up to 15m; reset on success.
+- **P1 — Real client IP + shared counters:** read first `X-Forwarded-For` hop only from the trusted proxy; keep limiter state in DB/Redis, not process memory (the P0 item above covers the IP key; this covers storage).
+- **P1 — Distinct lockout response:** `ACCOUNT_LOCKED` code with retry-after, separate from `RATE_LIMITED`; show "try again in N minutes".
+- **P1 — Admin "Unlock user" action** in user management; password reset also clears the lock.
+- **P1 — Step-up check after 3 failures:** CAPTCHA or emailed one-time code.
+- **P1 — Housekeeping:** TTL index on `login_attempts`; email owner on lockout; keep generic "incorrect email or password" message.
+
+
+## 2026 OCR v2
+See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG records; login lockout fixes; My Tasks filters.
+
+## OCR refinement (Aug 2026)
+- Row-by-row reader (`ocr_extraction/engine/extractor_core/rowscan.py`): code extracts numbers/units/currency/distance, AI interprets only unlabelled numbers, code validates; bare numbers are never rupees. Every non-empty row keeps its Excel row number; header detection no longer treats data lines as headers.
+- Facility matching in `facilities.py`: exact normalised and alias auto-match, approximate only suggests. Upload dialog default applies only to rows without a facility.
+- AI chain in `llm.py`: OpenAI first, Claude second, own keys only. 429 insufficient_quota (no retry, provider skipped 15 min) is told apart from rate limit (backoff retry). Structured logs per call.
+- Row states (`rowstate.py`): extracted, categorised, needs_attention, couldnt_read, failed. Shown as a badge in Review.
+- Tests: `engine/tests/test_rowscan.py`; 133 engine tests pass. Verified live with a fixture through the API; the user's original ocr.xlsx was not available.
+- Backlog: Auth lockout per account+IP (P1), My Tasks filters (P2), CBAM (P1), catalog sync bundle (P1), admin override history wording.
+
+## OCR generalisation (Aug 2026)
+- Adaptive structure detection (`normalise._title_evidence`, `layout.spec_quality`): header rows judged on several signals (stray numbers, year/1..12 sequences, known column titles, data-like share); a mapped layout must yield rows and pass 3 of 4 independent checks, otherwise its rows are read row by row. AI score is one signal only.
+- Summary rows (`layout.is_summary_row`): "Total" rows are skipped only when label-only or equal to the sum above; "Total waste 500 kg" is kept. Labels live in `mappings/parsing.json`.
+- Facilities: exact normalised name, recorded aliases (facility `aliases` or customer-confirmed), approximate = suggestion only. Plant/Site/Unit/Facility are NOT interchangeable; `facility_labels` only helps notice an unknown facility mention so the customer is asked.
+- International parsing: currencies, multipliers, summary and facility labels in `mappings/parsing.json`; per-sheet decimal convention (`units.parse_locale_number`, `detect_decimal_comma`); units remain in `unit_aliases.json`.
+- Common schema (`schema.py`): all sheet readers build items with `new_item` and pass `validate_item` (signals, not AI confidence).
+- No silent row loss: every non-empty row gets a disposition (read, read_row_by_row, structure, summary, zero); non-read rows are stored as `source_rows` and served by `GET /api/ocr-invoice/jobs/{id}/source-rows`.
+- Tests: 142 engine tests pass (`engine/tests/test_rowscan.py` extended). Thresholds (header data share 0.5, yield 0.4, 3-of-4 checks, similarity 0.75) are chosen, not validated on a real corpus.
+
+## OCR semantic validation (Aug 2026, second pass)
+- `values.parse_value`: strict cell values (number, or number with currency/unit/multiplier). Facility codes, periods, IDs and free text with digits are never quantities.
+- `layout.spec_quality`: hard checks (headers that are data - facility names, periods, measurements or values repeating in the body; pivot sanity) plus soft checks (yield, column content consistency, numeric value columns, trust). `reasons` explain rejections.
+- `crosscheck.check_item`: every layout row is re-read by the row reader (code only) and compared field by field (description, quantity/amount, unit, facility); semantic issues (facility/period/code used as description, currency read as quantity, missing description although row has text) send the row back to the row-by-row reader. Table rejected when >= 50% of rows fail.
+- Row reader keeps digits inside descriptions, adds column hints for the AI, and sends numbers read as identifiers to Needs Attention instead of Couldn't read.
+- `metrics.import_report` separates source rows, ignored (structure/summary/zero), extracted, categorised, needs attention, couldn't read, technical failures, re-read rows and a `reconciled` flag. Items carry `source.cells` (e.g. B14).
+- parsing.json gained currency variants (ruppe, rupya, dollor...) and unit_aliases.json a few spelling variants.
+- 160 engine tests pass. Real `ocr.xlsx` (29 rows, copy at /app/tmp/ocr_user_file.xlsx) now yields 29 rows, all categorised or flagged with reasons. Testing agent NOT run (user asked not to test).
+
+## OCR Edit Dialog — cascading selection (implemented, NOT tested; user said "dont test")
+- Edit dialog (`frontend/src/modules/ocr2/EditDialog.jsx`) follows Scope → Reporting period/Facility → Category → Calculation method (Scope 3) → Activity (emission factor) → Fields (form-config fields for Scope 3 structured categories, otherwise Quantity/Unit or Amount/Currency). No live calculation; emissions calculate when approved rows are saved to GHG records.
+- Backend: `modules/ocr_extraction/edit_override.py`; new endpoints `GET /jobs/{id}/rows/{row}/edit-config` and `/factor-options`; `PATCH /jobs/{id}/items/{item}` accepts `override`. The choice is stored in `row.review.override` + `row.review.factor`; `saver.resolve_category` honours it; overridden rows do not confirm classification memory on approval.
+- Pending: confidence 0.85 cap for clean row-by-row reads (rowscan.py), login lockout rework, My Tasks filters, CBAM.
+
+## OCR factor names re-pointed to this system's emission factors (implemented)
+- New `mappings/factor_names.json`: taxonomy subcategory -> real `fuel_database` / `scope3_ef` names, per method (activity / spend). Used by the GHG save factor lookup (`saver.wanted_names`) and shown as the Review subcategory label (`pipeline.make`). Example: Copper -> "Metals" (activity) / "Copper Rolling, Drawing, Extruding, and Alloying" (spend).
+- Also fixed `saver._prefer` crash when a factor's year is a string (travel factors).
+- Not mapped (no matching factor exists): hazardous/ETP/biomedical/battery waste, courier, forwarding, chemicals (activity), industrial gases, C8/C10-C15, WTT. These still show "Choose factor".
+
+## OCR DB-first factor matching (Nov 2026)
+- New `decider/factors.py` + `ocr_extraction/factor_source.py`: row description is matched to real `scope3_ef` / `fuel_database` factor names BEFORE the 155-activity taxonomy; category comes from the factor row. Waste words beat material words (C5), freight -> C4/C9, travel -> C6/C7, else C1/C2.
+- Order: user memory -> DB factor names (strong match) -> auto memory -> Jev shortlist of DB names -> rules/taxonomy. Claude removed from `classifier_chain` (policy.json); chain is memory, rules, jev, openai_decisions.
+- OPENROUTER_API_KEY saved is invalid (401, not an `sk-or-` key) - Jev unverified until re-entered. Not yet tested by testing agent (user: don't test).
+- Not done: confidence 0.85 bump (user declined), waste-transport/WTT companions for DB-matched rows.
+- Update: the saved OPENROUTER_API_KEY is actually a TypeSafe key. Jev provider now calls https://api.typesafe.ai/v1/systemone directly (model jev-latest); keys starting `sk-or-` still go through OpenRouter. `TYPESAFE_API_KEY` is read first if present. Verified live: Jev answers choice questions (200).
+- Waste with material but no disposal route -> C5 factor defaulting to Landfilled at 0.6 confidence with an open question (Landfilled / Recycled / Combusted).
+- Required-input binding (Nov 2026): `ocr_extraction/factor_inputs.py` reads each Scope 3 factor's required inputs from the calc engine's active decision tree -> formula; `decider/factors.py::bind_inputs` maps extracted quantity/weight/distance/passengers/rooms/nights onto them (reusing `fields._value_for`); missing required inputs leave the row incomplete (no formula_id, blocked from approval) and list what is missing. Edit override auto-binds the same way.
+- Descriptive numbers: `rowscan.drop_descriptors` + `mappings/parsing.json -> descriptors` drop a number from quantity interpretation only when followed by a size-class unit (TEU/DWT/GRT/GT) AND the classed noun (ship/vessel/...) sits within 3 words, and it is not '<n> TEU of ...'. `clear_descriptor_notes` also withdraws the 'could not confirm' note when the number lies inside a range in the matched factor's name. AI prompt told such numbers are descriptive.
+- Review UI (Nov 2026): QtyCell shows extra declared inputs (distance, passengers, rooms, nights). Factor-matched rows answer via buttons built from `decision.alternatives[].factor`; click -> PATCH items with `factor_id` (router.edit_item builds a user factor decision from FactorIndex.entry_by_id). General descriptive-number rule in rowscan: a bare number between words inside a text cell is dropped when the row already has an amount/quantity (kept in the description, listed in scan.descriptors), plus the config-driven size-class rule (parsing.json descriptors). Not browser-tested.
+
+## OCR: old activity list removed for purchases/waste/freight/travel (Nov 2026)
+- `activity_taxonomy.json` now holds 85 activities (fuels, electricity, refrigerants, industrial gases, water, wastewater, heat, non-activity). The 70 activities of purchased goods/services, capital goods, waste, freight, business travel, commute, leased and downstream domains were deleted; `_build_taxonomy.py` filters them (REMOVED_DOMAINS). Not used as a backup.
+- Those lines: factor-name match -> else Jev: domain -> sector (`mappings/factor_sectors.json`, built by `_build_factor_sectors.py`, 1490 names / 24 sectors) -> factor from real `scope3_ef` names. Confidence = min(domain, sector, factor). User factor choices are remembered as `factor:<id>`.
+- Jev state now carries org name/industry, Organization Overview (`general_description`), Process Description, and the row's facility (sector, products_manufactured, machinery_used) or a short facility list. Facilities have no subsector / process description fields in the DB.
+- Haiku (claude-haiku-5-5, then OpenAI) interprets unlabelled numbers in batches of 10 rows (`ai_chain_tasks.interpret`), returning level (certain/likely/uncertain/guess) + evidence tags instead of scores; level caps line confidence and adds notes. Anthropic Message Batches API not used (asynchronous).
+- Verified by an end-to-end run of a 7-row sample xlsx through Engine.run with live Jev + Haiku. NOT run through testing agent / browser. engine/tests still reference deleted activity ids and will fail until updated.
+- Ledger tags + confidence fix (Nov 2026): rows carry `read_tags` (Haiku level + evidence tags per AI-read number) shown as chips in ReviewTab; clean explicit reads now score 0.97 (was 0.85) so "The quantity was hard to read" only appears for genuinely uncertain reads. Tested by testing agent (iteration_8, all pass). Test left a vendor-scope memory "PP - Recycled" and job e34998ec84 in org data.
+- Ledger tidy (Nov 2026, user said don't test - NOT tested): removed the "Spend-based (no physical quantity)" warning (validate.py), Approve hidden on approved rows and Reject hidden on rejected rows, per-row Emission factor button removed (Choose factor link on save errors kept), duplicate "Needs attention" chip hidden when row-state label equals status label (ReviewTab.jsx).
+
+## OCR: no fixed scores; exact-name then Haiku identification (Nov 2026)
+- Stage 1 identification: exact factor-name match only (word sets equal; partial tiers removed). Otherwise Stage 2 classification by Jev (domain, then sector for purchases of 150+ names) and Haiku (`ClaudeChooser`, task classify_fallback, claude-haiku-5-5) identifies the factor with level (certain/likely/uncertain/guess) + evidence tags.
+- Rows no longer carry `confidence` numbers; `row.basis` = {classification, quantity, facility, period} each {level, tags}. Ready = classification & quantity certain/likely, facility & period found, no warn/error, no question. Chips shown in ReviewTab; RowDialogs shows Basis. Old jobs still hold the old `confidence` field.
+- Kept domains (fuels, electricity, refrigerants, water...) still use rules + Jev; their level is derived from Jev's own probability (not shown).
+- Verified by engine run on /tmp/ocr_try2.xlsx; not run by testing agent / browser (user: don't test). Internal numeric `confidence` values remain inside facility/period resolvers and old-flow decisions but are not shown or used for the factor path.
+
+## OCR describe-first pipeline (completed)
+- Flow: exact DB factor name -> skip AI; else Haiku (10 rows/call, cached, "unknown" allowed) writes a hidden plain-words description (decider/describe.py, never stored or shown); factors ranked on raw + described text; Jev picks the final factor from the shortlist; code handles qty/facility/period.
+- Confidence: cut-offs now come from policy.json review.ready_threshold (0.84) / ask_below (0.60) instead of hardcoded 0.85/0.9 (cascade.py, validate.py).
+- Direct keys only (ANTHROPIC/OPENAI/OPENROUTER); Emergent key never used for OCR.
+- Known: 17 pre-existing stale unit tests in engine/tests (taxonomy-era) fail with and without this change.
+- Backlog: My Tasks filters (WorkflowMyTask.js), CBAM module, catalog sync bundle, auth rate limiter, admin override attribution.
+
+## OCR v2 session updates (Nov 2026)
+- Haiku makes the final factor choice from a Jev-narrowed shortlist (sector is a hint, not a gate); ties between equal exact matches now ask a variant question; variants found by shared words, not " - " naming.
+- Cell unit outranks column header ('500 kg' under 'Value' is a quantity). Edit dialog: autofill from row, methods per category (no supplier), month picker (no future), unique activities (facility sector), white background.
+- Approve now saves to GHG records immediately (retry button only for failures; saved lines can't be rejected/reset); confirmation popup on approve/reject; Excel sources attached as evidence once per file; no OCR row-id note.
+- Status labels simplified to Ready / Check / Needs input / Couldn't read / Approved / Rejected (row.shown); "Choose" pill for questions.
+- Upload page redesigned; per-job review page removed; Why dialog plain-language basis notes (validate.plain); old jobs rebuilt on read.
+- Tested: iteration_9.json (display fixes pass). Approve-saves-to-GHG flow, bulk save loop and edit-dialog prefill were NOT end-to-end tested.
+- Backlog: end-to-end test of approve->save, credits ledger should store file names (shows "(deleted job)"), My Tasks filters, CBAM, catalog sync bundle, auth rate limiter.
+- Factor sectors now live in DB collection `ocr_factor_sectors` (loaded via factor_sectors.py; new Scope 3 factor names are grouped in the background by Haiku when the factor index refreshes). Sector definitions: mappings/factor_sector_defs.json. Removed: factor_sectors.json, _build_factor_sectors.py, jobqueue.py, SQLite Ledger/AuditLog, export endpoint, contracts/, 17 stale engine tests (128 pass).
+- ocr uploads stored at ocr/{org}/{date}/{job}/{file}; file deleted automatically when every row is saved or rejected; credits ledger keeps names of deleted jobs (ocr_ext_deleted).
+
+## OCR Learned Decisions (Nov 2026)
+- "Means" dropdown in Learned Decisions now searches real Scope 3 EF + Fuel DB factors (`GET /api/ocr-invoice/memory/factors?q=`); `/memory/change` accepts only `factor:<id>`. Old taxonomy-based decisions cleared. `elec.renewable` no longer adds the Scope 3 T&D companion. NOT tested (user instruction).
+- **P0 — Scope 1/2 edge cases still on taxonomy (not in Scope 3 EF / Fuel DB):** Scope 2 purchased electricity (grid/renewable/captive) and heat/steam/cooling, refrigerant/fugitive gases, industrial gases, water/wastewater, "no record" fees. Learned decisions for these show read-only in Learned Decisions. Needs factor-based sourcing and an editable dropdown for them.
+- P1 — Restore plausibility checks (outlier and duplicate-line warnings) removed from `plausibility.py` at user request ("later").
+
+## Account menu (Nov 2026)
+- Sidebar bottom: name row opens pop-up menu (Profile, Account Settings, Users Management [admin/super_admin], Credits Usage [OCR access, non-supplier], Log out). 'Profile' and 'Users' removed from sidebar list.
+- Pages: /profile (personal info only), /account-settings (change password, password reset, platform subscription), /credits-usage (CreditsTab moved out of OCR; OCR credits badge links to it). Smoke-checked once by screenshot only; no full testing (user instruction).
+- Learned Decisions tab hidden from OCR page (MemoryTab code and backend kept); account menu no longer shows email.
+- Account Settings redesigned (two-column: Security + Account recovery | Platform subscription with status badge, days-left bar; Renew/Contact support open Contact Sales dialog). Subscription start is derived as expiry minus 1 year (no start date stored). ModulePageHeader got optional subtitle.
+
+## P1 backlog (Nov 2026)
+- **P1 — Contact Sales email must say which module the user clicked from:** the email to info@sustainrepo.com should include the module/page the user opened Contact Sales from (e.g. RepoPilot, Account Settings > Renew subscription / Contact support, locked module overlay). Needs: `ContactSalesDialog` to accept a `source` prop, `POST /api/contact-sales` to store/send it, and every caller (`RepoPilot.js`, `Layout.js`, `AccountSettings.js`, locked-module overlays) to pass its own label.
+
+## Profile redesign (Nov 2026)
+- /profile: gradient cover banner + overlapping initials avatar, name, role badge, organization, member-since; Personal information card (inline-editable Full name, Recovery email, Recovery mobile; read-only sign-in email) and Role & access card with link to Account Settings. Design: /app/design_guidelines.json.
+- Backend: `PUT /api/auth/profile` now accepts optional full_name, recovery_email, recovery_mobile (only sent fields change; empty clears; email/mobile validated).
+- NOTE: recovery email/mobile are stored only; password reset still goes to the sign-in email. Smoke-checked by screenshot (desktop + mobile, recovery mobile save). Not covered by testing agent.
+
+## Profile fields update (Nov 2026)
+- Profile: removed recovery email; "Recovery mobile" -> "Mobile number"; added "Designation" (shown as chip in banner). User fields are now `mobile_number` and `designation` (old `recovery_email`/`recovery_mobile` removed; no data existed).
+- Admin "Add New User" (UserManagement.js, PUT /api/admin/users) and Super Admin "Add team account" (AdminManagement.js, POST /api/super-admin/accounts) accept optional mobile + designation; shared validation in modules/users/profile_fields.py.
+- Verified: PUT /api/auth/profile save/validate/clear via curl. Create-user dialogs not run end-to-end (no testing agent).
+
+## P0 backlog (Nov 2026) — OCR credits
+- **P0 — Starting OCR credits per organization will change:** today every org gets a hard-coded 5,000 "Trial credits" grant on first OCR visit (`TRIAL_CREDITS = 5000` in `modules/ocr_extraction/router.py`, applied by `_ensure_trial`). Needs a configurable, per-organization starting amount (e.g. set by super admin on the organization / plan) instead of the constant.
+
+## Credits update (Nov 2026)
+- Starting OCR credits hard-coded to 1,000 (was 5,000) — applies only to organizations that have not opened OCR yet; existing grants unchanged.
+- **P1 — Super admin credit management:** super admin sets the credits for each organization, can add extra credits any time (UI for the existing `POST /api/ocr-invoice/usage/grant`), and can set markups (per organization, on top of `mappings/pricing.json` markup). Replaces the hard-coded trial amount (supersedes the earlier P0 note).
+
+## Cleanup (Nov 2026)
+- Removed from server.py startup: seed_scopes_and_categories, seed_calc_engine, airports CSV seed, and the extra index/sync steps (sustainability, supplier assessment x3 + questionnaire bank sync, bulk upload indexes, BRSR turnover and accounts-payable-days config). Target staging/prod DBs must already contain scopes, emission_categories, ce_* collections and airports; `airports.csv` file and seed function still exist but are no longer called.
+- Removed backend/scripts/* except export_catalog_bundle.py; removed OCR leftovers and helper files from backend/tests (golden/ GHG regression suite kept).
+- Still at startup: ensure_indexes (shared), check_expired_subscriptions, OCR queue, catalog bundle apply, task-status migration (one-time), hourly in-process MIS scheduler. Candidates to move to platform cron: check_expired_subscriptions, MIS scheduler.
+
+## P2 backlog (Nov 2026)
+- `migrate_to_synced_task_status` REMOVED (function and startup call) — workflow has no old data on staging/prod.
+- **P2 — Hourly MIS report scheduler:** `run_mis_reports_scheduler` in `server.py` is an in-process loop started at every backend start (timing resets on restart; two backend copies would double-send). Move to a platform cron webhook (`.emergent/crons.yml`) calling `process_due_schedules`.
+- OCR factor sector sync (`factor_sectors.sync_in_background`): decision = keep; copy `ocr_factor_sectors` from production to staging so staging does not re-group ~3,900 names with Haiku.

@@ -22,12 +22,12 @@ export const SECTION_A_TITLES = {
 };
 
 const BADGES = {
-  approved: ['Approved', 'bg-green-100 text-green-800'],
-  rejected: ['Rejected', 'bg-red-100 text-red-800'],
-  pending_approval: ['Awaiting Approval', 'bg-amber-100 text-amber-800'],
+  approved: ['Completed, Approved', 'bg-green-100 text-green-800'],
+  rejected: ['Completed, Rejected', 'bg-red-100 text-red-800'],
+  pending_approval: ['Completed, Awaiting Approval', 'bg-amber-100 text-amber-800'],
   draft: ['Draft', 'bg-amber-100 text-amber-800'],
   in_progress: ['In progress', 'bg-yellow-100 text-yellow-800'],
-  saved: ['Saved', 'bg-blue-100 text-blue-800'],
+  completed: ['Completed', 'bg-green-100 text-green-800'],
 };
 
 export function QuestionStatusBadge({ status, label }) {
@@ -64,7 +64,7 @@ export function SectionEditBar({ id, editingSection, canEdit, saving, onEdit, on
               data-testid={`section-draft-${id}`}>
         <Save className="w-3.5 h-3.5 mr-1" /> Save as Draft
       </Button>
-      <Button size="sm" className="h-8 bg-primary hover:bg-primary/90" disabled={saving} onClick={() => onSave(id, 'saved')}
+      <Button size="sm" className="h-8 bg-primary hover:bg-primary/90" disabled={saving} onClick={() => onSave(id, 'completed')}
               data-testid={`section-save-${id}`}>
         {saving ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1" />}
         {approvalEnabled && !isAdmin ? 'Submit Response' : 'Save Response'}

@@ -202,7 +202,7 @@ function RepeatableTable({ field, rows, onChange, testIdPrefix }) {
   );
 }
 
-export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'metric-field' }) {
+export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'metric-field', readOnly = false }) {
   const [collapsed, setCollapsed] = useState({});
   const [collapsedGroups, setCollapsedGroups] = useState({});
   const manual = useRef(new Set());
@@ -220,7 +220,8 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     return { byKey, children, sumChildren };
   }, [fields]);
 
-  const unitOf = (vals, key) => vals[`${key}_unit`] || byKey[key]?.default_unit || '';
+  const unitOf = (vals, key) => (byKey[key]?.has_unit || byKey[key]?.allowed_units?.length
+    ? vals[`${key}_unit`] || byKey[key]?.default_unit || '' : '');
   const unitFactor = (field, unit) => field?.unit_conversion?.factors?.[String(unit).toLowerCase()]
     ?? FALLBACK_UNIT_FACTORS[String(unit).toLowerCase()];
 
@@ -475,5 +476,6 @@ export function HierarchicalFields({ fields, values, onChange, testIdPrefix = 'm
     );
   });
 
-  return <div className="space-y-0.5" data-testid={`${testIdPrefix}-tree`}>{rows}</div>;
+  const readOnlyClass = '[&_input]:pointer-events-none [&_[role=combobox]]:pointer-events-none [&_[data-testid$=-add-row]]:hidden [&_[data-testid*=-remove-]]:hidden';
+  return <div className={`space-y-0.5 ${readOnly ? readOnlyClass : ''}`} data-testid={`${testIdPrefix}-tree`}>{rows}</div>;
 }

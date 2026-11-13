@@ -87,14 +87,14 @@ export const EditOptionalFields = ({
                         value={typeof process === 'string' ? process : (process.name || '')}
                         onChange={(event) => updateProcess(index, 'name', event.target.value)}
                         placeholder={`Process name ${index + 1}`}
-                        className="bg-white"
+                        className="bg-white disabled:bg-white disabled:text-stone-900 disabled:opacity-100"
                         data-testid={`edit-process-name-input-${index}`}
                       />
                       <textarea
                         value={typeof process === 'string' ? '' : (process.description || '')}
                         onChange={(event) => updateProcess(index, 'description', event.target.value)}
                         placeholder="Optional description"
-                        className="min-h-20 w-full resize-none border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                        className="min-h-20 w-full resize-none rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:bg-white disabled:text-stone-900 disabled:opacity-100"
                         data-testid={`edit-process-description-input-${index}`}
                       />
                     </div>

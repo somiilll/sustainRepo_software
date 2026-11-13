@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const ModulePageHeader = ({ title, icon: Icon, iconClassName, aside, testId }) => (
+export const ModulePageHeader = ({ title, icon: Icon, iconClassName, aside, testId, subtitle }) => (
   <header className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 pb-5" data-testid={`${testId}-header`}>
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-3">
@@ -9,6 +9,7 @@ export const ModulePageHeader = ({ title, icon: Icon, iconClassName, aside, test
         </div>
         <div className="min-w-0">
           <h1 className="text-3xl font-bold text-emerald-950" data-testid={`${testId}-heading`}>{title}</h1>
+          {subtitle && <p className="mt-1 text-sm text-stone-500" data-testid={`${testId}-subtitle`}>{subtitle}</p>}
         </div>
       </div>
     </div>

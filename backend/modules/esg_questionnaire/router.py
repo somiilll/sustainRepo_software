@@ -244,7 +244,7 @@ async def get_gri_disclosures(
     return result
 
 
-GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "saved": "saved", "pending_approval": "saved",
+GRI_PROGRESS_STATUS = {"saved_approved": "approved", "approved": "approved", "completed": "completed", "saved": "completed", "pending_approval": "completed",
                        "in_progress": "in_progress", "draft": "draft", "rejected": "rejected"}
 
 
@@ -260,7 +260,7 @@ async def get_gri_progress(
         raise HTTPException(status_code=400, detail="No organization assigned")
     await refresh_resolved_status({"org_id": org_id})
     is_admin = current_user.get("role", "user") in ["admin", "super_admin"]
-    statuses = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
+    statuses = ("pending", "draft", "in_progress", "completed", "approved", "rejected")
     sections = {}
     for section in ("general", "environment", "social", "governance"):
         result = await esg_questionnaire_service.get_gri_disclosures(
@@ -274,9 +274,9 @@ async def get_gri_progress(
             topic = question.get("material_topic") or "General disclosures"
             group = groups.setdefault(topic, {"id": re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-"), "numeral": None, "label": topic, "total": 0, "answered": 0})
             group["total"] += 1
-            group["answered"] += status in ("saved", "approved")
+            group["answered"] += status in ("completed", "approved")
         total = len(questions)
-        answered = counts["saved"] + counts["approved"]
+        answered = counts["completed"] + counts["approved"]
         sections[section] = {"questions": questions, "counts": counts, "total": total, "answered": answered,
                              "percent": round(answered / total * 100) if total else 0, "groups": list(groups.values())}
     approval_enabled = await esg_questionnaire_service._has_approval_workflow_enabled(org_id)
@@ -291,7 +291,7 @@ async def save_gri_response(
     """
     Save a single GRI/BRSR disclosure response.
     Expects: { question_key, value, reporting_period, status? }
-    status: "draft" (saves as draft, shown as pending) or "saved" (final save)
+    status: "draft" (saves as draft, shown as pending) or "completed" (final save)
     
     Access control:
     - Admins can save any response
@@ -315,10 +315,12 @@ async def save_gri_response(
     question_key = data.get("question_key")
     value = data.get("value")
     reporting_period = data.get("reporting_period")
-    status = data.get("status", "saved")  # Default to saved
+    status = data.get("status", "completed")
+    if status == "saved":
+        status = "completed"
     
-    if status not in ["draft", "saved"]:
-        raise HTTPException(status_code=400, detail="status must be 'draft' or 'saved'")
+    if status not in ["draft", "completed"]:
+        raise HTTPException(status_code=400, detail="status must be 'draft' or 'completed'")
     
     if not question_key or not reporting_period:
         raise HTTPException(status_code=400, detail="question_key and reporting_period are required")
@@ -352,6 +354,10 @@ async def save_gri_response(
                     has_access = True
                     break
         
+        if not has_access and await esg_questionnaire_service._approver_position(
+                org_id, question_key, reporting_period, user_id) is not None:
+            has_access = True
+        
         if not has_access:
             raise HTTPException(
                 status_code=403,
@@ -360,7 +366,7 @@ async def save_gri_response(
     
 
     # Determine the actual status that will be saved
-    # Empty values should be marked as "pending", not "saved" or "draft"
+    # Empty values should be marked as "pending", not "completed" or "draft"
     value_is_empty = value is None or (isinstance(value, str) and value.strip() == "")
     actual_status = "pending" if value_is_empty else status
     
@@ -994,7 +1000,8 @@ async def get_responses(
         org_id=org_id,
         framework=framework,
         reporting_year=reporting_year,
-        section=section
+        section=section,
+        viewer_id=current_user.get("id"),
     )
     visible_responses = responses.get("responses", {}) if responses else {}
     if current_user.get("role", "user") not in ["admin", "super_admin"]:
@@ -1075,6 +1082,16 @@ async def save_responses(
                 key = a.get("question_key") or a.get("entity_id")
                 if key:
                     assigned_question_keys.add(key)
+        
+        approver_assignments = await db.esg_assignments.find(
+            {"organization_id": org_id, "entity_type": {"$in": ["question", "disclosure"]},
+             "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+            {"_id": 0, "entity_id": 1, "question_key": 1},
+        ).to_list(500)
+        for a in approver_assignments:
+            key = a.get("question_key") or a.get("entity_id")
+            if key:
+                assigned_question_keys.add(key)
         
         # Check if user is trying to save questions they're not assigned to
         for question_key in data.responses.keys():

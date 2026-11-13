@@ -46,6 +46,7 @@ import {
 import BRSRYearlySections from './BRSRYearlySections';
 import { SectionEditBar, SectionHeading, SECTION_A_KEYS } from './BRSRSectionEdit';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { NoAssignmentMessage } from './LockedModuleOverlay';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -210,6 +211,8 @@ export default function BRSRDetailsSection({
     if (assignedQuestionKeys.length === 0) return false; // No assignments
     return assignedQuestionKeys.includes(questionKey);
   };
+
+  const canSeeGroup = (id) => isAdmin || SECTION_A_KEYS[id].some(canSeeQuestion);
 
   // Update reporting_period in formData when prop changes
   useEffect(() => {
@@ -480,7 +483,7 @@ export default function BRSRDetailsSection({
           question_key: questionKey, 
           value, 
           reporting_period: reportingPeriod,
-          status: 'saved'
+          status: 'completed'
         },
         { headers: getAuthHeader() }
       );
@@ -512,20 +515,20 @@ export default function BRSRDetailsSection({
     const saveState = status.status;
     
     // Handle "not_required" as completed without approval
-    if (approvalState === 'not_required' || (!approvalState && saveState === 'saved')) {
+    if (approvalState === 'not_required' || (!approvalState && saveState === 'completed')) {
       return (
         <Badge className="text-xs bg-green-100 text-green-800">
-          Saved
+          Completed
         </Badge>
       );
     }
     
     const statusConfig = {
-      pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
-      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
-      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+      pending_approval: { label: 'Completed, Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
+      approved: { label: 'Completed, Approved', className: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Completed, Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
-      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
+      completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
     };
     
     const cfg = statusConfig[approvalState] || statusConfig[saveState];
@@ -740,7 +743,7 @@ export default function BRSRDetailsSection({
 
   const saveSection = async (id, status) => {
     const changed = mapChangedFieldsToResponses();
-    const keys = SECTION_A_KEYS[id].filter((k) => k in changed);
+    const keys = SECTION_A_KEYS[id].filter((k) => k in changed && canEditQuestion(k));
     if (keys.length === 0) {
       toast.info('No changes to save');
       setEditingSection(null);
@@ -786,7 +789,7 @@ export default function BRSRDetailsSection({
     );
   }
 
-  const content = (
+  const fullContent = (
     <div className={isCollapsible ? 'p-6 space-y-8 border-t' : 'space-y-6'}>
       {/* Show message if no questions assigned and not admin */}
       {!isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0 && (
@@ -1278,6 +1281,7 @@ export default function BRSRDetailsSection({
 
           {/* Dynamic Tables Section */}
           <div className="space-y-6">
+            {canSeeGroup('II') && (
             <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="II">{sectionBar('II')}</SectionHeading>
             {/* Business Activities Table */}
@@ -1461,6 +1465,8 @@ export default function BRSRDetailsSection({
             )}
 
             </div>
+            )}
+            {canSeeGroup('III') && (
             <div className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
             <SectionHeading id="III">{sectionBar('III')}</SectionHeading>
             {/* Plants and Offices Table */}
@@ -1612,6 +1618,7 @@ export default function BRSRDetailsSection({
               </div>
               )}
             </div>
+            )}
           </div>
 
           {/* IV-VII. Year-Specific BRSR Sections (Employees, CSR, Holdings, Complaints) */}
@@ -1634,6 +1641,9 @@ export default function BRSRDetailsSection({
           </div>
         </div>
   );
+
+  const noAssignments = !isAdmin && assignedQuestionKeys !== null && assignedQuestionKeys.length === 0;
+  const content = noAssignments ? <NoAssignmentMessage section="section_a" /> : fullContent;
 
   if (!isCollapsible) {
     return (

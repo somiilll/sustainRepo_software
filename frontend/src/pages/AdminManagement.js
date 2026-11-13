@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { FacilityAssignmentPicker } from '../components/FacilityAssignmentPicker';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const EMPTY_FORM = { email: '', full_name: '', organization_id: '', role: 'user', assigned_facilities: [] };
+const EMPTY_FORM = { email: '', full_name: '', mobile_number: '', designation: '', organization_id: '', role: 'user', assigned_facilities: [] };
 
 const roleMeta = {
   admin: { label: 'Admin', icon: UserCog, className: 'bg-amber-100 text-amber-800' },
@@ -61,6 +61,8 @@ export default function AdminManagement() {
     return accounts.filter((account) => [
       account.full_name,
       account.email,
+      account.designation,
+      account.mobile_number,
       account.role,
       getOrganizationName(account.organization_id),
     ].some((value) => value?.toLowerCase().includes(query)));
@@ -177,6 +179,16 @@ export default function AdminManagement() {
                 <Label htmlFor="account-email">Email *</Label>
                 <Input id="account-email" type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} required className="bg-stone-50" data-testid="team-account-email-input" />
               </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="account-mobile">Mobile number</Label>
+                  <Input id="account-mobile" type="tel" value={formData.mobile_number} onChange={(event) => setFormData({ ...formData, mobile_number: event.target.value })} placeholder="+91 98765 43210" className="bg-stone-50" data-testid="team-account-mobile-input" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="account-designation">Designation</Label>
+                  <Input id="account-designation" value={formData.designation} onChange={(event) => setFormData({ ...formData, designation: event.target.value })} placeholder="e.g. Sustainability Head" maxLength={100} className="bg-stone-50" data-testid="team-account-designation-input" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="account-role">Account role *</Label>
                 <select id="account-role" value={formData.role} onChange={(event) => setFormData({ ...formData, role: event.target.value, assigned_facilities: [] })} className="h-10 w-full rounded-md border border-stone-200 bg-stone-50 px-3 text-sm" data-testid="team-account-role-select">
@@ -235,6 +247,8 @@ export default function AdminManagement() {
             </div>
             <h2 className="truncate text-xl font-heading font-bold text-text-primary" data-testid={`team-account-name-${account.id}`}>{account.full_name}</h2>
             <p className="mt-1 truncate text-sm text-text-muted" data-testid={`team-account-email-${account.id}`}>{account.email}</p>
+            {account.designation && <p className="mt-1 truncate text-sm font-medium text-stone-700" data-testid={`team-account-designation-${account.id}`}>{account.designation}</p>}
+            {account.mobile_number && <p className="mt-1 truncate text-sm text-text-muted" data-testid={`team-account-mobile-${account.id}`}>{account.mobile_number}</p>}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.className}`} data-testid={`team-account-role-${account.id}`}>{meta.label}</span>
               {account.requires_password_change && <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800" data-testid={`team-account-password-change-${account.id}`}>Password change pending</span>}

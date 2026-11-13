@@ -1,0 +1,8 @@
+crons:
+  - name: sync-task-status
+    description: "Monthly re-sync of reporting task status so tasks past their due date turn overdue"
+    cron: "5 0 1 * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/sync-task-status"
+    method: POST
+    enabled: true

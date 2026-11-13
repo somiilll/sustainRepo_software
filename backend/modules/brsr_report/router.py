@@ -108,7 +108,23 @@ async def get_brsr_progress(
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
     await refresh_resolved_status({"org_id": org_id})
-    return await brsr_progress(org_id, reporting_period)
+    allowed_keys = None
+    if current_user.get("role") not in ("admin", "super_admin"):
+        from modules.esg_assignments.access_control import access_control_service
+        accessible = await access_control_service.get_accessible_questions(
+            user_id=current_user["id"], organization_id=org_id, reporting_period=reporting_period,
+        )
+        if accessible:
+            allowed_keys = set() if accessible == ["__no_access__"] else set(accessible)
+        approver_keys = {a["entity_id"] async for a in db.esg_assignments.find(
+            {"organization_id": org_id, "entity_type": "question", "reporting_period": reporting_period,
+             "$or": [{"approver_id": current_user["id"]}, {"approval_chain": current_user["id"]}]},
+            {"_id": 0, "entity_id": 1})}
+        if approver_keys and allowed_keys is not None:
+            allowed_keys |= approver_keys
+        elif approver_keys:
+            allowed_keys = approver_keys
+    return await brsr_progress(org_id, reporting_period, allowed_keys)
 
 
 async def get_organization(org_id: str) -> dict:
@@ -129,6 +145,8 @@ async def generate_brsr_report(
     Uses Playwright/Chromium to render HTML to PDF for pixel-perfect
     replication of the SEBI Annexure II format.
     """
+    if current_user.get("role") not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can generate BRSR reports")
     org_id = current_user.get('organization_id')
     if not org_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")

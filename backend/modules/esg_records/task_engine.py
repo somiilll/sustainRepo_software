@@ -57,6 +57,13 @@ def adjust_day_for_month(day: int, year: int, month: int) -> int:
     return min(day, last_day)
 
 
+def due_on(period_end: datetime, day: int, month_offset: int) -> datetime:
+    """Due date: `day` of the month that is `month_offset` months after the period-end month."""
+    idx = period_end.year * 12 + period_end.month - 1 + int(month_offset or 0)
+    year, month = idx // 12, idx % 12 + 1
+    return datetime(year, month, adjust_day_for_month(day, year, month))
+
+
 def parse_date(date_val) -> Optional[datetime]:
     """Parse date from various formats to datetime."""
     if not date_val:
@@ -182,18 +189,7 @@ def generate_task_periods(
         while current <= end_date:
             month_end = current.replace(day=get_last_day_of_month(current.year, current.month))
             
-            # Adjust due day for month length
-            adjusted_due_day = adjust_day_for_month(day_of_month, current.year, current.month)
-            due_date = current.replace(day=adjusted_due_day)
-            
-            # If due date is before period start, push to next month
-            if due_date < current:
-                if current.month == 12:
-                    next_month = current.replace(year=current.year + 1, month=1, day=1)
-                else:
-                    next_month = current.replace(month=current.month + 1, day=1)
-                adjusted_due_day = adjust_day_for_month(day_of_month, next_month.year, next_month.month)
-                due_date = next_month.replace(day=adjusted_due_day)
+            due_date = due_on(month_end, day_of_month, due_config.get("month_offset", 0))
             
             due_at = due_date.replace(hour=due_hour, minute=due_minute, second=0)
             
@@ -241,7 +237,9 @@ def generate_task_periods(
             q_end = datetime(current.year, q_end_month, get_last_day_of_month(current.year, q_end_month))
             
             # Due date: either end of quarter or specific day after quarter
-            if quarter_end:
+            if "month_offset" in due_config:
+                due_date = due_on(q_end, day_of_month, due_config["month_offset"])
+            elif quarter_end:
                 due_date = q_end
             else:
                 # Due on specific day of month after quarter ends
@@ -299,8 +297,10 @@ def generate_task_periods(
             h_end = datetime(current.year, h_end_month, get_last_day_of_month(current.year, h_end_month))
             
             day_of_month = due_config.get("day_of_month", 1)
-            # Due 15 days after half-year ends
-            due_date = h_end + timedelta(days=15)
+            if "month_offset" in due_config:
+                due_date = due_on(h_end, day_of_month, due_config["month_offset"])
+            else:
+                due_date = h_end + timedelta(days=15)
             due_at = due_date.replace(hour=due_hour, minute=due_minute, second=0)
             
             if h_end < assignment_created_at:
@@ -343,7 +343,10 @@ def generate_task_periods(
             
             day_of_month = due_config.get("day_of_month", 15)
             # Due 15 days after year ends (Jan 15 next year)
-            due_date = datetime(current.year + 1, 1, min(day_of_month, 31))
+            if "month_offset" in due_config:
+                due_date = due_on(year_end, day_of_month, due_config["month_offset"])
+            else:
+                due_date = datetime(current.year + 1, 1, min(day_of_month, 31))
             due_at = due_date.replace(hour=due_hour, minute=due_minute, second=0)
             
             if year_end < assignment_created_at:
@@ -483,7 +486,7 @@ async def generate_tasks_for_assignment(
             tasks_existing += 1
         else:
             # Create new task (organizational obligation)
-            # NOTE: Status is NOT stored - it's computed on-the-fly by CompletionService
+            # NOTE: status is computed by CompletionService and synced onto the task (sync_task_status)
             task_id = str(uuid.uuid4())
             
             task_doc = {
@@ -523,6 +526,7 @@ async def generate_tasks_for_assignment(
             }
             
             await db["esg_reporting_tasks"].insert_one(task_doc)
+            await sync_task_status(db, task_doc["id"])
             tasks_created += 1
         
         # V2: Create assignee entries for ALL assignees from esg_assignment_assignees
@@ -689,6 +693,7 @@ async def _generate_question_tasks(
             }
             
             await db["esg_reporting_tasks"].insert_one(task_doc)
+            await sync_task_status(db, task_doc["id"])
             tasks_created += 1
         
         # Create assignee entries
@@ -1109,22 +1114,37 @@ async def get_task_summary(
     return summary
 
 
+async def sync_task_status(db: AsyncIOMotorDatabase, task_id: str) -> Optional[str]:
+    """Compute a task's status from data (CompletionService) and store it on the task."""
+    from modules.esg_assignments.completion_service import completion_service
+
+    task = await db["esg_reporting_tasks"].find_one({"id": task_id}, {"_id": 0})
+    if not task:
+        return None
+    status = (await completion_service.get_task_status(task)).value
+    await db["esg_reporting_tasks"].update_one(
+        {"id": task_id},
+        {"$set": {"status": status, "status_synced_at": datetime.now(tz.utc)}},
+    )
+    return status
+
+
+async def sync_tasks_matching(db: AsyncIOMotorDatabase, query: Dict[str, Any]) -> int:
+    """Re-sync status of every task matching the query."""
+    task_ids = [t["id"] async for t in db["esg_reporting_tasks"].find(query, {"_id": 0, "id": 1})]
+    for task_id in task_ids:
+        await sync_task_status(db, task_id)
+    return len(task_ids)
+
+
 async def refresh_overdue_tasks(
     db: AsyncIOMotorDatabase,
     organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    DEPRECATED: Task status (including overdue) is now computed from data.
-    
-    Overdue status is determined by CompletionService.get_task_status() which
-    checks if due_at < now AND no data exists.
-    
-    This function is kept for backwards compatibility but does nothing.
-    The overdue calculation is done in completion_service.py lines 682-690.
-    """
-    # No-op: Status is computed, not stored
-    return {"marked_overdue": 0, "note": "Status is now computed dynamically"}
-
+    """Re-sync every task's stored status; due dates passing change status without any record event."""
+    query = {"organization_id": organization_id} if organization_id else {}
+    synced = await sync_tasks_matching(db, query)
+    return {"synced": synced}
 
 
 async def remove_assignee_for_assignment(

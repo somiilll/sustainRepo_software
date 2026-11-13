@@ -12,6 +12,8 @@ from typing import Optional, List, Dict, Any, Tuple
 
 from shared.database.mongo import db
 
+from .approver_chain import normalize_chain
+from .log_visibility import refresh_for_request
 from .models import (
     ApprovalWorkflow,
     ApprovalRequest,
@@ -213,6 +215,8 @@ async def _create_emission_history_entry(
         ("approved", "update"): "Update Approved",
         ("rejected", "create"): "Submission Rejected",
         ("rejected", "update"): "Update Rejected",
+        ("approved", "delete"): "Deletion Approved",
+        ("rejected", "delete"): "Deletion Rejected",
     }
     action_display = action_map.get((action, request_type), f"{action.title()}")
     
@@ -869,8 +873,11 @@ class ApprovalWorkflowService:
         else:
             return (False, f"Unknown action: {action}", None)
         
-        # Send bell notification to submitter on approve/reject
         success = result[0]
+        if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
+            await refresh_for_request(request_id)
+
+        # Send bell notification to submitter on approve/reject
         if success and action in (ApprovalAction.APPROVE.value, ApprovalAction.REJECT.value):
             try:
                 from shared.notifications import create_notification
@@ -952,7 +959,17 @@ class ApprovalWorkflowService:
             
             # Resolve next approvers
             next_approvers = []
-            if next_level_config:
+            if request.get("entity_type") == "esg_response":
+                from modules.esg_questionnaire.service import esg_questionnaire_service
+                assignment = await esg_questionnaire_service._find_question_assignment(
+                    request.get("organization_id"), request.get("entity_id"),
+                    (request.get("entity_snapshot") or {}).get("reporting_year"))
+                chain = normalize_chain(assignment)
+                next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
+            elif request.get("request_type") == "delete" and request.get("approval_chain"):
+                chain = [c for c in request["approval_chain"] if c]
+                next_approvers = [chain[next_level - 1]] if next_level <= len(chain) else []
+            elif next_level_config:
                 next_approvers = await ApprovalWorkflowService._resolve_approvers(
                     request.get("organization_id"),
                     next_level_config,
@@ -968,15 +985,41 @@ class ApprovalWorkflowService:
             }
             message = f"Approved at level {current_level}, moved to level {next_level}"
         
+        push_data = {"steps_completed": step.dict()}
+        if (new_status == ApprovalStatus.PENDING.value and request.get("entity_type") == "esg_response"
+                and updated_data and "value" in updated_data):
+            snapshot = request.get("entity_snapshot") or {}
+            old_value, new_value = snapshot.get("value"), updated_data["value"]
+            if new_value != old_value:
+                now_iso = _now_iso()
+                org_id, year = request.get("organization_id"), snapshot.get("reporting_year")
+                update_data["entity_snapshot.value"] = new_value
+                push_data["approver_edits"] = {
+                    "level": current_level, "by_id": approver.get("id"),
+                    "by_name": approver.get("full_name") or approver.get("email", ""),
+                    "old_value": old_value, "new_value": new_value, "at": now_iso,
+                }
+                if request.get("_submission_id"):
+                    await db.esg_response_submissions.update_one(
+                        {"id": request["_submission_id"]}, {"$set": {"value": new_value, "updated_at": now_iso}})
+                await db.organization_esg_responses.update_one(
+                    {"$or": [{"org_id": org_id}, {"organization_id": org_id}], "question_key": request.get("entity_id"),
+                     "reporting_year": year, "approval_status": "pending_approval"},
+                    {"$set": {"value": new_value, "updated_at": now_iso}})
+        
         # Update request
         await db[REQUESTS_COLLECTION].update_one(
             {"id": request_id},
             {
                 "$set": update_data,
-                "$push": {"steps_completed": step.dict()},
+                "$push": push_data,
             }
         )
         
+        if request.get("entity_type") == "emission_record" and request.get("request_type") == "delete":
+            from .proposal_service import sync_emission_request_history
+            await sync_emission_request_history(request_id)
+
         # If approved and this is an ESG record, update both the record AND the task
         if new_status == ApprovalStatus.APPROVED.value:
             entity_type = request.get("entity_type")
@@ -1039,6 +1082,8 @@ class ApprovalWorkflowService:
                                     task_query,
                                     {"$set": {"updated_at": _now_iso()}}
                                 )
+                                from modules.esg_records.task_engine import sync_tasks_matching
+                                await sync_tasks_matching(db, task_query)
                                 logger.info(f"Updated task timestamp after record deletion")
                 except Exception as e:
                     logger.error(f"Failed to process delete approval: {e}")
@@ -1179,6 +1224,8 @@ class ApprovalWorkflowService:
                                 task_query,
                                 {"$set": task_update}
                             )
+                            from modules.esg_records.task_engine import sync_tasks_matching
+                            await sync_tasks_matching(db, task_query)
                             logger.info(f"Updated {task_update_result.modified_count} task(s) audit fields, completed_by={approver.get('id')}")
                             
                 except Exception as e:
@@ -1186,6 +1233,24 @@ class ApprovalWorkflowService:
                     import traceback
                     traceback.print_exc()
             
+            elif entity_type == "emission_record" and request_type == "delete":
+                try:
+                    from shared.helpers.uploaded_files import delete_unreferenced_emission_files, extract_uploaded_file_ids
+                    existing = await db.emission_records.find_one({"id": entity_id}, {"_id": 0})
+                    if existing:
+                        await delete_unreferenced_emission_files(db, extract_uploaded_file_ids(existing), entity_id)
+                        await _create_approval_version_snapshot(
+                            collection_name="emission_records", record_id=entity_id, action="approved",
+                            user_id=approver.get("id"), request_type="delete")
+                        await db.emission_records.delete_one({"id": entity_id})
+                        from modules.esg_records.ghg_energy_sync import get_ghg_energy_sync_service
+                        from modules.base_year.sync_service import sync_deleted_emission_base_years
+                        if (existing.get("scope") or "").lower() in {"scope1", "scope2"}:
+                            await get_ghg_energy_sync_service(db).sync_organization(existing.get("organization_id"))
+                        await sync_deleted_emission_base_years(existing, approver)
+                except Exception as e:
+                    logger.error(f"Failed to apply GHG delete approval: {e}")
+
             # Handle emission_record approval
             elif entity_type == "emission_record":
                 try:
@@ -1342,7 +1407,7 @@ class ApprovalWorkflowService:
                         {
                             "$set": {
                                 "value": final_value,
-                                "status": "saved",
+                                "status": "completed",
                                 "approval_status": "approved",
                                 "framework": framework,
                                 "section": section,
@@ -1573,6 +1638,13 @@ class ApprovalWorkflowService:
                             "deletion_requested_at": "",
                         }}
                     )
+                    from modules.esg_records.version_utils import deletion_version_event
+                    record = await db[collection_name].find_one({"id": entity_id, "is_current": True}, {"_id": 0})
+                    if record:
+                        await db[collection_name.replace("_records", "_record_versions")].insert_one(deletion_version_event(
+                            record, section=collection_name.replace("_records", ""), change_type="deletion_rejected",
+                            actor_id=rejector_id, timestamp=now, reason=comment,
+                            requested_by=request.get("submitted_by"), requested_at=request.get("submitted_at")))
                     logger.info(f"Delete rejected: Cleared pending_deletion on {collection_name} record {entity_id}")
                 return  # Don't continue to normal rejection handling
             
@@ -1647,6 +1719,14 @@ class ApprovalWorkflowService:
                 else:
                     logger.warning(f"Unknown entity_subtype for esg_record: {entity_subtype}")
             
+            elif entity_type == "emission_record" and request_type == "delete":
+                previous = (request.get("entity_snapshot") or {}).get("previous_approval_status") or "approved"
+                await db.emission_records.update_one(
+                    {"id": entity_id}, {"$set": {"approval_status": previous}, "$unset": {"previous_approval_status": ""}})
+                await _create_approval_version_snapshot(
+                    collection_name="emission_records", record_id=entity_id, action="rejected",
+                    user_id=rejector_id, rejection_reason=comment, request_type="delete")
+
             elif entity_type == "emission_record":
                 # GHG emission records
                 request_type = request.get("request_type", "create")
@@ -1709,7 +1789,7 @@ class ApprovalWorkflowService:
                         {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_year},
                         {"$set": {
                             "value": existing_doc["last_approved_value"],
-                            "status": "saved",
+                            "status": "completed",
                             "approval_status": "approved",
                             "updated_at": _now_iso(),
                         },
@@ -1781,6 +1861,8 @@ class ApprovalWorkflowService:
                     {"id": entity_id, "organization_id": org_id},
                     {"$set": task_update}
                 )
+                from modules.esg_records.task_engine import sync_task_status
+                await sync_task_status(db, entity_id)
         except Exception as e:
             print(f"Warning: Failed to update source entity on rejection: {e}")
 
@@ -2144,6 +2226,15 @@ class ApprovalWorkflowService:
             {"_id": 0}
         ).to_list(500)
         
+        if responses and not is_admin:
+            mine = await db.approval_requests.find(
+                {"organization_id": organization_id, "entity_type": "esg_response", "status": {"$in": ["pending", "in_review"]},
+                 "current_approvers": approver_id},
+                {"_id": 0, "entity_id": 1, "entity_snapshot.reporting_year": 1},
+            ).to_list(1000)
+            mine_keys = {(r["entity_id"], (r.get("entity_snapshot") or {}).get("reporting_year")) for r in mine}
+            responses = [r for r in responses if (r.get("question_key"), r.get("reporting_year")) in mine_keys]
+
         if responses:
             # Get question configs for labels
             response_keys = [r.get("question_key") for r in responses if r.get("question_key")]
@@ -2513,7 +2604,7 @@ class ApprovalWorkflowService:
         
         # Prepare update
         update_data = {
-            "status": "saved",
+            "status": "completed",
             "approval_status": "approved",
             "approved_at": now,
             "approved_by": approver.get("id"),
@@ -2645,7 +2736,7 @@ class ApprovalWorkflowService:
         if last_approved_value is not None:
             update_data = {
                 "value": last_approved_value,
-                "status": "saved",
+                "status": "completed",
                 "approval_status": "approved",
                 "updated_at": now,
             }

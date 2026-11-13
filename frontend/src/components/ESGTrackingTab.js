@@ -54,6 +54,7 @@ import {
 import { toast } from 'sonner';
 import {
   Loader2,
+  Pencil,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
@@ -79,6 +80,9 @@ import {
   getCurrentReportingYear 
 } from '../utils/reportingYearUtils';
 import MyTasks from './MyTasks';
+
+import FrameworkSectionPanel from './tracker/FrameworkSectionPanel';
+import { GRIHeader, GRILedger } from './tracker/GRITrackerView';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -290,11 +294,13 @@ export default function ESGTrackingTab({
   
   // State
   const [loading, setLoading] = useState(true);
+  const [remindingSection, setRemindingSection] = useState(null);
   const [internalReportingPeriod, setInternalReportingPeriod] = useState(() => getCurrentReportingYear('financial_year'));
   const [frameworkSummary, setFrameworkSummary] = useState(null);
   const [selectedFramework, setSelectedFramework] = useState(null);
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({});
   const [disclosures, setDisclosures] = useState([]);
   const [sectionSummary, setSectionSummary] = useState(null);
   const [filterByMateriality, setFilterByMateriality] = useState(true); // Default: show only material topics for GRI
@@ -536,6 +542,7 @@ export default function ESGTrackingTab({
       // If assigning a whole section
       else if (assigningItem?.section_id) {
         payload.section_id = assigningItem.section_id;
+        if (assigningItem.isEdit) payload.skip_already_assigned = false;
       }
       // If bulk assigning remaining
       else if (assigningItem?.bulk) {
@@ -615,6 +622,40 @@ export default function ESGTrackingTab({
   };
   
   // Open assign modal for section
+  const sendSectionReminder = async (section) => {
+    setRemindingSection(section.section_id);
+    try {
+      const res = await axios.post(
+        `${API}/tracking/${domain}/frameworks/${selectedFramework.framework_id}/sections/${encodeURIComponent(section.section_id)}/remind`,
+        null, { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } }
+      );
+      const { assignees_notified: a, approvers_notified: p } = res.data;
+      if (!a && !p) toast.info('Nothing pending in this section to remind about');
+      else toast.success(`Reminder sent to ${a} assignee${a !== 1 ? 's' : ''} and ${p} approver${p !== 1 ? 's' : ''}`);
+    } catch (e) {
+      toast.error('Could not send the reminder');
+    } finally {
+      setRemindingSection(null);
+    }
+  };
+
+  // Open assign modal for section
+  const openEditSectionAssignment = async (section) => {
+    try {
+      const res = await axios.get(
+        `${API}/tracking/${domain}/frameworks/${selectedFramework.framework_id}/sections/${encodeURIComponent(section.section_id)}/detail`,
+        { headers: getAuthHeader(), params: { reporting_period: reportingPeriod } }
+      );
+      const form = res.data.assignment.form;
+      setAssigningItem({ ...section, isSection: true, isEdit: true });
+      setAssignForm({ ...form, approver_id: form.approval_chain[0] || '' });
+      setAssignModalOpen(true);
+    } catch (e) {
+      toast.error('Could not load the current assignment');
+    }
+  };
+
+  // Open assign modal for section
   const openAssignSectionModal = (section) => {
     setAssigningItem({ ...section, isSection: true });
     prefillAssignForm(section);
@@ -660,6 +701,9 @@ export default function ESGTrackingTab({
     setAssignModalOpen(true);
   };
   
+  const isGriView = ['GRI', 'BRSR'].includes(frameworkFilter?.toUpperCase());
+  const isGriFramework = frameworkFilter?.toUpperCase() === 'GRI';
+
   if (!isAdmin) {
     return (
       <Card className="p-8 text-center">
@@ -714,7 +758,7 @@ export default function ESGTrackingTab({
       </div>
       
       {/* Framework Summary Cards */}
-      {frameworkSummary && (
+      {frameworkSummary && !isGriView && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {frameworkSummary.frameworks.map(fw => (
             <Card 
@@ -775,14 +819,42 @@ export default function ESGTrackingTab({
         </div>
       )}
       
+      {isGriView && selectedFramework && !selectedSection && (
+        <div className="space-y-8" data-testid="gri-tracker-view">
+          <GRIHeader
+            framework={selectedFramework}
+            sectionCount={sections.length}
+            filterByMateriality={filterByMateriality}
+            onToggleMateriality={() => setFilterByMateriality((v) => !v)}
+            title={isGriFramework ? 'GRI Standards' : 'BRSR'}
+            showMateriality={isGriFramework}
+          />
+          {sections.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-text-muted" data-testid="gri-empty">No {isGriFramework ? 'GRI' : 'BRSR'} sections to show for this period.</Card>
+          ) : (
+            <GRILedger
+              sections={sections}
+              onAssign={openAssignSectionModal}
+              onRemind={sendSectionReminder}
+              remindingSection={remindingSection}
+              onOpenSection={setSelectedSection}
+              renderPanel={(section) => (
+                <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
+                                       onEditAssignment={() => openEditSectionAssignment(section)}
+                                       onAssignQuestion={(q) => openAssignDisclosureModal(q.disclosure)}
+                                       reportingPeriod={reportingPeriod} version={sections} />
+              )}
+            />
+          )}
+
+        </div>
+      )}
+
       {/* Sections View - One section per row */}
-      {selectedFramework && sections.length > 0 && !selectedSection && (
+      {selectedFramework && sections.length > 0 && !selectedSection && !isGriView && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSelectedFramework(null)}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
               {selectedFramework.framework_name} Sections
             </h3>
             <div className="flex items-center gap-3">
@@ -847,6 +919,30 @@ export default function ESGTrackingTab({
                   
                   {/* Action buttons */}
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedSections((cur) => ({ ...cur, [section.section_id]: !cur[section.section_id] }))}
+                      aria-expanded={Boolean(expandedSections[section.section_id])}
+                      data-testid={`section-expand-${section.section_id}`}
+                    >
+                      {expandedSections[section.section_id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <span className="sr-only">Details</span>
+                    </Button>
+                    {section.total_disclosures - section.unassigned_count > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); sendSectionReminder(section); }}
+                        disabled={remindingSection === section.section_id}
+                        title="Send reminder"
+                        aria-label="Send reminder"
+                        data-testid={`section-remind-${section.section_id}`}
+                      >
+                        <Bell className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {(section.total_disclosures === 0 || section.unassigned_count > 0) && (
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -854,9 +950,11 @@ export default function ESGTrackingTab({
                         e.stopPropagation();
                         openAssignSectionModal(section);
                       }}
+                      data-testid={`section-assign-${section.section_id}`}
                     >
                       <UserPlus className="w-4 h-4 mr-1" /> Assign Section
                     </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm"
@@ -866,6 +964,11 @@ export default function ESGTrackingTab({
                     </Button>
                   </div>
                 </div>
+                {expandedSections[section.section_id] && (
+                  <FrameworkSectionPanel domain={domain} frameworkId={selectedFramework.framework_id} sectionId={section.section_id}
+                                         onEditAssignment={() => openEditSectionAssignment(section)}
+                                         reportingPeriod={reportingPeriod} version={sections} />
+                )}
               </Card>
             ))}
           </div>
@@ -1108,7 +1211,7 @@ export default function ESGTrackingTab({
               {assigningItem?.bulk 
                 ? 'Assign Remaining Questions' 
                 : assigningItem?.isSection
-                  ? `Assign Section: ${assigningItem.section_name}`
+                  ? `${assigningItem.isEdit ? 'Edit Assignment' : 'Assign Section'}: ${assigningItem.section_name}`
                   : assigningItem?.is_assigned 
                     ? 'Reassign Question' 
                     : 'Assign Question'
@@ -1339,7 +1442,9 @@ export default function ESGTrackingTab({
               }
             >
               {assigning ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Assigning...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {assigningItem?.isEdit ? 'Saving...' : 'Assigning...'}</>
+              ) : assigningItem?.isEdit ? (
+                <><Pencil className="w-4 h-4 mr-2" /> Save changes</>
               ) : (
                 <><UserPlus className="w-4 h-4 mr-2" /> Assign to {assignForm.assigned_user_ids.length} User{assignForm.assigned_user_ids.length !== 1 ? 's' : ''}</>
               )}

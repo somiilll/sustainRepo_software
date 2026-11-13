@@ -11,11 +11,11 @@ const STATUS_META = [
   { key: 'pending', label: 'Pending', color: '#c4c8cc' },
   { key: 'draft', label: 'Draft', color: '#c98a1a' },
   { key: 'in_progress', label: 'In progress', color: '#d9b44a' },
-  { key: 'saved', label: 'Saved', color: '#3b6aa0' },
-  { key: 'approved', label: 'Approved', color: '#1f7a4d' },
-  { key: 'rejected', label: 'Rejected', color: '#b03a3a' },
+  { key: 'completed', label: 'Completed', color: '#3b6aa0' },
+  { key: 'approved', label: 'Completed, Approved', color: '#1f7a4d' },
+  { key: 'rejected', label: 'Completed, Rejected', color: '#b03a3a' },
 ];
-const SEGMENT_ORDER = ['approved', 'saved', 'in_progress', 'draft', 'rejected', 'pending'];
+const SEGMENT_ORDER = ['approved', 'completed', 'in_progress', 'draft', 'rejected', 'pending'];
 const colorOf = (key) => STATUS_META.find((s) => s.key === key).color;
 
 export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SECTION_META, prefix = 'brsr' }) {
@@ -24,6 +24,7 @@ export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SEC
       {sections.map(({ key, label, subtitle, icon: Icon, testId }) => {
         const active = activeTab === key;
         const percent = progress?.sections?.[key]?.percent ?? 0;
+        const hasQuestions = (progress?.sections?.[key]?.total ?? 1) > 0;
         return (
           <button key={key} type="button" onClick={() => onSelect(key)} data-testid={testId}
                   className={`text-left rounded-xl border bg-white px-5 py-4 transition-colors duration-200 ${
@@ -36,8 +37,8 @@ export function BRSRSectionCards({ progress, activeTab, onSelect, sections = SEC
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-stone-900">{label}</span>
-                  <span className={`text-sm font-semibold tabular-nums ${active ? 'text-[#1f7a4d]' : 'text-stone-500'}`}
-                        data-testid={`${testId}-percent`}>{percent}%</span>
+                  {hasQuestions && <span className={`text-sm font-semibold tabular-nums ${active ? 'text-[#1f7a4d]' : 'text-stone-500'}`}
+                        data-testid={`${testId}-percent`}>{percent}%</span>}
                 </div>
                 <p className="text-sm text-stone-500 truncate">{subtitle}</p>
               </div>
@@ -70,7 +71,7 @@ function ProgressRing({ percent }) {
 export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter, sections = SECTION_META, prefix = 'brsr', trailing = null }) {
   const meta = sections.find((s) => s.key === activeTab);
   const section = progress?.sections?.[activeTab];
-  if (!section) return null;
+  if (!section || !section.total) return null;
   const { counts, total } = section;
   const approvalEnabled = progress.approval_enabled;
   const visibleStatuses = STATUS_META.filter((s) => approvalEnabled || !['approved', 'rejected'].includes(s.key));
@@ -115,7 +116,7 @@ export function BRSRProgressPanel({ progress, activeTab, statusFilter, onFilter,
 
 export function BRSRPageNav({ progress, activeTab, prefix = 'brsr' }) {
   const groups = progress?.sections?.[activeTab]?.groups || [];
-  if (groups.length < 2) return null;
+  if (groups.length < 1) return null;
   const goTo = (id) => document.getElementById(`brsr-group-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return (
     <aside className="hidden lg:block" data-testid={`${prefix}-page-nav`}>

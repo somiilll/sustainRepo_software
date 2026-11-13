@@ -1,6 +1,20 @@
 # ESG Platform Roadmap
 
 ## P0 — Immediate
+### Deadline Reminders (multiple days before, e.g. 10 and 7) — P0
+- Daily cron endpoint (`POST /api/cron/send-reminders`, registered in `.emergent/crons.yml`) scans open tasks; if `due_at − today` matches a saved offset, emails the right recipients and creates an in-app notification. Convert `reminder_rules` to a list of day offsets (multi-select); log each send so it is never repeated.
+- Also: escalation emails (5/10 days overdue) from the same cron.
+
+### Due-Date Changes Must Update Existing Tasks — P0
+- `assignment_service_v2` has an empty `pass` where a changed `due_config` should recompute `due_at`. Recompute for pending/overdue/backfill tasks only (keep completed and awaiting-approval), write an Activity entry, then re-sync task status.
+
+### Reminders Go to the Approver When Awaiting Approval — P0
+- Recipient by task state: no data → assignees; awaiting approval → current approver; rejected → assignee; completed → nobody. Apply the same rule to the Tracker bell ("Send Reminder"), which currently only emails `assigned_to_user_id`; make it email all active assignees and log it in Activity.
+
+### Due Schedule "Due In N Months After Period End" — DONE (not browser-tested)
+- `due_config.month_offset` (0–3) added for monthly/quarterly/half-yearly/yearly; e.g. day 10 + 1 month → March period due 10 April. Applies to newly generated tasks; existing tasks only change once the P0 due-date-change item above is built.
+
+
 
 ### BRSR Turnover Display Verification
 - Verify the Section A turnover matrix for current, previous, and prior financial years using the active reporting-period response. Confirm Employee and Worker rates display in the intended columns and that switching reporting periods never leaves stale values. Testing is paused until explicitly authorized.
@@ -289,7 +303,7 @@
 - Existing saved answers stay as they are; overwritten values get a "manual" source tag and are covered by audit log / version history.
 - Needs: company setting, autofill skip logic, editable questions in BRSR/GRI forms, "manual override" label.
 
-## P0 - Tracker per-period breakdown shows stale overdue
+## DONE - Tracker per-period breakdown shows stale overdue (fixed; period-status now computed, detailed-progress matches quarters, monthly records satisfy quarterly tasks)
 - `GET /api/esg-records/tasks/period-status/{assignment_id}` (esg_records/router.py) reads the stored `esg_reporting_tasks.status` and never checks data, so a quarter with a completed record (e.g. Q2) still shows overdue.
 - Fix: compute each period's status with `completion_service.get_task_status` so it matches the tracker row counts.
 - Also: `sync_task_statuses_with_data` is imported by the router but missing from `task_engine.py` (admin sync endpoint would fail); `refresh_overdue_tasks` is a stub.

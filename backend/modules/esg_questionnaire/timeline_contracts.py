@@ -29,6 +29,8 @@ class QuestionTimelineEvent(BaseModel):
     final_value: Any = None
     rejection_reason: Optional[str] = None
     approver_edited: bool = False
+    level: Optional[int] = None
+    total_levels: Optional[int] = None
     source: str
     evidence_state: TimelineEvidenceState = TimelineEvidenceState.FOUND
 

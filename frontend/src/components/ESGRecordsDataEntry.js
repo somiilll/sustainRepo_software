@@ -14,40 +14,8 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from './ui/card';
 import WorkforceDataTable from './WorkforceDataTable';
-import {
-  EMPLOYEE_DIVERSITY_CONFIG,
-  WORKER_DIVERSITY_CONFIG,
-  BOD_DIVERSITY_CONFIG,
-  KMP_DIVERSITY_CONFIG,
-  EMPLOYEE_TURNOVER_CONFIG,
-  WORKER_TURNOVER_CONFIG,
-  EMPLOYEE_PARENTAL_LEAVE_CONFIG,
-  WORKER_PARENTAL_LEAVE_CONFIG,
-  GENERAL_TRAINING_CONFIG,
-  CONSUMER_COMPLAINTS_CONFIG,
-  INTERNAL_COMPLAINTS_CONFIG,
-} from '../config/workforceTableConfigs';
-
-import { WORKFORCE_GRID_CONFIGS } from '../config/workforceSpec.generated';
-
-const LEGACY_WORKFORCE_TABLE_MAP = {
-  'Employee Diversity': EMPLOYEE_DIVERSITY_CONFIG,
-  'Workers Diversity': WORKER_DIVERSITY_CONFIG,
-  'Board of Directors Diversity': BOD_DIVERSITY_CONFIG,
-  'Key Management Personnel Diversity': KMP_DIVERSITY_CONFIG,
-  'Employee Turnover': EMPLOYEE_TURNOVER_CONFIG,
-  'Workers Turnover': WORKER_TURNOVER_CONFIG,
-  'Employees Parental Leave': EMPLOYEE_PARENTAL_LEAVE_CONFIG,
-  'Workers Parental Leave': WORKER_PARENTAL_LEAVE_CONFIG,
-  'General Training': GENERAL_TRAINING_CONFIG,
-  'Consumer Complaints': CONSUMER_COMPLAINTS_CONFIG,
-  'Internal Complaints': INTERNAL_COMPLAINTS_CONFIG,
-};
-const WORKFORCE_TABLE_MAP = { ...LEGACY_WORKFORCE_TABLE_MAP, ...WORKFORCE_GRID_CONFIGS };
-const workforceSupplementaryFields = (fields = []) => {
-  const hasGridFields = fields.some((field) => field.grid_row);
-  return fields.filter((field) => !field.grid_row && (hasGridFields || field.show_with_legacy_ui));
-};
+import { WORKFORCE_TABLE_MAP, workforceSupplementaryFields } from './CategoryFieldsForm';
+import EvidenceFileLink from './EvidenceFileLink';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -369,6 +337,17 @@ export default function ESGRecordsDataEntry({
     fetchReportingYearType();
   }, [section]);
 
+  // With an approval workflow, facilities come from the user's assignments for the chosen metric
+  const metricCategory = mode === 'add' ? formData.category : editData?.category;
+  const metricSubcategory = mode === 'add' ? formData.subcategory : editData?.subcategory;
+  useEffect(() => {
+    if (!metricCategory || !metricSubcategory) return;
+    axios.get(`${API}/api/esg-assignments/kpi-access/facilities/list`, {
+      headers, params: { category: metricCategory, subcategory: metricSubcategory },
+    }).then((res) => setFacilities(res.data.facilities || []))
+      .catch((error) => console.error('Failed to fetch assigned facilities:', error));
+  }, [metricCategory, metricSubcategory]);
+
   const fetchReportingYearType = async () => {
     try {
       const res = await axios.get(`${API}/api/organizations/my`, { headers });
@@ -665,13 +644,6 @@ export default function ESGRecordsDataEntry({
           throw error;
         }
       }
-      if (!asDraft && ocrWaterPrefill?.line_item_id && response.data?.record?.id) {
-        await axios.post(`${API}/api/ocr-invoice/finalize-water-import`, {
-          line_item_id: ocrWaterPrefill.line_item_id,
-          esg_record_id: response.data.record.id,
-        }, { headers });
-        onOcrWaterImported?.();
-      }
       if (uploadResult.failed.length > 0) {
         toast.error(`Metric saved, but ${uploadResult.failed.length} evidence file(s) could not be uploaded.`);
       }
@@ -883,6 +855,7 @@ export default function ESGRecordsDataEntry({
     
     setEditData({
       field_values: fieldValues,
+      category: record.category || '',
       subcategory: record.subcategory || '',
       notes: record.notes || '',
       source_of_information: record.source_of_information || '',
@@ -897,6 +870,7 @@ export default function ESGRecordsDataEntry({
       record_level: record.record_level || 'organization',
       // Track if viewing pending proposal
       _viewing_pending_proposal: hasPendingProposal,
+      _rejection_reason: record.approval_status === 'rejected' ? (record.rejection_reason || 'No reason given') : '',
     });
     
     // Fetch category config for dynamic fields
@@ -1386,7 +1360,7 @@ export default function ESGRecordsDataEntry({
                         <FileText className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                         <span className="flex-1 truncate">{ev.filename}</span>
                         <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                        <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`add-metric-evidence-view-${ev.id}`}>View</a>
+                        <EvidenceFileLink evidence={ev} testId={`add-metric-evidence-view-${ev.id}`} />
                         <button type="button" onClick={() => removeEvidence(ev.id, false)} className="text-red-400 hover:text-red-600" data-testid={`add-metric-evidence-remove-${ev.id}`}>
                           <X className="w-3 h-3" />
                         </button>
@@ -1719,16 +1693,17 @@ export default function ESGRecordsDataEntry({
                           </div>
                         </div>
                       ) : record.approval_status === 'rejected' ? (
-                        /* Rejected record - show rejection reason, no edit allowed */
+                        /* Rejected record - show rejection reason; editing and saving resubmits it for approval */
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                          <div className="text-right">
-                            <div className="text-xs text-red-600 font-medium">Rejected</div>
-                            {record.rejection_reason && (
-                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
-                                {record.rejection_reason}
-                              </div>
-                            )}
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditModal(record)}
+                            title="Edit and resubmit"
+                            data-testid={`edit-metric-button-${record.id}`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1742,14 +1717,6 @@ export default function ESGRecordsDataEntry({
                       ) : record.status === 'rejected' ? (
                         /* Legacy rejected status - same treatment */
                         <div className="flex items-center justify-end gap-2 opacity-60 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100">
-                          <div className="text-right">
-                            <div className="text-xs text-red-600 font-medium">Rejected</div>
-                            {record.rejection_reason && (
-                              <div className="text-xs text-gray-500 max-w-[200px] truncate" title={record.rejection_reason}>
-                                {record.rejection_reason}
-                              </div>
-                            )}
-                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1854,8 +1821,8 @@ export default function ESGRecordsDataEntry({
               versions.map((version, idx) => {
                 const approvalDiff = version.field_diffs?.find(diff => diff.field === 'approval_status');
                 const isApproved = version.change_type === 'approved' || approvalDiff?.new_value === 'approved';
-                const isRejected = version.change_type === 'rejected' || approvalDiff?.new_value === 'rejected';
-                const eventTitle = isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated';
+                const isRejected = version.change_type === 'rejected' || version.change_type === 'deletion_rejected' || approvalDiff?.new_value === 'rejected';
+                const eventTitle = version.event_title || (version.change_type === 'deletion_rejected' ? 'Deletion Rejected' : version.change_type === 'deletion_requested' ? 'Deletion Requested' : isRejected ? 'Update Rejected' : isApproved ? 'Update Approved' : version.change_type === 'created' ? 'Created' : 'Updated');
                 const hasApproverOverride = isApproved && version.approver_edited && (version.submitted_field_diffs || []).length > 0;
                 const visibleDiffs = hasApproverOverride ? [] : (version.field_diffs || []).filter(diff => diff.field !== 'approval_status');
                 return (
@@ -1880,18 +1847,27 @@ export default function ESGRecordsDataEntry({
                         </div>
                       ) : isApproved ? (
                         <div className="text-sm text-text-secondary space-y-1">
-                          <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
                           {version.requested_by_name && <p>Requested by: <span className="font-medium">{version.requested_by_name}</span></p>}
+                          {(version.level_approvals || []).map((la) => (
+                            <p key={la.level} data-testid={`version-level-approval-${la.level}`}>Level {la.level} of {la.total_levels} approved by: <span className="font-medium">{la.by}</span></p>
+                          ))}
+                          <p>Approved by: <span className="font-medium">{version.approved_by_name || version.changed_by_name || 'Unknown'}</span></p>
                         </div>
-                      ) : <p className="text-sm text-text-secondary">By: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
+                      ) : <p className="text-sm text-text-secondary">{version.change_type === 'level_approved' ? 'Approved by' : version.change_type === 'submitted' ? 'Requested by' : 'By'}: <span className="font-medium">{version.changed_by_name || 'Unknown'}</span></p>}
+                      {version.no_changes_note && <p className="text-xs text-text-muted mt-1" data-testid="version-no-changes-note">{version.no_changes_note}</p>}
                       {version.change_reason && (
                         <p className="text-sm text-text-muted mt-1">Reason: {version.change_reason}</p>
                       )}
+                      {(version.approver_edits || []).map((edit, eIdx) => (
+                        <p key={`edit-${eIdx}`} className="text-sm text-text-muted mt-1" data-testid="version-approver-edit">
+                          Edited by <span className="font-medium">{edit.by_name || 'Approver'}</span> (Level {edit.level}): {(edit.fields || []).join(', ')}
+                        </p>
+                      ))}
                       
                       {/* Field Diffs - computed on API, not stored */}
                       {visibleDiffs.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-stone-200">
-                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">{isRejected ? 'Rejected Changes' : isApproved ? 'Approved Changes' : 'Changes Made'}</p>
+                          <p className="text-xs font-semibold text-text-muted uppercase mb-2">{version.approver_modification_title || (isRejected ? 'Rejected Changes' : isApproved ? 'Approved Changes' : 'Changes Made')}</p>
                           <div className="space-y-2">
                             {visibleDiffs.map((change, cIdx) => (
                               <div key={cIdx} className="bg-stone-50 rounded-lg p-2 text-sm">
@@ -1930,7 +1906,26 @@ export default function ESGRecordsDataEntry({
                               </div>
                             ))}
                           </div>
-                          {(version.approver_field_diffs || []).length > 0 && (
+                          {(version.approver_stages || []).length > 0 ? (
+                            <div className="space-y-3" data-testid="version-approver-stages">
+                              {version.approver_stages.map((stage, sIdx) => (
+                                <div key={`stage-${sIdx}`}>
+                                  <p className="text-xs font-semibold text-text-muted uppercase mb-2">Modified by {stage.by || 'approver'} (Level {stage.level})</p>
+                                  {stage.diffs.map((change, cIdx) => (
+                                    <div key={`stage-${sIdx}-${cIdx}`} className="text-sm bg-green-50 rounded p-2 mb-2">
+                                      <p className="font-medium text-text-primary mb-1">{change.display_name}</p>
+                                      <span className="text-blue-700">Before: {String(change.old_value ?? '(empty)')}</span>
+                                      <span className="mx-2 text-text-muted">→</span>
+                                      <span className="text-green-700">After: {String(change.new_value ?? '(empty)')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                              {!version.approver_stages.some((st) => st.level === (version.level_approvals?.[0]?.total_levels || version.level_approvals?.length + 1 || 1)) && (version.level_approvals || []).length > 0 && (
+                                <p className="text-xs text-text-muted" data-testid="version-final-approval-note">Final approval by {version.approved_by_name || 'approver'}: no changes made</p>
+                              )}
+                            </div>
+                          ) : (version.approver_field_diffs || []).length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-text-muted uppercase mb-2">Approver Modifications</p>
                               {version.approver_field_diffs.map((change, cIdx) => (
@@ -1977,6 +1972,16 @@ export default function ESGRecordsDataEntry({
             </div>
           </DialogHeader>
           <div className={`space-y-4 py-4 ${isReadOnlyRecord ? 'pointer-events-none opacity-75' : ''}`} aria-readonly={isReadOnlyRecord}>
+            {editData._rejection_reason && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3" data-testid="edit-metric-rejection-banner">
+                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-800">Rejected by approver</p>
+                  <p className="text-sm text-red-700 whitespace-pre-wrap">{editData._rejection_reason}</p>
+                  <p className="mt-1 text-xs text-red-600">Update the data and save to send it for approval again.</p>
+                </div>
+              </div>
+            )}
             {/* Pending Proposal Banner */}
             {editData._viewing_pending_proposal && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
@@ -2206,7 +2211,7 @@ export default function ESGRecordsDataEntry({
                       <FileText className="w-4 h-4 text-stone-400 flex-shrink-0" />
                       <span className="flex-1 truncate">{ev.filename}</span>
                       <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span>
-                      <a href={ev.is_draft ? ev.preview_url : `${BACKEND_URL}${ev.upload_url}/view`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline" data-testid={`edit-metric-evidence-view-${ev.id}`}>View</a>
+                      <EvidenceFileLink evidence={ev} testId={`edit-metric-evidence-view-${ev.id}`} />
                       <button type="button" onClick={() => removeEvidence(ev.id, true)} className="text-red-400 hover:text-red-600" data-testid={`edit-metric-evidence-remove-${ev.id}`}>
                         <X className="w-3.5 h-3.5" />
                       </button>

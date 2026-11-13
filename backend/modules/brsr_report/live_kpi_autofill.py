@@ -427,14 +427,14 @@ class BRSRLiveKPIAutofillService:
             ) or {}
             existing_response = await db.organization_esg_responses.find_one(
                 {"org_id": org_id, "question_key": question_key, "reporting_year": reporting_period},
-                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "kpi_autofill_updated_at": 1, "value": 1},
+                {"_id": 0, "kpi_autofill_dynamic_rows": 1, "kpi_autofill_updated_at": 1, "value": 1, "status": 1},
             ) or {}
             current_dynamic_keys = {row["key"] for row in result.get("dynamic_rows") or []}
             previous_dynamic_keys = set(existing_response.get("kpi_autofill_dynamic_rows") or [])
             set_fields: Dict[str, Any] = {
                 "framework": "BRSR",
                 "section": config.get("section") or "section_c",
-                "status": "saved" if _has_reportable_value(result.get("value")) else "pending",
+                "status": "completed" if _has_reportable_value(result.get("value")) else "pending",
                 "updated_at": now,
                 "kpi_autofill_updated_at": now,
                 "kpi_autofill_dynamic_rows": sorted(current_dynamic_keys),
@@ -483,12 +483,21 @@ class BRSRLiveKPIAutofillService:
                     else:
                         unset_fields = {k: v for k, v in unset_fields.items() if not k.startswith("value.others.")}
                 update["$unset"] = unset_fields
+            changes = planned_value_changes(existing_response.get("value"), set_fields, unset_fields)
+            unchanged = (
+                "status" in existing_response and not changes
+                and existing_response["status"] == set_fields["status"]
+                and sorted(existing_response.get("kpi_autofill_dynamic_rows") or []) == set_fields["kpi_autofill_dynamic_rows"]
+            )
+            if unchanged:
+                result["locked_paths"] = sorted(set(result["locked_paths"]))
+                continue
             await audit_trail_service.record_system_changes(
                 framework="BRSR",
                 organization_id=org_id,
                 reporting_period=reporting_period,
                 question_key=question_key,
-                changes=planned_value_changes(existing_response.get("value"), set_fields, unset_fields),
+                changes=changes,
                 source=AuditSource(
                     type="kpi_sync",
                     mapping_ids=[s["mapping_id"] for s in result["sources"] if s.get("mapping_id")],

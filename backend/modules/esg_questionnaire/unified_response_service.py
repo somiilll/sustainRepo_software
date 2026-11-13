@@ -16,14 +16,14 @@ Document Structure (Option B - Nested sub-questions):
     "sub_responses": {            # For questions with sub-parts
         "a": {
             "value": "...",
-            "status": "saved",
+            "status": "completed",
             "approval_status": "approved",
             "updated_at": "...",
             "updated_by": "user_id"
         },
         "b": {...}
     },
-    "status": "saved",            # Overall question status
+    "status": "completed",            # Overall question status
     "approval_status": "approved",
     "response_statuses": {...},   # Legacy compatibility
     "created_at": "...",
@@ -229,7 +229,7 @@ class UnifiedResponseService:
         reporting_year: str,
         framework: str,
         section: str,
-        status: str = "saved",
+        status: str = "completed",
         approval_status: Optional[str] = None,
         updated_by: Optional[str] = None,
         updated_by_name: Optional[str] = None,

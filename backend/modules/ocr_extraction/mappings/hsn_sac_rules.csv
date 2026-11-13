@@ -1,0 +1,51 @@
+code_prefix,target_type,target,confidence,note
+2716,domain,electricity,0.95,Electrical energy
+2710,domain,fuel_combustion,0.90,"Petroleum oils (diesel/HSD, furnace oil, kerosene, petrol) - fuel decided by description"
+2711,domain,fuel_combustion,0.88,"Petroleum gases (LPG, propane, butane, natural gas)"
+271121,activity,fuel.natural_gas,0.92,Natural gas in gaseous state (PNG/CNG)
+271111,activity,fuel.natural_gas,0.85,LNG
+2701,domain,fuel_combustion,0.90,Coal
+2702,activity,fuel.lignite,0.88,Lignite
+2704,activity,fuel.coke_oven_coke,0.85,Coke and semi-coke
+2713,domain,fuel_combustion,0.75,Petroleum coke / bitumen - check use
+4401,activity,fuel.wood,0.80,Fuel wood / wood chips (biogenic)
+280421,activity,gas.argon,0.92,Argon
+280430,activity,gas.nitrogen,0.90,Nitrogen
+280440,activity,gas.oxygen,0.90,Oxygen
+281121,activity,gas.co2_process,0.80,Carbon dioxide - check whether released in process or used as extinguisher refill
+2901,activity,gas.acetylene,0.60,Acyclic hydrocarbons (acetylene 290129) - verify
+2903,domain,refrigerant_fugitive,0.80,Halogenated hydrocarbons (HFC refrigerants)
+382478,domain,refrigerant_fugitive,0.80,"Refrigerant blends containing HFCs (R-410A, R-404A, R-407C)"
+996923,domain,water,0.80,Water distribution services
+2201,activity,goods.packaged_water,0.70,"Packaged drinking water (purchased goods, not withdrawal)"
+9965,domain,freight,0.90,Goods transport services
+9967,domain,freight,0.60,"Supporting transport services (cargo handling, freight forwarding)"
+9964,domain,business_travel,0.70,Passenger transport services
+9963,activity,travel.hotel,0.88,Accommodation services
+9994,domain,waste,0.88,"Sewage and waste collection, treatment and disposal"
+9966,domain,employee_commute,0.45,"Rental of vehicles with operator - could be commute, freight or travel"
+9973,domain,leased_assets,0.70,Leasing or rental without operator
+9972,domain,leased_assets,0.65,Real estate services (rent)
+9983,domain,purchased_services,0.70,"Other professional and technical services (incl. testing, calibration)"
+9987,domain,purchased_services,0.75,Maintenance and repair services
+9992,activity,service.training,0.80,Education and training services
+9985,domain,purchased_services,0.75,"Support services (manpower, security, housekeeping)"
+9982,domain,purchased_services,0.75,Legal and accounting services
+9984,activity,service.telecom_it,0.75,Telecom and information services
+9971,activity,service.financial,0.75,Financial and insurance services
+72,activity,goods.steel,0.80,Iron and steel
+73,activity,goods.steel,0.70,Articles of iron or steel
+74,activity,goods.copper,0.80,Copper
+76,activity,goods.aluminium,0.80,Aluminium
+39,activity,goods.plastics,0.75,Plastics
+48,activity,goods.paper_packaging,0.75,Paper and paperboard
+2523,activity,goods.cement,0.85,Cement
+8471,activity,capex.it_hardware,0.70,Computers
+8431,domain,purchased_goods,0.65,"Parts of lifting, drilling and earth-moving machinery (spares, not a machine)"
+8481,domain,purchased_goods,0.65,"Valves, taps and similar"
+8482,domain,purchased_goods,0.65,Bearings
+8483,domain,purchased_goods,0.65,"Transmission shafts, gears, couplings"
+8484,domain,purchased_goods,0.65,Gaskets and seals
+84,domain,capital_goods,0.5,"Machinery and mechanical appliances - may be spare parts, check"
+85,domain,purchased_goods,0.5,"Electrical machinery and parts - may be capital equipment, check"
+8424,domain,purchased_goods,0.5,Fire extinguishers and sprayers (bought new)

@@ -33,7 +33,8 @@ class FieldHistoryPresenter:
             key = _field_key(diff["field"])
             field = self._fields.get(key)
             if field is None:
-                presented.append(diff)
+                base = self._fields.get(key.removesuffix("_unit")) if key.endswith("_unit") else None
+                presented.append({**diff, "display_name": f"{self._scalar_label(base)} (unit)"} if base else diff)
             elif self._is_derived_legacy(field, previous_values, current_values):
                 continue
             elif field.get("type") == "table" and (isinstance(diff.get("old_value"), list) or isinstance(diff.get("new_value"), list)):

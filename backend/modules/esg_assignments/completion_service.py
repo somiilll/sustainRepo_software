@@ -24,6 +24,13 @@ from enum import Enum
 import logging
 
 from shared.database.mongo import db
+from shared.utils.period_keys import period_query_clause
+
+
+def _due_on(period_end, day, month_offset):
+    from modules.esg_records.task_engine import due_on
+    return due_on(period_end, day, month_offset)
+
 
 logger = logging.getLogger(__name__)
 
@@ -184,35 +191,16 @@ def calculate_aggregate_approval_status(facility_statuses: List[str]) -> Aggrega
 # DATA EXISTENCE CHECKERS
 # =============================================================================
 
-_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
-
-def _month_values(month: int) -> list:
-    return [month, str(month), f"{month:02d}", _MONTH_NAMES[month - 1]]
+def counts_as_completed(has_data: bool, approval_status: Optional[str]) -> bool:
+    """A period is complete only when its data exists and is not rejected or awaiting approval."""
+    return bool(has_data) and approval_status not in ("rejected", "pending", "pending_approval")
 
 
 def _apply_period_filter(query: Dict[str, Any], period_key: str) -> None:
-    """Restrict a records query to a period key: YYYY-MM, YYYY-Q#, or YYYY."""
-    try:
-        if "-Q" in period_key:
-            year_text, quarter_text = period_key.split("-Q")
-            year, quarter = int(year_text), int(quarter_text)
-            first_month = (quarter - 1) * 3 + 1
-            months = [value for month in range(first_month, first_month + 3) for value in _month_values(month)]
-            period_condition = {"$or": [
-                {"reporting_period.year": year, "reporting_period.month": {"$in": months}},
-                {"reporting_period.year": year, "reporting_period.quarter": {"$in": [f"Q{quarter}", str(quarter), quarter]}},
-            ]}
-        elif "-" in period_key and len(period_key) == 7:
-            year_text, month_text = period_key.split("-")
-            year, month = int(year_text), int(month_text)
-            period_condition = {"reporting_period.year": year, "reporting_period.month": {"$in": _month_values(month)}}
-        else:
-            period_condition = {"reporting_period.year": int(period_key[:4])}
-    except (ValueError, IndexError):
-        return
-    query.setdefault("$and", []).append(period_condition)
-
+    """Restrict a records query to a period key (see esg_records.period_utils)."""
+    condition = period_query_clause(period_key)
+    if condition:
+        query.setdefault("$and", []).append(condition)
 
 
 class DataChecker:
@@ -409,7 +397,7 @@ class DataChecker:
                 if DataChecker._has_value(value):
                     # Get status from response_statuses if available
                     status_info = section_doc.get("response_statuses", {}).get(question_key, {})
-                    approval_status = status_info.get("status", "saved")
+                    approval_status = status_info.get("status", "completed")
                     updated_at = DataChecker._parse_datetime(
                         status_info.get("updated_at") or section_doc.get("updated_at") or section_doc.get("created_at")
                     )
@@ -1118,12 +1106,12 @@ class CompletionService:
         if facility_id:
             # Facility-level assignment
             return await self._calculate_facility_level(
-                org_id, category, subcategory, facility_id, periods, due_day, include_period_details
+                org_id, category, subcategory, facility_id, periods, due_day, due_config.get("month_offset", 0), include_period_details
             )
         else:
             # Org-level assignment
             return await self._calculate_org_level(
-                org_id, category, subcategory, facilities, periods, due_day, include_period_details
+                org_id, category, subcategory, facilities, periods, due_day, due_config.get("month_offset", 0), include_period_details
             )
     
     async def _calculate_facility_level(
@@ -1134,6 +1122,7 @@ class CompletionService:
         facility_id: str,
         periods: List[Dict],
         due_day: int,
+        month_offset: int,
         include_details: bool,
     ) -> ProgressResult:
         """Calculate progress for facility-level assignment."""
@@ -1149,10 +1138,10 @@ class CompletionService:
             result.total += 1
             
             # BUSINESS RULE: Rejected records do NOT count as completed for progress
-            # - pending_approval: counts as completed (work done, awaiting review)
+            # - pending_approval: NOT completed until approved
             # - approved: counts as completed
             # - rejected: does NOT count (needs resubmission)
-            is_completed_for_progress = has_data and approval_status != "rejected"
+            is_completed_for_progress = counts_as_completed(has_data, approval_status)
             
             if is_completed_for_progress:
                 result.completed += 1
@@ -1162,7 +1151,7 @@ class CompletionService:
                 # Check if overdue
                 period_end = period.get("period_end")
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:
@@ -1193,6 +1182,7 @@ class CompletionService:
         facilities: List[Dict],
         periods: List[Dict],
         due_day: int,
+        month_offset: int,
         include_details: bool,
     ) -> ProgressResult:
         """
@@ -1236,7 +1226,7 @@ class CompletionService:
             )
             
             # BUSINESS RULE: Rejected records do NOT count as completed for progress
-            org_counts_as_completed = has_org_record and org_approval_status != "rejected"
+            org_counts_as_completed = counts_as_completed(has_org_record, org_approval_status)
             
             facility_breakdown = []
             
@@ -1268,7 +1258,7 @@ class CompletionService:
                     )
                     
                     # BUSINESS RULE: Rejected records do NOT count as completed
-                    fac_counts_as_completed = has_fac_data and fac_approval_status != "rejected"
+                    fac_counts_as_completed = counts_as_completed(has_fac_data, fac_approval_status)
                     
                     if fac_counts_as_completed:
                         facilities_completed += 1
@@ -1289,7 +1279,7 @@ class CompletionService:
                 
                 # Check if overdue
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += remaining
                     else:
@@ -1305,7 +1295,7 @@ class CompletionService:
                 result.total += 1
                 
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, month_offset)
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:
@@ -1373,7 +1363,7 @@ class CompletionService:
             result.total += 1
             
             # BUSINESS RULE: Rejected responses do NOT count as completed
-            is_completed_for_progress = has_data and approval_status != "rejected"
+            is_completed_for_progress = counts_as_completed(has_data, approval_status)
             
             if is_completed_for_progress:
                 result.completed += 1
@@ -1383,7 +1373,7 @@ class CompletionService:
                 # Check if overdue
                 period_end = period.get("period_end")
                 if period_end:
-                    due_date = period_end.replace(day=min(due_day, 28))
+                    due_date = _due_on(period_end, due_day, due_config.get("month_offset", 0))
                     if due_date.replace(tzinfo=timezone.utc) < now:
                         result.overdue += 1
                     else:

@@ -5,6 +5,7 @@ Non-workflow org  -> records the user created/edited, plus all records of their 
 """
 from typing import Any, Dict, Optional
 
+from modules.approval_workflow.approver_chain import best_entry, entry_level, normalize_chain
 from shared.database.mongo import db as _db
 
 ADMIN_ROLES = {"admin", "super_admin", "org_admin"}
@@ -18,19 +19,81 @@ async def is_workflow_org(org_id: str) -> bool:
     return bool(settings.get("approval_workflow_enabled"))
 
 
-async def user_assigned_categories(org_id: str, user_id: str) -> list:
+def _approver_match(user_id: str) -> list:
+    return [{"approver_id": user_id}, {"approval_chain": user_id}]
+
+
+async def is_category_approver(org_id: str, user_id: str, category: str, subcategory: Optional[str]) -> bool:
+    """True when the user is an approver on an assignment covering this category / subcategory."""
+    count = await _db.esg_assignments.count_documents({
+        "organization_id": org_id, "entity_type": "record_category", "category": category,
+        "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
+    })
+    return count > 0
+
+
+async def _approver_category_assignments(org_id: str, user_id: str, category: str, subcategory: Optional[str]) -> list:
+    return await _db.esg_assignments.find({
+        "organization_id": org_id, "entity_type": "record_category", "category": category,
+        "$and": [{"$or": _approver_match(user_id)}, {"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]}],
+    }, {"_id": 0}).to_list(20)
+
+
+async def approver_edit_mode(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
+    """None: not an approver. DIRECT: final approver (edit applies at once). int: level an edit by this approver enters approval at."""
+    return best_entry(await _approver_category_assignments(org_id, user_id, category, subcategory), user_id)[0]
+
+
+async def non_final_approver_assignment(org_id: str, user_id: str, category: str, subcategory: Optional[str]):
+    """The assignment where this user is an approver but not the last one in the chain (edits then go on to the next level)."""
+    for doc in await _approver_category_assignments(org_id, user_id, category, subcategory):
+        if isinstance(entry_level(normalize_chain(doc), user_id), int):
+            return doc
+    return None
+
+
+async def user_assignments(org_id: str, user_id: str) -> list:
+    """Active category assignments where the user is an assignee or an assigned approver."""
     assignee_rows = await _db.esg_assignment_assignees.find(
         {"user_id": user_id, "organization_id": org_id, "$or": [{"removed_at": None}, {"removed_at": {"$exists": False}}]},
         {"_id": 0, "assignment_id": 1},
     ).to_list(500)
     assignment_ids = [row["assignment_id"] for row in assignee_rows]
-    if not assignment_ids:
-        return []
-    assignments = await _db.esg_assignments.find(
-        {"id": {"$in": assignment_ids}, "organization_id": org_id, "entity_type": "record_category"},
-        {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1},
+    return await _db.esg_assignments.find(
+        {"organization_id": org_id, "entity_type": "record_category",
+         "$or": [{"id": {"$in": assignment_ids}}, *_approver_match(user_id)]},
+        {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1, "assignment_level": 1, "facility_id": 1},
     ).to_list(500)
-    return [(a.get("category"), a.get("subcategory"), a.get("sub_subcategory")) for a in assignments]
+
+
+async def user_assigned_categories(org_id: str, user_id: str) -> list:
+    return [(a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
+            for a in await user_assignments(org_id, user_id)]
+
+
+def assignment_clause(assignments: list) -> Dict[str, Any]:
+    """Records of the assigned categories; facility-level assignments only expose their own facilities."""
+    scopes: Dict[tuple, Optional[set]] = {}
+    for a in assignments:
+        key = (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
+        facility_id = a.get("facility_id") if a.get("assignment_level") == "facility" else None
+        if key in scopes and scopes[key] is None:
+            continue
+        if facility_id is None:
+            scopes[key] = None
+        else:
+            scopes.setdefault(key, set()).add(facility_id)
+    conditions = []
+    for (category, subcategory, sub_subcategory), facilities in scopes.items():
+        condition: Dict[str, Any] = {"category": category}
+        if subcategory:
+            condition["subcategory"] = subcategory
+        if sub_subcategory:
+            condition["sub_subcategory"] = sub_subcategory
+        if facilities is not None:
+            condition["facility_id"] = {"$in": sorted(facilities)}
+        conditions.append(condition)
+    return {"$or": conditions} if conditions else NO_RECORDS
 
 
 def own_or_facility_clause(user: dict) -> Dict[str, Any]:
@@ -62,7 +125,7 @@ async def resolve_record_visibility(user: dict) -> Optional[Dict[str, Any]]:
     if not org_id:
         return NO_RECORDS
     if await is_workflow_org(org_id):
-        return category_clause(await user_assigned_categories(org_id, user.get("id")))
+        return assignment_clause(await user_assignments(org_id, user.get("id")))
     return own_or_facility_clause(user)
 
 

@@ -125,6 +125,7 @@ const MultiEmployeeInput = ({
   onCalculateEmployee,
   isCalculating = false,
   disabled = false,
+  structureLocked = false,
   reportingYear = '', // New: for showing year in totals
   reportingYearType = 'calendar', // New: 'calendar' or 'financial'
   emissionFactorInfo = null, // New: for showing EF + formula
@@ -778,6 +779,7 @@ const MultiEmployeeInput = ({
             )}
           </h3>
         </div>
+        {!disabled && !structureLocked && (
         <div className="flex flex-col items-end gap-1">
           <Button
             type="button"
@@ -798,6 +800,7 @@ const MultiEmployeeInput = ({
             <span className="text-xs text-amber-600">Select activity type first</span>
           )}
         </div>
+        )}
       </div>
 
       {/* EF + Formula Info (#7) - Only show if showEmissionFactorCard is true */}
@@ -885,7 +888,7 @@ const MultiEmployeeInput = ({
       ) : (
         <Accordion
           type="multiple"
-          value={expandedAccordions}
+          value={disabled ? employees.map((employee) => employee.id) : expandedAccordions}
           onValueChange={setExpandedAccordions}
           className="space-y-3"
         >
@@ -934,6 +937,7 @@ const MultiEmployeeInput = ({
                         </p>
                       </div>
                     </div>
+                    {!disabled && !structureLocked && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -947,6 +951,7 @@ const MultiEmployeeInput = ({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    )}
                   </div>
                 </AccordionTrigger>
                 
@@ -972,7 +977,7 @@ const MultiEmployeeInput = ({
                         value={employee.name || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'name', e.target.value)}
                         placeholder={`Enter ${entityLabel.toLowerCase()} name`}
-                        disabled={disabled}
+                        disabled={disabled || structureLocked}
                         className={`mt-1 ${validationErrors[employee.id]?.some(e => e.includes('Name')) ? 'border-red-300 focus:ring-red-500' : ''}`}
                         data-testid={`employee-name-${empIndex}`}
                         required
@@ -984,7 +989,7 @@ const MultiEmployeeInput = ({
                         value={employee.employee_id || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'employee_id', e.target.value)}
                         placeholder="E.g., EMP001"
-                        disabled={disabled}
+                        disabled={disabled || structureLocked}
                         className="mt-1"
                         data-testid={`employee-id-${empIndex}`}
                       />
@@ -995,7 +1000,7 @@ const MultiEmployeeInput = ({
                         value={employee.department || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'department', e.target.value)}
                         placeholder="E.g., Engineering"
-                        disabled={disabled}
+                        disabled={disabled || structureLocked}
                         className="mt-1"
                         data-testid={`employee-department-${empIndex}`}
                       />
@@ -1006,7 +1011,7 @@ const MultiEmployeeInput = ({
                         value={employee.from_location || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'from_location', e.target.value)}
                         placeholder="E.g., Home, City A"
-                        disabled={disabled}
+                        disabled={disabled || structureLocked}
                         className="mt-1"
                         data-testid={`employee-from-location-${empIndex}`}
                       />
@@ -1017,7 +1022,7 @@ const MultiEmployeeInput = ({
                         value={employee.to_location || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'to_location', e.target.value)}
                         placeholder="E.g., Office, City B"
-                        disabled={disabled}
+                        disabled={disabled || structureLocked}
                         className="mt-1"
                         data-testid={`employee-to-location-${empIndex}`}
                       />
@@ -1032,7 +1037,7 @@ const MultiEmployeeInput = ({
                         <Label className="text-sm font-medium text-gray-700">
                           Annual Data for {getYearDisplay()}
                         </Label>
-                        {isEditMode && (
+                        {isEditMode && !structureLocked && (
                           <Button
                             type="button"
                             variant="outline"
@@ -1125,7 +1130,7 @@ const MultiEmployeeInput = ({
                               employeeIndex={empIndex}
                               periodKey="yearly"
                               evidences={employee.yearly_data?.evidences || []}
-                              disabled={disabled}
+                              disabled={disabled || structureLocked}
                               onEvidenceUpload={onEvidenceUpload}
                               onEvidenceRemove={onEvidenceRemove}
                               onEvidenceDownload={onEvidenceDownload}

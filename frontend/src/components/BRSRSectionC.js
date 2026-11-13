@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { QuestionVersionHistory } from './QuestionVersionHistory';
+import { NoAssignmentMessage } from './LockedModuleOverlay';
 import { mergeBRSRAutofill } from '../utils/brsrAutofill';
 
 
@@ -405,7 +406,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
     ['P1','P2','P3','P4','P5','P6','P7','P8','P9'].filter(p => grouped[p]?.length > 0),
   [grouped]);
 
-  const isComplete = (key) => ['saved', 'approved'].includes(questionProgress[key]);
+  const isComplete = (key) => ['completed', 'approved'].includes(questionProgress[key]);
   const summary = useMemo(() => {
     const total = allConfigs.length;
     const answered = allConfigs.filter(c => isComplete(c.question_key)).length;
@@ -430,7 +431,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
 
   // Save individual question
   const { promptAfterSave } = useLinkedFrameworks();
-  const saveQuestion = async (questionKey, value, status = 'saved') => {
+  const saveQuestion = async (questionKey, value, status = 'completed') => {
     try {
       const headers = getAuthHeader();
       await axios.post(
@@ -445,7 +446,7 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       );
       toast.success(status === 'draft' ? 'Saved as draft' : 'Response saved');
       if (onSaved) onSaved();
-      if (status === 'saved') promptAfterSave([questionKey]);
+      if (status === 'completed') promptAfterSave([questionKey]);
       
       // Refresh status for this question
       try {
@@ -514,6 +515,8 @@ export default function BRSRSectionC({ framework = 'BRSR', isEditing = false, re
       </div>
     );
   }
+
+  if (!isAdmin && allConfigs.length === 0) return <NoAssignmentMessage section="section_c" />;
 
   return (
     <div className="space-y-6">

@@ -91,8 +91,8 @@ const StatusCell = ({ emission, approvalWorkflowEnabled }) => {
     ? { text: 'Completed', cls: 'bg-green-100 text-green-700' }
     : getStatusDisplay(emission.approval_status);
   
-  // Show user's own pending proposal as "Completed, Awaiting Approval"
-  if (emission.is_my_pending_proposal) {
+  // Show user's own pending proposal as "Completed, Awaiting Approval" (deletions keep their own label)
+  if (emission.is_my_pending_proposal && emission.approval_status !== 'pending_delete') {
     return (
       <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700" data-testid={`emission-status-${emission.id}`}>
         Completed, Awaiting Approval
@@ -110,7 +110,7 @@ const StatusCell = ({ emission, approvalWorkflowEnabled }) => {
 };
 
 const getStatusSortValue = (emission, approvalWorkflowEnabled) => (
-  emission.is_my_pending_proposal
+  emission.is_my_pending_proposal && emission.approval_status !== 'pending_delete'
     ? 'completed awaiting approval'
     : (!approvalWorkflowEnabled && emission.approval_status === 'approved'
       ? 'completed'
@@ -208,7 +208,7 @@ const EmissionRowActions = ({ emission, isRegularUser, hideHistoryActions, locke
     <DropdownMenuContent align="end" className="bg-white opacity-100" data-testid={`emission-actions-menu-content-${emission.id}`}>
       {locked && <DropdownMenuItem disabled data-testid={`emission-period-locked-${emission.id}`}><Lock className="mr-2 h-4 w-4" />Submitted period locked</DropdownMenuItem>}
       <DropdownMenuItem disabled={locked} onSelect={(event) => { if (locked) return; event.stopPropagation(); handleEdit(emission); }} data-testid={`edit-emission-${emission.id}`}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-      {!isRegularUser && !hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
+      {!hideHistoryActions && <DropdownMenuItem onSelect={(event) => { event.stopPropagation(); fetchHistory(emission); }} data-testid={`history-emission-${emission.id}`}><History className="mr-2 h-4 w-4" />View version history</DropdownMenuItem>}
       <DropdownMenuItem disabled={locked} className="text-red-700 focus:text-red-700" onSelect={(event) => { if (locked) return; event.stopPropagation(); openDeleteConfirm(emission); }} data-testid={`delete-emission-${emission.id}`}><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>

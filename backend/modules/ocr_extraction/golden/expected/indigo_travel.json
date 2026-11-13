@@ -1,0 +1,13 @@
+{
+  "file": "indigo_business_travel_invoice.pdf",
+  "status": "draft - written by the engineer from the document; product owner to confirm",
+  "rows": [
+    {
+      "match": [
+        "air"
+      ],
+      "scope": "scope_3",
+      "category": "cat_6"
+    }
+  ]
+}

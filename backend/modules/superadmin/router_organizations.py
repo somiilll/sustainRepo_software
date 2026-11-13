@@ -20,6 +20,7 @@ from cascade_delete import cascade_delete_organization
 from r2_storage import get_r2_storage
 
 from app.config.env import RESEND_API_KEY, SENDER_EMAIL
+from modules.users.profile_fields import clean_designation, clean_mobile
 from modules.auth.contracts import UserResponse
 from modules.auth.email_templates import user_invite_email
 from modules.auth.dependencies import get_admin_user, get_current_user, get_super_admin_user
@@ -473,6 +474,8 @@ async def _create_organization_account(account_data: SuperAdminAccountCreate) ->
         "password_hash": get_password_hash(temporary_password),
         "organization_id": account_data.organization_id,
         "assigned_facilities": assigned_facilities,
+        "mobile_number": clean_mobile(account_data.mobile_number),
+        "designation": clean_designation(account_data.designation),
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

@@ -36,6 +36,11 @@ export default function MyTasks({
     search: '',
     status: 'all',
     taskType: 'all',
+    category: 'all',
+    subcategory: 'all',
+    facility: 'all',
+    startDate: '',
+    endDate: '',
   });
 
   // Fetch tasks using custom hook
@@ -86,6 +91,8 @@ export default function MyTasks({
         filters={filters} 
         onChange={setFilters} 
         onRefresh={refresh}
+        tasks={itemsToShow}
+        showCategoryFilters={entityType !== ENTITY_TYPE.QUESTION}
       />
 
       {/* Ledger View - For all task types */}

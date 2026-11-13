@@ -3,17 +3,43 @@
  * Provides search and filter controls for tasks
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, X } from 'lucide-react';
 
-export default function TaskFilters({ filters, onChange, onRefresh }) {
+const ALL = 'all';
+const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const facilityOf = (t) => t.facility_name || t.facility_id;
+
+export default function TaskFilters({ filters, onChange, onRefresh, tasks = [], showCategoryFilters = false }) {
   const updateFilter = (key, value) => {
-    onChange({ ...filters, [key]: value });
+    onChange({ ...filters, [key]: value, ...(key === 'category' ? { subcategory: ALL } : {}) });
   };
+
+  const records = useMemo(() => tasks.filter((t) => t.entity_type !== 'question'), [tasks]);
+  const categories = useMemo(() => unique(records.map((t) => t.category)), [records]);
+  const subcategories = useMemo(
+    () => unique(records.filter((t) => filters.category === ALL || t.category === filters.category).map((t) => t.subcategory)),
+    [records, filters.category],
+  );
+  const facilities = useMemo(() => unique(records.map(facilityOf)), [records]);
+  const hasActiveFilters = ['category', 'subcategory', 'facility'].some((k) => filters[k] !== ALL) || filters.startDate || filters.endDate;
+  const clearFilters = () => onChange({ ...filters, category: ALL, subcategory: ALL, facility: ALL, startDate: '', endDate: '' });
+
+  const renderSelect = (key, label, options, width = 'w-[170px]') => (
+    <Select value={filters[key]} onValueChange={(v) => updateFilter(key, v)}>
+      <SelectTrigger className={width} data-testid={`task-${key}-filter`}>
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>{`All ${label}`}</SelectItem>
+        {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <Card className="p-4">
@@ -66,6 +92,30 @@ export default function TaskFilters({ filters, onChange, onRefresh }) {
           </SelectContent>
         </Select>
         
+        {showCategoryFilters && (
+          <>
+            {renderSelect('category', 'Categories', categories)}
+            {renderSelect('subcategory', 'Subcategories', subcategories, 'w-[200px]')}
+            {renderSelect('facility', 'Facilities', facilities)}
+          </>
+        )}
+
+        {/* Reporting period range */}
+        <div className="flex items-center gap-2 text-xs text-stone-500">
+          <label htmlFor="task-start-date">Period from</label>
+          <Input id="task-start-date" type="date" value={filters.startDate} max={filters.endDate || undefined}
+                 onChange={(e) => updateFilter('startDate', e.target.value)} className="w-[150px]" data-testid="task-start-date-filter" />
+          <label htmlFor="task-end-date">to</label>
+          <Input id="task-end-date" type="date" value={filters.endDate} min={filters.startDate || undefined}
+                 onChange={(e) => updateFilter('endDate', e.target.value)} className="w-[150px]" data-testid="task-end-date-filter" />
+        </div>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="task-clear-filters-btn">
+            <X className="w-4 h-4 mr-1" />Clear
+          </Button>
+        )}
+
         {/* Refresh Button */}
         <Button 
           variant="outline" 

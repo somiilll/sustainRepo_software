@@ -39,6 +39,8 @@ import CalcEngineUnits from './pages/CalcEngineUnits';
 import InputFieldMapping from './pages/InputFieldMapping';
 import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
+import AccountSettings from './pages/AccountSettings';
+import CreditsUsage from './pages/CreditsUsage';
 import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
 import BulkUpload from './pages/BulkUpload';
@@ -202,6 +204,8 @@ const AppRoutes = () => {
         }>
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="account-settings" element={<AccountSettings />} />
+          <Route path="credits-usage" element={<CreditsUsage />} />
           
           {/* Super Admin Routes */}
           <Route path="super-admin">
@@ -362,7 +366,7 @@ const AppRoutes = () => {
           <Route path="reporting/gri" element={<GRIModule />} />
           <Route path="reporting/materiality" element={<PlaceholderPage title="Materiality Assessment" />} />
           <Route path="materiality" element={<MaterialityAssessment />} />
-          <Route path="workflow/tracker" element={<WorkflowTracker />} />
+          <Route path="workflow/tracker" element={<AdminRoute><WorkflowTracker /></AdminRoute>} />
           <Route path="workflow/my-task" element={<WorkflowMyTask />} />
           <Route path="workflow/approver-queue" element={<WorkflowApproverQueue />} />
           <Route path="uploads/ghg-entry" element={<Emissions />} />

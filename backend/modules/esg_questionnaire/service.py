@@ -6,11 +6,13 @@ Business logic for config-driven ESG questionnaire system.
 
 import re
 import uuid
+from modules.approval_workflow.approver_chain import DIRECT, entry_level, normalize_chain
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from shared.database.mongo import db
 from modules.esg_assignments.assignment_resolver import assignment_requires_approval
+from modules.esg_questionnaire.status_rules import TRACKER_PARENT
 from modules.esg_questionnaire.status_rules import adjusted_status
 from modules.esg_questionnaire.contracts import (
     QuestionConfigCreate,
@@ -94,7 +96,12 @@ class ESGQuestionnaireService:
             ).to_list(500)
             
             assignment_ids = [a["assignment_id"] for a in assignee_records]
-            
+            approver_assignments = await db.esg_assignments.find(
+                {"organization_id": org_id, "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            assignment_ids = list(dict.fromkeys(assignment_ids + [a["id"] for a in approver_assignments]))
+
             if not assignment_ids:
                 # User has no assignments - return empty list
                 return []
@@ -288,6 +295,11 @@ class ESGQuestionnaireService:
             ).to_list(500)
             
             assignment_ids = [a["assignment_id"] for a in assignee_records]
+            approver_assignments = await db.esg_assignments.find(
+                {"organization_id": org_id, "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+                {"_id": 0, "id": 1},
+            ).to_list(1000)
+            assignment_ids = list(dict.fromkeys(assignment_ids + [a["id"] for a in approver_assignments]))
             
             # Step 2: Get assignments for those IDs
             assignments = []
@@ -359,7 +371,7 @@ class ESGQuestionnaireService:
         for config in configs:
             key = config["question_key"]
             if config.get("static_note") and not config.get("sub_questions") and key not in responses_map:
-                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "saved"}
+                responses_map[key] = {"question_key": key, "value": config["static_note"], "status": "completed"}
         
         # Fetch user's drafts from esg_response_drafts
         user_drafts_map = {}
@@ -475,13 +487,13 @@ class ESGQuestionnaireService:
                         display_status = "rejected"
                         all_approved = False
                         all_saved_or_approved = False
-                    elif sub_status == "saved" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
+                    elif sub_status == "completed" and adjusted_status({**sub_response, "question_key": sub_response_key}) == "in_progress":
                         display_status = "in_progress"
                         has_any_auto_partial = True
                         all_approved = False
                         all_saved_or_approved = False
-                    elif sub_status == "saved":
-                        display_status = "saved"
+                    elif sub_status == "completed":
+                        display_status = "completed"
                         has_any_saved = True
                         all_approved = False
                     elif sub_status == "draft":
@@ -515,7 +527,7 @@ class ESGQuestionnaireService:
                 elif all_approved and all_have_value and has_any_approved:
                     question_data["status"] = "saved_approved"
                 elif all_saved_or_approved and all_have_value and (has_any_saved or has_any_approved):
-                    question_data["status"] = "saved"
+                    question_data["status"] = "completed"
                 elif (has_any_saved or has_any_approved) and not all_have_value:
                     question_data["status"] = "in_progress"
                 elif has_any_auto_partial:
@@ -559,8 +571,8 @@ class ESGQuestionnaireService:
                     question_data["status"] = "approved"
                 elif response_approval == "rejected":
                     question_data["status"] = "rejected"
-                elif response.get("status") == "saved":
-                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "saved"
+                elif response.get("status") == "completed":
+                    question_data["status"] = adjusted_status({**response, "question_key": q_key}) or "completed"
                 elif response.get("status") == "draft":
                     question_data["status"] = "draft"
                 else:
@@ -586,7 +598,10 @@ class ESGQuestionnaireService:
             workflow = await ApprovalWorkflowService.get_workflow_for_entity(
                 org_id, "esg_response", None
             )
-            return workflow is not None
+            if workflow is not None:
+                return True
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "approval_workflow_enabled": 1})
+            return bool(org and org.get("approval_workflow_enabled"))
         except Exception:
             return False
     
@@ -594,7 +609,7 @@ class ESGQuestionnaireService:
         self, org_id: str, question_key: str, reporting_period: str
     ) -> Optional[Dict[str, Any]]:
         """Question assignment for this key, falling back to parent keys for sub-parts."""
-        key = question_key
+        key = TRACKER_PARENT.get(question_key, question_key)
         while key:
             assignment = await db.esg_assignments.find_one({
                 "organization_id": org_id,
@@ -617,6 +632,13 @@ class ESGQuestionnaireService:
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
         return assignment_requires_approval(assignment)
 
+    async def _approver_position(self, org_id: str, question_key: str, reporting_period: str, user_id: str):
+        """None if user is not an approver of the question; "direct" if the final approver; else the level an edit enters approval at."""
+        assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
+        if not assignment:
+            return None
+        return entry_level(normalize_chain(assignment), user_id, require_membership=True)
+
     async def _should_use_direct_save(
         self,
         org_id: str,
@@ -626,27 +648,13 @@ class ESGQuestionnaireService:
         """
         Determine if direct save (last save wins) should be used.
         
-        Direct save (last save wins) applies when:
-        - Approval workflow is OFF for org, OR
-        - Approval workflow is ON but NO approver is assigned to question/section
+        Direct save (last save wins) applies when the question's assignment does not
+        require approval (approval switched off or no approver set), same rule as KPIs.
         
         Returns True if direct save should be used (last save wins).
         Returns False if submissions should go to approver queue.
         """
-        has_approval = await self._has_approval_workflow_enabled(org_id)
-        
-        if not has_approval:
-            # No approval workflow → direct save (last save wins)
-            return True
-        
-        has_approver = await self._has_approver_assigned(org_id, question_key, reporting_period)
-        
-        if not has_approver:
-            # Approval ON but no approver assigned → direct save (last save wins)
-            return True
-        
-        # Approval ON and approver assigned → submissions go to approver queue
-        return False
+        return not await self._has_approver_assigned(org_id, question_key, reporting_period)
 
     async def _clear_other_users_drafts(
         self,
@@ -844,13 +852,18 @@ class ESGQuestionnaireService:
         
         # Approvers come from the question's assignment (chain level 1, else approver_id)
         assignment = await self._find_question_assignment(org_id, question_key, reporting_period)
-        first_approver = None
-        if assignment:
-            chain = assignment.get("approval_chain") or []
-            first = chain[0] if chain else assignment.get("approver_id")
-            first_approver = first if isinstance(first, str) or first is None else first.get("approver_id")
-            first_approver = first_approver or assignment.get("approver_id")
-        current_approvers = [first_approver] if first_approver else []
+        chain_ids = normalize_chain(assignment)
+        total_levels = max(len(chain_ids), 1)
+        start_level = 1
+        if user_id in chain_ids and chain_ids.index(user_id) + 1 < len(chain_ids):
+            start_level = chain_ids.index(user_id) + 2
+        current_approvers = chain_ids[start_level - 1:start_level]
+        steps_completed = [] if start_level == 1 else [{
+            "id": str(uuid.uuid4()), "level": start_level - 1, "level_name": f"Level {start_level - 1}", "action": "approve",
+            "actor_id": user_id, "actor_email": user_email, "actor_name": user_name,
+            "comment": "Edited by the Level %d approver (approved at that level)" % (start_level - 1),
+            "timestamp": now.isoformat(),
+        }]
         
         current_approvers = list(set(current_approvers))
         
@@ -878,8 +891,8 @@ class ESGQuestionnaireService:
             "framework": framework,
             "section": question_config.get("section") if question_config else None,
             "current_approvers": current_approvers,
-            "current_level": 1,
-            "total_levels": 1,
+            "current_level": start_level,
+            "total_levels": total_levels,
             "_submission_id": submission_id,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
@@ -902,6 +915,9 @@ class ESGQuestionnaireService:
                     "submitted_at": now.isoformat(),
                     "framework": framework,
                     "current_approvers": current_approvers,
+                    "current_level": start_level,
+                    "total_levels": total_levels,
+                    "steps_completed": steps_completed,
                     "updated_at": now.isoformat(),
                     "_submission_id": submission_id,
                 },
@@ -916,8 +932,6 @@ class ESGQuestionnaireService:
                     "request_type": approval_request["request_type"],
                     "status": "pending",
                     "section": approval_request["section"],
-                    "current_level": 1,
-                    "total_levels": 1,
                     "created_at": now.isoformat(),
                 },
             },
@@ -1051,34 +1065,16 @@ class ESGQuestionnaireService:
                    any(s["question_key"].startswith(qk + "_") for qk in section_question_keys)
             ]
         
-        # If approver_user_id filter, check assignments
+        # Non-admin approvers only see submissions waiting on them at their current level
         if approver_user_id:
-            # Get all assignments where this user is an approver
-            assignments = await db["esg_assignments"].find(
-                {
-                    "organization_id": org_id,
-                    "entity_type": "question",
-                    "$or": [{"approver_id": approver_user_id}, {"approval_chain": approver_user_id}],
-                },
-                {"_id": 0, "entity_id": 1, "section": 1}
-            ).to_list(500)
-            
-            # Create set of question keys this user can approve
-            approver_question_keys = {a["entity_id"] for a in assignments}
-            approver_sections = {a["section"] for a in assignments if a.get("section")}
-            
-            # Filter submissions to only those the user can approve
-            filtered_submissions = []
-            for sub in submissions:
-                qk = sub["question_key"]
-                # Check if user is approver for this specific question
-                if qk in approver_question_keys:
-                    filtered_submissions.append(sub)
-                # Or check if user is approver for any question in this section
-                elif any(qk.startswith(aqk) for aqk in approver_question_keys):
-                    filtered_submissions.append(sub)
-            
-            submissions = filtered_submissions
+            mine = await db.approval_requests.find(
+                {"organization_id": org_id, "entity_type": "esg_response", "status": {"$in": ["pending", "in_review"]},
+                 "current_approvers": approver_user_id},
+                {"_id": 0, "id": 1, "entity_id": 1},
+            ).to_list(1000)
+            my_request_ids = {r["id"] for r in mine}
+            my_keys = {r["entity_id"] for r in mine}
+            submissions = [s for s in submissions if s.get("approval_request_id") in my_request_ids or s["question_key"] in my_keys]
         
         # Group by question_key for easier display
         grouped = {}
@@ -1245,7 +1241,7 @@ class ESGQuestionnaireService:
                 {
                     "$set": {
                         "value": final_value,
-                        "status": "saved",
+                        "status": "completed",
                         "approval_status": "approved",
                         "framework": framework,
                         "section": section,
@@ -1276,7 +1272,7 @@ class ESGQuestionnaireService:
                 {
                     "$set": {
                         "value": final_value,
-                        "status": "saved",
+                        "status": "completed",
                         "approval_status": "approved",
                         "approved_at": now_iso,
                         "approved_by": approver_user_id,
@@ -1539,7 +1535,7 @@ class ESGQuestionnaireService:
         changed_by_user_id: Optional[str] = None,
         changed_by_user_name: Optional[str] = None,
         changed_by_user_email: Optional[str] = None,
-        status: str = "saved",  # "draft" or "saved"
+        status: str = "completed",  # "draft" or "completed"
         is_admin: bool = False,
     ) -> dict:
         """
@@ -1600,14 +1596,15 @@ class ESGQuestionnaireService:
         if not direct_framework:
             direct_framework = "GRI"  # Default fallback
         
-        # Check workflow logic (only for actual "saved" status, not drafts or empty)
-        if status == "saved" and not value_is_empty:
+        # Check workflow logic (only for actual "completed" status, not drafts or empty)
+        if status == "completed" and not value_is_empty:
             use_direct_save = await self._should_use_direct_save(
                 org_id, question_key, reporting_period
             )
             
-            # Admin always bypasses approval (direct save)
-            if is_admin:
+            # Admin and the final approver bypass approval (direct save)
+            if is_admin or (not use_direct_save and await self._approver_position(
+                    org_id, question_key, reporting_period, changed_by_user_id) == DIRECT):
                 use_direct_save = True
             
             if not use_direct_save:
@@ -1665,7 +1662,7 @@ class ESGQuestionnaireService:
         # Determine final status and approval_status
         final_status = status
         final_approval_status = None
-        if value_changed and status == "saved" and not is_admin:
+        if value_changed and status == "completed" and not is_admin:
             final_approval_status = "pending_approval"
             # Notify approvers that a previously-approved answer was re-edited
             try:
@@ -1704,9 +1701,9 @@ class ESGQuestionnaireService:
         )
         result_acknowledged = True
         
-        # If this was a successful "saved" (not draft), clear other users' drafts AND own draft
+        # If this was a successful "completed" (not draft), clear other users' drafts AND own draft
         drafts_cleared = 0
-        if result_acknowledged and status == "saved" and not value_is_empty:
+        if result_acknowledged and status == "completed" and not value_is_empty:
             drafts_cleared = await self._clear_other_users_drafts(
                 org_id, question_key, reporting_period, changed_by_user_id
             )
@@ -1716,7 +1713,7 @@ class ESGQuestionnaireService:
             )
         
         # Admin direct-save: cancel pending approval requests and update V2 assignment
-        if is_admin and status == "saved" and not value_is_empty:
+        if is_admin and status == "completed" and not value_is_empty:
             try:
                 # 1. Cancel any pending approval_request for this exact question_key
                 await db.approval_requests.update_many(
@@ -1787,7 +1784,7 @@ class ESGQuestionnaireService:
             # Determine the action type
             if is_new:
                 action = "created"
-            elif previous_status == "draft" and status == "saved":
+            elif previous_status == "draft" and status == "completed":
                 action = "submitted"
             elif status == "draft":
                 action = "draft_updated"
@@ -2302,6 +2299,7 @@ class ESGQuestionnaireService:
         framework: str,
         reporting_year: str,
         section: str,
+        viewer_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Get responses for a specific org+framework+year+section.
@@ -2383,9 +2381,13 @@ class ESGQuestionnaireService:
                 
                 # Handle question-level documents (with question_key)
                 if q_key:
-                    # Handle direct value
-                    if doc.get("value") is not None:
-                        responses[q_key] = doc.get("value")
+                    # Handle direct value (others keep seeing the approved value while an edit is pending)
+                    shown = doc.get("value")
+                    if (viewer_id and doc.get("approval_status") == "pending_approval"
+                            and doc.get("last_approved_value") is not None and doc.get("submitted_by") != viewer_id):
+                        shown = doc["last_approved_value"]
+                    if shown is not None:
+                        responses[q_key] = shown
                     
                     # Handle nested sub_responses (Option B structure)
                     if "sub_responses" in doc and doc["sub_responses"]:
@@ -2723,8 +2725,9 @@ class ESGQuestionnaireService:
             # Use _should_use_direct_save to check if approval workflow applies
             use_direct_save = await self._should_use_direct_save(org_id, question_key, reporting_year)
             
-            # Admin always bypasses approval (direct save)
-            if is_admin:
+            # Admin and the final approver bypass approval (direct save)
+            if is_admin or (not use_direct_save and await self._approver_position(
+                    org_id, question_key, reporting_year, changed_by_user_id) == DIRECT):
                 use_direct_save = True
             
             # Determine final approval_status
@@ -2753,7 +2756,7 @@ class ESGQuestionnaireService:
                 reporting_period=reporting_year,
                 framework=framework,
                 section=section,
-                status="saved" if has_value else "pending",
+                status="completed" if has_value else "pending",
                 approval_status=final_approval_status,
                 changed_by_user_id=changed_by_user_id,
                 changed_by_user_name=changed_by_user_name,
@@ -3078,7 +3081,7 @@ class ESGQuestionnaireService:
                     {
                         "$set": {
                             f"response_statuses.{question_key}": {
-                                "status": "saved",
+                                "status": "completed",
                                 "approval_status": approval_status,
                                 "submitted_at": now_iso,
                                 "submitted_by": changed_by_user_id,
@@ -3526,12 +3529,12 @@ class ESGQuestionnaireService:
                 in_section = any(sk.startswith(qk + "_") for sk in section_question_keys)
             
             if in_section:
-                # Add direct question status (a "saved" doc with an empty value is still pending)
+                # Add direct question status (a "completed" doc with an empty value is still pending)
                 from modules.brsr_report.live_kpi_autofill import _has_reportable_value
                 from modules.esg_questionnaire.status_rules import adjusted_status
                 adjusted = adjusted_status(doc, table_config_by_key.get(qk))
                 empty_saved = (
-                    doc.get("status") == "saved"
+                    doc.get("status") == "completed"
                     and doc.get("approval_status") in (None, "not_required")
                     and "value" in doc
                     and not doc.get("sub_responses")

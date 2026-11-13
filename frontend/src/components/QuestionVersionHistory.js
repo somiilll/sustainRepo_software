@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useDateFormatter } from '../hooks/useDateFormatter';
+import PolicyMatrixValue, { isPolicyMatrix } from './PolicyMatrixValue';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -157,10 +158,10 @@ const SmartValue = ({ value }) => {
 
 /* ───────────── Value display wrapper (adds label + bg) ───────────── */
 
-const ValueDisplay = ({ value, label, bgClass, borderClass }) => (
-  <div className={`border ${borderClass} ${bgClass} rounded-lg p-3`}>
+const ValueDisplay = ({ value, label, bgClass, borderClass, compareTo }) => (
+  <div className={`border ${borderClass} ${bgClass} rounded-lg p-3 min-w-0 overflow-hidden`}>
     <span className="block text-xs font-medium text-stone-500 mb-2">{label}</span>
-    <SmartValue value={value} />
+    {isPolicyMatrix(value) ? <PolicyMatrixValue value={value} compareTo={compareTo} /> : <SmartValue value={value} />}
   </div>
 );
 
@@ -178,7 +179,7 @@ const EVENT_STYLES = {
 };
 
 const eventStyle = (type) =>
-  EVENT_STYLES[type] || { label: type.replace(/_/g, ' '), icon: History, tone: 'text-stone-700 bg-stone-50 border-stone-200' };
+  EVENT_STYLES[type] || (type === 'LEVEL_APPROVED' ? { label: 'Level approved', icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' } : null) || { label: type.replace(/_/g, ' '), icon: History, tone: 'text-stone-700 bg-stone-50 border-stone-200' };
 
 const actorLabel = (type) => {
   if (type === 'CREATED' || type === 'UPDATED') return 'Saved by';
@@ -187,6 +188,7 @@ const actorLabel = (type) => {
 };
 
 const valueLabels = (type) => {
+  if (type === 'LEVEL_APPROVED') return ['Value before edit', 'Edited by approver'];
   if (type === 'APPROVED')  return ['Proposed value', 'Final approved value'];
   if (type === 'REJECTED')  return ['Proposed value', 'Rejected proposed value'];
   if (type === 'SUBMITTED') return ['Old value', 'Proposed value'];
@@ -229,9 +231,13 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
     return () => { active = false; };
   }, [open, framework, questionKey, reportingYear, getAuthHeader]);
 
+  const needsWide = Boolean(timeline?.events?.some((e) => [e.submitted_value, e.final_value].some(
+    (v) => isPolicyMatrix(v) || isArrayOfObjects(v) || isTabularObject(v) || (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 6),
+  )));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="question-version-history-dialog">
+      <DialogContent className={`w-[95vw] ${needsWide ? 'max-w-6xl' : 'max-w-3xl'} max-h-[85vh] overflow-y-auto transition-[max-width] duration-200`} data-testid="question-version-history-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" data-testid="question-version-history-title">
             <History className="w-5 h-5 text-primary" /> Question Version History
@@ -251,12 +257,6 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
 
         {!loading && !error && timeline && (
           <div className="space-y-4" data-testid="question-version-history-content">
-            {timeline.evidence_state === 'FOUND_PARTIAL' && (
-              <div className="border border-amber-200 bg-amber-50 text-amber-800 text-sm p-3 rounded-lg" data-testid="question-version-history-partial-warning">
-                Some older, unscoped events were excluded to avoid mixing reporting years.
-              </div>
-            )}
-
             {timeline.events.length === 0 ? (
               <div className="py-8 text-center text-text-muted" data-testid="question-version-history-empty">
                 No version history is available for this question
@@ -274,7 +274,7 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                   <article key={`${event.source}-${event.timestamp}-${idx}`} className="border border-stone-200 rounded-lg p-4" data-testid={`question-timeline-event-${idx}`}>
                     <div className="flex items-start justify-between gap-3">
                       <Badge className={`border ${style.tone}`} data-testid={`question-timeline-event-type-${idx}`}>
-                        <Icon className="w-3 h-3 mr-1" />{style.label}
+                        <Icon className="w-3 h-3 mr-1" />{event.event_type === 'LEVEL_APPROVED' ? `Level ${event.level} of ${event.total_levels} Approved` : event.level ? `${style.label} (Level ${event.level} of ${event.total_levels})` : style.label}
                       </Badge>
                       <time className="text-xs text-text-muted" data-testid={`question-timeline-event-time-${idx}`}>
                         {event.timestamp ? formatDateTime(event.timestamp) : 'Timestamp unavailable'}
@@ -292,9 +292,9 @@ export const QuestionVersionHistory = ({ open, onOpenChange, framework, question
                     </div>
 
                     {hasValues && (
-                      <div className={`mt-3 grid gap-3 ${rightLabel ? 'sm:grid-cols-2' : ''}`}>
+                      <div className={`mt-3 grid gap-3 ${rightLabel && !isPolicyMatrix(event.final_value) && !isPolicyMatrix(event.submitted_value) ? 'sm:grid-cols-2' : ''}`}>
                         <ValueDisplay value={event.submitted_value} label={leftLabel} bgClass={leftBg.bg} borderClass={leftBg.border} />
-                        {rightLabel && <ValueDisplay value={event.final_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
+                        {rightLabel && <ValueDisplay value={event.final_value} compareTo={event.submitted_value} label={rightLabel} bgClass={rightBg.bg} borderClass={rightBg.border} />}
                       </div>
                     )}
 

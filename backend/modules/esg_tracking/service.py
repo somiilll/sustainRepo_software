@@ -9,6 +9,7 @@ import logging
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from shared.database.mongo import db
+from modules.esg_questionnaire.status_rules import mirror_hidden_dependents, merge_tracker_children, TRACKER_EXCLUDED
 from shared.helpers.email import send_email
 
 from .models import (
@@ -166,6 +167,8 @@ class TrackingService:
         # Note: Configs use either "framework" (string) or "frameworks" (array)
         framework_configs: Dict[str, List[dict]] = {}
         for config in configs:
+            if config.get("question_key") in TRACKER_EXCLUDED:
+                continue
             fw = (config.get("framework") or "").lower()
             if not fw:
                 # Check frameworks array
@@ -188,6 +191,8 @@ class TrackingService:
         ).to_list(5000)
         
         response_map = {r["question_key"]: r for r in responses if r.get("question_key")}
+        mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
         
         # Get all assignments for this org and period
         assignments = await self._assignments.find(
@@ -409,6 +414,10 @@ class TrackingService:
                             "updated_at": sub_data.get("updated_at") or r.get("updated_at"),
                         }
         
+        mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
+        configs = [c for c in configs if c["question_key"] not in TRACKER_EXCLUDED]
+
         # Get assignments
         assignments = await self._assignments.find(
             {
@@ -712,6 +721,10 @@ class TrackingService:
                                 "updated_at": r.get("updated_at"),
                             }
         
+        mirror_hidden_dependents(response_map, configs)
+        merge_tracker_children(response_map)
+        configs = [c for c in configs if c["question_key"] not in TRACKER_EXCLUDED]
+
         # Get assignments and aggregate by entity_id for multi-assignee support
         raw_assignments = await self._assignments.find(
             {
@@ -918,9 +931,6 @@ class TrackingService:
                                 last_updated = resp_updated
                     
                     comp_status = CompletionStatus.STALE if is_stale else CompletionStatus.COMPLETED
-                elif response is not None:
-                    pending += 1
-                    comp_status = CompletionStatus.IN_PROGRESS
                 else:
                     pending += 1
                     comp_status = CompletionStatus.NOT_STARTED
@@ -1296,6 +1306,17 @@ class TrackingService:
             
             # Skip if already assigned and skip_already_assigned is True
             if request.skip_already_assigned and q_key in existing_keys:
+                chain = list(request.approval_chain or ([request.approver_id] if request.approver_id else []))
+                if request.requires_approval and chain:
+                    from modules.esg_assignments.assignment_service_v2 import assignment_service_v2
+                    await self._assignments.update_one(
+                        {"id": existing_assignments[q_key]},
+                        {"$set": {"requires_approval": True, "approver_id": chain[0], "approval_chain": chain}},
+                    )
+                    await assignment_service_v2._reresolve_pending_approvers(
+                        existing_assignments[q_key], organization_id, chain[0], chain, question_key=q_key)
+                    updated_count += 1
+                    continue
                 skipped_count += 1
                 continue
             

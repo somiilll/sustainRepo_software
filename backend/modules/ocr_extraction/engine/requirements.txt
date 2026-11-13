@@ -1,0 +1,16 @@
+# extractor_core runtime (versions tested 7 Nov 2026)
+anthropic>=0.116
+requests>=2.31
+openpyxl>=3.1
+pandas>=2.2
+pymupdf>=1.24
+pillow>=11
+xlrd>=2.0            # legacy .xls only
+pillow-heif>=0.18    # HEIC phone photos (optional)
+pillow-avif-plugin>=1.4  # AVIF images (optional, built into Pillow 11.2+)
+# tests / testbench
+pytest>=8
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+jsonschema>=4

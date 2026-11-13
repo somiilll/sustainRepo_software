@@ -1,108 +1,160 @@
 {
-  "project_title": "SustainRepo Modern Premium GRI Standards Report Redesign",
-  "archetype": "EXECUTIVE ESG REPORTING / SWISS HIGH-CONTRAST DOCUMENT ARCHETYPE",
-  "document_type": "PDF (Chromium HTML Print CSS A4) and Word (.docx via python-docx)",
-  "user_feedback_addressed": [
-    "1. GRI headings (e.g., 'GRI 418: Customer Privacy') changed to Dark Blue (#1E3A8A).",
-    "2. Answer boxes/bordered containers completely removed; replaced with clean left-indented plain text paragraphs and optional subtle left accent rules.",
-    "3. First-page title block headings center-aligned with modern premium typography, dark navy color palette, and subtle decorative accent divider.",
-    "4. Overall report transformed from dull monochrome into a modern, executive premium publication standard for both PDF and Word formats."
-  ],
+  "target_page": "/app/frontend/src/pages/Profile.js",
+  "app_type": "saas_app",
+  "app_name": "SustainRepo",
+  "design_archetype": "Organic Earthy ESG SaaS (Archetype 1 + Swiss Clarity)",
+  "existing_style_context": {
+    "background_surfaces": "White / Stone-50 neutral cards (rounded-2xl, border-stone-200, shadow-sm)",
+    "primary_brand_color": "Emerald-700 (#047857) / Emerald-800 / Emerald-50 soft accents",
+    "cta_buttons": "Slate-900 dark buttons with slate-800 hover",
+    "typography": "Manrope-like heading font with tight tracking, uppercase tiny label micro-typography",
+    "sibling_parity": "Account Settings uses a 2-column layout (3/5 and 2/5 grid), soft-square icon headers (h-12 w-12 rounded-xl bg-emerald-50 text-emerald-700), uppercase tracking-wider text-xs font-semibold labels, and status badge pills."
+  },
   "typography": {
-    "font_family_primary": "Arial, Helvetica, sans-serif",
-    "font_family_docx": "Arial",
-    "font_sizes_pt": {
-      "cover_title": "20pt",
-      "cover_org_name": "14pt",
-      "cover_meta": "11pt",
-      "cover_reference": "10pt",
-      "gri_standard_heading": "13pt",
-      "disclosure_subheading": "11pt",
-      "question_label": "10.5pt",
-      "subquestion_label": "10pt",
-      "answer_body": "10.5pt",
-      "placeholder_text": "10pt"
+    "headings": {
+      "family": "Manrope, system-ui, -apple-system, sans-serif",
+      "h1_title": "text-2xl sm:text-3xl font-bold tracking-tight text-stone-900",
+      "h2_card_title": "text-lg font-semibold tracking-tight text-stone-900",
+      "h3_subtitle": "text-sm text-stone-500 font-normal"
     },
-    "font_weights": {
-      "bold": "700",
-      "semibold": "600",
-      "regular": "400",
-      "italic": "italic"
+    "labels": {
+      "section_overlabel": "text-xs font-semibold uppercase tracking-wider text-stone-500",
+      "emerald_accent_label": "text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-400",
+      "field_label": "text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5 block"
+    },
+    "body": {
+      "primary_text": "text-sm font-medium text-stone-900",
+      "muted_text": "text-sm text-stone-500 leading-relaxed",
+      "subtext": "text-xs text-stone-500"
     }
   },
   "colors": {
-    "hex": {
-      "primary_dark_blue": "#1E3A8A",
-      "heading_navy": "#0F172A",
-      "text_dark_slate": "#1E293B",
-      "text_body": "#334155",
-      "text_muted": "#64748B",
-      "border_accent": "#CBD5E1",
-      "border_highlight": "#2563EB",
-      "bg_light_tint": "#F8FAFC"
+    "brand_primary": "emerald-700 (#047857)",
+    "brand_primary_hover": "emerald-800 (#065f46)",
+    "brand_soft_bg": "emerald-50 (#ecfdf5)",
+    "brand_border": "emerald-200 (#a7f3d0)",
+    "neutral_bg": "bg-stone-50/60",
+    "card_bg": "bg-white",
+    "card_border": "border-stone-200",
+    "text_primary": "text-stone-900",
+    "text_muted": "text-stone-500",
+    "dark_button_bg": "bg-slate-900",
+    "dark_button_hover": "hover:bg-slate-800",
+    "banner_gradient": "from-emerald-950 via-emerald-900 to-teal-950"
+  },
+  "visual_enhancers": {
+    "cover_banner": {
+      "container": "relative overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm mb-6",
+      "banner_surface": "h-36 sm:h-44 lg:h-48 w-full bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 relative",
+      "banner_mesh_overlay": "absolute inset-0 opacity-20 bg-[radial-gradient(#34d399_1px,transparent_1px)] [background-size:16px_16px]",
+      "banner_glow": "absolute -top-12 -right-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl"
     },
-    "rgb_tuple_docx": {
-      "primary_dark_blue": "RGBColor(0x1E, 0x3A, 0x8A)",
-      "heading_navy": "RGBColor(0x0F, 0x17, 0x2A)",
-      "text_dark_slate": "RGBColor(0x1E, 0x29, 0x3B)",
-      "text_body": "RGBColor(0x33, 0x41, 0x55)",
-      "text_muted": "RGBColor(0x64, 0x74, 0x8B)"
+    "overlapping_avatar": {
+      "avatar_wrapper": "relative -mt-14 sm:-mt-16 px-6 sm:px-8 pb-6 flex flex-col sm:flex-row items-center sm:items-end justify-between gap-5 sm:gap-6 border-b border-stone-100 text-center sm:text-left",
+      "avatar_circle": "relative flex h-24 w-24 sm:h-28 sm:w-28 shrink-0 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-emerald-600 to-teal-700 text-2xl sm:text-3xl font-bold text-white shadow-md ring-1 ring-stone-900/5",
+      "role_badge_pill": "inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-800"
+    },
+    "soft_square_icon_headers": {
+      "container": "flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100/80 shadow-xs"
     }
   },
-  "layout_and_styles": {
-    "page_setup": "@page { size: A4; margin: 20mm 18mm 20mm 18mm; }",
-    "cover_title_block": {
-      "alignment": "center",
-      "doc_title": "text-align: center; font-size: 20pt; font-weight: bold; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 10px 0;",
-      "org_name": "text-align: center; font-size: 14pt; font-weight: 700; color: #1E3A8A; margin: 4px 0 6px 0;",
-      "reporting_period": "text-align: center; font-size: 11pt; color: #475569; font-weight: 500; margin: 2px 0 4px 0;",
-      "reference_statement": "text-align: center; font-size: 10pt; font-style: italic; color: #64748B; margin: 2px 0 20px 0;",
-      "accent_divider": "width: 80px; height: 3px; background-color: #1E3A8A; margin: 16px auto 24px auto; border-radius: 2px;"
+  "layout_and_sections": {
+    "section_1_header_banner": {
+      "description": "Premium cover banner with soft dark emerald gradient and radial dot texture, featuring overlapping circular initials avatar, full name, role badge, organization name, and Member Since date tag.",
+      "components": [
+        "Gradient Cover Background with mesh overlay",
+        "Overlapping Circular Initials Avatar with white ring & emerald backdrop",
+        "Full Name Title",
+        "Role Badge Pill (Admin / User / Super Admin)",
+        "Organization Name indicator with Building icon",
+        "Member Since Date indicator with Calendar icon"
+      ]
     },
-    "gri_standard_heading": {
-      "selector": ".section-header",
-      "css": "font-size: 13pt; font-weight: bold; color: #1E3A8A; margin: 28px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #1E3A8A; page-break-after: avoid;",
-      "docx_mapping": "Bold 13pt Arial, RGBColor(0x1E, 0x3A, 0x8A), bottom border / rule, space_before=Pt(20), space_after=Pt(6), keep_with_next=True"
-    },
-    "disclosure_subheading": {
-      "selector": ".subsection-header",
-      "css": "display: flex; align-items: baseline; font-size: 11pt; font-weight: bold; color: #0F172A; margin: 18px 0 8px 0; padding-bottom: 3px; border-bottom: 1px solid #E2E8F0; page-break-after: avoid;",
-      "number_span": "flex: 0 0 65px; font-weight: bold; color: #1E3A8A;",
-      "title_span": "color: #0F172A; font-weight: bold;"
-    },
-    "question_items": {
-      "question_item_css": "margin: 10px 0 4px 0; font-weight: 600; color: #1E293B; page-break-after: avoid;",
-      "q_num_css": "display: inline-block; min-width: 28px; font-weight: bold; color: #1E3A8A;",
-      "sub_label_css": "margin: 8px 0 4px 28px; font-size: 10pt; font-weight: 600; color: #334155; page-break-after: avoid;"
-    },
-    "answer_values": {
-      "box_removed": true,
-      "css": "padding: 4px 0 4px 12px; margin: 2px 0 10px 28px; border-left: 2px solid #E2E8F0; color: #1E293B; font-size: 10.5pt; line-height: 1.5; white-space: normal;",
-      "sub_css": "margin-left: 48px; border-left: 2px solid #CBD5E1;",
-      "empty_placeholder_css": "color: #64748B; font-style: italic; font-size: 10pt;"
+    "section_2_personal_details": {
+      "description": "Two-column grid layout matching Account Settings design parity (lg:grid-cols-5). Left col (span-3) holds Personal Information fields; Right col (span-2) holds Organization & Security summary card.",
+      "components": [
+        {
+          "field": "Full Name",
+          "mode": "Inline Editable",
+          "view_state": "Displays name with inline Edit Pencil button",
+          "edit_state": "Input field with Save (check) and Cancel (X) buttons"
+        },
+        {
+          "field": "Email Address",
+          "mode": "Read-Only",
+          "view_state": "Displays user email inside a light stone field with Lock icon & 'Primary Email' read-only pill badge"
+        },
+        {
+          "field": "Recovery Email",
+          "mode": "Editable",
+          "view_state": "Allows secondary email for password reset notifications with inline edit pencil, save, and cancel actions"
+        },
+        {
+          "field": "Recovery Mobile",
+          "mode": "Editable",
+          "view_state": "Allows phone number for account recovery with inline edit pencil, save, and cancel actions"
+        },
+        {
+          "field": "Role & Permissions",
+          "mode": "Read-Only",
+          "view_state": "Displays user role with permission capability tag"
+        }
+      ]
     }
   },
-  "component_structure": {
-    "GRIReportTemplates": "/app/backend/modules/gri_report/templates.py",
-    "GRIReportRouter": "/app/backend/modules/gri_report/router.py",
-    "DocxBuilder": "/app/backend/modules/brsr_report/docx_builder.py"
+  "mobile_390px_behavior": {
+    "avatar_size": "Shrinks from 28x28 (112px) to 22x22 (88px) on mobile viewports",
+    "avatar_overlap": "Adjusts margin-top from -mt-16 to -mt-12 to maintain proportional cover overlap",
+    "text_alignment": "Centered on mobile screens (<640px) and left-aligned on sm: screens",
+    "grid_layout": "Stacks from 5-column desktop layout to single column grid-cols-1",
+    "editable_fields": "Action buttons stack or wrap neatly without clipping or overflow"
   },
-  "instructions_to_main_agent": [
-    "1. Update `/app/backend/modules/gri_report/templates.py`:",
-    "   a) Redesign cover page header block with centered layout, dark navy doc title (#0F172A), dark blue company name (#1E3A8A), muted period info (#475569), italicized GRI reference statement (#64748B), and a clean centered 3px blue accent line (#1E3A8A).",
-    "   b) Update GRI Standard headings (e.g. 'GRI 418: Customer Privacy') to use Dark Blue font color (#1E3A8A) with a matching 2px solid dark blue bottom border.",
-    "   c) Redesign disclosure sub-headings (e.g. '305-1 Direct (Scope 1) GHG emissions') with clean typography, min 65px disclosure number in dark blue (#1E3A8A) and title in dark slate (#0F172A) with a subtle #E2E8F0 bottom divider.",
-    "   d) REMOVE the border box around `.answer-value`. Replace with clean left margin/indentation (28px for main, 48px for sub) and a subtle left accent line (`border-left: 2px solid #E2E8F0`), padding `4px 0 4px 12px`.",
-    "   e) Render empty/unreported responses as `<span class=\"empty\">Not reported</span>` styled in italicized slate gray (#64748B).",
-    "2. Update `/app/backend/modules/brsr_report/docx_builder.py` (or html_to_docx converter):",
-    "   a) Ensure docx paragraph generator maps GRI standard section headers to dark blue (RGBColor(0x1E, 0x3A, 0x8A)) 13pt bold headers with bottom borders.",
-    "   b) Center-align cover title and subtitle paragraphs.",
-    "   c) Remove box/cell borders on answer paragraphs in Word docx, rendering them as indented plain text with optional left indent.",
-    "3. Run Python unit tests or verification scripts for GRI report generation to ensure both PDF and Word generation succeed without errors."
+  "data_testid_suggestions": {
+    "page_container": "profile-page",
+    "cover_banner": "profile-cover-banner",
+    "avatar_circle": "profile-avatar-circle",
+    "user_full_name": "profile-user-name",
+    "user_role_badge": "profile-role-badge",
+    "org_name": "profile-organization-name",
+    "member_since": "profile-member-since-date",
+    "edit_name_button": "profile-edit-name-btn",
+    "name_input": "profile-name-input",
+    "save_name_button": "profile-save-name-btn",
+    "cancel_name_button": "profile-cancel-name-btn",
+    "email_field": "profile-email-readonly",
+    "edit_recovery_email_button": "profile-edit-recovery-email-btn",
+    "recovery_email_input": "profile-recovery-email-input",
+    "save_recovery_email_button": "profile-save-recovery-email-btn",
+    "cancel_recovery_email_button": "profile-cancel-recovery-email-btn",
+    "edit_recovery_mobile_button": "profile-edit-recovery-mobile-btn",
+    "recovery_mobile_input": "profile-recovery-mobile-input",
+    "save_recovery_mobile_button": "profile-save-recovery-mobile-btn",
+    "cancel_recovery_mobile_button": "profile-cancel-recovery-mobile-btn",
+    "manage_security_link": "profile-manage-security-link"
+  },
+  "image_urls": [
+    {
+      "category": "sustainability_nature_banner",
+      "url": "https://images.unsplash.com/photo-1488330890490-c291ecf62571?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTJ8MHwxfHNlYXJjaHszfHxzdXN0YWluYWJpbGl0eSUyMG5hdHVyZSUyMGVtZXJhbGQlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc5NDQ4MjQxOHww&ixlib=rb-4.1.0&q=85",
+      "description": "Green pine foliage background for subtle cover banner texture option"
+    }
   ],
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": {
-    "data_testid_rule": "MUST maintain data-testid on any UI components in frontend if GRI report download buttons or preview modals are modified.",
-    "file_format": "Use Python templates in backend and JS/JSX files in frontend strictly.",
-    "toast_library": "Use sonner for notifications in frontend."
-  }
+  "instructions_to_main_agent": [
+    "Refactor /app/frontend/src/pages/Profile.js into a high-end, premium SaaS Profile page.",
+    "Ensure total visual parity with AccountSettings.js (rounded-2xl cards, border-stone-200, emerald-700 primary, slate-900 buttons, soft-square icon headers).",
+    "Implement Section 1: Cover banner with dark emerald gradient, subtle texture, overlapping circular avatar with user initials, full name, role badge pill, organization name, and Member since date.",
+    "Implement Section 2: Personal details section in a two-column layout (3/5 and 2/5 on desktop).",
+    "Provide inline editing for Full Name, Recovery Email, and Recovery Mobile with clear view/edit state transitions, validation, and Sonner toast notifications.",
+    "Keep Primary Email and Role read-only.",
+    "Do NOT include password or subscription sections on this page as they live in Account Settings.",
+    "Ensure all data-testid attributes listed in design_guidelines.json are applied to elements for automated testing.",
+    "Ensure pure JavaScript (.js) compliance."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Never use generic centered layouts or simplistic default inputs.",
+    "Use 2-3x generous spacing with p-6 or p-8 inside cards to avoid text boundary collision.",
+    "Do not use transparent dropdown or card backgrounds.",
+    "Always specify explicit text color on hover states.",
+    "Ensure mobile 390px responsiveness and testing attribute completeness."
+  ]
 }

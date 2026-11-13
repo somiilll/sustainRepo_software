@@ -25,13 +25,67 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
+  Paperclip,
+  Building2,
+  Upload,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import EvidenceFileLink from './EvidenceFileLink';
+import { createDraftEvidence, draftEvidence, persistedEvidence, revokeDraftEvidences, toEvidencePayload, uploadDraftEvidences } from '../lib/draftEvidence';
+import CategoryFieldsForm, { hasCategoryForm } from './CategoryFieldsForm';
+import EmissionProposalForm from './EmissionProposalForm';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 
                 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function ProposalAttachments({ source, notes, evidence, editing, onChange, onFiles }) {
+  const none = <span className="text-stone-400">-</span>;
+  return (
+    <div className="space-y-3 rounded-lg border border-stone-200 p-4 text-sm" data-testid="proposal-attachments">
+      <div>
+        <p className="mb-1 text-xs text-stone-500">Source of information</p>
+        {editing
+          ? <Input value={source || ''} onChange={(e) => onChange({ source: e.target.value })} placeholder="e.g., Utility Bill, Vendor Invoice..." data-testid="proposal-source-input" />
+          : <p className="font-medium text-stone-900" data-testid="proposal-source">{source || none}</p>}
+      </div>
+      <div>
+        <p className="mb-1 text-xs text-stone-500">Notes</p>
+        {editing
+          ? <Textarea value={notes || ''} onChange={(e) => onChange({ notes: e.target.value })} rows={3} placeholder="Additional notes..." data-testid="proposal-notes-input" />
+          : <p className="whitespace-pre-wrap text-stone-900" data-testid="proposal-notes">{notes || none}</p>}
+      </div>
+      <div>
+        <p className="mb-1 flex items-center gap-1 text-xs text-stone-500"><Paperclip className="h-3.5 w-3.5" />Evidence files</p>
+        {evidence.length === 0 && <p className="text-stone-400">No evidence files</p>}
+        <ul className="space-y-1">
+          {evidence.map((ev, i) => (
+            <li key={ev.id || i} className="flex items-center gap-3 rounded-md bg-stone-50 px-2 py-1.5" data-testid="proposal-evidence-item">
+              <span className="flex-1 truncate text-stone-900">{ev.filename || ev.name || 'File'}</span>
+              {ev.file_size ? <span className="text-xs text-stone-400">{(ev.file_size / 1024).toFixed(0)}KB</span> : null}
+              <EvidenceFileLink evidence={ev} testId={`proposal-evidence-view-${ev.id || i}`} />
+              {editing && (
+                <button type="button" className="text-red-400 hover:text-red-600" aria-label="Remove evidence"
+                        onClick={() => onChange({ evidence: evidence.filter((_, idx) => idx !== i) })} data-testid={`proposal-evidence-remove-${ev.id || i}`}>
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {editing && (
+          <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-800 hover:bg-stone-50">
+            <Upload className="h-3.5 w-3.5" />Add evidence
+            <input type="file" multiple className="hidden" data-testid="proposal-evidence-upload"
+                   onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * MultiProposalReview - Card-based component for reviewing multiple proposals
@@ -42,25 +96,33 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
  * - Shows reporting period info
  * - Approve/Reject/Edit buttons below each card
  */
+const INTERNAL_EMISSION_KEYS = ['biogenic_scope_selection', 'calculation_methodology', 'scope3_ef_id', 'scope3_activity_type', 'scope3_subcategory', 'calculation_method_scope3', 'scope3_activity', 'use_custom_activity', 'type_of_product', 'spend_currency_conversion_method'];
+
 export default function MultiProposalReview({ 
   recordId, 
   entityType = 'esg_record',
   section = 'environment',
   onClose,
   onActionComplete,
+  historyProposal = null,
 }) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [approvedRecord, setApprovedRecord] = useState(null);
+  const [dataLevel, setDataLevel] = useState('');
   const [fieldConfig, setFieldConfig] = useState(null);
   const [actionComment, setActionComment] = useState('');
   
   // Edit dialog state
   const [editingProposal, setEditingProposal] = useState(null);
   const [editValues, setEditValues] = useState({});
+  const [inlineEdit, setInlineEdit] = useState(null);
+  const setInlineValues = (updater) => setInlineEdit((cur) => (
+    cur && { ...cur, values: typeof updater === 'function' ? updater(cur.values) : updater }
+  ));
 
   const formatDateTime = (dateStr) => {
     if (!dateStr) return '-';
@@ -75,6 +137,9 @@ export default function MultiProposalReview({
   }, [fieldConfig]);
 
   const getDisplayFieldEntries = useCallback((fieldValues = {}) => {
+    if (entityType === 'emission_record') {
+      return Object.entries(fieldValues).filter(([key]) => !INTERNAL_EMISSION_KEYS.includes(key) && !key.endsWith('_unit'));
+    }
     if (entityType !== 'esg_record' || !fieldConfig?.fields?.length) {
       return Object.entries(fieldValues);
     }
@@ -117,11 +182,12 @@ export default function MultiProposalReview({
         `${API}/api/proposals/record/${entityType}/${recordId}`,
         { headers }
       );
-      setProposals(proposalsRes.data.proposals || []);
+      setProposals(historyProposal ? [historyProposal] : (proposalsRes.data.proposals || []));
       setApprovedRecord(proposalsRes.data.current_record || null);
+      setDataLevel(proposalsRes.data.data_level || '');
       
       // Fetch KPI field config for human-readable labels
-      if (proposalsRes.data.current_record?.category_id) {
+      if (entityType !== 'emission_record' && proposalsRes.data.current_record?.category_id) {
         try {
           const configRes = await axios.get(
             `${API}/api/esg-records/categories/${section}/${proposalsRes.data.current_record.category_id}`,
@@ -138,7 +204,7 @@ export default function MultiProposalReview({
     } finally {
       setLoading(false);
     }
-  }, [recordId, entityType, section, getAuthHeader]);
+  }, [recordId, entityType, section, getAuthHeader, historyProposal]);
 
   useEffect(() => {
     fetchProposals();
@@ -219,6 +285,59 @@ export default function MultiProposalReview({
     setEditValues(flattenedValues);
   };
 
+  const patchInline = (patch) => setInlineEdit((cur) => cur && { ...cur, ...patch });
+
+  const addInlineFiles = (files) => {
+    const added = [];
+    Array.from(files || []).forEach((file) => {
+      if (file.size > 5 * 1024 * 1024) toast.error(`${file.name} exceeds 5MB limit`);
+      else added.push(createDraftEvidence(file));
+    });
+    if (added.length) setInlineEdit((cur) => cur && { ...cur, evidence: [...cur.evidence, ...added] });
+  };
+
+  const cancelInline = () => {
+    revokeDraftEvidences(inlineEdit?.evidence);
+    setInlineEdit(null);
+  };
+
+  const handleSaveInline = async () => {
+    setProcessing(true);
+    try {
+      const headers = getAuthHeader();
+      const uploadResult = await uploadDraftEvidences({
+        items: draftEvidence(inlineEdit.evidence),
+        uploadUrl: `${API}/api/upload/evidence?bucket_type=esg_metrics&folder=${section}`,
+        headers,
+        mapUploaded: (uploaded, draft) => ({
+          id: uploaded.file_id,
+          file_id: uploaded.file_id,
+          filename: draft.filename,
+          file_type: draft.file_type,
+          file_size: draft.file_size,
+          upload_url: uploaded.url,
+          uploaded_at: new Date().toISOString(),
+          uploaded_by: user?.id || '',
+        }),
+      });
+      if (uploadResult.failed.length) toast.error(`${uploadResult.failed.length} evidence file(s) could not be uploaded`);
+      await axios.put(`${API}/api/proposals/${inlineEdit.id}`, {
+        field_values: inlineEdit.values,
+        source_of_information: inlineEdit.source,
+        notes: inlineEdit.notes,
+        evidence_files: [...persistedEvidence(inlineEdit.evidence).map(toEvidencePayload), ...uploadResult.uploaded],
+      }, { headers });
+      toast.success('Proposal updated');
+      revokeDraftEvidences(inlineEdit.evidence);
+      setInlineEdit(null);
+      fetchProposals();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update proposal');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Save edited proposal
   const handleSaveEdit = async () => {
     if (!editingProposal) return;
@@ -239,6 +358,11 @@ export default function MultiProposalReview({
       setProcessing(false);
     }
   };
+
+  // A first submission is itself the pending record, so there is nothing approved to compare against yet
+  const hasApprovedValues = !historyProposal && !!approvedRecord && !(['esg_record', 'emission_record'].includes(entityType)
+    && ['pending_approval', 'pending', 'rejected', 'draft'].includes(approvedRecord.approval_status));
+  const useFormLayout = entityType === 'esg_record' && hasCategoryForm(fieldConfig?.subcategory, fieldConfig?.fields);
 
   if (loading) {
     return (
@@ -263,6 +387,18 @@ export default function MultiProposalReview({
   return (
     <div className="space-y-6">
       {/* Header */}
+      {historyProposal ? (
+        <div className={`rounded-lg border p-4 ${historyProposal.status === 'approved' ? 'border-green-200 bg-green-50' : historyProposal.status === 'cancelled' ? 'border-stone-200 bg-stone-50' : 'border-red-200 bg-red-50'}`} data-testid="history-status-banner">
+          <p className={`font-semibold ${historyProposal.status === 'approved' ? 'text-green-800' : historyProposal.status === 'cancelled' ? 'text-stone-700' : 'text-red-800'}`}>
+            {historyProposal.status === 'approved' ? 'Approved' : historyProposal.status === 'cancelled' ? 'Cancelled' : 'Rejected'}
+            {historyProposal.resolved_by_name ? ` by ${historyProposal.resolved_by_name}` : ''}
+          </p>
+          <p className="text-sm text-stone-600">{formatDateTime(historyProposal.resolved_at || historyProposal.updated_at)}</p>
+          {historyProposal.status === 'rejected' && (historyProposal.rejection_reason || historyProposal.resolution_comment) && (
+            <p className="mt-2 text-sm text-red-700"><strong>Rejection reason:</strong> {historyProposal.rejection_reason || historyProposal.resolution_comment}</p>
+          )}
+        </div>
+      ) : (
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-stone-500">
@@ -274,6 +410,7 @@ export default function MultiProposalReview({
           Refresh
         </Button>
       </div>
+      )}
 
       {/* Alert for multiple proposals */}
       {proposals.length > 1 && (
@@ -290,7 +427,7 @@ export default function MultiProposalReview({
       )}
 
       {/* Current Approved Record Card */}
-      {approvedRecord && (
+      {hasApprovedValues && (
         <Card className="border-green-200 bg-green-50/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -338,7 +475,9 @@ export default function MultiProposalReview({
                 return String(val);
               };
               
-              return (
+              return useFormLayout ? (
+                <CategoryFieldsForm subcategory={fieldConfig.subcategory} fields={fieldConfig.fields} values={displayValues} onChange={() => {}} readOnly testIdPrefix="approved-field" />
+              ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {getDisplayFieldEntries(displayValues).map(([key, value]) => (
                     <div key={key} className="space-y-1">
@@ -354,17 +493,6 @@ export default function MultiProposalReview({
           </CardContent>
         </Card>
       )}
-
-      {/* Comment input for actions */}
-      <div className="space-y-2">
-        <Label>Comment (required for rejection)</Label>
-        <Textarea
-          value={actionComment}
-          onChange={(e) => setActionComment(e.target.value)}
-          placeholder="Enter comment or rejection reason..."
-          rows={2}
-        />
-      </div>
 
       {/* Proposal Cards */}
       <div className="space-y-4">
@@ -396,9 +524,16 @@ export default function MultiProposalReview({
           }
           
           const reportingPeriod = snapshot.reporting_period;
+          const fromRecord = (key) => (key in snapshot ? snapshot[key] : approvedRecord?.[key]);
+          const attachmentValues = {
+            source: fromRecord('source_of_information') || '',
+            notes: fromRecord('notes') || '',
+            evidence: fromRecord('evidence_files') || [],
+          };
           
           // Get the comparison values for emission records
           const getApprovedFieldValue = (key) => {
+            if (!hasApprovedValues) return undefined;
             if (entityType === 'emission_record') {
               return approvedRecord?.dynamic_field_values?.[key] 
                 || approvedRecord?.inputs?.[key]
@@ -424,7 +559,15 @@ export default function MultiProposalReview({
                     <User className="w-5 h-5 text-blue-600" />
                     Proposal by {proposal.submitted_by_name || `User ${idx + 1}`}
                   </CardTitle>
-                  <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  {historyProposal ? (
+                    <Badge className={historyProposal.status === 'approved' ? 'bg-green-100 text-green-800' : historyProposal.status === 'cancelled' ? 'bg-stone-100 text-stone-700' : 'bg-red-100 text-red-800'}>
+                      {historyProposal.status === 'approved' ? 'Approved' : historyProposal.status === 'cancelled' ? 'Cancelled' : 'Rejected'}
+                    </Badge>
+                  ) : proposal.request_type === 'delete' ? (
+                    <Badge className="bg-red-100 text-red-800" data-testid="delete-request-badge">Delete request</Badge>
+                  ) : (
+                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-stone-500 mt-1">
                   <span className="flex items-center gap-1">
@@ -435,6 +578,12 @@ export default function MultiProposalReview({
                     <span className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
                       {formatReportingPeriod(reportingPeriod)}
+                    </span>
+                  )}
+                  {dataLevel && (
+                    <span className="flex items-center gap-1" data-testid="proposal-data-level">
+                      <Building2 className="w-4 h-4" />
+                      {dataLevel}
                     </span>
                   )}
                 </div>
@@ -458,7 +607,33 @@ export default function MultiProposalReview({
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
+                {(proposal.approver_edits || []).length > 0 && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900" data-testid={`proposal-approver-edits-${proposal.id}`}>
+                    {proposal.approver_edits.map((edit, i) => (
+                      <p key={i}><span className="font-semibold">Level {edit.level} · {edit.by_name || 'Approver'}</span> edited: {(edit.fields || []).join(', ')}</p>
+                    ))}
+                  </div>
+                )}
                 {/* Field Values */}
+                {entityType === 'emission_record' ? (
+                  <EmissionProposalForm
+                    proposal={proposal}
+                    editing={inlineEdit?.id === proposal.id}
+                    onCancel={() => setInlineEdit(null)}
+                    onSaved={() => { setInlineEdit(null); fetchProposals(); }}
+                  />
+                ) : useFormLayout ? (
+                  <div className="p-4 bg-stone-50 rounded-lg">
+                    <CategoryFieldsForm
+                      subcategory={fieldConfig.subcategory}
+                      fields={fieldConfig.fields}
+                      values={inlineEdit?.id === proposal.id ? inlineEdit.values : fieldValues}
+                      onChange={inlineEdit?.id === proposal.id ? setInlineValues : () => {}}
+                      readOnly={inlineEdit?.id !== proposal.id}
+                      testIdPrefix={`proposal-field-${proposal.id}`}
+                    />
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-stone-50 rounded-lg">
                   {getDisplayFieldEntries(fieldValues).map(([key, value]) => {
                     const approvedValue = getApprovedFieldValue(key);
@@ -481,25 +656,49 @@ export default function MultiProposalReview({
                     );
                   })}
                 </div>
+                )}
+
+                {entityType !== 'emission_record' && <ProposalAttachments
+                  editing={inlineEdit?.id === proposal.id}
+                  source={inlineEdit?.id === proposal.id ? inlineEdit.source : attachmentValues.source}
+                  notes={inlineEdit?.id === proposal.id ? inlineEdit.notes : attachmentValues.notes}
+                  evidence={inlineEdit?.id === proposal.id ? inlineEdit.evidence : attachmentValues.evidence}
+                  onChange={patchInline}
+                  onFiles={addInlineFiles}
+                />}
 
                 {/* Action Buttons */}
+                {!historyProposal && (
                 <div className="flex items-center gap-3 pt-2 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(proposal)}
-                    disabled={processing}
-                  >
-                    <Edit2 className="w-4 h-4 mr-2" />
-                    Edit
-                  </Button>
+                  {proposal.request_type === 'delete' || (entityType === 'emission_record' && inlineEdit?.id === proposal.id) ? null : inlineEdit?.id === proposal.id ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={cancelInline} disabled={processing} data-testid={`cancel-edit-${proposal.id}`}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={handleSaveInline} disabled={processing} data-testid={`save-edit-${proposal.id}`}>
+                        {processing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Save changes
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => (entityType === 'emission_record' ? setInlineEdit({ id: proposal.id }) : useFormLayout ? setInlineEdit({ id: proposal.id, values: { ...fieldValues }, ...attachmentValues }) : openEditDialog(proposal))}
+                      disabled={processing || !!inlineEdit}
+                      data-testid={`edit-proposal-${proposal.id}`}
+                    >
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                  )}
                   <div className="flex-1" />
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-red-600 border-red-200 hover:bg-red-50"
                     onClick={() => handleReject(proposal.id)}
-                    disabled={processing}
+                    disabled={processing || !!inlineEdit}
                   >
                     <XCircle className="w-4 h-4 mr-2" />
                     Reject
@@ -508,17 +707,32 @@ export default function MultiProposalReview({
                     size="sm"
                     className="bg-green-600 hover:bg-green-700"
                     onClick={() => handleApprove(proposal.id)}
-                    disabled={processing}
+                    disabled={processing || !!inlineEdit}
                   >
                     <CheckCircle2 className="w-4 h-4 mr-2" />
                     Approve
                   </Button>
                 </div>
+                )}
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {/* Comment input for actions */}
+      {!historyProposal && (
+      <div className="space-y-2">
+        <Label>Comment (required for rejection)</Label>
+        <Textarea
+          value={actionComment}
+          onChange={(e) => setActionComment(e.target.value)}
+          placeholder="Enter comment or rejection reason..."
+          rows={2}
+          data-testid="proposal-action-comment"
+        />
+      </div>
+      )}
 
       {/* Edit Proposal Dialog */}
       <Dialog open={!!editingProposal} onOpenChange={() => setEditingProposal(null)}>

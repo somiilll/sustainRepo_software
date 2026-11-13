@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import axios from 'axios';
+import { parseReportingYear } from '../../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -23,6 +24,7 @@ const INITIAL_FORM_STATE = {
   due_time: '17:00',
   timezone: 'Asia/Kolkata',
   due_day_of_month: 15,
+  due_month_offset: 0,
   due_day_of_week: 'friday',
   
   // Step 3: Options
@@ -32,6 +34,8 @@ const INITIAL_FORM_STATE = {
   approver_id: '',
   approval_chain: [],
 };
+
+export const FACILITY_ONLY_CATEGORIES = ['GHG Emissions'];
 
 export const STEPS = [
   { id: 'level', title: 'Select Level', description: 'Choose assignment scope' },
@@ -167,6 +171,13 @@ export function useAssignmentWizard({
     }
     setCurrentStep(0);
   }, [initialData]);
+
+  const facilityOnly = FACILITY_ONLY_CATEGORIES.includes(category);
+  useEffect(() => {
+    if (facilityOnly && form.assignment_level !== 'facility') {
+      setForm(prev => ({ ...prev, assignment_level: 'facility' }));
+    }
+  }, [facilityOnly, form.assignment_level]);
 
   // Reset form
   const resetForm = useCallback(() => {
@@ -365,7 +376,7 @@ export function useAssignmentWizard({
       const hasAssignees = Object.values(form.facility_assignments).some(fa => fa?.user_ids?.length > 0);
       // If any facility has approval enabled, it must have an approver
       const facilitiesWithApprovalIssue = Object.values(form.facility_assignments).filter(
-        fa => fa?.requires_approval && !fa?.approver_id
+        fa => fa?.requires_approval && !(multiLevelApprovalEnabled ? fa?.approval_chain?.length > 0 : fa?.approver_id)
       );
       step2Valid = hasAssignees && facilitiesWithApprovalIssue.length === 0;
     } else {
@@ -376,7 +387,11 @@ export function useAssignmentWizard({
       step2Valid = hasAssignees && approvalOk;
     }
     
-    const step3Valid = form.start_date && form.filling_frequency;
+    const rp = parseReportingYear(reportingPeriod);
+    const lo = rp && (rp.yearType === 'calendar_year' ? `${rp.startYear}-01-01` : `${rp.startYear}-04-01`);
+    const hi = rp && (rp.yearType === 'calendar_year' ? `${rp.startYear}-12-31` : `${rp.endYear}-03-31`);
+    const inPeriod = (d) => !d || !rp || (d >= lo && d <= hi);
+    const step3Valid = form.start_date && form.filling_frequency && inPeriod(form.start_date) && inPeriod(form.end_date);
     
     const step4Valid = step1Valid && step2Valid && step3Valid;
 
@@ -386,7 +401,7 @@ export function useAssignmentWizard({
       2: step3Valid,
       3: step4Valid,
     };
-  }, [form, multiLevelApprovalEnabled]);
+  }, [form, multiLevelApprovalEnabled, reportingPeriod]);
 
   // Navigation
   const canGoNext = stepValidation[currentStep];
@@ -481,6 +496,7 @@ export function useAssignmentWizard({
     resetForm,
     
     // Config
+    facilityOnly,
     approvalWorkflowEnabled,
     multiLevelApprovalEnabled,
     

@@ -8,14 +8,79 @@ Handles the new workflow where:
 - Approved record stays immutable until approval
 """
 
+import copy
 import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
+from .approver_chain import normalize_chain
+from .log_visibility import refresh_for_request
+from fastapi import HTTPException
+
 from shared.database.mongo import db
 
 logger = logging.getLogger(__name__)
+
+
+OPTIONAL_FIELD_LABELS = {
+    "notes": "Notes", "source_of_information": "Source of Information", "record_source": "Source of Information",
+    "responsible_person": "Person Responsible", "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
+    "process_names": "Processes", "process_descriptions": "Process Descriptions", "evidence_files": "Evidence",
+    "supplier_name": "Supplier Name", "supplier_code": "Supplier Code", "asset_name": "Asset Name",
+    "from_location": "From Location", "to_location": "To Location",
+}
+
+
+def _optional_display(field: str, value: Any) -> str:
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, dict):
+                name = item.get("filename") or item.get("name") or ""
+                desc = item.get("description")
+                parts.append(f"{name}: {desc}" if desc else name)
+            elif item:
+                parts.append(str(item))
+        return ", ".join(p for p in parts if p)
+    return "" if value is None else str(value)
+
+
+def optional_field_changes(old: Dict[str, Any], new: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Old → new entries for the optional detail fields (notes, evidence, supplier, locations, ...)."""
+    changes = []
+    seen_labels = set()
+    for field, label in OPTIONAL_FIELD_LABELS.items():
+        before, after = _optional_display(field, old.get(field)), _optional_display(field, new.get(field))
+        if before == after or label in seen_labels:
+            continue
+        seen_labels.add(label)
+        changes.append({"field": field, "display_name": label, "old_value": before, "new_value": after, "field_type": "simple"})
+    return changes
+
+
+def employee_input_changes(old_employees, new_employees, input_label_map=None) -> List[Dict[str, Any]]:
+    """Per-employee input diffs (days travelled etc.) for C7 records."""
+    from shared.helpers.audit_helpers import compute_user_input_changes
+
+    def slots(employee: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        if employee.get("monthly_data"):
+            return {k: (v or {}).get("inputs") or {} for k, v in employee["monthly_data"].items()}
+        if employee.get("yearly_data"):
+            return {"yearly": employee["yearly_data"].get("inputs") or {}}
+        return {"": employee.get("inputs") or {}}
+
+    old_by_id = {(e.get("employee_id") or e.get("id")): e for e in old_employees or []}
+    changes: List[Dict[str, Any]] = []
+    for emp in new_employees or []:
+        old_slots = slots(old_by_id.get(emp.get("employee_id") or emp.get("id")) or {})
+        new_slots = slots(emp)
+        for period, new_inputs in new_slots.items():
+            name = emp.get("name") or "Employee"
+            if len(new_slots) > 1 and period:
+                name = f"{name}, {period}"
+            changes.extend(compute_user_input_changes(old_slots.get(period, {}), new_inputs, input_label_map, employee_name=name))
+    return changes
 
 
 def build_emission_proposal_history_event(
@@ -29,6 +94,7 @@ def build_emission_proposal_history_event(
     actor_name: str,
     timestamp: str,
     rejection_reason: Optional[str] = None,
+    input_label_map: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Build the linked post-resolution format expected by GHG version history."""
     old_inputs = current.get("dynamic_field_values") or {}
@@ -43,6 +109,8 @@ def build_emission_proposal_history_event(
                 "new_value": new_inputs.get(key),
                 "field_type": "input_values",
             })
+    field_changes.extend(employee_input_changes(current.get("employees"), updated.get("employees"), input_label_map))
+    field_changes.extend(optional_field_changes(current, updated))
     for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
         if current.get(field) != updated.get(field):
             field_changes.append({
@@ -94,6 +162,176 @@ def build_emission_proposal_history_event(
         "requested_by_name": proposal.get("submitted_by_name"),
         "requested_at": proposal.get("submitted_at") or proposal.get("requested_at"),
     }
+
+
+EMISSION_TOTAL_FIELDS = ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions")
+
+
+def emission_state(source: Dict[str, Any]) -> Dict[str, Any]:
+    """Comparable slice of an emission proposal snapshot: inputs, totals, employees and detail fields."""
+    changes = source.get("proposed_changes") or {}
+    state: Dict[str, Any] = {}
+    inputs = changes.get("inputs") or source.get("dynamic_field_values") or source.get("inputs")
+    if inputs:
+        state["dynamic_field_values"] = inputs
+    if "employees" in source:
+        state["employees"] = source["employees"]
+    state.update({k: source[k] for k in OPTIONAL_FIELD_LABELS if k in source})
+    for field in EMISSION_TOTAL_FIELDS:
+        value = changes.get(field, source.get(field))
+        if value is not None:
+            state[field] = value
+    return state
+
+
+def _iso(value: Any) -> str:
+    """ISO-8601 UTC string for datetimes (history rows sort lexicographically) or the value as text."""
+    if isinstance(value, datetime):
+        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+    return str(value)
+
+
+async def upsert_emission_history(events: List[Dict[str, Any]]) -> None:
+    """Write step events once per (request, step) so every write path can safely re-emit the chain."""
+    for event in events:
+        changes = event.get("changes") or {}
+        key = changes.get("event_key")
+        if not key or not changes.get("proposal_id"):
+            await db.emission_history.insert_one(event)
+            continue
+        match = {"emission_id": event["emission_id"], "changes.proposal_id": changes["proposal_id"], "changes.event_key": key}
+        if key == "submitted":
+            await db.emission_history.update_one(match, {"$set": event}, upsert=True)
+        else:
+            await db.emission_history.update_one(match, {"$setOnInsert": event}, upsert=True)
+
+
+async def sync_emission_request_history(proposal_id: str) -> None:
+    """Record the submission, approver edits and level approvals of a pending GHG update as they happen."""
+    proposal = await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
+    if not proposal or proposal.get("entity_type") != "emission_record" or proposal.get("request_type") not in ("create", "update", "delete"):
+        return
+    current = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0})
+    if not current:
+        return
+    if proposal["request_type"] == "delete":
+        total = proposal.get("total_levels") or 1
+        await upsert_emission_history([{
+            "id": str(uuid.uuid4()), "emission_id": current["id"], "facility_id": current.get("facility_id"),
+            "organization_id": current.get("organization_id"), "scope": current.get("scope"), "category": current.get("category"),
+            "changed_by": step.get("actor_id"), "changed_by_email": step.get("actor_email", ""), "changed_by_name": step.get("actor_name", ""),
+            "changed_at": _iso(step.get("timestamp")), "version": current.get("version") or 1, "field_changes": [],
+            "changes_summary": f"Deletion approved at Level {step.get('level')} of {total}",
+            "changes": {"action": "approved", "request_type": "delete", "proposal_id": proposal_id, "event_key": f"level:{step.get('level')}"},
+        } for step in proposal.get("steps_completed") or [] if step.get("action") == "approve" and (step.get("level") or 1) < total])
+        return
+    from shared.helpers.audit_helpers import get_input_label_map_from_db
+    label_map = await get_input_label_map_from_db(db)
+    placeholder = build_emission_proposal_history_event(
+        current, current, proposal, action="approved", actor_id=None, actor_email="", actor_name="",
+        timestamp=datetime.now(timezone.utc).isoformat(), input_label_map=label_map)
+    await upsert_emission_history(build_emission_lifecycle_events(current, current, proposal, placeholder, label_map))
+
+
+def build_emission_lifecycle_events(
+    current: Dict[str, Any],
+    updated: Dict[str, Any],
+    proposal: Dict[str, Any],
+    approved_event: Dict[str, Any],
+    input_label_map: Optional[Dict[str, str]] = None,
+) -> List[Dict[str, Any]]:
+    """Created-by (submitter) and updated-by (approver edit) entries that precede the approval entry."""
+    snapshot = proposal.get("entity_snapshot") or {}
+    original = proposal.get("original_proposal_data") or snapshot
+    def inputs_of(source: Dict[str, Any]) -> Dict[str, Any]:
+        return (source.get("proposed_changes") or {}).get("inputs") or source.get("dynamic_field_values") or source.get("inputs") or {}
+    def total_of(source: Dict[str, Any], field: str):
+        return (source.get("proposed_changes") or {}).get(field, source.get(field))
+    is_create = proposal.get("request_type") == "create"
+    events: List[Dict[str, Any]] = []
+    base = {k: approved_event.get(k) for k in ("emission_id", "facility_id", "organization_id", "scope", "category")}
+    original_inputs = inputs_of(original)
+    if is_create:
+        events.append({
+            **base, "id": str(uuid.uuid4()), "changed_by": proposal.get("submitted_by"),
+            "changed_by_email": proposal.get("submitted_by_email"), "changed_by_name": proposal.get("submitted_by_name"),
+            "changed_at": proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"],
+            "version": 1, "field_changes": [], "changes_summary": "Created",
+            "changes": {"action": "created", "request_type": "create", "proposal_id": proposal.get("id"), "event_key": "submitted", "old_values": None,
+                        "new_values": {"dynamic_field_values": original_inputs, "total_emissions": total_of(original, "total_emissions"),
+                                       "co2e_emissions": total_of(original, "co2e_emissions")}},
+        })
+    edits = sorted([e for e in proposal.get("approver_edits") or [] if e.get("before") is not None and e.get("after") is not None],
+                   key=lambda e: str(e.get("at")))
+    modification = proposal.get("approver_modifications") or {}
+    total_levels = proposal.get("total_levels") or 1
+    if (not is_create and (edits or not modification)) or (is_create and edits):
+        def event(before: Dict[str, Any], after: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+            return build_emission_proposal_history_event(
+                {**current, **before}, {**current, **after}, proposal, input_label_map=input_label_map, **kwargs)
+        if is_create:
+            events[0]["changes"]["event_key"] = "submitted"
+        else:
+            submitted = event({}, emission_state(original), action="updated", actor_id=proposal.get("submitted_by"),
+                              actor_email=proposal.get("submitted_by_email", ""), actor_name=proposal.get("submitted_by_name", ""),
+                              timestamp=proposal.get("submitted_at") or proposal.get("requested_at") or approved_event["changed_at"])
+            submitted["changes_summary"] = "Update Submitted"
+            submitted["changes"]["action"] = "submitted"
+            submitted["changes"]["event_key"] = "submitted"
+            events.append(submitted)
+        for edit in edits:
+            edit_event = event(edit["before"], edit["after"], action="updated", actor_id=edit.get("by_id"), actor_email="",
+                               actor_name=edit.get("by_name", ""), timestamp=str(edit.get("at")))
+            edit_event["changes_summary"] = "Updated by approver"
+            edit_event["changes"]["request_type"] = proposal.get("request_type") or "update"
+            edit_event["changes"]["approver_edit_fields"] = edit.get("fields", [])
+            edit_event["changes"]["event_key"] = f"edit:{edit.get('at')}"
+            events.append(edit_event)
+        for step in proposal.get("steps_completed") or []:
+            if step.get("action") == "approve" and (step.get("level") or 1) < total_levels:
+                level_event = event({}, {}, action="approved", actor_id=step.get("actor_id"), actor_email=step.get("actor_email", ""),
+                                    actor_name=step.get("actor_name", ""), timestamp=str(step.get("timestamp") or approved_event["changed_at"]))
+                level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
+                level_event["field_changes"] = []
+                level_event["changes"]["event_key"] = f"level:{step.get('level')}"
+                events.append(level_event)
+        events.sort(key=lambda e: str(e.get("changed_at")))
+        approved_event["field_changes"] = []
+        approved_event["changes"]["old_values"] = approved_event["changes"]["new_values"]
+        return events
+    if proposal.get("original_proposal_data") and modification:
+        before = {**current, "dynamic_field_values": original_inputs, "employees": original.get("employees") or current.get("employees"),
+                  **{k: original[k] for k in OPTIONAL_FIELD_LABELS if k in original}}
+        for field in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions"):
+            before[field] = total_of(original, field)
+        edit = build_emission_proposal_history_event(
+            before, updated, proposal, action="updated", actor_id=modification.get("modified_by"),
+            actor_email=modification.get("modified_by_email", ""), actor_name=modification.get("modified_by_name", ""),
+            timestamp=modification.get("modified_at") or approved_event["changed_at"], input_label_map=input_label_map,
+        )
+        edit["changes_summary"] = "Updated by approver"
+        edit["changes"]["approver_edit_fields"] = [f for e in proposal.get("approver_edits") or [] for f in e.get("fields", [])]
+        edit["changes"]["request_type"] = "update"
+        edit["version"] = 1 if is_create else edit.get("version")
+        events.append(edit)
+    total_levels = proposal.get("total_levels") or 1
+    for step in proposal.get("steps_completed") or []:
+        if step.get("action") == "approve" and (step.get("level") or 1) < total_levels:
+            level_event = build_emission_proposal_history_event(
+                current, current, proposal, action="approved", actor_id=step.get("actor_id"),
+                actor_email=step.get("actor_email", ""), actor_name=step.get("actor_name", ""),
+                timestamp=str(step.get("timestamp") or approved_event["changed_at"]), input_label_map=input_label_map,
+            )
+            level_event["changes_summary"] = f"Approved at Level {step.get('level')} of {total_levels}"
+            level_event["field_changes"] = []
+            level_event["version"] = events[-1].get("version") if events else level_event.get("version")
+            level_event["changes"]["event_key"] = f"level:{step.get('level')}"
+            events.append(level_event)
+    if is_create and events:
+        approved_event["field_changes"] = []
+        approved_event["changes"]["old_values"] = approved_event["changes"]["new_values"]
+        approved_event["changes_summary"] = "Approved"
+    return events
 
 
 def build_rejected_emission_preview(current: Dict[str, Any], proposal: Dict[str, Any]) -> Dict[str, Any]:
@@ -277,6 +515,7 @@ class ProposalService:
         current_record: Dict[str, Any],
         assignment: Dict[str, Any],
         changes_summary: Optional[List[Dict[str, Any]]] = None,
+        start_level: int = 1,
     ) -> Dict[str, Any]:
         """
         Create a new proposal or update existing one.
@@ -310,6 +549,11 @@ class ProposalService:
             total_levels = 1
         else:
             raise NoApproverConfiguredError(assignment.get("id", "unknown"))
+        if start_level > 1 and start_level <= total_levels:
+            item = approval_chain[start_level - 1]
+            current_approvers = [item if isinstance(item, str) else item.get("approver_id")]
+        else:
+            start_level = 1
         
         now = datetime.now(timezone.utc).isoformat()
         
@@ -371,12 +615,16 @@ class ProposalService:
                 
                 # Current state
                 "status": "pending",
-                "current_level": 1,
+                "current_level": start_level,
                 "current_approvers": current_approvers,
                 "total_levels": total_levels,
                 
                 # Progress tracking
-                "steps_completed": [],
+                "steps_completed": [] if start_level == 1 else [{
+                    "id": str(uuid.uuid4()), "level": start_level - 1, "level_name": f"Level {start_level - 1}", "action": "approve",
+                    "actor_id": user_id, "actor_email": user_email, "actor_name": user_name,
+                    "comment": f"Edited by the Level {start_level - 1} approver (approved at that level)", "timestamp": now,
+                }],
                 "edit_history": [],  # Track user edits to their proposal
                 
                 # Approver modifications (filled when approver edits before approval)
@@ -413,6 +661,7 @@ class ProposalService:
         proposal_id: str,
         approver_id: str,
         modified_data: Dict[str, Any],
+        level: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Approver edits a proposal before approving.
@@ -450,39 +699,56 @@ class ProposalService:
             field_values = modified_data.get("field_values", {})
             
             if field_values:
-                # Update dynamic_field_values if it exists
+                def merge_inputs(target: Dict[str, Any]) -> Dict[str, Any]:
+                    merged = {**target}
+                    for key, value in field_values.items():
+                        if key.startswith("override_") and isinstance(merged.get(key[9:]), dict):
+                            merged[key[9:]] = {**merged[key[9:]], "is_override": bool(value)}
+                        elif key.endswith("_justification") and isinstance(merged.get(key[:-14]), dict):
+                            merged[key[:-14]] = {**merged[key[:-14]], "justification": value}
+                        elif key.endswith("_unit") and isinstance(merged.get(key[:-5]), dict):
+                            merged[key[:-5]] = {**merged[key[:-5]], "unit": value}
+                        elif key.startswith("override_") or key.endswith(("_justification", "_unit")):
+                            continue
+                        elif isinstance(merged.get(key), dict) and "value" in merged[key]:
+                            try:
+                                value = float(value) if value not in (None, "") else value
+                            except (TypeError, ValueError):
+                                pass
+                            entry = {**merged[key], "value": value}
+                            if "is_override" in entry and value not in (None, "") and value != merged[key].get("value") \
+                                    and f"override_{key}" not in field_values:
+                                entry["is_override"] = True
+                                entry["justification"] = entry.get("justification") or "Overridden by approver"
+                            merged[key] = entry
+                        else:
+                            merged[key] = value
+                    return merged
+
+                final_inputs = None
                 if "dynamic_field_values" in new_snapshot:
-                    updated_dfv = {**new_snapshot.get("dynamic_field_values", {})}
-                    for key, value in field_values.items():
-                        # Preserve the {value, unit} structure if the field originally had it
-                        if key in updated_dfv and isinstance(updated_dfv[key], dict) and "value" in updated_dfv[key]:
-                            updated_dfv[key] = {**updated_dfv[key], "value": value}
-                        else:
-                            updated_dfv[key] = value
-                    new_snapshot["dynamic_field_values"] = updated_dfv
-                
-                # Also update proposed_changes.inputs if it exists
+                    new_snapshot["dynamic_field_values"] = final_inputs = merge_inputs(new_snapshot.get("dynamic_field_values", {}))
                 if "proposed_changes" in new_snapshot and "inputs" in new_snapshot.get("proposed_changes", {}):
-                    updated_inputs = {**new_snapshot["proposed_changes"].get("inputs", {})}
-                    for key, value in field_values.items():
-                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
-                            updated_inputs[key] = {**updated_inputs[key], "value": value}
-                        else:
-                            updated_inputs[key] = value
-                    new_snapshot["proposed_changes"] = {
-                        **new_snapshot.get("proposed_changes", {}),
-                        "inputs": updated_inputs
-                    }
-                
-                # Also update inputs if it exists (legacy format)
+                    final_inputs = merge_inputs(new_snapshot["proposed_changes"].get("inputs", {}))
+                    new_snapshot["proposed_changes"] = {**new_snapshot["proposed_changes"], "inputs": final_inputs}
                 if "inputs" in new_snapshot and "proposed_changes" not in new_snapshot:
-                    updated_inputs = {**new_snapshot.get("inputs", {})}
-                    for key, value in field_values.items():
-                        if key in updated_inputs and isinstance(updated_inputs[key], dict) and "value" in updated_inputs[key]:
-                            updated_inputs[key] = {**updated_inputs[key], "value": value}
-                        else:
-                            updated_inputs[key] = value
-                    new_snapshot["inputs"] = updated_inputs
+                    new_snapshot["inputs"] = final_inputs = merge_inputs(new_snapshot.get("inputs", {}))
+
+                if final_inputs:
+                    record = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0}) or {}
+                    recalculated = await self._recalculate_emissions({**record, **{k: v for k, v in new_snapshot.items() if k in ("formula_id", "category_id", "scope")}}, final_inputs, strict=True)
+                    if recalculated:
+                        totals = {k: recalculated.get(k, 0) for k in ("co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions")}
+                        new_snapshot.update(totals)
+                        new_snapshot["outputs"] = recalculated.get("outputs", {})
+                        if "proposed_changes" in new_snapshot:
+                            new_snapshot["proposed_changes"] = {**new_snapshot["proposed_changes"], **totals, "outputs": recalculated.get("outputs", {})}
+            for key in self.EMISSION_DETAIL_FIELDS:
+                if key in modified_data:
+                    new_snapshot[key] = modified_data[key]
+            if modified_data.get("employee_inputs"):
+                record = await db.emission_records.find_one({"id": proposal.get("entity_id")}, {"_id": 0}) or {}
+                await self._apply_employee_edits(new_snapshot, {**record, **new_snapshot}, modified_data["employee_inputs"])
         else:
             # For ESG records, update field_values directly
             if "field_values" in modified_data:
@@ -496,6 +762,8 @@ class ProposalService:
                     new_snapshot[key] = value
         
         new_snapshot["approver_edited"] = True
+        changed_fields = (self._changed_edit_fields(current_snapshot, new_snapshot) if entity_type == "esg_record"
+                          else self._changed_emission_fields(current_snapshot, new_snapshot))
         
         # Update with approver's modifications
         update_data = {
@@ -512,14 +780,196 @@ class ProposalService:
             "updated_at": now,
         }
         
-        await db.approval_requests.update_one(
-            {"id": proposal_id},
-            {"$set": update_data}
-        )
+        field_diffs = []
+        if entity_type == "esg_record":
+            before_values, after_values = current_snapshot.get("field_values") or {}, new_snapshot.get("field_values") or {}
+            field_diffs = [{"field": k, "old_value": before_values.get(k), "new_value": after_values.get(k)}
+                           for k in after_values if after_values.get(k) != before_values.get(k)]
+        if entity_type == "esg_record":
+            def _file_names(files):
+                return ", ".join(f.get("filename") or f.get("name") or "File" for f in files or []) or None
+            for key, label in (("notes", "Notes"), ("source_of_information", "Source of Information"), ("evidence_files", "Evidence")):
+                before_value, after_value = current_snapshot.get(key), new_snapshot.get(key)
+                if (before_value or None) != (after_value or None):
+                    if key == "evidence_files":
+                        before_value, after_value = _file_names(before_value), _file_names(after_value)
+                    field_diffs.append({"field": key, "display_name": label, "old_value": before_value, "new_value": after_value})
+        update_op: Dict[str, Any] = {"$set": update_data}
+        if changed_fields:
+            edit_entry = {
+                "level": level or proposal.get("current_level") or 1, "by_id": approver_id, "by_name": approver_name or approver_email,
+                "at": now, "fields": changed_fields, "field_diffs": field_diffs,
+            }
+            if entity_type == "emission_record":
+                edit_entry["before"], edit_entry["after"] = emission_state(current_snapshot), emission_state(new_snapshot)
+            update_op["$push"] = {"approver_edits": edit_entry}
+        await db.approval_requests.update_one({"id": proposal_id}, update_op)
+        if entity_type == "emission_record":
+            await sync_emission_request_history(proposal_id)
         
         return await db.approval_requests.find_one({"id": proposal_id}, {"_id": 0})
+
+    EMISSION_DETAIL_FIELDS = (
+        "notes", "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
+        "responsible_person_contact", "process_names", "process_descriptions", "evidence_files",
+        "supplier_name", "supplier_code", "asset_name", "from_location", "to_location",
+    )
+
+    async def _apply_employee_edits(self, snapshot: Dict[str, Any], context: Dict[str, Any], edits: List[Dict[str, Any]]) -> None:
+        """Apply approver edits to C7 employee inputs, recalculating each edited employee and the record total."""
+        from fastapi import HTTPException
+        employees = copy.deepcopy(snapshot.get("employees") or [])
+        by_id = {e.get("id"): e for e in employees}
+        shared = {k: {"value": context.get(k), "unit": ""} for k in
+                  ("scope3_ef_id", "scope3_activity", "scope3_activity_type", "scope3_subcategory", "calculation_method_scope3") if context.get(k)}
+        formula_doc = await db.ce_formulas.find_one({"id": context.get("formula_id")}, {"_id": 0}) or {}
+        expected_units = {i.get("variable"): i.get("expected_unit") or "" for i in (formula_doc.get("definition", formula_doc).get("inputs") or [])}
+        for edit in edits:
+            employee = by_id.get(edit.get("id"))
+            if not employee:
+                continue
+            period = edit.get("period_key")
+            slot = employee.setdefault("yearly_data", {}) if period == "yearly" else (
+                employee.setdefault("monthly_data", {}).setdefault(period, {}) if employee.get("monthly_data") and period in employee["monthly_data"] else employee)
+            new_inputs = {k: v for k, v in (edit.get("inputs") or {}).items() if v not in (None, "")}
+            engine_inputs = dict(shared)
+            for key, value in new_inputs.items():
+                if key.endswith("_unit"):
+                    continue
+                try:
+                    engine_inputs[key] = {"value": float(value), "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
+                except (TypeError, ValueError):
+                    engine_inputs[key] = {"value": value, "unit": new_inputs.get(f"{key}_unit") or expected_units.get(key, "")}
+            result = await self._recalculate_emissions(context, engine_inputs, strict=True)
+            if not result:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions for {employee.get('name') or 'employee'}")
+            slot["inputs"] = new_inputs
+            slot["emissions"] = {**(slot.get("emissions") or {}), "co2e": result["co2e_emissions"], "co2": result["co2_emissions"],
+                                 "ch4": result["ch4_emissions"], "n2o": result["n2o_emissions"]}
+        def employee_co2e(emp: Dict[str, Any]) -> float:
+            periods = list((emp.get("monthly_data") or {}).values()) or ([emp["yearly_data"]] if emp.get("yearly_data") else [emp])
+            return sum(float((p.get("emissions") or {}).get("co2e") or 0) for p in periods)
+        total = sum(employee_co2e(e) for e in employees)
+        snapshot["employees"] = employees
+        snapshot["co2e_emissions"] = snapshot["total_emissions"] = total
+        if isinstance(snapshot.get("yearly_total"), dict):
+            snapshot["yearly_total"] = {**snapshot["yearly_total"], "co2e": total}
+
+    @classmethod
+    def _changed_emission_fields(cls, before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+        """Names of the inputs and detail fields an approver changed on an emission request."""
+        def inputs(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+            return (snapshot.get("proposed_changes") or {}).get("inputs") or snapshot.get("dynamic_field_values") or snapshot.get("inputs") or {}
+        old_in, new_in = inputs(before), inputs(after)
+        employees_changed = before.get("employees") != after.get("employees")
+        changed = [k.replace("_", " ").title() for k in sorted(set(old_in) | set(new_in)) if old_in.get(k) != new_in.get(k)]
+        labels = {"notes": "Notes", "source_of_information": "Source of information", "responsible_person": "Person responsible",
+                  "responsible_person_designation": "Designation", "responsible_person_contact": "Contact",
+                  "process_names": "Process names", "process_descriptions": "Process descriptions", "evidence_files": "Evidence",
+                  "supplier_name": "Supplier name", "supplier_code": "Supplier code", "asset_name": "Asset name",
+                  "from_location": "From location", "to_location": "To location"}
+        changed += [label for key, label in labels.items() if (before.get(key) or None) != (after.get(key) or None)]
+        return changed + (["Employee inputs"] if employees_changed else [])
+
+    @staticmethod
+    def _changed_edit_fields(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+        """Names of the data fields an approver changed between two snapshots."""
+        old_fv, new_fv = before.get("field_values") or {}, after.get("field_values") or {}
+        changed = [k.replace("_", " ").title() for k in sorted(set(old_fv) | set(new_fv)) if old_fv.get(k) != new_fv.get(k)]
+        labels = {"notes": "Notes", "source_of_information": "Source of information", "evidence_files": "Evidence"}
+        changed += [label for key, label in labels.items() if before.get(key) != after.get(key)]
+        return changed
+
+    async def _approver_chain(self, proposal: Dict[str, Any]) -> List[str]:
+        """Ordered approver ids for the assignment behind a request."""
+        workflow_id = proposal.get("workflow_id") or ""
+        assignment = None
+        if workflow_id.startswith("assignment_"):
+            assignment = await db.esg_assignments.find_one({"id": workflow_id[len("assignment_"):]}, {"_id": 0})
+        if not assignment:
+            snap = proposal.get("entity_snapshot") or {}
+            query = {"organization_id": proposal.get("organization_id"), "category": snap.get("category"),
+                     "subcategory": snap.get("subcategory")}
+            assignment = (await db.esg_assignments.find_one({**query, "facility_id": snap.get("facility_id")}, {"_id": 0})
+                          if snap.get("facility_id") else None) or await db.esg_assignments.find_one(query, {"_id": 0})
+        if not assignment:
+            return []
+        return normalize_chain(assignment)
+
+    async def _advance_level(self, proposal: Dict[str, Any], approver_id: str, approver_name: str, approver_email: str,
+                             comment: Optional[str], now: str) -> Optional[Dict[str, Any]]:
+        """Approve the current level of a multi-level ESG request and hand it to the next approver."""
+        level = proposal.get("current_level") or 1
+        chain = await self._approver_chain(proposal)
+        if level >= len(chain):
+            return None
+        next_approver = chain[level]
+        snapshot = proposal.get("entity_snapshot") or {}
+        section_to_collection = {"environment": "environment_records", "social": "social_records", "governance": "governance_records"}
+        collection = db[section_to_collection.get(proposal.get("entity_subtype"), "environment_records")]
+        record = await collection.find_one({"id": proposal.get("entity_id")}, {"_id": 0, "approval_status": 1})
+        if record and record.get("approval_status") in ("pending_approval", "pending"):
+            saved = {k: snapshot[k] for k in ("field_values", "notes", "source_of_information", "evidence_files") if k in snapshot}
+            if saved:
+                await collection.update_one({"id": proposal.get("entity_id")}, {"$set": {**saved, "updated_at": now}})
+        edits = [e for e in proposal.get("approver_edits") or [] if e.get("level") == level]
+        await db.approval_requests.update_one(
+            {"id": proposal["id"]},
+            {"$set": {"current_level": level + 1, "current_approvers": [next_approver], "status": "pending", "updated_at": now},
+             "$push": {"steps_completed": {
+                 "id": str(uuid.uuid4()), "level": level, "level_name": f"Level {level}", "action": "approve",
+                 "actor_id": approver_id, "actor_email": approver_email, "actor_name": approver_name,
+                 "comment": comment, "timestamp": now, "edited_fields": [f for e in edits for f in e.get("fields", [])],
+             }}},
+        )
+        try:
+            from shared.notifications import create_notification
+            await create_notification(
+                user_id=next_approver, org_id=proposal.get("organization_id"), title="Approval Required",
+                message=f"{approver_name or 'An approver'} approved level {level}; it now needs your approval",
+                notification_type="approval", link="/workflow/approver-queue",
+                metadata={"entity_id": proposal.get("entity_id"), "proposal_id": proposal["id"]},
+            )
+        except Exception as error:
+            logger.warning(f"Failed to notify next approver: {error}")
+        await sync_emission_request_history(proposal["id"])
+        return {"success": True, "proposal_id": proposal["id"], "advanced_to_level": level + 1, "auto_rejected_count": 0}
     
-    async def approve_proposal(
+    async def _record_auto_rejection(self, rejected_id: str, record_id: str, approved_id: str, now: str) -> None:
+        """Log in the version history that a pending edit was discarded because another request was approved first."""
+        rejected = await db.approval_requests.find_one({"id": rejected_id}, {"_id": 0, "entity_type": 1, "request_type": 1})
+        record = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+        if not record or not rejected or rejected.get("entity_type") != "emission_record" or rejected.get("request_type") == "delete":
+            return
+        reason = "This record was approved before this edit was reviewed"
+        await upsert_emission_history([{
+            "id": str(uuid.uuid4()), "emission_id": record_id, "facility_id": record.get("facility_id"),
+            "organization_id": record.get("organization_id"), "scope": record.get("scope"), "category": record.get("category"),
+            "changed_by": "system", "changed_by_email": "", "changed_by_name": "System", "changed_at": now,
+            "version": record.get("version") or 1, "field_changes": [], "changes_summary": "Update rejected automatically",
+            "changes": {"action": "rejected", "request_type": rejected.get("request_type"), "proposal_id": rejected_id,
+                        "event_key": "auto_rejected", "rejection_reason": reason, "superseded_by": approved_id},
+        }])
+
+    async def _apply_rejected_create(self, record, proposal, approver_id, approver_name, reason, now) -> None:
+        """A rejected new entry keeps the values last saved by a lower-level approver and is marked rejected."""
+        edits = sorted([e for e in proposal.get("approver_edits") or [] if e.get("after")], key=lambda e: str(e.get("at")))
+        update = dict(edits[-1]["after"]) if edits else {}
+        update.update({"approval_status": "rejected_create", "updated_at": now})
+        await db.emission_records.update_one({"id": record["id"]}, {"$set": update, "$push": {"version_history": {
+            "action": "rejected", "rejection_reason": reason, "rejected_by": approver_id, "rejected_by_name": approver_name, "timestamp": now}}})
+
+    async def approve_proposal(self, proposal_id: str, approver_id: str, approval_comment: Optional[str] = None) -> Dict[str, Any]:
+        result = await self._approve_proposal(proposal_id, approver_id, approval_comment)
+        await refresh_for_request(proposal_id)
+        return result
+
+    async def reject_proposal(self, proposal_id: str, approver_id: str, rejection_reason: str) -> Dict[str, Any]:
+        result = await self._reject_proposal(proposal_id, approver_id, rejection_reason)
+        await refresh_for_request(proposal_id)
+        return result
+
+    async def _approve_proposal(
         self,
         proposal_id: str,
         approver_id: str,
@@ -554,6 +1004,11 @@ class ProposalService:
         approver_email = approver.get("email", "") if approver else ""
         approver_name = approver.get("full_name", "") if approver else ""
         
+        if entity_type in ("esg_record", "emission_record") and (proposal.get("current_level") or 1) < (proposal.get("total_levels") or 1):
+            advanced = await self._advance_level(proposal, approver_id, approver_name, approver_email, approval_comment, now)
+            if advanced:
+                return advanced
+        
         # Get the final data to apply (may include approver modifications)
         entity_snapshot = proposal.get("entity_snapshot", {})
         
@@ -585,8 +1040,8 @@ class ProposalService:
                     *proposal.get("steps_completed", []),
                     {
                         "id": str(uuid.uuid4()),
-                        "level": 1,
-                        "level_name": "Approval",
+                        "level": proposal.get("current_level") or 1,
+                        "level_name": f"Level {proposal.get('current_level') or 1}",
                         "action": "approve",
                         "actor_id": approver_id,
                         "actor_email": approver_email,
@@ -626,6 +1081,8 @@ class ProposalService:
                 }}
             )
             
+            await self._record_auto_rejection(other["id"], record_id, proposal_id, now)
+
             # Notify user their proposal was auto-rejected
             try:
                 from shared.notifications import create_notification
@@ -663,13 +1120,15 @@ class ProposalService:
         except Exception as e:
             print(f"Warning: Failed to send approval notification: {e}")
         
+        await self._sync_task_status(proposal)
+        
         return {
             "success": True,
             "proposal_id": proposal_id,
             "auto_rejected_count": len(other_proposals),
         }
     
-    async def reject_proposal(
+    async def _reject_proposal(
         self,
         proposal_id: str,
         approver_id: str,
@@ -706,8 +1165,8 @@ class ProposalService:
                     *proposal.get("steps_completed", []),
                     {
                         "id": str(uuid.uuid4()),
-                        "level": 1,
-                        "level_name": "Rejection",
+                        "level": proposal.get("current_level") or 1,
+                        "level_name": f"Level {proposal.get('current_level') or 1}",
                         "action": "reject",
                         "actor_id": approver_id,
                         "actor_email": approver_email,
@@ -736,6 +1195,10 @@ class ProposalService:
                     rejection_reason=rejection_reason,
                 )
                 history_event["record_was_changed"] = False
+                await sync_emission_request_history(proposal_id)
+                if proposal.get("request_type") == "create":
+                    history_event["changes_summary"] = "Creation Rejected"
+                    await self._apply_rejected_create(current, proposal, approver_id, approver_name, rejection_reason, now)
                 await db.emission_history.insert_one(history_event)
         elif proposal.get("entity_type") == "esg_record":
             section_to_collection = {
@@ -762,6 +1225,12 @@ class ProposalService:
                 )
                 version_event["record_was_changed"] = False
                 await db[collection_name.replace("_records", "_record_versions")].insert_one(version_event)
+                # A rejected first submission is the pending item itself; a rejected edit leaves the approved data as is.
+                if current.get("approval_status") == "pending_approval":
+                    await collection.update_one(
+                        {"id": proposal.get("entity_id")},
+                        {"$set": {"approval_status": "rejected", "rejection_reason": rejection_reason}},
+                    )
         
         # Notify the submitter
         try:
@@ -782,10 +1251,27 @@ class ProposalService:
         except Exception as e:
             print(f"Warning: Failed to send rejection notification: {e}")
         
+        await self._sync_task_status(proposal)
+        
         return {
             "success": True,
             "proposal_id": proposal_id,
         }
+    
+    async def _sync_task_status(self, proposal: Dict[str, Any]) -> None:
+        """Re-sync the stored status of the reporting tasks this proposal's record belongs to."""
+        if proposal.get("entity_type") != "esg_record":
+            return
+        snapshot = proposal.get("entity_snapshot") or {}
+        query = {"organization_id": proposal.get("organization_id"), "category": snapshot.get("category")}
+        for key in ("subcategory", "sub_subcategory"):
+            if snapshot.get(key):
+                query[key] = snapshot[key]
+        try:
+            from modules.esg_records.task_engine import sync_tasks_matching
+            await sync_tasks_matching(db, query)
+        except Exception as e:
+            print(f"Warning: Failed to sync task status: {e}")
     
     async def _apply_proposal_to_record(
         self,
@@ -930,7 +1416,10 @@ class ProposalService:
                 "category", "sub_category", "fuel_type", "scope", 
                 "reporting_period", "frequency_type", "notes",
                 "evidence_files", "has_custom_ef", "emission_factor_used",
-                "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection"
+                "calculation_method_scope3", "scope3_activity", "biogenic_scope_selection",
+                "source_of_information", "record_source", "responsible_person", "responsible_person_designation",
+                "responsible_person_contact", "process_names", "process_descriptions",
+                "employees", "monthly_totals", "yearly_total", "from_location", "to_location", "supplier_name", "supplier_code", "asset_name",
             ]
             for field in other_emission_fields:
                 if field in apply_data:
@@ -943,7 +1432,7 @@ class ProposalService:
                 update_fields["field_values"] = apply_data["field_values"]
             
             # Copy other approved fields
-            for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes"]:
+            for key in ["category", "subcategory", "sub_subcategory", "reporting_period", "notes", "source_of_information", "evidence_files"]:
                 if key in apply_data:
                     update_fields[key] = apply_data[key]
         
@@ -952,6 +1441,8 @@ class ProposalService:
             {"$set": update_fields}
         )
         if entity_type == "emission_record":
+            from shared.helpers.audit_helpers import get_input_label_map_from_db
+            label_map = await get_input_label_map_from_db(db)
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
             history_event = build_emission_proposal_history_event(
                 current,
@@ -962,7 +1453,10 @@ class ProposalService:
                 actor_email=approver_email,
                 actor_name=approver_name,
                 timestamp=now,
+                input_label_map=label_map,
             )
+            lifecycle = build_emission_lifecycle_events(current, updated or {**current, **update_fields}, proposal, history_event, label_map)
+            await upsert_emission_history(lifecycle)
             await db.emission_history.insert_one(history_event)
         elif entity_type == "esg_record":
             updated = await collection.find_one({"id": record_id}, {"_id": 0})
@@ -995,6 +1489,7 @@ class ProposalService:
         self,
         current_record: Dict[str, Any],
         new_dynamic_field_values: Dict[str, Any],
+        strict: bool = False,
     ) -> Dict[str, Any]:
         """
         Recalculate emissions using CalcEngine when approver modifies input values.
@@ -1050,6 +1545,8 @@ class ProposalService:
                     continue
                     
                 if isinstance(val, dict) and "value" in val:
+                    if val.get("value") is None and not val.get("is_override"):
+                        continue
                     # Already in correct format
                     if val.get("is_override"):
                         user_overrides[key] = val
@@ -1068,6 +1565,16 @@ class ProposalService:
                 "category_id": category_id,
                 "reporting_period": current_record.get("reporting_period"),
             }
+            await self._resolve_spend_overrides(current_record, new_dynamic_field_values, inputs, user_overrides, context)
+            ef_ref = new_dynamic_field_values.get("scope3_ef_id") or current_record.get("scope3_ef_id")
+            ef_id = ef_ref.get("value") if isinstance(ef_ref, dict) else ef_ref
+            if ef_id:
+                ef_row = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+                if ef_row:
+                    context.update({
+                        "scope3_ef_id": ef_id, "fuel_name": ef_row.get("activity"), "activity": ef_row.get("activity"),
+                        "activity_type": ef_row.get("activity_type"), "scope3_ef_default_unit": ef_row.get("default_unit") or "",
+                    })
             
             # Execute CalcEngine
             calc_engine = CalcEngine(db)
@@ -1096,15 +1603,76 @@ class ProposalService:
             logger.info(f"[RECALC] Successfully recalculated emissions: co2e={recalculated['co2e_emissions']}")
             return recalculated
             
+        except HTTPException:
+            raise
         except ImportError as e:
             logger.error(f"[RECALC] CalcEngine import error: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
         except CalculationError as e:
             logger.error(f"[RECALC] Calculation error: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
         except Exception as e:
             logger.error(f"[RECALC] Unexpected error during recalculation: {e}")
+            if strict:
+                raise HTTPException(status_code=422, detail=f"Could not recalculate emissions: {e}")
             return {}
+
+    async def _resolve_spend_overrides(
+        self,
+        record: Dict[str, Any],
+        values: Dict[str, Any],
+        inputs: Dict[str, Any],
+        user_overrides: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> None:
+        """Hydrate exchange_rate / ppp / inflation for spend-basis records, like the calc router does."""
+        from calc_engine.currency_conversion import (
+            PPP_INFLATION_METHOD, STANDARD_METHOD, normalize_currency_method,
+            resolve_currency_conversion, resolve_organization_reporting_settings, currency_conversion_source_name,
+        )
+
+        def raw(key):
+            v = values.get(key)
+            if v is None:
+                v = record.get(key)
+            return v.get("value") if isinstance(v, dict) else v
+
+        if raw("calculation_method_scope3") != "spend_basis":
+            return
+        method = normalize_currency_method(raw("spend_currency_conversion_method"))
+        currency = None
+        for v in values.values():
+            if isinstance(v, dict) and str(v.get("unit") or "").upper() in {"INR", "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD"}:
+                currency = str(v["unit"]).upper()
+                break
+        keys = ("exchange_rate",) if method == STANDARD_METHOD else ("inflation_rate", "ppp")
+        conversion = None
+        if currency and currency != "USD":
+            org_id = record.get("organization_id")
+            settings = await resolve_organization_reporting_settings(db, organization_id=org_id)
+            period = record.get("reporting_period")
+            conversion = await resolve_currency_conversion(
+                db, source_currency=currency, reporting_period=period,
+                reporting_year_type=settings["reporting_year_type"],
+                financial_year_start_month=settings["financial_year_start_month"], method=method,
+            )
+            source = {"exchange_rate": "exchange_rate", "inflation_rate": "inflation_factor", "ppp": "purchase_parity"}
+            for key in keys:
+                if key in user_overrides:
+                    continue
+                if not conversion or not conversion.get(source[key]):
+                    raise HTTPException(status_code=422, detail=f"No active {key.replace('_', ' ')} configured for {currency} and {period or 'the requested period'}")
+                user_overrides[key] = {"value": float(conversion[source[key]]), "unit": "", "source_name": currency_conversion_source_name(conversion, method)}
+        else:
+            for key in keys:
+                if key not in user_overrides:
+                    user_overrides[key] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
+        for key in keys:
+            inputs.pop(key, None)
 
 
 # Singleton instance

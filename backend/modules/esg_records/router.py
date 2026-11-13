@@ -11,6 +11,7 @@ the original response is returned instead of processing again.
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Header
 from typing import Optional, List
+from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
 import hashlib
@@ -23,7 +24,8 @@ from .service import esg_records_service, RecordAccessError
 from .ghg_integration import get_ghg_integration_service
 from .ghg_energy_sync import get_ghg_energy_sync_service
 from .category_config_service import category_config_service
-from .visibility import is_workflow_org, own_or_facility_clause, resolve_record_visibility, scoped_dashboard_db
+from .visibility import approver_edit_mode, is_category_approver, is_workflow_org, own_or_facility_clause, user_assigned_categories, resolve_record_visibility, scoped_dashboard_db
+from modules.approval_workflow.log_visibility import log_visibility_clause
 from .detailed_progress_service import detailed_progress_service
 from .contracts import (
     ESG_SECTION, REPORTING_TYPE, 
@@ -59,6 +61,16 @@ async def _assert_record_category_access(org_id: str, section: ESG_SECTION, cate
     if entitlement:
         await assert_entitlement(org_id, entitlement)
     return entitlement
+
+
+async def _assert_facility_data_allowed(org_id: str, user_id: str, role: str, category: str, subcategory: Optional[str], facility_id: Optional[str]) -> None:
+    """Facility-level data needs a facility-level assignment; organization-level assignees and approvers are limited to organization data."""
+    if not facility_id or role in ("admin", "super_admin"):
+        return
+    from modules.esg_assignments.kpi_access_helper import kpi_access_helper
+    allowed = await kpi_access_helper.get_assignable_facilities_list(user_id, org_id, category, subcategory)
+    if facility_id not in {f["id"] for f in allowed}:
+        raise HTTPException(status_code=403, detail="Your assignment for this category is at organization level, so you cannot add or edit facility-level data")
 
 
 # =============================================================================
@@ -452,6 +464,9 @@ async def create_record(
         raise HTTPException(status_code=400, detail="No organization assigned")
 
     entitlement = await _assert_record_category_access(org_id, section, data.category)
+    await _assert_facility_data_allowed(
+        org_id, current_user.get("id") or current_user.get("user_id"), current_user.get("role", ""),
+        data.category, data.subcategory, data.facility_id if data.record_level == "facility" else None)
     if entitlement and data.reporting_period.reporting_type == "monthly":
         module_code = entitlement.rsplit(".", 1)[-1]
         await assert_monthly_row_limit(
@@ -551,42 +566,13 @@ async def list_records(
     if not is_admin and not workflow_org:
         visibility = own_or_facility_clause(current_user)
     if workflow_org:
-        from shared.database.mongo import db
-        
-        # Step 1: Get assignment IDs where user is an active assignee (V2 architecture)
-        assignee_records = await db.esg_assignment_assignees.find(
-            {
-                "user_id": user_id,
-                "organization_id": org_id,
-                "$or": [
-                    {"removed_at": None},
-                    {"removed_at": {"$exists": False}},
-                ],
-            },
-            {"_id": 0, "assignment_id": 1}
-        ).to_list(500)
-        
-        assignment_ids = [a["assignment_id"] for a in assignee_records]
-        
-        # Step 2: Get assignments for those IDs
-        assignments = []
-        if assignment_ids:
-            assignments = await db.esg_assignments.find(
-                {
-                    "id": {"$in": assignment_ids},
-                    "organization_id": org_id,
-                    "entity_type": "record_category",
-                },
-                {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}
-            ).to_list(500)
-        
-        if assignments:
-            # Build list of (category, subcategory, sub_subcategory) tuples user is assigned to
-            assigned_categories = [
-                (a.get("category"), a.get("subcategory"), a.get("sub_subcategory"))
-                for a in assignments
-            ]
-        else:
+        # Categories where the user is an assignee or an assigned approver
+        assigned_categories = await user_assigned_categories(org_id, user_id)
+        visibility = await resolve_record_visibility(current_user)
+        hidden_until_acted = await log_visibility_clause(current_user)
+        if hidden_until_acted:
+            visibility = {"$and": [visibility, hidden_until_acted]}
+        if not assigned_categories:
             # User has no assignments - return empty
             return {
                 "records": [],
@@ -877,7 +863,14 @@ async def update_record(
     existing = await esg_records_service.get_record(section, record_id, org_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Record not found")
+    # Assigned approvers edit their category's records directly, like admins
+    start_level = 1
+    if not is_admin_override:
+        mode = await approver_edit_mode(org_id, user_id, existing.get("category", ""), existing.get("subcategory"))
+        is_admin_override = mode == "direct"
+        start_level = mode if isinstance(mode, int) else 1
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
+    await _assert_facility_data_allowed(org_id, user_id, user_role, existing.get("category"), existing.get("subcategory"), existing.get("facility_id"))
     
     updated = await esg_records_service.update_record(
         section=section,
@@ -885,6 +878,7 @@ async def update_record(
         user_id=user_id,
         data=data,
         is_admin_override=is_admin_override,
+        start_level=start_level,
     )
     
     return {"message": "Record updated", "record": updated}
@@ -908,12 +902,16 @@ async def delete_record(
         raise HTTPException(status_code=404, detail="Record not found")
     await _assert_record_category_access(org_id, section, existing.get("category", ""))
     
+    # Assigned approvers delete directly, like admins
+    approver_delete = user_role not in ("admin", "super_admin") and await is_category_approver(
+        org_id, user_id, existing.get("category", ""), existing.get("subcategory"))
     deleted = await esg_records_service.delete_record(
         section=section,
         record_id=record_id,
         org_id=org_id,
         user_id=user_id,
         user_role=user_role,
+        force_delete=approver_delete,
     )
     
     if not deleted:
@@ -1253,6 +1251,8 @@ async def create_record_assignment(
             }
         
         else:
+            if data.get("category") == "GHG Emissions":
+                raise HTTPException(status_code=400, detail="GHG Emissions must be assigned at facility level")
             # Organization-level assignment
             user_ids = data.get("user_ids", data.get("assigned_user_ids", []))
             if data.get("assigned_to_user_id"):
@@ -1335,6 +1335,8 @@ async def create_record_assignment(
                 "assignment": assignment,
             }
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1671,113 +1673,51 @@ async def refresh_overdue_tasks(
     return result
 
 
-@router.post("/tasks/sync-with-data")
-async def sync_task_statuses_with_data_endpoint(
+@router.get("/tracker-detail")
+async def get_tracker_detail_endpoint(
+    section: str = Query(...),
+    category: str = Query(...),
+    subcategory: str = Query(...),
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database),
 ):
-    """
-    Sync task statuses with actual data records.
-    
-    For tasks that are not completed but have data in the corresponding
-    records collection, update the task status to completed.
-    
-    This fixes discrepancies where data was submitted but the task
-    wasn't updated (e.g., via bulk upload or before the task existed).
-    
-    Admin only.
-    """
-    from .task_engine import sync_task_statuses_with_data
-    
-    # Only admins can trigger this
-    if current_user.get("role") not in ["admin", "super_admin"]:
+    """Periods, assignment, activity and linked disclosures for the tracker's expanded panel."""
+    from .tracker_detail_service import get_tracker_detail
+
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    if section not in ("environment", "social", "governance"):
+        raise HTTPException(status_code=400, detail="Invalid section")
+    return await get_tracker_detail(org_id, section, category, subcategory)
+
+
+class TrackerNotificationSettings(BaseModel):
+    section: str
+    category: str
+    subcategory: str
+    reminder_rules: List[str] = []
+    escalation: str = "none"
+
+
+@router.put("/tracker-detail/notifications")
+async def save_tracker_notifications(
+    body: TrackerNotificationSettings,
+    current_user: dict = Depends(get_current_user),
+):
+    """Save reminder and escalation settings on every assignment of a subcategory (admins only)."""
+    from .tracker_detail_service import ESCALATIONS, REMINDER_RULES, save_notification_settings
+
+    if str(current_user.get("role", "")).lower() not in ("admin", "super_admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
     org_id = current_user.get("organization_id")
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    result = await sync_task_statuses_with_data(db=db, organization_id=org_id)
-    
-    return result
-
-
-
-async def get_completion_by_category(
-    reporting_period: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
-):
-    """
-    Get task completion statistics grouped by category/subcategory.
-    Used for Enhanced Tracker Table to show completion % per row.
-    """
-    org_id = current_user.get("organization_id")
-    if not org_id:
-        raise HTTPException(status_code=400, detail="No organization assigned")
-    
-    # Aggregation pipeline to group tasks by category
-    match_query = {"organization_id": org_id}
-    if reporting_period:
-        match_query["reporting_period"] = reporting_period
-    
-    pipeline = [
-        {"$match": match_query},
-        {"$group": {
-            "_id": {
-                "category": "$category",
-                "subcategory": "$subcategory",
-                "sub_subcategory": "$sub_subcategory",
-                "facility_id": "$facility_id",
-            },
-            "total": {"$sum": 1},
-            "backfill_pending": {"$sum": {"$cond": [{"$eq": ["$status", "backfill_pending"]}, 1, 0]}},
-            "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
-            "in_progress": {"$sum": {"$cond": [{"$eq": ["$status", "in_progress"]}, 1, 0]}},
-            "completed": {"$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}},
-            "reopened": {"$sum": {"$cond": [{"$eq": ["$status", "reopened"]}, 1, 0]}},
-            "overdue": {"$sum": {"$cond": [{"$eq": ["$status", "overdue"]}, 1, 0]}},
-            "skipped": {"$sum": {"$cond": [{"$eq": ["$status", "skipped"]}, 1, 0]}},
-            # Approval status breakdown
-            "pending_approval": {"$sum": {"$cond": [{"$eq": ["$approval_status", "pending_approval"]}, 1, 0]}},
-            "approved": {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
-        }},
-        {"$project": {
-            "_id": 0,
-            "category": "$_id.category",
-            "subcategory": "$_id.subcategory",
-            "sub_subcategory": "$_id.sub_subcategory",
-            "facility_id": "$_id.facility_id",
-            "total": 1,
-            "backfill_pending": 1,
-            "pending": 1,
-            "in_progress": 1,
-            "completed": 1,
-            "reopened": 1,
-            "overdue": 1,
-            "skipped": 1,
-            "pending_approval": 1,
-            "approved": 1,
-            # Operational completion = completed + skipped (user finished their work)
-            "operational_complete": {"$add": ["$completed", "$skipped"]},
-            "completion_pct": {
-                "$cond": [
-                    {"$eq": ["$total", 0]},
-                    0,
-                    {"$multiply": [
-                        {"$divide": [{"$add": ["$completed", "$skipped"]}, "$total"]},
-                        100
-                    ]}
-                ]
-            }
-        }},
-        {"$sort": {"category": 1, "subcategory": 1, "sub_subcategory": 1}}
-    ]
-    
-    results = await db["esg_reporting_tasks"].aggregate(pipeline).to_list(500)
-    
-    return {"completion_stats": results}
-
+    if body.escalation not in ESCALATIONS or any(r not in REMINDER_RULES for r in body.reminder_rules):
+        raise HTTPException(status_code=400, detail="Invalid reminder or escalation option")
+    matched = await save_notification_settings(org_id, body.category, body.subcategory, body.reminder_rules, body.escalation)
+    if not matched:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return {"success": True}
 
 
 @router.get("/tasks/period-status/{assignment_id}")
@@ -1809,25 +1749,25 @@ async def get_period_fill_status(
             "subcategory": assignment.get("subcategory"),
             "sub_subcategory": assignment.get("sub_subcategory"),
         },
-        {"_id": 0, "period_key": 1, "period_label": 1, "status": 1, "due_at": 1, "is_backfill": 1}
+        {"_id": 0}
     ).sort("period_key", 1).to_list(1000)
 
-    now = datetime.now()
+    from modules.esg_assignments.completion_service import completion_service
+
     periods = []
     for t in tasks:
-        status = t.get("status", "pending")
+        status = (await completion_service.get_task_status(t)).value
         due_at = t.get("due_at")
-        is_overdue = status not in ("completed", "skipped") and due_at and due_at < now
-
         periods.append({
             "period_key": t["period_key"],
             "period_label": t.get("period_label", t["period_key"]),
             "status": status,
-            "is_overdue": is_overdue,
+            "is_overdue": status == "overdue",
             "due_at": due_at.isoformat() if due_at else None,
         })
 
-    filled = sum(1 for p in periods if p["status"] in ("completed", "skipped"))
+    filled = sum(1 for p in periods if p["status"] == "completed")
+    awaiting = sum(1 for p in periods if p["status"] == "pending_approval")
     overdue = sum(1 for p in periods if p["is_overdue"])
 
     return {
@@ -1835,7 +1775,8 @@ async def get_period_fill_status(
         "total_periods": len(periods),
         "filled": filled,
         "overdue": overdue,
-        "pending": len(periods) - filled,
+        "pending_approval": awaiting,
+        "pending": len(periods) - filled - overdue - awaiting,
         "periods": periods,
     }
 

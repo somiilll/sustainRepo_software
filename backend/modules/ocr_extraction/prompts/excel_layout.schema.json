@@ -1,0 +1,159 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "shape": {
+      "type": "string",
+      "enum": [
+        "ledger",
+        "wide_months",
+        "column_items",
+        "unknown"
+      ]
+    },
+    "columns": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "integer"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "unit": {
+          "type": "integer"
+        },
+        "amount": {
+          "type": "integer"
+        },
+        "date": {
+          "type": "integer"
+        },
+        "period": {
+          "type": "integer"
+        },
+        "facility": {
+          "type": "integer"
+        },
+        "vendor": {
+          "type": "integer"
+        },
+        "invoice_number": {
+          "type": "integer"
+        },
+        "hsn": {
+          "type": "integer"
+        },
+        "distance_km": {
+          "type": "integer"
+        },
+        "origin": {
+          "type": "integer"
+        },
+        "destination": {
+          "type": "integer"
+        },
+        "notes": {
+          "type": "integer"
+        },
+        "category_hint": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "description",
+        "quantity",
+        "unit",
+        "amount",
+        "date",
+        "period",
+        "facility",
+        "vendor",
+        "invoice_number",
+        "hsn",
+        "distance_km",
+        "origin",
+        "destination",
+        "notes",
+        "category_hint"
+      ]
+    },
+    "month_columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "integer"
+          },
+          "period": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "period"
+        ]
+      }
+    },
+    "item_columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "value_kind": {
+            "type": "string",
+            "enum": [
+              "quantity",
+              "amount"
+            ]
+          }
+        },
+        "required": [
+          "column",
+          "description",
+          "unit",
+          "value_kind"
+        ]
+      }
+    },
+    "wide_value_kind": {
+      "type": "string",
+      "enum": [
+        "quantity",
+        "amount"
+      ]
+    },
+    "constant_description": {
+      "type": "string"
+    },
+    "facility_from_title": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "shape",
+    "columns",
+    "month_columns",
+    "item_columns",
+    "wide_value_kind",
+    "constant_description",
+    "facility_from_title",
+    "confidence"
+  ]
+}

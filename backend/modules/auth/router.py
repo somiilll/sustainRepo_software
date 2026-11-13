@@ -44,6 +44,7 @@ from modules.auth.dependencies import (
     mark_supplier_invitation_accepted_on_login,
 )
 from modules.auth.email_templates import password_reset_email
+from modules.users.profile_fields import clean_designation, clean_mobile
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,8 @@ async def signup(request: Request, user_data: UserCreate, response: Response):
         "organization_id": user_data.organization_id,
         "assigned_facilities": [],
         "requires_password_change": False,
-        "recovery_email": None,
-        "recovery_mobile": None,
+        "mobile_number": None,
+        "designation": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -287,14 +288,21 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @router.put("/auth/profile", response_model=UserResponse)
 async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
-    """Update current user's profile (name)."""
-    if not profile_data.full_name or len(profile_data.full_name.strip()) < 2:
-        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    """Update current user's profile (name, mobile number, designation). Only the fields sent are changed."""
+    update_dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    sent = profile_data.model_fields_set
+    if "full_name" in sent:
+        name = (profile_data.full_name or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+        update_dict["full_name"] = name
+    if "mobile_number" in sent:
+        update_dict["mobile_number"] = clean_mobile(profile_data.mobile_number)
+    if "designation" in sent:
+        update_dict["designation"] = clean_designation(profile_data.designation)
+    if len(update_dict) == 1:
+        raise HTTPException(status_code=400, detail="Nothing to update")
 
-    update_dict = {
-        "full_name": profile_data.full_name.strip(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
     await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
 
     updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})

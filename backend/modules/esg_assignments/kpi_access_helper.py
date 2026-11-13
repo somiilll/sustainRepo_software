@@ -23,8 +23,10 @@ Usage:
     can_access = await kpi_access_helper.can_access_emission(user_id, org_id, scope, facility_id, reporting_period)
 """
 
+import calendar
+import re
 from typing import Optional, List, Dict, Any, Tuple
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from shared.database.mongo import db
 
 
@@ -49,6 +51,25 @@ SCOPE_TO_SUBCATEGORIES = {
 
 # Category name for GHG Emissions
 GHG_CATEGORY = "GHG Emissions"
+
+
+def _month_window(reporting_period: str) -> Optional[Tuple[date, date, List[str]]]:
+    """For a 'YYYY-MM' period: (first day, last day, assignment-year labels that contain it)."""
+    match = re.fullmatch(r"(\d{4})-(\d{2})", reporting_period or "")
+    if not match or not 1 <= int(match[2]) <= 12:
+        return None
+    year, month = int(match[1]), int(match[2])
+    fy_start = year if month >= 4 else year - 1
+    labels = [f"FY {fy_start}-{fy_start + 1}", f"CY {year}", f"CY{year}"]
+    return date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1]), labels
+
+
+def _as_date(value: Any) -> Optional[date]:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10]) if value else None
 
 
 class KPIAccessHelper:
@@ -82,9 +103,11 @@ class KPIAccessHelper:
         organization_id: str,
         category: str,
         reporting_period: Optional[str] = None,
+        include_approver: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Get all assignments for a user in a specific category.
+        With include_approver, assignments the user approves (any level) count too.
         
         Supports both old model (assigned_to_user_id on assignment) and 
         new model (separate esg_assignment_assignees table).
@@ -106,18 +129,28 @@ class KPIAccessHelper:
             "entity_type": "record_category",
         }
         
-        if reporting_period:
+        window = _month_window(reporting_period) if reporting_period else None
+        if window:
+            query["reporting_period"] = {"$in": window[2]}
+        elif reporting_period:
             query["reporting_period"] = reporting_period
         
         # Find assignments where user is in assignees table (V2 only)
-        if assignment_ids_from_new:
+        if include_approver:
+            query["$or"] = [{"id": {"$in": assignment_ids_from_new}}, {"approver_id": user_id}, {"approval_chain": user_id}]
+        elif assignment_ids_from_new:
             query["id"] = {"$in": assignment_ids_from_new}
         else:
             # No V2 assignments found for this user
             return []
         
-        cursor = self._assignments.find(query, {"_id": 0})
-        return await cursor.to_list(100)
+        found = await self._assignments.find(query, {"_id": 0}).to_list(100)
+        if not window:
+            return found
+        first, last = window[0], window[1]
+        return [a for a in found
+                if (not _as_date(a.get("start_date")) or _as_date(a["start_date"]) <= last)
+                and (not _as_date(a.get("end_date")) or _as_date(a["end_date"]) >= first)]
     
     async def get_allowed_ghg_scopes(
         self,
@@ -161,6 +194,7 @@ class KPIAccessHelper:
             organization_id=organization_id,
             category=GHG_CATEGORY,
             reporting_period=reporting_period,
+            include_approver=True,
         )
         
         # No GHG assignment for this user means no GHG access (including sinks)
@@ -283,6 +317,12 @@ class KPIAccessHelper:
             {"_id": 0, "assignment_id": 1}
         ).to_list(500)
         assignment_ids_from_new = [a["assignment_id"] for a in assignee_records]
+        approver_assignments = await self._assignments.find(
+            {"organization_id": organization_id, "category": category, "entity_type": "record_category",
+             "$or": [{"approver_id": user_id}, {"approval_chain": user_id}]},
+            {"_id": 0, "id": 1},
+        ).to_list(500)
+        assignment_ids_from_new = list({*assignment_ids_from_new, *(a["id"] for a in approver_assignments)})
         
         # Build base query for assignments
         base_query = {
@@ -534,6 +574,31 @@ class KPIAccessHelper:
         
         return [r for r in records if r.get("facility_id") in facility_restrictions]
     
+    async def get_assignable_facilities_list(
+        self,
+        user_id: str,
+        organization_id: str,
+        category: str,
+        subcategory: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Facilities a user may add or edit KPI data for: organization-level assignees and approvers get none (only org-level data)."""
+        fields = {"_id": 0, "id": 1, "name": 1, "facility_type": 1}
+        if await self.is_admin(user_id, organization_id):
+            return await self._facilities.find({"organization_id": organization_id}, fields).to_list(500)
+        assignee_ids = [a["assignment_id"] for a in await db["esg_assignment_assignees"].find(
+            {"user_id": user_id, "removed_at": None}, {"_id": 0, "assignment_id": 1}).to_list(500)]
+        query = {"organization_id": organization_id, "category": category, "entity_type": "record_category",
+                 "status": {"$nin": ["completed", "cancelled"]},
+                 "$and": [{"$or": [{"id": {"$in": assignee_ids}}, {"approver_id": user_id}, {"approval_chain": user_id}]}]}
+        if subcategory:
+            query["$and"].append({"$or": [{"subcategory": subcategory}, {"subcategory": None}, {"subcategory": {"$exists": False}}]})
+        facility_ids = {a["facility_id"] for a in await self._assignments.find(
+            query, {"_id": 0, "assignment_level": 1, "facility_id": 1}).to_list(200)
+            if a.get("facility_id") and a.get("assignment_level") != "organization"}
+        if not facility_ids:
+            return []
+        return await self._facilities.find({"organization_id": organization_id, "id": {"$in": list(facility_ids)}}, fields).to_list(500)
+
     async def get_accessible_facilities_list(
         self,
         user_id: str,

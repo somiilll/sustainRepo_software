@@ -85,7 +85,7 @@ import {
 } from '../utils/reportingYearUtils';
 import DataCoverageGrid from './DataCoverageGrid';
 import TaskCalendarGrid from './TaskCalendarGrid';
-import DetailedProgressView from './DetailedProgressView';
+import TrackerDetailPanel from './tracker/TrackerDetailPanel';
 import { AssignmentWizard } from './assignment-wizard';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -162,6 +162,7 @@ export default function ESGRecordsTracker({
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [categories, setCategories] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [users, setUsers] = useState([]);
@@ -210,6 +211,7 @@ export default function ESGRecordsTracker({
     filling_frequency: '',
     due_time: '17:00', // Default 5 PM
     due_day_of_month: 1,
+    due_month_offset: 0,
     due_day_of_week: 'monday',
     // Legacy/reminder fields
     reminder_enabled: false,
@@ -431,11 +433,18 @@ export default function ESGRecordsTracker({
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setRefreshTick((tick) => tick + 1);
     }
   }, [reportingPeriod, section, framework, categoryFilter, facilityFilter, userFilter, statusFilter, stalenessFilter, categories]);
 
   useEffect(() => {
     fetchTrackerData();
+  }, [fetchTrackerData]);
+
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchTrackerData(true); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [fetchTrackerData]);
 
   // Toggle category expansion
@@ -483,6 +492,7 @@ export default function ESGRecordsTracker({
             facilityAssignmentsData[a.facility_id] = {
               user_ids: [],
               approver_id: a.approver_id || '',
+              approval_chain: (a.approval_chain || []).map(c => (typeof c === 'string' ? c : c?.approver_id)).filter(Boolean),
               requires_approval: a.requires_approval || false,
               facility_name: facilities.find(f => f.id === a.facility_id)?.name || ''
             };
@@ -528,6 +538,7 @@ export default function ESGRecordsTracker({
       filling_frequency: firstAssignment.filling_frequency || '',
       due_time: dueConfig.time || '17:00',
       due_day_of_month: dueConfig.day_of_month || 1,
+      due_month_offset: dueConfig.month_offset || 0,
       due_day_of_week: dueConfig.day_of_week || 'monday',
       // Legacy fields
       reminder_enabled: !!(firstAssignment.reminder_enabled || firstAssignment.reminder_config?.frequency),
@@ -586,11 +597,12 @@ export default function ESGRecordsTracker({
         const config = {
           type: freq,
           time: assignForm.due_time || '17:00',
-          timezone: assignForm.timezone || 'Asia/Kolkata',
+          timezone: organization?.timezone || 'Asia/Kolkata',
         };
         
         if (freq === 'monthly' || freq === 'quarterly' || freq === 'half_yearly' || freq === 'yearly') {
           config.day_of_month = parseInt(assignForm.due_day_of_month) || 1;
+          config.month_offset = parseInt(assignForm.due_month_offset) || 0;
         }
         if (freq === 'weekly') {
           config.day_of_week = assignForm.due_day_of_week || 'monday';
@@ -630,7 +642,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: assignForm.start_date || null,
             end_date: assignForm.end_date || null,
-            timezone: assignForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: assignForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: assignForm.reminder_enabled,
@@ -667,7 +679,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: assignForm.start_date || null,
             end_date: assignForm.end_date || null,
-            timezone: assignForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: assignForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: assignForm.reminder_enabled,
@@ -722,11 +734,12 @@ export default function ESGRecordsTracker({
         const config = {
           type: freq,
           time: wizardForm.due_time || '17:00',
-          timezone: wizardForm.timezone || 'Asia/Kolkata',
+          timezone: organization?.timezone || 'Asia/Kolkata',
         };
         
         if (['monthly', 'quarterly', 'half_yearly', 'yearly'].includes(freq)) {
           config.day_of_month = parseInt(wizardForm.due_day_of_month) || 15;
+          config.month_offset = parseInt(wizardForm.due_month_offset) || 0;
         }
         if (freq === 'weekly') {
           config.day_of_week = wizardForm.due_day_of_week || 'friday';
@@ -752,7 +765,8 @@ export default function ESGRecordsTracker({
           facilityAssignmentsMap[facilityId] = {
             user_ids: fa.user_ids,
             requires_approval: fa.requires_approval || false,
-            approver_id: fa.approver_id || null,
+            approver_id: multiLevelApprovalEnabled ? (fa.approval_chain?.[0] || null) : (fa.approver_id || null),
+            approval_chain: multiLevelApprovalEnabled && fa.requires_approval ? (fa.approval_chain || []) : [],
           };
         }
         
@@ -770,7 +784,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: wizardForm.start_date || null,
             end_date: wizardForm.end_date || null,
-            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: wizardForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: wizardForm.reminder_enabled,
@@ -807,7 +821,7 @@ export default function ESGRecordsTracker({
             reporting_period: reportingPeriod,
             start_date: wizardForm.start_date || null,
             end_date: wizardForm.end_date || null,
-            timezone: wizardForm.timezone || 'Asia/Kolkata',
+            timezone: organization?.timezone || 'Asia/Kolkata',
             filling_frequency: wizardForm.filling_frequency || null,
             due_config: buildDueConfig(),
             reminder_enabled: wizardForm.reminder_enabled,
@@ -1192,7 +1206,7 @@ export default function ESGRecordsTracker({
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4" data-testid="tracker-stats-row">
         <Card className="p-4">
           <div className="text-2xl font-bold text-text-primary">{stats?.total_categories || 0}</div>
           <div className="text-sm text-text-muted">Total Categories</div>
@@ -1208,6 +1222,10 @@ export default function ESGRecordsTracker({
         <Card className="p-4">
           <div className="text-2xl font-bold text-green-600">{stats?.completed || 0}</div>
           <div className="text-sm text-text-muted">Completed</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-2xl font-bold text-amber-600" data-testid="tracker-stat-awaiting-approval">{stats?.awaiting_approval || 0}</div>
+          <div className="text-sm text-text-muted">Awaiting approval</div>
         </Card>
         <Card className="p-4">
           <div className="text-2xl font-bold text-red-600">{stats?.overdue || 0}</div>
@@ -1322,6 +1340,7 @@ export default function ESGRecordsTracker({
                 const completedTasks = catCompletion.completed_tasks || 0;
                 const pendingTasks = catCompletion.pending_tasks || 0;
                 const overdueTasks = catCompletion.overdue_tasks || 0;
+                const catAwaiting = catCompletion.awaiting_approval_tasks || 0;
                 const lastUpdated = catCompletion.last_updated || cat.assignment?.updated_at;
                 
                 return (
@@ -1499,6 +1518,7 @@ export default function ESGRecordsTracker({
                     const subCompletedTasks = subCompletion.completed_tasks || 0;
                     const subPendingTasks = subCompletion.pending_tasks || 0;
                     const subOverdueTasks = subCompletion.overdue_tasks || 0;
+                    const subAwaiting = subCompletion.awaiting_approval_tasks || 0;
                     const subLastUpdated = subCompletion.last_updated;
                     
                     // Use parent category assignment if subcategory doesn't have its own
@@ -1551,7 +1571,7 @@ export default function ESGRecordsTracker({
                                 </span>
                               </div>
                               <div className="text-xs text-text-muted mt-0.5">
-                                {subCompletedTasks} / {subTotalTasks} Tasks
+                                {subCompletedTasks} of {subTotalTasks} periods
                               </div>
                             </div>
                           ) : (
@@ -1569,7 +1589,11 @@ export default function ESGRecordsTracker({
                           )}
                         </TableCell>
                         <TableCell>
-                          {effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
+                          {subAwaiting > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700" data-testid={`sub-status-${subcat.subcategory}`}>
+                              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />Awaiting approval
+                            </span>
+                          ) : effectiveAssignment?.status ? getStatusBadge(effectiveAssignment.status) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -1584,15 +1608,19 @@ export default function ESGRecordsTracker({
                                     expandedDetailedView === detailKey ? null : detailKey
                                   );
                                 }}
-                                title="View Period/Facility Details"
+                                title={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'Hide details' : 'Show details'}
                                 className={expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? 'bg-emerald-100' : ''}
                                 data-testid={`view-details-${cat.category}-${subcat.subcategory}`}
                               >
-                                <Calendar className="w-4 h-4" />
+                                {expandedDetailedView === `${cat.category}|${subcat.subcategory}` ? (
+                                  <ChevronDown className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
                               </Button>
                             )}
-                            {/* Assign button - Admin only */}
-                            {isUserAdmin && (
+                            {/* Assign button - Admin only; editing an existing assignment lives in the detail panel */}
+                            {isUserAdmin && !effectiveAssignment && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1626,9 +1654,17 @@ export default function ESGRecordsTracker({
                       {expandedDetailedView === `${cat.category}|${subcat.subcategory}` && (
                         <TableRow className="bg-stone-50">
                           <TableCell colSpan={8} className="py-3 px-4">
-                            <DetailedProgressView
+                            <TrackerDetailPanel
+                              section={section}
                               category={cat.category}
                               subcategory={subcat.subcategory}
+                              version={`${effectiveAssignment?.updated_at}:${refreshTick}`}
+                              onEditAssignment={isUserAdmin ? () => openAssignModal({
+                                category: cat.category,
+                                subcategory: subcat.subcategory,
+                                assignChildren: true,
+                                ...(subcat.assignment || {})
+                              }) : undefined}
                               onClose={() => setExpandedDetailedView(null)}
                             />
                           </TableCell>

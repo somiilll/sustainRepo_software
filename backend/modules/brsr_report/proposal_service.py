@@ -247,7 +247,7 @@ class BRSRImportProposalService:
                 value_path: saved_value,
                 "framework": "BRSR",
                 "section": calculated["section"],
-                "status": "saved",
+                "status": "completed",
                 "approval_status": None,
                 "updated_at": now,
                 "updated_by": user_id,

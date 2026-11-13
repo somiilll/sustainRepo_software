@@ -34,6 +34,7 @@ from modules.emissions.c7_contracts import (
     C7YearlyEntryResponse,
 )
 from modules.emissions.access_policy import resolve_ghg_access_scope
+from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 from shared.database.mongo import db
 from shared.helpers.audit_helpers import (
     compute_field_changes,
@@ -115,6 +116,18 @@ async def create_or_update_c7_monthly_entry(
     }
     
     now = datetime.now(timezone.utc).isoformat()
+    
+    requires_approval, assignment = False, None
+    if current_user.get("role") not in ("admin", "super_admin"):
+        from modules.emissions.router import _find_emission_assignment
+        try:
+            assignment = await _find_emission_assignment(
+                org_id=org_id, user_id=current_user["id"], scope="scope3", facility_id=entry_data.facility_id,
+            )
+            requires_approval = assignment_requires_approval(assignment)
+        except Exception:
+            log_event(logger, logging.WARNING, "ghg.c7.assignment_check", action="ghg.c7.monthly.save", outcome="degraded",
+                      error_code="ASSIGNMENT_CHECK_FAILED", exc_info=True)
     
     if existing:
         # Update existing entry
@@ -221,6 +234,15 @@ async def create_or_update_c7_monthly_entry(
         }
         
         update_dict = await _bind_calculation_version(update_dict, existing)
+        if requires_approval and existing.get("approval_status") in ("approved", "not_required"):
+            from modules.emissions.router import _create_emission_update_approval_request
+            await _create_emission_update_approval_request(
+                org_id=org_id, existing_record=existing, updated_data={**existing, **update_dict},
+                assignment=assignment, user_id=current_user["id"], current_user=current_user,
+            )
+            existing.update({"approval_status": "pending_approval", "is_my_pending_proposal": True,
+                             "facility_name": facility.get("name", ""), "calculation_method": entry_data.calculation_method})
+            return C7MonthlyEntryResponse(**existing)
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save version history
@@ -280,7 +302,7 @@ async def create_or_update_c7_monthly_entry(
             "monthly_total": monthly_total,
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,
-            "approval_status": "not_required",
+            "approval_status": "pending_approval" if requires_approval else "not_required",
             "notes": entry_data.notes,
             "record_source": entry_data.record_source,
             "supplier_name": entry_data.supplier_name,
@@ -302,6 +324,9 @@ async def create_or_update_c7_monthly_entry(
         
         new_entry = await _bind_calculation_version(new_entry)
         await db.emission_records.insert_one(new_entry)
+        if requires_approval:
+            from modules.emissions.router import _create_emission_approval_request
+            await _create_emission_approval_request(org_id=org_id, emission_record=new_entry, assignment=assignment, user_id=current_user["id"])
         
         # Save creation history for C7
         creation_history = {

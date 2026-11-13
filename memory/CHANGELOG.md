@@ -803,3 +803,19 @@
 - `resolved_status` stored on every response (`esg_questionnaire/status_store.py`), refreshed on save, auto-fill syncs, link pushes and progress loads; admin backfill `POST /api/esg-questionnaire/admin/refresh-resolved-statuses`.
 - Fixed-row tables are checked against `table_config` (rows x columns, previous FY included; unit/remark/link columns and "optional" rows ignored).
 - Section A defaults removed (null), Section B/C number inputs write null (not 0) when cleared.
+
+## OCR Extraction v2 (extraction-handoff.zip) - replaced old OCR
+- Engine copied unchanged to backend/modules/ocr_extraction (engine/extractor_core, mappings, prompts, contracts, golden). Testbench demo app omitted.
+- Old modules/ocr_invoice, its tests and frontend modules/ocr removed. New API mounted at /api/ocr-invoice (router in ocr_extraction/router.py).
+- Storage per organisation in MongoDB: ocr_ext_* collections (decisions, layouts, history, usage, credits, audit, queue, jobs); results in GridFS (ocr_ext_results); uploaded files in R2 (bucket ocr_temp).
+- Credits: 5,000 trial credits auto-granted per org; top-up is super_admin only.
+- UI: pages/OCRInvoice.js + modules/ocr2 (Upload, Review, Credits & usage, Learned decisions).
+- Not done: Save-all to GHG emission records / emission calculation (export JSON only). Jev classifier off (no OPENROUTER_API_KEY). OpenAI key out of quota (429), engine falls back to Claude.
+- Dead code left: finalize-import / finalize-water-import calls in useEmissionSubmit.js and ESGRecordsDataEntry.js (old prefill flow, nothing sets it now).
+
+## OCR v2 - Save approved rows (GHG + Water)
+- POST /api/ocr-invoice/jobs/{id}/save: approved rows -> GHG emission records (category by scope+name, factor from fuel_database/scope3_ef, formula via decision tree, calculation, source file attached as evidence, split periods -> one record per month) or Environment > Water > Withdrawal records (litres/KL/ML, one record per row/month).
+- Factor resolution: exact/alias name match or remembered choice; otherwise row is held ("needs factor") and the user picks from a searchable list (GET/POST /jobs/{id}/rows/{row}/factor(s)); choice remembered per org in ocr_ext_factor_choices.
+- Saved rows are locked (edit returns 409). Old OCR finalize-import / finalize-water-import frontend calls removed.
+- Code: ocr_extraction/ghg_save/{saver,water,ghg_save_service,activity_inputs,units}.py (service/activity_inputs/units restored from the old OCR module).
+- Limits: Waste module has no separate record (waste rows are Scope 3 cat 5 GHG records); Water Consumption/Discharge not created; only monthly Water Withdrawal sources (third-party, ground, surface, other); fuel names that differ from factor names (e.g. Gas/Diesel Oil) use a small alias table in saver.py.

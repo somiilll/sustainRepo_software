@@ -1,0 +1,238 @@
+{
+ "_about": "Stage 1 asks domain + use_context + freight_direction in one call; stage 2 asks 'activity' with only the chosen domain's activities (skipped when the rules already picked an activity in that domain). The 'state' text is built by decider/cascade.build_state from the extracted line.",
+ "stage_1": {
+  "domain": {
+   "instructions": "Which kind of activity is this line item?",
+   "choices": {
+    "fuel_combustion": "Fuels burned in our own or controlled equipment or vehicles: diesel/HSD, petrol, LPG, PNG/CNG, coal, furnace oil, biomass, kerosene; also lines that are explicitly the upstream / well-to-tank emissions of a fuel",
+    "refrigerant_fugitive": "Refills or top-ups of refrigerant gas (R-22, R-32, R-410A...), CO2 fire extinguishers, SF6 switchgear gas",
+    "industrial_gas": "Industrial and welding gases bought in cylinders or bulk: argon, nitrogen, oxygen, acetylene, CO2 shielding gas, gas blends",
+    "electricity": "Purchased electricity: grid utility bills (MSEDCL, DVVNL...), open access, green tariff, renewable PPA; also lines that are explicitly grid T&D losses",
+    "heat_steam_cooling": "Purchased steam, hot water, district heating or chilled water",
+    "water": "Water supply or withdrawal: municipal water bills, tanker water, borewell, recycled water",
+    "wastewater": "Effluent or sewage discharge and treatment (CETP, ETP, STP charges)",
+    "waste": "Waste disposal, treatment or recycling: hazardous waste, scrap, e-waste, used oil, sludge, MSW; also waste hauling",
+    "freight": "Transport of goods by a third party: trucking, lorry receipts, courier, rail, sea or air freight, freight forwarding",
+    "business_travel": "Employee business travel: flights, trains, taxis, buses, hotel stays, travel agency bookings",
+    "employee_commute": "Getting employees to and from work: contracted staff buses, cabs, shuttle services, work from home",
+    "purchased_goods": "Raw materials, components, consumables, packaging and supplies bought for operations",
+    "purchased_services": "Services bought: maintenance, repair, calibration, testing, training, consulting, IT, security, housekeeping (not refills of refrigerant gas or CO2 fire extinguishers - those are fugitive emissions)",
+    "capital_goods": "Long-lived assets bought: machinery, plant equipment, vehicles, IT hardware, buildings, electrical equipment",
+    "leased_assets": "Rent or lease of offices, warehouses, equipment or vehicles without operator - paid by us (upstream) or, when we are the landlord, leased out to others (downstream)",
+    "downstream_value_chain": "What happens to products after we sell them: customers' processing, use of sold products, end-of-life / take-back / post-consumer recycling of sold products, franchises, investments",
+    "non_activity": "Not an emissions activity: taxes, statutory fees, permits, consent fees, fines, deposits, advances"
+   }
+  },
+  "use_context": {
+   "instructions": "If this is a fuel, where was it burned? (choose the closest even if not a fuel)",
+   "choices": {
+    "stationary_equipment": "Burned in fixed equipment we own or control: DG set, boiler, furnace, kiln, heater, canteen",
+    "company_vehicle": "Fuel for vehicles we own or lease (cars, trucks, buses in our fleet)",
+    "offroad_equipment": "Fuel for our forklifts, cranes, hydras, loaders or other mobile site machinery",
+    "third_party_vehicle": "Fuel paid for a transporter's or contractor's vehicle that we do not own"
+   }
+  },
+  "freight_direction": {
+   "instructions": "If this is goods transport, which direction and who pays?",
+   "choices": {
+    "inbound": "Goods coming to our site from a supplier",
+    "outbound_paid_by_us": "Goods we send to customers and we pay the transport",
+    "between_own_sites": "Goods moved between our own plants or warehouses",
+    "outbound_paid_by_customer": "Goods sent to customers where the customer pays the transport",
+    "unknown": "Cannot tell / not a freight item"
+   }
+  }
+ },
+ "stage_2_activity_choices_by_domain": {
+  "fuel_combustion": {
+   "fuel.diesel": "High-speed diesel (HSD), light diesel oil (LDO), DG set or vehicle diesel",
+   "fuel.petrol": "Petrol, motor spirit, MS, gasoline",
+   "fuel.lpg": "LPG, propane, butane cylinders or bulk LPG",
+   "fuel.natural_gas": "Piped natural gas (PNG), CNG, RLNG, LNG",
+   "fuel.furnace_oil": "Furnace oil (FO), heavy fuel oil (HFO), LSHS, bunker fuel",
+   "fuel.kerosene": "Kerosene, SKO, heating kerosene",
+   "fuel.coal_bituminous": "Steam coal, thermal coal, imported coal for boilers",
+   "fuel.coal_sub_bituminous": "Sub-bituminous coal (many Indian/Indonesian grades)",
+   "fuel.anthracite": "Anthracite hard coal",
+   "fuel.coking_coal": "Metallurgical coking coal",
+   "fuel.lignite": "Lignite / brown coal",
+   "fuel.coke_oven_coke": "Met coke, hard coke, LAM coke",
+   "fuel.pet_coke": "Petroleum coke (petcoke)",
+   "fuel.naphtha": "Naphtha used as fuel",
+   "fuel.lubricants": "Lubricating oil BURNED as fuel (rare - bought lubricants are purchased goods)",
+   "fuel.bitumen": "Bitumen burned as fuel",
+   "fuel.jet_kerosene": "Aviation turbine fuel (ATF), Jet A-1 for owned aircraft",
+   "fuel.aviation_gasoline": "Avgas for owned piston aircraft",
+   "fuel.crude_oil": "Crude oil burned as fuel",
+   "fuel.refinery_gas": "Refinery off-gas",
+   "fuel.waste_oils": "Used/waste oil burned as fuel",
+   "fuel.blast_furnace_gas": "Blast furnace gas",
+   "fuel.coke_oven_gas": "Coke oven gas",
+   "fuel.ethane": "Ethane",
+   "fuel.ngl": "Natural gas liquids",
+   "fuel.white_spirit": "White spirit / SBP solvents burned",
+   "fuel.paraffin_wax": "Paraffin wax burned",
+   "fuel.other_petroleum": "Other refinery petroleum products used as fuel",
+   "fuel.wood": "Firewood, wood chips, sawdust, wood waste",
+   "fuel.charcoal": "Charcoal",
+   "fuel.solid_biomass": "Rice husk, bagasse, agro-waste briquettes, biomass pellets",
+   "fuel.biodiesel": "Biodiesel (B100 / FAME)",
+   "fuel.biogasoline": "Ethanol / bio-gasoline",
+   "fuel.biogas": "Biogas / compressed biogas (CBG)",
+   "fuel.landfill_gas": "Landfill gas",
+   "fuel.sludge_gas": "Sewage sludge gas",
+   "fuel.black_liquor": "Black liquor from pulp mills",
+   "fuel.msw_fuel": "RDF / municipal waste burned as fuel",
+   "fuel.upstream_wtt": "A line that is explicitly the well-to-tank / upstream (extraction, refining, transport) emissions of a fuel"
+  },
+  "refrigerant_fugitive": {
+   "refrigerant.r22": "R-22 refill / top-up / leakage replacement",
+   "refrigerant.r32": "R-32 refill / top-up / leakage replacement",
+   "refrigerant.r134a": "R-134a refill / top-up / leakage replacement",
+   "refrigerant.r410a": "R-410A refill / top-up / leakage replacement",
+   "refrigerant.r404a": "R-404A refill / top-up / leakage replacement",
+   "refrigerant.r407c": "R-407C refill / top-up / leakage replacement",
+   "refrigerant.r407a": "R-407A refill / top-up / leakage replacement",
+   "refrigerant.r507a": "R-507A refill / top-up / leakage replacement",
+   "refrigerant.hfc23": "HFC-23 refill / top-up / leakage replacement",
+   "refrigerant.hfc125": "HFC-125 refill / top-up / leakage replacement",
+   "refrigerant.hfc143a": "HFC-143a refill / top-up / leakage replacement",
+   "refrigerant.hfc152a": "HFC-152a refill / top-up / leakage replacement",
+   "refrigerant.hfc227ea": "HFC-227ea refill / top-up / leakage replacement",
+   "refrigerant.hfc236fa": "HFC-236fa refill / top-up / leakage replacement",
+   "refrigerant.hfc245fa": "HFC-245fa refill / top-up / leakage replacement",
+   "refrigerant.co2_extinguisher": "CO2 refill / top-up / leakage replacement",
+   "refrigerant.sf6": "SF6 refill / top-up / leakage replacement",
+   "refrigerant.nf3": "NF3 refill / top-up / leakage replacement",
+   "refrigerant.halon1211": "Halon-1211 refill / top-up / leakage replacement",
+   "refrigerant.halon1301": "Halon-1301 refill / top-up / leakage replacement",
+   "refrigerant.n2o_fugitive": "N2O refill / top-up / leakage replacement",
+   "refrigerant.ch4_fugitive": "CH4 refill / top-up / leakage replacement",
+   "refrigerant.dcp_extinguisher": "Dry chemical powder (ABC/DCP), foam or water fire-extinguisher refill or servicing - no greenhouse gas released"
+  },
+  "industrial_gas": {
+   "gas.co2_process": "CO2 used and released in process: welding/shielding CO2, beverage CO2, dry ice, CO2 blasting",
+   "gas.argon": "Argon gas (welding, inert atmosphere) - no direct GHG, purchased good",
+   "gas.argon_co2_blend": "Argon/CO2 mixed shielding gas (e.g. Ar 80% CO2 20%) - CO2 share is a process emission",
+   "gas.nitrogen": "Nitrogen gas or liquid nitrogen",
+   "gas.oxygen": "Oxygen gas or liquid oxygen (industrial or medical)",
+   "gas.acetylene": "Dissolved acetylene (DA) for gas cutting - burned, so a combustion emission",
+   "gas.hydrogen": "Hydrogen gas",
+   "gas.other": "Other industrial gas (helium, specialty gas, calibration gas)"
+  },
+  "electricity": {
+   "elec.grid": "Grid electricity from a utility/DISCOM (MSEDCL, DVVNL, BESCOM, TANGEDCO...) - non-renewable mix",
+   "elec.renewable": "Renewable electricity: green tariff, open-access solar/wind, PPA, I-REC/REC-backed supply",
+   "elec.captive_third_party": "Electricity bought from a third-party captive/group-captive plant",
+   "elec.td_losses": "A line that is explicitly grid transmission & distribution (T&D) losses or upstream generation of electricity"
+  },
+  "heat_steam_cooling": {
+   "heat.steam": "Purchased steam",
+   "heat.district_heat": "Purchased hot water / district heating",
+   "heat.cooling": "Purchased chilled water / district cooling"
+  },
+  "water": {
+   "water.municipal": "Municipal corporation, MIDC, water board or utility water supply",
+   "water.groundwater": "Borewell / tubewell groundwater abstraction, CGWA charges",
+   "water.tanker": "Water delivered by tanker",
+   "water.surface": "River, canal, lake or dam water drawn",
+   "water.recycled": "Recycled or treated water bought or reused (tertiary treated, STP water)",
+   "water.rainwater": "Rainwater harvested and used"
+  },
+  "purchased_goods": {
+   "goods.packaged_water": "Packaged drinking water bottles/jars (a purchased good, not a withdrawal)",
+   "goods.steel": "Steel, iron, MS/SS sheets, rods, billets, pipes, castings",
+   "goods.aluminium": "Aluminium ingots, sheets, extrusions",
+   "goods.copper": "Copper rods, wire, cathodes, busbars",
+   "goods.other_metals": "Zinc, brass, nickel, lead and other metals",
+   "goods.plastics": "Plastic granules, resins, polymer sheets/films",
+   "goods.chemicals": "Industrial chemicals, solvents, acids, paints, adhesives",
+   "goods.cement": "Cement, concrete, aggregates, bricks, sand",
+   "goods.paper_packaging": "Paper, corrugated boxes, cartons, packaging material",
+   "goods.electrical_components": "Cables, switches, PCBs, motors, sensors, spares",
+   "goods.consumables": "Tools, welding electrodes, abrasives, PPE, lab supplies, spares",
+   "goods.office_supplies": "Stationery, printing, office consumables",
+   "goods.food_canteen": "Canteen food, catering, groceries",
+   "goods.textiles": "Fabric, yarn, uniforms",
+   "goods.lubricants": "Lubricating oil, engine/gear/hydraulic oil, grease (used, not burned)",
+   "goods.other_goods": "Any other purchased goods"
+  },
+  "wastewater": {
+   "wastewater.discharge": "Effluent/sewage sent to CETP, sewer or third-party treatment"
+  },
+  "waste": {
+   "waste.haz_landfill": "Hazardous waste sent to a TSDF secured landfill",
+   "waste.haz_incineration": "Hazardous waste incinerated",
+   "waste.haz_coprocessing": "Hazardous waste co-processed in cement kilns",
+   "waste.etp_sludge": "ETP/chemical sludge disposal",
+   "waste.used_oil": "Used/spent oil sent to authorised recycler",
+   "waste.ewaste": "E-waste to authorised recycler",
+   "waste.battery": "Used batteries to recycler",
+   "waste.biomedical": "Biomedical waste from OHC/clinic",
+   "waste.metal_scrap": "Ferrous/non-ferrous scrap sold or sent for recycling",
+   "waste.plastic": "Plastic waste/scrap recycling",
+   "waste.paper": "Paper, cardboard, corrugated box scrap",
+   "waste.wood": "Wooden pallets and wood scrap",
+   "waste.organic": "Canteen food and garden waste",
+   "waste.msw_landfill": "General non-hazardous mixed waste to landfill",
+   "waste.transport_only": "Only transport of waste (waste hauling/carting) with no waste type, quantity or disposal route"
+  },
+  "freight": {
+   "freight.road": "Truck / lorry / tempo goods transport, GTA, lorry receipt (LR)",
+   "freight.rail": "Goods by rail / container rake",
+   "freight.sea": "Ocean/sea freight, container shipping, by-sea shipment",
+   "freight.air": "Air cargo / airway bill shipments",
+   "freight.courier": "Courier and parcel services",
+   "freight.forwarding": "Customs clearing, forwarding, cargo handling, loading/unloading"
+  },
+  "business_travel": {
+   "travel.flight_domestic": "Domestic flight ticket (within India)",
+   "travel.flight_international": "International flight ticket",
+   "travel.rail": "Train ticket (IRCTC, rail travel)",
+   "travel.taxi": "Taxi / cab / ride-hailing (Ola, Uber) for business trips",
+   "travel.bus": "Intercity bus ticket",
+   "travel.car_rental": "Self-drive car rental or mileage claim",
+   "travel.hotel": "Hotel / guest house stay",
+   "travel.agency_fee": "Travel agency service fee / convenience fee only"
+  },
+  "employee_commute": {
+   "commute.staff_bus": "Contracted staff bus / shuttle for employees",
+   "commute.cab": "Contracted employee cabs for home-office pick-up/drop",
+   "commute.wfh": "Work-from-home days"
+  },
+  "purchased_services": {
+   "service.maintenance": "AMC, repair, overhaul, maintenance services",
+   "service.calibration_testing": "Calibration, testing, inspection, certification, lab analysis",
+   "service.training": "Training programmes, courses, workshops",
+   "service.consulting": "Consulting, legal, audit, accounting, engineering services",
+   "service.telecom_it": "Software, SaaS, cloud, internet, telephone",
+   "service.manpower": "Contract labour, security guards, housekeeping, facility management",
+   "service.financial": "Insurance premiums, bank charges",
+   "service.medical": "Ambulance, OHC, medical check-ups",
+   "service.other_services": "Any other service"
+  },
+  "capital_goods": {
+   "capex.machinery": "Production machinery, compressors, pumps, plant equipment",
+   "capex.vehicles": "Purchase of cars, trucks, forklifts",
+   "capex.it_hardware": "Computers, laptops, servers, printers",
+   "capex.electrical_equipment": "Transformers, panels, ACs, appliances",
+   "capex.buildings": "Civil works, construction, building extension"
+  },
+  "downstream_value_chain": {
+   "downstream.processing": "Further processing of our sold intermediate products by customers",
+   "downstream.use_phase": "Energy or fuel used by customers when using our sold products (use phase)",
+   "downstream.end_of_life": "End-of-life treatment of products we sold: customer take-back, post-consumer recovery and recycling",
+   "downstream.franchise": "Franchise outlets operated by franchisees",
+   "downstream.investment": "Equity or debt investments, project finance"
+  },
+  "leased_assets": {
+   "lease.downstream": "Assets we own and lease out to others (we are the landlord/lessor): sublet space, rented-out equipment",
+   "lease.building": "Rent of office, warehouse or factory premises",
+   "lease.equipment_vehicle": "Hire/rental of equipment or vehicles (cranes, hydra, forklifts, cars) without fuel"
+  },
+  "non_activity": {
+   "none.tax_fee": "Taxes, statutory/consent fees, permits, fines, deposits, rounding - not an emissions activity"
+  }
+ },
+ "example_state": "Item: HSD for DG set. Item as printed: HSD (High Speed Diesel). HSN/SAC code: 27101944. Quantity: 500 L. Amount: 45000 INR. Vendor: Indian Oil Corporation. Source: tax_invoice from Indian Oil Corporation"
+}

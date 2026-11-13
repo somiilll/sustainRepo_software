@@ -70,6 +70,14 @@ const STATUS_CONFIG = {
     label: 'Partial',
     cellClass: 'bg-amber-50 hover:bg-amber-100',
   },
+  pending_approval: {
+    bg: 'bg-blue-100',
+    border: 'border-blue-300',
+    text: 'text-blue-700',
+    icon: Clock,
+    label: 'Awaiting approval',
+    cellClass: 'bg-blue-50 hover:bg-blue-100',
+  },
   pending: {
     bg: 'bg-stone-100',
     border: 'border-stone-200',
@@ -277,7 +285,7 @@ export default function DetailedProgressView({
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-4">
         <div className="p-3 bg-stone-50 rounded-lg">
           <div className="text-lg font-bold text-text-primary">{data.summary?.total_periods || 0}</div>
           <div className="text-xs text-text-muted">Total Periods</div>
@@ -292,6 +300,10 @@ export default function DetailedProgressView({
             <div className="text-xs text-text-muted">Partial</div>
           </div>
         )}
+        <div className="p-3 bg-blue-50 rounded-lg" data-testid="detailed-progress-awaiting-approval">
+          <div className="text-lg font-bold text-blue-700">{data.summary?.pending_approval || 0}</div>
+          <div className="text-xs text-text-muted">Awaiting approval</div>
+        </div>
         <div className="p-3 bg-red-50 rounded-lg">
           <div className="text-lg font-bold text-red-700">{data.summary?.overdue || 0}</div>
           <div className="text-xs text-text-muted">Overdue</div>

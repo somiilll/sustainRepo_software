@@ -106,6 +106,37 @@ class QuestionResponseTimelineService:
                     source="question_audit_log",
                 ))
 
+        def _parse(ts):
+            try:
+                return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            except ValueError:
+                return None
+
+        for request in approval_requests:
+            total = request.get("total_levels") or 1
+            if total < 2:
+                continue
+            submitter = cls._actor(request.get("submitted_by_name"), request.get("submitted_by_email"))
+            edits = {e.get("level"): e for e in request.get("approver_edits") or []}
+            for step in request.get("steps_completed") or []:
+                if step.get("action") == "approve" and (step.get("level") or 1) < total:
+                    if "approved at that level" in (step.get("comment") or ""):
+                        continue
+                    edit = edits.get(step.get("level"))
+                    events.append(QuestionTimelineEvent(
+                        event_type="LEVEL_APPROVED", timestamp=cls._timestamp(step.get("timestamp")),
+                        requester=submitter, approver=cls._actor(step.get("actor_name"), step.get("actor_email")),
+                        level=step.get("level"), total_levels=total, source="approval_requests",
+                        submitted_value=edit.get("old_value") if edit else None,
+                        final_value=edit.get("new_value") if edit else None,
+                        approver_edited=bool(edit),
+                    ))
+            resolved = _parse(request.get("resolved_at"))
+            for event in events:
+                stamp = _parse(event.timestamp)
+                if event.event_type == "APPROVED" and resolved and stamp and abs((stamp - resolved).total_seconds()) < 120:
+                    event.level, event.total_levels = total, total
+
         # Versions are included ONLY as fallback when no audit event covers the same action.
         # Audit events are richer (have actor, values), so they take precedence.
         audit_event_types = {e.event_type for e in events}

@@ -191,8 +191,15 @@ export const calculateTaskStats = (tasks, questions = []) => {
     t.status === TASK_STATUS.COMPLETED && t.approval_status === 'pending_approval'
   ).length;
   const approved = tasks.filter(t => t.approval_status === 'approved').length;
+  const items = [...tasks, ...questions];
+  const awaitingApproval = items.filter(x => x.approval_status === 'pending_approval').length;
+  const rejected = items.filter(x =>
+    ['rejected', 'rejected_create', 'rejected_update', 'rejected_delete'].includes(x.approval_status) || x.status === 'rejected'
+  ).length;
   
   return {
+    awaiting_approval_count: awaitingApproval,
+    rejected_count: rejected,
     total_tasks: tasks.length,
     total_questions: questions.length,
     pending_count: pending,

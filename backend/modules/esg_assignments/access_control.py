@@ -18,6 +18,7 @@ from .inheritance import (
     get_record_hierarchy,
 )
 from .assignment_resolver import assignment_resolver
+from modules.esg_questionnaire.status_rules import TRACKER_PARENT
 
 
 class AccessControlService:
@@ -89,8 +90,8 @@ class AccessControlService:
         # Admins always have access
         if await self.is_admin(user_id, organization_id):
             return True, None
+        question_key = TRACKER_PARENT.get(question_key, question_key)
         
-        # Get question config for hierarchy info
         question_config = await self._question_configs.find_one(
             {"question_key": question_key},
             {"_id": 0}
@@ -135,6 +136,11 @@ class AccessControlService:
             if self._has_role_permission(effective.get("role"), required_role):
                 return True, effective
         
+        # Approvers of the assignment may also view and edit (their edits follow the approval-level rule)
+        chain = [c if isinstance(c, str) else (c or {}).get("approver_id") for c in effective.get("approval_chain") or []]
+        if user_id == effective.get("approver_id") or user_id in chain:
+            return True, effective
+
         # Check if user is in additional reminder recipients (viewers)
         recipients = effective.get("reminder_recipients") or []
         if user_id in recipients and required_role == AssignmentRole.VIEWER:
@@ -231,7 +237,7 @@ class AccessControlService:
             "organization_id": organization_id,
             "entity_type": EntityType.QUESTION.value,
             "reporting_period": reporting_period,
-            "id": {"$in": v2_assignment_ids} if v2_assignment_ids else {"$in": []},
+            "$or": [{"id": {"$in": v2_assignment_ids}}, {"approver_id": user_id}, {"approval_chain": user_id}],
         }
         
         cursor = self._assignments.find(query, {"_id": 0})
@@ -275,7 +281,7 @@ class AccessControlService:
                 questions = await self._get_questions_by_principle(entity_id)
                 accessible.update(questions)
         
-        return list(accessible)
+        return list(accessible | {c for c, p in TRACKER_PARENT.items() if p in accessible})
     
     async def get_accessible_record_categories(
         self,

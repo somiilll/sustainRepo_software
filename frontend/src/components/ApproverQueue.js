@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 import SubmissionReviewPanel from './SubmissionReviewPanel';
 import EmissionApprovalWrapper from './EmissionApprovalWrapper';
 import MultiProposalReview from './MultiProposalReview';
+import { applyCoverageField } from './PolicyMatrixValue';
 import { getCurrentReportingYear, generateReportingYears } from '../utils/reportingYearUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -74,6 +75,26 @@ const questionDisplayName = (configMap, questionKey) => {
  * - Click to open review panel for each question
  * - Real-time refresh
  */
+const ACTION_UI = {
+  create: { label: 'Create', cls: 'bg-green-100 text-green-800' },
+  update: { label: 'Update', cls: 'bg-blue-100 text-blue-800' },
+  delete: { label: 'Delete', cls: 'bg-red-100 text-red-800' },
+};
+
+// ESG records only: delete requests are typed, edit proposals use the "Proposal" workflow, the rest are first submissions
+const esgAction = (item) => {
+  if (item.entity_type !== 'esg_record') return null;
+  if (item.request_type === 'delete') return ACTION_UI.delete;
+  const isEdit = (item._proposals || [item]).some((r) => /proposal/i.test(r.workflow_name || ''));
+  return isEdit ? ACTION_UI.update : ACTION_UI.create;
+};
+
+const HISTORY_STATUS_UI = {
+  approved: { label: 'Approved', badge: 'bg-green-100 text-green-800', iconBg: 'bg-green-100', iconColor: 'text-green-600', Icon: CheckCircle2 },
+  rejected: { label: 'Rejected', badge: 'bg-red-100 text-red-800', iconBg: 'bg-red-100', iconColor: 'text-red-600', Icon: XCircle },
+  cancelled: { label: 'Cancelled', badge: 'bg-stone-100 text-stone-700', iconBg: 'bg-stone-100', iconColor: 'text-stone-500', Icon: XCircle },
+};
+
 export default function ApproverQueue() {
   const { getAuthHeader, token } = useAuth();
   const { formatDateTime } = useDateFormatter();
@@ -135,9 +156,6 @@ export default function ApproverQueue() {
       }
       
       const params = { reporting_period: reportingPeriod };
-      if (sectionFilter !== 'all') {
-        params.section = sectionFilter;
-      }
       
       // Fetch questionnaire submissions (old system - GRI disclosures)
       const questionnairePromise = axios.get(
@@ -323,7 +341,7 @@ export default function ApproverQueue() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [getAuthHeader, reportingPeriod, sectionFilter]);
+  }, [getAuthHeader, reportingPeriod]);
 
   // Fetch approval history (approved/rejected items)
   const fetchHistory = useCallback(async () => {
@@ -369,7 +387,9 @@ export default function ApproverQueue() {
         }
       }
       
-      setHistoryItems(allHistory);
+      setHistoryItems(allHistory.filter((item) => item.status !== 'cancelled').filter((item, i, visible) => visible.findIndex(
+        (o) => o.entity_id === item.entity_id && o.status === item.status && o.updated_at === item.updated_at,
+      ) === i));
     } catch (error) {
       console.error('Failed to fetch approval history:', error);
       toast.error('Failed to load approval history');
@@ -432,7 +452,15 @@ export default function ApproverQueue() {
 
   // Calculate total pending count
   // Handle both formats: questionnaire items have nested submissions array, approval workflow items are flat
-  const totalPending = submissions.reduce((acc, q) => {
+  const itemSectionKey = (item) => {
+    const framework = (item.framework || '').toLowerCase();
+    if (framework === 'brsr' || framework === 'gri') return framework;
+    if (item.entity_type === 'emission_record') return 'environment';
+    return (item.section || '').toLowerCase();
+  };
+  const visibleSubmissions = sectionFilter === 'all' ? submissions : submissions.filter((item) => itemSectionKey(item) === sectionFilter);
+
+  const totalPending = visibleSubmissions.reduce((acc, q) => {
     if (q.submissions && Array.isArray(q.submissions)) {
       // Questionnaire format: has nested submissions array
       return acc + q.submissions.length;
@@ -512,6 +540,8 @@ export default function ApproverQueue() {
                 <SelectItem value="environment">Environment</SelectItem>
                 <SelectItem value="social">Social</SelectItem>
                 <SelectItem value="governance">Governance</SelectItem>
+                <SelectItem value="brsr">BRSR</SelectItem>
+                <SelectItem value="gri">GRI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -539,7 +569,7 @@ export default function ApproverQueue() {
         
         {/* Pending Tab */}
         <TabsContent value="pending" className="mt-4">
-          {submissions.length === 0 ? (
+          {visibleSubmissions.length === 0 ? (
             <Card className="p-12 text-center">
               <CheckCircle2 className="w-16 h-16 text-green-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-text-primary mb-2">
@@ -551,7 +581,7 @@ export default function ApproverQueue() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {submissions.map((item) => {
+              {visibleSubmissions.map((item) => {
                 const isRecordApproval = item._source === 'approval_workflow';
                 const isEmissionRecord = item.entity_type === 'emission_record';
                 const isQuestionnaireApproval = item._source === 'questionnaire_approval_v2';
@@ -634,7 +664,9 @@ export default function ApproverQueue() {
                                 {item._proposal_count} proposals
                               </Badge>
                             )}
-                            {item.request_type && item.request_type !== 'create' && (
+                            {esgAction(item) ? (
+                              <Badge className={esgAction(item).cls} data-testid="queue-action-badge">{esgAction(item).label}</Badge>
+                            ) : item.request_type && item.request_type !== 'create' && (
                               <Badge variant="outline" className="text-xs">
                                 {item.request_type.toUpperCase()}
                               </Badge>
@@ -721,11 +753,15 @@ export default function ApproverQueue() {
             <div className="space-y-3">
               {historyItems.map((item) => {
                 const isApproved = item._historyStatus === 'approved';
+                const statusUi = HISTORY_STATUS_UI[item._historyStatus] || HISTORY_STATUS_UI.rejected;
+                const StatusIcon = statusUi.Icon;
                 const isEmissionRecord = item.entity_type === 'emission_record';
                 const displayName = item._disclosure_name || 
                   (isEmissionRecord 
                     ? `GHG ${item.entity_snapshot?.scope?.toUpperCase() || ''} - ${item.entity_snapshot?.category || 'Emissions'}`
-                    : item.entity_id || 'Unknown');
+                    : item.entity_type === 'esg_record'
+                      ? `${item.entity_snapshot?.category || 'Record'}${item.entity_snapshot?.subcategory ? ' → ' + item.entity_snapshot.subcategory : ''}`
+                      : item.entity_id || 'Unknown');
                 
                 return (
                   <Card 
@@ -736,26 +772,18 @@ export default function ApproverQueue() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-start gap-4">
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
-                          isApproved ? 'bg-green-100' : 'bg-red-100'
-                        }`}>
-                          {isApproved ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-600" />
-                          )}
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${statusUi.iconBg}`}>
+                          <StatusIcon className={`w-5 h-5 ${statusUi.iconColor}`} />
                         </div>
                         
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge className={isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                              {isApproved ? 'Approved' : 'Rejected'}
-                            </Badge>
+                            <Badge className={statusUi.badge}>{statusUi.label}</Badge>
                             {item.framework && (
                               <Badge className="bg-stone-100 text-stone-800">{item.framework}</Badge>
                             )}
-                            {item.request_type === 'delete' && (
-                              <Badge className="bg-red-100 text-red-800">Delete</Badge>
+                            {esgAction(item) && (
+                              <Badge className={esgAction(item).cls} data-testid="history-action-badge">{esgAction(item).label}</Badge>
                             )}
                           </div>
                           <h4 className="font-medium text-text-primary">
@@ -771,7 +799,7 @@ export default function ApproverQueue() {
                               {formatDateTime(item.updated_at || item.created_at)}
                             </span>
                           </div>
-                          {!isApproved && item.rejection_reason && (
+                          {item._historyStatus === 'rejected' && item.rejection_reason && (
                             <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
                               <strong>Rejection Reason:</strong> {item.rejection_reason}
                             </div>
@@ -828,6 +856,8 @@ export default function ApproverQueue() {
                 onClose={() => setSelectedQuestion(null)}
                 onApproved={handleApprovalComplete}
                 getAuthHeader={getAuthHeader}
+                showQuestion={!selectedQuestion?.disclosure_name}
+
               />
             ) : (selectedQuestion.entity_type === 'esg_response' || selectedQuestion.entity_type === 'esg_response_submission') ? (
               <GRIApprovalPanel
@@ -893,13 +923,33 @@ export default function ApproverQueue() {
       ) : null}
       
       {/* History View Dialog - Read Only */}
-      {selectedHistoryItem && (
+      {selectedHistoryItem && selectedHistoryItem.entity_type === 'esg_record' && (
+        <Dialog open={true} onOpenChange={() => setSelectedHistoryItem(null)}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-stone-600" />
+                {(HISTORY_STATUS_UI[selectedHistoryItem._historyStatus] || HISTORY_STATUS_UI.rejected).label} Submission:{' '}
+                {selectedHistoryItem.entity_snapshot?.category}{selectedHistoryItem.entity_snapshot?.subcategory ? ` → ${selectedHistoryItem.entity_snapshot.subcategory}` : ''}
+              </DialogTitle>
+            </DialogHeader>
+            <MultiProposalReview
+              recordId={selectedHistoryItem.entity_id}
+              entityType="esg_record"
+              section={selectedHistoryItem.entity_subtype || 'environment'}
+              historyProposal={selectedHistoryItem}
+              onClose={() => setSelectedHistoryItem(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+      {selectedHistoryItem && selectedHistoryItem.entity_type !== 'esg_record' && (
         <Dialog open={true} onOpenChange={() => setSelectedHistoryItem(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <History className="w-5 h-5 text-stone-600" />
-                {selectedHistoryItem._historyStatus === 'approved' ? 'Approved Submission' : 'Rejected Submission'}
+                {(HISTORY_STATUS_UI[selectedHistoryItem._historyStatus] || HISTORY_STATUS_UI.rejected).label} Submission
               </DialogTitle>
             </DialogHeader>
             
@@ -915,7 +965,7 @@ export default function ApproverQueue() {
       {/* Multi-Proposal Review Dialog for ESG Records and Emission Records */}
       {multiProposalRecord && (
         <Dialog open={true} onOpenChange={() => setMultiProposalRecord(null)}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={`max-h-[90vh] overflow-y-auto overflow-x-hidden ${multiProposalRecord.entityType === 'emission_record' ? 'w-[96vw] max-w-6xl' : 'max-w-5xl'}`}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-blue-600" />
@@ -945,6 +995,7 @@ export default function ApproverQueue() {
  */
 function HistoryViewPanel({ item, onClose, formatDateTime }) {
   const isApproved = item._historyStatus === 'approved';
+  const isCancelled = item._historyStatus === 'cancelled';
   const snapshot = item.entity_snapshot || {};
   const isEmissionRecord = item.entity_type === 'emission_record';
   const isBRSR = item.framework?.toUpperCase() === 'BRSR';
@@ -953,21 +1004,23 @@ function HistoryViewPanel({ item, onClose, formatDateTime }) {
   const displayName = item._disclosure_name || 
     (isEmissionRecord 
       ? `GHG ${snapshot.scope?.toUpperCase() || ''} - ${snapshot.category || 'Emissions'}`
-      : item.entity_id || 'Unknown');
+      : item.entity_type === 'esg_record'
+        ? `${snapshot.category || 'Record'}${snapshot.subcategory ? ' → ' + snapshot.subcategory : ''}`
+        : item.entity_id || 'Unknown');
   
   return (
     <div className="space-y-6">
       {/* Status Banner */}
-      <div className={`p-4 rounded-lg ${isApproved ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+      <div className={`p-4 rounded-lg ${isApproved ? 'bg-green-50 border border-green-200' : isCancelled ? 'bg-stone-50 border border-stone-200' : 'bg-red-50 border border-red-200'}`}>
         <div className="flex items-center gap-3">
           {isApproved ? (
             <CheckCircle2 className="w-6 h-6 text-green-600" />
           ) : (
-            <XCircle className="w-6 h-6 text-red-600" />
+            <XCircle className={`w-6 h-6 ${isCancelled ? 'text-stone-500' : 'text-red-600'}`} />
           )}
           <div>
-            <p className={`font-semibold ${isApproved ? 'text-green-800' : 'text-red-800'}`}>
-              {isApproved ? 'Approved' : 'Rejected'}
+            <p className={`font-semibold ${isApproved ? 'text-green-800' : isCancelled ? 'text-stone-700' : 'text-red-800'}`}>
+              {isApproved ? 'Approved' : isCancelled ? 'Cancelled' : 'Rejected'}
             </p>
             <p className="text-sm text-stone-600">
               {formatDateTime(item.updated_at || item.created_at)}
@@ -1880,7 +1933,7 @@ function RecordApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
  * BRSRApprovalPanel - Review panel for BRSR response approvals (esg_response entity type)
  * Uses the existing QuestionRenderer from ESGQuestionnaire for consistent rendering
  */
-function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
+function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader, showQuestion = true }) {
   const { timezone } = useOrganization();
   const [processing, setProcessing] = useState(false);
   const [comment, setComment] = useState('');
@@ -1999,6 +2052,10 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       />;
     }
     
+    if (questionType === 'principle_text' || (value && typeof value === 'object' && 'all_text' in value)) {
+      return <PrincipleTextDisplay value={value} onChange={isEditing ? setEditedValue : undefined} isEditing={isEditing} />;
+    }
+
     // Handle principle_toggle type (NGRBC principles)
     if (questionType === 'principle_toggle' || questionType === 'principle_toggle_with_description' || (value && typeof value === 'object' && ('mode' in value || 'all_enabled' in value || 'principles' in value))) {
       return <PrincipleToggleDisplay 
@@ -2033,6 +2090,26 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
       );
     }
     
+    // Handle numeric / boolean answers (number, currency, ...)
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      const unit = config.config?.currency || config.currency || config.unit || '';
+      if (typeof value === 'boolean') return <p className="text-stone-700" data-testid="queue-response-value">{value ? 'Yes' : 'No'}</p>;
+      return isEditing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={editedValue ?? value}
+            onChange={(e) => setEditedValue(e.target.value === '' ? '' : Number(e.target.value))}
+            className="w-56 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            data-testid="queue-response-number-input"
+          />
+          {unit && <span className="text-sm text-stone-500">{unit}</span>}
+        </div>
+      ) : (
+        <p className="text-stone-700 tabular-nums" data-testid="queue-response-value">{value.toLocaleString()} {unit}</p>
+      );
+    }
+    
     // Handle other object types with friendly display
     if (typeof value === 'object' && value !== null) {
       return <ObjectFieldsDisplay 
@@ -2047,7 +2124,7 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
 
   return (
     <div className="space-y-5">
-      {/* Question Text */}
+      {showQuestion && (
       <Card className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100">
         <div className="flex items-start gap-2 mb-2">
           <Badge variant="outline" className="shrink-0 bg-amber-100 text-amber-800">BRSR</Badge>
@@ -2063,6 +2140,8 @@ function BRSRApprovalPanel({ item, onClose, onApproved, getAuthHeader }) {
           </p>
         )}
       </Card>
+      )}
+
 
       {/* Submitter Info */}
       <div className="flex items-center gap-6 text-sm px-1">
@@ -2478,6 +2557,72 @@ const NGRBC_PRINCIPLES = [
   { key: "P9", name: "Customer Value" },
 ];
 
+// Principle Text Display/Edit component (NGRBC text answers: all_together vs principle_wise)
+function PrincipleTextDisplay({ value, onChange, isEditing }) {
+  const data = value || { mode: 'all_together', all_text: '', principles: {} };
+  const setPrinciple = (key, text) => onChange?.({ ...data, principles: { ...data.principles, [key]: text } });
+
+  if (!isEditing) {
+    return (
+      <div className="space-y-3">
+        <Badge variant="outline" className="mb-2">
+          Mode: {data.mode === 'all_together' ? 'All Principles Together' : 'Principle-wise'}
+        </Badge>
+        {data.mode === 'all_together' ? (
+          <div className="bg-stone-50 p-3 rounded">
+            <p className="text-sm whitespace-pre-wrap" data-testid="queue-principle-text-all">{data.all_text || '-'}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {NGRBC_PRINCIPLES.map((p) => (
+              <div key={p.key} className="bg-stone-50 p-2 rounded text-sm">
+                <strong>{p.key} - {p.name}:</strong> {data.principles?.[p.key] || '-'}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-4">
+        <label className="text-sm font-medium">Mode:</label>
+        <select
+          value={data.mode || 'all_together'}
+          onChange={(e) => onChange?.({ ...data, mode: e.target.value })}
+          className="px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all_together">Fill All Principles Together</option>
+          <option value="principle_wise">Fill Principle-wise Separately</option>
+        </select>
+      </div>
+      {data.mode === 'all_together' ? (
+        <textarea
+          value={data.all_text || ''}
+          onChange={(e) => onChange?.({ ...data, all_text: e.target.value })}
+          className="w-full min-h-[100px] px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          data-testid="queue-principle-text-all-input"
+        />
+      ) : (
+        <div className="space-y-3">
+          {NGRBC_PRINCIPLES.map((p) => (
+            <div key={p.key} className="bg-stone-50 p-3 rounded-lg space-y-1">
+              <p className="text-sm font-medium">{p.key} - {p.name}</p>
+              <textarea
+                value={data.principles?.[p.key] || ''}
+                onChange={(e) => setPrinciple(p.key, e.target.value)}
+                className="w-full min-h-[60px] px-3 py-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Principle Toggle Display/Edit component (handles NGRBC all_together vs principle_wise)
 function PrincipleToggleDisplay({ value, onChange, isEditing, config = {} }) {
   const data = value || { mode: 'all_together', all_enabled: null, all_description: '', principles: {} };
@@ -2617,12 +2762,28 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
   const principleWise = data.principle_wise || {};
   
   const noReasons = [
-    { key: 'not_material', label: 'Not material to business' },
-    { key: 'not_ready', label: 'Not ready to implement' },
-    { key: 'no_resources', label: 'No resources available' },
-    { key: 'planned_next_fy', label: 'Planned for next FY' },
-    { key: 'other', label: 'Other reason', hasText: true }
+    { key: 'not_material', label: 'The entity does not consider the Principles material to its business' },
+    { key: 'not_ready', label: 'The entity is not at a stage where it is in a position to formulate and implement the policies on specified principles' },
+    { key: 'no_resources', label: 'The entity does not have the financial or/human and technical resources available for the task' },
+    { key: 'planned_next_fy', label: 'It is planned to be done in the next financial year' },
+    { key: 'other', label: 'Any other reason (please specify)', hasText: true }
   ];
+
+  const handlePrincipleReasonChange = (principle, reasonKey, checked, textVal = '') => {
+    onChange?.({
+      ...data,
+      principle_wise: {
+        ...principleWise,
+        [principle]: {
+          ...principleWise[principle],
+          reasons: {
+            ...principleWise[principle]?.reasons,
+            [reasonKey]: checked ? (reasonKey === 'other' ? textVal || true : true) : false
+          }
+        }
+      }
+    });
+  };
 
   const handleModeChange = (newMode) => {
     onChange?.({ ...data, mode: newMode });
@@ -2631,7 +2792,7 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
   const handleAllTogetherChange = (field, val) => {
     onChange?.({ 
       ...data, 
-      all_together: { ...allTogether, [field]: val } 
+      all_together: applyCoverageField(allTogether, field, val) 
     });
   };
 
@@ -2653,7 +2814,7 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
       ...data,
       principle_wise: {
         ...principleWise,
-        [principle]: { ...principleWise[principle], [field]: val }
+        [principle]: applyCoverageField(principleWise[principle], field, val)
       }
     });
   };
@@ -2698,6 +2859,18 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
                       | Board: {pData.board_approved === true ? 'Yes' : pData.board_approved === false ? 'No' : '-'}
                       {pData.web_link && <> | Link: {pData.web_link}</>}
                     </span>
+                  )}
+                  {pData.covered === false && (
+                    <div className="mt-1 text-xs" data-testid={`policy-matrix-reasons-${p.key}`}>
+                      <strong>Reasons:</strong>
+                      {noReasons.filter(r => pData.reasons?.[r.key]).length === 0 ? <span className="ml-1 text-stone-500">None given</span> : (
+                        <ul className="list-disc pl-5 mt-0.5">
+                          {noReasons.filter(r => pData.reasons?.[r.key]).map(r => (
+                            <li key={r.key}>{r.label}{r.key === 'other' && typeof pData.reasons?.other === 'string' ? `: ${pData.reasons.other}` : ''}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -2839,6 +3012,31 @@ function NGRBCPolicyMatrixDisplay({ value, onChange, isEditing, config = {} }) {
                         placeholder="https://..."
                       />
                     </div>
+                  </div>
+                )}
+                {pData.covered === false && (
+                  <div className="mt-2 pl-3 border-l-2 border-red-300 space-y-1.5" data-testid={`policy-matrix-reasons-edit-${p.key}`}>
+                    <label className="text-xs font-medium">Reasons:</label>
+                    {noReasons.map(reason => (
+                      <div key={reason.key} className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!pData.reasons?.[reason.key]}
+                          onChange={(e) => handlePrincipleReasonChange(p.key, reason.key, e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span className="text-xs">{reason.label}</span>
+                        {reason.hasText && pData.reasons?.[reason.key] && (
+                          <input
+                            type="text"
+                            value={typeof pData.reasons?.other === 'string' ? pData.reasons.other : ''}
+                            onChange={(e) => handlePrincipleReasonChange(p.key, 'other', true, e.target.value)}
+                            className="flex-1 px-2 py-1 border rounded text-xs"
+                            placeholder="Specify..."
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

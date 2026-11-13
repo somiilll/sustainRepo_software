@@ -9,6 +9,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from shared.database.mongo import db
+from modules.esg_assignments.completion_service import DataChecker, counts_as_completed
+from shared.utils.period_keys import period_key_for_frequency
 
 
 class DetailedProgressService:
@@ -91,14 +93,6 @@ class DetailedProgressService:
         # For progress calculation, only use assigned facilities
         facilities = assigned_facilities
         
-        # Determine which collection to query
-        collection_name = self._get_collection_name(category, subcategory)
-        
-        # Get all records for this category/subcategory
-        records = await self._get_records(
-            org_id, category, subcategory, collection_name, facilities
-        )
-        
         # Build period status matrix
         period_statuses = []
         now = datetime.now(timezone.utc)
@@ -115,14 +109,20 @@ class DetailedProgressService:
                 # For each ASSIGNED facility, check if data exists for this period
                 facility_statuses = []
                 for fac in facilities:  # facilities = assigned_facilities only
-                    has_data = self._check_record_exists(
-                        records, period, fac["id"], collection_name
+                    has_data, _, approval_status = await DataChecker.check_exists(
+                        org_id, category, subcategory, fac["id"], period["key"]
                     )
+                    done = counts_as_completed(has_data, approval_status)
+                    awaiting = has_data and approval_status in ("pending", "pending_approval")
                     facility_statuses.append({
                         "facility_id": fac["id"],
                         "facility_name": fac["name"],
-                        "status": "completed" if has_data else ("overdue" if period_info["is_overdue"] else "pending"),
-                        "has_data": has_data,
+                        "status": (
+                            "completed" if done else
+                            "pending_approval" if awaiting else
+                            "overdue" if period_info["is_overdue"] else "pending"
+                        ),
+                        "has_data": done,
                         "is_assigned": True,
                     })
                 
@@ -141,26 +141,31 @@ class DetailedProgressService:
                 # Aggregate status for the period (only count assigned facilities)
                 assigned_statuses = [fs for fs in facility_statuses if fs["is_assigned"]]
                 completed = sum(1 for fs in assigned_statuses if fs["has_data"])
+                awaiting_count = sum(1 for fs in assigned_statuses if fs["status"] == "pending_approval")
+                period_info["awaiting_approval_count"] = awaiting_count
                 period_info["completed_count"] = completed
                 period_info["total_count"] = len(assigned_statuses)  # Only count assigned
                 period_info["unassigned_count"] = len(unassigned_facilities)
                 period_info["status"] = (
                     "completed" if len(assigned_statuses) > 0 and completed == len(assigned_statuses) else
                     "partial" if completed > 0 else
+                    "pending_approval" if awaiting_count > 0 else
                     "overdue" if period_info["is_overdue"] and len(assigned_statuses) > 0 else 
                     "pending" if len(assigned_statuses) > 0 else
                     "no_assignments"
                 )
             else:
                 # Org-level: check if org record exists
-                has_data = self._check_record_exists(
-                    records, period, None, collection_name
+                has_data, _, approval_status = await DataChecker.check_exists(
+                    org_id, category, subcategory, None, period["key"]
                 )
+                done = counts_as_completed(has_data, approval_status)
                 period_info["status"] = (
-                    "completed" if has_data else
+                    "completed" if done else
+                    "pending_approval" if has_data and approval_status in ("pending", "pending_approval") else
                     "overdue" if period_info["is_overdue"] else "pending"
                 )
-                period_info["has_data"] = has_data
+                period_info["has_data"] = done
             
             period_statuses.append(period_info)
         
@@ -181,6 +186,7 @@ class DetailedProgressService:
                 "partial": sum(1 for p in period_statuses if p.get("status") == "partial"),
                 "overdue": sum(1 for p in period_statuses if p["status"] == "overdue"),
                 "pending": sum(1 for p in period_statuses if p["status"] == "pending"),
+                "pending_approval": sum(1 for p in period_statuses if p["status"] == "pending_approval"),
                 "assigned_facilities": len(facilities),
                 "unassigned_facilities": len(unassigned_facilities),
             }
@@ -264,6 +270,7 @@ class DetailedProgressService:
                 "due_date": due_date,
                 "year": current.year,
                 "month": current.month,
+                "key": period_key_for_frequency(current, frequency),
                 "period_string": f"{current.year}-{current.month:02d}",
             })
             
@@ -274,137 +281,6 @@ class DetailedProgressService:
                 break
         
         return periods
-    
-    def _get_collection_name(self, category: str, subcategory: str) -> str:
-        """Determine which collection stores records for this category."""
-        cat_lower = (category or "").lower()
-        sub_lower = (subcategory or "").lower()
-        
-        # Emission records
-        if "ghg" in cat_lower or "emission" in cat_lower or "scope" in sub_lower:
-            return "emission_records"
-        
-        # Social records
-        if any(k in cat_lower or k in sub_lower for k in ["social", "employee", "worker", "health", "safety", "complaint", "training"]):
-            return "social_records"
-        
-        # Governance records
-        if any(k in cat_lower or k in sub_lower for k in ["governance", "board", "ethic", "compliance", "corruption", "financial"]):
-            return "governance_records"
-        
-        # Default to environment
-        return "environment_records"
-    
-    async def _get_records(
-        self,
-        org_id: str,
-        category: str,
-        subcategory: str,
-        collection_name: str,
-        facilities: List[Dict]
-    ) -> List[Dict]:
-        """Get all relevant records for the category/subcategory."""
-        
-        if collection_name == "emission_records":
-            # emission_records has facility_id but no org_id
-            facility_ids = [f["id"] for f in facilities] if facilities else []
-            if not facility_ids:
-                # Get all facilities for this org
-                fac_docs = await self._db["facilities"].find(
-                    {"organization_id": org_id}, {"_id": 0, "id": 1}
-                ).to_list(500)
-                facility_ids = [f["id"] for f in fac_docs]
-            
-            query = {"facility_id": {"$in": facility_ids}}
-            
-            # Map category to scope for emission_records
-            if "scope 1" in subcategory.lower():
-                query["scope"] = "scope1"
-            elif "scope 2" in subcategory.lower():
-                query["scope"] = "scope2"
-            elif "scope 3" in subcategory.lower():
-                query["scope"] = "scope3"
-        else:
-            # Standard records have org_id
-            query = {
-                "$or": [
-                    {"org_id": org_id},
-                    {"organization_id": org_id},
-                ],
-                "category": {"$regex": f"^{category}$", "$options": "i"},
-            }
-            if subcategory:
-                query["subcategory"] = {"$regex": f"^{subcategory}$", "$options": "i"}
-        
-        records = await self._db[collection_name].find(
-            query,
-            {"_id": 0, "facility_id": 1, "reporting_period": 1, "created_at": 1, "updated_at": 1}
-        ).to_list(5000)
-        
-        return records
-    
-    def _check_record_exists(
-        self,
-        records: List[Dict],
-        period: Dict,
-        facility_id: Optional[str],
-        collection_name: str
-    ) -> bool:
-        """Check if a record exists for the given period and facility."""
-        year = period["year"]
-        month = period["month"]
-        period_string = period["period_string"]
-        
-        for record in records:
-            # Check facility match
-            if facility_id:
-                if record.get("facility_id") != facility_id:
-                    continue
-            else:
-                # Org-level: should not have facility_id
-                if record.get("facility_id"):
-                    continue
-            
-            # Check period match
-            rp = record.get("reporting_period")
-            if not rp:
-                continue
-            
-            # Handle string format (emission_records): "2026-07"
-            if isinstance(rp, str):
-                if rp == period_string:
-                    return True
-                # Try partial match
-                if rp.startswith(f"{year}-{month:02d}") or rp.startswith(f"{year}-{month}"):
-                    return True
-            
-            # Handle dict format (environment_records): {year: 2026, month: "7"}
-            elif isinstance(rp, dict):
-                rp_year = rp.get("year")
-                rp_month = rp.get("month")
-                
-                if rp_year and rp_month:
-                    # Normalize
-                    try:
-                        rp_year_int = int(rp_year)
-                        rp_month_int = int(rp_month) if str(rp_month).isdigit() else self._month_to_int(rp_month)
-                        if rp_year_int == year and rp_month_int == month:
-                            return True
-                    except (ValueError, TypeError):
-                        pass
-        
-        return False
-    
-    def _month_to_int(self, month_str: str) -> int:
-        """Convert month name to integer."""
-        months = {
-            "january": 1, "february": 2, "march": 3, "april": 4,
-            "may": 5, "june": 6, "july": 7, "august": 8,
-            "september": 9, "october": 10, "november": 11, "december": 12,
-            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7,
-            "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-        }
-        return months.get(str(month_str).lower(), 0)
 
 
 # Default service instance

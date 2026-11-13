@@ -77,6 +77,28 @@ class AssignmentServiceV2:
             "reporting_period": data.get("reporting_period"),
         }
 
+    @staticmethod
+    def _validate_dates_within_reporting_period(data: Dict[str, Any]) -> None:
+        """Start/end dates must fall inside the assignment's reporting period (FY Apr-Mar or CY)."""
+        from fastapi import HTTPException
+        from datetime import date
+        if data.get("entity_type") == "question":
+            return
+        rp = str(data.get("reporting_period") or "")
+        if m := re.search(r"CY\s*(\d{4})", rp):
+            lo, hi = date(int(m[1]), 1, 1), date(int(m[1]), 12, 31)
+        elif m := re.search(r"FY\s*(\d{4})-(\d{4})", rp):
+            lo, hi = date(int(m[1]), 4, 1), date(int(m[2]), 3, 31)
+        else:
+            return
+        for key, label in (("start_date", "Start date"), ("end_date", "End date")):
+            raw = data.get(key)
+            if not raw:
+                continue
+            d = raw.date() if isinstance(raw, datetime) else date.fromisoformat(str(raw)[:10])
+            if not lo <= d <= hi:
+                raise HTTPException(status_code=400, detail=f"{label} must be within {rp} ({lo:%d %b %Y} – {hi:%d %b %Y})")
+
     async def _validate_no_assignment_conflict(self, data: Dict[str, Any]) -> None:
         """
         Validate that there's no conflicting assignment.
@@ -148,22 +170,6 @@ class AssignmentServiceV2:
                         "conflict_type": "facility_vs_org",
                         "existing_assignment_id": org_assignment.get("id"),
                         "suggestion": "Delete the org-level assignment first, then create facility-level assignments.",
-                    }
-                )
-            
-            # Also check for duplicate facility assignment
-            duplicate = await self._assignments.find_one(
-                {**base_query, "facility_id": facility_id},
-                {"_id": 0, "id": 1}
-            )
-            
-            if duplicate:
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "error": "DUPLICATE_ASSIGNMENT",
-                        "message": "An assignment already exists for this facility/category/period.",
-                        "existing_assignment_id": duplicate.get("id"),
                     }
                 )
 
@@ -252,6 +258,7 @@ class AssignmentServiceV2:
         # =========================================================================
         # CONFLICT VALIDATION: Prevent org-level + facility-level overlap
         # =========================================================================
+        self._validate_dates_within_reporting_period(data)
         await self._validate_no_assignment_conflict(data)
         
         # Check for existing assignment
@@ -627,7 +634,14 @@ class AssignmentServiceV2:
         approver_ids = [a for a in chain_ids if a] or ([approver_id] if approver_id else [])
         if not approver_ids:
             return
-        match = {"workflow_id": f"assignment_{assignment_id}"}
+        assignment = await self._assignments.find_one(
+            {"id": assignment_id}, {"_id": 0, "category": 1, "subcategory": 1, "facility_id": 1})
+        by_record = {"organization_id": org_id, "entity_type": "esg_record",
+                     "entity_snapshot.category": (assignment or {}).get("category"),
+                     "entity_snapshot.subcategory": (assignment or {}).get("subcategory")}
+        if (assignment or {}).get("facility_id"):
+            by_record["entity_snapshot.facility_id"] = assignment["facility_id"]
+        match = {"$or": [{"workflow_id": f"assignment_{assignment_id}"}, by_record]} if assignment else {"workflow_id": f"assignment_{assignment_id}"}
         if question_key:
             match = {"organization_id": org_id, "entity_type": "esg_response", "$or": [
                 {"entity_id": question_key}, {"entity_id": {"$regex": f"^{re.escape(question_key)}_"}}]}
@@ -841,6 +855,7 @@ class AssignmentServiceV2:
         facility_id: Optional[str] = None,
         reporting_period: Optional[str] = None,
         deleted_by_user_id: str = None,
+        only_org_level: bool = False,
     ) -> int:
         """
         Delete all assignments matching the criteria.
@@ -855,7 +870,7 @@ class AssignmentServiceV2:
             query["subcategory"] = subcategory
         if sub_subcategory is not None:
             query["sub_subcategory"] = sub_subcategory
-        if facility_id is not None:
+        if facility_id is not None or only_org_level:
             query["facility_id"] = facility_id
         if reporting_period is not None:
             query["reporting_period"] = reporting_period
@@ -918,16 +933,29 @@ class AssignmentServiceV2:
         Returns:
             Summary of changes
         """
-        # Delete existing org-level assignment
+        # Delete the org-level assignment, and facility assignments no longer selected; kept facilities are updated in place
         deleted = await self.delete_assignments_for_category(
             organization_id=organization_id,
             category=category,
             subcategory=subcategory,
             sub_subcategory=sub_subcategory,
-            facility_id=None,  # Specifically target org-level
+            facility_id=None,
             reporting_period=reporting_period,
             deleted_by_user_id=created_by_user_id,
+            only_org_level=True,
         )
+        kept = [fid for fid, cfg in facility_assignments.items()
+                if (cfg if isinstance(cfg, list) else (cfg or {}).get("user_ids"))]
+        stale = await self._assignments.find(
+            {"organization_id": organization_id, "category": category, "subcategory": subcategory,
+             "sub_subcategory": sub_subcategory, "reporting_period": reporting_period,
+             "facility_id": {"$nin": [None] + kept}}, {"_id": 0, "facility_id": 1}).to_list(500)
+        for a in stale:
+            deleted += await self.delete_assignments_for_category(
+                organization_id=organization_id, category=category, subcategory=subcategory,
+                sub_subcategory=sub_subcategory, facility_id=a["facility_id"],
+                reporting_period=reporting_period, deleted_by_user_id=created_by_user_id,
+            )
         
         # Create facility-level assignments
         created_assignments = []
@@ -943,6 +971,7 @@ class AssignmentServiceV2:
                 per_facility_approval = {
                     "requires_approval": facility_config.get("requires_approval", assignment_data.get("requires_approval", False)),
                     "approver_id": facility_config.get("approver_id", assignment_data.get("approver_id")),
+                    "approval_chain": facility_config.get("approval_chain", assignment_data.get("approval_chain", [])),
                 }
             else:
                 continue

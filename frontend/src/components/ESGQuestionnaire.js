@@ -68,6 +68,7 @@ import {
   getEffectiveYearType
 } from '../utils/reportingYearUtils';
 import { NoAssignmentMessage } from './LockedModuleOverlay';
+import { applyCoverageField } from './PolicyMatrixValue';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -114,7 +115,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
   const handleAllTogetherChange = (field, val) => {
     onChange({ 
       ...data, 
-      all_together: { ...allTogether, [field]: val } 
+      all_together: applyCoverageField(allTogether, field, val) 
     });
   };
 
@@ -136,7 +137,7 @@ function NGRBCPolicyMatrixRenderer({ config, value, onChange, isEditing }) {
       ...data,
       principle_wise: {
         ...principleWise,
-        [principle]: { ...principleWise[principle], [field]: val }
+        [principle]: applyCoverageField(principleWise[principle], field, val)
       }
     });
   };
@@ -850,12 +851,12 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
     if (!status) return null;
     
     const statusConfig = {
-      pending_approval: { label: 'Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
-      approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
-      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
+      pending_approval: { label: 'Completed, Awaiting Approval', className: 'bg-amber-100 text-amber-800' },
+      approved: { label: 'Completed, Approved', className: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Completed, Rejected', className: 'bg-red-100 text-red-800' },
       draft: { label: 'Draft', className: 'bg-blue-100 text-blue-800' },
       in_progress: { label: 'In progress', className: 'bg-yellow-100 text-yellow-800' },
-      saved: { label: 'Saved', className: 'bg-green-100 text-green-800' },
+      completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
       pending: { label: 'Pending', className: 'bg-stone-100 text-stone-600' },
     };
     
@@ -886,7 +887,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
   };
 
   // Handle question-level save
-  const handleSaveQuestion = async (status = 'saved') => {
+  const handleSaveQuestion = async (status = 'completed') => {
     if (!onSaveQuestion) return;
     if (status === 'draft') {
       setSavingDraft(true);
@@ -929,7 +930,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
                 {savingDraft ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />} Save as Draft
               </Button>
               <Button size="sm" className="h-7 px-2 text-xs bg-primary hover:bg-primary/90" disabled={savingDraft || savingQuestion}
-                      onClick={() => handleSaveQuestion('saved')} data-testid={`submit-${config.question_key}`}>
+                      onClick={() => handleSaveQuestion('completed')} data-testid={`submit-${config.question_key}`}>
                 {savingQuestion ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
                 {approvalEnabled && !isAdmin ? 'Submit Response' : 'Save Response'}
               </Button>
@@ -962,7 +963,7 @@ export function QuestionRenderer({ config, value, onChange, isEditing: isEditing
           </Button>
           <Button
             size="sm"
-            onClick={() => handleSaveQuestion('saved')}
+            onClick={() => handleSaveQuestion('completed')}
             disabled={savingDraft || savingQuestion}
             className="h-7 px-3 text-xs bg-primary hover:bg-primary/90"
             data-testid={`submit-${config.question_key}`}
@@ -3357,7 +3358,7 @@ export default function ESGQuestionnaire({
 
   const { promptAfterSave } = useLinkedFrameworks();
   // Question-level save (saves only the specified question)
-  const saveQuestion = async (questionKey, value, status = 'saved') => {
+  const saveQuestion = async (questionKey, value, status = 'completed') => {
     try {
       await axios.post(
         `${API}/esg-questionnaire/response`,
@@ -3371,7 +3372,7 @@ export default function ESGQuestionnaire({
       );
       toast.success(status === 'draft' ? 'Draft saved' : 'Question saved');
       if (onSaved) onSaved();
-      if (status === 'saved') promptAfterSave([questionKey]);
+      if (status === 'completed') promptAfterSave([questionKey]);
       // Refresh statuses after save
       try {
         const statusesRes = await axios.get(

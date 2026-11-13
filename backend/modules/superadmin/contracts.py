@@ -16,6 +16,8 @@ class SuperAdminAccountCreate(BaseModel):
     organization_id: str = Field(min_length=1)
     role: Literal["admin", "user"]
     assigned_facilities: List[str] = Field(default_factory=list)
+    mobile_number: Optional[str] = None
+    designation: Optional[str] = None
 
 
 class EmissionFactorCreate(BaseModel):

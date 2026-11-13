@@ -1,0 +1,374 @@
+{
+ "_about": "Maps the engine's taxonomy subcategory to the real emission-factor names in this system (fuel_database / scope3_ef), per calculation method. The first name present is used when saving to GHG records.",
+ "map": {
+  "Biogasoline": {
+   "activity": [
+    "Biogasoline/Biopetrol"
+   ]
+  },
+  "R-22": {
+   "activity": [
+    "HCFC-22/R-22"
+   ]
+  },
+  "R-32": {
+   "activity": [
+    "HFC-32/R-32"
+   ]
+  },
+  "R-134a": {
+   "activity": [
+    "HFC-134a/R-134a"
+   ]
+  },
+  "HFC-23": {
+   "activity": [
+    "HFC-23/R-23"
+   ]
+  },
+  "HFC-125": {
+   "activity": [
+    "HFC-125/R-125"
+   ]
+  },
+  "HFC-143a": {
+   "activity": [
+    "HFC-143a/R-143a"
+   ]
+  },
+  "HFC-152a": {
+   "activity": [
+    "HFC-152a/R-152a"
+   ]
+  },
+  "CO2": {
+   "activity": [
+    "CO2 - Carbon dioxide"
+   ]
+  },
+  "SF6": {
+   "activity": [
+    "SF6 - Sulfur hexafluoride"
+   ]
+  },
+  "NF3": {
+   "activity": [
+    "NF3 - Nitrogen trifluoride"
+   ]
+  },
+  "N2O": {
+   "activity": [
+    "N2O - Nitrous oxide"
+   ]
+  },
+  "CH4": {
+   "activity": [
+    "CH4 - Methane – fossil"
+   ]
+  },
+  "Steam": {
+   "activity": [
+    "Purchased Heat/Steam"
+   ]
+  },
+  "Heat": {
+   "activity": [
+    "Purchased Heat/Steam"
+   ]
+  },
+  "Cooling": {
+   "activity": [
+    "Purchased Heat/Steam"
+   ]
+  },
+  "Iron and steel": {
+   "activity": [
+    "Metals"
+   ],
+   "spend": [
+    "Iron and Steel Mills and Ferroalloy Manufacturing",
+    "Iron and Steel Forging"
+   ]
+  },
+  "Aluminium": {
+   "activity": [
+    "Metals"
+   ],
+   "spend": [
+    "Aluminum Sheet, Plate, and Foil Manufacturing",
+    "Alumina Refining and Primary Aluminum Production"
+   ]
+  },
+  "Copper": {
+   "activity": [
+    "Metals"
+   ],
+   "spend": [
+    "Copper Rolling, Drawing, Extruding, and Alloying"
+   ]
+  },
+  "Other metals": {
+   "activity": [
+    "Metals"
+   ],
+   "spend": [
+    "Nonferrous Metal (except Copper and Aluminum) Rolling, Drawing, and Extruding"
+   ]
+  },
+  "Plastics": {
+   "activity": [
+    "plastics"
+   ]
+  },
+  "Chemicals": {
+   "spend": [
+    "All Other Miscellaneous Chemical Product and Preparation Manufacturing",
+    "Other Basic Inorganic Chemical Manufacturing"
+   ]
+  },
+  "Cement and construction materials": {
+   "activity": [
+    "Concrete"
+   ],
+   "spend": [
+    "Cement Manufacturing",
+    "Other Concrete Product Manufacturing"
+   ]
+  },
+  "Paper and packaging": {
+   "activity": [
+    "Paper and board: mixed"
+   ],
+   "spend": [
+    "Corrugated and Solid Fiber Box Manufacturing",
+    "All Other Converted Paper Product Manufacturing"
+   ]
+  },
+  "Electrical and electronic components": {
+   "activity": [
+    "Electrical items - small"
+   ],
+   "spend": [
+    "All Other Miscellaneous Electrical Equipment and Component Manufacturing",
+    "Current-Carrying Wiring Device Manufacturing"
+   ]
+  },
+  "Consumables and spares": {
+   "spend": [
+    "Abrasive Product Manufacturing",
+    "Hardware Manufacturing"
+   ]
+  },
+  "Office supplies": {
+   "spend": [
+    "Office Supplies (except Paper) Manufacturing"
+   ]
+  },
+  "Food and canteen": {
+   "activity": [
+    "Food and drink"
+   ],
+   "spend": [
+    "Food Service Contractors"
+   ]
+  },
+  "Textiles": {
+   "activity": [
+    "Clothing"
+   ],
+   "spend": [
+    "Broadwoven Fabric Mills"
+   ]
+  },
+  "Lubricants and oils": {
+   "activity": [
+    "Mineral oil"
+   ],
+   "spend": [
+    "Petroleum Lubricating Oil and Grease Manufacturing"
+   ]
+  },
+  "Packaged water": {
+   "activity": [
+    "Food and drink"
+   ]
+  },
+  "Repair and maintenance": {
+   "spend": [
+    "Commercial and Industrial Machinery and Equipment (except Automotive and Electronic) Repair and Maintenance"
+   ]
+  },
+  "Testing, inspection and calibration": {
+   "spend": [
+    "Testing Laboratories"
+   ]
+  },
+  "Education and training": {
+   "spend": [
+    "Educational Support Services",
+    "Apprenticeship Training"
+   ]
+  },
+  "Professional services": {
+   "spend": [
+    "Other Management Consulting Services",
+    "Administrative Management and General Management Consulting Services"
+   ]
+  },
+  "IT and telecom services": {
+   "spend": [
+    "Computer Systems Design Services",
+    "Data Processing, Hosting, and Related Services"
+   ]
+  },
+  "Manpower, security and housekeeping": {
+   "spend": [
+    "Security Guards and Patrol Services",
+    "Janitorial Services"
+   ]
+  },
+  "Financial and insurance services": {
+   "spend": [
+    "Insurance Agencies and Brokerages"
+   ]
+  },
+  "Medical services": {
+   "spend": [
+    "General Medical and Surgical Hospitals"
+   ]
+  },
+  "Machinery and equipment": {
+   "spend": [
+    "All Other Miscellaneous General Purpose Machinery Manufacturing"
+   ]
+  },
+  "IT hardware": {
+   "activity": [
+    "Electrical items - IT"
+   ],
+   "spend": [
+    "Computer Terminal and Other Computer Peripheral Equipment Manufacturing"
+   ]
+  },
+  "Electrical equipment and appliances": {
+   "activity": [
+    "Electrical items - large"
+   ],
+   "spend": [
+    "All Other Miscellaneous Electrical Equipment and Component Manufacturing"
+   ]
+  },
+  "Buildings and construction": {
+   "activity": [
+    "Average construction"
+   ],
+   "spend": [
+    "Commercial and Institutional Building Construction"
+   ]
+  },
+  "Wastewater treatment": {
+   "activity": [
+    "Waste Water Treatment"
+   ]
+  },
+  "Mixed solid waste - landfill": {
+   "activity": [
+    "Mixed MSW municipal solid waste - Landfilled"
+   ]
+  },
+  "Metal scrap - recycling": {
+   "activity": [
+    "Mixed Metals - Recycled"
+   ]
+  },
+  "Plastic waste - recycling": {
+   "activity": [
+    "Mixed Plastics - Recycled"
+   ]
+  },
+  "Paper and cardboard - recycling": {
+   "activity": [
+    "Mixed Paper general - Recycled"
+   ]
+  },
+  "Organic / food waste - composting": {
+   "activity": [
+    "Food Waste - Composted"
+   ]
+  },
+  "E-waste - recycling": {
+   "activity": [
+    "Mixed Electronics - Recycled"
+   ]
+  },
+  "Road freight": {
+   "activity": [
+    "Road - HDV (Capacity: 16+  tonnes) - Diesel",
+    "Road - HDV (Capacity: 12-16 tonnes) - Diesel"
+   ]
+  },
+  "Road freight - waste transport": {
+   "activity": [
+    "Road - HDV (Capacity: 16+  tonnes) - Diesel",
+    "Road - HDV (Capacity: 12-16 tonnes) - Diesel"
+   ]
+  },
+  "Rail freight": {
+   "activity": [
+    "Rail freight transport"
+   ]
+  },
+  "Sea freight": {
+   "activity": [
+    "Cargo ship, Container ship - Unknown Size",
+    "Cargo ship, General cargo - Unknown Size"
+   ]
+  },
+  "Air freight": {
+   "activity": [
+    "Air - Dedicated freighter - Aviation Turbine Fuel",
+    "Air - Belly Cargo - Aviation Turbine Fuel"
+   ]
+  },
+  "Flight - Domestic": {
+   "activity": [
+    "Flights, Short-haul - Average passenger"
+   ]
+  },
+  "Flight - International": {
+   "activity": [
+    "Flights, International - Average passenger"
+   ]
+  },
+  "Rail": {
+   "activity": [
+    "Railways"
+   ]
+  },
+  "Taxi": {
+   "activity": [
+    "Regular taxi"
+   ]
+  },
+  "Bus": {
+   "activity": [
+    "Local bus"
+   ]
+  },
+  "Car - Average": {
+   "activity": [
+    "Cars - Average Size - Unknown Fuel"
+   ]
+  },
+  "Hotel stay": {
+   "activity": [
+    "Hotel stay - India"
+   ]
+  },
+  "Work from home": {
+   "activity": [
+    "Work From Home Employee - Office Equipment"
+   ]
+  }
+ }
+}

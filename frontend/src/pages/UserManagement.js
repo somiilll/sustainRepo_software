@@ -31,7 +31,7 @@ export default function UserManagement() {
   const [selectedFacilityIds, setSelectedFacilityIds] = useState([]);
   const [newUserData, setNewUserData] = useState({
     email: '',
-    full_name: '',
+    full_name: '', mobile_number: '', designation: '',
     assigned_facilities: [],
   });
   const { getAuthHeader, user: currentUser } = useAuth();
@@ -68,13 +68,15 @@ export default function UserManagement() {
         {
           email: newUserData.email,
           full_name: newUserData.full_name,
+          mobile_number: newUserData.mobile_number,
+          designation: newUserData.designation,
           assigned_facilities: workflowEnabled ? [] : newUserData.assigned_facilities,
         },
         { headers: getAuthHeader() }
       );
       toast.success('User created! Login credentials have been sent to their email.', { duration: 5000 });
       setCreateDialogOpen(false);
-      setNewUserData({ email: '', full_name: '', assigned_facilities: [] });
+      setNewUserData({ email: '', full_name: '', mobile_number: '', designation: '', assigned_facilities: [] });
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
@@ -175,6 +177,16 @@ export default function UserManagement() {
                   className="bg-stone-50"
                   data-testid="create-user-email-input"
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="user-mobile">Mobile number</Label>
+                  <Input id="user-mobile" type="tel" value={newUserData.mobile_number} onChange={(e) => setNewUserData({ ...newUserData, mobile_number: e.target.value })} placeholder="+91 98765 43210" className="bg-stone-50" data-testid="create-user-mobile-input" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-designation">Designation</Label>
+                  <Input id="user-designation" value={newUserData.designation} onChange={(e) => setNewUserData({ ...newUserData, designation: e.target.value })} placeholder="e.g. EHS Manager" maxLength={100} className="bg-stone-50" data-testid="create-user-designation-input" />
+                </div>
               </div>
               {!workflowEnabled && (
                 <FacilityAssignmentPicker

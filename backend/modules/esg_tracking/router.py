@@ -6,7 +6,8 @@ completion monitoring, and disclosure ownership management.
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime
 
@@ -91,11 +92,36 @@ async def get_framework_sections(
         filter_by_materiality=filter_by_materiality,
     )
     
+    section_dicts = [s.dict() for s in sections]
+    if framework_id.upper() == "GRI" and section_dicts:
+        from shared.database.mongo import db
+        configs = await db.esg_question_configs.find(
+            {"framework": "GRI", "disclosure_id": {"$in": [s["section_id"] for s in section_dicts]}},
+            {"_id": 0, "disclosure_id": 1, "disclosure_name": 1, "material_topic": 1, "material_topic_id": 1}).to_list(5000)
+        by_disclosure = {c["disclosure_id"]: c for c in configs}
+        for s in section_dicts:
+            config = by_disclosure.get(s["section_id"], {})
+            s["title"] = config.get("disclosure_name")
+            s["topic_id"] = config.get("material_topic_id")
+            s["topic_name"] = config.get("material_topic")
+
+    if framework_id.upper() == "BRSR":
+        from modules.esg_questionnaire.contracts import NGRBC_PRINCIPLES
+        principle_names = {p["key"]: p["name"] for p in NGRBC_PRINCIPLES}
+        general = {"SECTION_A": ("A", "General disclosures"), "SECTION_B": ("B", "Management and process disclosures")}
+        for s in section_dicts:
+            if s["section_id"] in general:
+                letter, title = general[s["section_id"]]
+                s.update(display_id=letter, title=title, topic_id="A-B", topic_name="Sections A and B · General and management disclosures")
+            else:
+                s.update(display_id=s["section_id"], title=principle_names.get(s["section_id"], s["section_name"]),
+                         topic_id="C", topic_name="Section C · Principle-wise performance")
+
     return {
         "framework_id": framework_id,
         "domain": domain.value,
         "reporting_period": reporting_period,
-        "sections": [s.dict() for s in sections],
+        "sections": section_dicts,
         "total_sections": len(sections),
         "filtered_by_materiality": filter_by_materiality,
     }
@@ -104,6 +130,61 @@ async def get_framework_sections(
 # =============================================================================
 # SECTION-LEVEL ENDPOINTS
 # =============================================================================
+
+@router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}/detail")
+async def get_section_detail_panel(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Questions, assignment/approvers and activity for the section's expandable panel. Admin only."""
+    from .section_detail_service import get_section_detail
+    return await get_section_detail(current_user["organization_id"], domain, framework_id, section_id, reporting_period)
+
+
+class SectionNotificationSettings(BaseModel):
+    reminder_rules: List[str] = []
+    escalation: str = "none"
+
+
+@router.put("/{domain}/frameworks/{framework_id}/sections/{section_id}/notifications")
+async def save_section_notifications(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    body: SectionNotificationSettings,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Save reminder and escalation settings for every assigned question in a section. Admin only."""
+    from .section_detail_service import save_section_notification_settings
+    try:
+        matched = await save_section_notification_settings(
+            current_user["organization_id"], domain, framework_id, section_id, reporting_period,
+            body.reminder_rules, body.escalation)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not matched:
+        raise HTTPException(status_code=404, detail="No assigned questions in this section")
+    return {"success": True}
+
+
+@router.post("/{domain}/frameworks/{framework_id}/sections/{section_id}/remind")
+async def remind_section(
+    domain: TrackingDomain,
+    framework_id: str,
+    section_id: str,
+    reporting_period: str = Query(..., description="Reporting period"),
+    current_user: dict = Depends(get_admin_user),
+):
+    """Email and in-app reminder to assignees (pending entry) and approvers (pending approval) of a section. Admin only."""
+    from .section_detail_service import send_section_reminders
+    return await send_section_reminders(
+        current_user["organization_id"], domain, framework_id, section_id, reporting_period,
+        current_user.get("full_name") or current_user.get("email") or "An administrator")
+
 
 @router.get("/{domain}/frameworks/{framework_id}/sections/{section_id}")
 async def get_section_disclosures(

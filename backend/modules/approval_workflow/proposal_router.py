@@ -10,6 +10,8 @@ from pydantic import BaseModel
 
 from modules.auth.dependencies import get_current_user, get_admin_user
 from modules.approval_workflow.proposal_service import proposal_service
+from modules.approval_workflow.service import ApprovalWorkflowService
+from modules.approval_workflow.models import ApprovalDecisionInput
 from shared.database.mongo import db
 
 
@@ -24,7 +26,20 @@ class ProposalEditRequest(BaseModel):
     """Request to edit a proposal (approver only)."""
     field_values: Optional[dict] = None
     notes: Optional[str] = None
-    # Add other editable fields as needed
+    source_of_information: Optional[str] = None
+    evidence_files: Optional[List[dict]] = None
+    record_source: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = None
+    process_descriptions: Optional[List[dict]] = None
+    employee_inputs: Optional[List[dict]] = None
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    asset_name: Optional[str] = None
+    from_location: Optional[str] = None
+    to_location: Optional[str] = None
 
 
 class ProposalApproveRequest(BaseModel):
@@ -118,6 +133,12 @@ async def get_proposals_for_record(
             {"_id": 0}
         )
     
+    data_level = None
+    if current_record and entity_type == "esg_record":
+        facility_id = current_record.get("facility_id")
+        facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0, "name": 1}) if facility_id else None
+        data_level = f"Facility {facility['name']}" if facility else "Organization level"
+
     if is_admin:
         # Return all pending proposals
         proposals = await proposal_service.get_all_pending_proposals(
@@ -129,8 +150,20 @@ async def get_proposals_for_record(
             "count": len(proposals),
             "is_approver_view": True,
             "current_record": current_record,
+            "data_level": data_level,
         }
     else:
+        # Assigned approvers see the proposals waiting on them
+        pending = await proposal_service.get_all_pending_proposals(record_id=record_id, entity_type=entity_type)
+        approver_proposals = [p for p in pending if user_id in (p.get("current_approvers") or [])]
+        if approver_proposals:
+            return {
+                "proposals": approver_proposals,
+                "count": len(approver_proposals),
+                "is_approver_view": True,
+                "current_record": current_record,
+                "data_level": data_level,
+            }
         # Return only user's proposal
         proposal = await proposal_service.get_user_pending_proposal(
             record_id=record_id,
@@ -142,6 +175,7 @@ async def get_proposals_for_record(
             "count": 1 if proposal else 0,
             "is_approver_view": False,
             "current_record": current_record,
+            "data_level": data_level,
         }
 
 
@@ -198,6 +232,15 @@ async def edit_proposal(
         modified_data["field_values"] = data.field_values
     if data.notes is not None:
         modified_data["notes"] = data.notes
+    if data.source_of_information is not None:
+        modified_data["source_of_information"] = data.source_of_information
+    if data.evidence_files is not None:
+        modified_data["evidence_files"] = data.evidence_files
+    for key in ("record_source", "responsible_person", "responsible_person_designation", "responsible_person_contact",
+                "process_names", "process_descriptions", "employee_inputs",
+                "supplier_name", "supplier_code", "asset_name", "from_location", "to_location"):
+        if getattr(data, key) is not None:
+            modified_data[key] = getattr(data, key)
     
     if not modified_data:
         raise HTTPException(status_code=400, detail="No modifications provided")
@@ -237,6 +280,20 @@ async def batch_reject_proposals(
     return {"results": results}
 
 
+async def _is_delete_request(request_id: str) -> bool:
+    request = await db.approval_requests.find_one({"id": request_id}, {"_id": 0, "request_type": 1})
+    return bool(request and request.get("request_type") == "delete")
+
+
+async def _decide_delete_request(request_id: str, action: str, comment: Optional[str], current_user: dict) -> dict:
+    """Delete requests are not edit proposals; run them through the normal approval decision."""
+    success, message, _ = await ApprovalWorkflowService.make_decision(
+        request_id, ApprovalDecisionInput(action=action, comment=comment), current_user)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"success": True, "proposal_id": request_id, "message": message}
+
+
 @router.post("/{proposal_id}/approve")
 async def approve_proposal(
     proposal_id: str,
@@ -256,6 +313,9 @@ async def approve_proposal(
     
     # Check approver access
     await check_approver_access(proposal_id, user_id)
+    
+    if await _is_delete_request(proposal_id):
+        return await _decide_delete_request(proposal_id, "approve", data.comment, current_user)
     
     result = await proposal_service.approve_proposal(
         proposal_id=proposal_id,
@@ -284,6 +344,9 @@ async def reject_proposal(
     
     # Check approver access
     await check_approver_access(proposal_id, user_id)
+    
+    if await _is_delete_request(proposal_id):
+        return await _decide_delete_request(proposal_id, "reject", data.reason, current_user)
     
     result = await proposal_service.reject_proposal(
         proposal_id=proposal_id,

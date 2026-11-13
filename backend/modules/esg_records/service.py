@@ -5,11 +5,13 @@ Handles business logic for ESG records with versioning support.
 """
 
 from typing import Optional, List, Dict, Any
+from shared.utils.period_keys import month_number, period_key_candidates, period_key_from_reporting_period
 from datetime import datetime, timezone
 import re
 import uuid
 from fastapi import HTTPException
 from shared.database.mongo import db
+from modules.approval_workflow.approver_chain import approvers_at_level, normalize_chain
 from modules.esg_assignments.assignment_resolver import assignment_requires_approval
 
 from .contracts import (
@@ -19,7 +21,7 @@ from .contracts import (
 from .water_schema import apply_water_rules
 from shared.unit_registry import get_conversion_metadata
 from .history_presenter import FieldHistoryPresenter
-from .version_utils import compare_versions, get_changed_field_paths, format_field_display_name
+from .version_utils import compare_versions, deletion_version_event, get_changed_field_paths, format_field_display_name
 
 
 class RecordAccessError(ValueError):
@@ -34,6 +36,16 @@ def previous_applied_version(versions: List[Dict[str, Any]], index: int) -> Opti
         if isinstance(candidate.get("snapshot"), dict):
             return candidate
     return None
+
+
+def attach_approver_stages(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
+    """One block per approver edit (who, level, before/after), kept apart from the final approval."""
+    names = {item["field"]: item["display_name"] for item in version.get("submitted_field_diffs") or []}
+    version["approver_stages"] = [
+        {"level": edit.get("level"), "by": edit.get("by_name"), "at": edit.get("at"),
+         "diffs": [{**d, "display_name": names.get(d["field"]) or d["field"].replace("_", " ").title()} for d in edit.get("field_diffs") or []]}
+        for edit in proposal.get("approver_edits") or [] if edit.get("field_diffs")
+    ]
 
 
 def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, Any]) -> None:
@@ -51,6 +63,7 @@ def enrich_proposal_diff_details(version: Dict[str, Any], proposal: Dict[str, An
     ]
     version["submitted_field_diffs"] = submitted
     version["approver_edited"] = bool(snapshot.get("approver_edited") or proposal.get("approver_edited"))
+    version["approver_edits"] = proposal.get("approver_edits") or []
     final_values = (version.get("snapshot") or {}).get("field_values") or {}
     version["approver_field_diffs"] = [
         {
@@ -210,6 +223,7 @@ class ESGRecordsService:
         # ACCESS CONTROL: Check if user has valid assignment
         assignment = None
         requires_approval = False
+        approver_start_level = 1
         
         if not skip_assignment_check:
             assignment = await self._validate_user_assignment(
@@ -221,6 +235,16 @@ class ESGRecordsService:
                 facility_id=data.facility_id,
                 record_level=data.record_level,
             )
+            by_approver = False
+            if not assignment and not allow_without_assignment and not is_admin:
+                from modules.approval_workflow.approver_chain import DIRECT
+                from modules.esg_records.visibility import approver_edit_mode, non_final_approver_assignment
+                mode = await approver_edit_mode(org_id, user_id, data.category, data.subcategory)
+                if mode == DIRECT:
+                    allow_without_assignment, by_approver = True, True
+                elif isinstance(mode, int):
+                    assignment = await non_final_approver_assignment(org_id, user_id, data.category, data.subcategory)
+                    approver_start_level, by_approver = mode, bool(assignment)
             if not assignment and not allow_without_assignment:
                 # Get facility name if facility_id is provided
                 facility_name = None
@@ -241,7 +265,7 @@ class ESGRecordsService:
                 requires_approval = assignment_requires_approval(assignment)
             
             # PERIOD VALIDATION: Check if user has a task for this reporting period
-            if not allow_without_assignment and data.reporting_period:
+            if not allow_without_assignment and not by_approver and data.reporting_period:
                 period_valid = await self._validate_task_period(
                     org_id=org_id,
                     user_id=user_id,
@@ -344,15 +368,16 @@ class ESGRecordsService:
         
         await collection.insert_one(record)
         
-        # Create initial version snapshot
-        await self._create_version_snapshot(
-            section=section,
-            record_id=record["id"],
-            version=1,
-            snapshot=record,
-            changed_fields=[],
-            user_id=user_id
-        )
+        # Create initial version snapshot (drafts are not versioned until saved)
+        if record_status != "draft":
+            await self._create_version_snapshot(
+                section=section,
+                record_id=record["id"],
+                version=1,
+                snapshot=record,
+                changed_fields=[],
+                user_id=user_id
+            )
         
         # LINK TASK TO RECORD: Mark corresponding task as completed (only if not draft)
         if record_status != "draft":
@@ -375,6 +400,7 @@ class ESGRecordsService:
                 assignment=assignment,
                 user_id=user_id,
                 section=section,
+                start_level=approver_start_level,
             )
         
         # Remove MongoDB _id before returning
@@ -530,36 +556,16 @@ class ESGRecordsService:
         if not year:
             return True  # Can't validate without year
         
-        # Build period_key to match task's period_key
-        if rp_type == "monthly" and month:
-            # Convert month name to number
-            month_names = ["January", "February", "March", "April", "May", "June",
-                          "July", "August", "September", "October", "November", "December"]
-            if isinstance(month, str) and month.strip().isdigit():
-                month_num = int(month.strip())
-            elif isinstance(month, str) and month in month_names:
-                month_num = month_names.index(month) + 1
-            elif isinstance(month, int):
-                month_num = month
-            else:
-                return False
-            if not 1 <= month_num <= 12:
-                return False
-            period_key = f"{year}-{str(month_num).zfill(2)}"
-        elif rp_type == "quarterly" and quarter:
-            q = quarter.replace("Q", "") if isinstance(quarter, str) else quarter
-            period_key = f"{year}-Q{q}"
-        elif rp_type == "yearly":
-            period_key = str(year)
-        else:
-            # Default to yearly if type not specified
-            period_key = str(year)
+        if rp_type == "monthly" and month and month_number(month) is None:
+            return False
+        rp_dict = {"reporting_type": rp_type, "year": year, "month": month, "quarter": quarter}
+        period_key = period_key_from_reporting_period(rp_dict) or str(year)
         
         # Step 1: Find task IDs that match the period_key and category
         task_query = {
             "organization_id": org_id,
             "category": category,
-            "period_key": period_key,
+            "period_key": {"$in": period_key_candidates(period_key)},
         }
         if subcategory:
             task_query["subcategory"] = subcategory
@@ -672,31 +678,18 @@ class ESGRecordsService:
         is_edit: bool = False,
         changes_summary: Optional[List[Dict[str, Any]]] = None,
         previous_snapshot: Optional[Dict[str, Any]] = None,
+        start_level: int = 1,
     ):
         """
         Create an approval request when a record is saved with requires_approval=True.
         Uses the approver_id from the assignment or approval_chain if multi-level.
         """
         try:
-            approver_id = assignment.get("approver_id")
-            approval_chain = assignment.get("approval_chain", [])
-            
-            # Determine approvers - use approval_chain if available, otherwise single approver
-            # Handle both formats: list of strings (user IDs) or list of objects with approver_id
-            if approval_chain and len(approval_chain) > 0:
-                first_item = approval_chain[0]
-                # Check if it's a string (user ID directly) or object
-                if isinstance(first_item, str):
-                    current_approvers = [first_item]
-                else:
-                    current_approvers = [first_item.get("approver_id")] if first_item else []
-                total_levels = len(approval_chain)
-            elif approver_id:
-                current_approvers = [approver_id]
-                total_levels = 1
-            else:
+            chain = normalize_chain(assignment)
+            if not chain:
                 print("Warning: Assignment requires approval but no approver_id set")
                 return
+            current_approvers, total_levels = approvers_at_level(chain, start_level), len(chain)
             
             # Get submitter info
             submitter = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "full_name": 1})
@@ -722,9 +715,10 @@ class ESGRecordsService:
                 "field_definitions": field_definitions,
                 "reporting_period": record.get("reporting_period"),
                 "facility_id": record.get("facility_id"),
+                "source_of_information": record.get("source_of_information"),
+                "notes": record.get("notes"),
+                "evidence_files": record.get("evidence_files") or [],
             }
-            
-            # Add edit-specific info if this is a re-approval
             if is_edit:
                 entity_snapshot["is_edit"] = True
                 entity_snapshot["changes_summary"] = changes_summary or []
@@ -753,7 +747,7 @@ class ESGRecordsService:
                 
                 # Current state
                 "status": "pending",
-                "current_level": 1,
+                "current_level": min(start_level, total_levels),
                 "current_approvers": current_approvers,
                 "total_levels": total_levels,
                 
@@ -767,6 +761,9 @@ class ESGRecordsService:
             
             await db.approval_requests.insert_one(approval_request)
             print(f"Created approval request {approval_request['id']} for record {record.get('id')} (is_edit={is_edit})")
+            if not is_edit:
+                from modules.approval_workflow.log_visibility import stamp_on_create
+                await stamp_on_create(f"{section}_records", record.get("id"), start_level - 1, approval_request["id"], total_levels)
             
             # Notify approvers via bell
             try:
@@ -811,20 +808,11 @@ class ESGRecordsService:
         """
         from fastapi import HTTPException
         
-        approver_id = assignment.get("approver_id")
-        approval_chain = assignment.get("approval_chain", [])
+        approval_chain = normalize_chain(assignment)
         
         # Determine approvers
-        if approval_chain and len(approval_chain) > 0:
-            first_item = approval_chain[0]
-            if isinstance(first_item, str):
-                current_approvers = [first_item]
-            else:
-                current_approvers = [first_item.get("approver_id")] if first_item else []
-            total_levels = len(approval_chain)
-        elif approver_id:
-            current_approvers = [approver_id]
-            total_levels = 1
+        if approval_chain:
+            current_approvers, total_levels = approvers_at_level(approval_chain), len(approval_chain)
         else:
             # No approver configured - this is a configuration error
             # Raise an exception so the user sees a real error instead of false "pending approval"
@@ -1060,37 +1048,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            if hasattr(reporting_period, 'model_dump'):
-                rp = reporting_period.model_dump()
-            else:
-                rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                # Month could be name like "January" or number
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    # Convert month name to number
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            elif rp_type == "daily":
-                period_key = rp.get("date")  # Expected format: YYYY-MM-DD
-            elif rp_type == "weekly":
-                period_key = rp.get("date")  # Use date for weekly as well
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -1099,7 +1058,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -1151,6 +1110,8 @@ class ESGRecordsService:
                 {"id": task["id"]},
                 {"$set": update_doc}
             )
+            from .task_engine import sync_task_status
+            await sync_task_status(db, task["id"])
         except Exception as e:
             # Don't fail record creation if task update fails
             print(f"Warning: Failed to mark task as submitted: {e}")
@@ -1170,31 +1131,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            if hasattr(reporting_period, 'model_dump'):
-                rp = reporting_period.model_dump()
-            else:
-                rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -1202,7 +1140,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": period_key_candidates(period_key)},
             }
             if subcategory:
                 task_query["subcategory"] = subcategory
@@ -1222,6 +1160,8 @@ class ESGRecordsService:
                 }}
             )
             
+            from .task_engine import sync_tasks_matching
+            await sync_tasks_matching(db, task_query)
             if result.modified_count > 0:
                 print(f"Updated task timestamp for {category}/{subcategory} period={period_key}")
         except Exception as e:
@@ -1234,6 +1174,7 @@ class ESGRecordsService:
         user_id: str,
         data: UpdateRecordRequest,
         is_admin_override: bool = False,  # Set to True for admin bypassing approval workflow
+        start_level: int = 1,
     ) -> Optional[Dict[str, Any]]:
         """
         Update a record (creates new version).
@@ -1274,35 +1215,18 @@ class ESGRecordsService:
         # ADMIN OVERRIDE: Delete any pending approval requests and proceed with edit
         # =========================================================================
         if is_admin_override:
-            # Delete any pending approval requests for this record
+            # Delete pending create/edit requests; a pending delete request is rejected later with a reason
             deleted_result = await db.approval_requests.delete_many({
                 "entity_id": record_id,
                 "entity_type": "esg_record",
+                "request_type": {"$ne": "delete"},
                 "status": {"$in": ["pending", "in_review"]},
             })
             if deleted_result.deleted_count > 0:
                 print(f"Admin override: Deleted {deleted_result.deleted_count} pending approval request(s) for record {record_id}")
         
-        # =========================================================================
-        # RESUBMISSION RULE: Rejected records cannot be edited
-        # User must create a brand-new submission after rejection
-        # =========================================================================
-        if current.get("approval_status") == "rejected" and not is_admin_override:
-            # Coerce datetime fields to isoformat string to avoid JSON serialization errors
-            rejected_at = current.get("rejected_at")
-            if rejected_at and hasattr(rejected_at, 'isoformat'):
-                rejected_at = rejected_at.isoformat()
-            
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "REJECTED_RECORD_EDIT_NOT_ALLOWED",
-                    "message": "This record was rejected. You cannot edit a rejected record. Please create a new submission instead.",
-                    "rejection_reason": current.get("rejection_reason"),
-                    "rejected_at": rejected_at,
-                    "suggestion": "Create a new record with the corrected data.",
-                }
-            )
+        # A rejected record can be edited; saving it again resubmits it for approval
+        is_resubmission = current.get("approval_status") == "rejected" and not is_admin_override
         
         # =========================================================================
         # PENDING APPROVAL EDIT RULE: Allow in-place update of approval request
@@ -1441,6 +1365,10 @@ class ESGRecordsService:
         if assignment:
             requires_approval = assignment_requires_approval(assignment)
             print(f"Found assignment {assignment.get('id')} for {current.get('category')}/{current.get('subcategory')}, requires_approval={requires_approval}")
+        elif start_level > 1 and not is_admin_override:
+            from modules.esg_records.visibility import non_final_approver_assignment
+            assignment = await non_final_approver_assignment(org_id, user_id, current.get("category"), current.get("subcategory"))
+            requires_approval = bool(assignment) and assignment_requires_approval(assignment)
         else:
             print(f"No assignment found for {current.get('category')}/{current.get('subcategory')}, facility={current.get('facility_id')}")
         
@@ -1470,6 +1398,12 @@ class ESGRecordsService:
                 update_data["status"] = incoming_status
                 changed_fields.append("status")
         
+        if is_resubmission and update_data.get("status", current.get("status")) != "draft":
+            update_data["status"] = "completed"
+            update_data["approval_status"] = "pending_approval" if requires_approval else "not_required"
+            update_data["rejection_reason"] = None
+            changed_fields.extend(["status", "approval_status"])
+        
         # =========================================================================
         # IMMUTABLE APPROVED DATA PRINCIPLE
         # If editing a record that requires approval:
@@ -1488,6 +1422,7 @@ class ESGRecordsService:
         old_approval_status = current.get("approval_status")
         is_editing_record_requiring_approval = (
             old_approval_status in ["approved", "not_required"] and 
+            current.get("status") != "draft" and
             "field_values" in changed_fields and 
             requires_approval and
             not is_admin_override
@@ -1543,6 +1478,7 @@ class ESGRecordsService:
                     current_record=current,
                     assignment=assignment,
                     changes_summary=changes_summary,
+                    start_level=start_level,
                 )
             except NoApproverConfiguredError as e:
                 raise ValueError(f"No approver configured for this assignment: {e.assignment_id}")
@@ -1560,11 +1496,27 @@ class ESGRecordsService:
             }
         
         # For records not requiring approval workflow or admin override: proceed with normal update
-        # Increment version
-        new_version = current["version"] + 1
+        if current.get("pending_deletion"):
+            await self._auto_reject_pending_deletion(section, current, user_id, now)
+
+        # Versions only track saved states: drafts never bump the version, and the first save of a
+        # record that only ever existed as a draft is its creation, not an update.
+        is_draft_save = update_data.get("status", current.get("status")) == "draft"
+        last_saved = None if is_draft_save else await self._get_versions_collection(section).find_one(
+            {"record_id": record_id, "snapshot.status": {"$ne": "draft"}}, {"_id": 0}, sort=[("version", -1)]
+        )
+        is_first_save = not is_draft_save and last_saved is None
+        baseline = last_saved["snapshot"] if last_saved else None
+        if is_draft_save:
+            new_version = current["version"]
+        elif is_first_save:
+            new_version = 1
+        else:
+            new_version = last_saved["version"] + 1
         update_data["version"] = new_version
-        update_data["updated_by"] = user_id
-        update_data["updated_at"] = now
+        if not is_first_save:
+            update_data["updated_by"] = user_id
+            update_data["updated_at"] = now
         
         # OPTIMISTIC LOCKING: Check version hasn't changed since we read it
         # This prevents race conditions during concurrent updates
@@ -1613,7 +1565,7 @@ class ESGRecordsService:
         
         print(f"Update record check: new_status={new_status}, old_status={old_status}, old_approval_status={old_approval_status}, changed_fields={changed_fields}")
         
-        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+        if new_status == "completed" and (old_status in ["rejected", "draft", "reopened", "pending"] or is_resubmission):
             # New submission
             should_create_approval = requires_approval
             print(f"Case 1: New submission, should_create_approval={should_create_approval}")
@@ -1624,7 +1576,7 @@ class ESGRecordsService:
         # In either case, proceed with normal update flow
         
         # If status changed to completed, mark the task as completed
-        if new_status == "completed" and old_status in ["rejected", "draft", "reopened", "pending"]:
+        if new_status == "completed" and (old_status in ["rejected", "draft", "reopened", "pending"] or is_resubmission):
             await self._mark_task_completed(
                 org_id=current.get("org_id"),
                 user_id=user_id,
@@ -1684,18 +1636,19 @@ class ESGRecordsService:
         elif should_create_approval and not assignment:
             print("WARNING: should_create_approval=True but no assignment found!")
         
-        # Create version snapshot with hierarchical field paths (paths only, not values)
-        field_changes = compare_versions(current, updated) if current else []
+        # Create version snapshot with hierarchical field paths (paths only, not values); drafts are not versioned
+        field_changes = compare_versions(baseline, updated) if baseline else []
         changed_field_paths = [c["field"] for c in field_changes]
-        await self._create_version_snapshot(
-            section=section,
-            record_id=record_id,
-            version=new_version,
-            snapshot=updated,
-            changed_fields=changed_field_paths,
-            change_reason=data.change_reason,
-            user_id=user_id
-        )
+        if updated.get("status") != "draft":
+            await self._create_version_snapshot(
+                section=section,
+                record_id=record_id,
+                version=new_version,
+                snapshot=updated,
+                changed_fields=changed_field_paths,
+                change_reason=data.change_reason,
+                user_id=user_id
+            )
         
         return updated
     
@@ -1878,6 +1831,14 @@ class ESGRecordsService:
         skip = (filters.page - 1) * filters.limit
         cursor = collection.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(filters.limit)
         records = await cursor.to_list(None)
+
+        facility_ids = list({r["facility_id"] for r in records if r.get("facility_id")})
+        if facility_ids:
+            names = {f["id"]: f.get("name") for f in await db.facilities.find(
+                {"id": {"$in": facility_ids}}, {"_id": 0, "id": 1, "name": 1}).to_list(len(facility_ids))}
+            for record in records:
+                if record.get("facility_id") and not record.get("facility_name"):
+                    record["facility_name"] = names.get(record["facility_id"])
         
         # Enrich records with user's pending proposals (if user_id provided)
         if user_id and records:
@@ -1970,8 +1931,8 @@ class ESGRecordsService:
         if assignment and assignment.get("requires_approval"):
             requires_approval = True
         
-        # If approval required and record is already approved, create DELETE approval request
-        if requires_approval and record.get("approval_status") == "approved":
+        # If approval required and the record holds approved (or pre-workflow) data, create DELETE approval request
+        if requires_approval and record.get("status") != "draft" and record.get("approval_status") in ("approved", "not_required"):
             return await self._create_delete_approval_request(
                 collection, record, assignment, org_id, user_id
             )
@@ -1979,6 +1940,23 @@ class ESGRecordsService:
         # Otherwise, perform immediate deletion
         return await self._perform_hard_delete(collection, record, org_id)
     
+    async def _auto_reject_pending_deletion(self, section: str, record: Dict[str, Any], user_id: str, now: str) -> None:
+        """Changing a record's values rejects its pending delete request, since the request was made on the old data."""
+        request = await db.approval_requests.find_one(
+            {"entity_id": record["id"], "request_type": "delete", "status": "pending"}, {"_id": 0, "id": 1, "submitted_by": 1, "submitted_at": 1})
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "full_name": 1, "name": 1, "email": 1}) or {}
+        name = user.get("full_name") or user.get("name") or user.get("email") or "An approver"
+        reason = f"{name} changed the values"
+        if request:
+            await db.approval_requests.update_one({"id": request["id"]}, {"$set": {
+                "status": "rejected", "resolved_at": now, "resolved_by": user_id, "resolved_by_name": name,
+                "resolution_comment": reason, "rejection_reason": reason, "updated_at": now}})
+            await db[f"{section}_record_versions"].insert_one(deletion_version_event(
+                record, section=section, change_type="deletion_rejected", actor_id=user_id, timestamp=now, reason=reason,
+                requested_by=request.get("submitted_by"), requested_at=request.get("submitted_at")))
+        await self._get_records_collection(section).update_one({"id": record["id"]}, {"$set": {
+            "pending_deletion": False, "deletion_rejected_by": user_id, "deletion_rejected_at": now, "deletion_rejection_reason": reason}})
+
     async def _create_delete_approval_request(
         self,
         collection,
@@ -2019,18 +1997,16 @@ class ESGRecordsService:
                 "deletion_requested_at": now,
             }}
         )
+        section = collection.name.removesuffix("_records")
+        await db[f"{section}_record_versions"].insert_one(deletion_version_event(
+            record, section=section, change_type="deletion_requested", actor_id=user_id, timestamp=now,
+            requested_by=user_id, requested_at=now))
         
         # Get approver info from assignment
-        approver_id = assignment.get("approver_id")
-        approval_chain = assignment.get("approval_chain", [])
+        approval_chain = normalize_chain(assignment)
         
-        if approval_chain and len(approval_chain) > 0:
-            first_item = approval_chain[0]
-            current_approvers = [first_item] if isinstance(first_item, str) else [first_item.get("approver_id")]
-            total_levels = len(approval_chain)
-        elif approver_id:
-            current_approvers = [approver_id]
-            total_levels = 1
+        if approval_chain:
+            current_approvers, total_levels = approvers_at_level(approval_chain), len(approval_chain)
         else:
             # No approver configured - auto-approve deletion
             return await self._perform_hard_delete(collection, record, org_id)
@@ -2047,7 +2023,7 @@ class ESGRecordsService:
             
             "entity_type": "esg_record",
             "entity_id": record_id,
-            "entity_subtype": record.get("category"),
+            "entity_subtype": collection.name.removesuffix("_records"),
             "request_type": "delete",  # Distinguish from create/edit requests
             
             "entity_snapshot": {
@@ -2068,6 +2044,7 @@ class ESGRecordsService:
             "current_level": 1,
             "current_approvers": current_approvers,
             "total_levels": total_levels,
+            "approval_chain": approval_chain,
             
             "steps_completed": [],
             "created_at": now,
@@ -2165,32 +2142,8 @@ class ESGRecordsService:
         """
         try:
             # Determine period_key from reporting_period
-            period_key = None
-            rp = reporting_period if isinstance(reporting_period, dict) else {}
-            
-            rp_type = rp.get("reporting_type") or rp.get("type")
-            if rp_type == "yearly":
-                period_key = str(rp.get("year"))
-            elif rp_type == "monthly":
-                month = rp.get("month")
-                if isinstance(month, str) and not month.isdigit():
-                    month_names = ["January", "February", "March", "April", "May", "June",
-                                   "July", "August", "September", "October", "November", "December"]
-                    try:
-                        month_num = month_names.index(month) + 1
-                    except ValueError:
-                        month_num = 1
-                else:
-                    month_num = int(month) if month else 1
-                period_key = f"{rp.get('year')}-{str(month_num).zfill(2)}"
-            elif rp_type == "quarterly":
-                quarter = rp.get("quarter", "").replace("Q", "") if rp.get("quarter") else "1"
-                period_key = f"{rp.get('year')}-Q{quarter}"
-            elif rp_type == "daily":
-                period_key = rp.get("date")
-            elif rp_type == "weekly":
-                period_key = rp.get("date")
-            
+            rp = reporting_period.model_dump() if hasattr(reporting_period, 'model_dump') else (reporting_period if isinstance(reporting_period, dict) else {})
+            period_key = period_key_from_reporting_period(rp)
             if not period_key:
                 return
             
@@ -2199,7 +2152,7 @@ class ESGRecordsService:
             task_query = {
                 "organization_id": org_id,
                 "category": category,
-                "period_key": period_key,
+                "period_key": {"$in": period_key_candidates(period_key)},
                 "completed_at": {"$ne": None},  # Has been submitted at some point
             }
             if subcategory:
@@ -2227,6 +2180,8 @@ class ESGRecordsService:
                 {"id": task["id"]},
                 {"$set": update_doc}
             )
+            from .task_engine import sync_task_status
+            await sync_task_status(db, task["id"])
             
             print(f"Cleared task {task['id']} audit fields after record deletion")
         except Exception as e:
@@ -2282,7 +2237,7 @@ class ESGRecordsService:
         if proposal_ids:
             proposals = await db.approval_requests.find(
                 {"id": {"$in": proposal_ids}},
-                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "entity_snapshot": 1},
+                {"_id": 0, "id": 1, "submitted_by": 1, "submitted_by_name": 1, "submitted_by_email": 1, "approver_edited": 1, "approver_edits": 1, "entity_snapshot": 1, "steps_completed": 1, "total_levels": 1, "submitted_at": 1},
             ).to_list(None)
             proposals_by_id = {proposal["id"]: proposal for proposal in proposals}
         
@@ -2352,8 +2307,17 @@ class ESGRecordsService:
             if v.get("rejected_by_name") or v.get("rejected_by"):
                 v["rejected_by_name"] = resolve_actor_name(v.get("rejected_by_name"), v.get("rejected_by"), v.get("created_by"))
             proposal = proposals_by_id.get(v.get("proposal_id"))
+            if proposal:
+                total = proposal.get("total_levels") or 1
+                v["level_approvals"] = [
+                    {"level": st.get("level"), "total_levels": total, "by": st.get("actor_name") or st.get("actor_email") or "Approver",
+                     "at": st.get("timestamp"), "comment": st.get("comment")}
+                    for st in proposal.get("steps_completed") or [] if st.get("action") == "approve" and (st.get("level") or 1) < total
+                ]
             if proposal and v.get("submitted_field_diffs") is None:
                 enrich_proposal_diff_details(v, proposal)
+            if proposal:
+                attach_approver_stages(v, proposal)
             
             # Keep stored change_type (approved/rejected/etc), only default if not present
             if not v.get("change_type"):
@@ -2375,7 +2339,41 @@ class ESGRecordsService:
                 if v.get(diff_key):
                     v[diff_key] = presenter.present(v[diff_key], previous_values, current_values)
         
-        return versions
+        return self._split_multi_level_versions(versions, proposals_by_id)
+
+    @staticmethod
+    def _split_multi_level_versions(versions: List[Dict[str, Any]], proposals_by_id: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Show submission, each intermediate approval and the final approval as separate history entries."""
+        ascending = len(versions) < 2 or (versions[0].get("version") or 0) <= (versions[-1].get("version") or 0)
+        result: List[Dict[str, Any]] = []
+        for v in versions:
+            approvals = v.get("level_approvals") or []
+            proposal = proposals_by_id.get(v.get("proposal_id")) or {}
+            if not approvals or v.get("change_type") != "approved":
+                result.append(v)
+                continue
+            total = approvals[0]["total_levels"]
+            stages = {st["level"]: st for st in v.get("approver_stages") or []}
+            legacy_edits = {e.get("level"): ", ".join(e.get("fields") or []) for e in v.get("approver_edits") or []}
+            blank = {"submitted_field_diffs": [], "approver_field_diffs": [], "approver_edited": False, "approver_edits": [],
+                     "level_approvals": [], "approver_stages": []}
+            rows = [{**v, **blank, "id": f"{v['id']}-submitted", "change_type": "submitted", "event_title": "Update Submitted",
+                     "created_at": proposal.get("submitted_at") or v.get("created_at"), "changed_by_name": v.get("requested_by_name"),
+                     "field_diffs": v.get("submitted_field_diffs") or []}]
+            for la in approvals:
+                stage = stages.get(la["level"])
+                rows.append({**v, **blank, "id": f"{v['id']}-level-{la['level']}", "change_type": "level_approved",
+                             "event_title": f"Level {la['level']} of {total} Approved", "created_at": la.get("at") or v.get("created_at"),
+                             "changed_by_name": la["by"], "approver_modification_title": "Modified by approver" if stage else None,
+                             "field_diffs": (stage or {}).get("diffs") or [],
+                             "no_changes_note": None if stage else (f"Edited: {legacy_edits[la['level']]}" if la["level"] in legacy_edits else "Approved without changes")})
+            final_stage = stages.get(total)
+            rows.append({**v, **blank, "event_title": f"Level {total} of {total} Approved (Final)",
+                         "approver_modification_title": "Modified by approver" if final_stage else None,
+                         "field_diffs": (final_stage or {}).get("diffs") or [],
+                         "no_changes_note": None if final_stage else (f"Edited: {legacy_edits[total]}" if total in legacy_edits else "Approved without changes")})
+            result.extend(rows if ascending else reversed(rows))
+        return result
     
     async def get_version(
         self,
@@ -2751,28 +2749,43 @@ class ESGRecordsService:
         cat_query = {"section": section, "is_active": True}
         if framework:
             cat_query["frameworks"] = framework
-        total_categories = await self._categories.count_documents(cat_query)
+        category_docs = await self._categories.find(cat_query, {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1}).to_list(2000)
+        total_categories = len(category_docs)
 
-        # Get assignment counts
         assign_query = {
             "organization_id": org_id,
             "entity_type": "record_category",
+            "category": {"$in": list({d["category"] for d in category_docs})},
         }
         if reporting_period:
             assign_query["reporting_period"] = reporting_period
+        assignments = await db.esg_assignments.find(
+            assign_query, {"_id": 0, "category": 1, "subcategory": 1, "sub_subcategory": 1, "status": 1, "due_date": 1}).to_list(20000)
 
-        assigned = await db.esg_assignments.count_documents(assign_query)
-        
-        # Status counts
-        completed = await db.esg_assignments.count_documents({**assign_query, "status": "completed"})
-        in_progress = await db.esg_assignments.count_documents({**assign_query, "status": "in_progress"})
-        
-        # Overdue count
-        now = datetime.now(timezone.utc)
-        overdue = await db.esg_assignments.count_documents({
-            **assign_query,
-            "due_date": {"$lt": now},
-            "status": {"$nin": ["completed", "approved"]}
+        def covers(a: Dict[str, Any], d: Dict[str, Any]) -> bool:
+            return (a.get("category") == d["category"]
+                    and (not a.get("subcategory") or a.get("subcategory") == d.get("subcategory"))
+                    and (not a.get("sub_subcategory") or a.get("sub_subcategory") == d.get("sub_subcategory")))
+
+        now = datetime.now(timezone.utc).isoformat()
+        closed = {"completed", "approved"}
+        assigned = completed = in_progress = overdue = 0
+        for d in category_docs:
+            matching = [a for a in assignments if covers(a, d)]
+            if not matching:
+                continue
+            assigned += 1
+            open_items = [a for a in matching if a.get("status") not in closed]
+            if not open_items:
+                completed += 1
+            elif any(a.get("status") == "in_progress" for a in open_items):
+                in_progress += 1
+            if any(a.get("due_date") and str(a["due_date"]) < now for a in open_items):
+                overdue += 1
+
+        awaiting_approval = await db.approval_requests.count_documents({
+            "organization_id": org_id, "entity_type": "esg_record", "status": "pending",
+            "entity_snapshot.category": {"$in": list({d["category"] for d in category_docs})},
         })
 
         return {
@@ -2782,7 +2795,8 @@ class ESGRecordsService:
             "completed": completed,
             "in_progress": in_progress,
             "overdue": overdue,
-            "stale": 0,  # Would need to calculate based on last entries
+            "awaiting_approval": awaiting_approval,
+            "stale": 0,
         }
 
     async def create_assignment(

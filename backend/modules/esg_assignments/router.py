@@ -609,15 +609,16 @@ async def get_accessible_facilities(
         ).to_list(10000)
     else:
         from .kpi_access_helper import kpi_access_helper
-        facilities = await kpi_access_helper.get_accessible_facilities_list(
+        facilities = await kpi_access_helper.get_assignable_facilities_list(
             user_id=current_user["id"],
             organization_id=current_user["organization_id"],
             category=category,
             subcategory=subcategory,
-            reporting_period=reporting_period,
         )
-    
-    return {"facilities": facilities, "total": len(facilities)}
+
+    from modules.sustainability_config.service import resolve_organization_settings
+    settings = await resolve_organization_settings(current_user["organization_id"])
+    return {"facilities": facilities, "total": len(facilities), "approval_workflow_enabled": bool(settings.get("approval_workflow_enabled"))}
 
 
 # ============================================
@@ -749,8 +750,12 @@ async def get_category_progress_endpoint(
             last_updated = progress.last_updated
     
     percentage = round((completed / total) * 100, 1) if total > 0 else 0.0
+    awaiting = await db.esg_reporting_tasks.count_documents(
+        {**{k: v for k, v in query.items() if k in ("organization_id", "category", "subcategory", "sub_subcategory")},
+         "status": "pending_approval"})
     
     return {
+        "awaiting_approval_tasks": awaiting,
         "total": total,
         "total_tasks": total,
         "completed": completed,
@@ -823,7 +828,13 @@ async def get_bulk_progress_endpoint(
             if progress.last_updated and (not last_updated or progress.last_updated > last_updated):
                 last_updated = progress.last_updated
         
+        tasks = await db.esg_reporting_tasks.find(query, {"_id": 0}).to_list(2000)
+        awaiting = 0
+        for task in tasks:
+            if (await completion_service.get_task_status(task)).value == "pending_approval":
+                awaiting += 1
         result[key] = {
+            "awaiting_approval_tasks": awaiting,
             "total": total,
             "total_tasks": total,
             "completed": completed,

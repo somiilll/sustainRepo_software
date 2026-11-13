@@ -1,13 +1,12 @@
 """Per-section BRSR question status and progress counts."""
-from typing import Any, Dict
-
+from typing import Any, Dict, Optional
 from shared.database.mongo import db
 from modules.esg_questionnaire.service import esg_questionnaire_service
-from modules.esg_questionnaire.status_rules import resolved_status
+from modules.esg_questionnaire.status_rules import resolved_status, mirror_hidden_dependents, merge_tracker_children, TRACKER_EXCLUDED
 from .live_kpi_autofill import _has_reportable_value
 
 SECTIONS = ("section_a", "section_b", "section_c")
-STATUSES = ("pending", "draft", "in_progress", "saved", "approved", "rejected")
+STATUSES = ("pending", "draft", "in_progress", "completed", "approved", "rejected")
 A_PREFIX = "brsr_a_"
 SECTION_A_GROUPS = (
     ("I", "Details of the listed entity", ["cin", "entity_name", "year_of_incorporation", "registered_address", "corporate_address", "email", "telephone", "website", "financial_year", "stock_exchange", "paid_up_capital", "contact_person", "reporting_boundary", "assurance_provider", "assurance_type"]),
@@ -47,16 +46,21 @@ def _group_definitions(section: str, configs: list) -> list:
     return sorted(values, key=lambda g: int(g["id"][1:]) if g["id"][1:].isdigit() else 99) if section == "section_c" else values
 
 
-async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
+async def brsr_progress(org_id: str, reporting_period: str, allowed_keys: Optional[set] = None) -> Dict[str, Any]:
     configs = await db.esg_question_configs.find(
         {"frameworks": {"$in": ["BRSR", "brsr"]}, "section": {"$in": list(SECTIONS)}, "hidden": {"$ne": True}},
-        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1},
+        {"_id": 0, "question_key": 1, "section": 1, "group": 1, "brsr_principle": 1, "order": 1, "table_config": 1, "visible_if": 1, "conditional": 1},
     ).sort("order", 1).to_list(1000)
+    if allowed_keys is not None:
+        configs = [c for c in configs if c["question_key"] in allowed_keys]
+    configs = [c for c in configs if c["question_key"] not in TRACKER_EXCLUDED]
     docs = await db.organization_esg_responses.find(
         {"org_id": org_id, "reporting_year": reporting_period, "framework": {"$in": ["BRSR", "brsr"]}},
         {"_id": 0, "question_key": 1, "status": 1, "approval_status": 1, "value": 1, "updated_at": 1, "auto_fill": 1},
     ).to_list(2000)
     by_key = {doc["question_key"]: doc for doc in docs if doc.get("question_key")}
+    mirror_hidden_dependents(by_key, configs)
+    merge_tracker_children(by_key)
 
     sections: Dict[str, Any] = {s: {"questions": {}, "counts": {k: 0 for k in STATUSES}} for s in SECTIONS}
     for config in configs:
@@ -67,7 +71,7 @@ async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
     for section in sections.values():
         counts = section["counts"]
         total = len(section["questions"])
-        answered = counts["saved"] + counts["approved"]
+        answered = counts["completed"] + counts["approved"]
         section.update({
             "total": total, "answered": answered, "groups": [],
             "percent": round(answered / total * 100) if total else 0,
@@ -76,7 +80,7 @@ async def brsr_progress(org_id: str, reporting_period: str) -> Dict[str, Any]:
         for group in _group_definitions(name, configs):
             keys = [k for k in group.pop("keys") if k in section["questions"]]
             section["groups"].append({**group, "total": len(keys),
-                                      "answered": sum(section["questions"][k] in ("saved", "approved") for k in keys)})
+                                      "answered": sum(section["questions"][k] in ("completed", "approved") for k in keys)})
     has_approval_states = any(
         doc.get("approval_status") in ("approved", "rejected", "pending_approval") for doc in by_key.values()
     )

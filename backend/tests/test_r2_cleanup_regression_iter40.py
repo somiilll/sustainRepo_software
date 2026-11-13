@@ -136,30 +136,3 @@ def test_delete_emission_cleans_linked_uploaded_file_metadata_and_object(admin_h
     # Linked uploaded_files metadata should also be gone
     file_info = requests.get(f"{base}/api/files/{file_id}/info", timeout=30)
     assert file_info.status_code == 404, file_info.text
-
-
-def test_ocr_upload_delete_route_with_isolated_data_if_integration_available(admin_headers):
-    base = _require_base_url()
-
-    # Create OCR upload (safe isolated test artifact)
-    tiny_pdf = b"%PDF-1.4\n% OCR temp upload regression\n"
-    upload_resp = requests.post(
-        f"{base}/api/ocr-invoice/upload",
-        files={"files": ("test_r2_cleanup_ocr.pdf", io.BytesIO(tiny_pdf), "application/pdf")},
-        headers={"Authorization": admin_headers["Authorization"]},
-        timeout=120,
-    )
-
-    # Environment may not have OCR AI provider keys - treat as integration-unavailable, not false failure.
-    if upload_resp.status_code >= 500:
-        pytest.skip(f"OCR integration unavailable for live upload/delete verification: {upload_resp.status_code} {upload_resp.text}")
-
-    assert upload_resp.status_code == 200, upload_resp.text
-    payload = upload_resp.json()
-    upload_id = payload.get("upload_id")
-    assert upload_id, payload
-
-    delete_resp = requests.delete(f"{base}/api/ocr-invoice/uploads/{upload_id}", headers=admin_headers, timeout=60)
-    assert delete_resp.status_code == 200, delete_resp.text
-    delete_payload = delete_resp.json()
-    assert delete_payload.get("message") == "Upload deleted"

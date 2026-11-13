@@ -192,26 +192,11 @@ const sidebarConfig = [
     ],
   },
   {
-    key: 'users',
-    accessScope: 'core',
-    label: 'Users',
-    icon: 'Users',
-    path: '/users',
-    adminOnly: true,
-  },
-  {
     key: 'audit_trails',
     label: 'Audit Trails',
     icon: 'ScrollText',
     path: '/audit-trails',
     adminOnly: true,
-  },
-  {
-    key: 'profile',
-    accessScope: 'core',
-    label: 'Profile',
-    icon: 'User',
-    path: '/profile',
   },
 ];
 
