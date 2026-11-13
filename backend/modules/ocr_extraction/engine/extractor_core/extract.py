@@ -133,7 +133,7 @@ def _content(pages: list[Page]) -> list[dict]:
 
 def read_document(pages: list[Page], think: bool, metrics: dict) -> dict:
     data, usage = llm.call_json("extract_think" if think else "extract_fast", SYSTEM, _content(pages), schema(),
-                                max_tokens=16000 if think else 32000, effort="medium" if think else "xhigh")
+                                max_tokens=16000 if think else 32000, effort="medium")
     metrics.setdefault("llm_calls", []).append({"step": "extract", **usage})
     data = tidy(data)
     data["_model"] = usage["model"]

@@ -391,7 +391,7 @@ def interpret(items: list[dict], metrics: dict, use_ai: bool = True) -> None:
         try:
             if not llm.enabled():
                 raise llm.AIUnavailable("No AI provider is configured", "auth")
-            data, usage = llm.call_json("interpret", SYSTEM, _prompt(chunk, hints), _schema(), max_tokens=16000, effort="high")
+            data, usage = llm.call_json("interpret", SYSTEM, _prompt(chunk, hints), _schema(), max_tokens=16000, effort="medium")
             metrics.setdefault("llm_calls", []).append({"step": "interpret", **usage})
             metrics.setdefault("ai_failures", []).extend(usage.get("failures", []))
             answers = {r["row"]: r["numbers"] for r in data["rows"]}
