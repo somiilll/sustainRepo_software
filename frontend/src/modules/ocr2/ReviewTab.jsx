@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, CornerDownRight, Trash2, DatabaseZap, FileSearch, Info, Pencil, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -125,9 +126,14 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
     try { await api.edit(jobOf(r), r.item_id, body); toast.success('Answered - similar lines will be classified this way'); await load(); } catch (e) { toast.error(`Could not save: ${errText(e)}`); }
   };
 
-  const saveGhg = async (id) => {
+  const saveGhg = async (ids) => {
     setSaving(true);
-    try { const res = await api.saveToGhg(id); setSaveRes(res); await load(); if (res.saved && !res.failed.length) toast.success(`${res.saved} line(s) saved`); } catch (e) { toast.error(errText(e)); } finally { setSaving(false); }
+    try {
+      const out = { saved: 0, failed: [] };
+      for (const id of ids) { const res = await api.saveToGhg(id); out.saved += res.saved; out.failed.push(...res.failed); }
+      setSaveRes(out); await load();
+      if (out.saved && !out.failed.length) toast.success(`${out.saved} line(s) saved`);
+    } catch (e) { toast.error(errText(e)); } finally { setSaving(false); }
   };
 
   if (rows === null) return <div className="space-y-3" data-testid="ocr-review-loading">{[70, 100, 90].map((w) => <div key={w} className="h-10 animate-pulse rounded bg-stone-100" style={{ width: `${w}%` }} />)}</div>;
@@ -135,7 +141,7 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
 
   const selJobs = jobList.filter((j) => !jobsSel.size || jobsSel.has(j.job_id));
   const unsaved = rows.filter((r) => (inScope(r) || r.derived) && rstate(r) === 'approved' && !r.review?.saved).length;
-  const exportId = selJobs.length === 1 ? selJobs[0].job_id : null;
+  const retryJobs = [...new Set(rows.filter((r) => (inScope(r) || r.derived) && rstate(r) === 'approved' && !r.review?.saved).map((r) => r._job))];
   const good = (counts.ready || 0) + (counts.approved || 0);
   const noFac = rows.filter((r) => inScope(r) && !r.facility?.id && rstate(r) !== 'rejected').length;
   const credits = selJobs.reduce((a, j) => a + (j.credits || 0), 0);
@@ -202,9 +208,9 @@ export const ReviewTab = ({ api, meta, goUpload }) => {
 
   return (
     <div className="space-y-5" data-testid="ocr-review-tab">
-      {unsaved > 0 && <div className="flex justify-end">
-        <Button disabled={!exportId || saving} title={exportId ? 'These approved lines could not be saved to GHG records. Try saving them again.' : 'Pick one extraction below to retry'} onClick={() => saveGhg(exportId)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>
-      </div>}
+      {unsaved > 0 && document.getElementById('ocr-tabs-actions') && createPortal(
+        <Button disabled={saving} title="These approved lines could not be saved to GHG records. Try saving them again." onClick={() => saveGhg(retryJobs)} data-testid="ocr-save-ghg"><DatabaseZap className="mr-1 h-4 w-4" />{saving ? 'Saving...' : `Retry failed saves (${unsaved})`}</Button>,
+        document.getElementById('ocr-tabs-actions'))}
       {(
         <div className="rounded-xl border border-stone-200 bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Show lines from</div>
           <div className="flex flex-wrap gap-2"><button type="button" className={`rounded-full border px-3 py-1 text-xs ${jobsSel.size ? 'border-stone-300' : 'border-emerald-600 bg-emerald-50 font-semibold'}`} onClick={() => { setJobsSel(new Set()); setPage(0); }} data-testid="ocr-jobs-all">All extractions</button>
