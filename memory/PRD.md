@@ -1150,3 +1150,11 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Claude first for every OCR AI step (policy.ai_chain ["claude","openai"]); OpenAI only as backup.
 - Backups: Haiku tasks (extract_fast, layout, interpret, classify_fallback/final factor pick) -> gpt-6.1-terra; Sonnet (extract_think) -> gpt-6.1-sol.
 - Final factor pick (ClaudeChooser) now goes through llm.call_json so it gets the backup too. Prices added to pricing.json.
+
+## OCR read checks rework (Nov 2026)
+- Efforts: Haiku first read / layout / interpret / final pick = medium; GPT backups medium (policy.openai_effort).
+- `lines_vs_total` (replaces lines_vs_subtotal): main lines counted once per printed_line + add-ons/other charges + tax vs subtotal/grand total (policy.reconcile tolerance 2%, critical gap 20%); overcount = critical, small gap = warn only.
+- qty x rate skipped on merged trip parts; reader leaves rate empty on combined lines.
+- Second read only for the failed invoice's pages (from evidence pages; whole doc if unknown), replaces those invoices only if fewer critical checks.
+- Limits: max_pages 30, extract max_tokens 64000, AI client timeout 300s.
+- Open: Claude 'compiled grammar too large' intermittent with add_on boolean field (fix = fold into nature enum) - not applied.

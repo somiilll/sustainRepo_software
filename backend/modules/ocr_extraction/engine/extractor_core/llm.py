@@ -60,10 +60,10 @@ def _client(provider: str):
             key = os.environ[KEY_ENV[provider]]
             if provider == "openai":
                 import openai
-                _clients[provider] = openai.OpenAI(api_key=key, timeout=120, max_retries=0)
+                _clients[provider] = openai.OpenAI(api_key=key, timeout=300, max_retries=0)
             else:
                 import anthropic
-                _clients[provider] = anthropic.Anthropic(api_key=key, timeout=120, max_retries=0)
+                _clients[provider] = anthropic.Anthropic(api_key=key, timeout=300, max_retries=0)
         return _clients[provider]
 
 

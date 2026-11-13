@@ -23,7 +23,7 @@ Rules
    even when the thing moved is waste; a line that treats, processes, recycles or disposes of waste is waste.
    One trip, cab ride, ticket or hotel stay is ONE activity: its fare components (base fare, distance or time charge,
    one room line per night of the same stay) are one line_item with the summed amount and the total quantity
-   (hotel: total rooms and nights). A ticket covering several flight legs or journeys (outbound and return, connections)
+   (hotel: total rooms and nights); leave rate "" on such a combined line. A ticket covering several flight legs or journeys (outbound and return, connections)
    gives one line_item per leg with its own origin and destination, all with the same printed_line number.
 3. Taxes and add-on fees are NOT line items: taxes (GST/CGST/SGST/IGST), duties, fixed/demand charges, meter rent, late
    fees, rounding, discounts, and every charge billed on top of a main line (fuel or other surcharges, loading/handling,
@@ -131,9 +131,13 @@ def _content(pages: list[Page]) -> list[dict]:
     return out
 
 
+def invoice_pages(inv: dict) -> set[int]:
+    return {e["page"] for e in inv.get("evidence") or [] if isinstance(e.get("page"), int)}
+
+
 def read_document(pages: list[Page], think: bool, metrics: dict) -> dict:
     data, usage = llm.call_json("extract_think" if think else "extract_fast", SYSTEM, _content(pages), schema(),
-                                max_tokens=16000 if think else 32000, effort="medium")
+                                max_tokens=64000, effort="medium")
     metrics.setdefault("llm_calls", []).append({"step": "extract", **usage})
     data = tidy(data)
     data["_model"] = usage["model"]
@@ -141,18 +145,42 @@ def read_document(pages: list[Page], think: bool, metrics: dict) -> dict:
 
 
 # ------------------------------------------------------------------------------- arithmetic cross-checks
+def _reconcile(inv: dict) -> dict | None:
+    """Main lines (each printed line once) + add-on lines or other charges + tax must give the subtotal or the grand total."""
+    lines = list(inv.get("line_items") or [])
+    tot = inv.get("totals") or {}
+    grand, sub = _num(tot.get("grand_total")), _num(tot.get("subtotal"))
+    if inv.get("document_type") == "utility_bill" or not (grand or sub):
+        return None
+    main = _merge_trip_parts(lines, _main_lines(lines))
+    amounts = _one_amount_per_printed_line(lines, main)
+    main_total = sum(a for a in amounts.values() if a)
+    if not main_total:
+        return None
+    addons = sum(_num(l.get("amount")) or 0 for i, l in enumerate(lines) if i not in amounts and "merged_into" not in l)
+    charges, tax = max(addons, _num(tot.get("other_charges")) or 0), _num(tot.get("tax")) or 0
+    cfg = load().policy["reconcile"]
+    near = lambda x, target: target and abs(x - target) <= cfg["match_tolerance"] * target      # noqa: E731
+    if near(main_total + charges, sub) or near(main_total + charges + tax, grand) or near(main_total + addons, sub):
+        return None
+    ref, label = (grand, "invoice total") if grand else (sub, "subtotal")
+    if main_total > ref * (1 + cfg["match_tolerance"]):
+        return {"code": "lines_vs_total", "level": "warn", "critical": True,
+                "message": f"Line amounts add up to {main_total:,.2f}, more than the {label} {ref:,.2f}"}
+    gap = ref - main_total - charges - (tax if grand else 0)
+    return {"code": "lines_vs_total", "level": "warn", "critical": abs(gap) > cfg["unexplained_gap_critical"] * ref,
+            "message": f"{gap:,.2f} of the {label} {ref:,.2f} is not explained by the lines, charges and taxes read"}
+
+
 def cross_check(inv: dict) -> list[dict]:
     checks = []
-    lines = inv.get("line_items") or []
-    tot = inv.get("totals") or {}
-    amts = [l.get("amount") for l in lines if isinstance(l.get("amount"), (int, float))]
-    sub = tot.get("subtotal")
-    if sub and amts and inv.get("document_type") != "utility_bill" and len(amts) > 1:
-        s = sum(amts)
-        if abs(s - sub) / max(sub, 1) > 0.02 and abs(s - (tot.get("grand_total") or 0)) / max(sub, 1) > 0.02:
-            checks.append({"code": "lines_vs_subtotal", "level": "warn", "critical": True,
-                           "message": f"Line amounts add up to {s:,.2f} but the subtotal is {sub:,.2f}"})
+    if (rc := _reconcile(inv)):
+        checks.append(rc)
+    lines = list(inv.get("line_items") or [])
+    _merge_trip_parts(lines, _main_lines(lines))
     for idx, l in enumerate(lines):
+        if l.get("merged_from") or "merged_into" in l:
+            continue                    # combined fare parts: one printed rate does not apply
         q, r, a = l.get("quantity"), l.get("rate"), l.get("amount")
         if all(isinstance(x, (int, float)) for x in (q, r, a)) and a:
             if abs(q * r - a) / abs(a) > 0.05:

@@ -47,3 +47,42 @@ def test_lines_that_already_add_up_are_left_alone():
 def test_fee_only_document_keeps_its_lines():
     its = to_items(inv([{"description": "Consent fee", "nature": "fee_or_tax", "amount": 5000}], grand_total=5000), SRC, 0)
     assert len(its) == 1
+
+
+from extractor_core.extract import cross_check  # noqa: E402
+
+
+def crit(i):
+    return [c["code"] for c in cross_check(i) if c.get("critical")]
+
+
+def test_add_ons_left_out_of_lines_still_add_up():
+    i = inv([{"description": "Waste transport", "nature": "freight", "amount": 6815, "printed_line": 1},
+             {"description": "Waste processing", "nature": "waste", "amount": 4465, "printed_line": 2}],
+            subtotal=13730, other_charges=2450, tax=2471.4, grand_total=16201.4)
+    assert crit(i) == []
+
+
+def test_flight_legs_repeating_one_fare_count_once():
+    i = inv([{"description": "DEL-BOM", "nature": "travel", "amount": 8500, "printed_line": 1},
+             {"description": "BOM-DEL", "nature": "travel", "amount": 8500, "printed_line": 1},
+             {"description": "Seat", "nature": "add_on", "amount": 500}],
+            subtotal=10450, tax=522.5, grand_total=10972.5)
+    assert crit(i) == []
+
+
+def test_overcount_and_large_unexplained_gap_are_misreads():
+    over = inv([{"description": "A", "nature": "goods", "amount": 9000, "printed_line": 1},
+                {"description": "B", "nature": "goods", "amount": 9000, "printed_line": 2}], grand_total=10000)
+    gap = inv([{"description": "A", "nature": "goods", "amount": 3000, "printed_line": 1}], subtotal=10000, grand_total=11800)
+    small = inv([{"description": "A", "nature": "goods", "amount": 9000, "printed_line": 1}], subtotal=10000, grand_total=10000)
+    assert crit(over) == ["lines_vs_total"] and crit(gap) == ["lines_vs_total"]
+    assert crit(small) == [] and [c["code"] for c in cross_check(small)] == ["lines_vs_total"]
+
+
+def test_merged_cab_parts_skip_quantity_times_rate():
+    i = inv([{"description": "Base fare", "nature": "travel", "quantity": 1, "unit": "trip", "rate": 120, "amount": 120,
+              "travel": {"mode": "taxi", "origin": "Hotel", "destination": "Office"}},
+             {"description": "Distance", "nature": "travel", "quantity": 31.6, "unit": "km", "rate": 18, "amount": 568.8,
+              "travel": {"mode": "taxi", "origin": "Hotel", "destination": "Office"}}], subtotal=688.8, grand_total=688.8)
+    assert crit(i) == []

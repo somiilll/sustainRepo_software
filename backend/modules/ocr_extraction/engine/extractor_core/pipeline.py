@@ -159,13 +159,8 @@ class Engine:
             raise llm.AIUnavailable("Reading documents needs ANTHROPIC_API_KEY")
         data = extract.read_document(pages, think, metrics)
         invs = data.get("invoices") or []
-        crit = [c for inv in invs for c in extract.cross_check(inv) if c.get("critical")]
-        if crit and not think:     # re-read once with the stronger model
-            data2 = extract.read_document(pages, True, metrics)
-            metrics["llm_calls"][-1]["step"] = "reread"
-            if len([c for inv in data2.get("invoices") or [] for c in extract.cross_check(inv) if c.get("critical")]) < len(crit):
-                data, invs = data2, data2.get("invoices") or []
-                info["warnings"].append("Numbers did not add up on the first read - re-read with the stronger model")
+        if not think:
+            invs = self._reread_failed(pages, invs, metrics, info)
         info["model"] = data.get("_model")
         if not data.get("readable", True):
             info["warnings"].append(f"Document not readable: {data.get('unreadable_reason')}")
@@ -184,6 +179,35 @@ class Engine:
         info["document_types"] = sorted({inv.get("document_type") for inv in invs if inv.get("document_type")})
         info["languages"] = sorted({inv.get("language") for inv in invs if inv.get("language")})
         return items, info
+
+    @staticmethod
+    def _reread_failed(pages: list, invs: list[dict], metrics: dict, info: dict) -> list[dict]:
+        """Invoices whose numbers do not add up are re-read once with the stronger model - only their own pages; the
+        re-read replaces the invoices on those pages when it has fewer failed checks."""
+        crit = lambda xs: sum(1 for x in xs for c in extract.cross_check(x) if c.get("critical"))      # noqa: E731
+        bad = [i for i, inv in enumerate(invs) if crit([inv])]
+        if not bad:
+            return invs
+        page_sets = [extract.invoice_pages(invs[i]) for i in bad]
+        targets: list[set] = []
+        if any(not ps for ps in page_sets):
+            targets = [set()]                                             # page unknown: re-read the whole document
+        else:
+            for ps in page_sets:
+                hit = next((t for t in targets if t & ps), None)
+                hit.update(ps) if hit else targets.append(set(ps))
+        out = {i: [inv] for i, inv in enumerate(invs)}
+        for pg in targets:
+            old = [i for i, inv in enumerate(invs) if not pg or extract.invoice_pages(inv) & pg]
+            data2 = extract.read_document([p for p in pages if not pg or p.index + 1 in pg], True, metrics)
+            metrics["llm_calls"][-1]["step"] = "reread"
+            new = data2.get("invoices") or []
+            if new and crit(new) < crit([invs[i] for i in old]):
+                for k, i in enumerate(old):
+                    out[i] = new if k == 0 else []
+                info["warnings"].append("Numbers did not add up on the first read" + (f" (pages {', '.join(map(str, sorted(pg)))})" if pg else "")
+                                        + " - re-read with the stronger model")
+        return [x for i in range(len(invs)) for x in out[i]]
 
     # ------------------------------------------------------------------ rows
     def rows_for_item(self, item: dict, decision: dict) -> list[dict]:
