@@ -76,7 +76,7 @@ def test_electricity_gets_one_combined_c3_row(fake):
     assert rs[1]["calc"]["fields"]["activity_value"] == 225545
 
 
-def test_no_split_when_document_has_its_own_transport_line():
+def test_engine_never_adds_its_own_waste_transport_row():
     eng = Engine(use_ai=False)
     it = item(description="Disposal and transport of 6.5 MT waste to landfill", quantity=6.5, unit="MT", disposal_method="landfill",
               doc={"other_lines": ["Waste transportation and hauling, Faridabad to Bandhwari"]})

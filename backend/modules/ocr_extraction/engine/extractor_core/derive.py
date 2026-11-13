@@ -3,9 +3,7 @@
 - Electricity  -> one Scope 3 C3 row 'Electricity - T&D losses and Generation' (Emergent combines both; the
   prototype made two rows, which is why its card said 3 rows while the table showed 2).
 - Fuels        -> C3 well-to-tank row.  Steam/heat -> C3 row.
-- Waste line that is ALSO the transport (e.g. 'Transportation of 5 MT hazardous waste to TSDF') -> waste row
-  (Cat 5 + Waste module, no transport inside) + Cat 4 transport row.  Only 'waste transport' -> Cat 4 only
-  (handled by the activity waste.transport_only).
+- A printed line holding two activities (waste moved AND treated) is split by the reader, not here.
 - Argon/CO2 shielding-gas blend -> CO2 share as Scope 1 process emission + argon share as Cat 1 goods.
 """
 from __future__ import annotations
@@ -14,14 +12,11 @@ import re
 
 from .config import load
 
-TRANSPORT_WORDS = re.compile(r"\b(transport|transportation|carting|cartage|hauling|freight|lifting|collection and transport|trip)\b", re.I)
-
 
 def companion_specs(row: dict, item: dict) -> list[dict]:
     """Describe the extra rows; the pipeline turns each spec into a full row."""
     pol = load().policy
-    tax = load().taxonomy
-    act = tax.get(row["activity_id"])
+    act = load().taxonomy.get(row["activity_id"])
     ghg = row["ghg"]
     out = []
     comps = pol["companions"]
@@ -34,16 +29,6 @@ def companion_specs(row: dict, item: dict) -> list[dict]:
     if "steam_heat" in act["companions"] and comps["steam_heat"]["enabled"] and ghg["scope"] == "scope_2":
         out.append({"kind": "c3_heat", "ghg": {"scope": "scope_3", "category": "cat_3", "subcategory": comps["steam_heat"]["subcategory_label"]},
                     "formula": "s3_activity", "use_quantity": True, "label": f"T&D losses and generation - {row['extracted_item']}"})
-    # waste disposal line that also carries the transport
-    if act.get("waste_disposal") and pol["waste_transport"]["mode"] == "split_if_waste_details":
-        text = " ".join(str(item.get(k) or "") for k in ("description", "description_en", "notes"))
-        others = " ".join(x for x in ((item.get("doc") or {}).get("other_lines") or []) if x)
-        # a separate transport line on the same document already carries the transport -> no extra row
-        if TRANSPORT_WORDS.search(text) and not TRANSPORT_WORDS.search(others)                 and (item.get("disposal_method") or item.get("waste_type") or item.get("quantity")):
-            out.append({"kind": "waste_transport", "ghg": {"scope": "scope_3", "category": pol["waste_transport"]["transport_category"],
-                                                           "subcategory": "Road freight - waste transport"},
-                        "formula": None, "activity_id": "waste.transport_only", "move_amount": True,
-                        "label": f"Transport of waste - {row['extracted_item']}"})
     return out
 
 

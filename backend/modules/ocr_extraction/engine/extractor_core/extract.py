@@ -18,33 +18,38 @@ Rules
 1. One object per distinct invoice/bill. A PDF holding several invoices returns several.
 2. line_items = the physical or service activities: fuels, electricity, gases, water, waste, freight, travel, goods,
    services. In ERP/SAP purchase orders, if a parent line is broken into priced child lines, return ONLY the child lines.
-3. Do NOT return as line items: taxes (GST/CGST/SGST/IGST), electricity duty, fixed/demand charges, meter rent, late fees,
-   rounding, and add-on charges billed on top of another line that have no physical quantity of their own (fuel or other
-   surcharges, loading/handling, documentation, convenience fees). Put their money in totals (tax or other_charges).
-   A line that moves goods or waste (hauling, transport, freight) and a line that treats or disposes of it (disposal,
-   tipping, treatment, landfill) are separate real activities: return each as its own line, even on one invoice.
+3. Taxes and add-on fees are NOT line items: taxes (GST/CGST/SGST/IGST), duties, fixed/demand charges, meter rent, late
+   fees, rounding, discounts, and every charge billed on top of a main line (fuel or other surcharges, loading/handling,
+   documentation, convenience/booking fees, seat selection, meals, breakfast, baggage, laundry, extra-km, waiting, tolls,
+   parking, driver allowance). Their money goes in totals (tax or other_charges); it is later shared over the main
+   lines by value, so it is never lost. If you still return such a charge as a line, set add_on = true.
    Exception: for a utility bill, return ONE line for the energy/water consumed with its quantity and the TOTAL bill
    amount as amount.
-4. Quantities: give the net physical quantity in the unit printed. Packed goods with a capacity (11 x 4 kg cylinders,
+4. One printed line can hold more than one emission activity, and then it MUST be returned as several line_items, one
+   per activity. Example: "Collection, transport and disposal of 5 MT hazardous waste to TSDF, 40 km, 12000" -> line A
+   nature waste (5 MT, disposal route TSDF) and line B nature freight (5 MT over 40 km). Likewise goods supplied with
+   their delivery/freight on one line. Give every part the same printed_line number and repeat the printed amount on
+   every part (it is counted once). Separate printed lines get separate printed_line numbers (1, 2, 3 ...).
+5. Quantities: give the net physical quantity in the unit printed. Packed goods with a capacity (11 x 4 kg cylinders,
    5 x 4.5 kg CO2, 3 drums of 210 L) -> report the total (44 kg, 22.5 kg, 630 L). If the unit is not printed but obvious
    (litres for diesel), give it and add 'unit' to low_confidence_fields.
-5. Electricity bills: units billed (kWh; kVAh only if kWh absent), billing period from/to, consumer/account number,
+6. Electricity bills: units billed (kWh; kVAh only if kWh absent), billing period from/to, consumer/account number,
    meter readings (previous, current, multiplying factor) and any renewable/green energy quantity as its own line.
-6. Travel: mode, origin, destination and passengers separately; never compute distance_km (leave it empty unless printed).
+7. Travel: mode, origin, destination and passengers separately; never compute distance_km (leave it empty unless printed).
    Flights: departure and arrival airport (IATA code if printed), class = Economy, Premium Economy, Business or First.
    Rail: origin and destination stations; ignore the cabin class. Taxi/cab (Uber, Ola, local): vehicle_size = Small,
    Medium, Large or Average (Average when the vehicle type is not stated). Hotel: rooms and nights separately.
-7. Freight: mode, weight, distance if printed, origin, destination, and who pays (direction: inbound to the buyer,
+8. Freight: mode, weight, distance if printed, origin, destination, and who pays (direction: inbound to the buyer,
    outbound from the buyer, or between the buyer's own sites) if it can be told.
-8. Waste: waste type, quantity and disposal route (landfill/TSDF, incineration, co-processing, recycling, composting)
-   only when printed. If the document is only for transporting waste, say so in transport_of_waste_only.
-9. description = text as printed (original language); description_en = short English description.
-10. Use "" for anything not shown on the document. Write numbers as plain text without currency symbols
+9. Waste: waste type, quantity and disposal route (landfill/TSDF, incineration, co-processing, recycling, composting)
+   only when printed.
+10. description = text as printed (original language); description_en = short English description.
+11. Use "" for anything not shown on the document. Write numbers as plain text without currency symbols
    or thousands separators where possible (e.g. "150000.50").
-11. evidence: one entry per line item with field "line 1", "line 2", ... (same order as line_items), the 1-based page
+12. evidence: one entry per line item with field "line 1", "line 2", ... (same order as line_items), the 1-based page
    it is printed on and a short exact quote (under 15 words) of that printed line. Add entries for "period",
    "consumer number" and "grand total" too.
-12. confidence 0-1 per line: 0.95 when quantity, unit and amount are clearly printed; 0.7 when something was inferred;
+13. confidence 0-1 per line: 0.95 when quantity, unit and amount are clearly printed; 0.7 when something was inferred;
    0.5 or less when blurry/ambiguous. List the uncertain field names in low_confidence_fields.
 """
 
@@ -60,7 +65,7 @@ def schema() -> dict:
         "quantity": S, "unit": S, "rate": S, "amount": S,
         "nature": E("fuel", "electricity", "steam_heat", "water", "wastewater", "waste", "refrigerant", "industrial_gas", "freight",
                     "travel", "goods", "service", "capital_item", "rent", "fee_or_tax", "other"),
-        "used_in": S,
+        "used_in": S, "printed_line": {"type": "integer"}, "add_on": B,
         "travel": llm.obj({"mode": S, "origin": S, "destination": S, "class": S, "passengers": S, "rooms": S, "nights": S, "vehicle_size": S, "distance_km": S}),
         "freight": llm.obj({"mode": S, "weight_kg": S, "distance_km": S, "origin": S, "destination": S,
                             "direction": E("inbound", "outbound", "between_own_sites", "unknown")}),
@@ -76,7 +81,6 @@ def schema() -> dict:
         "meter": llm.obj({"previous_reading": S, "current_reading": S, "multiplying_factor": S, "units_billed": S}),
         "currency": S,
         "totals": llm.obj({"subtotal": S, "tax": S, "other_charges": S, "grand_total": S}),
-        "transport_of_waste_only": B,
         "line_items": {"type": "array", "items": line},
         "evidence": evidence, "notes": S,
     })
@@ -166,16 +170,57 @@ def _ev(inv: dict, field: str) -> list[dict]:
     return [e for e in inv.get("evidence") or [] if e.get("field", "").lower().startswith(field)]
 
 
-def _spend_amounts(inv: dict, lines: list[dict]) -> list:
-    """Each line's amount plus its share (by value) of the invoice's tax and other charges; a bill whose lines already add up to the total is left as is."""
-    amounts = [l.get("amount") if isinstance(l.get("amount"), (int, float)) else None for l in lines]
+_num = lambda v: v if isinstance(v, (int, float)) else None      # noqa: E731
+PAID_PART = ("freight", "travel", "service", "goods", "rent", "capital_item")
+
+
+def _is_add_on(l: dict) -> bool:
+    return bool(l.get("add_on")) or l.get("nature") == "fee_or_tax"
+
+
+def _main_lines(lines: list[dict]) -> list[int]:
+    """Indexes of the real activity lines; taxes and add-on fees are not lines (a fee-only document keeps its lines)."""
+    main = [i for i, l in enumerate(lines) if not _is_add_on(l)]
+    return main or list(range(len(lines)))
+
+
+def _one_amount_per_printed_line(lines: list[dict], main: list[int]) -> dict[int, float | None]:
+    """Parts split from one printed line share its money once: it stays on the paid-for part (transport/service), the others carry quantity only."""
+    amounts = {i: _num(lines[i].get("amount")) for i in main}
+    parts: dict[int, list[int]] = {}
+    for i in main:
+        if (pl := lines[i].get("printed_line")):
+            parts.setdefault(pl, []).append(i)
+    for idx in parts.values():
+        paid = [i for i in idx if amounts[i]]
+        if len(paid) > 1:
+            keep = next((i for i in paid if lines[i].get("nature") in PAID_PART), paid[0])
+            for i in paid:
+                if i != keep:
+                    amounts[i] = None
+    return amounts
+
+
+def _spend_amounts(inv: dict, lines: list[dict], amounts: dict[int, float | None]) -> tuple[dict, str | None]:
+    """Each main line's amount plus its share (by value) of everything else on the invoice - taxes, add-on fees, surcharges.
+    The extra is the gap between the grand total and the main lines, so a fee the reader left out is still counted."""
+    base = sum(a for a in amounts.values() if a)
+    if not load().policy.get("spend_includes_tax") or not base:
+        return amounts, None
     tot = inv.get("totals") or {}
-    extras = sum(v for v in (tot.get("tax"), tot.get("other_charges")) if isinstance(v, (int, float)) and v > 0)
-    base = sum(a for a in amounts if a)
-    grand = tot.get("grand_total")
-    if not load().policy.get("spend_includes_tax") or not extras or not base or (isinstance(grand, (int, float)) and abs(base - grand) <= 0.02 * grand):
-        return amounts
-    return [round(a + extras * a / base, 2) if a else a for a in amounts]
+    grand = _num(tot.get("grand_total"))
+    if grand:
+        extra = grand - base
+    else:
+        extra = sum(v for v in (_num(tot.get("tax")), _num(tot.get("other_charges"))) if v) + \
+                sum(_num(l.get("amount")) or 0 for i, l in enumerate(lines) if i not in amounts)
+    if abs(extra) <= max(1.0, 0.001 * base):
+        return amounts, None
+    names = [l.get("description_en") or l.get("description") for i, l in enumerate(lines) if i not in amounts]
+    names += [label for k, label in (("tax", "taxes"), ("other_charges", "other charges")) if _num(tot.get(k))]
+    note = (f"Includes {extra:,.2f} of taxes / add-on charges" + (f" ({', '.join(str(n) for n in names[:5])})" if names else "")
+            + f" shared over the invoice lines by value (lines {base:,.2f}, invoice total {(grand or base + extra):,.2f})")
+    return {i: round(a + extra * a / base, 2) if a else a for i, a in amounts.items()}, note
 
 
 def _travel_terms(tr: dict) -> tuple[str, str | None, str | None]:
@@ -195,13 +240,16 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
     lines = inv.get("line_items") or []
     doc = {k: inv.get(k) for k in ("document_type", "language", "vendor_name", "vendor_gstin", "vendor_type", "buyer_name", "buyer_gstin",
                                    "service_address", "invoice_number", "invoice_date", "billing_period_start", "billing_period_end",
-                                   "consumer_number", "currency", "totals", "transport_of_waste_only", "notes")}
+                                   "consumer_number", "currency", "totals", "notes")}
     doc["doc_index"] = doc_index
-    doc["other_lines"] = [l.get("description_en") or l.get("description") for l in lines][:8]
+    main = _main_lines(lines)
+    doc["other_lines"] = [lines[i].get("description_en") or lines[i].get("description") for i in main][:8]
     items = []
     ev_all = inv.get("evidence") or []
-    spend_amounts = _spend_amounts(inv, lines)
-    for i, l in enumerate(lines):
+    amounts = _one_amount_per_printed_line(lines, main)
+    spend_amounts, spend_note = _spend_amounts(inv, lines, amounts)
+    for i in main:
+        l = lines[i]
         tr, fr, ws = l.get("travel") or {}, l.get("freight") or {}, l.get("waste") or {}
         q = l.get("quantity")
         unit = l.get("unit")
@@ -220,7 +268,7 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
             "description_en": l.get("description_en") or l.get("description") or "",
             "hsn": re.sub(r"\D", "", l.get("hsn_sac") or "") or None,
             "quantity": q if isinstance(q, (int, float)) else parse_number(q), "unit": unit,
-            "amount": l.get("amount"), "spend_amount": spend_amounts[i], "rate": l.get("rate"), "currency": inv.get("currency"),
+            "amount": amounts[i], "spend_amount": spend_amounts[i], "spend_note": spend_note if amounts[i] else None, "rate": l.get("rate"), "currency": inv.get("currency"),
             "nature": l.get("nature"), "used_in": l.get("used_in"),
             "vendor": inv.get("vendor_name"), "vendor_gstin": inv.get("vendor_gstin"),
             "invoice_number": inv.get("invoice_number"), "date": inv.get("invoice_date"),

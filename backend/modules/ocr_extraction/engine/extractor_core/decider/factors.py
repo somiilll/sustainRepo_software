@@ -152,8 +152,14 @@ class FactorIndex:
             return []
         qty, unit, dim = display_quantity(item)
         entries = [r.entry for r in self._pool(self.scope3, prefs, qty, unit, dim, item.get("amount"))]
+        if qty is not None:          # a physical factor whose units cannot take this quantity (litres for a tonnage) cannot be calculated
+            entries = [e for e in entries if e["method"] == "spend" or _fit(e["allowed_units"], qty, unit, dim)[0] != "mismatch"] or entries
         if item.get("amount") is not None and qty is None and not item.get("distance_km"):
             entries = [e for e in entries if e["method"] == "spend"] or entries      # money only: the spend-based factor is the one that can be calculated
+        elif domain == "freight" and dim == "mass" and item.get("amount") is not None:
+            # moving goods: tonne-km factors need the distance too - with it the activity factor is used, without it the spend one
+            want = "activity" if item.get("distance_km") else "spend"
+            entries = [e for e in entries if e["method"] == want] or entries
         return entries
 
     @staticmethod

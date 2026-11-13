@@ -110,9 +110,6 @@
               "grand_total"
             ]
           },
-          "transport_of_waste_only": {
-            "type": "boolean"
-          },
           "line_items": {
             "type": "array",
             "items": {
@@ -163,6 +160,12 @@
                 },
                 "used_in": {
                   "type": "string"
+                },
+                "printed_line": {
+                  "type": "integer"
+                },
+                "add_on": {
+                  "type": "boolean"
                 },
                 "travel": {
                   "type": "object",
@@ -291,6 +294,8 @@
                 "amount",
                 "nature",
                 "used_in",
+                "printed_line",
+                "add_on",
                 "travel",
                 "freight",
                 "waste",
@@ -343,7 +348,6 @@
           "meter",
           "currency",
           "totals",
-          "transport_of_waste_only",
           "line_items",
           "evidence",
           "notes"

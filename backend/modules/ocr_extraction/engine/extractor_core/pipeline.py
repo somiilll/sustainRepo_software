@@ -259,35 +259,24 @@ class Engine:
                 rows.append(make(f"{base_id}-1", "gas.argon", g2, build_calc(ar, g2, ar_item), f"{label} - argon share {1 - share:.0%}",
                                  derived=True, parent=f"{base_id}-0", amount=item.get("amount"), quantity=q2))
                 return rows
-        main_amount = item.get("amount")
         comps = companion_specs({"activity_id": aid, "ghg": ghg, "extracted_item": label}, item)
-        if any(c.get("move_amount") for c in comps):
-            main_amount = None           # the money belongs to the transport row; the waste row carries the quantity
-        main_item = {**item, "amount": main_amount}
-        main = make(f"{base_id}-0", aid, ghg, build_calc(act, ghg, main_item), label, amount=main_amount)
+        main = make(f"{base_id}-0", aid, ghg, build_calc(act, ghg, item), label, amount=item.get("amount"))
         rows.append(main)
         for k, c in enumerate(comps, start=1):
             cg = dict(c["ghg"])
             cg.update(scope_label=tax.raw["scope_labels"][cg["scope"]], category_label=tax.raw["category_labels"].get(cg["category"], cg["category"]),
                       subcategory_label=cg["subcategory"], category_id=None, subcategory_id=None)
-            if c["kind"] == "waste_transport":
-                ta = tax.get("waste.transport_only")
-                titem = {**item, "quantity": item.get("quantity") if (display_quantity(item)[2] == "mass") else None}
-                calc = build_calc(ta, cg, titem)
-                rows.append(make(f"{base_id}-{k}", "waste.transport_only", cg, calc, c["label"], derived=True, parent=main["row_id"],
-                                 amount=item.get("amount")))
-            else:
-                if c["kind"] == "c3_wtt":
-                    rows.append(self._wtt_row(make, item, main, k, aid, decision, c["label"]))
-                    continue
-                f = load().formulas[c["formula"]]
-                key = f["fields"][0]["key"]
-                fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") else {}
-                calc = {"formula_id": c["formula"] if fields else None, "formula_label": f["label"], "ef_method": "activity",
-                        "fields": fields, "missing": [] if fields else [f["fields"][0]["label"]], "notes": [], "status": "ok",
-                        "emergent_formula_id": f.get("emergent_formula_id")}
-                rows.append(make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
-                                 dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"}))
+            if c["kind"] == "c3_wtt":
+                rows.append(self._wtt_row(make, item, main, k, aid, decision, c["label"]))
+                continue
+            f = load().formulas[c["formula"]]
+            key = f["fields"][0]["key"]
+            fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") else {}
+            calc = {"formula_id": c["formula"] if fields else None, "formula_label": f["label"], "ef_method": "activity",
+                    "fields": fields, "missing": [] if fields else [f["fields"][0]["label"]], "notes": [], "status": "ok",
+                    "emergent_formula_id": f.get("emergent_formula_id")}
+            rows.append(make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
+                             dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"}))
         return rows
 
     def _wtt_row(self, make, item: dict, main: dict, k: int, aid: str | None, decision: dict, label: str) -> dict:

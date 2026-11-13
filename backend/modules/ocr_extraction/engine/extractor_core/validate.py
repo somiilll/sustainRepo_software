@@ -140,6 +140,8 @@ def row_checks(row: dict, item: dict) -> list[dict]:
         c.append({"code": "no_vendor", "level": "info", "message": "Vendor not found on the document"})
     if item["source"].get("hidden_sheet"):
         c.append({"code": "hidden_sheet", "level": "info", "message": "Row comes from a hidden sheet"})
+    if item.get("spend_note") and row.get("amount") is not None:
+        c.append({"code": "spend_includes_extras", "level": "info", "message": item["spend_note"]})
     return c
 
 

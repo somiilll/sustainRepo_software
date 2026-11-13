@@ -1126,3 +1126,11 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Travel: new `vehicle_size` (taxi: Small/Medium/Large/Average default Average), cabin class normalised for flights only (Economy/Premium Economy/Business/First), rail ignores cabin class, hotel quantity = rooms x nights with unit room_nights; maps in policy.json `travel`. Factor wording gets "<size> Size" / "<class> class".
 - Multi-invoice splitting already existed (invoices array). Scope 2 derived rows unchanged (grid/captive -> T&D; steam/district heat -> heat T&D).
 - Verified: 125 engine tests pass; waste invoice run offline (2 independent rows, spend 9450/6300 split); travel normalisers unit-checked; not run through UI.
+
+## OCR invoice money & split rules (Nov 2026)
+- Removed waste-transport special case (transport_of_waste_only flag, derived waste_transport companion, policy.waste_transport).
+- Taxes and add-on fees are never rows: reader tags add_on / fee_or_tax lines are dropped; gap = grand total - main lines is shared over main lines by value (spend_amount), info check `spend_includes_extras` shows the breakdown.
+- Reader splits a printed line holding several activities (printed_line shared, amount counted once on the transport/service part). E.g. 5 MT waste + 40 km -> waste row (activity) + freight row.
+- Freight factor choice by data: weight+distance -> activity (tkm), weight only -> spend. Physical factors whose units can't take the quantity are skipped.
+- Tests: engine/tests/test_extract_lines.py (130 pass). Gap: DB has no hazardous-waste/sludge C5 factor.
+- Pending: plausibility checks restore, contact-sales context, superadmin credits, MIS cron, My Tasks filters.

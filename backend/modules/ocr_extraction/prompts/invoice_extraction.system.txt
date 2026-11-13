@@ -6,31 +6,35 @@ Rules
 1. One object per distinct invoice/bill. A PDF holding several invoices returns several.
 2. line_items = the physical or service activities: fuels, electricity, gases, water, waste, freight, travel, goods,
    services. In ERP/SAP purchase orders, if a parent line is broken into priced child lines, return ONLY the child lines.
-3. Do NOT return as line items: taxes (GST/CGST/SGST/IGST), electricity duty, fixed/demand charges, meter rent, late fees,
-   rounding, and add-on charges billed on top of another line that have no physical quantity of their own (fuel or other
-   surcharges, loading/handling, documentation, convenience fees). Put their money in totals (tax or other_charges).
-   A line that moves goods or waste (hauling, transport, freight) and a line that treats or disposes of it (disposal,
-   tipping, treatment, landfill) are separate real activities: return each as its own line, even on one invoice.
+3. Taxes and add-on fees are NOT line items: taxes (GST/CGST/SGST/IGST), duties, fixed/demand charges, meter rent, late
+   fees, rounding, discounts, and every charge billed on top of a main line (fuel or other surcharges, loading/handling,
+   documentation, convenience/booking fees, seat selection, meals, breakfast, baggage, laundry, extra-km, waiting, tolls,
+   parking, driver allowance). Their money goes in totals (tax or other_charges); it is later shared over the main
+   lines by value, so it is never lost. If you still return such a charge as a line, set add_on = true.
    Exception: for a utility bill, return ONE line for the energy/water consumed with its quantity and the TOTAL bill
    amount as amount.
-4. Quantities: give the net physical quantity in the unit printed. Packed goods with a capacity (11 x 4 kg cylinders,
+4. One printed line can hold more than one emission activity. Example: "Transport of 5 MT hazardous waste to TSDF,
+   40 km, 12000" is waste treated (5 MT) AND freight (5 MT over 40 km). Return one line_item per activity, give all of
+   them the same printed_line number, and put the printed amount ONLY on the part it pays for (the transport/service),
+   leaving amount "" on the others. Separate printed lines get separate printed_line numbers (1, 2, 3 ...).
+5. Quantities: give the net physical quantity in the unit printed. Packed goods with a capacity (11 x 4 kg cylinders,
    5 x 4.5 kg CO2, 3 drums of 210 L) -> report the total (44 kg, 22.5 kg, 630 L). If the unit is not printed but obvious
    (litres for diesel), give it and add 'unit' to low_confidence_fields.
-5. Electricity bills: units billed (kWh; kVAh only if kWh absent), billing period from/to, consumer/account number,
+6. Electricity bills: units billed (kWh; kVAh only if kWh absent), billing period from/to, consumer/account number,
    meter readings (previous, current, multiplying factor) and any renewable/green energy quantity as its own line.
-6. Travel: mode, origin, destination and passengers separately; never compute distance_km (leave it empty unless printed).
+7. Travel: mode, origin, destination and passengers separately; never compute distance_km (leave it empty unless printed).
    Flights: departure and arrival airport (IATA code if printed), class = Economy, Premium Economy, Business or First.
    Rail: origin and destination stations; ignore the cabin class. Taxi/cab (Uber, Ola, local): vehicle_size = Small,
    Medium, Large or Average (Average when the vehicle type is not stated). Hotel: rooms and nights separately.
-7. Freight: mode, weight, distance if printed, origin, destination, and who pays (direction: inbound to the buyer,
+8. Freight: mode, weight, distance if printed, origin, destination, and who pays (direction: inbound to the buyer,
    outbound from the buyer, or between the buyer's own sites) if it can be told.
-8. Waste: waste type, quantity and disposal route (landfill/TSDF, incineration, co-processing, recycling, composting)
-   only when printed. If the document is only for transporting waste, say so in transport_of_waste_only.
-9. description = text as printed (original language); description_en = short English description.
-10. Use "" for anything not shown on the document. Write numbers as plain text without currency symbols
+9. Waste: waste type, quantity and disposal route (landfill/TSDF, incineration, co-processing, recycling, composting)
+   only when printed.
+10. description = text as printed (original language); description_en = short English description.
+11. Use "" for anything not shown on the document. Write numbers as plain text without currency symbols
    or thousands separators where possible (e.g. "150000.50").
-11. evidence: one entry per line item with field "line 1", "line 2", ... (same order as line_items), the 1-based page
+12. evidence: one entry per line item with field "line 1", "line 2", ... (same order as line_items), the 1-based page
    it is printed on and a short exact quote (under 15 words) of that printed line. Add entries for "period",
    "consumer number" and "grand total" too.
-12. confidence 0-1 per line: 0.95 when quantity, unit and amount are clearly printed; 0.7 when something was inferred;
+13. confidence 0-1 per line: 0.95 when quantity, unit and amount are clearly printed; 0.7 when something was inferred;
    0.5 or less when blurry/ambiguous. List the uncertain field names in low_confidence_fields.

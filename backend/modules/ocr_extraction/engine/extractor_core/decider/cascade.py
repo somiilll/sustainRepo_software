@@ -56,8 +56,6 @@ def build_state(item: dict, org_context: dict | None) -> str:
         parts.append(f"Vendor type: {doc['vendor_type']}")
     if doc.get("other_lines"):
         parts.append("Other lines on the same document: " + "; ".join(x for x in doc["other_lines"] if x)[:300])
-    if doc.get("transport_of_waste_only"):
-        parts.append("The document is only for transporting waste")
     oc = org_context or {}
     if oc.get("industry"):
         parts.append(f"Reporting company: {oc.get('name', '')} ({oc['industry']})")
@@ -137,7 +135,7 @@ class Classifier:
         dom = a1["domain"].choice
         reader = rules.NATURE_TO_DOMAIN.get(item.get("nature"))
         if {reader, dom} == {"freight", "waste"}:
-            dom = reader            # 'waste transport': the reader says whether this line moves the waste (freight) or treats it (waste)
+            dom = reader            # a split part: the reader says whether it moves the material (freight) or treats it (waste)
         acts = self.tax.by_domain.get(dom)
         if not acts:         # purchases, waste, freight, travel...: chosen from the real factor names, not from an activity list
             return {"factor_domain": dom, "domain_confidence": a1["domain"].confidence, "provider": p1.name, "alternatives": []}

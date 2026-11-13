@@ -11,11 +11,6 @@
     "scope_1_2": "needs_attention",
     "_note": "Emergent has no spend formula for Scope 1/2, so a fuel or electricity bill without a quantity cannot be calculated - it goes to review."
   },
-  "waste_transport": {
-    "mode": "split_if_waste_details",
-    "transport_category": "cat_4",
-    "_note": "Waste details (type, quantity or disposal route) present -> a Waste/Cat 5 record for treatment AND a Cat 4 record for the transport. Only 'waste transport' -> Cat 4 transport record only. Cat 5 never includes transport, so nothing is counted twice."
-  },
   "freight_direction": {
     "inbound": "cat_4",
     "outbound_paid_by_us": "cat_4",
