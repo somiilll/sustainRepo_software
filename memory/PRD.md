@@ -1103,3 +1103,5 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - `migrate_to_synced_task_status` REMOVED (function and startup call) — workflow has no old data on staging/prod.
 - **P2 — Hourly MIS report scheduler:** `run_mis_reports_scheduler` in `server.py` is an in-process loop started at every backend start (timing resets on restart; two backend copies would double-send). Move to a platform cron webhook (`.emergent/crons.yml`) calling `process_due_schedules`.
 - OCR factor sector sync (`factor_sectors.sync_in_background`): decision = keep; copy `ocr_factor_sectors` from production to staging so staging does not re-group ~3,900 names with Haiku.
+
+- Cron `sync-task-status` (monthly overdue-task sync) is DISABLED (`enabled: false` in `.emergent/crons.yml`) until a client starts using workflow; set back to `true` and redeploy to turn it on. Endpoint `/api/cron/sync-task-status` and WEBHOOK_CRON_SECRET remain in place.
