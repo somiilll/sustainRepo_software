@@ -36,7 +36,7 @@ def _value_for(key: str, field: dict, item: dict, qty_c, unit_c, dim):
             return qty_c, emergent_unit(unit_c)
         return None, None
     if key == "spent_value":
-        a = item.get("amount")
+        a = item.get("spend_amount") or item.get("amount")
         return (a, item.get("currency") or load().policy["currency_default"]) if a is not None else (None, None)
     if key == "qty_travelled":
         if item.get("weight_kg"):

@@ -39,7 +39,7 @@ def _compiled():
 
 def item_text(item: dict) -> str:
     parts = [item.get("description_en"), item.get("description"), item.get("notes"), item.get("used_in"),
-             item.get("waste_type"), item.get("disposal_method"), item.get("travel_mode"), item.get("freight_mode")]
+             item.get("waste_type"), item.get("disposal_method"), item.get("travel_mode"), item.get("freight_mode"), item.get("vehicle_size"), item.get("travel_class")]
     if len(str(item.get("description") or "")) < 4:
         parts.append(item.get("context"))
     return " ".join(str(p) for p in parts if p).lower()

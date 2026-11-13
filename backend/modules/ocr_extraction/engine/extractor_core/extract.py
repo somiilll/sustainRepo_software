@@ -8,7 +8,7 @@ import re
 from . import llm
 from .config import load
 from .normalise import Page
-from .units import parse_number
+from .units import parse_number, to_canonical
 
 SYSTEM = """You read invoices, utility bills, tickets, receipts, delivery challans, lorry receipts and similar documents for an
 ESG / greenhouse-gas inventory of an Indian manufacturing company. Pages may be scans or phone photos, rotated, in
@@ -18,15 +18,22 @@ Rules
 1. One object per distinct invoice/bill. A PDF holding several invoices returns several.
 2. line_items = the physical or service activities: fuels, electricity, gases, water, waste, freight, travel, goods,
    services. In ERP/SAP purchase orders, if a parent line is broken into priced child lines, return ONLY the child lines.
-3. Do NOT return taxes (GST/CGST/SGST/IGST), electricity duty, fixed/demand charges, meter rent, late fees, rounding,
-   or surcharges as line items. Put their money in totals. Exception: for a utility bill, return ONE line for the
-   energy/water consumed with its quantity and the TOTAL bill amount as amount.
+3. Do NOT return as line items: taxes (GST/CGST/SGST/IGST), electricity duty, fixed/demand charges, meter rent, late fees,
+   rounding, and add-on charges billed on top of another line that have no physical quantity of their own (fuel or other
+   surcharges, loading/handling, documentation, convenience fees). Put their money in totals (tax or other_charges).
+   A line that moves goods or waste (hauling, transport, freight) and a line that treats or disposes of it (disposal,
+   tipping, treatment, landfill) are separate real activities: return each as its own line, even on one invoice.
+   Exception: for a utility bill, return ONE line for the energy/water consumed with its quantity and the TOTAL bill
+   amount as amount.
 4. Quantities: give the net physical quantity in the unit printed. Packed goods with a capacity (11 x 4 kg cylinders,
    5 x 4.5 kg CO2, 3 drums of 210 L) -> report the total (44 kg, 22.5 kg, 630 L). If the unit is not printed but obvious
    (litres for diesel), give it and add 'unit' to low_confidence_fields.
 5. Electricity bills: units billed (kWh; kVAh only if kWh absent), billing period from/to, consumer/account number,
    meter readings (previous, current, multiplying factor) and any renewable/green energy quantity as its own line.
-6. Travel: mode, origin, destination, class, passengers, rooms and nights separately. Do not compute distances.
+6. Travel: mode, origin, destination and passengers separately; never compute distance_km (leave it empty unless printed).
+   Flights: departure and arrival airport (IATA code if printed), class = Economy, Premium Economy, Business or First.
+   Rail: origin and destination stations; ignore the cabin class. Taxi/cab (Uber, Ola, local): vehicle_size = Small,
+   Medium, Large or Average (Average when the vehicle type is not stated). Hotel: rooms and nights separately.
 7. Freight: mode, weight, distance if printed, origin, destination, and who pays (direction: inbound to the buyer,
    outbound from the buyer, or between the buyer's own sites) if it can be told.
 8. Waste: waste type, quantity and disposal route (landfill/TSDF, incineration, co-processing, recycling, composting)
@@ -54,7 +61,7 @@ def schema() -> dict:
         "nature": E("fuel", "electricity", "steam_heat", "water", "wastewater", "waste", "refrigerant", "industrial_gas", "freight",
                     "travel", "goods", "service", "capital_item", "rent", "fee_or_tax", "other"),
         "used_in": S,
-        "travel": llm.obj({"mode": S, "origin": S, "destination": S, "class": S, "passengers": S, "rooms": S, "nights": S, "distance_km": S}),
+        "travel": llm.obj({"mode": S, "origin": S, "destination": S, "class": S, "passengers": S, "rooms": S, "nights": S, "vehicle_size": S, "distance_km": S}),
         "freight": llm.obj({"mode": S, "weight_kg": S, "distance_km": S, "origin": S, "destination": S,
                             "direction": E("inbound", "outbound", "between_own_sites", "unknown")}),
         "waste": llm.obj({"waste_type": S, "disposal_method": S, "hazardous": E("yes", "no", "unknown")}),
@@ -159,6 +166,30 @@ def _ev(inv: dict, field: str) -> list[dict]:
     return [e for e in inv.get("evidence") or [] if e.get("field", "").lower().startswith(field)]
 
 
+def _spend_amounts(inv: dict, lines: list[dict]) -> list:
+    """Each line's amount plus its share (by value) of the invoice's tax and other charges; a bill whose lines already add up to the total is left as is."""
+    amounts = [l.get("amount") if isinstance(l.get("amount"), (int, float)) else None for l in lines]
+    tot = inv.get("totals") or {}
+    extras = sum(v for v in (tot.get("tax"), tot.get("other_charges")) if isinstance(v, (int, float)) and v > 0)
+    base = sum(a for a in amounts if a)
+    grand = tot.get("grand_total")
+    if not load().policy.get("spend_includes_tax") or not extras or not base or (isinstance(grand, (int, float)) and abs(base - grand) <= 0.02 * grand):
+        return amounts
+    return [round(a + extras * a / base, 2) if a else a for a in amounts]
+
+
+def _travel_terms(tr: dict) -> tuple[str, str | None, str | None]:
+    """(mode kind, cabin class, vehicle size) in the wording of the factor names; rail ignores the cabin class, a cab without a stated size is Average."""
+    pol = load().policy["travel"]
+    mode = str(tr.get("mode") or "").lower()
+    kind = ("hotel" if re.search(r"hotel|accommodat|lodging|stay", mode) else "rail" if re.search(r"rail|train|metro", mode)
+            else "taxi" if re.search(r"taxi|cab|uber|ola|ride", mode) else "flight" if re.search(r"flight|air", mode) else mode)
+    norm = lambda m, v: next((m[k] for k in sorted(m, key=len, reverse=True) if k in str(v or "").lower()), None)
+    cabin = norm(pol["cabin_class"], tr.get("class")) if kind == "flight" else None
+    size = (norm(pol["vehicle_size"], tr.get("vehicle_size")) or "Average") if kind == "taxi" else None
+    return kind, cabin, size
+
+
 def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
     """One raw item per line item, carrying the invoice-level context the classifier and validators need."""
     lines = inv.get("line_items") or []
@@ -169,6 +200,7 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
     doc["other_lines"] = [l.get("description_en") or l.get("description") for l in lines][:8]
     items = []
     ev_all = inv.get("evidence") or []
+    spend_amounts = _spend_amounts(inv, lines)
     for i, l in enumerate(lines):
         tr, fr, ws = l.get("travel") or {}, l.get("freight") or {}, l.get("waste") or {}
         q = l.get("quantity")
@@ -176,6 +208,9 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
         # electricity: prefer the meter's units billed when the line has none
         if l.get("nature") == "electricity" and q is None and (inv.get("meter") or {}).get("units_billed"):
             q, unit = inv["meter"]["units_billed"], unit or "kWh"
+        tmode, tclass, vsize = _travel_terms(tr)
+        if tmode == "hotel" and tr.get("rooms") and tr.get("nights"):
+            q, unit = int(tr["rooms"]) * int(tr["nights"]), "room_nights"
         mine = [{**e, "field": "line"} for e in ev_all if re.fullmatch(rf"line\s*{i + 1}", (e.get("field") or "").strip().lower())]
         evidence = mine + [e for e in ev_all if not (e.get("field") or "").lower().startswith("line")]
         items.append({
@@ -185,7 +220,7 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
             "description_en": l.get("description_en") or l.get("description") or "",
             "hsn": re.sub(r"\D", "", l.get("hsn_sac") or "") or None,
             "quantity": q if isinstance(q, (int, float)) else parse_number(q), "unit": unit,
-            "amount": l.get("amount"), "rate": l.get("rate"), "currency": inv.get("currency"),
+            "amount": l.get("amount"), "spend_amount": spend_amounts[i], "rate": l.get("rate"), "currency": inv.get("currency"),
             "nature": l.get("nature"), "used_in": l.get("used_in"),
             "vendor": inv.get("vendor_name"), "vendor_gstin": inv.get("vendor_gstin"),
             "invoice_number": inv.get("invoice_number"), "date": inv.get("invoice_date"),
@@ -193,10 +228,10 @@ def to_items(inv: dict, source: dict, doc_index: int) -> list[dict]:
             "facility_hint": inv.get("service_address") or inv.get("buyer_name"),
             "consumer_number": inv.get("consumer_number"), "buyer_gstin": inv.get("buyer_gstin"),
             "distance_km": tr.get("distance_km") or fr.get("distance_km"),
-            "weight_kg": fr.get("weight_kg"), "origin": tr.get("origin") or fr.get("origin"),
+            "weight_kg": None if to_canonical(1, unit)[2] == "mass" else fr.get("weight_kg"), "origin": tr.get("origin") or fr.get("origin"),
             "destination": tr.get("destination") or fr.get("destination"),
             "freight_mode": fr.get("mode"), "freight_direction": fr.get("direction"),
-            "travel_mode": tr.get("mode"), "travel_class": tr.get("class"), "passengers": int(tr["passengers"]) if tr.get("passengers") else None,
+            "travel_mode": tr.get("mode"), "travel_class": tclass, "vehicle_size": vsize, "passengers": int(tr["passengers"]) if tr.get("passengers") else None,
             "rooms": int(tr["rooms"]) if tr.get("rooms") else None, "nights": int(tr["nights"]) if tr.get("nights") else None,
             "waste_type": ws.get("waste_type"), "disposal_method": ws.get("disposal_method"), "hazardous": {"yes": True, "no": False}.get(ws.get("hazardous") or ""),
             "line_confidence": float(l.get("confidence") or 0.7), "low_confidence_fields": l.get("low_confidence_fields") or [],

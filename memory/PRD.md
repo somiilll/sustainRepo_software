@@ -1119,3 +1119,10 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - KEPT on purpose: /app/.playwright (server.py sets PLAYWRIGHT_BROWSERS_PATH=/app/.playwright for PDF rendering), .emergent/backups and /app/backups (data rollback snapshots), memory/ docs, backend/tests/golden.
 - Still open: OCR prefill plumbing in Emissions.js / EmissionEntryForm.js / ESGRecords* (unused since old OCR removed).
 - P1: waste-invoice classification (transport line must not become a landfill row; priced service line without quantity -> spend-based/skip) — decide generic rule, no waste-specific hardcoding.
+
+## OCR invoice rules update (Nov 2026)
+- Tax/other charges split across lines by value into `item.spend_amount` (policy `spend_includes_tax`); used only by spend-based rows; bills whose lines already equal the grand total are left as is.
+- Add-on charges (loading/handling, surcharges, documentation, fees) are no longer lines: rolled into totals.other_charges. Hauling/transport and disposal/tipping stay separate independent lines; when nature says freight vs waste it overrides the AI domain pick (`cascade._ai`), and `FactorIndex.intent` returns freight/waste instead of None. Line weight_kg ignored when the line's own unit is mass.
+- Travel: new `vehicle_size` (taxi: Small/Medium/Large/Average default Average), cabin class normalised for flights only (Economy/Premium Economy/Business/First), rail ignores cabin class, hotel quantity = rooms x nights with unit room_nights; maps in policy.json `travel`. Factor wording gets "<size> Size" / "<class> class".
+- Multi-invoice splitting already existed (invoices array). Scope 2 derived rows unchanged (grid/captive -> T&D; steam/district heat -> heat T&D).
+- Verified: 125 engine tests pass; waste invoice run offline (2 independent rows, spend 9450/6300 split); travel normalisers unit-checked; not run through UI.

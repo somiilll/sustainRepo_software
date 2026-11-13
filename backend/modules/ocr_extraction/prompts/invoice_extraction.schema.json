@@ -189,6 +189,9 @@
                     "nights": {
                       "type": "string"
                     },
+                    "vehicle_size": {
+                      "type": "string"
+                    },
                     "distance_km": {
                       "type": "string"
                     }
@@ -201,6 +204,7 @@
                     "passengers",
                     "rooms",
                     "nights",
+                    "vehicle_size",
                     "distance_km"
                   ]
                 },

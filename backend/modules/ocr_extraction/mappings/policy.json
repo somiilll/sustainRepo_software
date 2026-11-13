@@ -44,6 +44,11 @@
     "same_invoice": "warn",
     "_key": "vendor GSTIN or name + invoice number + amount"
   },
+  "spend_includes_tax": true,
+  "travel": {
+    "cabin_class": {"economy": "Economy", "eco": "Economy", "premium economy": "Premium Economy", "premium": "Premium Economy", "business": "Business", "club": "Business", "first": "First"},
+    "vehicle_size": {"small": "Small", "medium": "Medium", "large": "Large", "average": "Average"}
+  },
   "currency_default": "INR",
   "classifier_chain": ["memory", "rules", "jev", "openai_decisions"],
   "models": {

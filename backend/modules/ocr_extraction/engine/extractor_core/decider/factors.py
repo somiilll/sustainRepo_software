@@ -65,7 +65,8 @@ def numbers(text: str) -> list[tuple[float, str]]:
 
 def item_text(item: dict) -> str:
     parts = [item.get("description_en"), item.get("description") if item.get("description") != item.get("description_en") else None,
-             item.get("waste_type"), item.get("disposal_method"), item.get("freight_mode"), item.get("travel_mode")]
+             item.get("waste_type"), item.get("disposal_method"), item.get("freight_mode"), item.get("travel_mode"),
+             f"{item['vehicle_size']} Size" if item.get("vehicle_size") else None, f"{item['travel_class']} class" if item.get("travel_class") else None]
     t = " ".join(str(p) for p in parts if p)
     return t if len(str(item.get("description") or "")) >= 4 else t + " " + str(item.get("context") or "")
 
@@ -211,8 +212,8 @@ class FactorIndex:
             return None
         waste = bool(dw & WASTE) or nature == "waste" or bool(item.get("waste_type"))
         freight = bool(dw & FREIGHT) or nature == "freight"
-        if waste and freight:
-            return None                    # waste transport has its own split rules
+        if waste and freight:              # the line itself moves the waste (transport) or treats it (waste); else the split rules decide
+            return ("freight", ("C4", "C9")) if nature == "freight" else ("waste", ("C5",)) if nature == "waste" else None
         if waste:
             return "waste", ("C5",)
         if freight:
@@ -414,7 +415,7 @@ def row_parts(fm: dict, item: dict, spec: list[dict] | None = None) -> dict:
     notes, missing, fields, shown_q, shown_u = [], [], {}, qty, unit
     if spend:
         if item.get("amount") is not None:
-            fields = {"spent_value": item["amount"], "spent_value_unit": item.get("currency") or load().policy["currency_default"]}
+            fields = {"spent_value": item.get("spend_amount") or item["amount"], "spent_value_unit": item.get("currency") or load().policy["currency_default"]}
         else:
             missing = ["Amount spent"]
     elif spec and sk == "scope_3":

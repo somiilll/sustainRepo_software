@@ -135,6 +135,9 @@ class Classifier:
               Question("freight_direction", "If this is goods transport, which direction and who pays?", DIRECTION_Q)]
         a1, p1 = self._ask(state, q1)
         dom = a1["domain"].choice
+        reader = rules.NATURE_TO_DOMAIN.get(item.get("nature"))
+        if {reader, dom} == {"freight", "waste"}:
+            dom = reader            # 'waste transport': the reader says whether this line moves the waste (freight) or treats it (waste)
         acts = self.tax.by_domain.get(dom)
         if not acts:         # purchases, waste, freight, travel...: chosen from the real factor names, not from an activity list
             return {"factor_domain": dom, "domain_confidence": a1["domain"].confidence, "provider": p1.name, "alternatives": []}
