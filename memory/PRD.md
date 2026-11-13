@@ -1098,3 +1098,7 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Removed from server.py startup: seed_scopes_and_categories, seed_calc_engine, airports CSV seed, and the extra index/sync steps (sustainability, supplier assessment x3 + questionnaire bank sync, bulk upload indexes, BRSR turnover and accounts-payable-days config). Target staging/prod DBs must already contain scopes, emission_categories, ce_* collections and airports; `airports.csv` file and seed function still exist but are no longer called.
 - Removed backend/scripts/* except export_catalog_bundle.py; removed OCR leftovers and helper files from backend/tests (golden/ GHG regression suite kept).
 - Still at startup: ensure_indexes (shared), check_expired_subscriptions, OCR queue, catalog bundle apply, task-status migration (one-time), hourly in-process MIS scheduler. Candidates to move to platform cron: check_expired_subscriptions, MIS scheduler.
+
+## P2 backlog (Nov 2026)
+- **P2 — Remove `migrate_to_synced_task_status`:** one-time task-status migration (`modules/esg_records/task_engine.py`, called from `startup_event` in `server.py`). Not needed on staging/prod because the workflow module has no old data there; on an empty DB it is a no-op, so it is left in place until removed.
+- OCR factor sector sync (`factor_sectors.sync_in_background`): decision = keep; copy `ocr_factor_sectors` from production to staging so staging does not re-group ~3,900 names with Haiku.
