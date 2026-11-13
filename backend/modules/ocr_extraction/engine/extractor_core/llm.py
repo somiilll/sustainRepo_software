@@ -1,4 +1,4 @@
-"""JSON-schema-constrained AI calls with a provider chain: OpenAI first, Claude second (policy.json -> ai_chain).
+"""JSON-schema-constrained AI calls with a provider chain: Claude first, OpenAI as backup (policy.json -> ai_chain).
 
 Only the customer's own OPENAI_API_KEY / ANTHROPIC_API_KEY are used - never a platform or shared key.
 Every failure is classified so the caller can react correctly:
@@ -46,7 +46,7 @@ def enabled() -> bool:
 
 def chain(task: str | None = None) -> list[str]:
     pol = load().policy
-    order = (pol.get("ai_chain_tasks") or {}).get(task) or pol.get("ai_chain", ["openai", "claude"])
+    order = (pol.get("ai_chain_tasks") or {}).get(task) or pol["ai_chain"]
     return [p for p in order if p in KEY_ENV]
 
 

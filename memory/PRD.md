@@ -1145,3 +1145,8 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Rows carry `spend_amount` (printed amount + share of taxes/add-ons); Review shows it for every row (activity and spend).
 - Warn check `amount_uncertain` when the invoice total is missing or line amounts exceed the invoice total (scaled down to it).
 - Reviewer-edited amount resets spend_amount/note/warning; Edit prefill uses spend_amount.
+
+## OCR AI provider order (Nov 2026)
+- Claude first for every OCR AI step (policy.ai_chain ["claude","openai"]); OpenAI only as backup.
+- Backups: Haiku tasks (extract_fast, layout, interpret, classify_fallback/final factor pick) -> gpt-6.1-terra; Sonnet (extract_think) -> gpt-6.1-sol.
+- Final factor pick (ClaudeChooser) now goes through llm.call_json so it gets the backup too. Prices added to pricing.json.
