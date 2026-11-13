@@ -229,7 +229,10 @@ class Engine:
             row = make(f"{base_id}-0", None, p["ghg"], p["calc"], item.get("description_en") or item.get("description") or fm["name"],
                        amount=item.get("amount"), quantity=p["quantity"], unit_=p["unit"])
             row["review"] = p["review"]
-            return [row]
+            rows = [row]
+            if fm["collection"] == "fuel_database" and fm["scope"] in ("scope1", "biogenic") and fm["category"] != "Fugitive Emissions" and load().policy["companions"]["fuel_wtt"]["enabled"]:
+                rows.append(self._wtt_row(make, item, row, 1, None, decision, f"Well-to-tank - {row['extracted_item']}"))
+            return rows
 
         if not aid:
             ghg = {"scope": None, "category": None, "subcategory": None, "scope_label": "Unclassified", "category_label": "", "subcategory_label": ""}
@@ -274,27 +277,43 @@ class Engine:
                 rows.append(make(f"{base_id}-{k}", "waste.transport_only", cg, calc, c["label"], derived=True, parent=main["row_id"],
                                  amount=item.get("amount")))
             else:
+                if c["kind"] == "c3_wtt":
+                    rows.append(self._wtt_row(make, item, main, k, aid, decision, c["label"]))
+                    continue
                 f = load().formulas[c["formula"]]
                 key = f["fields"][0]["key"]
-                wtt, tied = None, []
-                if c["kind"] == "c3_wtt":
-                    idx = self.classifier._index()
-                    mem = self.classifier.memory
-                    wtt, tied = idx.fuel_wtt_factor(item, mem.get_factor_choice(self.classifier.org, idx.wtt_key(item)) if mem is not None else None) if idx else (None, [])
-                    if wtt:
-                        cg.update(subcategory=wtt["name"], subcategory_label=wtt["name"], category_id=wtt["category_id"], subcategory_id=wtt["id"])
-                fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") and (wtt or c["kind"] != "c3_wtt") else {}
-                missing = [] if fields else [f["fields"][0]["label"] if (wtt or c["kind"] != "c3_wtt") else "Well-to-tank factor of this fuel - choose in Edit" + (f" ({', '.join(tied[:4])})" if tied else "")]
+                fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if main["quantity"] is not None and main["calc"].get("formula_id") else {}
                 calc = {"formula_id": c["formula"] if fields else None, "formula_label": f["label"], "ef_method": "activity",
-                        "fields": fields, "missing": missing, "notes": [], "status": "ok",
+                        "fields": fields, "missing": [] if fields else [f["fields"][0]["label"]], "notes": [], "status": "ok",
                         "emergent_formula_id": f.get("emergent_formula_id")}
-                row = make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
-                           dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"})
-                if wtt:
-                    ref = {"collection": wtt["collection"], "id": wtt["id"]}
-                    row["review"] = {**(row.get("review") or {}), "factor": ref, "override": {"scope": "scope3", "category_id": wtt["category_id"], "ef_method": "activity", "factor": ref, "dynamic": None}}
-                rows.append(row)
+                rows.append(make(f"{base_id}-{k}", aid, cg, calc, c["label"], derived=True, parent=main["row_id"], amount=None,
+                                 dec={**decision, "reason": f"Auto-added companion of {main['row_id']} ({c['kind']})"}))
         return rows
+
+    def _wtt_row(self, make, item: dict, main: dict, k: int, aid: str | None, decision: dict, label: str) -> dict:
+        """Scope 3 Cat 3 well-to-tank row of a fuel row: the C3 factor named after the fuel, or 'needs input' listing the equally close ones."""
+        tax = load().taxonomy
+        pol = load().policy["companions"]["fuel_wtt"]
+        f = load().formulas["s3_activity"]
+        key = f["fields"][0]["key"]
+        idx = self.classifier._index()
+        mem = self.classifier.memory
+        remembered = mem.get_factor_choice(self.classifier.org, idx.wtt_key(item)) if idx and mem is not None else None
+        wtt, tied = idx.fuel_wtt_factor(item, remembered) if idx else (None, [])
+        sub = wtt["name"] if wtt else pol["subcategory_label"]
+        cg = {"scope": "scope_3", "category": "cat_3", "subcategory": sub, "subcategory_label": sub, "scope_label": tax.raw["scope_labels"]["scope_3"],
+              "category_label": tax.raw["category_labels"].get("cat_3", "cat_3"), "category_id": wtt["category_id"] if wtt else None, "subcategory_id": wtt["id"] if wtt else None}
+        ok = bool(wtt) and main["quantity"] is not None and bool(main["calc"].get("formula_id"))
+        fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if ok else {}
+        missing = [] if ok else [f["fields"][0]["label"] if wtt else "Well-to-tank factor of this fuel - choose in Edit" + (f" ({', '.join(tied[:4])})" if tied else "")]
+        calc = {"formula_id": "s3_activity" if ok else None, "formula_label": f["label"], "ef_method": "activity", "fields": fields, "missing": missing,
+                "notes": [], "status": "ok", "emergent_formula_id": f.get("emergent_formula_id")}
+        row = make(f"{main['row_id'].rsplit('-', 1)[0]}-{k}", aid, cg, calc, label, derived=True, parent=main["row_id"], amount=None,
+                   dec={**decision, "reason": f"Auto-added companion of {main['row_id']} (c3_wtt)"})
+        if wtt:
+            ref = {"collection": wtt["collection"], "id": wtt["id"]}
+            row["review"] = {**(row.get("review") or {}), "factor": ref, "override": {"scope": "scope3", "category_id": wtt["category_id"], "ef_method": "activity", "factor": ref, "dynamic": None}}
+        return row
 
     # ------------------------------------------------------------------ run
     def run(self, files: list[str | Path], mode: str = "fast", progress=None, job_id: str | None = None,

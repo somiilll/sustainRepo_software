@@ -25,8 +25,8 @@ NATURE_INTENT = {"waste": "waste", "freight": "freight", "travel": "travel"}
 MASS = {"kg": 1.0, "g": 0.001, "t": 1000.0, "tonne": 1000.0, "tonnes": 1000.0, "mt": 1000.0}
 VOLUME = {"l": 1.0, "ml": 0.001, "kl": 1000.0, "m3": 1000.0}
 UNIT_TABLE = {"mass": MASS, "volume": VOLUME}
-MAIN_FIELD = {"scope_1": "qty", "scope_3": "activity_value"}
-SCOPE_CODE = {"scope1": "scope_1", "scope3": "scope_3"}
+MAIN_FIELD = {"scope_1": "qty", "biogenic": "qty", "scope_2": "qty_energy", "scope_3": "activity_value"}
+SCOPE_CODE = {"scope1": "scope_1", "scope2": "scope_2", "scope3": "scope_3", "biogenic": "biogenic"}
 FUEL_CATEGORY = {"stationary_equipment": "Stationary Combustion", "company_vehicle": "Mobile Combustion", "offroad_equipment": "Mobile Combustion"}
 
 _RANGE = re.compile(r"(\d[\d,]*)\s*[–\-]\s*(\d[\d,]*)(?:\s*([a-z]+))?", re.I)
@@ -121,17 +121,27 @@ def _fit(allowed: list, qty, unit, dim):
     return "mismatch", None, None
 
 
+_GAS = re.compile(r"\b(?:(?:hfc|hcfc|cfc|pfc|halon|r)[\s\-]?\d+[a-z]?|sf6|nf3)\b", re.I)
+
+
+def _gas_tokens(text: str) -> list[str]:
+    return [re.sub(r"[^a-z0-9]", "", m.group(0).lower()) for m in _GAS.finditer(text.replace("/", " / "))]
+
+
 class FactorIndex:
     def __init__(self, entries: list[dict]):
         self.scope3: dict[tuple, dict[str, Rec]] = {}
         self.fuel: dict[tuple, dict[str, Rec]] = {}
+        self.gases: list[tuple[frozenset, dict]] = []
         self._by_id = {e["id"]: e for e in entries}
         for e in entries:
             if e["collection"] == "scope3_ef":
                 m = re.match(r"C(\d+)\b", e["category"])
                 if m:
                     self.scope3.setdefault((e["name"].lower(), e["method"]), {})[f"C{m.group(1)}"] = Rec(e)
-            else:
+            elif e["scope"] == "scope1" and e["category"] == "Fugitive Emissions":
+                self.gases.append((frozenset(_gas_tokens(e["name"])), e))
+            elif e["scope"] == "scope1":
                 self.fuel.setdefault((e["name"].lower(), "activity"), {})[e["category"]] = Rec(e)
 
     def candidates(self, item: dict, domain: str) -> list[dict]:
@@ -304,6 +314,15 @@ class FactorIndex:
         if pick:
             return pick, []
         return (scored[0][1], []) if len(tied) == 1 else (None, tied)
+
+    def match_gas(self, item: dict) -> dict | None:
+        """A refrigerant / fugitive gas named in the text (R-410A, HFC-134a, SF6 ...) that is exactly one 'Fugitive Emissions' factor."""
+        toks = set(_gas_tokens(item_text(item)))
+        hits = [e for names, e in self.gases if names & toks]
+        if not toks or len({e["id"] for e in hits}) != 1:
+            return None
+        e = hits[0]
+        return {"status": "strong", "entry": e, "confidence": 1.0, "candidates": [e], "reason": f"Description names gas '{e['name']}' (Fugitive Emissions)", "intent": "gas"}
 
     def match_fuel(self, item: dict, use_context: str | None) -> dict | None:
         cat = FUEL_CATEGORY.get(use_context or "")

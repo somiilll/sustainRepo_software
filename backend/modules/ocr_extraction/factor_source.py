@@ -10,7 +10,8 @@ from extractor_core.decider.factors import FactorIndex
 from . import factor_sectors, store
 
 TTL = 600
-FUEL_CATEGORIES = ("Stationary Combustion", "Mobile Combustion")
+FUEL_CATEGORIES = {"scope1": ("Stationary Combustion", "Mobile Combustion", "Fugitive Emissions"), "scope2": ("Purchased Electricity", "Purchased Steam/Heat"),
+                   "biogenic": ("Stationary Combustion",)}
 _cache: dict = {"at": 0.0, "index": None}
 _lock = threading.Lock()
 
@@ -39,16 +40,17 @@ def _build() -> FactorIndex:
         k = (e["name"].lower(), e["category"], method)
         if k not in best or _rank(e) < _rank(best[k]):
             best[k] = e
-    for d in db.fuel_database.find({"scope": "scope1", "is_active": {"$ne": False}},
-                                   {"_id": 0, "id": 1, "fuel_name": 1, "category": 1, "categories": 1, "allowed_units": 1, "region": 1, "year_applicable": 1}):
-        for cat in set(d.get("categories") or [d.get("category")]) & set(FUEL_CATEGORIES):
-            cid = cat_id.get(("scope1", cat.lower()))
+    for d in db.fuel_database.find({"scope": {"$in": list(FUEL_CATEGORIES)}, "is_active": {"$ne": False}},
+                                   {"_id": 0, "id": 1, "fuel_name": 1, "scope": 1, "category": 1, "categories": 1, "allowed_units": 1, "region": 1, "year_applicable": 1}):
+        scope = d["scope"]
+        for cat in set(d.get("categories") or [d.get("category")]) & set(FUEL_CATEGORIES[scope]):
+            cid = cat_id.get((scope, cat.lower()))
             if not cid or not d.get("fuel_name"):
                 continue
-            e = {"collection": "fuel_database", "id": d["id"], "name": d["fuel_name"], "scope": "scope1", "category": cat, "category_id": cid,
+            e = {"collection": "fuel_database", "id": d["id"], "name": d["fuel_name"], "scope": scope, "category": cat, "category_id": cid,
                  "method": "activity", "allowed_units": d.get("allowed_units") or [], "activity_type": None,
                  "region": d.get("region"), "year": d.get("year_applicable")}
-            k = (e["name"].lower(), cat, "activity")
+            k = (e["name"].lower(), scope, cat, "activity")
             if k not in best or _rank(e) < _rank(best[k]):
                 best[k] = e
     return FactorIndex(list(best.values()))

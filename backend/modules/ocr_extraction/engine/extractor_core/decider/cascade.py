@@ -172,7 +172,7 @@ class Classifier:
     def _factor_first(self, item: dict) -> dict | None:
         """Stage 1: an exact factor name is used as it is. Anything else goes on to classification + Haiku identification."""
         idx = self._index()
-        r = idx.match(item) if idx else None
+        r = (idx.match_gas(item) or idx.match(item)) if idx else None
         if not r or r["status"] != "strong":
             return None
         return self._factor_decision(r["entry"], "factor_names", r["reason"], [c for c in r["candidates"] if c["id"] != r["entry"]["id"]], "certain", ["exact_name"])
