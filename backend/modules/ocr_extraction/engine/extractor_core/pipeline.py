@@ -19,7 +19,7 @@ from . import crosscheck, extract, layout, llm, normalise, rowscan, rowstate, sc
 from . import facilities as fac_mod
 from .config import load
 from .decider.cascade import Classifier
-from .decider.factors import clear_descriptor_notes, row_parts
+from .decider.factors import _fit, clear_descriptor_notes, row_parts
 from .derive import co2_share, companion_specs
 from .fields import capacity_conversion
 from .fields import build_calc, display_quantity
@@ -303,13 +303,18 @@ class Engine:
         sub = wtt["name"] if wtt else pol["subcategory_label"]
         cg = {"scope": "scope_3", "category": "cat_3", "subcategory": sub, "subcategory_label": sub, "scope_label": tax.raw["scope_labels"]["scope_3"],
               "category_label": tax.raw["category_labels"].get("cat_3", "cat_3"), "category_id": wtt["category_id"] if wtt else None, "subcategory_id": wtt["id"] if wtt else None}
-        ok = bool(wtt) and main["quantity"] is not None and bool(main["calc"].get("formula_id"))
-        fields = {key: main["quantity"], f"{key}_unit": main["unit"]} if ok else {}
-        missing = [] if ok else [f["fields"][0]["label"] if wtt else "Well-to-tank factor of this fuel - choose in Edit" + (f" ({', '.join(tied[:4])})" if tied else "")]
+        st, q2, u2 = _fit(wtt["allowed_units"], main["quantity"], main["unit"], main.get("dimension")) if wtt and main["quantity"] is not None else ("mismatch", None, None)
+        ok = bool(wtt) and st == "ok" and bool(main["calc"].get("formula_id"))
+        fields = {key: q2, f"{key}_unit": u2} if ok else {}
+        if not wtt:
+            missing = ["Well-to-tank factor of this fuel - choose in Edit" + (f" ({', '.join(tied[:4])})" if tied else "")]
+        else:
+            missing = [] if ok else [f"Quantity in {', '.join(wtt['allowed_units'])}" if st != "details" else "Activity details for this factor - use Edit"]
         calc = {"formula_id": "s3_activity" if ok else None, "formula_label": f["label"], "ef_method": "activity", "fields": fields, "missing": missing,
                 "notes": [], "status": "ok", "emergent_formula_id": f.get("emergent_formula_id")}
         row = make(f"{main['row_id'].rsplit('-', 1)[0]}-{k}", aid, cg, calc, label, derived=True, parent=main["row_id"], amount=None,
                    dec={**decision, "reason": f"Auto-added companion of {main['row_id']} (c3_wtt)"})
+        row["companion"] = "c3_wtt"
         if wtt:
             ref = {"collection": wtt["collection"], "id": wtt["id"]}
             row["review"] = {**(row.get("review") or {}), "factor": ref, "override": {"scope": "scope3", "category_id": wtt["category_id"], "ef_method": "activity", "factor": ref, "dynamic": None}}

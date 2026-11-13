@@ -33,7 +33,7 @@ from extractor_core.normalise import DOC_EXT, SHEET_EXT  # noqa: E402
 from extractor_core import rowstate  # noqa: E402
 from extractor_core.pipeline import Engine, JobCancelled  # noqa: E402
 from extractor_core.validate import finish, plain, row_checks, trust as trust_of  # noqa: E402
-from .edit_override import Override, apply_override, edit_config, factor_options, prefill  # noqa: E402
+from .edit_override import Override, apply_override, drop_non_fuel, edit_config, factor_options, prefill  # noqa: E402
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -855,7 +855,9 @@ async def row_factors(job_id: str, row_id: str, q: str = "", user: dict = Depend
         current = await saver.resolve_factor(mongo_db, org, rec, category, chosen)
     except saver.SaveError:
         current = None
-    return {"category": category["name"], "current": current, "options": await saver.search_factors(mongo_db, rec, category, q)}
+    fac = await mongo_db.facilities.find_one({"id": (row.get("facility") or {}).get("id"), "organization_id": org}, {"_id": 0, "sector": 1}) if (row.get("facility") or {}).get("id") else None
+    opts = await saver.search_factors(mongo_db, rec, category, q, limit=300, sector=(fac or {}).get("sector") or None, unique=True)
+    return {"category": category["name"], "current": current, "options": drop_non_fuel(row, opts)}
 
 
 @router.get("/jobs/{job_id}/rows/{row_id}/edit-config")
