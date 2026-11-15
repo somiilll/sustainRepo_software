@@ -19,7 +19,7 @@ from . import crosscheck, extract, layout, llm, normalise, rowscan, rowstate, sc
 from . import facilities as fac_mod
 from .config import load
 from .decider.cascade import Classifier
-from .decider.factors import _fit, clear_descriptor_notes, row_parts
+from .decider.factors import _fit, clear_descriptor_notes, row_parts, settle_factor
 from .derive import co2_share, companion_specs
 from .fields import capacity_conversion
 from .fields import build_calc, display_quantity
@@ -249,10 +249,20 @@ class Engine:
             return finish(r, item)
 
         if decision.get("factor_match"):
-            fm = decision["factor_match"]
+            fm, note = decision["factor_match"], None
+            if self.factor_inputs and decision.get("source") != "user":
+                alts = [a["factor"] for a in decision.get("alternatives") or [] if a.get("factor")]
+                fm2, note = settle_factor(fm, alts, item, self.factor_inputs, self.classifier._index())
+                if fm2["id"] != fm["id"]:
+                    old_alt = {"activity_id": None, "label": fm["name"], "p": None, "factor": fm}
+                    decision = {**decision, "factor_match": fm2, "alternatives": [old_alt, *(a for a in decision.get("alternatives") or [] if (a.get("factor") or {}).get("id") != fm2["id"])],
+                                "reason": f"{decision.get('reason') or ''}; switched to '{fm2['name']}' - {note}".lstrip("; ")}
+                    fm = fm2
             p = row_parts(fm, item, self.factor_inputs(fm) if self.factor_inputs else None)
+            if note and p["calc"]["missing"]:
+                p["calc"]["notes"] = [*p["calc"]["notes"], note]
             row = make(f"{base_id}-0", None, p["ghg"], p["calc"], item.get("description_en") or item.get("description") or fm["name"],
-                       amount=item.get("amount"), quantity=p["quantity"], unit_=p["unit"])
+                       amount=item.get("amount"), quantity=p["quantity"], unit_=p["unit"], dec=decision)
             row["review"] = p["review"]
             rows = [row]
             if fm["collection"] == "fuel_database" and fm["scope"] in ("scope1", "biogenic") and fm["category"] != "Fugitive Emissions" and load().policy["companions"]["fuel_wtt"]["enabled"]:

@@ -412,6 +412,66 @@ def clear_descriptor_notes(item: dict, factor_name: str) -> None:
             item["read_state"], item["line_confidence"] = "extracted", 0.97
 
 
+BASIS_WORD = {"qty_travelled": "weight", "km_travelled": "distance", "qty_passenger": "passengers", "qty_room": "rooms", "qty_nights": "nights", "activity_value": "quantity"}
+
+
+def input_gaps(fm: dict, item: dict, spec: list[dict] | None) -> list[str]:
+    """What this factor still needs from the line before it can calculate (inputs with a default never count)."""
+    if fm["method"] == "spend":
+        return [] if item.get("amount") is not None else ["Amount spent"]
+    if spec:
+        return bind_inputs(spec, item, fm["allowed_units"])["missing"]
+    qty, unit, dim = display_quantity(item)
+    st = _fit(fm["allowed_units"], qty, unit, dim)[0]
+    return [] if st == "ok" else ["Quantity"] if st == "mismatch" else ["Activity details for this factor"]
+
+
+def _basis(fm: dict, spec: list[dict] | None) -> str:
+    if fm["method"] == "spend":
+        return "spend-based"
+    words = [BASIS_WORD.get(i["variable"]) for i in spec or [] if i.get("required", True) and i.get("default") is None]
+    return " × ".join(dict.fromkeys(w for w in words if w)) or "activity-based"
+
+
+def _ask_for(gaps: list[str]) -> str:
+    return "the amount spent" if gaps == ["Amount spent"] else " and ".join(g[:1].lower() + g[1:] for g in gaps)
+
+
+def spend_factor(fm: dict, pool: list[dict], idx, item: dict) -> dict | None:
+    """The spend-based factor of the picked factor's category that best matches the line (None for Scope 1/2 and categories without one)."""
+    cands = [e for e in pool if e["method"] == "spend" and e["category"] == fm["category"]]
+    m = re.match(r"C\d+", fm["category"])
+    if not cands and idx is not None and m:
+        cands = [r.entry for (_, meth), by in idx.scope3.items() if meth == "spend" for c, r in by.items() if c == m.group(0)]
+    return FactorIndex.rank(item, cands, fm["name"])[0] if cands else None
+
+
+def settle_factor(fm: dict, alts: list[dict], item: dict, spec_of, idx) -> tuple[dict, str | None]:
+    """The picked factor if the line can feed it. Otherwise: an amount + a spend factor in the category -> spend-based; else the shortlisted
+    factor missing the fewest inputs (physical wins ties) with a note asking for exactly what is missing - or the amount spent."""
+    if fm.get("scope") != "scope3":
+        return fm, None
+    pool = list({e["id"]: e for e in [fm, *alts] if e.get("scope") == "scope3" and e.get("category") == fm["category"]}.values())
+    spec = {e["id"]: spec_of(e) if e["method"] == "activity" else None for e in pool}
+    gaps = {e["id"]: input_gaps(e, item, spec[e["id"]]) for e in pool}
+    if not gaps[fm["id"]]:
+        return fm, None
+    sp = spend_factor(fm, pool, idx, item)
+    if item.get("amount") is not None:
+        return (sp, f"Spend-based because {_ask_for(gaps[fm['id']])} is missing") if sp else (fm, None)
+    best = min(pool, key=lambda e: (len(gaps[e["id"]]), e["method"] != "activity"))
+    if not gaps[best["id"]]:
+        return best, None
+    own = (_ask_for(gaps[best["id"]]), _basis(best, spec[best["id"]]))
+    if best["method"] == "spend":
+        acts = [e for e in pool if e["method"] == "activity"]
+        other = min(acts, key=lambda e: len(gaps[e["id"]])) if acts else None
+        alt = (_ask_for(gaps[other["id"]]), _basis(other, spec[other["id"]])) if other else None
+    else:
+        alt = ("the amount spent", "spend-based") if sp else None
+    return best, "Cannot calculate: add " + " or ".join(f"{g} (for {b})" for g, b in ([own, alt] if alt else [own]))
+
+
 def row_parts(fm: dict, item: dict, spec: list[dict] | None = None) -> dict:
     """ghg / calc / review blocks for a row whose factor was matched from the DB (nothing is calculated here).
     `spec` = the inputs the factor's formula declares as required (from the calculation engine's decision tree)."""
