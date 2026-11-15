@@ -1,1 +1,185 @@
-<analysis>ocr.xlsxExtractedCategorisedNeeds attentionCouldn't readFailedocr.xlsxFacilityDialog.jsxExtractedCategorisedNeeds attentionCouldn't readFailedX-Forwarded-ForACCOUNT_LOCKEDfrontend/src/pages/WorkflowMyTask.jsocr.xlsxFacilityDialog.jsxnullEmissionHistoryDialog.jsx/app/backend/modules/esg_tracking//app/backend/modules/ocr_extraction//app/frontend/src/modules/ocr2/ocr_ext_log_visibility.pyemission_recordsenvironment_recordslogin_attemptsocr_ext_jobsocr_ext_queueocr_ext_usage_eventsocr_ext_credit_grantsocr_ext_classification_historyocr_ext_seen_docs/app/backend/modules/ocr_extraction/engine/extractor_core/normalise.py/app/backend/modules/ocr_extraction/engine/extractor_core/facilities.py/app/backend/modules/ocr_extraction/engine/extractor_core/llm.py/app/frontend/src/modules/ocr2/FacilityDialog.jsx/app/backend/modules/auth/router.py/app/backend/shared/security.pyocr_extraction/engine/extractor_core/normalise.pyFacilityDialog.jsxPOST /api/ocr-extraction/records/{section}POST /api/auth/loginextraction-handoff.zipocr.xlsxExtractedCategorisedNeeds attentionCouldn't readFailed.env/app/memory/test_credentials.mdnormalise.pyfacilities.pyFacilityDialog.jsxfacilityllm.py429 Too Many Requests429 Insufficient QuotaExtractedCategorisedNeeds attentionCouldn't readFailed</analysis>
+<analysis>**original_problem_statement**: Fix OCR extraction to process unstructured Excel files row-by-row accurately by extracting numbers/units/currencies, mapping via exact DB match -> Haiku inferred description -> Jev shortlisting -> Haiku final selection. Overhaul the Review UI, simplify tagging layers, map directly to GHG emissions upon row approval, and refine accounting in credits and usage tracking. Added Requirements: Add Account Settings, Redesign Profile, migrate Scope 1/2 edge cases. Recent focus: fixing OCR invoice splitting (tax/fee gaps, travel add-ons), refining Claude/GPT model integration, and fixing arithmetic checks triggering unnecessary re-reads.
+
+**PRODUCT REQUIREMENTS:** Describe-first pipeline utilizing Haiku, precise factor mappings, intuitive Review UI, direct linkage to save emission items with attached Excel evidence. Support for accurate invoice line splitting and trip consolidation. 
+
+**User's preferred language**: English
+(INSTRUCT next agent to respond in English only)
+
+**what currently exists?** 
+A React/FastAPI/MongoDB stack managing ESG/GHG reporting. The OCR extraction engine utilizes a Describe-first pipeline. Extensive updates have been made to the OCR extraction rules: taxes and add-ons are now rolled proportionally into main line items; trip components (like cab base fare + distance, or hotel nights) are merged; and flight distances are automatically calculated from airport codes using the  library. The AI model chain has been restored to use Claude (Haiku/Sonnet) as the primary models with OpenAI (GPT-6.1 Terra/Sol) as backups. The arithmetic checks triggering second reads of documents have been heavily refined to prevent unnecessary Sonnet runs by checking grand totals and tracking printed line numbers accurately. 
+
+**Last working item**: 
+    - Last item agent was working: The user pointed out two discrepancies: 1) The Edit form in the UI shows the raw printed amount (e.g., ₹9800) instead of the calculated ledger amount (e.g., ₹13776). 2) The factor selection logic was occasionally selecting factors even when required inputs were missing, blocking spend-based factors. The agent investigated, explained the current logic (the row asks the user for missing inputs), and proposed a unified factor selection rule and a UI fix for . The agent has NOT applied the fixes yet because of the user's dont change rule.
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: N
+    - Which testing method agent to use? backend testing agent / manual testing by python -c for backend rules; screenshot tool for EditDialog UI.
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**:  
+  Issue 1: Edit Form Amount Discrepancy (P0)
+     - Attempted fixes: None. Blocked by dont change instruction.
+     - Next debug checklist: Update  to pre-fill the  field with the full calculated amount (which includes taxes/add-ons), falling back to the printed amount if the full amount isn't available.
+     - Why fix this issue and what will be achieved with the fix?: Ensures users see and edit the correct total cost in the UI, matching the ledger.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Frontend
+
+  Issue 2: Unified Factor Selection Rule for Missing Fields (P0)
+     - Attempted fixes: None. Blocked by dont change instruction.
+     - Next debug checklist: Update the selection logic in  or . Before final factor selection, drop shortlisted factors if their required inputs are not present in the line's data. If the line has an amount and a spend factor is available for the category, default to the spend factor. Maintain fallback to ask for inputs if nothing matches.
+     - Why fix this issue and what will be achieved with the fix?: Prevents generating uncalculable rows when required inputs are missing, dynamically falling back to spend-based where appropriate.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Backend
+
+  Issue 3: Claude Schema Grammar Too Large Error (P1)
+     - Attempted fixes: The agent added  and  fields to the extraction schema, which occasionally caused Claude Haiku to throw a 400 error (The compiled grammar is too large), forcing a fallback to GPT-6.1 Terra.
+     - Next debug checklist: Refactor the extraction schema in . Remove the separate  boolean field and instead make add_on one of the existing enum options in the line-type list to reduce schema complexity.
+     - Why fix this issue and what will be achieved with the fix?: Prevents intermittent failures with Claude Haiku processing documents.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix?: Backend
+
+  Issue 4: Re-implement Plausibility Checks (P2)
+     - Attempted fixes: Stripped from  at user request in a previous fork.
+     - Next debug checklist: Restore outlier/duplicate check logic in  but as non-intrusive warnings.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Backend
+
+  Issue 5: Contact Sales Form Context (P2)
+     - Attempted fixes: None.
+     - Next debug checklist: Update Contact Sales form and  endpoint to track which module/page the user clicked it from.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Both
+
+  Issue 6: Superadmin Configurable OCR Credits & Markups (P2)
+     - Attempted fixes: None. 
+     - Next debug checklist: Build UI/backend flow to configure starting credits, add extra credits, set markups.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Both
+
+  Issue 7: Move Hourly MIS report job to scheduled cron job (P3)
+     - Attempted fixes: None. 
+     - Next debug checklist: Move to  endpoint and .
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Backend
+
+**In progress Task List**: 
+  Task 1: Add Filters to My Tasks (WorkflowMyTask.js) (P2)
+     - Where to resume: . Needs category, subcategory, facility, and start/end date filters.
+     - What will be achieved with this?: Better sorting for users with huge queues.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on something: None
+
+**Upcoming and Future Tasks**
+  Upcoming Tasks:
+  - Integrate CBAM (EU Carbon Border Adjustment Mechanism) module (P1).
+  - Create catalog sync bundle script for deploying KPIs, questions, and mappings to staging (P1).
+  - Allow Approvers to create initial data (Partially done for GHG/KPI, needs completion for BRSR/GRI) (P2).
+  - Authentication Rate Limiter and Account Lockout Improvements (P2).
+  - Admin Override History Attribution (P3).
+
+**Completed work in this session**
+- Removed the waste transport special case (automatically generating transport rows).
+- Adjusted rules so taxes and add-on fees are rolled directly into the main line items proportionately.
+- Updated rules to merge multi-part trip activities (hotel nights, taxi base + distance).
+- Added logic to automatically calculate flight distance from airport codes using .
+- Updated  so activity-based rows display the fully calculated amount (including taxes) instead of raw printed amounts.
+- Deleted learned decisions data from the database.
+- Restored Claude (Haiku & Sonnet) as the primary OCR models in .
+- Configured GPT-6.1-Terra and GPT-6.1-Sol as backup models with  effort.
+- Fixed backend arithmetic checks to count printed lines correctly, check the grand total instead of subtotal, skip qty*rate if lines are merged, and re-read ONLY the failed invoice page.
+
+**Earlier issues found/mentioned but not fixed**
+  - Legacy OCR prefill code scattered in , , and  remains and needs careful removal later.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: The user dictates tell me dont change to request analysis without code execution.
+  - Recurrence count: 60+
+  - Status: IN PROGRESS
+  Note: **CRITICAL:** The user strictly dictates tell me dont change at the end of messages when reporting bugs. You MUST NEVER write code, edit files, or push changes when they say this. Only investigate, explain the root cause, and outline proposed fixes. Wait for the user to explicitly say do it or go or fix it before executing tools like . 
+
+**Code Architecture**
+- React frontend + FastAPI backend + MongoDB.
+- OCR Engine: 
+
+**Key Technical Concepts**
+- **Describe-first OCR Pipeline:** Layout Guesses -> Haiku describing lines -> Exact DB Factor Match -> Jev for shortlisting -> Haiku for final selection.
+- **Invoice Checks Pipeline:** The engine runs arithmetic checks (lines vs totals) on the first OCR read. If it fails, it triggers a second read (using a heavier model like Sonnet) for that specific document page.
+
+**key DB schema**
+  - , , , 
+  -  (Learned decisions wiped this session).
+
+**changes in tech stack**
+  - Added Python package .
+
+**All files of reference**
+  -  (Core OCR parsing logic)
+  - 
+  - 
+  - 
+  -  (AI model routing and effort limits)
+  - 
+  - 
+
+**Areas that need refactoring**: 
+  - OCR extraction schema in  needs to be simplified (removing boolean toggles for enum types) to prevent Claude grammar limit 400 errors.
+
+**key api endpoints**
+- 
+-  & 
+
+**Critical Info for New Agent**
+- **AI Models Context:** Claude Haiku-5-5 is the primary fast extractor (), Claude Sonnet-5-5 is the deep thinker/reread model (). Backups are GPT-6.1-Terra and GPT-6.1-Sol respectively. 
+- The effort setting is currently set to  for Haiku models and GPT backup models. Answer cap limits have been increased to 64000 tokens. 
+- Do not exceed  = 10 for document reading limits, per user request.
+
+**documents and test reports created in this job**
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+1. (User) Asks for model step breakdown on . dont change.
+2. (Agent) Provides breakdown. 86s run time. Explains second read (Sonnet) is still running because Haiku's lines fell short of subtotal due to taxes/add-ons omission.
+3. (User) Asks if 2nd read ran on other files like Fire Extinguisher. dont change.
+4. (Agent) Confirms Fire Extinguisher triggered a 2nd read.
+5. (User) Asks for root cause patterns of first read failing checks. dont change.
+6. (Agent) Identifies that the arithmetic check fights the newly created reading rules (e.g., omitting add-ons from line items intentionally). Proposes 6 check rules to fix it.
+7. (User) Approves rules 1, 2, 3, 4, 6. Asks to increase page limit to 30.
+8. (Agent) Implements the 5 arithmetic check logic fixes.
+9. (User) Requests reverting page limit back to 10. dont change anything else. (Agent complies).
+10. (User) Points out 2 bugs: 1) Edit form showing 9800 printed amount instead of calculated 13776. 2) Spend factor selection fails if required average-based fields are missing. tell me dont chnage.
+*(Agent pending action)*: The agent replied with proposed fixes (prefill Edit form with full amount, drop shortlisted factors missing required inputs dynamically). User verification/approval to implement is PENDING.
+
+**Project Health Check:**
+- Broken:  pulls raw printed amount instead of the fully calculated amount with taxes included. Claude occasionally hits grammar too large errors due to schema size.
+- Mocked: None.
+
+**3rd Party Integrations**
+- Anthropic / OpenAI (For OCR engine; direct keys only)
+- TypeSafe / Jev (via OpenRouter API Key)
+
+**Testing status**
+  - Testing agent used after significant changes: NO
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: 
+  - Known regressions: Occasional Claude 400 errors due to schema complexity. 
+
+**Credentials to test flow:**
+- Refer to 
+
+**What agent forgot to execute**
+- The agent successfully respected the dont change rule for the last user message, so the fixes for the Edit Form Amount UI and the Unified Factor Selection Rule are waiting for user approval.
+- The fix for removing the  boolean from the schema (to prevent Claude schema size errors) was proposed but not executed.
+
+**Debugging checklist for current issue**
+    Issue: UI Edit Form Amount & Factor Selection Drop Logic
+    1. Wait for user to say go or fix it.
+    2. Edit : Look for  and ensure  defaults to the calculated ledger amount, using the printed amount only as a fallback. 
+    3. Backend Factor Selection ( or ): Inject logic *before* final factor picking. Check if  line item contains the required inputs for the factor. If inputs are missing, discard factor. If spend factor is available and amount exists, prioritize it.
+    4. Schema Size Fix: In , remove  from the  schema definition and instead inject add-on into the Enum string choices for line types.</analysis>

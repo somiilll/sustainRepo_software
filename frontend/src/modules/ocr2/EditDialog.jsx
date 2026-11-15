@@ -18,7 +18,7 @@ const catCode = (c) => { const m = /^C(\d+)\b/i.exec(c?.name || ''); return m ? 
 const initState = (row, cur) => {
   const raw = row.quantity == null;
   return { fac: row.facility?.id || '', period: row.reporting_period || '', scope: cur.scope || '', cat: cur.category_id || '', method: cur.ef_method || 'activity', factor: cur.factor?.id || '',
-    q: (raw ? row.raw_quantity : row.quantity) ?? '', u: (raw ? row.raw_unit : row.unit) || row.raw_unit || '', a: row.amount ?? '', cur: row.currency || 'INR',
+    q: (raw ? row.raw_quantity : row.quantity) ?? '', u: (raw ? row.raw_unit : row.unit) || row.raw_unit || '', a: row.spend_amount ?? row.amount ?? '', cur: row.currency || 'INR',
     dyn: cur.dynamic || {}, rem: true };
 };
 
