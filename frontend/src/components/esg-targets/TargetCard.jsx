@@ -12,19 +12,26 @@ const Tag = ({ children, icon: Icon, tone = 'bg-stone-100 text-stone-700' }) => 
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+function vsTarget(label, actual, goal, lower) {
+  if (actual == null || !goal) return { label, value: '—', tone: null };
+  const dev = ((actual - goal) / goal) * 100;
+  const shown = Math.round(Math.abs(dev) * 10) / 10;
+  const good = lower ? actual >= goal : actual <= goal;
+  return { label, value: `${fmt(shown, 1)}%`, note: shown === 0 ? 'on target' : `${dev < 0 ? 'less' : 'more'} than target`, tone: good ? 'text-emerald-700' : 'text-red-700' };
+}
+
 function progressOf(target, chart) {
   const lower = chart?.goal_type === 'lower_limit';
   if (chart?.chart_type === 'monthly') {
     const last = enrichPeriods(chart).filter((r) => !r.is_current && !r.is_future && r.actual != null && r.target).pop();
-    const pct = last ? (last.actual / last.target) * 100 : null;
-    const bad = pct != null && (lower ? pct < 100 : pct > 100);
-    return { label: `${last ? MONTHS[last.month_num - 1] : 'Monthly'} progress`, value: pct == null ? '—' : `${fmt(pct, 0)}%`, tone: pct == null ? null : bad ? 'text-red-700' : 'text-emerald-700' };
+    return vsTarget(`${last ? MONTHS[last.month_num - 1] : 'Monthly'} progress`, last?.actual, last?.target, lower);
   }
-  if (chart && chart.chart_type !== 'static' && chart.data) {
+  if (chart?.data && chart.chart_type !== 'static') {
     const t = periodTotals(enrichPeriods(chart));
-    const pct = t.count && t.target ? (t.actual / t.target) * 100 : null;
-    const bad = pct != null && (lower ? pct < 100 : pct > 100);
-    return { label: 'Year to date', value: pct == null ? '—' : `${fmt(pct, 0)}%`, tone: pct == null ? null : bad ? 'text-red-700' : 'text-emerald-700' };
+    return vsTarget('Year to date', t.count ? t.actual : null, t.target, lower);
+  }
+  if (chart?.chart_type === 'static' && !(target.baseline?.value != null && chart.baseline_value != null)) {
+    return vsTarget('Progress', chart.current_value, chart.target_value, lower);
   }
   const p = chart?.progress_percentage ?? target.progress_percentage;
   return { label: 'Progress', value: p == null ? '—' : `${fmtSigned(p, 0)}%`, tone: null };
@@ -62,7 +69,10 @@ export function TargetCard({ target, expanded, onToggle, isAdmin, actions }) {
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-right">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{prog.label}</div>
-            <div className={`text-2xl font-semibold tracking-tight ${prog.tone || h.text}`} data-testid={`target-progress-${target.id}`}>{prog.value}</div>
+            <div className={`flex items-baseline justify-end gap-1.5 ${prog.tone || h.text}`} data-testid={`target-progress-${target.id}`}>
+              <span className="text-2xl font-semibold tracking-tight">{prog.value}</span>
+              {prog.note && <span className="text-xs font-medium">{prog.note}</span>}
+            </div>
           </div>
           {target.health && (
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${h.pill}`} data-testid={`target-health-${target.id}`}>

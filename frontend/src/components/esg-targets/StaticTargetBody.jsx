@@ -76,10 +76,6 @@ export function StaticTargetBody({ target, chart, health }) {
           sub={<>{periodText(chart.target_period)}{c != null && <> · <span className="font-medium text-emerald-700">{reached ? 'Target reached' : `${fmt(gap)} to ${reduction ? 'cut' : 'add'}`}</span></>}</>} />
       </div>
       <Scale b={b} c={c} t={t} hasBase={hasBase} wrong={wrong} unit={unit} />
-      <div className="flex flex-wrap gap-x-8 gap-y-1 text-xs text-stone-500">
-        <span>Target name <b className="text-stone-900">{target.target_name}</b></span>
-        {c != null && <span>Actual <b className="text-stone-900">{fmt(c, 3)}</b></span>}
-      </div>
     </div>
   );
 }
