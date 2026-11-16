@@ -1000,43 +1000,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 )}
               </div>
             )}
-
-            <div className="pt-4 border-t">
-              <Label className="text-sm font-medium">Warning Thresholds (Optional)</Label>
-              <p className="text-xs text-text-muted mb-2">For dashboard indicators</p>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-xs text-green-600">Green (On Track)</Label>
-                  <Input
-                    type="number"
-                    value={formData.thresholds?.green || ''}
-                    onChange={(e) => updateNestedField('thresholds', 'green', e.target.value)}
-                    placeholder="e.g., 90"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-amber-600">Amber (Warning)</Label>
-                  <Input
-                    type="number"
-                    value={formData.thresholds?.amber || ''}
-                    onChange={(e) => updateNestedField('thresholds', 'amber', e.target.value)}
-                    placeholder="e.g., 75"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-red-600">Red (At Risk)</Label>
-                  <Input
-                    type="number"
-                    value={formData.thresholds?.red || ''}
-                    onChange={(e) => updateNestedField('thresholds', 'red', e.target.value)}
-                    placeholder="e.g., 50"
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
         );
 

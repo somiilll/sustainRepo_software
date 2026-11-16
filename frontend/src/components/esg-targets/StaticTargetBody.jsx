@@ -67,8 +67,8 @@ export function StaticTargetBody({ target, chart, health }) {
       <div className={`flex items-start justify-between gap-4 rounded-lg border px-4 py-2.5 text-sm text-stone-800 ${h.banner}`} data-testid="target-achievement-banner">
         {banner}{unit && <span className="shrink-0 text-stone-500">Unit: {unit}</span>}
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="Baseline" value={hasBase ? fmt(b, 3) : '—'} sub={hasBase ? periodText(chart.baseline_period) : 'Not set'} tone="border-stone-200 bg-white" testId="target-baseline-card" />
+      <div className={`grid gap-4 ${hasBase ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+        {hasBase && <Stat label="Baseline" value={fmt(b, 3)} sub={periodText(chart.baseline_period)} tone="border-stone-200 bg-white" testId="target-baseline-card" />}
         <Stat label="Current" tone="border-sky-200 bg-sky-50/60 text-blue-800" testId="target-current-card"
           value={c != null ? fmt(c, 2) : 'N/A'}
           sub={<>{periodText(chart.current_period)}{hasBase && c != null && <> · <span className={wrong ? 'font-medium text-red-700' : 'font-medium text-emerald-700'}>{c >= b ? '▲' : '▼'} {fmt(Math.abs(c - b), 2)} vs baseline</span></>}</>} />
