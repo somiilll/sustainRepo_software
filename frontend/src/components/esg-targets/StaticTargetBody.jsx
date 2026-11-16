@@ -54,7 +54,7 @@ export function StaticTargetBody({ target, chart, health }) {
 
   let banner;
   if (c == null) banner = <span>No activity data for the current period yet. Progress appears once records are entered.</span>;
-  else if (!hasBase) banner = <span><b>Current {fmt(c)} {unit}.</b> No baseline is set, so progress cannot be measured. {reached ? 'The target is met.' : `About ${fmt(gap)} ${unit} to go.`}</span>;
+  else if (!hasBase) banner = null;
   else banner = (
     <span>
       <b>Achievement {fmtSigned(pct)}%.</b> The current value is {fmt(chg, 1)}% {(c > b) ? 'above' : 'below'} the baseline{wrong ? ', so progress shows as negative' : ''}.{' '}
@@ -64,9 +64,11 @@ export function StaticTargetBody({ target, chart, health }) {
 
   return (
     <div className="space-y-5" data-testid="static-target-body">
-      <div className={`flex items-start justify-between gap-4 rounded-lg border px-4 py-2.5 text-sm text-stone-800 ${h.banner}`} data-testid="target-achievement-banner">
-        {banner}{unit && <span className="shrink-0 text-stone-500">Unit: {unit}</span>}
-      </div>
+      {banner && (
+        <div className={`flex items-start justify-between gap-4 rounded-lg border px-4 py-2.5 text-sm text-stone-800 ${h.banner}`} data-testid="target-achievement-banner">
+          {banner}{unit && <span className="shrink-0 text-stone-500">Unit: {unit}</span>}
+        </div>
+      )}
       <div className={`grid gap-4 ${hasBase ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         {hasBase && <Stat label="Baseline" value={fmt(b, 3)} sub={periodText(chart.baseline_period)} tone="border-stone-200 bg-white" testId="target-baseline-card" />}
         <Stat label="Current" tone="border-sky-200 bg-sky-50/60 text-blue-800" testId="target-current-card"

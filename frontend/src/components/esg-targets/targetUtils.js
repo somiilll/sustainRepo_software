@@ -30,3 +30,10 @@ export const STATUS_PILL = {
   archived: { label: 'Archived', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400' },
   expired: { label: 'Expired', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400' },
 };
+
+export function deviation(actual, goal, lower) {
+  if (actual == null || !goal) return null;
+  const dev = ((actual - goal) / goal) * 100;
+  const pct = Math.round(Math.abs(dev) * 10) / 10;
+  return { pct, word: pct === 0 ? 'on target' : dev < 0 ? 'below target' : 'above target', good: lower ? actual >= goal : actual <= goal };
+}

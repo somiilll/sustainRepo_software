@@ -48,6 +48,7 @@ import ESGTargetForm from './ESGTargetForm';
 import ESGTargetVersionHistory from './ESGTargetVersionHistory';
 import { ModulePageHeader } from './ModulePageHeader';
 import { TargetCard } from './esg-targets/TargetCard';
+import { TargetDetailsSheet } from './esg-targets/TargetDetailsSheet';
 import { TargetSummaryCards, summarize } from './esg-targets/TargetSummaryCards';
 
 
@@ -84,7 +85,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [expandedTargets, setExpandedTargets] = useState({});
+  const [detailsTarget, setDetailsTarget] = useState(null);
   const sectionHeader = SECTION_HEADERS[section] || { title: 'ESG Target', iconClassName: 'border-stone-200 bg-stone-50 text-stone-700' };
   
   // Categories for filters
@@ -351,19 +352,20 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
           )}
         </Card>
       ) : (
-        <div className="space-y-5 pt-4" data-testid="target-card-list">
+        <div className="grid gap-5 pt-4 lg:grid-cols-2" data-testid="target-card-list">
           {targets.map(target => (
             <TargetCard
               key={target.id}
               target={target}
-              expanded={expandedTargets[target.id] !== false}
-              onToggle={() => setExpandedTargets(prev => ({ ...prev, [target.id]: prev[target.id] === false }))}
+              onOpen={setDetailsTarget}
               isAdmin={userIsAdmin}
               actions={{ history: handleViewHistory, edit: handleEdit, duplicate: handleDuplicate, archive: handleArchive, remove: setDeleteConfirm }}
             />
           ))}
         </div>
       )}
+
+      <TargetDetailsSheet target={detailsTarget && (targets.find(t => t.id === detailsTarget.id) || detailsTarget)} onClose={() => setDetailsTarget(null)} />
 
       {/* Create/Edit Form Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
