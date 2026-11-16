@@ -71,7 +71,8 @@ function SinglePanel({ target, chart }) {
           <span className="text-3xl font-semibold tracking-tight text-blue-800" data-testid="target-card-main-value">{c != null ? fmt(c, 2) : 'N/A'}</span>
           <span className="text-sm text-stone-500">current, against a target of <b className="text-emerald-700">{fmt(t, 3)}</b></span>
         </div>
-        <div className="relative mt-4 h-2 rounded-full bg-stone-200/80">
+        <div className="relative mt-4 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
+          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: BAND[band(c, t || 0, lower) || 'on_track'].fill }} />}
           <div className="absolute -top-1 h-4 w-[3px] rounded bg-emerald-700" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
@@ -80,11 +81,11 @@ function SinglePanel({ target, chart }) {
         {dev ? (
           <>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Progress</span>
-            <span><b className={tone(dev.band)}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
+            <span><b className={`text-2xl font-semibold ${tone(dev.band)}`}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
             <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
           </>
         ) : gap ? (
-          <span data-testid="target-card-gap"><b className={tone(gap.band)}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
+          <span data-testid="target-card-gap"><b className={`text-2xl font-semibold ${tone(gap.band)}`}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
         ) : <span className="text-stone-500">No data for the current period yet</span>}
         {hasBase && pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% from baseline</span>}
       </div>
