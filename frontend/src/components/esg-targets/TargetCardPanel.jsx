@@ -63,7 +63,7 @@ function SinglePanel({ target, chart }) {
   const c = chart.current_value;
   const t = chart.target_value;
   const hasBase = target.baseline?.value != null && chart.baseline_value != null;
-  const dev = c != null && t ? { diff: Math.abs(c - t), word: c < t ? 'below target' : 'above target', good: lower ? c >= t : c <= t } : null;
+  const dev = deviation(c, t, lower);
   const max = Math.max(c || 0, t || 0, 1);
   const pct = chart.progress_percentage;
   return (
@@ -78,11 +78,15 @@ function SinglePanel({ target, chart }) {
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
       </div>
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        {dev ? <span><b className={tone(dev.good)}>{fmt(dev.diff, 2)}</b> <span className="text-stone-600">{dev.word}</span></span> : <span className="text-stone-500">No data for the current period yet</span>}
-        {hasBase
-          ? pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% progress</span>
-          : <span className="rounded-full border border-dashed border-amber-300 bg-amber-50 px-3 py-0.5 text-xs font-medium text-amber-800" data-testid="target-no-baseline-pill">No baseline set</span>}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
+        {dev ? (
+          <>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Progress</span>
+            <span><b className={tone(dev.good)}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
+            <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
+          </>
+        ) : <span className="text-stone-500">No data for the current period yet</span>}
+        {hasBase && pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% from baseline</span>}
       </div>
     </>
   );
