@@ -20,6 +20,8 @@ const STEP_COMPONENTS = {
 const DEFAULT_FORM_DATA = {
   metric_name: '',
   short_name: '',
+  target_label: '',
+  target_order: '',
   description: '',
   section: '',
   category_name: '',
@@ -105,7 +107,11 @@ const KPIDefinitionWizard = ({
 
   const handleSave = () => {
     if (validateStep(currentStep)) {
-      onSave(formData);
+      onSave({
+        ...formData,
+        target_label: formData.target_label?.trim() || null,
+        target_order: formData.target_order === '' || formData.target_order == null ? null : Number(formData.target_order),
+      });
     }
   };
 

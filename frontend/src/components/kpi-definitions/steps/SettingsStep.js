@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Label } from '../../ui/label';
+import { Input } from '../../ui/input';
 import { Switch } from '../../ui/switch';
 import { Checkbox } from '../../ui/checkbox';
 import { KPI_STATUSES, DEFAULT_VISIBILITY } from '../constants';
@@ -92,6 +93,36 @@ const SettingsStep = ({ formData, setFormData, errors }) => {
             </div>
           ))}
         </div>
+
+        {visibility.target_enabled && (
+          <div className="mt-4 grid grid-cols-1 gap-4 rounded-lg border border-gray-200 p-4 md:grid-cols-3" data-testid="kpi-target-display">
+            <div className="md:col-span-2">
+              <Label htmlFor="kpi-target-label" className="text-sm font-medium">Target label</Label>
+              <Input
+                id="kpi-target-label"
+                value={formData.target_label || ''}
+                onChange={(e) => handleChange('target_label', e.target.value)}
+                placeholder={formData.metric_name || 'Name shown in the Targets form'}
+                className="mt-1.5"
+                data-testid="kpi-target-label-input"
+              />
+              <p className="mt-1 text-xs text-gray-500">Shown in the Targets form. Leave empty to use the metric name.</p>
+            </div>
+            <div>
+              <Label htmlFor="kpi-target-order" className="text-sm font-medium">Target order</Label>
+              <Input
+                id="kpi-target-order"
+                type="number"
+                min="0"
+                value={formData.target_order ?? ''}
+                onChange={(e) => handleChange('target_order', e.target.value)}
+                className="mt-1.5"
+                data-testid="kpi-target-order-input"
+              />
+              <p className="mt-1 text-xs text-gray-500">Position within its subcategory.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Supported Scopes */}

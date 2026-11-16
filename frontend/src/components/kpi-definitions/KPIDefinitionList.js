@@ -241,6 +241,9 @@ const KPIDefinitionList = ({
                         {kpi.short_name && kpi.short_name !== kpi.metric_name && (
                           <p className="text-xs text-gray-500">{kpi.short_name}</p>
                         )}
+                        {kpi.target_label && kpi.target_label !== kpi.metric_name && (
+                          <p className="text-xs text-emerald-700" data-testid={`kpi-target-label-${kpi.id}`}>Targets: {kpi.target_label}</p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
