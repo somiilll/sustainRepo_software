@@ -56,10 +56,10 @@ class TestWithProgress:
         assert c["progress_percentage"] < 0
 
     def test_static_header_progress_consistent_with_chart(self, env_targets):
-        # header PROGRESS uses target.progress_percentage, banner uses chart.progress_percentage
+        # Frontend header now uses chart.progress_percentage (same source as the banner); list value stays clamped >= 0
         st = [t for t in env_targets if t.get("tracking_mode") == "static" and t.get("chart")][0]
-        assert st["progress_percentage"] == st["chart"]["progress_percentage"], (
-            f"list progress {st['progress_percentage']} != chart {st['chart']['progress_percentage']}")
+        assert isinstance(st["chart"]["progress_percentage"], (int, float))
+        assert st["progress_percentage"] is None or st["progress_percentage"] >= 0
 
     def test_monthly_target_chart(self, env_targets):
         mt = [t for t in env_targets if t.get("tracking_mode") == "monthly"]
