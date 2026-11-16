@@ -256,10 +256,10 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
         )}
       />
 
-      {!loading && <TargetSummaryCards counts={summarize(targets)} />}
+      {!loading && <div className="pt-4"><TargetSummaryCards counts={summarize(targets)} /></div>}
 
       {/* Search and Filters */}
-      <Card className="p-4">
+      <Card className="bg-white p-4" data-testid="target-search-card">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -267,7 +267,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
               placeholder="Search targets..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="bg-white pl-10"
               data-testid="target-search-input"
             />
           </div>
@@ -351,7 +351,7 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
           )}
         </Card>
       ) : (
-        <div className="space-y-5" data-testid="target-card-list">
+        <div className="space-y-5 pt-4" data-testid="target-card-list">
           {targets.map(target => (
             <TargetCard
               key={target.id}
