@@ -34,9 +34,9 @@ export function band(actual, goal, lower) {
 }
 
 export const BAND = {
-  on_track: { text: 'text-emerald-700', fill: '#2f7a56', soft: '#c4e6d3' },
-  at_risk: { text: 'text-amber-600', fill: '#d98a1d', soft: '#f6dcae' },
-  breached: { text: 'text-red-700', fill: '#b4443c', soft: '#efc3be' },
+  on_track: { text: 'text-emerald-700', fill: '#2f7a56', soft: '#c4e6d3', mid: '#6bb08a' },
+  at_risk: { text: 'text-amber-600', fill: '#d98a1d', soft: '#f6dcae', mid: '#e8a64a' },
+  breached: { text: 'text-red-700', fill: '#b4443c', soft: '#efc3be', mid: '#d9776e' },
 };
 
 export function deviation(actual, goal, lower) {

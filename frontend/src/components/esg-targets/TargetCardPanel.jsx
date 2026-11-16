@@ -69,6 +69,9 @@ function SinglePanel({ target, chart }) {
   const gap = c != null && !t ? { diff: Math.abs(c - (t || 0)), word: c > (t || 0) ? 'more than target' : 'less than target', band: band(c, t || 0, lower) } : null;
   const max = Math.max(c || 0, t || 0, 1);
   const bad = c != null && band(c, t || 0, lower) === 'breached';
+  const over = bad && !lower && c > (t || 0);
+  const tp = Math.min(100, ((t || 0) / max) * 100);
+  const cp = Math.min(100, ((c || 0) / max) * 100);
   const pct = chart.progress_percentage;
   return (
     <>
@@ -78,7 +81,13 @@ function SinglePanel({ target, chart }) {
           <span className="text-sm text-stone-500">current, against a target of <b className={bad ? 'text-stone-900' : 'text-emerald-700'}>{fmt(t, 3)}</b></span>
         </div>
         <div className="relative mt-4 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
-          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: barGradient(c, t || 0, lower) }} />}
+          {c != null && over && (
+            <>
+              <div className="absolute inset-y-0 left-0 rounded-l-full bg-white ring-1 ring-stone-300" style={{ width: `${tp}%` }} data-testid="target-card-bar-ok" />
+              <div className="absolute inset-y-0 rounded-r-full" style={{ left: `${tp}%`, width: `${cp - tp}%`, background: `linear-gradient(to right, ${BAND.breached.mid}, ${BAND.breached.fill})` }} data-testid="target-card-bar-over" />
+            </>
+          )}
+          {c != null && !over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: barGradient(c, t || 0, lower) }} />}
           <div className={`absolute -top-1 h-4 w-[3px] rounded ${bad ? 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2)]' : 'bg-emerald-700'}`} data-testid="target-card-tick" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
