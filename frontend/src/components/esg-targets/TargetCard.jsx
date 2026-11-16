@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronDown, ChevronUp, ArrowRight, Building2, Calendar, MoreVertical, History, Edit2, Copy, Archive, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { HEALTH, STATUS_PILL, TARGET_TYPE_LABELS, TRACKING_MODE_LABELS, fmt, fmtSigned, periodText } from './targetUtils';
+import { HEALTH, STATUS_PILL, fmt, fmtSigned, periodText } from './targetUtils';
 import { StaticTargetBody } from './StaticTargetBody';
 import { PeriodicTargetBody, enrichPeriods, periodTotals } from './PeriodicTargetBody';
 
@@ -10,11 +10,20 @@ const Tag = ({ children, icon: Icon, tone = 'bg-stone-100 text-stone-700' }) => 
   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs ${tone}`}>{Icon && <Icon className="h-3.5 w-3.5" />}{children}</span>
 );
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 function progressOf(target, chart) {
+  const lower = chart?.goal_type === 'lower_limit';
+  if (chart?.chart_type === 'monthly') {
+    const last = enrichPeriods(chart).filter((r) => !r.is_current && !r.is_future && r.actual != null && r.target).pop();
+    const pct = last ? (last.actual / last.target) * 100 : null;
+    const bad = pct != null && (lower ? pct < 100 : pct > 100);
+    return { label: `${last ? MONTHS[last.month_num - 1] : 'Monthly'} progress`, value: pct == null ? '—' : `${fmt(pct, 0)}%`, tone: pct == null ? null : bad ? 'text-red-700' : 'text-emerald-700' };
+  }
   if (chart && chart.chart_type !== 'static' && chart.data) {
     const t = periodTotals(enrichPeriods(chart));
     const pct = t.count && t.target ? (t.actual / t.target) * 100 : null;
-    const bad = pct != null && (chart.goal_type === 'lower_limit' ? pct < 100 : pct > 100);
+    const bad = pct != null && (lower ? pct < 100 : pct > 100);
     return { label: 'Year to date', value: pct == null ? '—' : `${fmt(pct, 0)}%`, tone: pct == null ? null : bad ? 'text-red-700' : 'text-emerald-700' };
   }
   const p = chart?.progress_percentage ?? target.progress_percentage;
@@ -42,11 +51,10 @@ export function TargetCard({ target, expanded, onToggle, isAdmin, actions }) {
           {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
         <div className="min-w-0 flex-1 basis-72">
-          <h3 className="text-lg font-semibold tracking-tight text-stone-900" data-testid={`target-title-${target.id}`}>{target.kpi_name || target.metric_label || target.metric_key || target.target_name}</h3>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm text-stone-500">{target.category}<ArrowRight className="h-3.5 w-3.5" />{target.subcategory}</div>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            <Tag tone="bg-sky-50 text-sky-800">{TARGET_TYPE_LABELS[target.target_type] || target.target_type}</Tag>
-            <Tag>{TRACKING_MODE_LABELS[target.tracking_mode] || target.tracking_mode} tracking</Tag>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight text-stone-900" data-testid={`target-title-${target.id}`}>
+              {target.target_name}<ArrowRight className="h-4 w-4 text-stone-400" />{target.kpi_name || target.metric_label || target.metric_key}
+            </h3>
             <Tag icon={Building2}>{scope}</Tag>
             <Tag icon={Calendar}>{periodText(target.reporting_period)}</Tag>
           </div>

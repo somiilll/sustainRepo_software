@@ -1158,3 +1158,10 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Second read only for the failed invoice's pages (from evidence pages; whole doc if unknown), replaces those invoices only if fewer critical checks.
 - Limits: max_pages 10, extract max_tokens 64000, AI client timeout 300s.
 - Open: Claude 'compiled grammar too large' intermittent with add_on boolean field (fix = fold into nature enum) - not applied.
+
+## Targets pages redesign (Environment / Social / Governance)
+- Shared `components/ESGTargetsTab.js` now renders `components/esg-targets/*`: summary cards (Total, Active, On track, At risk, Off track), per-target cards, static body (banner, Baseline/Current/Target, scale), periodic body (monthly/yearly chart + per-period cards).
+- Backend `GET /api/esg-targets/with-progress` returns `health` and `chart` per target; `/chart-data` reuses `_build_chart_data`.
+- Header: `{Target name} -> {KPI name}` with Organization and period pills inline; monthly targets show `{Last month with data and target} progress`.
+- OCR: Edit dialog pre-fills the full ledger amount (`spend_amount`); `settle_factor` (decider/factors.py) picks spend-based or fewest-missing-inputs factor and writes the "Cannot calculate: add ..." note.
+- Status: Targets redesign NOT re-tested after the latest tweaks (user asked to hold testing). Last report: /app/test_reports/iteration_10.json.
