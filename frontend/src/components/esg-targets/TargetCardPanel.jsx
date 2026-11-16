@@ -94,7 +94,7 @@ function SinglePanel({ target, chart }) {
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
         {dev ? (
           <>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Progress</span>

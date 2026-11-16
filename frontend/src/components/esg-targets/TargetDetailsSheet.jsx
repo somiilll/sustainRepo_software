@@ -1,5 +1,4 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { StaticTargetBody } from './StaticTargetBody';
 import { PeriodicTargetBody } from './PeriodicTargetBody';
@@ -21,9 +20,7 @@ export function TargetDetailsSheet({ target, onClose }) {
         {target && (
           <>
             <SheetHeader className="pr-8 text-left">
-              <SheetTitle className="flex flex-wrap items-center gap-2 text-lg">
-                {target.kpi_name || target.metric_label || target.metric_key}<ArrowRight className="h-4 w-4 text-stone-400" />{target.target_name}
-              </SheetTitle>
+              <SheetTitle className="text-lg" data-testid="target-details-title">{target.kpi_name || target.metric_label || target.metric_key}</SheetTitle>
               <p className="text-sm text-stone-500">{target.scope_type === 'organization' ? 'Organization' : target.facility_names?.join(', ')} · {periodText(target.reporting_period)}</p>
             </SheetHeader>
             <div className="mt-5"><Body target={target} /></div>
