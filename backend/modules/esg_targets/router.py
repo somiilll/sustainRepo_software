@@ -656,8 +656,14 @@ def _health_from_chart(chart: Optional[dict], fallback_pct: Optional[float] = No
     if kind == "static":
         pct = chart.get("progress_percentage")
         pct = fallback_pct if pct is None else pct
-        if chart.get("current_value") is None or pct is None:
+        if chart.get("current_value") is None:
             return "no_data"
+        if pct is None:
+            goal = chart.get("target_value")
+            if goal is None:
+                return "no_data"
+            met = chart["current_value"] >= goal if chart.get("goal_type") == "lower_limit" else chart["current_value"] <= goal
+            return "on_track" if met else "breached"
         return "on_track" if pct >= 75 else ("at_risk" if pct >= 40 else "breached")
     if kind in ("monthly", "yearly", "yearly_cumulative"):
         latest = next((d for d in reversed(chart.get("data") or []) if d.get("actual") is not None and not d.get("is_future") and d.get("status") != "no_data"), None)
@@ -715,7 +721,7 @@ async def _single_year_series(target: dict, org_id: str, facility_ids, reporting
             created = datetime.fromisoformat(created.replace("Z", "+00:00"))
         except ValueError:
             created = None
-    if not target_year or not isinstance(created, datetime) or not goal:
+    if not target_year or not isinstance(created, datetime) or goal is None:
         return []
     now = datetime.now(timezone.utc)
     shift = lambda d: d.year - 1 if reporting_type == "FY" and d.month < 4 else d.year  # noqa: E731
@@ -1098,9 +1104,9 @@ async def get_categories_for_targets(
         cat_name = kpi.get("category_name", "")
         subcat_name = kpi.get("subcategory", "")
         
-        if not cat_name:
+        if not cat_name or kpi.get("metric_name") in ENERGY_TOTAL_HANDLES + ENERGY_RENEWABLE_HANDLES:
             continue
-            
+
         if cat_name not in hierarchy:
             hierarchy[cat_name] = {}
         
@@ -1134,8 +1140,16 @@ async def get_categories_for_targets(
         if permissions.get("environment.energy"):
             if "Energy" not in hierarchy:
                 hierarchy["Energy"] = {}
-            hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
-            hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
+            for division, build, names in (
+                ("Total Energy Consumption", _get_energy_total_kpi, ENERGY_TOTAL_HANDLES),
+                ("Renewable Energy", _get_renewable_energy_kpi, ENERGY_RENEWABLE_HANDLES),
+            ):
+                handle = await db.esg_kpi_definitions.find_one(
+                    {"status": "active", "category_name": "Energy", "metric_name": {"$in": names}}, {"_id": 0, "visibility": 1, "target_label": 1})
+                if handle and (handle.get("visibility") or {}).get("target_enabled"):
+                    kpis = build()
+                    kpis[0]["metric_name"] = handle.get("target_label") or kpis[0]["metric_name"]
+                    hierarchy["Energy"][division] = kpis
         else:
             hierarchy.pop("Energy", None)
     
@@ -1212,6 +1226,11 @@ def _get_ghg_subcategories() -> dict:
             "source": "emission_records"
         }]
     }
+
+
+# KPI definitions that switch these computed energy KPIs on for targets and carry their target_label
+ENERGY_TOTAL_HANDLES = ["Total Energy Consumption (Renewable + Non-Renewable)", "Total Energy Consumption (Fuel + Electricity + Heating + Cooling + Steam)"]
+ENERGY_RENEWABLE_HANDLES = ["Renewable Energy Consumption (Total)"]
 
 
 def _get_energy_total_kpi() -> list:

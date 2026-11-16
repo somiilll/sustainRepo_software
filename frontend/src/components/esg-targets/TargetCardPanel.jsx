@@ -63,6 +63,7 @@ function SinglePanel({ target, chart }) {
   const t = chart.target_value;
   const hasBase = target.baseline?.value != null && chart.baseline_value != null;
   const dev = deviation(c, t, lower);
+  const gap = c != null && !t ? { diff: Math.abs(c - (t || 0)), word: c > (t || 0) ? 'more than target' : 'less than target', good: lower ? c >= (t || 0) : c <= (t || 0) } : null;
   const max = Math.max(c || 0, t || 0, 1);
   const pct = chart.progress_percentage;
   return (
@@ -84,6 +85,8 @@ function SinglePanel({ target, chart }) {
             <span><b className={tone(dev.good)}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
             <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
           </>
+        ) : gap ? (
+          <span data-testid="target-card-gap"><b className={tone(gap.good)}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
         ) : <span className="text-stone-500">No data for the current period yet</span>}
         {hasBase && pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% from baseline</span>}
       </div>

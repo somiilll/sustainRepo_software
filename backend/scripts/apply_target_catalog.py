@@ -86,6 +86,10 @@ def main(apply):
                     plan[k["id"]] = (label, i, k["metric_name"], f"{cat}/{sub}")
     for kid, (label, i, name, path) in plan.items():
         print(f"{path:60} {label}  <=  {name}")
+    for i, (name, label) in enumerate((("Total Energy Consumption (Renewable + Non-Renewable)", "Total Energy Consumption"), ("Renewable Energy Consumption (Total)", "Renewable Energy"))):
+        k = next((x for x in kpis if x["metric_name"] == name and x["category_name"] == "Energy"), None)
+        if k:
+            plan[k["id"]] = (label, i, name, "Energy/(computed energy division)")
     print("\nNOT MATCHED:", *missing, sep="\n  ")
     if not apply:
         return
