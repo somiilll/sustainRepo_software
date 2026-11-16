@@ -58,6 +58,8 @@ class ESGKPIDefinitionsService:
             
             "metric_name": data.metric_name.strip(),
             "short_name": data.short_name,
+            "target_label": data.target_label,
+            "target_order": data.target_order,
             "metric_code": metric_code,
             "description": data.description,
             

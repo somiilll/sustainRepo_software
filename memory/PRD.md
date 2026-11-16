@@ -1165,3 +1165,7 @@ See /app/memory/CHANGELOG.md ("OCR Extraction v2"). Next: wire Save-all to GHG r
 - Header: `{Target name} -> {KPI name}` with Organization and period pills inline; monthly targets show `{Last month with data and target} progress`.
 - OCR: Edit dialog pre-fills the full ledger amount (`spend_amount`); `settle_factor` (decider/factors.py) picks spend-based or fewest-missing-inputs factor and writes the "Cannot calculate: add ..." note.
 - Status: Targets redesign NOT re-tested after the latest tweaks (user asked to hold testing). Last report: /app/test_reports/iteration_10.json.
+
+## Targets KPI catalog
+- `backend/scripts/target_catalog.py` + `apply_target_catalog.py [--apply]`: enables exactly the catalog KPIs for targets and sets `target_label`/`target_order` on `esg_kpi_definitions` (89 enabled). Run the same script on production.
+- `/api/esg-targets/lookup/categories` returns `target_label` (fallback `metric_name`), sorted by `target_order`. GHG, Total Energy and Renewable Energy divisions stay synthetic; Non-Renewable Energy removed.

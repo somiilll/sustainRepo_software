@@ -1089,7 +1089,7 @@ async def get_categories_for_targets(
             "visibility.target_enabled": True
         },
         {"_id": 0}
-    ).to_list(1000)
+    ).sort("target_order", 1).to_list(1000)
     
     # Build hierarchical structure: category → subcategory → kpis
     hierarchy = {}
@@ -1110,7 +1110,7 @@ async def get_categories_for_targets(
         # Add KPI to the list
         hierarchy[cat_name][subcat_name].append({
             "kpi_id": kpi.get("id"),
-            "metric_name": kpi.get("metric_name"),
+            "metric_name": kpi.get("target_label") or kpi.get("metric_name"),
             "metric_code": kpi.get("metric_code"),
             "baseline_mapping_key": kpi.get("baseline_mapping_key"),
             "short_name": kpi.get("short_name"),
@@ -1136,7 +1136,6 @@ async def get_categories_for_targets(
                 hierarchy["Energy"] = {}
             hierarchy["Energy"]["Total Energy Consumption"] = _get_energy_total_kpi()
             hierarchy["Energy"]["Renewable Energy"] = _get_renewable_energy_kpi()
-            hierarchy["Energy"]["Non-Renewable Energy"] = _get_non_renewable_energy_kpi()
         else:
             hierarchy.pop("Energy", None)
     
@@ -1154,7 +1153,7 @@ def _get_ghg_subcategories() -> dict:
     return {
         "Scope 1 Emissions": [{
             "kpi_id": "ghg_scope1_total",
-            "metric_name": "Total Scope 1 GHG Emissions",
+            "metric_name": "Scope 1",
             "metric_code": "GHG_S1",
             "baseline_mapping_key": "scope1_total",
             "short_name": "Scope 1",
@@ -1166,7 +1165,7 @@ def _get_ghg_subcategories() -> dict:
         }],
         "Scope 2 Emissions": [{
             "kpi_id": "ghg_scope2_total",
-            "metric_name": "Total Scope 2 GHG Emissions",
+            "metric_name": "Scope 2",
             "metric_code": "GHG_S2",
             "baseline_mapping_key": "scope2_total",
             "short_name": "Scope 2",
@@ -1178,7 +1177,7 @@ def _get_ghg_subcategories() -> dict:
         }],
         "Scope 3 Emissions": [{
             "kpi_id": "ghg_scope3_total",
-            "metric_name": "Total Scope 3 GHG Emissions",
+            "metric_name": "Scope 3",
             "metric_code": "GHG_S3",
             "baseline_mapping_key": "scope3_total",
             "short_name": "Scope 3",
@@ -1190,7 +1189,7 @@ def _get_ghg_subcategories() -> dict:
         }],
         "Total Emissions": [{
             "kpi_id": "ghg_total_all",
-            "metric_name": "Total GHG Emissions (All Scopes)",
+            "metric_name": "Total GHG Emissions",
             "metric_code": "GHG_TOTAL",
             "baseline_mapping_key": "total_all_scopes",
             "short_name": "Total",
@@ -1202,7 +1201,7 @@ def _get_ghg_subcategories() -> dict:
         }],
         "Scope 1 + Scope 2 Emissions": [{
             "kpi_id": "ghg_scope1_2_total",
-            "metric_name": "Total Scope 1 + Scope 2 GHG Emissions",
+            "metric_name": "Scope 1 + Scope 2 Emissions",
             "metric_code": "GHG_S1_S2",
             "baseline_mapping_key": "scope1_2_total",
             "short_name": "Scope 1+2",
@@ -1239,7 +1238,7 @@ def _get_renewable_energy_kpi() -> list:
     """Aggregate Renewable Energy KPI across all source types (Fuel, Electricity, Heating, Cooling, Steam)."""
     return [{
         "kpi_id": "energy_renewable_total",
-        "metric_name": "Total Renewable Energy Consumption",
+        "metric_name": "Renewable Energy",
         "metric_code": "ENERGY_RENEWABLE",
         "baseline_mapping_key": "energy_renewable_total",
         "short_name": "Renewable Energy",
@@ -1249,141 +1248,6 @@ def _get_renewable_energy_kpi() -> list:
         "description": "Total renewable energy consumption across Fuel, Electricity, Heating, Cooling, and Steam",
         "source": "environment_records"
     }]
-
-
-def _get_non_renewable_energy_kpi() -> list:
-    """Aggregate Non-Renewable Energy KPI across all source types (Fuel, Electricity, Heating, Cooling, Steam)."""
-    return [{
-        "kpi_id": "energy_non_renewable_total",
-        "metric_name": "Total Non-Renewable Energy Consumption",
-        "metric_code": "ENERGY_NON_RENEWABLE",
-        "baseline_mapping_key": "energy_non_renewable_total",
-        "short_name": "Non-Renewable Energy",
-        "unit": "GJ",
-        "output_type": "number",
-        "aggregation_type": "sum",
-        "description": "Total non-renewable energy consumption across Fuel, Electricity, Heating, Cooling, and Steam",
-        "source": "environment_records"
-    }]
-
-
-
-# =============================================================================
-# Baseline Lookup Endpoints (GHG Module Integration)
-# =============================================================================
-
-@router.get("/baseline/ghg-emissions")
-async def get_ghg_baseline_from_records(
-    scope: str = Query(..., description="GHG scope: scope1, scope2, scope3, total, scope1_2"),
-    base_year: str = Query(..., description="Base year period (e.g., 'FY 2026-2027')"),
-    facility_id: Optional[str] = Query(None, description="Optional facility filter"),
-    target_type: Optional[str] = Query(None, description="Target type: absolute, intensity_revenue, intensity_production"),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Fetch GHG baseline value directly from emission records.
-    Aggregates both monthly records within the FY range and yearly records.
-    For intensity targets, divides emissions by revenue or production.
-    """
-    from shared.database.mongo import db
-    
-    org_id = _get_org_id(current_user)
-    
-    # Map scope parameter to actual scope values in database (handles mixed formats)
-    scope_filters = {
-        "scope1": ["Scope 1", "scope1", "Scope1"],
-        "scope2": ["Scope 2", "scope2", "Scope2"],
-        "scope3": ["Scope 3", "scope3", "Scope3"],
-        "total": ["Scope 1", "scope1", "Scope1", "Scope 2", "scope2", "Scope2", "Scope 3", "scope3", "Scope3"],
-        "scope1_2": ["Scope 1", "scope1", "Scope1", "Scope 2", "scope2", "Scope2"]
-    }
-    
-    scope_values = scope_filters.get(scope)
-    if not scope_values:
-        return {"error": f"Invalid scope: {scope}", "value": None, "unit": "tCO2e"}
-    
-    # Parse base_year to get date range for monthly aggregation
-    monthly_periods = _get_monthly_periods_for_fy(base_year)
-    yearly_variants = _get_yearly_period_variants(base_year)
-    
-    # Build query - match either monthly periods OR yearly periods
-    query = {
-        "organization_id": org_id,
-        "scope": {"$in": scope_values},
-        "$or": [
-            {"reporting_period": {"$in": monthly_periods}},
-            {"reporting_period": {"$in": yearly_variants}}
-        ]
-    }
-    query.update(eligible_ghg_record_filter())
-    
-    if facility_id:
-        query["facility_id"] = facility_id
-    
-    # Aggregate emissions
-    records = await db.emission_records.find(query, {"_id": 0, "co2e_emissions": 1, "reporting_period": 1}).to_list(10000)
-    
-    total_emissions = 0.0
-    records_found = 0
-    
-    for rec in records:
-        val = rec.get("co2e_emissions") or 0
-        if isinstance(val, (int, float)):
-            total_emissions += val
-            records_found += 1
-    
-    # For intensity targets, divide by revenue or production
-    final_value = round(total_emissions, 4) if records_found > 0 else None
-    final_unit = "tCO2e"
-    intensity_denominator = None
-    intensity_error = None
-    
-    if target_type in ("intensity_revenue", "intensity_production") and final_value is not None:
-        # Extract year from base_year for denominator lookup
-        base_year_int = extract_year(base_year)
-        if base_year_int:
-            # Build a mock target dict to reuse _get_denominator_for_intensity
-            mock_target = {
-                "target_type": target_type,
-                "scope_type": "facility" if facility_id else "organization",
-                "facility_ids": [facility_id] if facility_id else [],
-                "_reporting_type": "FY" if "FY" in base_year.upper() else "CY"
-            }
-            denom_result = await _get_denominator_for_intensity(mock_target, org_id, {"year": base_year_int})
-            
-            if denom_result.get("error"):
-                intensity_error = denom_result.get("error")
-            elif denom_result.get("value"):
-                intensity_denominator = denom_result.get("value")
-                denom_unit = denom_result.get("unit", "")
-                # Calculate intensity = emissions / denominator
-                final_value = round(total_emissions / intensity_denominator, 6)
-                final_unit = f"tCO2e/{denom_unit}" if denom_unit else "tCO2e/unit"
-    
-    response = {
-        "scope": scope,
-        "base_year": base_year,
-        "value": final_value,
-        "unit": final_unit,
-        "records_count": records_found,
-        "facility_id": facility_id,
-        "periods_searched": {
-            "monthly": monthly_periods[:3] + ["..."] if len(monthly_periods) > 3 else monthly_periods,
-            "yearly": yearly_variants
-        }
-    }
-    
-    # Include intensity details if applicable
-    if target_type in ("intensity_revenue", "intensity_production"):
-        response["target_type"] = target_type
-        response["raw_emissions"] = round(total_emissions, 4) if records_found > 0 else None
-        response["raw_emissions_unit"] = "tCO2e"
-        if intensity_denominator:
-            response["intensity_denominator"] = intensity_denominator
-        if intensity_error:
-            response["intensity_error"] = intensity_error
-    
-    return response
 
 
 def _get_monthly_periods_for_fy(fy_str: str) -> list:

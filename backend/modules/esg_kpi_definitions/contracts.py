@@ -179,6 +179,8 @@ class KPIDefinitionCreate(BaseModel):
     # Basic Information
     metric_name: str = Field(..., min_length=1, max_length=255)
     short_name: Optional[str] = None
+    target_label: Optional[str] = None   # name shown in the Targets form; falls back to metric_name
+    target_order: Optional[int] = None   # position inside its subcategory in the Targets form
     metric_code: Optional[str] = None  # Auto-generated if not provided
     description: Optional[str] = None
     
@@ -246,6 +248,8 @@ class KPIDefinitionUpdate(BaseModel):
     """Request body for updating a KPI definition. All fields optional."""
     metric_name: Optional[str] = None
     short_name: Optional[str] = None
+    target_label: Optional[str] = None
+    target_order: Optional[int] = None
     description: Optional[str] = None
     
     section: Optional[str] = None
@@ -293,6 +297,8 @@ class KPIDefinitionResponse(BaseModel):
     
     metric_name: str
     short_name: Optional[str] = None
+    target_label: Optional[str] = None
+    target_order: Optional[int] = None
     metric_code: str
     description: Optional[str] = None
     
