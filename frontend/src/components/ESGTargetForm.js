@@ -579,14 +579,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   </p>
                 </Card>
               )}
-
-              {formData.kpi_id && (
-                <Card className="p-3 bg-emerald-50 border-emerald-200">
-                  <p className="text-sm font-medium text-emerald-800">Selected KPI</p>
-                  <p className="text-sm text-emerald-700">{formData.kpi_name}</p>
-                  {formData.unit && <p className="text-xs text-emerald-600">Unit: {formData.unit}</p>}
-                </Card>
-              )}
             </div>
           </div>
         );
