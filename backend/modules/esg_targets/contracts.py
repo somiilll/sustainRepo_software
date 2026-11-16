@@ -7,7 +7,7 @@ Designed to support future expansion without schema changes.
 
 from typing import Any, Dict, List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TargetType(str, Enum):
@@ -74,7 +74,25 @@ class BaselineConfig(BaseModel):
     value: Optional[float] = None
 
 
-class ESGTargetCreate(BaseModel):
+class NonNegativeTargets(BaseModel):
+    """Target values (single value or per-period values) can never be negative."""
+
+    @field_validator("target_value", "minimum_value", check_fields=False)
+    @classmethod
+    def _target_not_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("Target value cannot be negative")
+        return v
+
+    @field_validator("tracking_values", check_fields=False)
+    @classmethod
+    def _tracking_not_negative(cls, v):
+        if v and any(x < 0 for x in v.values()):
+            raise ValueError("Target values cannot be negative")
+        return v
+
+
+class ESGTargetCreate(NonNegativeTargets):
     """Request body for creating an ESG target."""
     # Basic Information
     target_name: str = Field(..., min_length=1, max_length=255)
@@ -123,7 +141,7 @@ class ESGTargetCreate(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class ESGTargetUpdate(BaseModel):
+class ESGTargetUpdate(NonNegativeTargets):
     """Request body for updating an ESG target. All fields optional."""
     target_name: Optional[str] = None
     description: Optional[str] = None

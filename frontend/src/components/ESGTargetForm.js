@@ -401,13 +401,14 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
           if (formData.target_type === 'percentage') {
             return formData.target_year && formData.percentage_amount !== '';
           }
-          return formData.target_year && formData.target_value !== '';
+          return formData.target_year && formData.target_value !== '' && parseFloat(formData.target_value) >= 0;
         }
+        const valuesOk = Object.keys(formData.tracking_values).length > 0 && Object.values(formData.tracking_values).every(v => v === '' || parseFloat(v) >= 0);
         if (formData.tracking_mode === 'yearly') {
-          return formData.start_period && formData.end_period && Object.keys(formData.tracking_values).length > 0;
+          return formData.start_period && formData.end_period && valuesOk;
         }
         // For monthly/quarterly/half_yearly, need target_year and at least one value
-        return formData.target_year && Object.keys(formData.tracking_values).length > 0;
+        return formData.target_year && valuesOk;
       default:
         return true;
     }
@@ -881,6 +882,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                       <div className="flex gap-2 mt-1">
                         <Input
                           type="number"
+                          min="0"
                           value={formData.target_value}
                           onChange={(e) => updateField('target_value', e.target.value)}
                           placeholder={formData.target_type === 'intensity_revenue' ? 'e.g., 0.45' : formData.target_type === 'intensity_production' ? 'e.g., 0.45' : 'Enter target value'}
@@ -942,6 +944,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                           <Label className="text-xs text-text-muted">{year}</Label>
                           <Input
                             type="number"
+                            min="0"
                             value={formData.tracking_values?.[year] || ''}
                             onChange={(e) => updateField('tracking_values', { ...formData.tracking_values, [year]: e.target.value })}
                             placeholder="Value"
@@ -981,6 +984,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                           <Label className="text-xs text-text-muted">{label}</Label>
                           <Input
                             type="number"
+                            min="0"
                             value={formData.tracking_values?.[key] || ''}
                             onChange={(e) => updateField('tracking_values', { ...formData.tracking_values, [key]: e.target.value })}
                             placeholder="Value"

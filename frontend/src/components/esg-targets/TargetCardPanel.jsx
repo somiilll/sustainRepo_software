@@ -91,8 +91,8 @@ function SinglePanel({ target, chart }) {
           <div className={`absolute -top-1 h-4 w-[3px] rounded ${bad ? 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2)]' : 'bg-emerald-700'}`} data-testid="target-card-tick" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
         </div>
         <div className="relative mt-2 h-4 text-xs text-stone-500" data-testid="target-card-axis">
-          <span className="absolute left-0">0</span>
-          <span className="absolute whitespace-nowrap" style={tp < 12 ? { left: `max(${tp}%, 14px)` } : tp > 88 ? { left: `${tp}%`, transform: 'translateX(-100%)' } : { left: `${tp}%`, transform: 'translateX(-50%)' }} data-testid="target-card-target-label">Target {fmt(t, 3)}</span>
+          {t > 0 && <span className="absolute left-0">0</span>}
+          <span className="absolute whitespace-nowrap" style={!t ? { left: 0 } : tp < 12 ? { left: `max(${tp}%, 14px)` } : tp > 88 ? { left: `${tp}%`, transform: 'translateX(-100%)' } : { left: `${tp}%`, transform: 'translateX(-50%)' }} data-testid="target-card-target-label">Target {fmt(t, 3)}</span>
           {c != null && c > (t || 0) && tp < 70 && <span className="absolute right-0 whitespace-nowrap">Current {fmt(c, 2)}</span>}
         </div>
       </div>
