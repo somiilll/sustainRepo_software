@@ -5,21 +5,9 @@ import { BAND, band, deviation, fmt } from './targetUtils';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const tone = (b) => (b ? BAND[b].text : 'text-stone-400');
 
-const [G, A, R] = [BAND.on_track.fill, BAND.at_risk.fill, BAND.breached.fill];
-const stopsToCss = (stops) => `linear-gradient(to right, ${stops.map(([col, at]) => `${col} ${at}%`).join(', ')})`;
-
 function barGradient(c, t, lower) {
-  if (!(c > 0)) return G;
-  const p = (v) => Math.min(100, Math.max(0, (v / c) * 100));
-  const tail = (at) => Math.min(100, at + (100 - at) * 0.2);
-  if (lower) {
-    if (c <= t) return R;
-    if (c <= 1.1 * t) return stopsToCss([[R, 0], [R, p(t)], [A, 100]]);
-    return stopsToCss([[R, 0], [R, p(t)], [A, p(1.1 * t)], [G, tail(p(1.1 * t))], [G, 100]]);
-  }
-  if (c <= 0.9 * t) return G;
-  if (c <= t) return stopsToCss([[G, 0], [G, p(0.9 * t)], [A, 100]]);
-  return stopsToCss([[G, 0], [G, p(0.9 * t)], [A, p(t)], [R, tail(p(t))], [R, 100]]);
+  const b = BAND[band(c, t, lower) || 'on_track'];
+  return `linear-gradient(to right, ${b.soft}, ${b.fill})`;
 }
 
 function Strip({ rows }) {
