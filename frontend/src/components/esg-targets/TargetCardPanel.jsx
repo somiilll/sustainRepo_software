@@ -72,7 +72,7 @@ function SinglePanel({ target, chart }) {
           <span className="text-sm text-stone-500">current, against a target of <b className="text-emerald-700">{fmt(t, 3)}</b></span>
         </div>
         <div className="relative mt-4 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
-          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: BAND[band(c, t || 0, lower) || 'on_track'].fill }} />}
+          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: `linear-gradient(to right, ${BAND[band(c, t || 0, lower) || 'on_track'].soft}, ${BAND[band(c, t || 0, lower) || 'on_track'].fill})` }} />}
           <div className="absolute -top-1 h-4 w-[3px] rounded bg-emerald-700" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
