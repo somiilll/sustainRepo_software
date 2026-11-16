@@ -5,6 +5,23 @@ import { BAND, band, deviation, fmt } from './targetUtils';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const tone = (b) => (b ? BAND[b].text : 'text-stone-400');
 
+const [G, A, R] = [BAND.on_track.fill, BAND.at_risk.fill, BAND.breached.fill];
+const stopsToCss = (stops) => `linear-gradient(to right, ${stops.map(([col, at]) => `${col} ${at}%`).join(', ')})`;
+
+function barGradient(c, t, lower) {
+  if (!(c > 0)) return G;
+  const p = (v) => Math.min(100, Math.max(0, (v / c) * 100));
+  const tail = (at) => Math.min(100, at + (100 - at) * 0.2);
+  if (lower) {
+    if (c <= t) return R;
+    if (c <= 1.1 * t) return stopsToCss([[R, 0], [R, p(t)], [A, 100]]);
+    return stopsToCss([[R, 0], [R, p(t)], [A, p(1.1 * t)], [G, tail(p(1.1 * t))], [G, 100]]);
+  }
+  if (c <= 0.9 * t) return G;
+  if (c <= t) return stopsToCss([[G, 0], [G, p(0.9 * t)], [A, 100]]);
+  return stopsToCss([[G, 0], [G, p(0.9 * t)], [A, p(t)], [R, tail(p(t))], [R, 100]]);
+}
+
 function Strip({ rows }) {
   const max = Math.max(...rows.map((r) => r.actual || 0), 1);
   const now = rows.findIndex((r) => r.is_current);
@@ -72,7 +89,7 @@ function SinglePanel({ target, chart }) {
           <span className="text-sm text-stone-500">current, against a target of <b className="text-emerald-700">{fmt(t, 3)}</b></span>
         </div>
         <div className="relative mt-4 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
-          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: `linear-gradient(to right, ${BAND[band(c, t || 0, lower) || 'on_track'].soft}, ${BAND[band(c, t || 0, lower) || 'on_track'].fill})` }} />}
+          {c != null && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (c / max) * 100)}%`, background: barGradient(c, t || 0, lower) }} />}
           <div className="absolute -top-1 h-4 w-[3px] rounded bg-emerald-700" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
         </div>
         <div className="mt-2 flex justify-between text-xs text-stone-500"><span>Target {fmt(t, 3)}</span>{c != null && <span>Current {fmt(c, 2)}</span>}</div>
