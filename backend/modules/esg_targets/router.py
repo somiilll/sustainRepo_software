@@ -170,9 +170,9 @@ def _resolve_target_value(target: dict, period: dict) -> Optional[float]:
     Monthly/Quarterly/Half-yearly/Yearly → lookup from tracking_values
     using a period key like "2026-07", "2026-Q2", "2026-H2", "FY 2026-2027".
     """
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
 
-    if tracking_mode == "static":
+    if tracking_mode == "single_year":
         tv = target.get("target_value")
         return float(tv) if tv is not None else None
 
@@ -243,9 +243,9 @@ def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
     if actual_value is None or not target_value or target_value == 0:
         return result
 
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
 
-    if tracking_mode == "static":
+    if tracking_mode == "single_year":
         # Formula: 100 - ((target - actual) / (target - baseline)) × 100
         baseline = target.get("baseline") or {}
         baseline_value = baseline.get("value") if isinstance(baseline, dict) else None
@@ -296,7 +296,7 @@ def _extract_year_from_period(period_str: str) -> Optional[int]:
 def _is_target_year_passed(target: dict) -> bool:
     """Check if target's reporting year has fully passed."""
     now = datetime.now(timezone.utc)
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
 
     if tracking_mode == "yearly":
         period = target.get("end_period") or target.get("reporting_period") or ""
@@ -349,7 +349,7 @@ def _get_period_for_target(target: dict, reporting_year_type: str) -> dict:
     Monthly → current month of current year.
     Yearly → target's year.
     """
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
     period_str = target.get("reporting_period") or ""
     target_year = extract_year(period_str)
 
@@ -357,7 +357,7 @@ def _get_period_for_target(target: dict, reporting_year_type: str) -> dict:
     if not target_year:
         target_year = now.year
 
-    if tracking_mode == "static":
+    if tracking_mode == "single_year":
         current_year = now.year - 1 if reporting_year_type == "FY" and now.month < 4 else now.year
         return {"year": current_year, "reporting_year_type": reporting_year_type}
     elif tracking_mode == "monthly":
@@ -473,7 +473,7 @@ async def list_targets_with_progress(
 
         if kpi_id:
             # Determine period from target's own reporting_period
-            tracking_mode = target.get("tracking_mode", "static")
+            tracking_mode = target.get("tracking_mode", "single_year")
             period = _get_period_for_target(target, org_rep_type)
             
             # Get facility_ids if scope is facility
@@ -606,7 +606,7 @@ async def get_target_progress(
         }
     
     # Determine period from target's own reporting_period
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
     period = _get_period_for_target(target, await _get_org_reporting_type(org_id))
     
     # Get facility_ids if scope is facility
@@ -709,7 +709,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
     if not kpi_id:
         return {"target_id": target_id, "chart_type": "none", "data": [], "message": "No KPI linked"}
 
-    tracking_mode = target.get("tracking_mode", "static")
+    tracking_mode = target.get("tracking_mode", "single_year")
     reporting_period = target.get("reporting_period", "")
     reporting_type = target.get("reporting_type", "FY")
     tracking_values = target.get("tracking_values") or {}
@@ -892,7 +892,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
             "data": data_points,
         }
 
-    elif tracking_mode == "static":
+    elif tracking_mode == "single_year":
         # Progress bar data: base → current → target
         baseline_value = float(baseline.get("value", 0)) if baseline else 0
         baseline_period = baseline.get("period", "")

@@ -13,7 +13,7 @@ export const TARGET_TYPE_LABELS = {
   absolute: 'Absolute', percentage: 'Percentage', intensity: 'Intensity',
   intensity_revenue: 'Intensity (Revenue)', intensity_production: 'Intensity (Production)',
 };
-export const TRACKING_MODE_LABELS = { static: 'Static', monthly: 'Monthly', quarterly: 'Quarterly', half_yearly: 'Half yearly', yearly: 'Yearly' };
+export const TRACKING_MODE_LABELS = { single_year: 'Single Year', monthly: 'Monthly', quarterly: 'Quarterly', half_yearly: 'Half yearly', yearly: 'Year-by-year' };
 
 export const HEALTH = {
   on_track: { label: 'On track', pill: 'border-emerald-200 bg-emerald-50 text-emerald-800', dot: 'bg-emerald-600', text: 'text-emerald-700', banner: 'border-emerald-200 bg-emerald-50/70' },

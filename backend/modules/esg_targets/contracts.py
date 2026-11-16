@@ -29,13 +29,17 @@ class GoalType(str, Enum):
 
 class TrackingMode(str, Enum):
     """Frequency of target tracking."""
-    STATIC = "static"
+    SINGLE_YEAR = "single_year"
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
     HALF_YEARLY = "half_yearly"
     YEARLY = "yearly"
+
+    @classmethod
+    def _missing_(cls, value):
+        return cls.SINGLE_YEAR if value == "static" else None
 
 
 class Trajectory(str, Enum):
@@ -113,10 +117,10 @@ class ESGTargetCreate(BaseModel):
     baseline: Optional[BaselineConfig] = None
     
     # Tracking
-    tracking_mode: TrackingMode = TrackingMode.STATIC
+    tracking_mode: TrackingMode = TrackingMode.SINGLE_YEAR
     tracking_values: Optional[Dict[str, float]] = None  # Key = period string, Value = target
-    start_period: Optional[str] = None         # For STATIC mode
-    end_period: Optional[str] = None           # For STATIC mode
+    start_period: Optional[str] = None         # For SINGLE_YEAR mode
+    end_period: Optional[str] = None           # For SINGLE_YEAR mode
     trajectory: Trajectory = Trajectory.MANUAL
     
     # Thresholds

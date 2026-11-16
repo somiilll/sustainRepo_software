@@ -42,13 +42,12 @@ const GOAL_TYPES = [
   { value: 'upper_limit', label: 'Upper Limit (≤)', description: 'Value should not exceed' },
   { value: 'lower_limit', label: 'Lower Limit (≥)', description: 'Value should not go below' },
   { value: 'range', label: 'Range', description: 'Value should be within range' },
-  { value: 'exact', label: 'Exact Value', description: 'Value should equal target' },
 ];
 
 const TRACKING_MODES = [
-  { value: 'static', label: 'Static', description: 'One target for a single year' },
-  { value: 'monthly', label: 'Monthly', description: 'Monthly target values' },
-  { value: 'yearly', label: 'Yearly', description: 'Target values for multiple years' },
+  { value: 'single_year', label: 'Single Year Target', description: 'One target for a single year' },
+  { value: 'monthly', label: 'Monthly Target', description: 'Monthly target values' },
+  { value: 'yearly', label: 'Year-by-year Target', description: 'Target values for multiple years' },
 ];
 
 // Generate future years only (up to 2060 for long-term targets like Net Zero)
@@ -122,7 +121,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       baseline: { period: '', value: '' },
       percentage_direction: 'decrease',
       percentage_amount: '',
-      tracking_mode: 'static',
+      tracking_mode: 'single_year',
       tracking_values: {},
       target_year: '',
       start_period: '',
@@ -394,13 +393,13 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         if (formData.goal_type === 'range') {
           if (!formData.baseline?.value) return false;
         }
-        // Baseline is mandatory for static tracking mode
-        if (formData.tracking_mode === 'static') {
+        // Baseline is mandatory for single year tracking mode
+        if (formData.tracking_mode === 'single_year') {
           if (!formData.baseline?.value || !formData.baseline?.period) return false;
         }
         return true;
       case 3: // Tracking
-        if (formData.tracking_mode === 'static') {
+        if (formData.tracking_mode === 'single_year') {
           if (formData.target_type === 'percentage') {
             return formData.target_year && formData.percentage_amount !== '';
           }
@@ -433,7 +432,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
   const prepareSubmitData = (status) => {
     // Determine reporting_period based on tracking mode
     let reportingPeriod = '';
-    if (formData.tracking_mode === 'static') {
+    if (formData.tracking_mode === 'single_year') {
       reportingPeriod = formData.target_year;
     } else if (formData.tracking_mode === 'yearly') {
       reportingPeriod = `${formData.start_period} - ${formData.end_period}`;
@@ -661,7 +660,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       case 2: // Target Definition
         const filteredTargetTypes = TARGET_TYPES.filter(t => {
           // Hide percentage for monthly/yearly
-          if (t.value === 'percentage' && formData.tracking_mode !== 'static') return false;
+          if (t.value === 'percentage' && formData.tracking_mode !== 'single_year') return false;
           // Intensity by revenue: org only
           if (t.value === 'intensity_revenue' && formData.scope_type !== 'organization') return false;
           return true;
@@ -680,13 +679,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                       updateField('tracking_values', {});
                       updateField('target_value', '');
                       // Reset target_type to absolute if switching away from static and percentage was selected
-                      if (mode.value !== 'static' && formData.target_type === 'percentage') {
+                      if (mode.value !== 'single_year' && formData.target_type === 'percentage') {
                         updateField('target_type', 'absolute');
                       }
                       // Auto-set goal_type based on tracking mode
-                      if (mode.value === 'static') {
-                        updateField('goal_type', 'exact');
-                      } else if (formData.goal_type === 'exact' || formData.goal_type === 'range') {
+                      if (formData.goal_type === 'exact' || formData.goal_type === 'range') {
                         updateField('goal_type', 'upper_limit');
                       }
                     }}
@@ -719,10 +716,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             <div>
               <Label className="text-sm font-medium">Goal Type *</Label>
               <div className="grid grid-cols-2 gap-3 mt-2">
-                {(formData.tracking_mode === 'static'
-                  ? GOAL_TYPES.filter(g => g.value === 'exact')
-                  : GOAL_TYPES.filter(g => g.value === 'upper_limit' || g.value === 'lower_limit')
-                ).map(goal => (
+                {GOAL_TYPES.filter(g => g.value === 'upper_limit' || g.value === 'lower_limit').map(goal => (
                   <Card 
                     key={goal.value}
                     className={`p-3 cursor-pointer border-2 transition-colors ${formData.goal_type === goal.value ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 hover:border-stone-300'}`}
@@ -763,7 +757,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             )}
 
-            {formData.tracking_mode === 'static' && (
+            {formData.tracking_mode === 'single_year' && (
             <div className="pt-4 border-t">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-sm font-medium">
@@ -779,8 +773,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               <p className="text-xs text-text-muted mb-2">
                 {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production')
                   ? 'Enter base year intensity value manually (e.g., 0.85 tCO₂e/tonne)'
-                  : formData.tracking_mode === 'static' 
-                    ? 'Required reference point for static target progress calculations'
+                  : formData.tracking_mode === 'single_year' 
+                    ? 'Required reference point for single year target progress calculations'
                     : 'Reference point for progress calculations'}
               </p>
               <div className="grid grid-cols-2 gap-4">
@@ -833,7 +827,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             </div>
 
             {/* Static Mode - Single Year + Target Value */}
-            {formData.tracking_mode === 'static' && (
+            {formData.tracking_mode === 'single_year' && (
               <div className="space-y-4">
                 <div>
                   <Label className="text-sm font-medium">Target Year *</Label>

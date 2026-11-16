@@ -929,7 +929,7 @@ def _sec_targets(story, styles, report):
 
         for t in sec_targets:
             name = t.get("name", "Unnamed Target")
-            tracking_mode = t.get("tracking_mode", "static")
+            tracking_mode = t.get("tracking_mode", "single_year")
             tv = t.get("target_value")
             av = t.get("actual_value")
             pct = t.get("progress_pct")
@@ -942,7 +942,7 @@ def _sec_targets(story, styles, report):
             tgt_hdr = ParagraphStyle("TgtHdr", fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#0f4c81"), spaceAfter=2)
             story.append(Paragraph(name, tgt_hdr))
 
-            mode_label = {"yearly": "Yearly", "static": "Static", "monthly": "Monthly"}.get(tracking_mode, tracking_mode.title())
+            mode_label = {"yearly": "Year-by-year", "single_year": "Single Year", "static": "Single Year", "monthly": "Monthly"}.get(tracking_mode, tracking_mode.title())
             if t.get("target_source") == "sbti":
                 term_label = (t.get("term_type") or "").replace("_", " ").title()
                 story.append(Paragraph(f"SBTi {term_label} Target  |  Target Year: {period}  |  Direction: {direction.title()}", note_s))
