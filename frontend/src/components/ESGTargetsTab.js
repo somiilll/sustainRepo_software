@@ -11,22 +11,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { 
-  Target, Plus, Search, Filter, History, Copy, Archive, Trash2, 
-  Edit2, ChevronDown, ChevronUp, Building2, Calendar, TrendingUp, MoreVertical,
-  CheckCircle2, Clock, XCircle, AlertCircle
-} from 'lucide-react';
+import { Target, Plus, Search, Filter, History } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
-import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,

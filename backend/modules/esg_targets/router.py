@@ -648,22 +648,6 @@ async def get_target_progress(
 
 
 
-@router.get("/{target_id}/chart-data")
-async def get_target_chart_data(
-    target_id: str,
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Get monthly chart data for a target's progress visualization.
-    Returns actual values per month + target values for chart rendering.
-    """
-    org_id = _get_org_id(current_user)
-    target = await esg_targets_service.get_target(target_id, org_id)
-    if not target:
-        raise HTTPException(status_code=404, detail="Target not found")
-    return await _build_chart_data(target, org_id)
-
-
 def _health_from_chart(chart: Optional[dict], fallback_pct: Optional[float] = None) -> str:
     """on_track | at_risk | breached | no_data - the same rules the chart's status badge uses."""
     if not chart:

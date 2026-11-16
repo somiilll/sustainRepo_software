@@ -79,19 +79,7 @@ class TestWithProgress:
         assert isinstance(r.json(), list)
 
 
-class TestChartDataEndpoint:
-    def test_chart_data_matches_embedded_chart(self, client, env_targets):
-        for t in env_targets:
-            if not t.get("chart"):
-                continue
-            r = client.get(f"{BASE_URL}/api/esg-targets/{t['id']}/chart-data")
-            assert r.status_code == 200
-            assert r.json() == t["chart"]
-
-    def test_chart_data_404(self, client):
-        r = client.get(f"{BASE_URL}/api/esg-targets/nonexistent-id-xyz/chart-data")
-        assert r.status_code == 404
-
+class TestAuth:
     def test_unauthenticated(self):
         r = requests.get(f"{BASE_URL}/api/esg-targets/with-progress", params={"section": "environment"})
         assert r.status_code in (401, 403)
