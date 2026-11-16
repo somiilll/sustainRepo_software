@@ -393,8 +393,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         if (formData.goal_type === 'range') {
           if (!formData.baseline?.value) return false;
         }
-        // Baseline is mandatory for single year tracking mode
-        if (formData.tracking_mode === 'single_year') {
+        // Baseline is mandatory for single year percentage targets only
+        if (formData.tracking_mode === 'single_year' && formData.target_type === 'percentage') {
           if (!formData.baseline?.value || !formData.baseline?.period) return false;
         }
         return true;
@@ -460,7 +460,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       percentage_amount: formData.target_type === 'percentage' && formData.percentage_amount ? parseFloat(formData.percentage_amount) : null,
       minimum_value: formData.minimum_value ? parseFloat(formData.minimum_value) : null,
       maximum_value: formData.maximum_value ? parseFloat(formData.maximum_value) : null,
-      baseline: formData.baseline?.value ? {
+      baseline: formData.baseline?.value && (formData.tracking_mode !== 'single_year' || formData.target_type === 'percentage') ? {
         period: formData.baseline.period,
         value: parseFloat(formData.baseline.value)
       } : null,
@@ -757,8 +757,8 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             )}
 
-            {formData.tracking_mode === 'single_year' && (
-            <div className="pt-4 border-t">
+            {formData.tracking_mode === 'single_year' && formData.target_type === 'percentage' && (
+            <div className="pt-4 border-t" data-testid="baseline-section">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-sm font-medium">
                   Baseline *
