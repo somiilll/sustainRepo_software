@@ -50,9 +50,8 @@ function PeriodicPanel({ chart }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-stone-600" data-testid="target-card-stats">
         <span><b className="text-emerald-700">{within}</b> {lower ? 'met' : 'within'}</span>
-        <span><b className="text-red-700">{over.length}</b> {lower ? 'short' : 'over'}{over.length > 0 && ` (${over.map((r) => r.label).join(', ')})`}</span>
+        <span><b className="text-red-700">{over.length}</b> {lower ? 'short' : 'over'}</span>
         <span><b className="text-stone-900">{awaiting}</b> awaiting</span>
-        {tot.count > 0 && <span>{monthly ? 'YTD' : 'Total'} <b className="text-stone-900">{fmt(tot.actual, 2)}</b> / {fmt(tot.target, 2)}</span>}
       </div>
     </>
   );

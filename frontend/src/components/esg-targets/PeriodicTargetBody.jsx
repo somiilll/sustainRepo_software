@@ -109,17 +109,14 @@ export function PeriodicTargetBody({ target, chart }) {
   const within = rows.filter((r) => r.within === true);
   const over = rows.filter((r) => r.within === false);
   const awaiting = rows.filter((r) => r.awaiting);
-  const tot = periodTotals(rows);
   const names = (xs) => (xs.length ? xs.map((x) => x.label).join(', ') : '—');
   const unitWord = monthly ? 'months' : 'years';
   return (
     <div className="space-y-5" data-testid="periodic-target-body">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <SummaryCard label={lower ? 'Met target' : 'Within target'} value={within.length} sub={unitWord} tone="border-emerald-200 bg-emerald-50/60" valueTone="text-emerald-800" testId="period-within" />
         <SummaryCard label={lower ? 'Below target' : 'Over target'} value={over.length} sub={names(over)} tone="border-red-200 bg-red-50/70" valueTone="text-red-700" testId="period-over" />
         <SummaryCard label="Awaiting data" value={awaiting.length} sub={names(awaiting)} tone="border-stone-200 bg-stone-50" valueTone="text-stone-700" testId="period-awaiting" />
-        <SummaryCard label={monthly ? 'Year to date' : 'Total to date'} value={tot.count ? fmt(tot.actual, 2) : '—'} tone="border-stone-200 bg-white" testId="period-ytd"
-          sub={tot.count ? `against a target of ${fmt(tot.target, 2)} for ${tot.from}${tot.from !== tot.to ? ` to ${tot.to}` : ''}` : 'No data yet'} />
       </div>
       <PeriodChart rows={rows} lower={lower} monthly={monthly} />
       <div>
