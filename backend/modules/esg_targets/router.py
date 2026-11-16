@@ -701,6 +701,55 @@ async def _attach_charts(results: list, org_id: str) -> None:
     await asyncio.gather(*(one(t) for t in results))
 
 
+async def _year_actual(target: dict, org_id: str, facility_ids, reporting_type: str, yr: int):
+    """(total, has_data) of the KPI over one reporting year (sum of its months), intensity-adjusted per month."""
+    from modules.kpi_engine import kpi_calculator
+    months = [(yr, m) for m in range(4, 13)] + [(yr + 1, m) for m in range(1, 4)] if reporting_type == "FY" else [(yr, m) for m in range(1, 13)]
+    total, has = 0.0, False
+    for m_yr, m_num in months:
+        try:
+            calc = await kpi_calculator.calculate(kpi_id=target["kpi_id"], org_id=org_id, scope_type=target.get("scope_type", "organization"),
+                                                  facility_ids=facility_ids, period={"year": m_yr, "month": m_num})
+            val = calc.get("value")
+            if val is not None and target.get("target_type") in ("intensity_revenue", "intensity_production"):
+                denom = await _get_denominator_for_intensity(target, org_id, {"year": m_yr, "month": m_num})
+                val = val / denom["value"] if denom.get("value") else None
+            if val is not None:
+                total, has = total + val, True
+        except Exception:
+            pass
+    return total, has
+
+
+async def _single_year_series(target: dict, org_id: str, facility_ids, reporting_type: str, goal: Optional[float]) -> list:
+    """One row per reporting year from the year the target was created to its target year; `target` is the linear expected path
+    from the created year's actual to the goal."""
+    target_year = _extract_year_from_period(target.get("reporting_period", ""))
+    created = target.get("created_at")
+    if isinstance(created, str):
+        try:
+            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            created = None
+    if not target_year or not isinstance(created, datetime) or not goal:
+        return []
+    now = datetime.now(timezone.utc)
+    shift = lambda d: d.year - 1 if reporting_type == "FY" and d.month < 4 else d.year  # noqa: E731
+    start, cur = min(shift(created), target_year), shift(now)
+    actuals = {}
+    for y in range(start, min(target_year, cur) + 1):
+        total, has = await _year_actual(target, org_id, facility_ids, reporting_type, y)
+        actuals[y] = total if has else None
+    first, span, rows = actuals.get(start), target_year - start, []
+    for y in range(start, target_year + 1):
+        expected = goal if span == 0 else (first + (goal - first) * (y - start) / span if first is not None else None)
+        a = actuals.get(y)
+        rows.append({"year_label": format_period(y, reporting_type), "year": y, "actual": round(a, 2) if a is not None else None,
+                     "target": round(expected, 4) if expected is not None else None, "goal": goal if y == target_year else None,
+                     "status": "no_data", "is_current": y == cur, "is_future": y > cur})
+    return rows
+
+
 async def _build_chart_data(target: dict, org_id: str) -> dict:
     from modules.kpi_engine import kpi_calculator
 
@@ -935,6 +984,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
             "target_value": tv,
             "target_period": reporting_period,
             "progress_percentage": progress_pct,
+            "year_series": await _single_year_series(target, org_id, facility_ids, await _get_org_reporting_type(org_id), tv),
         }
 
     return {"target_id": target_id, "chart_type": "unknown", "data": []}

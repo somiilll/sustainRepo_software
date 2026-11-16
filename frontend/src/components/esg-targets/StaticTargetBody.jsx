@@ -1,5 +1,6 @@
 import React from 'react';
 import { HEALTH, fmt, fmtSigned, niceMax, periodText } from './targetUtils';
+import { PeriodChart, enrichPeriods } from './PeriodicTargetBody';
 
 const Stat = ({ label, value, sub, tone, testId }) => (
   <div className={`rounded-xl border p-4 ${tone}`} data-testid={testId}>
@@ -77,7 +78,9 @@ export function StaticTargetBody({ target, chart, health }) {
         <Stat label="Target" tone="border-emerald-200 bg-emerald-50/60 text-emerald-800" testId="target-target-card" value={fmt(t, 3)}
           sub={<>{periodText(chart.target_period)}{c != null && <> · <span className="font-medium text-emerald-700">{reached ? 'Target reached' : `${fmt(gap)} to ${reduction ? 'cut' : 'add'}`}</span></>}</>} />
       </div>
-      <Scale b={b} c={c} t={t} hasBase={hasBase} wrong={wrong} unit={unit} />
+      {chart.year_series?.length
+        ? <PeriodChart rows={enrichPeriods({ goal_type: chart.goal_type, data: chart.year_series })} lower={chart.goal_type === 'lower_limit'} monthly={false} single />
+        : <Scale b={b} c={c} t={t} hasBase={hasBase} wrong={wrong} unit={unit} />}
     </div>
   );
 }
