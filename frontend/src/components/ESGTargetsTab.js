@@ -11,7 +11,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Target, Plus, Search, Filter, History } from 'lucide-react';
+import { Target, Plus, Search, Filter, History, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card } from './ui/card';
@@ -110,10 +110,8 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get(`${API}/api/esg-records/categories/${section}`, { headers });
-        const cats = res.data || [];
-        const uniqueCats = [...new Set(cats.map(c => c.category))];
-        setCategories(uniqueCats);
+        const res = await axios.get(`${API}/api/esg-targets/lookup/categories?section=${section}`, { headers });
+        setCategories(Object.keys(res.data?.hierarchy || {}));
       } catch (error) {
         console.error('Failed to fetch categories:', error);
       }
