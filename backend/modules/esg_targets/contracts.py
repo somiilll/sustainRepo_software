@@ -68,13 +68,6 @@ class TargetStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class ThresholdConfig(BaseModel):
-    """Optional warning thresholds for dashboards."""
-    green: Optional[float] = None
-    amber: Optional[float] = None
-    red: Optional[float] = None
-
-
 class BaselineConfig(BaseModel):
     """Baseline reference for progress calculations."""
     period: Optional[str] = None      # e.g., "FY 2024-25"
@@ -123,9 +116,6 @@ class ESGTargetCreate(BaseModel):
     end_period: Optional[str] = None           # For SINGLE_YEAR mode
     trajectory: Trajectory = Trajectory.MANUAL
     
-    # Thresholds
-    thresholds: Optional[ThresholdConfig] = None
-    
     # Status
     status: TargetStatus = TargetStatus.DRAFT
     
@@ -167,8 +157,6 @@ class ESGTargetUpdate(BaseModel):
     start_period: Optional[str] = None
     end_period: Optional[str] = None
     trajectory: Optional[Trajectory] = None
-    
-    thresholds: Optional[ThresholdConfig] = None
     
     status: Optional[TargetStatus] = None
     
@@ -217,8 +205,6 @@ class ESGTargetResponse(BaseModel):
     start_period: Optional[str] = None
     end_period: Optional[str] = None
     trajectory: str
-    
-    thresholds: Optional[Dict[str, Any]] = None
     
     status: str
     

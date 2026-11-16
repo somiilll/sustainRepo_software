@@ -126,7 +126,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       target_year: '',
       start_period: '',
       end_period: '',
-      thresholds: { green: '', amber: '', red: '' },
     };
     
     if (!initialData) return base;
@@ -137,7 +136,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       // Map reporting_period to target_year for backward compatibility
       target_year: initialData.target_year || initialData.reporting_period || '',
       baseline: initialData.baseline || { period: '', value: '' },
-      thresholds: initialData.thresholds || { green: '', amber: '', red: '' },
       tracking_values: initialData.tracking_values || {},
       facility_ids: initialData.facility_ids || [],
     };
@@ -463,11 +461,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       baseline: formData.baseline?.value && (formData.tracking_mode !== 'single_year' || formData.target_type === 'percentage') ? {
         period: formData.baseline.period,
         value: parseFloat(formData.baseline.value)
-      } : null,
-      thresholds: (formData.thresholds?.green || formData.thresholds?.amber || formData.thresholds?.red) ? {
-        green: formData.thresholds.green ? parseFloat(formData.thresholds.green) : null,
-        amber: formData.thresholds.amber ? parseFloat(formData.thresholds.amber) : null,
-        red: formData.thresholds.red ? parseFloat(formData.thresholds.red) : null,
       } : null,
       tracking_values: Object.keys(formData.tracking_values).length > 0 
         ? Object.fromEntries(Object.entries(formData.tracking_values).map(([k, v]) => [k, parseFloat(v)]))

@@ -77,8 +77,6 @@ class ESGTargetsService:
             "end_period": data.end_period,
             "trajectory": data.trajectory.value,
             
-            "thresholds": data.thresholds.dict() if data.thresholds else None,
-            
             "status": data.status.value,
             
             "metadata": data.metadata,
