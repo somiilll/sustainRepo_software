@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronDown, ChevronUp, ArrowRight, Building2, Calendar, MoreVertical, History, Edit2, Copy, Archive, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { HEALTH, STATUS_PILL, TARGET_TYPE_LABELS, TRACKING_MODE_LABELS, fmt, periodText } from './targetUtils';
+import { HEALTH, STATUS_PILL, TARGET_TYPE_LABELS, TRACKING_MODE_LABELS, fmt, fmtSigned, periodText } from './targetUtils';
 import { StaticTargetBody } from './StaticTargetBody';
 import { PeriodicTargetBody, enrichPeriods, periodTotals } from './PeriodicTargetBody';
 
@@ -13,10 +13,12 @@ const Tag = ({ children, icon: Icon, tone = 'bg-stone-100 text-stone-700' }) => 
 function progressOf(target, chart) {
   if (chart && chart.chart_type !== 'static' && chart.data) {
     const t = periodTotals(enrichPeriods(chart));
-    return { label: 'Year to date', value: t.count && t.target ? `${fmt((t.actual / t.target) * 100, 0)}%` : '—' };
+    const pct = t.count && t.target ? (t.actual / t.target) * 100 : null;
+    const bad = pct != null && (chart.goal_type === 'lower_limit' ? pct < 100 : pct > 100);
+    return { label: 'Year to date', value: pct == null ? '—' : `${fmt(pct, 0)}%`, tone: pct == null ? null : bad ? 'text-red-700' : 'text-emerald-700' };
   }
-  const p = target.progress_percentage;
-  return { label: 'Progress', value: p == null ? '—' : `${fmt(p, 0)}%` };
+  const p = chart?.progress_percentage ?? target.progress_percentage;
+  return { label: 'Progress', value: p == null ? '—' : `${fmtSigned(p, 0)}%`, tone: null };
 }
 
 function Body({ target }) {
@@ -52,7 +54,7 @@ export function TargetCard({ target, expanded, onToggle, isAdmin, actions }) {
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-right">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{prog.label}</div>
-            <div className={`text-2xl font-semibold tracking-tight ${h.text}`} data-testid={`target-progress-${target.id}`}>{prog.value}</div>
+            <div className={`text-2xl font-semibold tracking-tight ${prog.tone || h.text}`} data-testid={`target-progress-${target.id}`}>{prog.value}</div>
           </div>
           {target.health && (
             <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${h.pill}`} data-testid={`target-health-${target.id}`}>

@@ -28,21 +28,23 @@ const SummaryCard = ({ label, value, sub, tone, valueTone = '', testId }) => (
   </div>
 );
 
+const svgText = (props, str) => React.createElement('text', props, str);
+
 const BarLabel = ({ x, y, width, value, index, rows, lower }) => {
   const d = rows[index];
   if (value == null || !d) return null;
   const over = d.within === false;
   return (
     <g>
-      <text x={x + width / 2} y={y - 8} textAnchor="middle" fontSize={12} fontWeight={600} fill={over ? RED : GREEN}>{fmt(value, 0)}</text>
-      {over && <text x={x + width + 10} y={y + 6} fontSize={12} fontWeight={500} fill={RED}>{d.diff > 0 ? '+' : '−'}{fmt(Math.abs(d.diff), 0)} {lower ? 'below' : 'over'} target</text>}
+      {svgText({ x: x + width / 2, y: y - 8, textAnchor: 'middle', fontSize: 12, fontWeight: 600, fill: over ? RED : GREEN }, fmt(value, 0))}
+      {over && svgText({ x: x + width + 10, y: y + 6, fontSize: 12, fontWeight: 500, fill: RED }, `${d.diff > 0 ? '+' : '−'}${fmt(Math.abs(d.diff), 0)} ${lower ? 'below' : 'over'} target`)}
     </g>
   );
 };
 
 function PeriodChart({ rows, lower, monthly }) {
   const now = rows.find((r) => r.is_current);
-  const tick = ({ x, y, payload }) => <text x={x} y={y + 18} textAnchor="middle" fontSize={12} fontWeight={payload.value === now?.label ? 700 : 400} fill={payload.value === now?.label ? '#1c1917' : '#78716c'}>{payload.value}</text>;
+  const tick = ({ x, y, payload }) => svgText({ x, y: y + 18, textAnchor: 'middle', fontSize: 12, fontWeight: payload.value === now?.label ? 700 : 400, fill: payload.value === now?.label ? '#1c1917' : '#78716c' }, String(payload.value));
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-4" data-testid="period-chart">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -74,9 +76,9 @@ function PeriodChart({ rows, lower, monthly }) {
 }
 
 function PeriodCard({ r, lower, unit }) {
-  const state = r.within === true ? 'within' : r.within === false ? 'over' : r.awaiting || (r.is_current && r.actual == null) ? 'nodata' : r.upcoming ? 'upcoming' : 'nodata';
-  const style = { within: 'border-emerald-200 bg-emerald-50/60', over: 'border-red-200 bg-red-50', nodata: 'border-stone-200 bg-stone-50', upcoming: 'border-stone-200 bg-white opacity-70' }[state];
-  const pill = { within: [lower ? 'Met target' : 'Within target', 'text-emerald-800', 'bg-emerald-600'], over: [lower ? 'Below target' : 'Over target', 'text-red-700', 'bg-red-600'], nodata: ['No data', 'text-stone-500', 'bg-stone-400'], upcoming: ['Upcoming', 'text-stone-400', 'bg-stone-300'] }[state];
+  const state = r.actual != null && r.target == null ? 'notarget' : r.within === true ? 'within' : r.within === false ? 'over' : r.awaiting || (r.is_current && r.actual == null) ? 'nodata' : r.upcoming ? 'upcoming' : 'nodata';
+  const style = { within: 'border-emerald-200 bg-emerald-50/60', over: 'border-red-200 bg-red-50', nodata: 'border-stone-200 bg-stone-50', notarget: 'border-stone-200 bg-white', upcoming: 'border-stone-200 bg-white opacity-70' }[state];
+  const pill = { within: [lower ? 'Met target' : 'Within target', 'text-emerald-800', 'bg-emerald-600'], over: [lower ? 'Below target' : 'Over target', 'text-red-700', 'bg-red-600'], nodata: ['No data', 'text-stone-500', 'bg-stone-400'], notarget: ['No target', 'text-stone-500', 'bg-stone-400'], upcoming: ['Upcoming', 'text-stone-400', 'bg-stone-300'] }[state];
   const note = r.actual != null && r.target != null
     ? `Target ${fmt(r.target, 0)} · ${fmt(Math.abs(r.diff), 0)} ${r.diff <= 0 ? (lower ? 'short' : 'under') : (lower ? 'above' : 'over')}`
     : r.target == null ? 'No target set' : r.awaiting ? (r.is_current ? "Waiting for this month's entry" : 'Waiting for entry') : `Target ${fmt(r.target, 0)}`;

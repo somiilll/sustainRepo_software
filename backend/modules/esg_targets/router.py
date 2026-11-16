@@ -6,6 +6,7 @@ Admin-only for write operations, all authenticated users can read.
 """
 
 import asyncio
+import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -692,6 +693,7 @@ async def _attach_charts(results: list, org_id: str) -> None:
             try:
                 chart = await _build_chart_data(t, org_id)
             except Exception:
+                logging.getLogger(__name__).exception("Chart data failed for target %s", t.get("id"))
                 chart = None
         t["chart"] = chart
         t["health"] = _health_from_chart(chart, t.get("progress_percentage"))
