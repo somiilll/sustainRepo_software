@@ -5,6 +5,7 @@ API endpoints for ESG target management.
 Admin-only for write operations, all authenticated users can read.
 """
 
+import asyncio
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -528,7 +529,8 @@ async def list_targets_with_progress(
             target_with_progress["progress_percentage"] = None
         
         results.append(target_with_progress)
-    
+
+    await _attach_charts(results, org_id)
     return results
 
 
@@ -654,13 +656,53 @@ async def get_target_chart_data(
     Get monthly chart data for a target's progress visualization.
     Returns actual values per month + target values for chart rendering.
     """
-    from modules.kpi_engine import kpi_calculator
-
     org_id = _get_org_id(current_user)
     target = await esg_targets_service.get_target(target_id, org_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
+    return await _build_chart_data(target, org_id)
 
+
+def _health_from_chart(chart: Optional[dict], fallback_pct: Optional[float] = None) -> str:
+    """on_track | at_risk | breached | no_data - the same rules the chart's status badge uses."""
+    if not chart:
+        return "no_data"
+    kind = chart.get("chart_type")
+    if kind == "static":
+        pct = chart.get("progress_percentage")
+        pct = fallback_pct if pct is None else pct
+        if chart.get("current_value") is None or pct is None:
+            return "no_data"
+        return "on_track" if pct >= 75 else ("at_risk" if pct >= 40 else "breached")
+    if kind in ("monthly", "yearly", "yearly_cumulative"):
+        latest = next((d for d in reversed(chart.get("data") or []) if d.get("actual") is not None and not d.get("is_future") and d.get("status") != "no_data"), None)
+        return latest["status"] if latest else "no_data"
+    return "no_data"
+
+
+async def _attach_charts(results: list, org_id: str) -> None:
+    """Adds `chart` and `health` to every live target, a few at a time."""
+    gate = asyncio.Semaphore(4)
+
+    async def one(t: dict) -> None:
+        if t.get("status") == "expired" or not t.get("kpi_id"):
+            t["health"], t["chart"] = None, None
+            return
+        async with gate:
+            try:
+                chart = await _build_chart_data(t, org_id)
+            except Exception:
+                chart = None
+        t["chart"] = chart
+        t["health"] = _health_from_chart(chart, t.get("progress_percentage"))
+
+    await asyncio.gather(*(one(t) for t in results))
+
+
+async def _build_chart_data(target: dict, org_id: str) -> dict:
+    from modules.kpi_engine import kpi_calculator
+
+    target_id = target.get("id")
     kpi_id = target.get("kpi_id")
     if not kpi_id:
         return {"target_id": target_id, "chart_type": "none", "data": [], "message": "No KPI linked"}

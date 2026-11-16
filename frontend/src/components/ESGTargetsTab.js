@@ -7,7 +7,7 @@
  * - Version history viewing
  * - Admin-only write access
  */
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -47,35 +47,11 @@ import { isAdmin } from '../utils/roleUtils';
 import ESGTargetForm from './ESGTargetForm';
 import ESGTargetVersionHistory from './ESGTargetVersionHistory';
 import { ModulePageHeader } from './ModulePageHeader';
+import { TargetCard } from './esg-targets/TargetCard';
+import { TargetSummaryCards, summarize } from './esg-targets/TargetSummaryCards';
 
-const TargetProgressChart = lazy(() => import('./TargetProgressChart'));
 
 const API = process.env.REACT_APP_BACKEND_URL;
-
-const STATUS_CONFIG = {
-  draft: { label: 'Draft', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
-  active: { label: 'Active', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  completed: { label: 'Completed', color: 'bg-blue-100 text-blue-700', icon: CheckCircle2 },
-  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700', icon: XCircle },
-  archived: { label: 'Archived', color: 'bg-stone-100 text-stone-500', icon: Archive },
-  expired: { label: 'Expired', color: 'bg-stone-100 text-stone-500', icon: AlertCircle },
-};
-
-const TARGET_TYPE_LABELS = {
-  absolute: 'Absolute',
-  percentage: 'Percentage',
-  intensity: 'Intensity',
-  intensity_revenue: 'Intensity (Revenue)',
-  intensity_production: 'Intensity (Production)',
-};
-
-const TRACKING_MODE_LABELS = {
-  static: 'Static',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  half_yearly: 'Half Yearly',
-  yearly: 'Yearly',
-};
 
 const SECTION_HEADERS = {
   environment: { title: 'Environment Targets', iconClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
@@ -131,7 +107,6 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
       
       // Use with-progress endpoint to get calculated progress
       const res = await axios.get(`${API}/api/esg-targets/with-progress?${params.toString()}`, { headers });
-      console.log("res.data", res.data)
       setTargets(res.data || []);
     } catch (error) {
       console.error('Failed to fetch targets:', error);
@@ -262,142 +237,6 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
     }
   };
 
-  const getStatusBadge = (status) => {
-    const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
-    const Icon = config.icon;
-    return (
-      <Badge className={`${config.color} gap-1`}>
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </Badge>
-    );
-  };
-
-  const formatTargetValue = (target) => {
-    const { goal_type, target_value, minimum_value, maximum_value, unit } = target;
-    
-    if (goal_type === 'range') {
-      return `${minimum_value} - ${maximum_value} ${unit || ''}`;
-    }
-    
-    const prefix = goal_type === 'upper_limit' ? '≤ ' : goal_type === 'lower_limit' ? '≥ ' : '';
-    return `${prefix}${target_value} ${unit || ''}`;
-  };
-
-  const getProgressBadge = (target) => {
-    const { progress_percentage, actual_value, kpi_id, over_target, under_target } = target;
-    
-    // No KPI linked - can't calculate progress
-    if (!kpi_id) {
-      return (
-        <Badge variant="outline" className="text-xs text-stone-400">
-          No KPI
-        </Badge>
-      );
-    }
-    
-    // No progress calculated yet
-    if (progress_percentage === null || progress_percentage === undefined) {
-      // Check for intensity error
-      if (target.intensity_error) {
-        return (
-          <div className="flex flex-col items-start gap-0.5">
-            <Badge className="bg-amber-100 text-amber-700 text-xs font-semibold" data-testid="progress-badge">
-              Data Missing
-            </Badge>
-            <span className="text-[10px] text-amber-600">{target.intensity_error}</span>
-          </div>
-        );
-      }
-      return (
-        <Badge variant="outline" className="text-xs text-stone-400">
-          N/A
-        </Badge>
-      );
-    }
-    
-    const ratio = target.progress_ratio;
-    const goalType = target.goal_type;
-    const trackingMode = target.tracking_mode;
-    const isPeriodicTarget = trackingMode === 'monthly' || trackingMode === 'yearly';
-
-    // Monthly/Yearly targets — color by ratio + goal_type
-    if (isPeriodicTarget && ratio != null) {
-      let colorClass = 'bg-orange-100 text-orange-700'; // close to 1
-      const absRatio = Math.abs(ratio);
-      const displayRatio = absRatio.toFixed(2);
-
-      if (goalType === 'lower_limit') {
-        // Higher is better
-        if (ratio > 1.1) colorClass = 'bg-green-100 text-green-700';
-        else if (ratio >= 0.9) colorClass = 'bg-orange-100 text-orange-700';
-        else colorClass = 'bg-red-100 text-red-700';
-      } else {
-        // upper_limit — lower is better
-        if (ratio > 1.1) colorClass = 'bg-red-100 text-red-700';
-        else if (ratio >= 0.9) colorClass = 'bg-orange-100 text-orange-700';
-        else colorClass = 'bg-green-100 text-green-700';
-      }
-
-      const label = over_target ? `${displayRatio}x over` : `${displayRatio}x`;
-
-      return (
-        <div className="flex flex-col items-start gap-0.5">
-          <Badge className={`${colorClass} text-xs font-semibold`} data-testid="progress-badge">
-            {label}
-          </Badge>
-          {actual_value !== null && (
-            <span className="text-[10px] text-text-muted">
-              Actual: {actual_value.toLocaleString()}
-            </span>
-          )}
-        </div>
-      );
-    }
-
-    // Over target (static/other) — red
-    if (over_target) {
-      const displayRatio = ratio != null ? Math.abs(ratio).toFixed(2) : Math.abs(progress_percentage).toFixed(0);
-      return (
-        <div className="flex flex-col items-start gap-0.5">
-          <Badge className="bg-red-100 text-red-700 text-xs font-semibold" data-testid="progress-badge">
-            {displayRatio}x over
-          </Badge>
-          {actual_value !== null && (
-            <span className="text-[10px] text-text-muted">
-              Actual: {actual_value.toLocaleString()}
-            </span>
-          )}
-        </div>
-      );
-    }
-
-    // Static targets — percentage-based coloring
-    let colorClass = 'bg-red-100 text-red-700';
-    if (progress_percentage >= 100) {
-      colorClass = 'bg-green-100 text-green-700';
-    } else if (progress_percentage >= 75) {
-      colorClass = 'bg-emerald-100 text-emerald-700';
-    } else if (progress_percentage >= 50) {
-      colorClass = 'bg-yellow-100 text-yellow-700';
-    } else if (progress_percentage >= 25) {
-      colorClass = 'bg-orange-100 text-orange-700';
-    }
-    
-    return (
-      <div className="flex flex-col items-start gap-0.5">
-        <Badge className={`${colorClass} text-xs font-semibold`} data-testid="progress-badge">
-          {progress_percentage.toFixed(0)}%
-        </Badge>
-        {actual_value !== null && (
-          <span className="text-[10px] text-text-muted">
-            Actual: {actual_value.toLocaleString()}
-          </span>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-7" data-testid="esg-targets-tab">
       <ModulePageHeader
@@ -416,6 +255,8 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
           </Button>
         )}
       />
+
+      {!loading && <TargetSummaryCards counts={summarize(targets)} />}
 
       {/* Search and Filters */}
       <Card className="p-4">
@@ -494,153 +335,35 @@ export default function ESGTargetsTab({ section = 'environment', reportingPeriod
         )}
       </Card>
 
-      {/* Targets Table */}
-      <Card className="overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
-          </div>
-        ) : targets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Target className="w-16 h-16 text-stone-300 mb-4" />
-            <h3 className="text-lg font-semibold text-text-primary mb-2">No targets found</h3>
-            <p className="text-text-muted max-w-md mb-4">
-              {search || Object.values(filters).some(v => v) 
-                ? 'Try adjusting your search or filters'
-                : 'Create your first ESG target to track KPI performance'}
-            </p>
-            {userIsAdmin && !search && (
-              <Button
-                onClick={handleCreate}
-                className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
-                data-testid="esg-empty-add-target-button"
-              >
-                <Plus className="w-4 h-4" />
-                Add Target
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50 border-b border-stone-200">
-                <tr>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">KPI / Metric</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Target</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Progress</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Type</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Tracking</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Scope</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Period</th>
-                  <th className="text-left text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-right text-xs font-semibold text-text-muted uppercase tracking-wider px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {targets.map(target => {
-                  const isExpanded = expandedTargets[target.id];
-                  return (
-                  <React.Fragment key={target.id}>
-                  <tr className="hover:bg-stone-50/50 cursor-pointer" data-testid={`target-row-${target.id}`}
-                    onClick={() => setExpandedTargets(prev => ({ ...prev, [target.id]: !prev[target.id] }))}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-stone-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-stone-400 shrink-0" />}
-                        <div>
-                          <p className="font-medium text-text-primary text-sm">{target.kpi_name || target.metric_label || target.metric_key}</p>
-                          <p className="text-xs text-text-muted">{target.category} → {target.subcategory}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-text-primary text-sm">{target.target_name}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {getProgressBadge(target)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="outline" className="text-xs">
-                        {TARGET_TYPE_LABELS[target.target_type] || target.target_type}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-text-secondary">
-                        {TRACKING_MODE_LABELS[target.tracking_mode] || target.tracking_mode}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-sm text-text-secondary">
-                        <Building2 className="w-3 h-3" />
-                        {target.scope_type === 'organization' ? 'Organization' : 
-                          target.facility_names?.join(', ') || `${target.facility_ids?.length || 0} facilities`}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-sm text-text-secondary">
-                        <Calendar className="w-3 h-3" />
-                        {target.reporting_period}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {getStatusBadge(target.status)}
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewHistory(target)}>
-                            <History className="w-4 h-4 mr-2" />
-                            View History
-                          </DropdownMenuItem>
-                          {userIsAdmin && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleEdit(target)}>
-                                <Edit2 className="w-4 h-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDuplicate(target)}>
-                                <Copy className="w-4 h-4 mr-2" />
-                                Duplicate
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleArchive(target)}>
-                                <Archive className="w-4 h-4 mr-2" />
-                                Archive
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => setDeleteConfirm(target)}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-4 bg-stone-50/30">
-                        <Suspense fallback={<div className="flex justify-center py-6"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600" /></div>}>
-                          <TargetProgressChart targetId={target.id} />
-                        </Suspense>
-                      </td>
-                    </tr>
-                  )}
-                  </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-emerald-600" /></div>
+      ) : targets.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center py-16 text-center">
+          <Target className="mb-4 h-16 w-16 text-stone-300" />
+          <h3 className="mb-2 text-lg font-semibold text-text-primary">No targets found</h3>
+          <p className="mb-4 max-w-md text-text-muted">
+            {search || Object.values(filters).some(v => v) ? 'Try adjusting your search or filters' : 'Create your first ESG target to track KPI performance'}
+          </p>
+          {userIsAdmin && !search && (
+            <Button onClick={handleCreate} className="rounded-full bg-primary px-6 text-white hover:bg-primary/90" data-testid="esg-empty-add-target-button">
+              <Plus className="h-4 w-4" />Add Target
+            </Button>
+          )}
+        </Card>
+      ) : (
+        <div className="space-y-5" data-testid="target-card-list">
+          {targets.map(target => (
+            <TargetCard
+              key={target.id}
+              target={target}
+              expanded={expandedTargets[target.id] !== false}
+              onToggle={() => setExpandedTargets(prev => ({ ...prev, [target.id]: prev[target.id] === false }))}
+              isAdmin={userIsAdmin}
+              actions={{ history: handleViewHistory, edit: handleEdit, duplicate: handleDuplicate, archive: handleArchive, remove: setDeleteConfirm }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Create/Edit Form Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
