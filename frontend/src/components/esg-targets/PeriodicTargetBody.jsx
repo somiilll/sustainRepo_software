@@ -1,6 +1,6 @@
 import React from 'react';
 import { ComposedChart, Bar, Line, Cell, XAxis, YAxis, CartesianGrid, ReferenceLine, ReferenceDot, ResponsiveContainer, LabelList } from 'recharts';
-import { fmt, periodText } from './targetUtils';
+import { BAND, band, fmt, periodText } from './targetUtils';
 
 const GREEN = '#2f7a56';
 const RED = '#b4443c';
@@ -12,7 +12,7 @@ export function enrichPeriods(chart) {
     const has = d.actual != null;
     const hasT = d.target != null;
     const within = has && hasT ? (lower ? d.actual >= d.target : d.actual <= d.target) : null;
-    return { ...d, label: d.month || d.year_label, within, diff: has && hasT ? d.actual - d.target : null, awaiting: !has && hasT && !d.is_future, upcoming: !has && d.is_future };
+    return { ...d, label: d.month || d.year_label, band: has && hasT ? band(d.actual, d.target, lower) : null, within, diff: has && hasT ? d.actual - d.target : null, awaiting: !has && hasT && !d.is_future, upcoming: !has && d.is_future };
   });
 }
 
@@ -37,7 +37,7 @@ const BarLabel = ({ x, y, width, value, index, rows, lower, single }) => {
   const over = d.within === false;
   return (
     <g>
-      {svgText({ x: x + width / 2, y: y - 8, textAnchor: 'middle', fontSize: 12, fontWeight: 600, fill: over ? RED : GREEN }, fmt(value, 0))}
+      {svgText({ x: x + width / 2, y: y - 8, textAnchor: 'middle', fontSize: 12, fontWeight: 600, fill: d.band ? BAND[d.band].fill : GREEN }, fmt(value, 0))}
       {over && svgText({ x: x + width + 10, y: y + 6, fontSize: 12, fontWeight: 500, fill: RED }, `${d.diff > 0 ? '+' : '−'}${fmt(Math.abs(d.diff), 0)} ${single ? `${lower ? 'below' : 'above'} expected` : `${lower ? 'below' : 'over'} target`}`)}
     </g>
   );
@@ -52,6 +52,7 @@ export function PeriodChart({ rows, lower, monthly, single = false }) {
         <div className="text-base font-semibold text-stone-900">{monthly ? 'Monthly' : 'Yearly'} actual vs {single ? 'expected' : 'target'}</div>
         <div className="flex flex-wrap items-center gap-4 text-xs text-stone-600">
           <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-[3px]" style={{ background: GREEN }} />{lower ? 'Met target' : 'Within target'}</span>
+          <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-[3px]" style={{ background: BAND.at_risk.fill }} />Close to target</span>
           <span className="flex items-center gap-1.5"><i className="h-3 w-3 rounded-[3px]" style={{ background: RED }} />{lower ? 'Below target' : 'Over target'}</span>
           {single
             ? <>
@@ -68,7 +69,7 @@ export function PeriodChart({ rows, lower, monthly, single = false }) {
             <XAxis dataKey="label" axisLine={false} tickLine={false} tick={tick} />
             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#78716c' }} tickFormatter={(v) => v.toLocaleString('en-US')} width={56} />
             <Bar dataKey="actual" barSize={30} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-              {rows.map((r) => <Cell key={r.label} fill={r.within === false ? RED : GREEN} />)}
+              {rows.map((r) => <Cell key={r.label} fill={r.band ? BAND[r.band].fill : GREEN} />)}
               <LabelList dataKey="actual" content={(p) => <BarLabel {...p} rows={rows} lower={lower} single={single} />} />
             </Bar>
             <Line type="monotone" dataKey="target" stroke={single ? INDIGO : RED} strokeWidth={2} strokeDasharray={single ? '2 5' : '6 4'} strokeLinecap="round" dot={single ? false : { r: 4, fill: '#fff', stroke: RED, strokeWidth: 2 }} activeDot={false} isAnimationActive={false} connectNulls={false} />
@@ -83,9 +84,9 @@ export function PeriodChart({ rows, lower, monthly, single = false }) {
 }
 
 function PeriodCard({ r, lower, unit }) {
-  const state = r.actual != null && r.target == null ? 'notarget' : r.within === true ? 'within' : r.within === false ? 'over' : r.awaiting || (r.is_current && r.actual == null) ? 'nodata' : r.upcoming ? 'upcoming' : 'nodata';
-  const style = { within: 'border-emerald-200 bg-emerald-50/60', over: 'border-red-200 bg-red-50', nodata: 'border-stone-200 bg-stone-50', notarget: 'border-stone-200 bg-white', upcoming: 'border-stone-200 bg-white opacity-70' }[state];
-  const pill = { within: [lower ? 'Met target' : 'Within target', 'text-emerald-800', 'bg-emerald-600'], over: [lower ? 'Below target' : 'Over target', 'text-red-700', 'bg-red-600'], nodata: ['No data', 'text-stone-500', 'bg-stone-400'], notarget: ['No target', 'text-stone-500', 'bg-stone-400'], upcoming: ['Upcoming', 'text-stone-400', 'bg-stone-300'] }[state];
+  const state = r.actual != null && r.target == null ? 'notarget' : r.band === 'at_risk' ? 'close' : r.within === true ? 'within' : r.within === false ? 'over' : r.awaiting || (r.is_current && r.actual == null) ? 'nodata' : r.upcoming ? 'upcoming' : 'nodata';
+  const style = { close: 'border-amber-200 bg-amber-50/70', within: 'border-emerald-200 bg-emerald-50/60', over: 'border-red-200 bg-red-50', nodata: 'border-stone-200 bg-stone-50', notarget: 'border-stone-200 bg-white', upcoming: 'border-stone-200 bg-white opacity-70' }[state];
+  const pill = { close: ['Close to target', 'text-amber-700', 'bg-amber-500'], within: [lower ? 'Met target' : 'Within target', 'text-emerald-800', 'bg-emerald-600'], over: [lower ? 'Below target' : 'Over target', 'text-red-700', 'bg-red-600'], nodata: ['No data', 'text-stone-500', 'bg-stone-400'], notarget: ['No target', 'text-stone-500', 'bg-stone-400'], upcoming: ['Upcoming', 'text-stone-400', 'bg-stone-300'] }[state];
   const note = r.actual != null && r.target != null
     ? `Target ${fmt(r.target, 0)} · ${fmt(Math.abs(r.diff), 0)} ${r.diff <= 0 ? (lower ? 'short' : 'under') : (lower ? 'above' : 'over')}`
     : r.target == null ? 'No target set' : r.awaiting ? (r.is_current ? "Waiting for this month's entry" : 'Waiting for entry') : `Target ${fmt(r.target, 0)}`;

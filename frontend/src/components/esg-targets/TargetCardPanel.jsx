@@ -1,11 +1,9 @@
 import React from 'react';
 import { enrichPeriods, periodTotals } from './PeriodicTargetBody';
-import { deviation, fmt } from './targetUtils';
+import { BAND, band, deviation, fmt } from './targetUtils';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const GOOD = '#2f7a56';
-const BAD = '#b4443c';
-const tone = (good) => (good ? 'text-emerald-700' : 'text-red-700');
+const tone = (b) => (b ? BAND[b].text : 'text-stone-400');
 
 function Strip({ rows }) {
   const max = Math.max(...rows.map((r) => r.actual || 0), 1);
@@ -15,7 +13,7 @@ function Strip({ rows }) {
       <div className="flex h-16 items-end gap-1.5">
         {rows.map((r) => (
           <div key={r.label} title={`${r.label}${r.actual != null ? `: ${fmt(r.actual, 2)}` : ''}`} className="flex-1 rounded-sm"
-            style={{ height: r.actual != null ? `${Math.max(8, (r.actual / max) * 100)}%` : '6px', background: r.actual == null ? '#e7e5e4' : r.within === false ? BAD : GOOD }} />
+            style={{ height: r.actual != null ? `${Math.max(8, (r.actual / max) * 100)}%` : '6px', background: r.actual == null || !r.band ? '#e7e5e4' : BAND[r.band].fill }} />
         ))}
       </div>
       <div className="relative mt-1.5 h-4 text-xs text-stone-500">
@@ -43,7 +41,7 @@ function PeriodicPanel({ chart }) {
       <div className="flex items-end gap-6 rounded-2xl bg-stone-50 p-5" data-testid="target-card-panel">
         <div className="shrink-0">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{label}</div>
-          <div className={`mt-1 text-3xl font-semibold tracking-tight ${dev ? tone(dev.good) : 'text-stone-400'}`} data-testid="target-card-main-value">{dev ? `${fmt(dev.pct, 1)}%` : '—'}</div>
+          <div className={`mt-1 text-3xl font-semibold tracking-tight ${tone(dev?.band)}`} data-testid="target-card-main-value">{dev ? `${fmt(dev.pct, 1)}%` : '—'}</div>
           <div className="text-sm text-stone-500">{dev ? dev.word : 'No data yet'}</div>
         </div>
         {rows.length > 0 && <Strip rows={rows} />}
@@ -63,7 +61,7 @@ function SinglePanel({ target, chart }) {
   const t = chart.target_value;
   const hasBase = target.baseline?.value != null && chart.baseline_value != null;
   const dev = deviation(c, t, lower);
-  const gap = c != null && !t ? { diff: Math.abs(c - (t || 0)), word: c > (t || 0) ? 'more than target' : 'less than target', good: lower ? c >= (t || 0) : c <= (t || 0) } : null;
+  const gap = c != null && !t ? { diff: Math.abs(c - (t || 0)), word: c > (t || 0) ? 'more than target' : 'less than target', band: band(c, t || 0, lower) } : null;
   const max = Math.max(c || 0, t || 0, 1);
   const pct = chart.progress_percentage;
   return (
@@ -82,11 +80,11 @@ function SinglePanel({ target, chart }) {
         {dev ? (
           <>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Progress</span>
-            <span><b className={tone(dev.good)}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
+            <span><b className={tone(dev.band)}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
             <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
           </>
         ) : gap ? (
-          <span data-testid="target-card-gap"><b className={tone(gap.good)}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
+          <span data-testid="target-card-gap"><b className={tone(gap.band)}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
         ) : <span className="text-stone-500">No data for the current period yet</span>}
         {hasBase && pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% from baseline</span>}
       </div>

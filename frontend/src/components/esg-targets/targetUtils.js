@@ -25,9 +25,23 @@ export const STATUS_PILL = {
   expired: { label: 'Expired', cls: 'border-stone-200 bg-stone-50 text-stone-600', dot: 'bg-stone-400' },
 };
 
+export function band(actual, goal, lower) {
+  if (actual == null || goal == null) return null;
+  if (!goal) return (lower ? actual >= goal : actual <= goal) ? 'on_track' : 'breached';
+  const ratio = actual / goal;
+  if (lower) return ratio > 1.1 ? 'on_track' : ratio >= 1 ? 'at_risk' : 'breached';
+  return ratio < 0.9 ? 'on_track' : ratio <= 1 ? 'at_risk' : 'breached';
+}
+
+export const BAND = {
+  on_track: { text: 'text-emerald-700', fill: '#2f7a56' },
+  at_risk: { text: 'text-amber-600', fill: '#d98a1d' },
+  breached: { text: 'text-red-700', fill: '#b4443c' },
+};
+
 export function deviation(actual, goal, lower) {
   if (actual == null || !goal) return null;
   const dev = ((actual - goal) / goal) * 100;
   const pct = Math.round(Math.abs(dev) * 10) / 10;
-  return { pct, word: pct === 0 ? 'on target' : dev < 0 ? 'below target' : 'above target', good: lower ? actual >= goal : actual <= goal };
+  return { pct, word: pct === 0 ? 'on target' : dev < 0 ? 'below target' : 'above target', band: band(actual, goal, lower) };
 }
