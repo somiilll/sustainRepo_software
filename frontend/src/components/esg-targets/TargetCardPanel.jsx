@@ -106,16 +106,17 @@ function SinglePanel({ target, chart }) {
   const over = bad && !lower && c > (t || 0);
   const tp = Math.min(100, ((t || 0) / max) * 100);
   const cp = Math.min(100, ((c || 0) / max) * 100);
-  const pct = chart.progress_percentage;
+  const un = chart.unit ? (chart.unit === '%' ? '%' : ` ${chart.unit}`) : '';
+  const withUnit = (v, d) => `${fmt(v, d)}${un}`;
   return (
     <>
       <div className="rounded-2xl bg-stone-50 p-5" data-testid="target-card-panel">
         <div className="flex flex-wrap items-baseline gap-x-3">
-          <span className="text-3xl font-semibold tracking-tight text-blue-800" data-testid="target-card-main-value">{c != null ? fmt(c, 2) : 'N/A'}</span>
-          <span className="text-sm text-stone-500">current, against a target of <b className={bad ? 'text-stone-900' : 'text-emerald-700'}>{fmt(t, 3)}</b></span>
+          <span className="text-3xl font-semibold tracking-tight text-blue-800" data-testid="target-card-main-value">{c != null ? withUnit(c, 2) : 'N/A'}</span>
+          <span className="text-sm text-stone-500">current, against a target of <b className={bad ? 'text-stone-900' : 'text-emerald-700'}>{withUnit(t, 3)}</b></span>
         </div>
         <div className="relative mt-3 h-4 text-xs font-medium text-blue-800" data-testid="target-card-current-label">
-          {c != null && <span className="absolute whitespace-nowrap" style={labelAt(cp)}>Current {fmt(c, 2)}</span>}
+          {c != null && <span className="absolute whitespace-nowrap" style={labelAt(cp)}>Current {withUnit(c, 2)}</span>}
         </div>
         <div className="relative mt-1 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
           {c != null && over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: overGradient(c, t || 0) }} data-testid="target-card-bar-over" />}
@@ -126,8 +127,8 @@ function SinglePanel({ target, chart }) {
         </div>
         <div className={`relative mt-2 text-xs text-stone-500 ${bp != null && Math.abs(bp - tp) < 24 ? 'h-9' : 'h-4'}`} data-testid="target-card-axis">
           {t > 0 && tp > 12 && (bp == null || bp > 12) && <span className="absolute left-0">0</span>}
-          {bp != null && <span className="absolute whitespace-nowrap font-medium text-stone-800" style={{ ...labelAt(bp), top: Math.abs(bp - tp) < 24 ? 18 : 0 }} data-testid="target-card-baseline-label">Baseline {fmt(bv, 3)}</span>}
-          <span className="absolute whitespace-nowrap" style={!t ? { left: 0 } : labelAt(tp)} data-testid="target-card-target-label">Target {fmt(t, 3)}</span>
+          {bp != null && <span className="absolute whitespace-nowrap font-medium text-stone-800" style={{ ...labelAt(bp), top: Math.abs(bp - tp) < 24 ? 18 : 0 }} data-testid="target-card-baseline-label">Baseline {withUnit(bv, 3)}</span>}
+          <span className="absolute whitespace-nowrap" style={!t ? { left: 0 } : labelAt(tp)} data-testid="target-card-target-label">Target {withUnit(t, 3)}</span>
         </div>
       </div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
@@ -138,13 +139,12 @@ function SinglePanel({ target, chart }) {
               ? <b className="text-2xl font-semibold text-emerald-700" data-testid="target-achieved">Target Achieved</b>
               : <>
                 <span><b className={`text-2xl font-semibold ${tone(dev.band)}`}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
-                <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
+                <span className="text-stone-500">({withUnit(Math.abs(c - t), 2)})</span>
               </>}
           </>
         ) : gap ? (
           <span data-testid="target-card-gap"><b className={`text-2xl font-semibold ${tone(gap.band)}`}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
         ) : <span className="text-stone-500">No data for the current period yet</span>}
-        {hasBase && pct != null && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-700">{fmt(pct, 0)}% from baseline</span>}
       </div>
     </>
   );
