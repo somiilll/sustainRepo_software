@@ -903,11 +903,6 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                               : formData.unit || 'unit'}
                         </div>
                       </div>
-                      {isShareTarget && (
-                        <p className="text-xs text-emerald-600 mt-1" data-testid="share-target-hint">
-                          Achieved when {formData.kpi_name} ÷ {shareOf} reaches this %.
-                        </p>
-                      )}
                     </>
                   )}
                 </div>
