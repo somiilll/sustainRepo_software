@@ -30,23 +30,40 @@ const TARGET_TYPES = [
   { value: 'intensity_production', label: 'Intensity by Production' },
 ];
 
-function TargetCard({ target, onEdit, onDelete, token }) {
-  const [progress, setProgress] = useState(null);
-  const [progressError, setProgressError] = useState(null);
-  const headers = { Authorization: `Bearer ${token}` };
+const healthOf = (progress) => {
+  const a = progress?.achievement_percentage;
+  if (a == null) return 'no_data';
+  return a >= 75 ? 'on_track' : a >= 40 ? 'at_risk' : 'off_track';
+};
 
-  const loadProgress = useCallback(async () => {
-    setProgressError(null);
-    try {
-      const response = await axios.get(`${API}/api/sbti-targets/progress/${target.id}`, { headers });
-      setProgress(response.data);
-    } catch (error) {
-      setProgressError(getUserFriendlyError(error, 'We could not load progress for this target.'));
-    }
-  }, [target.id, token]);
+const SUMMARY_CARDS = [
+  { key: 'all', dot: 'bg-stone-400', num: 'text-stone-900' },
+  { key: 'on_track', label: 'On track', dot: 'bg-emerald-600', num: 'text-emerald-800' },
+  { key: 'at_risk', label: 'At risk', dot: 'bg-amber-500', num: 'text-amber-700' },
+  { key: 'off_track', label: 'Off track', dot: 'bg-red-600', num: 'text-red-700' },
+];
 
-  useEffect(() => { loadProgress(); }, [loadProgress]);
+function SummaryCards({ termLabel, counts, selected, onSelect }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="sbti-summary-cards">
+      {SUMMARY_CARDS.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          onClick={() => onSelect(c.key)}
+          aria-pressed={selected === c.key}
+          className={`rounded-xl border p-4 text-left shadow-sm transition-colors ${selected === c.key ? 'border-emerald-600 bg-emerald-50/40 ring-1 ring-emerald-600/30' : 'border-stone-200 bg-white hover:border-stone-300'}`}
+          data-testid={`sbti-summary-${c.key}`}
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-stone-600"><span className={`h-2 w-2 rounded-full ${c.dot}`} />{c.label || `All ${termLabel} targets`}</div>
+          <div className={`mt-2 text-3xl font-semibold tracking-tight ${c.num}`} data-testid={`sbti-summary-${c.key}-count`}>{counts[c.key]}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
+function TargetCard({ target, progress, progressError, onRetry: loadProgress, onEdit, onDelete }) {
   const ach = progress?.achievement_percentage;
   const isIntensity = target.target_type !== 'percentage';
 
@@ -405,6 +422,20 @@ export default function SBTiTargetsPage() {
   const [formTermType, setFormTermType] = useState('short_term');
   const [editData, setEditData] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [term, setTerm] = useState('short_term');
+  const [filter, setFilter] = useState('all');
+  const [progressById, setProgressById] = useState({});
+  const [progressErrors, setProgressErrors] = useState({});
+
+  const loadProgress = useCallback(async (id) => {
+    setProgressErrors(e => ({ ...e, [id]: null }));
+    try {
+      const response = await axios.get(`${API}/api/sbti-targets/progress/${id}`, { headers });
+      setProgressById(p => ({ ...p, [id]: response.data }));
+    } catch (error) {
+      setProgressErrors(e => ({ ...e, [id]: getUserFriendlyError(error, 'We could not load progress for this target.') }));
+    }
+  }, [token]);
 
   const fetchTargets = useCallback(async () => {
     setLoading(true);
@@ -416,12 +447,13 @@ export default function SBTiTargetsPage() {
         short_term: all.filter(t => t.term_type === 'short_term'),
         long_term: all.filter(t => t.term_type === 'long_term'),
       });
+      all.forEach(t => loadProgress(t.id));
     } catch (error) {
       setLoadError(getUserFriendlyError(error, 'We could not load your SBTi targets.'));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, loadProgress]);
 
   useEffect(() => { fetchTargets(); }, [fetchTargets]);
 
@@ -432,9 +464,8 @@ export default function SBTiTargetsPage() {
         axios.get(`${API}/api/esg-targets/lookup/categories?section=environment`, { headers }),
         axios.get(`${API}/api/organizations/my`, { headers }),
       ]);
-      const hierarchy = kpiResponse.data?.hierarchy || {};
-      const flat = [];
-      Object.values(hierarchy).forEach(subcats => Object.values(subcats).forEach(kpiList => flat.push(...kpiList)));
+      const ghgSubcategories = kpiResponse.data?.hierarchy?.['GHG Emissions'] || {};
+      const flat = Object.values(ghgSubcategories).flat();
       setKpis(flat);
       setOrgRepType(organizationResponse.data?.reporting_year_type === 'calendar_year' ? 'CY' : 'FY');
     } catch (error) {
@@ -475,36 +506,39 @@ export default function SBTiTargetsPage() {
     }
   };
 
-  const renderSection = (title, termType, items) => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <TrendingDown className="w-5 h-5 text-emerald-600" />
-          <h2 className="text-xl font-heading font-bold text-text-primary">{title}</h2>
-          <Badge variant="outline" className="text-xs">{items.length} target{items.length !== 1 ? 's' : ''}</Badge>
-        </div>
-        {isAdmin && (
-          <Button
-            onClick={() => handleCreate(termType)}
-            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
-            data-testid={`sbti-add-${termType}-target-button`}
-          >
-            <Plus className="w-4 h-4" /> Add Target
-          </Button>
+  const TERMS = [
+    { key: 'short_term', tab: 'Short-term', label: 'short-term' },
+    { key: 'long_term', tab: 'Long-term', label: 'long-term' },
+  ];
+
+  const renderTerm = ({ key, label }) => {
+    const items = targets[key];
+    const health = (t) => healthOf(progressById[t.id]);
+    const counts = {
+      all: items.length,
+      on_track: items.filter(t => health(t) === 'on_track').length,
+      at_risk: items.filter(t => health(t) === 'at_risk').length,
+      off_track: items.filter(t => health(t) === 'off_track').length,
+    };
+    const visible = filter === 'all' ? items : items.filter(t => health(t) === filter);
+    return (
+      <div className="space-y-5" data-testid={`sbti-${key}-panel`}>
+        <SummaryCards termLabel={label} counts={counts} selected={filter} onSelect={setFilter} />
+        {visible.length === 0 ? (
+          <Card className="p-8 text-center text-text-muted">
+            <Target className="w-10 h-10 mx-auto mb-2 text-stone-300" />
+            <p>{items.length === 0 ? `No ${label} targets defined yet.` : 'No targets match this filter.'}</p>
+          </Card>
+        ) : (
+          <div className="grid gap-4">
+            {visible.map(t => (
+              <TargetCard key={t.id} target={t} progress={progressById[t.id]} progressError={progressErrors[t.id]} onRetry={() => loadProgress(t.id)} onEdit={handleEdit} onDelete={setDeleteTarget} />
+            ))}
+          </div>
         )}
       </div>
-      {items.length === 0 ? (
-        <Card className="p-8 text-center text-text-muted">
-          <Target className="w-10 h-10 mx-auto mb-2 text-stone-300" />
-          <p>No {title.toLowerCase()} defined yet.</p>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {items.map(t => <TargetCard key={t.id} target={t} onEdit={handleEdit} onDelete={setDeleteTarget} token={token} />)}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   if (loading) return <div className="flex items-center justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>;
 
@@ -521,8 +555,31 @@ export default function SBTiTargetsPage() {
     <div className="space-y-7" data-testid="sbti-targets-page">
       <ModulePageHeader title="SBTi Targets" icon={Target} iconClassName="border-orange-200 bg-orange-50 text-orange-700" testId="sbti-targets" />
 
-      {renderSection('Short-Term Targets', 'short_term', targets.short_term)}
-      {renderSection('Long-Term Targets', 'long_term', targets.long_term)}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl bg-stone-100 p-1.5" role="tablist" data-testid="sbti-term-tabs">
+          {TERMS.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={term === t.key}
+              onClick={() => { setTerm(t.key); setFilter('all'); }}
+              className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${term === t.key ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+              data-testid={`sbti-tab-${t.key}`}
+            >
+              {t.tab}
+              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600">{targets[t.key].length}</span>
+            </button>
+          ))}
+        </div>
+        {isAdmin && (
+          <Button onClick={() => handleCreate(term)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid={`sbti-add-${term}-target-button`}>
+            <Plus className="w-4 h-4" /> Add Target
+          </Button>
+        )}
+      </div>
+
+      {renderTerm(TERMS.find(t => t.key === term))}
 
       <TargetFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editData={editData} kpis={kpis} orgReportingType={orgRepType} setupError={formSetupError} onRetrySettings={loadFormSettings} />
 
