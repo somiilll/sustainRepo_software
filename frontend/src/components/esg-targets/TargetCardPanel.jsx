@@ -60,6 +60,8 @@ function PeriodicPanel({ chart }) {
   );
 }
 
+const labelAt = (pct) => (pct < 12 ? { left: `max(${pct}%, 14px)` } : pct > 88 ? { left: `${pct}%`, transform: 'translateX(-100%)' } : { left: `${pct}%`, transform: 'translateX(-50%)' });
+
 function SinglePanel({ target, chart }) {
   const lower = chart.goal_type === 'lower_limit';
   const c = chart.current_value;
@@ -82,7 +84,10 @@ function SinglePanel({ target, chart }) {
           <span className="text-3xl font-semibold tracking-tight text-blue-800" data-testid="target-card-main-value">{c != null ? fmt(c, 2) : 'N/A'}</span>
           <span className="text-sm text-stone-500">current, against a target of <b className={bad ? 'text-stone-900' : 'text-emerald-700'}>{fmt(t, 3)}</b></span>
         </div>
-        <div className="relative mt-4 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
+        <div className="relative mt-3 h-4 text-xs font-medium text-blue-800" data-testid="target-card-current-label">
+          {c != null && <span className="absolute whitespace-nowrap" style={labelAt(cp)}>Current {fmt(c, 2)}</span>}
+        </div>
+        <div className="relative mt-1 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
           {c != null && over && (
             <>
               <div className="absolute inset-y-0 left-0 rounded-l-full bg-white ring-1 ring-stone-300" style={{ width: `${tp}%` }} data-testid="target-card-bar-ok" />
@@ -92,20 +97,14 @@ function SinglePanel({ target, chart }) {
           {c != null && !over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: barGradient(c, t || 0, lower) }} />}
           <div className={`absolute -top-1 h-4 w-[3px] rounded ${bad ? 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2)]' : 'bg-emerald-700'}`} data-testid="target-card-tick" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
           {bp != null && <div className="absolute -top-1 h-4 w-[3px] rounded bg-stone-800" style={{ left: `${bp}%` }} data-testid="target-card-baseline-tick" />}
+          {c != null && <div className="absolute -top-1 h-4 w-[3px] rounded bg-blue-800" style={{ left: `${cp}%` }} data-testid="target-card-current-tick" />}
         </div>
-        <div className="relative mt-2 h-4 text-xs text-stone-500" data-testid="target-card-axis">
-          {t > 0 && <span className="absolute left-0">0</span>}
-          <span className="absolute whitespace-nowrap" style={!t ? { left: 0 } : tp < 12 ? { left: `max(${tp}%, 14px)` } : tp > 88 ? { left: `${tp}%`, transform: 'translateX(-100%)' } : { left: `${tp}%`, transform: 'translateX(-50%)' }} data-testid="target-card-target-label">Target {fmt(t, 3)}</span>
-          {c != null && c > (t || 0) && tp < 70 && <span className="absolute right-0 whitespace-nowrap">Current {fmt(c, 2)}</span>}
+        <div className={`relative mt-2 text-xs text-stone-500 ${bp != null && Math.abs(bp - tp) < 24 ? 'h-9' : 'h-4'}`} data-testid="target-card-axis">
+          {t > 0 && tp > 12 && (bp == null || bp > 12) && <span className="absolute left-0">0</span>}
+          {bp != null && <span className="absolute whitespace-nowrap font-medium text-stone-800" style={{ ...labelAt(bp), top: Math.abs(bp - tp) < 24 ? 18 : 0 }} data-testid="target-card-baseline-label">Baseline {fmt(bv, 3)}</span>}
+          <span className="absolute whitespace-nowrap" style={!t ? { left: 0 } : labelAt(tp)} data-testid="target-card-target-label">Target {fmt(t, 3)}</span>
         </div>
       </div>
-      {bv != null && (
-        <div className="flex flex-wrap items-baseline gap-x-2 text-sm text-stone-600" data-testid="target-card-baseline-line">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Baseline</span>
-          <b className="text-stone-900">{fmt(bv, 3)}</b>
-          {chart.baseline_period && <span className="text-stone-500">in {periodText(chart.baseline_period)}</span>}
-        </div>
-      )}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
         {dev ? (
           <>
