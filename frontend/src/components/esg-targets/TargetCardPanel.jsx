@@ -21,6 +21,13 @@ const colorAt = (ratio, stops) => {
   return stops[stops.length - 1][1];
 };
 
+// Over a limit: green up to the target, then yellow, then red the further past it
+function overGradient(c, t) {
+  const at = (t / c) * 100;
+  const step = (k) => Math.min(100, at + (100 - at) * k);
+  return `linear-gradient(to right, ${BAND.on_track.fill} 0%, ${BAND.on_track.fill} ${at}%, ${YELLOW} ${step(0.25)}%, ${BAND.breached.fill} ${step(0.6)}%, ${BAND.breached.fill} 100%)`;
+}
+
 // Colour follows the position relative to the target: red fades to yellow then green as it nears a minimum target; green warms to orange as it nears a limit.
 function barGradient(c, t, lower) {
   const G = BAND.on_track.fill;
@@ -111,12 +118,7 @@ function SinglePanel({ target, chart }) {
           {c != null && <span className="absolute whitespace-nowrap" style={labelAt(cp)}>Current {fmt(c, 2)}</span>}
         </div>
         <div className="relative mt-1 h-2 rounded-full bg-stone-200/80" data-testid="target-card-bar">
-          {c != null && over && (
-            <>
-              <div className="absolute inset-y-0 left-0 rounded-l-full bg-white ring-1 ring-stone-300" style={{ width: `${tp}%` }} data-testid="target-card-bar-ok" />
-              <div className="absolute inset-y-0 rounded-r-full" style={{ left: `${tp}%`, width: `${cp - tp}%`, background: `linear-gradient(to right, ${BAND.breached.mid}, ${BAND.breached.fill})` }} data-testid="target-card-bar-over" />
-            </>
-          )}
+          {c != null && over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: overGradient(c, t || 0) }} data-testid="target-card-bar-over" />}
           {c != null && !over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: barGradient(c, t || 0, lower) }} />}
           <div className={`absolute -top-1 h-4 w-[3px] rounded ${bad ? 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2)]' : 'bg-emerald-700'}`} data-testid="target-card-tick" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
           {bp != null && <div className="absolute -top-1 h-4 w-[3px] rounded bg-stone-800" style={{ left: `${bp}%` }} data-testid="target-card-baseline-tick" />}
@@ -132,8 +134,12 @@ function SinglePanel({ target, chart }) {
         {dev ? (
           <>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Progress</span>
-            <span><b className={`text-2xl font-semibold ${tone(dev.band)}`}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
-            <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
+            {dev.pct === 0
+              ? <b className="text-2xl font-semibold text-emerald-700" data-testid="target-achieved">Target Achieved</b>
+              : <>
+                <span><b className={`text-2xl font-semibold ${tone(dev.band)}`}>{fmt(dev.pct, 1)}%</b> <span className="text-stone-600">{dev.word}</span></span>
+                <span className="text-stone-500">({fmt(Math.abs(c - t), 2)} {chart.unit})</span>
+              </>}
           </>
         ) : gap ? (
           <span data-testid="target-card-gap"><b className={`text-2xl font-semibold ${tone(gap.band)}`}>{fmt(gap.diff, 2)}</b> <span className="text-stone-600">{gap.word}</span></span>
