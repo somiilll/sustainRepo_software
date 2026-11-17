@@ -34,6 +34,8 @@ class SBTiTargetCreate(BaseModel):
 
 
 class SBTiTargetUpdate(BaseModel):
+    kpi_id: Optional[str] = None
+    kpi_name: Optional[str] = None
     target_name: Optional[str] = None
     description: Optional[str] = None
     base_year: Optional[str] = None
