@@ -208,7 +208,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
         const barColorFor = (actual, expected) => (expected == null || actual == null ? '#a8a29e' : actual > expected ? '#dc2626' : actual >= expected * 0.9 ? '#f59e0b' : '#16a34a');
         const areaData = progress.chart_data.map((d, i) => {
           const pathway = baseVal != null && targetVal != null ? round2(baseVal + ((targetVal - baseVal) * i) / steps) : null;
-          return { ...d, target: targetVal, pathway, _base: targetVal, _gap: Math.max(d.projected - targetVal, 0) };
+          return { ...d, pathway, _base: pathway ?? targetVal, _gap: Math.max(d.projected - (pathway ?? targetVal), 0) };
         });
         const currentYearData = progress.chart_data.find(d => d.year === new Date().getFullYear());
         const actualVal = currentYearData?.actual;
@@ -231,7 +231,6 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   <Tooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
                     const proj = payload.find(p => p.dataKey === 'projected');
-                    const tgt = payload.find(p => p.dataKey === 'target');
                     const act = payload.find(p => p.dataKey === 'actual');
                     const path = payload.find(p => p.dataKey === 'pathway');
                     return (
@@ -240,7 +239,6 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                         {act && act.value != null && <p style={{ color: barColorFor(act.value, path?.value) }}>Actual emissions: {act.value}</p>}
                         {path && <p style={{ color: '#4f46e5' }}>Target for this year: {path.value}</p>}
                         {proj && <p style={{ color: '#f59e0b' }}>Projected (no reduction): {proj.value}</p>}
-                        {tgt && <p style={{ color: '#16a34a' }}>Final target value: {tgt.value}</p>}
                       </div>
                     );
                   }} />
@@ -252,15 +250,9 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   </Bar>
                   <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
                   <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway (base → target)" />
-                  <Line type="monotone" dataKey="target" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} name="Final target value" />
                 </ComposedChart>
               </ResponsiveContainer>
-              <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-stone-500" data-testid={`sbti-bar-legend-${target.id}`}>
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-green-600" />Within target</span>
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />Close to target (within 10%)</span>
-                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-600" />Above target</span>
-                <span>Shaded area = emissions to be reduced</span>
-              </div>
+              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced (between projected and target pathway)</p>
             </div>
 
             {actualVal != null && targetVal != null && (() => {
