@@ -66,6 +66,7 @@ function SummaryCards({ termLabel, counts, selected, onSelect }) {
 }
 
 function TargetCard({ target, progress, progressError, onRetry: loadProgress, onEdit, onDelete }) {
+  const [projection, setProjection] = useState('linear');
   const ach = progress?.achievement_percentage;
   const isIntensity = target.target_type !== 'percentage';
 
@@ -206,9 +207,16 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
         const baseVal = target.base_year_value;
         const steps = Math.max(progress.chart_data.length - 1, 1);
         const barColorFor = (actual, expected) => (expected == null || actual == null ? '#a8a29e' : actual > expected ? '#dc2626' : actual >= expected * 0.9 ? '#f59e0b' : '#16a34a');
-        const areaData = progress.chart_data.map((d, i) => {
+        const rows = progress.chart_data.map((d, i) => ({ ...d, actual: i === 0 && baseVal != null ? baseVal : d.actual }));
+        const thisYear = new Date().getFullYear();
+        const latest = [...rows].reverse().find(d => d.actual != null && d.year <= thisYear);
+        const growth = (target.growth_rate ?? 0) / 100;
+        const areaData = rows.map((d, i) => {
           const pathway = baseVal != null && targetVal != null ? round2(baseVal + ((targetVal - baseVal) * i) / steps) : null;
-          return { ...d, pathway, _base: pathway ?? targetVal, _gap: Math.max(d.projected - (pathway ?? targetVal), 0) };
+          const bau = projection === 'bau'
+            ? (latest && d.year >= latest.year ? round2(latest.actual * (1 + growth) ** (d.year - latest.year)) : null)
+            : d.projected;
+          return { ...d, projectedLine: bau, pathway, _base: pathway ?? targetVal, _gap: bau != null ? Math.max(bau - (pathway ?? targetVal), 0) : 0 };
         });
         const currentYearData = progress.chart_data.find(d => d.year === new Date().getFullYear());
         const actualVal = currentYearData?.actual;
@@ -216,7 +224,16 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
         return (
           <div className="mt-4 space-y-5">
             <div>
-              <p className="text-xs font-medium text-stone-600 mb-2">Emissions Reduction Pathway</p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium text-stone-600">Emissions Reduction Pathway</p>
+                <div className="inline-flex rounded-full bg-stone-100 p-1" role="group" data-testid={`sbti-projection-toggle-${target.id}`}>
+                  {[['linear', 'Linear'], ['bau', 'BAU']].map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => setProjection(k)} aria-pressed={projection === k}
+                      className={`rounded-full px-4 py-1 text-xs font-semibold transition-colors ${projection === k ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                      data-testid={`sbti-projection-${k}-${target.id}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={260}>
                 <ComposedChart data={areaData} margin={{ top: 5, right: 20, left: 10, bottom: 0 }}>
                   <defs>
@@ -230,7 +247,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   <YAxis tick={{ fontSize: 10 }} stroke="#78716c" />
                   <Tooltip content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null;
-                    const proj = payload.find(p => p.dataKey === 'projected');
+                    const proj = payload.find(p => p.dataKey === 'projectedLine');
                     const act = payload.find(p => p.dataKey === 'actual');
                     const path = payload.find(p => p.dataKey === 'pathway');
                     return (
@@ -238,7 +255,7 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                         <p className="font-medium text-stone-700 mb-1">{label}</p>
                         {act && act.value != null && <p style={{ color: barColorFor(act.value, path?.value) }}>Actual emissions: {act.value}</p>}
                         {path && <p style={{ color: '#4f46e5' }}>Target for this year: {path.value}</p>}
-                        {proj && <p style={{ color: '#f59e0b' }}>Projected (no reduction): {proj.value}</p>}
+                        {proj && proj.value != null && <p style={{ color: '#f59e0b' }}>{projection === 'bau' ? 'BAU (from latest actual)' : 'Projected (no reduction)'}: {proj.value}</p>}
                       </div>
                     );
                   }} />
@@ -248,11 +265,11 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]} legendType="none">
                     {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
                   </Bar>
-                  <Line type="monotone" dataKey="projected" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} name="Projected (no reduction)" />
+                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU (latest actual × (1+g)^years)' : 'Projected (no reduction)'} />
                   <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway (base → target)" />
                 </ComposedChart>
               </ResponsiveContainer>
-              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced (between projected and target pathway)</p>
+              <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced (between the projection and the target pathway)</p>
             </div>
 
             {actualVal != null && targetVal != null && (() => {
