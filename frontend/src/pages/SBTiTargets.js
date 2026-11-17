@@ -218,8 +218,6 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
             : d.projected;
           return { ...d, projectedLine: bau, pathway, _base: pathway ?? targetVal, _gap: bau != null ? Math.max(bau - (pathway ?? targetVal), 0) : 0 };
         });
-        const currentYearData = progress.chart_data.find(d => d.year === new Date().getFullYear());
-        const actualVal = currentYearData?.actual;
 
         return (
           <div className="mt-4 space-y-5">
@@ -265,37 +263,12 @@ function TargetCard({ target, progress, progressError, onRetry: loadProgress, on
                   <Bar dataKey="actual" name="Actual emissions" barSize={22} radius={[4, 4, 0, 0]} legendType="none">
                     {areaData.map((d) => <Cell key={d.year} fill={barColorFor(d.actual, d.pathway)} />)}
                   </Bar>
-                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU (latest actual × (1+g)^years)' : 'Projected (no reduction)'} />
-                  <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway (base → target)" />
+                  <Line type="monotone" dataKey="projectedLine" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3 }} connectNulls name={projection === 'bau' ? 'BAU' : 'Projected (no reduction)'} />
+                  <Line type="linear" dataKey="pathway" stroke="#4f46e5" strokeWidth={2.5} dot={{ r: 3 }} name="Target pathway" />
                 </ComposedChart>
               </ResponsiveContainer>
               <p className="text-[10px] text-stone-400 text-center mt-1">Shaded area = emissions to be reduced (between the projection and the target pathway)</p>
             </div>
-
-            {actualVal != null && targetVal != null && (() => {
-              const ratio = targetVal > 0 ? actualVal / targetVal : 0;
-              const barColor = ratio > 1 ? '#dc2626' : ratio > 0.85 ? '#f59e0b' : '#16a34a';
-              const barData = [
-                { name: 'Actual Emissions', value: actualVal, fill: barColor },
-                { name: 'Target Value', value: targetVal, fill: '#6366f1' },
-              ];
-              return (
-                <div>
-                  <p className="text-xs font-medium text-stone-600 mb-2">Current Year Performance</p>
-                  <ResponsiveContainer width="100%" height={100}>
-                    <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 20, left: 100, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" horizontal={false} />
-                      <XAxis type="number" tick={{ fontSize: 10 }} stroke="#78716c" />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} stroke="#78716c" width={95} />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4' }} />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22}>
-                        {barData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              );
-            })()}
           </div>
         );
       })()}
