@@ -5,9 +5,32 @@ import { BAND, band, deviation, fmt, periodText } from './targetUtils';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const tone = (b) => (b ? BAND[b].text : 'text-stone-400');
 
+const YELLOW = '#e3b73a';
+const mix = (a, b, k) => {
+  const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+  const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+  return `#${pa.map((x, i) => Math.round(x + (pb[i] - x) * k).toString(16).padStart(2, '0')).join('')}`;
+};
+const colorAt = (ratio, stops) => {
+  if (ratio <= stops[0][0]) return stops[0][1];
+  for (let i = 1; i < stops.length; i += 1) {
+    const [r1, c1] = stops[i - 1];
+    const [r2, c2] = stops[i];
+    if (ratio <= r2) return mix(c1, c2, (ratio - r1) / (r2 - r1));
+  }
+  return stops[stops.length - 1][1];
+};
+
+// Colour follows the position relative to the target: red fades to yellow then green as it nears a minimum target; green warms to orange as it nears a limit.
 function barGradient(c, t, lower) {
-  const b = BAND[band(c, t, lower) || 'on_track'];
-  return `linear-gradient(to right, ${b.soft}, ${b.fill})`;
+  const G = BAND.on_track.fill;
+  if (!(c > 0) || !(t > 0)) return G;
+  const stops = lower
+    ? [[0, BAND.breached.fill], [0.6, BAND.breached.fill], [0.9, YELLOW], [1, G]]
+    : [[0, G], [0.8, G], [0.9, YELLOW], [1, BAND.at_risk.fill]];
+  const pts = stops.filter(([r]) => r * t <= c).map(([r, col]) => `${col} ${(r * t / c) * 100}%`);
+  pts.push(`${colorAt(c / t, stops)} 100%`);
+  return `linear-gradient(to right, ${pts.join(', ')})`;
 }
 
 function Strip({ rows }) {
