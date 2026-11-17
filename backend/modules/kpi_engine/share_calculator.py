@@ -62,6 +62,12 @@ def share_denominator(metric_name: Optional[str]) -> Optional[str]:
     return None
 
 
+def share_label(metric_name: Optional[str]) -> Optional[str]:
+    """Display name of the Total KPI, or None if the KPI is not share-mapped."""
+    total = share_denominator(metric_name)
+    return "Total Energy Consumption" if total == "__energy_total__" else total
+
+
 async def _kpi_meta(kpi_id: str) -> Optional[Dict[str, Any]]:
     if kpi_id == ENERGY_RENEWABLE_KPI_ID:
         return {"metric_name": ENERGY_SHARE_NAMES[0]}

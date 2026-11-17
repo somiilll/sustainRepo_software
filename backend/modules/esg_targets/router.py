@@ -211,7 +211,7 @@ def _resolve_target_value(target: dict, period: dict) -> Optional[float]:
 
 def _resolve_effective_target_value(target: dict, period: dict) -> Optional[float]:
     """Resolve percentage targets from their explicit reduction fields."""
-    if target.get("target_type") != "percentage":
+    if target.get("target_type") != "percentage" or target.get("percentage_amount") is None:
         return _resolve_target_value(target, period)
 
     baseline = target.get("baseline") or {}
@@ -1056,6 +1056,7 @@ async def get_categories_for_targets(
     - Baseline values fetched from actual emission records
     """
     from shared.database.mongo import db
+    from modules.kpi_engine.share_calculator import share_label
     
     org_id = _get_org_id(current_user)  # Validate user has org
     from modules.entitlements.service import entitlement_access_map, resolve_entitlement_config
@@ -1097,7 +1098,8 @@ async def get_categories_for_targets(
             "unit": kpi.get("unit_config", {}).get("default_unit") if kpi.get("unit_config") else None,
             "output_type": kpi.get("output_type"),
             "aggregation_type": kpi.get("aggregation_type"),
-            "description": kpi.get("description")
+            "description": kpi.get("description"),
+            "share_of": share_label(kpi.get("metric_name")),
         })
     
     # Special handling for GHG Emissions in environment section
@@ -1123,6 +1125,7 @@ async def get_categories_for_targets(
                 if handle and (handle.get("visibility") or {}).get("target_enabled"):
                     kpis = build()
                     kpis[0]["metric_name"] = handle.get("target_label") or kpis[0]["metric_name"]
+                    kpis[0]["share_of"] = share_label(names[0]) if division == "Renewable Energy" else None
                     hierarchy["Energy"][division] = kpis
         else:
             hierarchy.pop("Energy", None)

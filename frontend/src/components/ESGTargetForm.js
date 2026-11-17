@@ -232,6 +232,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
     return kpiHierarchy[formData.category]?.[formData.subcategory] || [];
   }, [kpiHierarchy, formData.category, formData.subcategory]);
 
+  const shareOf = availableKPIs.find(k => k.kpi_id === formData.kpi_id)?.share_of || null;
+  const isShareTarget = formData.target_type === 'percentage' && !!shareOf;
+
   // Handle KPI selection
   const handleKPISelect = (kpiId) => {
     const kpi = availableKPIs.find(k => k.kpi_id === kpiId);
@@ -396,12 +399,16 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
           const hasValue = formData.baseline?.value !== '' && formData.baseline?.value != null;
           const hasYear = !!formData.baseline?.period;
           if (hasValue !== hasYear) return false;
-          if (formData.target_type === 'percentage' && !hasValue) return false;
+          if (formData.target_type === 'percentage' && !shareOf && !hasValue) return false;
           if (hasValue && parseFloat(formData.baseline.value) < 0) return false;
         }
         return true;
       case 3: // Tracking
         if (formData.tracking_mode === 'single_year') {
+          if (isShareTarget) {
+            const tv = parseFloat(formData.target_value);
+            return formData.target_year && formData.target_value !== '' && tv >= 0 && tv <= 100;
+          }
           if (formData.target_type === 'percentage') {
             return formData.target_year && formData.percentage_amount !== '';
           }
@@ -445,7 +452,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
 
     // Compute target_value for percentage type from baseline
     let computedTargetValue = formData.target_value ? parseFloat(formData.target_value) : null;
-    if (formData.target_type === 'percentage' && formData.baseline?.value && formData.percentage_amount) {
+    if (formData.target_type === 'percentage' && !isShareTarget && formData.baseline?.value && formData.percentage_amount) {
       const bv = parseFloat(formData.baseline.value);
       const pct = parseFloat(formData.percentage_amount);
       if (!isNaN(bv) && !isNaN(pct)) {
@@ -459,8 +466,9 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       ...formData,
       reporting_period: reportingPeriod,
       target_value: computedTargetValue,
-      percentage_direction: formData.target_type === 'percentage' ? formData.percentage_direction : null,
-      percentage_amount: formData.target_type === 'percentage' && formData.percentage_amount ? parseFloat(formData.percentage_amount) : null,
+      unit: isShareTarget ? '%' : formData.unit,
+      percentage_direction: formData.target_type === 'percentage' && !isShareTarget ? formData.percentage_direction : null,
+      percentage_amount: formData.target_type === 'percentage' && !isShareTarget && formData.percentage_amount ? parseFloat(formData.percentage_amount) : null,
       minimum_value: formData.minimum_value ? parseFloat(formData.minimum_value) : null,
       maximum_value: formData.maximum_value ? parseFloat(formData.maximum_value) : null,
       baseline: formData.baseline?.value ? {
@@ -751,7 +759,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
             <div className="pt-4 border-t" data-testid="baseline-section">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-sm font-medium">
-                  {formData.target_type === 'percentage' ? 'Baseline *' : 'Baseline (optional)'}
+                  {formData.target_type === 'percentage' && !shareOf ? 'Baseline *' : (isShareTarget ? 'Baseline % (optional)' : 'Baseline (optional)')}
                 </Label>
                 {baselineFromGHG && !(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') && (
                   <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
@@ -764,7 +772,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production')
                   ? 'Enter base year intensity value manually (e.g., 0.85 tCO₂e/tonne)'
                   : formData.tracking_mode === 'single_year' 
-                    ? (formData.target_type === 'percentage' ? 'Required for percentage targets. Comparison starts from the baseline year.' : 'Optional. If you add a baseline year, enter its value too; the comparison then starts from that year.')
+                    ? (isShareTarget ? `Optional. Enter the baseline year's % share (${shareOf} based). The comparison then starts from that year.` : formData.target_type === 'percentage' ? 'Required for percentage targets. Comparison starts from the baseline year.' : 'Optional. If you add a baseline year, enter its value too; the comparison then starts from that year.')
                     : 'Reference point for progress calculations'}
               </p>
               <div className="grid grid-cols-2 gap-4">
@@ -834,7 +842,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   </Select>
                 </div>
                 <div>
-                  {formData.target_type === 'percentage' ? (
+                  {formData.target_type === 'percentage' && !shareOf ? (
                     <>
                       <Label className="text-sm font-medium">Target % Change *</Label>
                       <div className="flex gap-2 mt-1">
@@ -873,27 +881,33 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                   ) : (
                     <>
                       <Label className="text-sm font-medium">
-                        {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') 
+                        {isShareTarget ? 'Target % *' : (formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') 
                           ? 'Target Intensity Value *' : 'Target Value *'}
                       </Label>
                       <div className="flex gap-2 mt-1">
                         <Input
                           type="number"
                           min="0"
+                          max={isShareTarget ? 100 : undefined}
                           value={formData.target_value}
                           onChange={(e) => updateField('target_value', e.target.value)}
-                          placeholder={formData.target_type === 'intensity_revenue' ? 'e.g., 0.45' : formData.target_type === 'intensity_production' ? 'e.g., 0.45' : 'Enter target value'}
+                          placeholder={isShareTarget ? 'e.g., 40' : formData.target_type === 'intensity_revenue' ? 'e.g., 0.45' : formData.target_type === 'intensity_production' ? 'e.g., 0.45' : 'Enter target value'}
                           className="flex-1"
                           data-testid="target-value-input"
                         />
                         <div className="px-3 py-2 bg-stone-100 rounded-md text-sm text-text-muted flex items-center whitespace-nowrap">
-                          {formData.target_type === 'intensity_revenue' 
+                          {isShareTarget ? '%' : formData.target_type === 'intensity_revenue' 
                             ? `${formData.unit || 'unit'}/Mn revenue`
                             : formData.target_type === 'intensity_production'
                               ? `${formData.unit || 'unit'}/production unit`
                               : formData.unit || 'unit'}
                         </div>
                       </div>
+                      {isShareTarget && (
+                        <p className="text-xs text-emerald-600 mt-1" data-testid="share-target-hint">
+                          Achieved when {formData.kpi_name} ÷ {shareOf} reaches this %.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
