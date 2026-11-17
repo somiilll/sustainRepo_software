@@ -725,12 +725,15 @@ async def _single_year_series(target: dict, org_id: str, facility_ids, reporting
         return []
     now = datetime.now(timezone.utc)
     shift = lambda d: d.year - 1 if reporting_type == "FY" and d.month < 4 else d.year  # noqa: E731
-    start, cur = min(shift(created), target_year), shift(now)
+    base = target.get("baseline") or {}
+    base_year = _extract_year_from_period(base.get("period") or "") if base.get("value") is not None else None
+    start, cur = min(base_year or shift(created), target_year), shift(now)
     actuals = {}
     for y in range(start, min(target_year, cur) + 1):
         total, has = await _year_actual(target, org_id, facility_ids, reporting_type, y)
         actuals[y] = total if has else None
-    first, span, rows = actuals.get(start), target_year - start, []
+    first = float(base["value"]) if base_year else actuals.get(start)
+    span, rows = target_year - start, []
     for y in range(start, target_year + 1):
         expected = goal if span == 0 else (first + (goal - first) * (y - start) / span if first is not None else None)
         a = actuals.get(y)

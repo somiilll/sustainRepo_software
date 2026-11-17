@@ -391,9 +391,13 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
         if (formData.goal_type === 'range') {
           if (!formData.baseline?.value) return false;
         }
-        // Baseline is mandatory for single year percentage targets only
-        if (formData.tracking_mode === 'single_year' && formData.target_type === 'percentage') {
-          if (!formData.baseline?.value || !formData.baseline?.period) return false;
+        // Baseline is optional (year and value go together), but percentage targets need it
+        if (formData.tracking_mode === 'single_year') {
+          const hasValue = formData.baseline?.value !== '' && formData.baseline?.value != null;
+          const hasYear = !!formData.baseline?.period;
+          if (hasValue !== hasYear) return false;
+          if (formData.target_type === 'percentage' && !hasValue) return false;
+          if (hasValue && parseFloat(formData.baseline.value) < 0) return false;
         }
         return true;
       case 3: // Tracking
@@ -459,7 +463,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
       percentage_amount: formData.target_type === 'percentage' && formData.percentage_amount ? parseFloat(formData.percentage_amount) : null,
       minimum_value: formData.minimum_value ? parseFloat(formData.minimum_value) : null,
       maximum_value: formData.maximum_value ? parseFloat(formData.maximum_value) : null,
-      baseline: formData.baseline?.value && (formData.tracking_mode !== 'single_year' || formData.target_type === 'percentage') ? {
+      baseline: formData.baseline?.value ? {
         period: formData.baseline.period,
         value: parseFloat(formData.baseline.value)
       } : null,
@@ -743,11 +747,11 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
               </div>
             )}
 
-            {formData.tracking_mode === 'single_year' && formData.target_type === 'percentage' && (
+            {formData.tracking_mode === 'single_year' && (
             <div className="pt-4 border-t" data-testid="baseline-section">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-sm font-medium">
-                  Baseline *
+                  {formData.target_type === 'percentage' ? 'Baseline *' : 'Baseline (optional)'}
                 </Label>
                 {baselineFromGHG && !(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production') && (
                   <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
@@ -760,12 +764,12 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                 {(formData.target_type === 'intensity_revenue' || formData.target_type === 'intensity_production')
                   ? 'Enter base year intensity value manually (e.g., 0.85 tCO₂e/tonne)'
                   : formData.tracking_mode === 'single_year' 
-                    ? 'Required reference point for single year target progress calculations'
+                    ? (formData.target_type === 'percentage' ? 'Required for percentage targets. Comparison starts from the baseline year.' : 'Optional. If you add a baseline year, enter its value too; the comparison then starts from that year.')
                     : 'Reference point for progress calculations'}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-text-muted">Baseline Period</Label>
+                  <Label className="text-xs text-text-muted">Baseline Year</Label>
                   <Select 
                     value={formData.baseline?.period || ''} 
                     onValueChange={(v) => {
@@ -774,7 +778,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                     }}
                   >
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select period" />
+                      <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
                       {generateReportingYears(orgReportingType === 'FY' ? 'financial_year' : 'calendar_year', 10).map(year => (
@@ -793,6 +797,7 @@ export default function ESGTargetForm({ section, initialData, onSubmit, onCancel
                       setBaselineFromGHG(false); // User modified, no longer from GHG
                     }}
                     placeholder="Baseline value"
+                    min="0"
                     className="mt-1"
                   />
                 </div>

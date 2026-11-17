@@ -1,6 +1,6 @@
 import React from 'react';
 import { enrichPeriods, periodTotals } from './PeriodicTargetBody';
-import { BAND, band, deviation, fmt } from './targetUtils';
+import { BAND, band, deviation, fmt, periodText } from './targetUtils';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const tone = (b) => (b ? BAND[b].text : 'text-stone-400');
@@ -67,7 +67,9 @@ function SinglePanel({ target, chart }) {
   const hasBase = target.baseline?.value != null && chart.baseline_value != null;
   const dev = deviation(c, t, lower);
   const gap = c != null && !t ? { diff: Math.abs(c - (t || 0)), word: c > (t || 0) ? 'more than target' : 'less than target', band: band(c, t || 0, lower) } : null;
-  const max = Math.max(c || 0, t || 0, 1);
+  const bv = hasBase ? chart.baseline_value : null;
+  const max = Math.max(c || 0, t || 0, bv || 0, 1);
+  const bp = bv != null ? Math.min(100, (bv / max) * 100) : null;
   const bad = c != null && band(c, t || 0, lower) === 'breached';
   const over = bad && !lower && c > (t || 0);
   const tp = Math.min(100, ((t || 0) / max) * 100);
@@ -89,6 +91,7 @@ function SinglePanel({ target, chart }) {
           )}
           {c != null && !over && <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${cp}%`, background: barGradient(c, t || 0, lower) }} />}
           <div className={`absolute -top-1 h-4 w-[3px] rounded ${bad ? 'bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.2)]' : 'bg-emerald-700'}`} data-testid="target-card-tick" style={{ left: `${Math.min(100, ((t || 0) / max) * 100)}%` }} />
+          {bp != null && <div className="absolute -top-1 h-4 w-[3px] rounded bg-stone-800" style={{ left: `${bp}%` }} data-testid="target-card-baseline-tick" />}
         </div>
         <div className="relative mt-2 h-4 text-xs text-stone-500" data-testid="target-card-axis">
           {t > 0 && <span className="absolute left-0">0</span>}
@@ -96,6 +99,13 @@ function SinglePanel({ target, chart }) {
           {c != null && c > (t || 0) && tp < 70 && <span className="absolute right-0 whitespace-nowrap">Current {fmt(c, 2)}</span>}
         </div>
       </div>
+      {bv != null && (
+        <div className="flex flex-wrap items-baseline gap-x-2 text-sm text-stone-600" data-testid="target-card-baseline-line">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Baseline</span>
+          <b className="text-stone-900">{fmt(bv, 3)}</b>
+          {chart.baseline_period && <span className="text-stone-500">in {periodText(chart.baseline_period)}</span>}
+        </div>
+      )}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-testid="target-card-progress">
         {dev ? (
           <>
