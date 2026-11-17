@@ -289,6 +289,15 @@ async def calculate_total_energy(
 
 
 
+def _record_in_month(rec: Dict[str, Any], period: Optional[Dict[str, Any]]) -> bool:
+    month = (period or {}).get("month")
+    rp = rec.get("reporting_period")
+    rec_month = rp.get("month") if isinstance(rp, dict) else None
+    if not month or rec_month in (None, ""):
+        return True
+    return int(rec_month) == int(month)
+
+
 async def _get_renewable_breakdown(
     org_id: str,
     facility_ids: Optional[List[str]],
@@ -362,6 +371,9 @@ async def _get_renewable_breakdown(
             nonren_raw = float(fv.get("non_renewable_energy_consumption") or 0)
         ren_gj = j_to_gj(ren_raw) if ren_raw else 0
         nonren_gj = j_to_gj(nonren_raw) if nonren_raw else 0
+        # Renewable electricity entered on its own field, in its own unit and month
+        if ren_gj == 0 and fv.get("renewable_electricity") and _record_in_month(rec, period):
+            ren_gj = to_gj(float(fv["renewable_electricity"]), fv.get("renewable_electricity_unit") or "J")
         # Fallback: legacy quantity field
         if ren_gj == 0 and nonren_gj == 0 and fv.get("quantity"):
             old_qty = float(fv.get("quantity") or 0)
