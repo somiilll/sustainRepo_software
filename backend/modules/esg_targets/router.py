@@ -226,6 +226,24 @@ def _resolve_effective_target_value(target: dict, period: dict) -> Optional[floa
     return baseline_value * multiplier
 
 
+async def _is_share_target(target: dict) -> bool:
+    """Percentage-type target on a KPI that is a share of a Total KPI (e.g. Renewable Energy / Total Energy)."""
+    from modules.kpi_engine.share_calculator import resolve_share
+    return target.get("target_type") == "percentage" and bool(target.get("kpi_id")) and await resolve_share(target["kpi_id"]) is not None
+
+
+async def _target_calc(target: dict, org_id: str, facility_ids, period: dict) -> dict:
+    """kpi_calculator.calculate for the target's KPI; returns the % share instead for share targets."""
+    from modules.kpi_engine import kpi_calculator
+    from modules.kpi_engine.share_calculator import calculate_share
+    kw = dict(org_id=org_id, scope_type=target.get("scope_type", "organization"), facility_ids=facility_ids, period=period)
+    if target.get("target_type") == "percentage":
+        share = await calculate_share(target["kpi_id"], **kw)
+        if share is not None:
+            return share
+    return await kpi_calculator.calculate(kpi_id=target["kpi_id"], **kw)
+
+
 def _calculate_progress(actual_value, target_value, goal_type, target) -> dict:
     """
     Calculate progress percentage.
@@ -428,7 +446,6 @@ async def list_targets_with_progress(
     - progress_percentage: (actual_value / target_value) * 100
     - calculation_metadata: Debug info from kpi_engine
     """
-    from modules.kpi_engine import kpi_calculator
     
     org_id = _get_org_id(current_user)
     
@@ -483,13 +500,9 @@ async def list_targets_with_progress(
             
             # Calculate actual value using kpi_engine
             try:
-                calculation = await kpi_calculator.calculate(
-                    kpi_id=kpi_id,
-                    org_id=org_id,
-                    scope_type=target.get("scope_type", "organization"),
-                    facility_ids=facility_ids,
-                    period=period,
-                )
+                calculation = await _target_calc(target, org_id, facility_ids, period)
+                if calculation.get("unit") == "%" and target.get("target_type") == "percentage":
+                    target_with_progress["unit"] = "%"
                 
                 actual_value = calculation.get("value")
                 target_value = _resolve_effective_target_value(target, period)
@@ -587,7 +600,6 @@ async def get_target_progress(
     - calculation_period: The period used for calculation
     - record_count: Number of records used in calculation
     """
-    from modules.kpi_engine import kpi_calculator
     
     org_id = _get_org_id(current_user)
     
@@ -615,13 +627,7 @@ async def get_target_progress(
         facility_ids = target.get("facility_ids")
     
     # Calculate actual value using kpi_engine
-    calculation = await kpi_calculator.calculate(
-        kpi_id=kpi_id,
-        org_id=org_id,
-        scope_type=target.get("scope_type", "organization"),
-        facility_ids=facility_ids,
-        period=period,
-    )
+    calculation = await _target_calc(target, org_id, facility_ids, period)
     
     actual_value = calculation.get("value")
     target_value = _resolve_effective_target_value(target, period)
@@ -693,13 +699,19 @@ async def _attach_charts(results: list, org_id: str) -> None:
 
 async def _year_actual(target: dict, org_id: str, facility_ids, reporting_type: str, yr: int):
     """(total, has_data) of the KPI over one reporting year (sum of its months), intensity-adjusted per month."""
-    from modules.kpi_engine import kpi_calculator
+    from modules.kpi_engine.share_calculator import calculate_share_parts, share_percentage
     months = [(yr, m) for m in range(4, 13)] + [(yr + 1, m) for m in range(1, 4)] if reporting_type == "FY" else [(yr, m) for m in range(1, 13)]
+    if await _is_share_target(target):
+        num, den = 0.0, 0.0
+        for m_yr, m_num in months:
+            parts = await calculate_share_parts(target["kpi_id"], org_id, target.get("scope_type", "organization"), facility_ids, {"year": m_yr, "month": m_num})
+            num, den = num + ((parts or {}).get("numerator") or 0), den + ((parts or {}).get("denominator") or 0)
+        pct = share_percentage(num, den)
+        return (pct, True) if pct is not None else (0.0, False)
     total, has = 0.0, False
     for m_yr, m_num in months:
         try:
-            calc = await kpi_calculator.calculate(kpi_id=target["kpi_id"], org_id=org_id, scope_type=target.get("scope_type", "organization"),
-                                                  facility_ids=facility_ids, period={"year": m_yr, "month": m_num})
+            calc = await _target_calc(target, org_id, facility_ids, {"year": m_yr, "month": m_num})
             val = calc.get("value")
             if val is not None and target.get("target_type") in ("intensity_revenue", "intensity_production"):
                 denom = await _get_denominator_for_intensity(target, org_id, {"year": m_yr, "month": m_num})
@@ -744,7 +756,6 @@ async def _single_year_series(target: dict, org_id: str, facility_ids, reporting
 
 
 async def _build_chart_data(target: dict, org_id: str) -> dict:
-    from modules.kpi_engine import kpi_calculator
 
     target_id = target.get("id")
     kpi_id = target.get("kpi_id")
@@ -758,7 +769,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
     target_value = target.get("target_value")
     baseline = target.get("baseline") or {}
     goal_type = target.get("goal_type", "upper_limit")
-    unit = target.get("unit", "")
+    unit = "%" if await _is_share_target(target) else target.get("unit", "")
 
     # Determine year from reporting_period
     target_year = _extract_year_from_period(reporting_period)
@@ -791,12 +802,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
 
             actual = None
             try:
-                calc = await kpi_calculator.calculate(
-                    kpi_id=kpi_id, org_id=org_id,
-                    scope_type=target.get("scope_type", "organization"),
-                    facility_ids=facility_ids,
-                    period={"year": yr, "month": m},
-                )
+                calc = await _target_calc(target, org_id, facility_ids, {"year": yr, "month": m})
                 actual = calc.get("value")
             except Exception:
                 pass
@@ -866,37 +872,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
             if not yr_num:
                 continue
 
-            # Fetch cumulative actual for this year (sum all months)
-            actual_total = 0
-            has_data = False
-
-            if reporting_type == "FY":
-                months_in_year = [(yr_num, m) for m in range(4, 13)] + [(yr_num + 1, m) for m in range(1, 4)]
-            else:
-                months_in_year = [(yr_num, m) for m in range(1, 13)]
-
-            for m_yr, m_num in months_in_year:
-                try:
-                    calc = await kpi_calculator.calculate(
-                        kpi_id=kpi_id, org_id=org_id,
-                        scope_type=target.get("scope_type", "organization"),
-                        facility_ids=facility_ids,
-                        period={"year": m_yr, "month": m_num},
-                    )
-                    val = calc.get("value")
-                    if val is not None:
-                        # Apply intensity division
-                        if target.get("target_type") in ("intensity_revenue", "intensity_production"):
-                            denom = await _get_denominator_for_intensity(target, org_id, {"year": m_yr, "month": m_num})
-                            if denom.get("value"):
-                                val = val / denom["value"]
-                            else:
-                                val = None
-                        if val is not None:
-                            actual_total += val
-                            has_data = True
-                except Exception:
-                    pass
+            actual_total, has_data = await _year_actual(target, org_id, facility_ids, reporting_type, yr_num)
 
             is_future = yr_num > now.year or (yr_num == now.year and now.month < 4 and reporting_type == "FY")
 
@@ -942,12 +918,7 @@ async def _build_chart_data(target: dict, org_id: str) -> dict:
         actual = None
         static_period = _get_period_for_target(target, await _get_org_reporting_type(org_id))
         try:
-            calc = await kpi_calculator.calculate(
-                kpi_id=kpi_id, org_id=org_id,
-                scope_type=target.get("scope_type", "organization"),
-                facility_ids=facility_ids,
-                period=static_period,
-            )
+            calc = await _target_calc(target, org_id, facility_ids, static_period)
             actual = calc.get("value")
         except Exception:
             pass
