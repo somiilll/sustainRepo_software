@@ -186,7 +186,12 @@ def build_scope_filter(
     Returns:
         MongoDB filter dict
     """
-    filters = {"org_id": org_id, "is_current": True}
+    filters = {
+        "org_id": org_id,
+        "is_current": True,
+        "status": {"$ne": "draft"},
+        "approval_status": {"$in": ["approved", "not_required", None]},
+    }
     
     if scope_type == "facility" and facility_ids:
         if len(facility_ids) == 1:
